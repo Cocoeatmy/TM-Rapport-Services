@@ -25,6 +25,7 @@ import { MontageChecklist, DEFAULT_CHECKLIST } from "@/components/checklist";
 import { ProjectChat } from "@/components/project-chat";
 import { GPSTracker } from "@/components/gps-tracker";
 import { PiecesForm } from "@/components/pieces-form";
+import { DefautForm } from "@/components/defaut-form";
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
 import { Star } from "lucide-react";
@@ -874,6 +875,9 @@ function ProjectPageContent({ id }: { id: string }) {
 
             {/* Pièce manquante */}
             <PiecesForm projectId={id} projectName={project.projet} />
+
+            {/* Signaler un défaut */}
+            <DefautForm projectId={id} projectName={project.projet} />
 
             {/* Checklist de montage */}
             <Card>
