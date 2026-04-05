@@ -74,9 +74,9 @@ export function UserMenu() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-12 z-50 w-56 glass-card rounded-xl p-2 shadow-xl">
-            <div className="px-3 py-2 border-b border-gray-100 mb-1">
-              <p className="text-sm font-medium text-gray-900">{user.name}</p>
-              <p className="text-xs text-gray-500">{user.email}</p>
+            <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 mb-1">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
               {user.role === "admin" && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded mt-1">
                   <Shield className="w-3 h-3" />
@@ -90,7 +90,7 @@ export function UserMenu() {
                   setOpen(false);
                   router.push("/admin");
                 }}
-                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 flex items-center gap-2 text-gray-700"
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
               >
                 <Shield className="w-4 h-4" />
                 Tableau de bord
@@ -102,7 +102,7 @@ export function UserMenu() {
                   setOpen(false);
                   router.push("/admin/utilisateurs");
                 }}
-                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 flex items-center gap-2 text-gray-700"
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
               >
                 <Users className="w-4 h-4" />
                 Gestion utilisateurs
