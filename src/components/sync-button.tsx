@@ -125,7 +125,7 @@ export function SyncButton() {
     <button
       onClick={handleSync}
       disabled={syncing}
-      className="relative shrink-0 glass-card flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/80 transition-all active:scale-95 text-sm"
+      className="relative shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/15 border border-white/20 hover:bg-white/25 transition-all active:scale-95 text-sm"
     >
       {syncing ? (
         <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
@@ -136,10 +136,10 @@ export function SyncButton() {
       )}
 
       <div className="text-left whitespace-nowrap">
-        <p className="text-xs font-medium text-gray-700">
+        <p className="text-xs font-medium text-white">
           {syncing ? "Sync..." : online ? "Sync" : "Hors ligne"}
         </p>
-        <p className="text-[10px] text-gray-400">{formatLastSync()}</p>
+        <p className="text-[10px] text-white/60">{formatLastSync()}</p>
       </div>
 
       {/* Badge file d'attente */}
