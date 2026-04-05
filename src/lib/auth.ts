@@ -1,7 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { readFileSync, writeFileSync } from "fs";
-import { join } from "path";
 
 export interface User {
   email: string;
@@ -15,9 +13,7 @@ export interface UserRecord {
   role: "admin" | "monteur";
 }
 
-const USERS_FILE = join(process.cwd(), "data", "users.json");
-
-const DEFAULT_USERS: Record<string, UserRecord> = {
+const USERS: Record<string, UserRecord> = {
   "tm.douche.montage.1@gmail.com": { name: "Claudio Zanutto", password: "1468", role: "monteur" },
   "tm.douche.montage.2@gmail.com": { name: "Jean-Marc Nelzi", password: "1468", role: "monteur" },
   "tm.douche.montage.3@gmail.com": { name: "Jacobo Fontan Cassas", password: "1468", role: "monteur" },
@@ -26,83 +22,42 @@ const DEFAULT_USERS: Record<string, UserRecord> = {
   "ferreira.micael@gmail.com": { name: "Micael Ferreira", password: "Cocoeatmy5151", role: "admin" },
 };
 
-function loadUsers(): Record<string, UserRecord> {
-  try {
-    const data = readFileSync(USERS_FILE, "utf-8");
-    const users = JSON.parse(data);
-    return Object.keys(users).length > 0 ? users : DEFAULT_USERS;
-  } catch {
-    return DEFAULT_USERS;
-  }
-}
-
-function saveUsers(users: Record<string, UserRecord>) {
-  try {
-    writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
-  } catch {
-    // Serverless: écriture impossible, ignorer silencieusement
-    console.warn("Cannot write users file (serverless environment)");
-  }
-}
-
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || "fallback-secret");
 
 export function authenticate(email: string, password: string): User | null {
-  let users: Record<string, UserRecord>;
-  try {
-    users = loadUsers();
-  } catch {
-    users = DEFAULT_USERS;
-  }
-  // Fallback: si loadUsers retourne vide, utiliser DEFAULT_USERS
-  if (!users || Object.keys(users).length === 0) {
-    users = DEFAULT_USERS;
-  }
   const key = email.toLowerCase().trim();
-  const user = users[key];
-  if (!user) return null;
-  if (user.password !== password) return null;
+  const user = USERS[key];
+  if (!user || user.password !== password) return null;
   return { email: key, name: user.name, role: user.role };
 }
 
 export function getAllUsers(): { email: string; name: string; role: string }[] {
-  const users = loadUsers();
-  return Object.entries(users).map(([email, u]) => ({
-    email,
-    name: u.name,
-    role: u.role,
+  return Object.entries(USERS).map(([email, u]) => ({
+    email, name: u.name, role: u.role,
   }));
 }
 
 export function updateUserPassword(email: string, newPassword: string): boolean {
-  const users = loadUsers();
-  if (!users[email]) return false;
-  users[email].password = newPassword;
-  saveUsers(users);
-  return true;
-}
-
-export function addUser(email: string, name: string, password: string, role: "admin" | "monteur"): boolean {
-  const users = loadUsers();
-  if (users[email.toLowerCase()]) return false;
-  users[email.toLowerCase()] = { name, password, role };
-  saveUsers(users);
+  if (!USERS[email]) return false;
+  USERS[email].password = newPassword;
   return true;
 }
 
 export function updateUserRole(email: string, role: "admin" | "monteur"): boolean {
-  const users = loadUsers();
-  if (!users[email]) return false;
-  users[email].role = role;
-  saveUsers(users);
+  if (!USERS[email]) return false;
+  USERS[email].role = role;
+  return true;
+}
+
+export function addUser(email: string, name: string, password: string, role: "admin" | "monteur"): boolean {
+  if (USERS[email.toLowerCase()]) return false;
+  USERS[email.toLowerCase()] = { name, password, role };
   return true;
 }
 
 export function deleteUser(email: string): boolean {
-  const users = loadUsers();
-  if (!users[email] || users[email].role === "admin") return false;
-  delete users[email];
-  saveUsers(users);
+  if (!USERS[email] || USERS[email].role === "admin") return false;
+  delete USERS[email];
   return true;
 }
 
