@@ -97,9 +97,9 @@ export function NotificationBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-12 z-50 w-72 glass-card rounded-xl shadow-xl overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
-              <span className="text-sm font-semibold">Notifications</span>
+          <div className="fixed left-2 right-2 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-72 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Notifications</span>
               {notifs.length > 0 && (
                 <button onClick={clearAll} className="text-[10px] text-gray-400 hover:text-red-500">
                   Tout effacer
