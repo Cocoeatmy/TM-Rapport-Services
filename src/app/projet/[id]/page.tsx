@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Clock,
   MapPin,
+  Navigation,
   Users,
   FileText,
   Send,
@@ -49,6 +50,75 @@ function formatDate(dateStr: string | null): string {
     month: "long",
     year: "numeric",
   });
+}
+
+function MapAddressLink({ address }: { address: string }) {
+  const [showPicker, setShowPicker] = useState(false);
+  const addr = encodeURIComponent(address);
+
+  const openApp = (app: "apple" | "google" | "waze") => {
+    setShowPicker(false);
+    switch (app) {
+      case "apple":
+        window.location.href = `maps://?q=${addr}`;
+        break;
+      case "google":
+        window.location.href = `comgooglemaps://?q=${addr}`;
+        setTimeout(() => {
+          window.open(`https://www.google.com/maps/search/?api=1&query=${addr}`, "_blank");
+        }, 500);
+        break;
+      case "waze":
+        window.location.href = `waze://?q=${addr}&navigate=yes`;
+        setTimeout(() => {
+          window.open(`https://waze.com/ul?q=${addr}&navigate=yes`, "_blank");
+        }, 500);
+        break;
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-2">
+      <MapPin className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+      <div className="relative">
+        <p className="text-xs text-gray-500">Adresse chantier</p>
+        <button
+          onClick={() => setShowPicker(!showPicker)}
+          className="text-sm font-medium text-blue-600 underline underline-offset-2 active:text-blue-800 text-left"
+        >
+          {address}
+        </button>
+        {showPicker && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowPicker(false)} />
+            <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-52">
+              <button
+                onClick={() => openApp("apple")}
+                className="w-full text-left text-sm px-3 py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-300"
+              >
+                <Navigation className="w-4 h-4 text-blue-500" />
+                Apple Plans
+              </button>
+              <button
+                onClick={() => openApp("google")}
+                className="w-full text-left text-sm px-3 py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-300"
+              >
+                <MapPin className="w-4 h-4 text-red-500" />
+                Google Maps
+              </button>
+              <button
+                onClick={() => openApp("waze")}
+                className="w-full text-left text-sm px-3 py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-300"
+              >
+                <Navigation className="w-4 h-4 text-cyan-500" />
+                Waze
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function InfoRow({
@@ -310,28 +380,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 </div>
               </div>
               {project.adresseChantier && (
-                <div className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Adresse chantier</p>
-                    <a
-                      href={`maps://?q=${encodeURIComponent(project.adresseChantier)}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        const addr = encodeURIComponent(project.adresseChantier);
-                        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-                        if (isIOS) {
-                          window.location.href = `maps://?q=${addr}`;
-                        } else {
-                          window.open(`https://www.google.com/maps/search/?api=1&query=${addr}`, '_blank');
-                        }
-                      }}
-                      className="text-sm font-medium text-blue-600 underline underline-offset-2 active:text-blue-800"
-                    >
-                      {project.adresseChantier}
-                    </a>
-                  </div>
-                </div>
+                <MapAddressLink address={project.adresseChantier} />
               )}
             </div>
             {project.contacts && (
