@@ -125,7 +125,7 @@ export function SyncButton() {
     <button
       onClick={handleSync}
       disabled={syncing}
-      className="relative h-9 glass-card flex items-center gap-1.5 px-2.5 rounded-full hover:bg-white/80 transition-all active:scale-95"
+      className="relative h-9 shrink-0 glass-card flex items-center gap-1.5 px-2.5 rounded-full hover:bg-white/80 transition-all active:scale-95"
     >
       {syncing ? (
         <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />

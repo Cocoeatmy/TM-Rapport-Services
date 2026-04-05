@@ -48,7 +48,7 @@ export function UserMenu() {
 
   if (!user) {
     return (
-      <div className="w-9 h-9 rounded-full bg-white/15 border border-white/20 flex items-center justify-center">
+      <div className="w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center">
         <User className="w-4 h-4 text-white/50" />
       </div>
     );
@@ -65,7 +65,7 @@ export function UserMenu() {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="w-9 h-9 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-xs font-bold text-white hover:bg-white/25 transition-colors"
+        className="w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-xs font-bold text-white hover:bg-white/25 transition-colors"
       >
         {initials}
       </button>
