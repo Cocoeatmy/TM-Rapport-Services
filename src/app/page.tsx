@@ -120,8 +120,11 @@ export default function Page() {
 function HomePage() {
   const searchParams = useSearchParams();
   const collaborateurParam = searchParams.get("collaborateur");
+  const modeParam = searchParams.get("mode");
   type Mode = "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine";
-  const [mode, setMode] = useState<Mode>("cmd");
+  const validModes: Mode[] = ["mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine"];
+  const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "cmd";
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);

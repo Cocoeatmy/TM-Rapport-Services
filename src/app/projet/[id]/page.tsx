@@ -255,7 +255,7 @@ function ProjectPageContent({ id }: { id: string }) {
       <div className="sticky top-[52px] z-40 glass-card border-b px-4 py-3" style={{ borderRadius: 0 }}>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push(`/?mode=${mode}`)}
             className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200"
           >
             <ArrowLeft className="w-5 h-5" />
