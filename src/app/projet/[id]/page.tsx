@@ -323,7 +323,7 @@ function ProjectPageContent({ id }: { id: string }) {
   return (
     <div className="max-w-lg mx-auto w-full pb-8">
       {/* Header */}
-      <div className="sticky top-[52px] z-40 glass-card border-b px-4 py-3" style={{ borderRadius: 0 }}>
+      <div className="sticky top-[60px] z-40 glass-card border-b px-4 py-3" style={{ borderRadius: 0 }}>
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push(`/?mode=${mode}`)}
