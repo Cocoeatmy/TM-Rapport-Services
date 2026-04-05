@@ -135,7 +135,7 @@ export function SyncButton() {
         <CloudOff className="w-4 h-4 text-orange-500" />
       )}
 
-      <div className="text-left">
+      <div className="text-left whitespace-nowrap">
         <p className="text-xs font-medium text-gray-700">
           {syncing ? "Sync..." : online ? "Sync" : "Hors ligne"}
         </p>
