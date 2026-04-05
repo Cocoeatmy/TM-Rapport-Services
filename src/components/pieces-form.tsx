@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Package, Camera, Loader2, Send, AlertTriangle } from "lucide-react";
+import { useState, useRef } from "react";
+import { Package, Camera, Loader2, Send, AlertTriangle, X, ImageIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -16,21 +16,53 @@ export function PiecesForm({ projectId, projectName }: PiecesFormProps) {
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [reference, setReference] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhoto(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const removePhoto = () => {
+    setPhoto(null);
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const handleSubmit = async () => {
     if (!description.trim()) return;
     setSending(true);
     try {
+      let photoUrl = "";
+
+      if (photo) {
+        const formData = new FormData();
+        formData.append("files", photo);
+        formData.append("projectId", projectId);
+        formData.append("category", "pieces");
+        const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          photoUrl = uploadData.files?.[0]?.url || "";
+        }
+      }
+
       const res = await fetch("/api/pieces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, projectName, description, reference }),
+        body: JSON.stringify({ projectId, projectName, description, reference, photoUrl }),
       });
       if (res.ok) {
         toast.success("Demande de pièce envoyée");
         setDescription("");
         setReference("");
+        removePhoto();
         setOpen(false);
       } else {
         toast.error("Erreur lors de l'envoi");
@@ -79,6 +111,39 @@ export function PiecesForm({ projectId, projectName }: PiecesFormProps) {
           className="mt-1 h-9"
         />
       </div>
+
+      {/* Photo éclaté produit */}
+      <div>
+        <Label className="text-xs">Photo de l&apos;éclaté / pièce</Label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handlePhotoChange}
+          className="hidden"
+        />
+        {photoPreview ? (
+          <div className="relative mt-1 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+            <img src={photoPreview} alt="Aperçu pièce" className="w-full max-h-48 object-contain bg-gray-50 dark:bg-gray-900" />
+            <button
+              onClick={removePhoto}
+              className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-1 w-full flex items-center justify-center gap-2 py-4 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400 hover:border-orange-400 hover:text-orange-500 active:bg-orange-50 transition-colors"
+          >
+            <Camera className="w-5 h-5" />
+            Prendre une photo
+          </button>
+        )}
+      </div>
+
       <div className="flex gap-2">
         <button
           onClick={handleSubmit}
@@ -89,7 +154,7 @@ export function PiecesForm({ projectId, projectName }: PiecesFormProps) {
           Envoyer
         </button>
         <button
-          onClick={() => { setOpen(false); setDescription(""); setReference(""); }}
+          onClick={() => { setOpen(false); setDescription(""); setReference(""); removePhoto(); }}
           className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-600"
         >
           Annuler
