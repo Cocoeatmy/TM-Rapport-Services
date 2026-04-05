@@ -63,18 +63,38 @@ export function SyncButton() {
   const handleSync = useCallback(async () => {
     setSyncing(true);
     try {
-      // 1. Télécharger et cacher les projets
-      const [cmdRes, mesRes] = await Promise.all([
-        fetch("/api/projects"),
-        fetch("/api/projects/mesures"),
-      ]);
-      const [cmd, mes] = await Promise.all([cmdRes.json(), mesRes.json()]);
+      // 1. Télécharger et cacher TOUS les onglets en parallèle
+      const endpoints = [
+        { key: "cmd", url: "/api/projects" },
+        { key: "mesures", url: "/api/projects/mesures" },
+        { key: "services", url: "/api/projects/services" },
+        { key: "sav", url: "/api/projects/sav" },
+        { key: "cmd-termine", url: "/api/projects/cmd-termine" },
+        { key: "mesures-termine", url: "/api/projects/mesures-termine" },
+        { key: "services-termine", url: "/api/projects/services-termine" },
+        { key: "sav-termine", url: "/api/projects/sav-termine" },
+      ];
 
-      if (Array.isArray(cmd)) saveToCache("projects-cmd", cmd);
-      if (Array.isArray(mes)) saveToCache("projects-mesures", mes);
+      const results = await Promise.all(
+        endpoints.map(({ key, url }) =>
+          fetch(url).then((r) => r.json()).then((data) => ({ key, data })).catch(() => ({ key, data: null }))
+        )
+      );
+
+      const cacheData: Record<string, any> = {};
+      const allProjects: any[] = [];
+      results.forEach(({ key, data }) => {
+        if (Array.isArray(data)) {
+          cacheData[key] = data;
+          saveToCache(`projects-${key}`, data);
+          allProjects.push(...data);
+        }
+      });
+
+      // Sauvegarder le cache combiné pour la page d'accueil
+      try { localStorage.setItem("tm-projects-cache", JSON.stringify(cacheData)); } catch {}
 
       // 2. Cacher chaque projet individuellement
-      const allProjects = [...(Array.isArray(cmd) ? cmd : []), ...(Array.isArray(mes) ? mes : [])];
       const uniqueIds = [...new Set(allProjects.map((p: any) => p.id))];
 
       let cached = 0;

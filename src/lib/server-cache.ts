@@ -1,6 +1,6 @@
-// Cache mémoire côté serveur avec TTL de 60 secondes
+// Cache mémoire côté serveur avec TTL de 5 minutes
 const cache = new Map<string, { data: any; expires: number }>();
-const TTL = 60 * 1000; // 60 secondes
+const TTL = 5 * 60 * 1000; // 5 minutes
 
 export function getCached<T>(key: string): T | null {
   const entry = cache.get(key);

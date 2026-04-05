@@ -168,44 +168,25 @@ function HomePage() {
       if (d.user) setCurrentUser(d.user);
     }).catch(() => {});
 
-    // 2. Fetch API en arrière-plan
-    Promise.all([
-      fetch("/api/projects").then((r) => r.json()),
-      fetch("/api/projects/mesures").then((r) => r.json()),
-    ]).then(([cmd, mesures]) => {
+    // 2. Pré-charger TOUS les onglets en arrière-plan
+    const allModes = Object.entries(MODE_API) as [Mode, string][];
+    Promise.all(
+      allModes.map(([key, url]) =>
+        fetch(url).then((r) => r.json()).then((data) => ({ key, data })).catch(() => ({ key, data: null }))
+      )
+    ).then((results) => {
       const newData: Record<string, any> = {};
-      if (Array.isArray(cmd)) newData.cmd = cmd;
-      if (Array.isArray(mesures)) newData.mesures = mesures;
+      results.forEach(({ key, data }) => {
+        if (Array.isArray(data)) newData[key] = data;
+      });
       setProjectsData((prev) => {
         const merged = { ...prev, ...newData };
-        // Sauvegarder en cache pour le prochain chargement
         try { localStorage.setItem("tm-projects-cache", JSON.stringify(merged)); } catch {}
         return merged;
       });
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
-
-  // Charger les données d'un mode non-caché quand on switch
-  useEffect(() => {
-    if (projectsData[mode]) return;
-    setLoading(true);
-    fetch(MODE_API[mode])
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setProjectsData((prev) => {
-            const merged = { ...prev, [mode]: data };
-            try { localStorage.setItem("tm-projects-cache", JSON.stringify(merged)); } catch {}
-            return merged;
-          });
-        } else {
-          setError(data.error || "Erreur inconnue");
-        }
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [mode]);
 
   const projects = projectsData[mode] || [];
   const isTermineMode = mode.endsWith("-termine");
