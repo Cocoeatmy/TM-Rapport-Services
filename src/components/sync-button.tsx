@@ -125,22 +125,19 @@ export function SyncButton() {
     <button
       onClick={handleSync}
       disabled={syncing}
-      className="relative glass-card flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/80 transition-all active:scale-95 text-sm"
+      className="relative h-9 glass-card flex items-center gap-1.5 px-2.5 rounded-full hover:bg-white/80 transition-all active:scale-95"
     >
       {syncing ? (
-        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+        <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />
       ) : online ? (
-        <Cloud className="w-4 h-4 text-green-500" />
+        <Cloud className="w-4 h-4 text-green-500 shrink-0" />
       ) : (
-        <CloudOff className="w-4 h-4 text-orange-500" />
+        <CloudOff className="w-4 h-4 text-orange-500 shrink-0" />
       )}
 
-      <div className="text-left">
-        <p className="text-xs font-medium text-gray-700">
-          {syncing ? "Sync..." : online ? "Sync" : "Hors ligne"}
-        </p>
-        <p className="text-[10px] text-gray-400">{formatLastSync()}</p>
-      </div>
+      <span className="text-[10px] text-gray-500 whitespace-nowrap leading-tight">
+        {syncing ? "Sync..." : formatLastSync()}
+      </span>
 
       {/* Badge file d'attente */}
       {queueCount > 0 && (
@@ -150,9 +147,7 @@ export function SyncButton() {
       )}
 
       {/* Indicateur réseau mobile */}
-      <div className="sm:hidden">
-        {!online && <WifiOff className="w-3 h-3 text-orange-500 absolute -bottom-0.5 -right-0.5" />}
-      </div>
+      {!online && <WifiOff className="w-3 h-3 text-orange-500 absolute -bottom-0.5 -right-0.5" />}
     </button>
   );
 }
