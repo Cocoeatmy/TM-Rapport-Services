@@ -566,7 +566,7 @@ function ProjectPageContent({ id }: { id: string }) {
                             <select
                               value={entry.collaborateur}
                               onChange={(e) => updatePointage(idx, "collaborateur", e.target.value)}
-                              className="mt-0.5 h-10 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                              className="mt-0.5 h-10 w-full rounded-md border border-gray-200 bg-white px-2 text-sm truncate"
                             >
                               <option value="">Sélectionner...</option>
                               {COLLABORATEURS_LIST.map((c) => (
@@ -574,6 +574,8 @@ function ProjectPageContent({ id }: { id: string }) {
                               ))}
                             </select>
                           </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
                           <div>
                             <Label className="text-xs">Arrivée</Label>
                             <Input
