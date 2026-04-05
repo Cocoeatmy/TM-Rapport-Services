@@ -30,7 +30,11 @@ function loadMessages(projectId: string): ChatMessage[] {
 }
 
 function saveMessages(projectId: string, messages: ChatMessage[]) {
-  writeFileSync(getChatFile(projectId), JSON.stringify(messages, null, 2));
+  try {
+    writeFileSync(getChatFile(projectId), JSON.stringify(messages, null, 2));
+  } catch {
+    console.warn("Cannot write chat file (serverless)");
+  }
 }
 
 export async function GET(request: NextRequest) {

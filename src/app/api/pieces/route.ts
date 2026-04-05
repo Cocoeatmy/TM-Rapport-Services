@@ -23,8 +23,12 @@ function loadPieces(): PieceRequest[] {
   try { return JSON.parse(readFileSync(PIECES_FILE, "utf-8")); } catch { return []; }
 }
 function savePieces(pieces: PieceRequest[]) {
-  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-  writeFileSync(PIECES_FILE, JSON.stringify(pieces, null, 2));
+  try {
+    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+    writeFileSync(PIECES_FILE, JSON.stringify(pieces, null, 2));
+  } catch {
+    console.warn("Cannot write pieces file (serverless)");
+  }
 }
 
 export async function GET(request: NextRequest) {

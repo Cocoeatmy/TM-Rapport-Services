@@ -17,17 +17,32 @@ export interface UserRecord {
 
 const USERS_FILE = join(process.cwd(), "data", "users.json");
 
+const DEFAULT_USERS: Record<string, UserRecord> = {
+  "tm.douche.montage.1@gmail.com": { name: "Claudio Zanutto", password: "1468", role: "monteur" },
+  "tm.douche.montage.2@gmail.com": { name: "Jean-Marc Nelzi", password: "1468", role: "monteur" },
+  "tm.douche.montage.3@gmail.com": { name: "Jacobo Fontan Cassas", password: "1468", role: "monteur" },
+  "tm.douche.montage.4@gmail.com": { name: "Miguel Roberto", password: "1468", role: "monteur" },
+  "tm.douche.montage.5@gmail.com": { name: "Loïc Schiro", password: "1468", role: "monteur" },
+  "ferreira.micael@gmail.com": { name: "Micael Ferreira", password: "Cocoeatmy5151", role: "admin" },
+};
+
 function loadUsers(): Record<string, UserRecord> {
   try {
     const data = readFileSync(USERS_FILE, "utf-8");
-    return JSON.parse(data);
+    const users = JSON.parse(data);
+    return Object.keys(users).length > 0 ? users : DEFAULT_USERS;
   } catch {
-    return {};
+    return DEFAULT_USERS;
   }
 }
 
 function saveUsers(users: Record<string, UserRecord>) {
-  writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+  try {
+    writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+  } catch {
+    // Serverless: écriture impossible, ignorer silencieusement
+    console.warn("Cannot write users file (serverless environment)");
+  }
 }
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || "fallback-secret");
