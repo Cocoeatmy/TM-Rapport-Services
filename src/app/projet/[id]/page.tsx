@@ -192,8 +192,14 @@ function ProjectPageContent({ id }: { id: string }) {
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [signature, setSignature] = useState("");
   const [fav, setFav] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(60);
 
   useEffect(() => { setFav(isFavorite(id)); }, [id]);
+
+  useEffect(() => {
+    const header = document.getElementById("main-header");
+    if (header) setHeaderHeight(header.offsetHeight);
+  }, []);
 
   interface PointageEntry {
     date: string;
@@ -323,7 +329,7 @@ function ProjectPageContent({ id }: { id: string }) {
   return (
     <div className="max-w-lg mx-auto w-full pb-8">
       {/* Header */}
-      <div className="sticky top-[60px] z-40 glass-card border-b px-4 py-3" style={{ borderRadius: 0 }}>
+      <div className="sticky z-40 glass-card border-b px-4 py-3" style={{ borderRadius: 0, top: headerHeight }}>
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push(`/?mode=${mode}`)}

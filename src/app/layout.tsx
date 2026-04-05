@@ -46,7 +46,7 @@ export default function RootLayout({
         <link rel="apple-touch-startup-image" href="/icons/icon-512.png" />
       </head>
       <body className="min-h-full flex flex-col lg-bg">
-        <header className="sticky top-0 z-50 glass-header text-white">
+        <header id="main-header" className="sticky top-0 z-50 glass-header text-white">
           <div className="flex items-center justify-between px-4 py-3">
             <a href="/" className="flex items-center gap-2.5">
               <img src="/icons/logo-app.png?v=4" alt="TM" className="w-9 h-9 rounded-xl shadow-lg" />
