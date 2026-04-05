@@ -137,7 +137,7 @@ function InfoRow({
       <Icon className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
       <div>
         <p className="text-xs text-gray-500">{label}</p>
-        <p className="text-sm font-medium text-gray-900">{String(value)}</p>
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{String(value)}</p>
       </div>
     </div>
   );
@@ -338,7 +338,7 @@ function ProjectPageContent({ id }: { id: string }) {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="font-semibold text-gray-900 truncate">
+            <h1 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
               {project.projet}
             </h1>
             {project.ofrTM && (
@@ -383,7 +383,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-xs text-gray-500">Nom projet</p>
-                  <p className="text-sm font-medium text-gray-900">{project.nomChantier || "---"}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.nomChantier || "---"}</p>
                 </div>
               </div>
               {project.adresseChantier && (
@@ -404,14 +404,14 @@ function ProjectPageContent({ id }: { id: string }) {
                 <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-xs text-gray-500">Emplacement cabine</p>
-                  <p className="text-sm font-medium text-gray-900">{project.emplacementCabine || "---"}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.emplacementCabine || "---"}</p>
                 </div>
               </div>
               <div className="flex items-start gap-2">
                 <Box className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-xs text-gray-500">Nb. Cabines</p>
-                  <p className="text-sm font-medium text-gray-900">{project.nbCabines ?? "---"}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.nbCabines ?? "---"}</p>
                 </div>
               </div>
             </div>
@@ -460,7 +460,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   <div className="flex flex-wrap gap-1.5 mt-1">
                     {(() => {
                       const collab = mode === "mesures" ? project.mesuresTraiteePar : project.collaborateurs;
-                      if (!collab) return <p className="text-sm font-medium text-gray-900">---</p>;
+                      if (!collab) return <p className="text-sm font-medium text-gray-900 dark:text-gray-100">---</p>;
                       return collab.split(" & ").map((name) => (
                         <a
                           key={name}
@@ -486,7 +486,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-xs text-gray-500">{mode === "mesures" ? "Date de mesures" : "Date de montage"}</p>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                     {formatDate(mode === "mesures" ? project.dateMesures : project.dateMontage)}
                   </p>
                 </div>
