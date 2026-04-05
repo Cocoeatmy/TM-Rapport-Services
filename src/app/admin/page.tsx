@@ -1,0 +1,681 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Users,
+  Box,
+  Clock,
+  BarChart3,
+  Loader2,
+  Shield,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+  ExternalLink,
+  Mail,
+  Database,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ExportExcel } from "@/components/export-excel";
+import { WidgetSettings } from "@/components/widget-settings";
+import { getWidgetConfig, isWidgetVisible } from "@/lib/dashboard-config";
+import type { WidgetConfig } from "@/lib/dashboard-config";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getCollaboratorColor } from "@/lib/collaborators";
+import type { Project } from "@/lib/notion";
+
+export default function AdminPage() {
+  const router = useRouter();
+  const [projectsEnCours, setProjectsEnCours] = useState<Project[]>([]);
+  const [projectsTermines, setProjectsTermines] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminTab, setAdminTab] = useState<"en-cours" | "termines">("en-cours");
+  const [widgets, setWidgets] = useState<WidgetConfig[]>([]);
+
+  useEffect(() => {
+    setWidgets(getWidgetConfig());
+  }, []);
+
+  useEffect(() => {
+    // Vérifier le rôle
+    fetch("/api/auth")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.user?.role !== "admin") {
+          router.push("/");
+          return;
+        }
+        setIsAdmin(true);
+      });
+
+    // Charger les projets en cours + terminés
+    Promise.all([
+      fetch("/api/projects").then((r) => r.json()),
+      fetch("/api/projects/cmd-termine").then((r) => r.json()),
+    ]).then(([enCours, termines]) => {
+      if (Array.isArray(enCours)) setProjectsEnCours(enCours);
+      if (Array.isArray(termines)) setProjectsTermines(termines);
+    }).finally(() => setLoading(false));
+  }, [router]);
+
+  // State pour les sections dépliées
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+
+  const toggleExpand = (key: string) => {
+    setExpanded(expanded === key ? null : key);
+  };
+
+  if (!isAdmin || loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  const projects = adminTab === "en-cours" ? projectsEnCours : projectsTermines;
+
+  // Extraire les mois disponibles depuis les dates de montage
+  const availableMonths = Array.from(
+    new Set(
+      projects
+        .map((p) => p.dateMontage?.slice(0, 7))
+        .filter(Boolean)
+    )
+  ).sort().reverse() as string[];
+
+  // Filtrer les projets par mois
+  const filteredProjects = selectedMonth === "all"
+    ? projects
+    : projects.filter((p) => p.dateMontage?.startsWith(selectedMonth));
+
+  const monthLabel = (m: string) => {
+    const [y, mo] = m.split("-");
+    const months = ["Janv.", "Fév.", "Mars", "Avril", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];
+    return `${months[parseInt(mo) - 1]} ${y}`;
+  };
+
+  // Stats par équipe (valeur exacte du champ Notion)
+  const equipeMap: Record<string, { projets: number; cabines: number }> = {};
+  filteredProjects.forEach((p) => {
+    const equipe = p.collaborateurs || "Non assigné";
+    if (!equipeMap[equipe]) equipeMap[equipe] = { projets: 0, cabines: 0 };
+    equipeMap[equipe].projets += 1;
+    equipeMap[equipe].cabines += p.nbCabines || 0;
+  });
+  const equipeStats = Object.entries(equipeMap)
+    .map(([name, stats]) => ({ name, ...stats }))
+    .sort((a, b) => b.cabines - a.cabines);
+
+  // Stats par série de cabine
+  const seriesMap: Record<string, number> = {};
+  filteredProjects.forEach((p) => {
+    p.seriesCabines.forEach((s) => {
+      seriesMap[s] = (seriesMap[s] || 0) + (p.nbCabines || 1);
+    });
+  });
+  const seriesStats = Object.entries(seriesMap)
+    .sort(([, a], [, b]) => b - a);
+
+  // Stats par statut
+  const statusMap: Record<string, number> = {};
+  filteredProjects.forEach((p) => {
+    const s = p.etatCMD || "Non défini";
+    statusMap[s] = (statusMap[s] || 0) + 1;
+  });
+
+  // Stats par fournisseur
+  const fournisseurMap: Record<string, number> = {};
+  filteredProjects.forEach((p) => {
+    p.fournisseurs.forEach((f) => {
+      fournisseurMap[f] = (fournisseurMap[f] || 0) + (p.nbCabines || 1);
+    });
+  });
+  const fournisseurStats = Object.entries(fournisseurMap)
+    .sort(([, a], [, b]) => b - a);
+
+  // Totaux
+  const totalCabines = filteredProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
+  const totalProjets = filteredProjects.length;
+
+  // Composant mini-liste de projets
+  const ProjectList = ({ items }: { items: Project[] }) => (
+    <div className="mt-2 space-y-1.5 border-t border-gray-100 pt-2">
+      {items.map((p) => (
+        <a
+          key={p.id}
+          href={`/projet/${p.id}?mode=cmd`}
+          className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 active:bg-white/80 transition-colors text-xs"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 truncate">{p.projet || "Sans nom"}</p>
+            <p className="text-gray-500 truncate">{p.adresseChantier || p.nomChantier || "---"}</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge variant="outline" className="text-[10px]">
+              {p.nbCabines || 0} cab.
+            </Badge>
+            <ExternalLink className="w-3 h-3 text-gray-300" />
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="max-w-4xl mx-auto w-full px-4 py-4 pb-8">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={() => router.push("/")}
+          className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <Shield className="w-5 h-5 text-blue-600" />
+            Tableau de bord
+          </h1>
+          <p className="text-sm text-gray-500">Administration TM Rapport Services</p>
+        </div>
+        <div className="flex gap-2">
+          <ExportExcel projects={projects} />
+          <button
+            onClick={async () => {
+              const res = await fetch("/api/rapport-mensuel", { method: "POST" });
+              const data = await res.json();
+              if (res.ok) alert("Rapport mensuel envoyé par email !");
+              else alert("Erreur: " + (data.error || "Erreur"));
+            }}
+            className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95"
+          >
+            <Mail className="w-4 h-4 text-blue-600" />
+            Rapport mensuel
+          </button>
+          <button
+            onClick={async () => {
+              const res = await fetch("/api/backup", { method: "POST" });
+              const data = await res.json();
+              if (res.ok) alert(`Backup créé : ${data.backup} (${data.files} fichiers)`);
+              else alert("Erreur: " + (data.error || "Erreur"));
+            }}
+            className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95"
+          >
+            <Database className="w-4 h-4 text-purple-600" />
+            Backup
+          </button>
+          <WidgetSettings config={widgets} onChange={setWidgets} />
+        </div>
+      </div>
+
+      {/* Onglets En cours / Terminés */}
+      <div className="flex gap-1 mb-4 glass-tabs p-1.5 rounded-2xl max-w-xs">
+        <button
+          onClick={() => { setAdminTab("en-cours"); setSelectedMonth("all"); setExpanded(null); }}
+          className={`flex-1 text-sm font-medium py-2 rounded-lg transition-all duration-200 ${
+            adminTab === "en-cours"
+              ? "glass-tab-active text-[#1e3a5f]"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          En cours ({projectsEnCours.length})
+        </button>
+        <button
+          onClick={() => { setAdminTab("termines"); setSelectedMonth("all"); setExpanded(null); }}
+          className={`flex-1 text-sm font-medium py-2 rounded-lg transition-all duration-200 ${
+            adminTab === "termines"
+              ? "glass-tab-active text-[#1e3a5f]"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Terminés ({projectsTermines.length})
+        </button>
+      </div>
+
+      {/* Filtre par mois */}
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
+        <button
+          onClick={() => setSelectedMonth("all")}
+          className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+            selectedMonth === "all"
+              ? "glass-btn text-white"
+              : "glass-card text-gray-600 hover:text-gray-800"
+          }`}
+        >
+          Tous les mois
+        </button>
+        {availableMonths.map((m) => (
+          <button
+            key={m}
+            onClick={() => setSelectedMonth(selectedMonth === m ? "all" : m)}
+            className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+              selectedMonth === m
+                ? "glass-btn text-white"
+                : "glass-card text-gray-600 hover:text-gray-800"
+            }`}
+          >
+            {monthLabel(m)}
+          </button>
+        ))}
+      </div>
+
+      {/* KPIs */}
+      <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 ${!isWidgetVisible(widgets, "kpis") ? "hidden" : ""}`}>
+        <Card className="glass-card">
+          <CardContent className="pt-4 text-center">
+            <p className="text-3xl font-bold text-[#1e3a5f]">{totalProjets}</p>
+            <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
+          </CardContent>
+        </Card>
+        <Card className="glass-card">
+          <CardContent className="pt-4 text-center">
+            <p className="text-3xl font-bold text-[#1e3a5f]">{totalCabines}</p>
+            <p className="text-xs text-gray-500 mt-1">Cabines totales</p>
+          </CardContent>
+        </Card>
+        <Card className="glass-card">
+          <CardContent className="pt-4 text-center">
+            <p className="text-3xl font-bold text-[#1e3a5f]">{equipeStats.length}</p>
+            <p className="text-xs text-gray-500 mt-1">Équipes</p>
+          </CardContent>
+        </Card>
+        <Card className="glass-card">
+          <CardContent className="pt-4 text-center">
+            <p className="text-3xl font-bold text-[#1e3a5f]">{seriesStats.length}</p>
+            <p className="text-xs text-gray-500 mt-1">Séries de cabines</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        {/* Cabines par équipe */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Cabines par équipe
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            {equipeStats.map((stat) => {
+              const key = `equipe-${stat.name}`;
+              const isOpen = expanded === key;
+              const maxCabines = Math.max(...equipeStats.map((s) => s.cabines), 1);
+              const names = stat.name.split(" & ");
+              const isBinome = names.length > 1;
+              const isTeam = stat.name.toLowerCase().includes("team");
+              const matchedProjects = filteredProjects.filter((p) => p.collaborateurs === stat.name);
+              return (
+                <div key={stat.name}>
+                  <button type="button" onClick={() => toggleExpand(key)} className="w-full text-left space-y-1 hover:bg-white/40 rounded-lg px-1 py-1 -mx-1 transition-colors">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-1.5 flex-wrap">
+                        {isTeam ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getCollaboratorColor("Team TM").dot }} />
+                            <span className="font-medium">{stat.name}</span>
+                          </span>
+                        ) : (
+                          names.map((n, i) => (
+                            <span key={n} className="inline-flex items-center gap-1">
+                              {i > 0 && <span className="text-gray-300 text-xs">&</span>}
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getCollaboratorColor(n.trim()).dot }} />
+                              <span>{n.trim()}</span>
+                            </span>
+                          ))
+                        )}
+                        {isBinome && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full ml-1">Binôme</span>}
+                        {isTeam && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full ml-1">Équipe</span>}
+                      </span>
+                      <span className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <span className="font-semibold">{stat.cabines} <span className="font-normal text-gray-400 text-xs">({stat.projets} proj.)</span></span>
+                        {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${(stat.cabines / maxCabines) * 100}%`,
+                          backgroundColor: isTeam
+                            ? getCollaboratorColor("Team TM").dot
+                            : isBinome
+                              ? `linear-gradient(90deg, ${getCollaboratorColor(names[0].trim()).dot}, ${getCollaboratorColor(names[1]?.trim() || "").dot})`
+                              : getCollaboratorColor(names[0].trim()).dot,
+                          background: isBinome && !isTeam
+                            ? `linear-gradient(90deg, ${getCollaboratorColor(names[0].trim()).dot}, ${getCollaboratorColor(names[1]?.trim() || "").dot})`
+                            : undefined,
+                        }}
+                      />
+                    </div>
+                  </button>
+                  {isOpen && <ProjectList items={matchedProjects} />}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {/* Cabines par série */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Box className="w-4 h-4" />
+              Cabines par série
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {seriesStats.slice(0, 10).map(([serie, count]) => {
+              const key = `serie-${serie}`;
+              const isOpen = expanded === key;
+              const maxCount = Math.max(...seriesStats.map(([, c]) => c), 1);
+              const matchedProjects = filteredProjects.filter((p) => p.seriesCabines.includes(serie));
+              return (
+                <div key={serie}>
+                  <button type="button" onClick={() => toggleExpand(key)} className="w-full text-left space-y-1 hover:bg-white/40 rounded-lg px-1 py-1 -mx-1 transition-colors">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>{serie}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-semibold">{count}</span>
+                        {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-blue-500 transition-all duration-500"
+                        style={{ width: `${(count / maxCount) * 100}%` }}
+                      />
+                    </div>
+                  </button>
+                  {isOpen && <ProjectList items={matchedProjects} />}
+                </div>
+              );
+            })}
+            {seriesStats.length > 10 && (
+              <p className="text-xs text-gray-400 text-center">
+                +{seriesStats.length - 10} autres séries
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Par fournisseur */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Cabines par fournisseur
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {fournisseurStats.slice(0, 10).map(([fournisseur, count]) => {
+              const key = `fournisseur-${fournisseur}`;
+              const isOpen = expanded === key;
+              const maxCount = Math.max(...fournisseurStats.map(([, c]) => c), 1);
+              const matchedProjects = filteredProjects.filter((p) => p.fournisseurs.includes(fournisseur));
+              return (
+                <div key={fournisseur}>
+                  <button type="button" onClick={() => toggleExpand(key)} className="w-full text-left space-y-1 hover:bg-white/40 rounded-lg px-1 py-1 -mx-1 transition-colors">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>{fournisseur}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-semibold">{count}</span>
+                        {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                        style={{ width: `${(count / maxCount) * 100}%` }}
+                      />
+                    </div>
+                  </button>
+                  {isOpen && <ProjectList items={matchedProjects} />}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {/* Par statut */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              Projets par statut
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {Object.entries(statusMap)
+              .sort(([, a], [, b]) => b - a)
+              .map(([status, count]) => {
+                const key = `statut-${status}`;
+                const isOpen = expanded === key;
+                const matchedProjects = filteredProjects.filter((p) => (p.etatCMD || "Non défini") === status);
+                return (
+                  <div key={status}>
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(key)}
+                      className="w-full flex items-center justify-between text-sm py-1.5 px-1 -mx-1 rounded-lg hover:bg-white/40 transition-colors border-b border-gray-50 last:border-0"
+                    >
+                      <span>{status}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-semibold bg-gray-100 px-2 py-0.5 rounded-full text-xs">{count}</span>
+                        {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                      </span>
+                    </button>
+                    {isOpen && <ProjectList items={matchedProjects} />}
+                  </div>
+                );
+              })}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Section analytique avancée */}
+      <div className="grid sm:grid-cols-2 gap-4 mt-4">
+        {/* Taux de soucis montage */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-red-500" />
+              Taux de soucis montage
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(() => {
+              const totalWithData = filteredProjects.length;
+              const withSoucis = filteredProjects.filter((p) => p.soucisMontage).length;
+              const rate = totalWithData > 0 ? ((withSoucis / totalWithData) * 100).toFixed(1) : "0";
+
+              // Par fournisseur
+              const fournisseurSoucis: Record<string, { total: number; soucis: number }> = {};
+              filteredProjects.forEach((p) => {
+                p.fournisseurs.forEach((f) => {
+                  if (!fournisseurSoucis[f]) fournisseurSoucis[f] = { total: 0, soucis: 0 };
+                  fournisseurSoucis[f].total++;
+                  if (p.soucisMontage) fournisseurSoucis[f].soucis++;
+                });
+              });
+
+              return (
+                <>
+                  <div className="text-center py-2">
+                    <p className="text-3xl font-bold text-red-600">{rate}%</p>
+                    <p className="text-xs text-gray-500">{withSoucis} soucis sur {totalWithData} projets</p>
+                  </div>
+                  {Object.entries(fournisseurSoucis)
+                    .filter(([, v]) => v.soucis > 0)
+                    .sort(([, a], [, b]) => (b.soucis / b.total) - (a.soucis / a.total))
+                    .map(([f, v]) => (
+                      <div key={f} className="flex items-center justify-between text-xs py-1 border-b border-gray-50">
+                        <span>{f}</span>
+                        <span className="font-semibold text-red-600">{v.soucis}/{v.total} ({((v.soucis / v.total) * 100).toFixed(0)}%)</span>
+                      </div>
+                    ))}
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
+        {/* Récurrence SAV */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="w-4 h-4 text-orange-500" />
+              Récurrence SAV
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(() => {
+              const savProjects = filteredProjects.filter((p) => p.sav);
+              const savByClient: Record<string, number> = {};
+              savProjects.forEach((p) => {
+                const client = p.nomChantier || p.projet;
+                savByClient[client] = (savByClient[client] || 0) + 1;
+              });
+              const recurring = Object.entries(savByClient).filter(([, c]) => c > 1).sort(([, a], [, b]) => b - a);
+
+              return (
+                <>
+                  <div className="text-center py-2">
+                    <p className="text-3xl font-bold text-orange-600">{savProjects.length}</p>
+                    <p className="text-xs text-gray-500">projets avec SAV</p>
+                  </div>
+                  {recurring.length > 0 ? (
+                    <>
+                      <p className="text-xs font-semibold text-orange-600">⚠ Clients récurrents :</p>
+                      {recurring.map(([client, count]) => (
+                        <div key={client} className="flex items-center justify-between text-xs py-1 border-b border-gray-50">
+                          <span className="truncate">{client}</span>
+                          <span className="font-semibold text-orange-600 shrink-0">{count} SAV</span>
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-400 text-center">Aucune récurrence détectée</p>
+                  )}
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
+        {/* Prévisions de charge */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-purple-500" />
+              Prévisions de charge
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const today = new Date();
+              const weeks: { label: string; cabines: number; projets: number }[] = [];
+              for (let w = 0; w < 6; w++) {
+                const start = new Date(today);
+                start.setDate(today.getDate() + w * 7 - ((today.getDay() + 6) % 7));
+                const end = new Date(start);
+                end.setDate(start.getDate() + 6);
+                const startStr = start.toISOString().split("T")[0];
+                const endStr = end.toISOString().split("T")[0];
+                const weekProjects = projects.filter((p) => p.dateMontage && p.dateMontage >= startStr && p.dateMontage <= endStr);
+                const weekCabines = weekProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+                weeks.push({
+                  label: w === 0 ? "Cette sem." : w === 1 ? "Sem. proch." : `S+${w}`,
+                  cabines: weekCabines,
+                  projets: weekProjects.length,
+                });
+              }
+              const maxCab = Math.max(...weeks.map((w) => w.cabines), 1);
+
+              return (
+                <div className="space-y-2">
+                  {weeks.map((w, i) => (
+                    <div key={i} className="space-y-0.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className={i === 0 ? "font-bold text-purple-700" : "text-gray-600"}>{w.label}</span>
+                        <span className="font-semibold">{w.cabines} cab. <span className="font-normal text-gray-400">({w.projets} proj.)</span></span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${(w.cabines / maxCab) * 100}%`,
+                            backgroundColor: w.cabines > 10 ? "#ef4444" : w.cabines > 5 ? "#f59e0b" : "#8b5cf6",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-gray-400 text-center mt-2">
+                    🟢 0-5 cab. | 🟡 6-10 cab. | 🔴 11+ cab. = surcharge
+                  </p>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
+        {/* Carte géographique */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-green-500" />
+              Chantiers en cours
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1.5">
+              {filteredProjects
+                .filter((p) => p.adresseChantier)
+                .slice(0, 15)
+                .map((p) => {
+                  const names = (p.collaborateurs || "").split(" & ");
+                  return (
+                    <a
+                      key={p.id}
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresseChantier)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-xs py-1.5 px-2 rounded-lg hover:bg-white/60 transition-colors"
+                    >
+                      <MapPin className="w-3 h-3 text-green-500 shrink-0" />
+                      <span className="flex-1 truncate">{p.adresseChantier}</span>
+                      <div className="flex -space-x-1 shrink-0">
+                        {names.slice(0, 2).map((n) => (
+                          <span
+                            key={n}
+                            className="w-4 h-4 rounded-full text-[7px] font-bold flex items-center justify-center border border-white"
+                            style={{ backgroundColor: getCollaboratorColor(n.trim()).bg, color: getCollaboratorColor(n.trim()).text }}
+                          >
+                            {n.trim()[0]}
+                          </span>
+                        ))}
+                      </div>
+                    </a>
+                  );
+                })}
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&waypoints=${filteredProjects.filter((p) => p.adresseChantier).slice(0, 10).map((p) => encodeURIComponent(p.adresseChantier)).join("|")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-center text-xs text-blue-600 hover:text-blue-800 py-2 mt-1 bg-blue-50 rounded-lg"
+              >
+                📍 Voir tous les chantiers sur Google Maps
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
