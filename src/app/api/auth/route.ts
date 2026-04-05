@@ -4,17 +4,20 @@ import { authenticate, createToken, verifyToken } from "@/lib/auth";
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json();
+    console.log("Auth attempt:", email);
     const user = authenticate(email, password);
+    console.log("Auth result:", user ? "success" : "failed");
     if (!user) {
       return NextResponse.json({ error: "Email ou mot de passe incorrect" }, { status: 401 });
     }
     const token = await createToken(user);
     const response = NextResponse.json({ user });
+    const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
     response.cookies.set("auth-token", token, {
       httpOnly: true,
-      secure: false,
+      secure: isProduction,
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 jours
+      maxAge: 60 * 60 * 24 * 7,
       path: "/",
     });
     return response;

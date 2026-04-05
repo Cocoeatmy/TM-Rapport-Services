@@ -48,10 +48,21 @@ function saveUsers(users: Record<string, UserRecord>) {
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || "fallback-secret");
 
 export function authenticate(email: string, password: string): User | null {
-  const users = loadUsers();
-  const user = users[email.toLowerCase().trim()];
-  if (!user || user.password !== password) return null;
-  return { email: email.toLowerCase().trim(), name: user.name, role: user.role };
+  let users: Record<string, UserRecord>;
+  try {
+    users = loadUsers();
+  } catch {
+    users = DEFAULT_USERS;
+  }
+  // Fallback: si loadUsers retourne vide, utiliser DEFAULT_USERS
+  if (!users || Object.keys(users).length === 0) {
+    users = DEFAULT_USERS;
+  }
+  const key = email.toLowerCase().trim();
+  const user = users[key];
+  if (!user) return null;
+  if (user.password !== password) return null;
+  return { email: key, name: user.name, role: user.role };
 }
 
 export function getAllUsers(): { email: string; name: string; role: string }[] {
