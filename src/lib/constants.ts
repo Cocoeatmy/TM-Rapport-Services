@@ -46,7 +46,7 @@ export const STATUS_MESURES_SORT_ORDER: Record<string, number> = {
   "Mesures non relevées - attendre news": 8,
 };
 
-export const CHECKLIST_ITEMS = [
+export const BASE_CHECKLIST_ITEMS = [
   { id: "protection-sol", label: "Protection du sol mise en place" },
   { id: "verification-mesures", label: "Vérification des mesures avant montage" },
   { id: "pieces-completes", label: "Toutes les pièces sont présentes" },
@@ -56,10 +56,50 @@ export const CHECKLIST_ITEMS = [
   { id: "vitrages-propres", label: "Vitrages nettoyés" },
   { id: "evacuation-eau", label: "Évacuation d'eau testée" },
   { id: "nettoyage-chantier", label: "Nettoyage du chantier effectué" },
-  { id: "emballages-evacues", label: "Emballages évacués" },
-  { id: "fonctionnement-client", label: "Fonctionnement expliqué au client" },
-  { id: "photos-prises", label: "Photos avant/après prises" },
 ];
+
+export const SUPPLIER_CHECKLIST_ITEMS: Record<string, { id: string; label: string }[]> = {
+  Duka: [
+    { id: "duka-rail-alignment", label: "Alignement des rails vérifié" },
+    { id: "duka-magnetic-seals", label: "Joints magnétiques vérifiés" },
+    { id: "duka-hinge-tension", label: "Tension des charnières vérifiée" },
+  ],
+  Megius: [
+    { id: "megius-wall-profiles", label: "Profilés muraux de niveau vérifiés" },
+    { id: "megius-silicone-joints", label: "Joints silicone vérifiés" },
+    { id: "megius-glass-coating", label: "Revêtement du verre vérifié" },
+  ],
+  Fonsegrive: [
+    { id: "fonsegrive-frame-assembly", label: "Assemblage du cadre vérifié" },
+    { id: "fonsegrive-drainage", label: "Drainage vérifié" },
+    { id: "fonsegrive-handle", label: "Mécanisme de poignée vérifié" },
+  ],
+};
+
+/**
+ * Returns the full checklist for a given supplier.
+ * Common base items + supplier-specific items (if any).
+ */
+export function getChecklistForSupplier(fournisseur?: string): { id: string; label: string }[] {
+  const supplierItems = fournisseur
+    ? SUPPLIER_CHECKLIST_ITEMS[resolveSupplierKey(fournisseur)] ?? []
+    : [];
+  return [...BASE_CHECKLIST_ITEMS, ...supplierItems];
+}
+
+/**
+ * Maps a fournisseur string (as stored in the project) to the supplier key.
+ */
+function resolveSupplierKey(fournisseur: string): string {
+  const lower = fournisseur.toLowerCase();
+  if (lower.includes("duka")) return "Duka";
+  if (lower.includes("megius")) return "Megius";
+  if (lower.includes("fonsegrive")) return "Fonsegrive";
+  return "Autre";
+}
+
+/** @deprecated Use getChecklistForSupplier() instead */
+export const CHECKLIST_ITEMS = [...BASE_CHECKLIST_ITEMS];
 
 export const RAPPORT_OPTIONS_SINGLE = [
   "L'installation s'est déroulée sans encombre.",

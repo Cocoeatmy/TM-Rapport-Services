@@ -3,6 +3,12 @@ import { verifyToken } from "@/lib/auth";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
+interface PieceComment {
+  user: string;
+  message: string;
+  timestamp: number;
+}
+
 interface PieceRequest {
   id: string;
   projectId: string;
@@ -13,6 +19,7 @@ interface PieceRequest {
   photoUrl: string;
   status: "demande" | "commande" | "recu";
   timestamp: number;
+  comments: PieceComment[];
 }
 
 const DATA_DIR = join(process.cwd(), "data");
@@ -54,6 +61,7 @@ export async function POST(request: NextRequest) {
     user: user.name,
     status: "demande",
     timestamp: Date.now(),
+    comments: [],
   });
   savePieces(pieces);
   return NextResponse.json({ success: true });
@@ -62,12 +70,28 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
   if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const user = await verifyToken(token);
+  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-  const { id, status } = await request.json();
+  const body = await request.json();
+  const { id, status, comment } = body;
   const pieces = loadPieces();
   const idx = pieces.findIndex((p) => p.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
-  pieces[idx].status = status;
+
+  if (comment) {
+    if (!pieces[idx].comments) pieces[idx].comments = [];
+    pieces[idx].comments.push({
+      user: user.name,
+      message: comment,
+      timestamp: Date.now(),
+    });
+  }
+
+  if (status) {
+    pieces[idx].status = status;
+  }
+
   savePieces(pieces);
   return NextResponse.json({ success: true });
 }

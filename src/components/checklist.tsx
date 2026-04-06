@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CheckCircle2, Circle } from "lucide-react";
+import { getChecklistForSupplier, BASE_CHECKLIST_ITEMS } from "@/lib/constants";
 
 interface ChecklistItem {
   id: string;
@@ -11,26 +12,20 @@ interface ChecklistItem {
 
 interface ChecklistProps {
   title?: string;
-  items: { id: string; label: string }[];
+  items?: { id: string; label: string }[];
+  fournisseur?: string;
   onChange?: (checked: Record<string, boolean>) => void;
 }
 
-const DEFAULT_CHECKLIST = [
-  { id: "protection-sol", label: "Protection du sol mise en place" },
-  { id: "verification-mesures", label: "Vérification des mesures avant montage" },
-  { id: "pieces-completes", label: "Toutes les pièces sont présentes" },
-  { id: "fixation-murale", label: "Fixations murales posées et vérifiées" },
-  { id: "etancheite", label: "Étanchéité vérifiée (joints silicone)" },
-  { id: "porte-reglage", label: "Porte(s) réglée(s) et fonctionnelle(s)" },
-  { id: "vitrages-propres", label: "Vitrages nettoyés" },
-  { id: "evacuation-eau", label: "Évacuation d'eau testée" },
-  { id: "nettoyage-chantier", label: "Nettoyage du chantier effectué" },
-  { id: "emballages-evacues", label: "Emballages évacués" },
-  { id: "fonctionnement-client", label: "Fonctionnement expliqué au client" },
-  { id: "photos-prises", label: "Photos avant/après prises" },
-];
+/** @deprecated Use getChecklistForSupplier() from constants instead */
+const DEFAULT_CHECKLIST = [...BASE_CHECKLIST_ITEMS];
 
-export function MontageChecklist({ title = "Checklist de montage", items, onChange }: ChecklistProps) {
+export function MontageChecklist({ title = "Checklist de montage", items, fournisseur, onChange }: ChecklistProps) {
+  const effectiveItems = useMemo(
+    () => items ?? getChecklistForSupplier(fournisseur),
+    [items, fournisseur],
+  );
+
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
   const toggle = (id: string) => {
@@ -42,7 +37,7 @@ export function MontageChecklist({ title = "Checklist de montage", items, onChan
   };
 
   const checkedCount = Object.values(checkedItems).filter(Boolean).length;
-  const totalCount = items.length;
+  const totalCount = effectiveItems.length;
   const progress = totalCount > 0 ? (checkedCount / totalCount) * 100 : 0;
 
   return (
@@ -70,7 +65,7 @@ export function MontageChecklist({ title = "Checklist de montage", items, onChan
       </div>
 
       <div className="space-y-1">
-        {items.map((item) => {
+        {effectiveItems.map((item) => {
           const isChecked = checkedItems[item.id] || false;
           return (
             <button

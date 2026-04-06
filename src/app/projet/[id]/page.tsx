@@ -838,6 +838,22 @@ function ProjectPageContent({ id }: { id: string }) {
                       />
                     </div>
                   </div>
+                  {heureArrivee && heureDepart && (() => {
+                    const [ah, am] = heureArrivee.split(":").map(Number);
+                    const [dh, dm] = heureDepart.split(":").map(Number);
+                    const diff = (dh * 60 + dm) - (ah * 60 + am);
+                    if (diff > 0) {
+                      const h = Math.floor(diff / 60);
+                      const m = diff % 60;
+                      return (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-sm font-medium">
+                          <Clock className="w-4 h-4" />
+                          Total : {h}h {m.toString().padStart(2, "0")}min
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                   </>
                 )}
 
@@ -911,6 +927,37 @@ function ProjectPageContent({ id }: { id: string }) {
                       <Plus className="w-4 h-4" />
                       Ajouter une journée
                     </button>
+                    {/* Per-day hours and total */}
+                    {pointages.some((e) => e.arrivee && e.depart) && (() => {
+                      const dayMinutes = pointages.map((e) => {
+                        if (!e.arrivee || !e.depart) return 0;
+                        const [ah, am] = e.arrivee.split(":").map(Number);
+                        const [dh, dm] = e.depart.split(":").map(Number);
+                        const diff = (dh * 60 + dm) - (ah * 60 + am);
+                        return diff > 0 ? diff : 0;
+                      });
+                      const totalMin = dayMinutes.reduce((s, m) => s + m, 0);
+                      if (totalMin === 0) return null;
+                      return (
+                        <div className="space-y-1 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-sm">
+                          {pointages.map((e, i) => {
+                            if (dayMinutes[i] === 0) return null;
+                            const h = Math.floor(dayMinutes[i] / 60);
+                            const m = dayMinutes[i] % 60;
+                            return (
+                              <div key={i} className="flex justify-between text-blue-600 dark:text-blue-400">
+                                <span>{e.date}{e.collaborateur ? ` - ${e.collaborateur}` : ""}</span>
+                                <span className="font-medium">{h}h {m.toString().padStart(2, "0")}min</span>
+                              </div>
+                            );
+                          })}
+                          <div className="flex items-center justify-between pt-1 border-t border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-semibold">
+                            <span className="flex items-center gap-2"><Clock className="w-4 h-4" />Total</span>
+                            <span>{Math.floor(totalMin / 60)}h {(totalMin % 60).toString().padStart(2, "0")}min</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 

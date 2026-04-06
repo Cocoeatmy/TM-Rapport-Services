@@ -3,6 +3,12 @@ import { verifyToken } from "@/lib/auth";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
+interface DefautComment {
+  user: string;
+  message: string;
+  timestamp: number;
+}
+
 interface DefautRequest {
   id: string;
   projectId: string;
@@ -14,6 +20,7 @@ interface DefautRequest {
   photoUrls: string[];
   status: "signale" | "en-cours" | "resolu";
   timestamp: number;
+  comments: DefautComment[];
 }
 
 const DATA_DIR = join(process.cwd(), "data");
@@ -56,6 +63,7 @@ export async function POST(request: NextRequest) {
     user: user.name,
     status: "signale",
     timestamp: Date.now(),
+    comments: [],
   });
   saveDefauts(defauts);
   return NextResponse.json({ success: true });
@@ -64,12 +72,28 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
   if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const user = await verifyToken(token);
+  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-  const { id, status } = await request.json();
+  const body = await request.json();
+  const { id, status, comment } = body;
   const defauts = loadDefauts();
   const idx = defauts.findIndex((d) => d.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
-  defauts[idx].status = status;
+
+  if (comment) {
+    if (!defauts[idx].comments) defauts[idx].comments = [];
+    defauts[idx].comments.push({
+      user: user.name,
+      message: comment,
+      timestamp: Date.now(),
+    });
+  }
+
+  if (status) {
+    defauts[idx].status = status;
+  }
+
   saveDefauts(defauts);
   return NextResponse.json({ success: true });
 }

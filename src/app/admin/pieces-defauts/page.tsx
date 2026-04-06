@@ -11,6 +11,8 @@ import {
   Search,
   Image as ImageIcon,
   X,
+  Send,
+  MessageCircle,
 } from "lucide-react";
 
 interface PieceItem {
