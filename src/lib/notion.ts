@@ -47,6 +47,7 @@ export interface Project {
   causeSoucis: string;
   etatSAV: string;
   sav: boolean;
+  bonLivraison: string;
 }
 
 export interface FileItem {
@@ -157,6 +158,7 @@ export function mapPageToProject(page: any): Project {
     causeSoucis: extractSelect(p["Cause Soucis montages"]),
     etatSAV: extractStatus(p["État - SAV"]),
     sav: p["SAV"]?.checkbox || false,
+    bonLivraison: extractText(p["Bon de livraison"]),
   };
 }
 
@@ -255,6 +257,7 @@ export async function updateProject(
     dateMesures?: string | null;
     collaborateurs?: string;
     mesuresTraiteePar?: string;
+    bonLivraison?: string;
   }
 ) {
   const properties: any = {};
@@ -297,6 +300,11 @@ export async function updateProject(
   if (data.mesuresTraiteePar !== undefined) {
     properties["Mesures traitée par"] = {
       select: data.mesuresTraiteePar ? { name: data.mesuresTraiteePar } : null,
+    };
+  }
+  if (data.bonLivraison !== undefined) {
+    properties["Bon de livraison"] = {
+      rich_text: [{ text: { content: data.bonLivraison } }],
     };
   }
 

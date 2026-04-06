@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2 } from "lucide-react";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
-import { formatDateFR, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST } from "@/lib/constants";
+import { formatDateFR, formatDateLong, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST } from "@/lib/constants";
 import { MonteurDashboard } from "@/components/monteur-dashboard";
 import { WeekPlanning } from "@/components/week-planning";
 import { getFavorites } from "@/lib/favorites";

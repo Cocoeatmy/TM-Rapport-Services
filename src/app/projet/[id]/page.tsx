@@ -41,6 +41,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PhotoUpload } from "@/components/photo-upload";
+import { DeliveryScan } from "@/components/delivery-scan";
 import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
@@ -811,6 +812,9 @@ function ProjectPageContent({ id }: { id: string }) {
 
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" />
             <DocumentLinks files={project.documentsMontagee} label="Documents Montage" />
+            {mode === "cmd" && (
+              <DeliveryScan projectId={id} bonLivraison={project.bonLivraison} />
+            )}
           </CardContent>
         </Card>
 
