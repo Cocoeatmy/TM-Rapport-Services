@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle } from "lucide-react";
 
 interface UserData {
   email: string;
@@ -108,6 +108,16 @@ export function UserMenu() {
                 Gestion utilisateurs
               </button>
             )}
+            <button
+              onClick={() => {
+                setOpen(false);
+                window.dispatchEvent(new CustomEvent("tm-open-onboarding"));
+              }}
+              className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+            >
+              <HelpCircle className="w-4 h-4" />
+              Guide d&apos;utilisation
+            </button>
             <button
               onClick={toggleDark}
               className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"

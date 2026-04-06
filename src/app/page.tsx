@@ -166,7 +166,9 @@ function HomePage() {
   }, [mode, statusFilter, collabFilter, quickFilter, search, router]);
 
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "calendar" | "collab" | "week">("list");
+  const [viewMode, setViewMode] = useState<"list" | "calendar" | "collab" | "week" | "clients">("list");
+  const [clientSearch, setClientSearch] = useState("");
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
@@ -501,6 +503,13 @@ function HomePage() {
           >
             <span className="text-xs font-semibold text-[#1e3a5f] dark:text-white">Semaine</span>
             <Calendar className="w-5 h-5 text-green-500" />
+          </button>
+          <button
+            onClick={() => setViewMode("clients")}
+            className="glass-card flex items-center gap-2 px-4 py-3 rounded-xl hover:bg-white/80 transition-all active:scale-95"
+          >
+            <span className="text-xs font-semibold text-[#1e3a5f] dark:text-white">Clients</span>
+            <Building className="w-5 h-5 text-amber-500" />
           </button>
         </div>
       )}
