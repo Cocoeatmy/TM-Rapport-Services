@@ -15,6 +15,12 @@ import {
   MessageCircle,
 } from "lucide-react";
 
+interface CommentItem {
+  user: string;
+  message: string;
+  timestamp: number;
+}
+
 interface PieceItem {
   id: string;
   projectId: string;
@@ -25,6 +31,7 @@ interface PieceItem {
   photoUrl: string;
   status: string;
   timestamp: number;
+  comments?: CommentItem[];
 }
 
 interface DefautItem {
@@ -38,6 +45,7 @@ interface DefautItem {
   photoUrls: string[];
   status: string;
   timestamp: number;
+  comments?: CommentItem[];
 }
 
 const PIECE_STATUSES = ["demande", "commande", "recu"] as const;
@@ -81,6 +89,40 @@ export default function PiecesDefautsPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const [sendingComment, setSendingComment] = useState<Record<string, boolean>>({});
+
+  const formatRelativeTime = (ts: number) => {
+    const diff = Date.now() - ts;
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "maintenant";
+    if (minutes < 60) return `il y a ${minutes}min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `il y a ${hours}h`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `il y a ${days}j`;
+    return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+  };
+
+  const sendComment = async (id: string, type: "pieces" | "defauts") => {
+    const message = commentInputs[id]?.trim();
+    if (!message) return;
+    setSendingComment((prev) => ({ ...prev, [id]: true }));
+    try {
+      await fetch(`/api/${type}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, comment: message }),
+      });
+      setCommentInputs((prev) => ({ ...prev, [id]: "" }));
+      if (type === "pieces") fetchPieces();
+      else fetchDefauts();
+    } catch {
+      // ignore
+    } finally {
+      setSendingComment((prev) => ({ ...prev, [id]: false }));
+    }
+  };
 
   // Auth check
   useEffect(() => {
@@ -352,6 +394,42 @@ export default function PiecesDefautsPage() {
                     Voir la photo
                   </button>
                 )}
+                {/* Comment thread */}
+                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+                  {(piece.comments || []).length > 0 && (
+                    <div className="space-y-2 mb-2">
+                      {(piece.comments || []).map((c, i) => (
+                        <div key={i} className="flex gap-2 items-start">
+                          <MessageCircle className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs">
+                              <span className="font-medium text-gray-700 dark:text-gray-300">{c.user}</span>
+                              <span className="text-gray-400 dark:text-gray-500 ml-1.5">{formatRelativeTime(c.timestamp)}</span>
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{c.message}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ajouter un commentaire..."
+                      value={commentInputs[piece.id] || ""}
+                      onChange={(e) => setCommentInputs((prev) => ({ ...prev, [piece.id]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === "Enter") sendComment(piece.id, "pieces"); }}
+                      className="flex-1 text-xs px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-600 dark:text-gray-100 dark:placeholder-gray-500"
+                    />
+                    <button
+                      onClick={() => sendComment(piece.id, "pieces")}
+                      disabled={!commentInputs[piece.id]?.trim() || sendingComment[piece.id]}
+                      className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
             ))
           )}
@@ -423,6 +501,42 @@ export default function PiecesDefautsPage() {
                     ))}
                   </div>
                 )}
+                {/* Comment thread */}
+                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+                  {(defaut.comments || []).length > 0 && (
+                    <div className="space-y-2 mb-2">
+                      {(defaut.comments || []).map((c, i) => (
+                        <div key={i} className="flex gap-2 items-start">
+                          <MessageCircle className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs">
+                              <span className="font-medium text-gray-700 dark:text-gray-300">{c.user}</span>
+                              <span className="text-gray-400 dark:text-gray-500 ml-1.5">{formatRelativeTime(c.timestamp)}</span>
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{c.message}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ajouter un commentaire..."
+                      value={commentInputs[defaut.id] || ""}
+                      onChange={(e) => setCommentInputs((prev) => ({ ...prev, [defaut.id]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === "Enter") sendComment(defaut.id, "defauts"); }}
+                      className="flex-1 text-xs px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-600 dark:text-gray-100 dark:placeholder-gray-500"
+                    />
+                    <button
+                      onClick={() => sendComment(defaut.id, "defauts")}
+                      disabled={!commentInputs[defaut.id]?.trim() || sendingComment[defaut.id]}
+                      className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
             ))
           )}
