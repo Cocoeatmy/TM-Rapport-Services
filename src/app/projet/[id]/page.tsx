@@ -669,6 +669,21 @@ function ProjectPageContent({ id }: { id: string }) {
             )}
           </div>
           <button
+            onClick={() => {
+              const token = btoa(id);
+              const url = `${window.location.origin}/client/${token}`;
+              navigator.clipboard.writeText(url).then(() => {
+                toast.success("Lien client copie dans le presse-papiers");
+              }).catch(() => {
+                toast.error("Impossible de copier le lien");
+              });
+            }}
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
+            title="Partager avec le client"
+          >
+            <Share2 className="w-5 h-5 text-blue-400" />
+          </button>
+          <button
             onClick={() => setFav(toggleFavorite(id))}
             className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
           >
