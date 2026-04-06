@@ -159,16 +159,29 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
       });
       if (res.ok) {
         onUpdate(newDate);
-        await fetch("/api/logs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            projectId: project.id,
-            projectName: project.projet,
-            action: `Modification ${label}`,
-            details: `${formatDate(currentDate)} → ${newDate ? formatDate(newDate) : "Non planifié"}`,
+        const logDetails = `${formatDate(currentDate)} → ${newDate ? formatDate(newDate) : "Non planifié"}`;
+        // Log + notification admin en parallèle
+        Promise.all([
+          fetch("/api/logs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              projectId: project.id,
+              projectName: project.projet,
+              action: `Modification ${label}`,
+              details: logDetails,
+            }),
           }),
-        });
+          fetch("/api/notify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              projectName: project.projet,
+              action: `Modification ${label}`,
+              details: logDetails,
+            }),
+          }),
+        ]).catch(() => {});
         setEditing(false);
       }
     } catch {} finally {
@@ -266,16 +279,28 @@ function EditableCollaborateur({ project, mode, onUpdate }: { project: Project; 
       });
       if (res.ok) {
         onUpdate(newValue);
-        await fetch("/api/logs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            projectId: project.id,
-            projectName: project.projet,
-            action: "Modification collaborateur",
-            details: `${currentCollab || "---"} → ${newValue || "---"}`,
+        const logDetails = `${currentCollab || "---"} → ${newValue || "---"}`;
+        Promise.all([
+          fetch("/api/logs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              projectId: project.id,
+              projectName: project.projet,
+              action: "Modification collaborateur",
+              details: logDetails,
+            }),
           }),
-        });
+          fetch("/api/notify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              projectName: project.projet,
+              action: "Modification collaborateur",
+              details: logDetails,
+            }),
+          }),
+        ]).catch(() => {});
         setEditing(false);
       }
     } catch {} finally {
