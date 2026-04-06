@@ -328,7 +328,14 @@ function HomePage() {
             onClick={() => setViewMode("collab")}
             className="glass-card flex items-center gap-2 px-4 py-3 rounded-xl hover:bg-white/80 transition-all active:scale-95"
           >
-            <span className="text-2xl font-bold text-[#1e3a5f] dark:text-white">{rdvFixeCount}</span>
+            <span className="text-2xl font-bold text-[#1e3a5f] dark:text-white">
+              {new Set(
+                projects
+                  .filter((p) => mode === "cmd" ? p.etatCMD === "RDV - fixé" : !!(mode.startsWith("mesures") ? p.dateMesures : p.dateMontage))
+                  .map((p) => p.collaborateurs)
+                  .filter(Boolean)
+              ).size}
+            </span>
             <UsersIcon className="w-5 h-5 text-purple-500" />
           </button>
           <button
