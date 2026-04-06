@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Calendar, MapPin, Clock, ChevronRight, Box, Truck, Users, BarChart3 } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, Box, Truck, Users, BarChart3, Navigation, Route } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
@@ -35,6 +35,98 @@ function formatDay(dateStr: string) {
 function getProjectsForCollaborator(projects: Project[], name: string) {
   return projects.filter((p) =>
     p.collaborateurs?.toLowerCase().includes(name.toLowerCase())
+  );
+}
+
+// --- Route planning button ---
+
+function DailyRouteButton({ projects }: { projects: Project[] }) {
+  const [showPicker, setShowPicker] = useState(false);
+
+  const addresses = projects
+    .map((p) => p.adresseChantier)
+    .filter(Boolean);
+
+  if (addresses.length === 0) return null;
+
+  const buildGoogleMapsUrl = () => {
+    // First address is destination, rest are waypoints
+    const encoded = addresses.map((a) => encodeURIComponent(a));
+    if (encoded.length === 1) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${encoded[0]}`;
+    }
+    const destination = encoded[encoded.length - 1];
+    const waypoints = encoded.slice(0, -1).join("|");
+    return `https://www.google.com/maps/dir/?api=1&destination=${destination}&waypoints=${waypoints}`;
+  };
+
+  const buildGoogleMapsDeepLink = () => {
+    const encoded = addresses.map((a) => encodeURIComponent(a));
+    if (encoded.length === 1) {
+      return `comgooglemaps://?daddr=${encoded[0]}`;
+    }
+    // Google Maps app supports waypoints via the URL scheme
+    return `comgooglemaps://?daddr=${encoded.join("+to:")}`;
+  };
+
+  const buildWazeUrl = () => {
+    // Waze only supports single destination, use first address
+    const addr = encodeURIComponent(addresses[0]);
+    return `waze://?q=${addr}&navigate=yes`;
+  };
+
+  const buildWazeFallback = () => {
+    const addr = encodeURIComponent(addresses[0]);
+    return `https://waze.com/ul?q=${addr}&navigate=yes`;
+  };
+
+  const openApp = (app: "google" | "waze") => {
+    setShowPicker(false);
+    if (app === "google") {
+      window.location.href = buildGoogleMapsDeepLink();
+      setTimeout(() => {
+        window.open(buildGoogleMapsUrl(), "_blank");
+      }, 500);
+    } else {
+      window.location.href = buildWazeUrl();
+      setTimeout(() => {
+        window.open(buildWazeFallback(), "_blank");
+      }, 500);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setShowPicker(!showPicker)}
+        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 active:scale-[0.98] transition-all"
+      >
+        <Route className="w-4 h-4" />
+        Itinéraire du jour ({addresses.length} arrêt{addresses.length > 1 ? "s" : ""})
+      </button>
+      {showPicker && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowPicker(false)} />
+          <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1">
+            <button
+              onClick={() => openApp("google")}
+              className="w-full text-left text-sm px-3 py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-300"
+            >
+              <MapPin className="w-4 h-4 text-red-500" />
+              Google Maps
+            </button>
+            <button
+              onClick={() => openApp("waze")}
+              className="w-full text-left text-sm px-3 py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-300"
+            >
+              <Navigation className="w-4 h-4 text-cyan-500" />
+              Waze
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -148,6 +240,9 @@ function AdminDashboard({ projects }: { projects: Project[] }) {
                   {collab.todayProjects.map((p) => (
                     <ProjectRow key={p.id} project={p} colors={collab.colors} />
                   ))}
+                </div>
+                <div className="mt-2">
+                  <DailyRouteButton projects={collab.todayProjects} />
                 </div>
               </div>
             )}
@@ -279,6 +374,9 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
                 </div>
               </Link>
             ))}
+          </div>
+          <div className="mt-3">
+            <DailyRouteButton projects={todayProjects} />
           </div>
         </div>
       )}

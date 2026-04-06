@@ -10,6 +10,9 @@ export async function middleware(request: NextRequest) {
   if (
     pathname === "/login" ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/client/") ||
+    pathname.startsWith("/api/reminders") ||
+    pathname.startsWith("/client/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/icons") ||
     pathname === "/manifest.json" ||
