@@ -16,6 +16,74 @@ interface MonteurDashboardProps {
 
 // --- Helper functions ---
 
+function parseTimeToMinutes(raw: string): number {
+  const match = raw.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return -1;
+  return parseInt(match[1]) * 60 + parseInt(match[2]);
+}
+
+function getWeeklyHoursForCollab(projects: Project[], collabName: string): number {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + mondayOffset);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  const monStr = monday.toISOString().split("T")[0];
+  const sunStr = sunday.toISOString().split("T")[0];
+
+  let totalMinutes = 0;
+
+  for (const p of projects) {
+    const ha = p.heureArrivee || "";
+    const hd = p.heureDepart || "";
+    if (!ha && !hd) continue;
+
+    if (ha.includes("|") || hd.includes("|")) {
+      const arrParts = ha.split("|").map((s) => s.trim()).filter(Boolean);
+      const depParts = hd.split("|").map((s) => s.trim()).filter(Boolean);
+      const maxLen = Math.max(arrParts.length, depParts.length);
+      for (let i = 0; i < maxLen; i++) {
+        const aTokens = (arrParts[i] || "").split(/\s+/);
+        const dTokens = (depParts[i] || "").split(/\s+/);
+        const aDate = aTokens[0]?.match(/^\d{4}-\d{2}-\d{2}$/) ? aTokens[0] : "";
+        const dDate = dTokens[0]?.match(/^\d{4}-\d{2}-\d{2}$/) ? dTokens[0] : "";
+        const entryDate = aDate || dDate || p.dateMontage?.split("T")[0] || "";
+        const entryCollab = aTokens.slice(1, -1).join(" ") || dTokens.slice(1, -1).join(" ") || "";
+        if (!entryCollab.toLowerCase().includes(collabName.toLowerCase())) continue;
+        if (entryDate < monStr || entryDate > sunStr) continue;
+        const arrTime = aTokens[aTokens.length - 1] || "";
+        const depTime = dTokens[dTokens.length - 1] || "";
+        const arrMin = parseTimeToMinutes(arrTime);
+        const depMin = parseTimeToMinutes(depTime);
+        if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) {
+          totalMinutes += depMin - arrMin;
+        }
+      }
+    } else {
+      if (!p.collaborateurs?.toLowerCase().includes(collabName.toLowerCase())) continue;
+      const dateStr = p.dateMontage?.split("T")[0] || "";
+      if (dateStr < monStr || dateStr > sunStr) continue;
+      const arrMin = parseTimeToMinutes(ha);
+      const depMin = parseTimeToMinutes(hd);
+      if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) {
+        totalMinutes += depMin - arrMin;
+      }
+    }
+  }
+  return totalMinutes;
+}
+
+function fmtMin(min: number): string {
+  if (min <= 0) return "0h 00min";
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${h}h ${m.toString().padStart(2, "0")}min`;
+}
+
 function getTodayStr() {
   return new Date().toISOString().split("T")[0];
 }
@@ -199,6 +267,43 @@ function AdminDashboard({ projects }: { projects: Project[] }) {
           <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Monteurs actifs</p>
         </div>
       </div>
+
+      {/* Weekly hours summary */}
+      {(() => {
+        const weeklyData = COLLABORATEURS_LIST.map((name) => ({
+          name,
+          colors: getCollaboratorColor(name),
+          minutes: getWeeklyHoursForCollab(projects, name),
+        })).filter((c) => c.minutes > 0);
+        if (weeklyData.length === 0) return null;
+        const totalWeekMin = weeklyData.reduce((s, c) => s + c.minutes, 0);
+        return (
+          <div className="glass-card rounded-2xl p-4 space-y-2">
+            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              Heures cette semaine
+            </p>
+            {weeklyData.map((c) => (
+              <div key={c.name} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                    style={{ backgroundColor: c.colors.bg, color: c.colors.text }}
+                  >
+                    {c.name[0]}
+                  </div>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Total</span>
+              <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{fmtMin(totalWeekMin)}</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Per-collaborator sections */}
       {collabData.map((collab) => {

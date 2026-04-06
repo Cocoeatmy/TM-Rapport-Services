@@ -31,7 +31,7 @@ import { PiecesForm } from "@/components/pieces-form";
 import { DefautForm } from "@/components/defaut-form";
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
-import { Star } from "lucide-react";
+import { Star, Share2 } from "lucide-react";
 import { toggleFavorite, isFavorite } from "@/lib/favorites";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
