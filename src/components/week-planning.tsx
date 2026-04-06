@@ -10,10 +10,12 @@ import type { Project } from "@/lib/notion";
 interface WeekPlanningProps {
   projects: Project[];
   mode: string;
+  onDrop?: (projectId: string, newDate: string) => void;
 }
 
-export function WeekPlanning({ projects, mode }: WeekPlanningProps) {
+export function WeekPlanning({ projects, mode, onDrop }: WeekPlanningProps) {
   const [weekOffset, setWeekOffset] = useState(0);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   const today = new Date();
   const startOfWeek = new Date(today);
@@ -83,7 +85,22 @@ export function WeekPlanning({ projects, mode }: WeekPlanningProps) {
           const dayProjects = getProjectsForDay(day);
 
           return (
-            <div key={i} className={`rounded-xl p-2 ${isToday ? "bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-200" : ""}`}>
+            <div
+              key={i}
+              data-date={dateStr}
+              onDragOver={(e) => { e.preventDefault(); setDragOverDate(dateStr); }}
+              onDragLeave={() => setDragOverDate(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOverDate(null);
+                const projectId = e.dataTransfer.getData("text/plain");
+                if (projectId && onDrop) onDrop(projectId, dateStr);
+              }}
+              className={`rounded-xl p-2 transition-colors ${
+                dragOverDate === dateStr ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30" :
+                isToday ? "bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-200" : ""
+              }`}
+            >
               <div className="flex items-center gap-2 mb-1">
                 <span className={`text-xs font-semibold w-16 ${isToday ? "text-blue-700 dark:text-blue-400" : "text-gray-500"}`}>
                   {dayNames[i]}
@@ -98,7 +115,7 @@ export function WeekPlanning({ projects, mode }: WeekPlanningProps) {
                 )}
               </div>
               {dayProjects.length === 0 ? (
-                <p className="text-[10px] text-gray-300 pl-16 dark:text-gray-600">—</p>
+                <p className="text-[10px] text-gray-300 pl-16 dark:text-gray-600">&mdash;</p>
               ) : (
                 <div className="space-y-1 pl-16">
                   {dayProjects.map((p) => {
@@ -107,7 +124,11 @@ export function WeekPlanning({ projects, mode }: WeekPlanningProps) {
                       <Link
                         key={p.id}
                         href={`/projet/${p.id}?mode=${mode}`}
-                        className="flex items-center gap-2 text-xs hover:bg-white/60 dark:hover:bg-gray-700/40 rounded-lg px-2 py-1 transition-colors"
+                        draggable
+                        data-project-id={p.id}
+                        onDragStart={(e) => { e.dataTransfer.setData("text/plain", p.id); e.currentTarget.style.opacity = "0.5"; }}
+                        onDragEnd={(e) => { e.currentTarget.style.opacity = "1"; }}
+                        className="flex items-center gap-2 text-xs hover:bg-white/60 dark:hover:bg-gray-700/40 rounded-lg px-2 py-1 transition-colors cursor-grab active:cursor-grabbing"
                       >
                         <div className="flex -space-x-1">
                           {names.slice(0, 2).map((n) => (

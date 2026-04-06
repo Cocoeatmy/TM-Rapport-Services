@@ -139,6 +139,9 @@ function HomePage() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [conflictFilter, setConflictFilter] = useState<string | null>(null);
 
   const MODE_API: Record<Mode, string> = {
     dashboard: "/api/projects",
@@ -265,8 +268,113 @@ function HomePage() {
     return orderA - orderB;
   });
 
+  // --- Drag & Drop handler ---
+  const handleDrop = useCallback(async (projectId: string, newDate: string) => {
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+    const dateField = mode.startsWith("mesures") ? "dateMesures" : "dateMontage";
+    const oldDate = mode.startsWith("mesures") ? project.dateMesures : project.dateMontage;
+    if (oldDate === newDate) return;
+
+    // Optimistic local update
+    setProjectsData((prev) => {
+      const updated = { ...prev };
+      const list = (updated[mode] || []).map((p) => {
+        if (p.id !== projectId) return p;
+        return { ...p, [dateField]: newDate };
+      });
+      updated[mode] = list;
+      try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+
+    const formattedDate = formatDateLong(newDate);
+    setToast(`RDV d\u00e9plac\u00e9 au ${formattedDate}`);
+    setTimeout(() => setToast(null), 3000);
+
+    // PATCH API
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [dateField]: newDate }),
+      });
+    } catch {}
+
+    // Log
+    try {
+      await fetch("/api/logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          projectName: project.projet,
+          action: "D\u00e9placement RDV (drag & drop)",
+          details: `${formatDateFR(oldDate)} \u2192 ${formatDateFR(newDate)}`,
+        }),
+      });
+    } catch {}
+
+    // Notify admin
+    try {
+      await fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectName: project.projet,
+          action: "D\u00e9placement RDV",
+          details: `${formatDateFR(oldDate)} \u2192 ${formatDateFR(newDate)}`,
+        }),
+      });
+    } catch {}
+  }, [projects, mode, setProjectsData]);
+
+  // --- Scheduling conflict detection ---
+  const conflicts: { type: "conflict" | "overload"; collaborateur: string; date: string; count: number; projectIds: string[] }[] = [];
+  {
+    const collabDateMap: Record<string, { projectIds: string[]; cabines: number }> = {};
+    filtered.forEach((p) => {
+      const date = mode.startsWith("mesures") ? p.dateMesures : p.dateMontage;
+      if (!date) return;
+      const collabField = mode === "mesures" ? p.mesuresTraiteePar : p.collaborateurs;
+      const collabs = (collabField || "").split(" & ").map((n) => n.trim()).filter(Boolean);
+      collabs.forEach((collab) => {
+        const key = `${collab}::${date}`;
+        if (!collabDateMap[key]) collabDateMap[key] = { projectIds: [], cabines: 0 };
+        collabDateMap[key].projectIds.push(p.id);
+        collabDateMap[key].cabines += p.nbCabines || 0;
+      });
+    });
+    Object.entries(collabDateMap).forEach(([key, val]) => {
+      const [collaborateur, date] = key.split("::");
+      if (val.projectIds.length >= 2) {
+        conflicts.push({ type: "conflict", collaborateur, date, count: val.projectIds.length, projectIds: val.projectIds });
+      }
+      if (val.cabines > 4) {
+        conflicts.push({ type: "overload", collaborateur, date, count: val.cabines, projectIds: val.projectIds });
+      }
+    });
+  }
+
+  // Build a set of conflicting day strings for calendar highlighting
+  const conflictDates = new Set(conflicts.map((c) => c.date));
+
+  // Filtered list respecting conflict filter
+  const displayedFiltered = conflictFilter
+    ? filtered.filter((p) => {
+        const c = conflicts.find((cf) => cf.collaborateur + "::" + cf.date === conflictFilter);
+        return c ? c.projectIds.includes(p.id) : true;
+      })
+    : filtered;
+
   return (
     <div className="px-4 py-4 max-w-5xl mx-auto w-full">
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
+          {toast}
+        </div>
+      )}
       {/* Onglets navigation */}
       {(() => {
         const switchMode = (m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); };
@@ -370,7 +478,7 @@ function HomePage() {
             </button>
             <h2 className="text-lg font-semibold flex-1">Planning semaine</h2>
           </div>
-          <WeekPlanning projects={projects} mode={mode} />
+          <WeekPlanning projects={projects} mode={mode} onDrop={handleDrop} />
         </div>
       )}
 
@@ -436,22 +544,38 @@ function HomePage() {
                 {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
                   const dayProjects = projectsByDay[day] || [];
                   const hasRdv = dayProjects.length > 0;
+                  const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const hasConflict = conflictDates.has(dateStr);
+                  const isDropTarget = dragOverDate === dateStr;
                   return (
                     <div
                       key={day}
+                      data-date={dateStr}
                       onClick={() => hasRdv ? setSelectedDay(selectedDay === day ? null : day) : setSelectedDay(null)}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverDate(dateStr); }}
+                      onDragLeave={() => setDragOverDate(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverDate(null);
+                        const projectId = e.dataTransfer.getData("text/plain");
+                        if (projectId) handleDrop(projectId, dateStr);
+                      }}
                       className={`relative aspect-square flex flex-col items-center justify-center rounded-lg text-sm transition-colors ${
+                        isDropTarget ? "ring-2 ring-blue-500 bg-blue-100" :
                         selectedDay === day ? "ring-2 ring-[#1e3a5f] bg-blue-50 text-[#1e3a5f] dark:text-white font-bold" :
                         isToday(day) ? "bg-[#1e3a5f] text-white font-bold" :
                         hasRdv ? "bg-green-100 text-green-800 font-medium cursor-pointer hover:bg-green-200" :
                         "text-gray-600 hover:bg-gray-50"
-                      }`}
+                      } ${hasConflict && !isToday(day) ? "ring-2 ring-red-400" : ""}`}
                     >
                       {day}
                       {hasRdv && (
                         <span className={`text-[9px] font-bold ${isToday(day) ? "text-white/80" : "text-green-600"}`}>
                           {dayProjects.length}
                         </span>
+                      )}
+                      {hasConflict && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-white" />
                       )}
                     </div>
                   );
@@ -475,7 +599,11 @@ function HomePage() {
                   </p>
                   {(projs as Project[]).map((p) => (
                     <a key={p.id} href={`/projet/${p.id}?mode=${mode}`}
-                      className="block glass-card rounded-xl p-3 mb-1.5">
+                      draggable
+                      data-project-id={p.id}
+                      onDragStart={(e) => { e.dataTransfer.setData("text/plain", p.id); e.currentTarget.style.opacity = "0.5"; }}
+                      onDragEnd={(e) => { e.currentTarget.style.opacity = "1"; }}
+                      className="block glass-card rounded-xl p-3 mb-1.5 cursor-grab active:cursor-grabbing">
                       <div className="flex items-center justify-between">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium truncate">{p.projet}</p>
@@ -796,11 +924,37 @@ function HomePage() {
                 </button>
               </div>
             )}
+            {/* Conflict / overload warnings */}
+            {conflicts.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {conflicts.map((c, i) => {
+                  const key = c.collaborateur + "::" + c.date;
+                  const isActive = conflictFilter === key;
+                  const dateLabel = new Date(c.date).toLocaleDateString("fr-CH", { day: "2-digit", month: "long" });
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setConflictFilter(isActive ? null : key)}
+                      className={`w-full text-left text-sm font-medium px-4 py-2.5 rounded-xl border-2 transition-colors ${
+                        c.type === "conflict"
+                          ? isActive ? "bg-red-600 text-white border-red-600" : "bg-red-50 text-red-800 border-red-200 hover:bg-red-100"
+                          : isActive ? "bg-yellow-600 text-white border-yellow-600" : "bg-yellow-50 text-yellow-800 border-yellow-200 hover:bg-yellow-100"
+                      }`}
+                    >
+                      {c.type === "conflict"
+                        ? `\u26A0 Conflit : ${c.collaborateur} a ${c.count} projets le ${dateLabel}`
+                        : `\u26A0 Surcharge : ${c.collaborateur} a ${c.count} cabines le ${dateLabel}`}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="space-y-3">
-              {filtered.map((project) => (
+              {displayedFiltered.map((project) => (
                 <ProjectCard key={project.id} project={project} mode={mode} />
               ))}
-              {filtered.length === 0 && !error && (
+              {displayedFiltered.length === 0 && !error && (
                 <div className="text-center py-12 text-gray-400">
                   <p className="text-lg">Aucun projet trouvé</p>
                 </div>
