@@ -327,7 +327,7 @@ function ProjectPageContent({ id }: { id: string }) {
   }
 
   return (
-    <div className="max-w-lg mx-auto w-full pb-8">
+    <div className="max-w-lg mx-auto w-full pb-8 px-4">
       {/* Header */}
       <div className="sticky z-40 glass-card border-b px-4 py-3" style={{ borderRadius: 0, top: headerHeight }}>
         <div className="flex items-center gap-3">
@@ -517,24 +517,24 @@ function ProjectPageContent({ id }: { id: string }) {
                     onDeparture={(time) => setHeureDepart(time)}
                   />
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <Label htmlFor="arrivee">Heure d'arrivée</Label>
                       <Input
                         id="arrivee"
                         type="time"
                         value={heureArrivee}
                         onChange={(e) => setHeureArrivee(e.target.value)}
-                        className="mt-1 h-11"
+                        className="mt-1 h-11 w-full"
                       />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Label htmlFor="depart">Heure de départ</Label>
                       <Input
                         id="depart"
                         type="time"
                         value={heureDepart}
                         onChange={(e) => setHeureDepart(e.target.value)}
-                        className="mt-1 h-11"
+                        className="mt-1 h-11 w-full"
                       />
                     </div>
                   </div>
