@@ -455,11 +455,22 @@ function HomePage() {
     });
     Object.entries(collabDateMap).forEach(([key, val]) => {
       const [collaborateur, date] = key.split("::");
-      if (val.projectIds.length >= 2) {
-        conflicts.push({ type: "conflict", collaborateur, date, count: val.projectIds.length, projectIds: val.projectIds });
-      }
-      if (val.cabines > 4) {
-        conflicts.push({ type: "overload", collaborateur, date, count: val.cabines, projectIds: val.projectIds });
+      if (mode.startsWith("mesures")) {
+        // Mesures : ~15min par mesure, ~32 mesures/jour max
+        // Conflit si > 25 projets/jour, surcharge si > 20 projets/jour
+        if (val.projectIds.length > 25) {
+          conflicts.push({ type: "conflict", collaborateur, date, count: val.projectIds.length, projectIds: val.projectIds });
+        } else if (val.projectIds.length > 20) {
+          conflicts.push({ type: "overload", collaborateur, date, count: val.projectIds.length, projectIds: val.projectIds });
+        }
+      } else {
+        // Montages : ~3.5 cabines/jour
+        if (val.projectIds.length >= 2) {
+          conflicts.push({ type: "conflict", collaborateur, date, count: val.projectIds.length, projectIds: val.projectIds });
+        }
+        if (val.cabines > 4) {
+          conflicts.push({ type: "overload", collaborateur, date, count: val.cabines, projectIds: val.projectIds });
+        }
       }
     });
   }
