@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { Resend } from "resend";
+import { createNotification } from "@/app/api/notifications/route";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const ADMIN_EMAIL = "ferreira.micael@gmail.com";
@@ -19,6 +20,14 @@ export async function POST(request: NextRequest) {
   const { projectName, action, details } = await request.json();
 
   try {
+    // Create in-app notification for admin
+    createNotification(
+      ADMIN_EMAIL,
+      "piece",
+      `${action} - ${projectName}`,
+      `${details} (par ${user.name})`,
+    );
+
     await resend.emails.send({
       from: "TM Rapport Services <onboarding@resend.dev>",
       to: ADMIN_EMAIL,

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Bell, X, MessageCircle, Package, Calendar, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Bell, MessageCircle, Package, Calendar, AlertTriangle } from "lucide-react";
 
 interface Notification {
   id: string;
+  userId: string;
   type: "chat" | "piece" | "rdv" | "sav";
   title: string;
   message: string;
@@ -12,50 +13,71 @@ interface Notification {
   read: boolean;
 }
 
-const NOTIF_KEY = "tm-rapport-notifications";
-
-function getNotifications(): Notification[] {
+async function fetchNotifications(): Promise<Notification[]> {
   try {
-    return JSON.parse(localStorage.getItem(NOTIF_KEY) || "[]");
-  } catch { return []; }
+    const res = await fetch("/api/notifications");
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
 }
 
-function saveNotifications(notifs: Notification[]) {
-  localStorage.setItem(NOTIF_KEY, JSON.stringify(notifs));
+async function patchNotifications(body: { id?: string; markAllRead?: boolean }) {
+  try {
+    await fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    /* silent */
+  }
 }
 
-export function addNotification(type: Notification["type"], title: string, message: string) {
-  const notifs = getNotifications();
-  notifs.unshift({
-    id: Math.random().toString(36).slice(2),
-    type, title, message,
-    timestamp: Date.now(),
-    read: false,
-  });
-  saveNotifications(notifs.slice(0, 50));
+/** Create an in-app notification for a specific user via the API. */
+export async function addNotification(
+  type: Notification["type"],
+  title: string,
+  message: string,
+  userId?: string,
+) {
+  try {
+    await fetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: userId || "", type, title, message }),
+    });
+  } catch {
+    /* silent */
+  }
 }
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [notifs, setNotifs] = useState<Notification[]>([]);
 
-  useEffect(() => {
-    setNotifs(getNotifications());
-    const interval = setInterval(() => setNotifs(getNotifications()), 5000);
-    return () => clearInterval(interval);
+  const refresh = useCallback(async () => {
+    const data = await fetchNotifications();
+    setNotifs(data);
   }, []);
+
+  useEffect(() => {
+    refresh();
+    const interval = setInterval(refresh, 15000);
+    return () => clearInterval(interval);
+  }, [refresh]);
 
   const unreadCount = notifs.filter((n) => !n.read).length;
 
-  const markAllRead = () => {
-    const updated = notifs.map((n) => ({ ...n, read: true }));
-    setNotifs(updated);
-    saveNotifications(updated);
+  const markAllRead = async () => {
+    setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+    await patchNotifications({ markAllRead: true });
   };
 
-  const clearAll = () => {
-    setNotifs([]);
-    saveNotifications([]);
+  const clearAll = async () => {
+    setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+    await patchNotifications({ markAllRead: true });
   };
 
   const iconMap = {
@@ -74,7 +96,7 @@ export function NotificationBell() {
 
   const formatTime = (ts: number) => {
     const diff = Date.now() - ts;
-    if (diff < 60000) return "À l'instant";
+    if (diff < 60000) return "A l'instant";
     if (diff < 3600000) return `${Math.floor(diff / 60000)}min`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
     return new Date(ts).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" });
@@ -108,18 +130,18 @@ export function NotificationBell() {
             </div>
             <div className="max-h-64 overflow-y-auto">
               {notifs.length === 0 ? (
-                <p className="text-center text-xs text-gray-400 py-8">Aucune notification</p>
+                <p className="text-center text-xs text-gray-400 dark:text-gray-500 py-8">Aucune notification</p>
               ) : (
                 notifs.slice(0, 20).map((n) => {
                   const Icon = iconMap[n.type];
                   return (
-                    <div key={n.id} className={`flex gap-2 px-3 py-2 border-b border-gray-50 last:border-0 ${!n.read ? "bg-blue-50/50" : ""}`}>
+                    <div key={n.id} className={`flex gap-2 px-3 py-2 border-b border-gray-50 dark:border-gray-700 last:border-0 ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/20" : ""}`}>
                       <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${colorMap[n.type]}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium">{n.title}</p>
-                        <p className="text-[10px] text-gray-500 truncate">{n.message}</p>
+                        <p className="text-xs font-medium text-gray-900 dark:text-gray-100">{n.title}</p>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{n.message}</p>
                       </div>
-                      <span className="text-[10px] text-gray-400 shrink-0">{formatTime(n.timestamp)}</span>
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">{formatTime(n.timestamp)}</span>
                     </div>
                   );
                 })
