@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Mail,
   Database,
+  Package,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ExportExcel } from "@/components/export-excel";
@@ -225,6 +226,13 @@ export default function AdminPage() {
         >
           <ScrollText className="w-4 h-4 text-amber-600" />
           Logs
+        </button>
+        <button
+          onClick={() => router.push("/admin/pieces-defauts")}
+          className="shrink-0 flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95"
+        >
+          <Package className="w-4 h-4 text-orange-600" />
+          Pièces &amp; Défauts
         </button>
         <div className="shrink-0">
           <WidgetSettings config={widgets} onChange={setWidgets} />
