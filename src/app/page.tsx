@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Onboarding } from "@/components/onboarding";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
@@ -21,6 +21,16 @@ const MonteurDashboard = dynamic(() => import("@/components/monteur-dashboard").
 });
 
 const WeekPlanning = dynamic(() => import("@/components/week-planning").then(m => ({ default: m.WeekPlanning })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const PersonalStats = dynamic(() => import("@/components/personal-stats").then(m => ({ default: m.PersonalStats })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const KanbanBoard = dynamic(() => import("@/components/kanban-board").then(m => ({ default: m.KanbanBoard })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
@@ -166,7 +176,7 @@ function HomePage() {
   }, [mode, statusFilter, collabFilter, quickFilter, search, router]);
 
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "calendar" | "collab" | "week" | "clients">("list");
+  const [viewMode, setViewMode] = useState<"list" | "calendar" | "collab" | "week" | "clients" | "kanban">("list");
   const [clientSearch, setClientSearch] = useState("");
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -177,6 +187,7 @@ function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [selectedMonteurStats, setSelectedMonteurStats] = useState<string>("");
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [conflictFilter, setConflictFilter] = useState<string | null>(null);
 
@@ -366,6 +377,66 @@ function HomePage() {
     } catch {}
   }, [projects, mode, setProjectsData]);
 
+  // --- Kanban status change handler ---
+  const handleStatusChange = useCallback(async (projectId: string, newStatus: string) => {
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+    const statusField = mode.startsWith("mesures") ? "etatMesures" : "etatCMD";
+    const oldStatus = mode.startsWith("mesures") ? project.etatMesures : project.etatCMD;
+
+    // 1. Optimistic local update
+    setProjectsData((prev) => {
+      const updated = { ...prev };
+      const list = (updated[mode] || []).map((p) => {
+        if (p.id !== projectId) return p;
+        return { ...p, [statusField]: newStatus };
+      });
+      updated[mode] = list;
+      try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+
+    // 5. Toast
+    setToast(`Statut changé : ${newStatus}`);
+    setTimeout(() => setToast(null), 3000);
+
+    // 2. PATCH API
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [statusField]: newStatus }),
+      });
+    } catch {}
+
+    // 3. Log
+    try {
+      await fetch("/api/logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          projectName: project.projet,
+          action: "Changement statut (Kanban)",
+          details: `${oldStatus} → ${newStatus}`,
+        }),
+      });
+    } catch {}
+
+    // 4. Notify
+    try {
+      await fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectName: project.projet,
+          action: "Changement statut (Kanban)",
+          details: `${oldStatus} → ${newStatus}`,
+        }),
+      });
+    } catch {}
+  }, [projects, mode, setProjectsData]);
+
   // --- Scheduling conflict detection ---
   const conflicts: { type: "conflict" | "overload"; collaborateur: string; date: string; count: number; projectIds: string[] }[] = [];
   {
@@ -465,6 +536,32 @@ function HomePage() {
           {currentUser && (projectsData["cmd"] || []).length > 0 && (
             <MonteurDashboard userName={currentUser.name} projects={projectsData["cmd"] || []} isAdmin={currentUser?.role === "admin"} />
           )}
+          {currentUser && (projectsData["cmd"] || []).length > 0 && (
+            <>
+              {currentUser.role === "admin" ? (
+                <div className="mt-4">
+                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400 mr-2">
+                    Stats monteur :
+                  </label>
+                  <select
+                    value={selectedMonteurStats}
+                    onChange={(e) => setSelectedMonteurStats(e.target.value)}
+                    className="glass-card rounded-lg px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  >
+                    <option value="">-- Choisir un monteur --</option>
+                    {COLLABORATEURS_LIST.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                  {selectedMonteurStats && (
+                    <PersonalStats userName={selectedMonteurStats} projects={[...(projectsData["cmd"] || []), ...(projectsData["cmd-termine"] || [])]} />
+                  )}
+                </div>
+              ) : (
+                <PersonalStats userName={currentUser.name} projects={[...(projectsData["cmd"] || []), ...(projectsData["cmd-termine"] || [])]} />
+              )}
+            </>
+          )}
           {loading && (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -510,6 +607,13 @@ function HomePage() {
           >
             <span className="text-xs font-semibold text-[#1e3a5f] dark:text-white">Clients</span>
             <Building className="w-5 h-5 text-amber-500" />
+          </button>
+          <button
+            onClick={() => setViewMode("kanban")}
+            className="glass-card flex items-center gap-2 px-4 py-3 rounded-xl hover:bg-white/80 transition-all active:scale-95"
+          >
+            <span className="text-xs font-semibold text-[#1e3a5f] dark:text-white">Kanban</span>
+            <LayoutGrid className="w-5 h-5 text-indigo-500" />
           </button>
         </div>
       )}

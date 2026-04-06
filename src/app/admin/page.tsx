@@ -28,6 +28,11 @@ const ExportExcel = dynamic(() => import("@/components/export-excel").then(m => 
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-9" />,
 });
 
+const InteractiveMap = dynamic(() => import("@/components/interactive-map").then(m => ({ default: m.InteractiveMap })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-64" />,
+});
+
 const WidgetSettings = dynamic(() => import("@/components/widget-settings").then(m => ({ default: m.WidgetSettings })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-9" />,
@@ -47,6 +52,7 @@ export default function AdminPage() {
   const [widgets, setWidgets] = useState<WidgetConfig[]>([]);
   const [logs, setLogs] = useState<{ id: string; timestamp: number; user: string; projectId: string; projectName: string; action: string; details: string }[]>([]);
   const [showLogs, setShowLogs] = useState(false);
+  const [chantierView, setChantierView] = useState<"liste" | "carte">("liste");
 
   useEffect(() => {
     setWidgets(getWidgetConfig());
@@ -996,13 +1002,40 @@ export default function AdminPage() {
         {/* Carte géographique */}
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-green-500" />
-              Chantiers en cours
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-green-500" />
+                Chantiers en cours
+              </CardTitle>
+              <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg">
+                <button
+                  onClick={() => setChantierView("liste")}
+                  className={`text-[10px] font-medium px-2.5 py-1 rounded-md transition-all ${
+                    chantierView === "liste"
+                      ? "bg-white shadow-sm text-gray-900"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  Liste
+                </button>
+                <button
+                  onClick={() => setChantierView("carte")}
+                  className={`text-[10px] font-medium px-2.5 py-1 rounded-md transition-all ${
+                    chantierView === "carte"
+                      ? "bg-white shadow-sm text-gray-900"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  Carte
+                </button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            {(() => {
+            {chantierView === "carte" ? (
+              <InteractiveMap projects={filteredProjects} />
+            ) : (
+            (() => {
               const withAddress = filteredProjects.filter((p) => p.adresseChantier);
 
               const getStatusGroup = (p: Project) => {
@@ -1020,24 +1053,6 @@ export default function AdminPage() {
                 red: "text-red-500",
                 blue: "text-blue-500",
                 gray: "text-gray-400",
-              };
-
-              // Construire l'URL Google Maps avec tous les marqueurs colorés
-              const buildMapUrl = () => {
-                const groups: Record<string, string[]> = {};
-                withAddress.forEach((p) => {
-                  const color = getStatusGroup(p);
-                  if (!groups[color]) groups[color] = [];
-                  groups[color].push(p.adresseChantier);
-                });
-                // Google Maps Static ne supporte pas les couleurs custom facilement,
-                // mais on peut utiliser l'API embed avec markers
-                const markers = Object.entries(groups)
-                  .map(([color, addrs]) =>
-                    `markers=color:${color}|${addrs.map((a) => encodeURIComponent(a)).join("|")}`
-                  )
-                  .join("&");
-                return `https://www.google.com/maps/d/u/0/embed?${markers}`;
               };
 
               // URL alternative : ouvrir Google Maps avec tous les points comme recherche
@@ -1092,11 +1107,12 @@ export default function AdminPage() {
                     rel="noopener noreferrer"
                     className="block text-center text-xs text-blue-600 hover:text-blue-800 py-2 mt-1 bg-blue-50 rounded-lg"
                   >
-                    📍 Voir tous les chantiers sur Google Maps
+                    Voir tous les chantiers sur Google Maps
                   </a>
                 </div>
               );
-            })()}
+            })()
+            )}
           </CardContent>
         </Card>
       </div>
