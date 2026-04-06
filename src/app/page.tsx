@@ -304,7 +304,7 @@ function HomePage() {
       {mode === "dashboard" && (
         <div>
           {currentUser && (projectsData["cmd"] || []).length > 0 && (
-            <MonteurDashboard userName={currentUser.name} projects={projectsData["cmd"] || []} />
+            <MonteurDashboard userName={currentUser.name} projects={projectsData["cmd"] || []} isAdmin={currentUser?.role === "admin"} />
           )}
           {loading && (
             <div className="flex items-center justify-center py-12">
