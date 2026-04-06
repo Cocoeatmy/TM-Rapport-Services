@@ -597,45 +597,69 @@ export default function AdminPage() {
           <CardContent>
             {(() => {
               const today = new Date();
-              const weeks: { label: string; cabines: number; projets: number }[] = [];
+              // Capacité : 6 collaborateurs × 3.5 cab/jour (moyenne 3-4) × 5 jours
+              const NB_COLLABORATEURS = 6;
+              const CAB_PAR_JOUR = 3.5;
+              const JOURS_PAR_SEMAINE = 5;
+              const capaciteHebdo = NB_COLLABORATEURS * CAB_PAR_JOUR * JOURS_PAR_SEMAINE; // = 105
+
+              const weeks: { label: string; cabines: number; projets: number; equipes: number }[] = [];
               for (let w = 0; w < 6; w++) {
                 const start = new Date(today);
                 start.setDate(today.getDate() + w * 7 - ((today.getDay() + 6) % 7));
                 const end = new Date(start);
-                end.setDate(start.getDate() + 6);
+                end.setDate(start.getDate() + 4); // Lun-Ven
                 const startStr = start.toISOString().split("T")[0];
                 const endStr = end.toISOString().split("T")[0];
-                const weekProjects = projects.filter((p) => p.dateMontage && p.dateMontage >= startStr && p.dateMontage <= endStr);
+                const weekProjects = projects.filter((p) => p.dateMontage && p.dateMontage.slice(0, 10) >= startStr && p.dateMontage.slice(0, 10) <= endStr);
                 const weekCabines = weekProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+                // Compter les équipes distinctes mobilisées
+                const equipes = new Set(weekProjects.map((p) => p.collaborateurs).filter(Boolean));
                 weeks.push({
                   label: w === 0 ? "Cette sem." : w === 1 ? "Sem. proch." : `S+${w}`,
                   cabines: weekCabines,
                   projets: weekProjects.length,
+                  equipes: equipes.size,
                 });
               }
-              const maxCab = Math.max(...weeks.map((w) => w.cabines), 1);
 
               return (
-                <div className="space-y-2">
-                  {weeks.map((w, i) => (
-                    <div key={i} className="space-y-0.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className={i === 0 ? "font-bold text-purple-700" : "text-gray-600"}>{w.label}</span>
-                        <span className="font-semibold">{w.cabines} cab. <span className="font-normal text-gray-400">({w.projets} proj.)</span></span>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-[10px] text-gray-400 px-1">
+                    <span>Capacité équipe : ~{Math.round(capaciteHebdo)} cab./sem.</span>
+                    <span>{NB_COLLABORATEURS} collab. × {CAB_PAR_JOUR} cab./jour × {JOURS_PAR_SEMAINE}j</span>
+                  </div>
+                  {weeks.map((w, i) => {
+                    const charge = capaciteHebdo > 0 ? (w.cabines / capaciteHebdo) * 100 : 0;
+                    const barColor = charge > 80 ? "#ef4444" : charge > 50 ? "#f59e0b" : "#8b5cf6";
+                    return (
+                      <div key={i} className="space-y-0.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className={i === 0 ? "font-bold text-purple-700" : "text-gray-600"}>{w.label}</span>
+                          <span className="font-semibold">
+                            {w.cabines} cab.
+                            <span className="font-normal text-gray-400"> ({w.projets} proj.)</span>
+                            {charge > 0 && (
+                              <span className={`ml-1.5 text-[10px] font-bold ${charge > 80 ? "text-red-500" : charge > 50 ? "text-amber-500" : "text-purple-500"}`}>
+                                {Math.round(charge)}%
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${Math.min(charge, 100)}%`,
+                              backgroundColor: barColor,
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${(w.cabines / maxCab) * 100}%`,
-                            backgroundColor: w.cabines > 10 ? "#ef4444" : w.cabines > 5 ? "#f59e0b" : "#8b5cf6",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <p className="text-[10px] text-gray-400 text-center mt-2">
-                    🟢 0-5 cab. | 🟡 6-10 cab. | 🔴 11+ cab. = surcharge
+                    🟢 0-50% dispo | 🟡 50-80% chargé | 🔴 80%+ surcharge
                   </p>
                 </div>
               );
