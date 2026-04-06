@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticate, createToken, verifyToken } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+    const { allowed, remaining } = checkRateLimit(`auth:${ip}`, 5, 60000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Trop de tentatives. Veuillez réessayer dans une minute." },
+        { status: 429, headers: { "Retry-After": "60", "X-RateLimit-Remaining": "0" } }
+      );
+    }
+
     const { email, password } = await request.json();
     console.log("Auth attempt:", email);
     const user = authenticate(email, password);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProject } from "@/lib/notion";
 import { STATUS_CMD_COLORS } from "@/lib/constants";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,15 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
+    const ip = _request.headers.get("x-forwarded-for") || _request.headers.get("x-real-ip") || "unknown";
+    const { allowed, remaining } = checkRateLimit(`client:${ip}`, 10, 60000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Trop de requêtes. Veuillez réessayer dans une minute." },
+        { status: 429, headers: { "Retry-After": "60", "X-RateLimit-Remaining": "0" } }
+      );
+    }
+
     const { token } = await params;
 
     // Decode the base64 token to get the project ID

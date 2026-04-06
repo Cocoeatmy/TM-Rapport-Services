@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   ArrowLeft,
   Users,
@@ -20,9 +21,17 @@ import {
   Package,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { ExportExcel } from "@/components/export-excel";
-import { WidgetSettings } from "@/components/widget-settings";
 import { getWidgetConfig, isWidgetVisible } from "@/lib/dashboard-config";
+
+const ExportExcel = dynamic(() => import("@/components/export-excel").then(m => m.ExportExcel ? { default: m.ExportExcel } : m), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const WidgetSettings = dynamic(() => import("@/components/widget-settings").then(m => m.WidgetSettings ? { default: m.WidgetSettings } : m), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
 import type { WidgetConfig } from "@/lib/dashboard-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCollaboratorColor } from "@/lib/collaborators";

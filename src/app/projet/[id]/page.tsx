@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   ArrowLeft,
   Clock,
@@ -22,13 +23,10 @@ import {
   Pencil,
   Check,
 } from "lucide-react";
-import { SignaturePad } from "@/components/signature-pad";
 import { MontageChecklist } from "@/components/checklist";
 import { ProjectChat } from "@/components/project-chat";
 import { GPSTracker } from "@/components/gps-tracker";
 import { SiteTimer } from "@/components/site-timer";
-import { PiecesForm } from "@/components/pieces-form";
-import { DefautForm } from "@/components/defaut-form";
 import { StockUsage } from "@/components/stock-usage";
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
@@ -41,13 +39,38 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PhotoUpload } from "@/components/photo-upload";
-import { BeforeAfterPhotos } from "@/components/before-after-photos";
 import { DeliveryScan } from "@/components/delivery-scan";
+
+const SignaturePad = dynamic(() => import("@/components/signature-pad").then(m => m.SignaturePad ? { default: m.SignaturePad } : m), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const PhotoUpload = dynamic(() => import("@/components/photo-upload").then(m => m.PhotoUpload ? { default: m.PhotoUpload } : m), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const BeforeAfterPhotos = dynamic(() => import("@/components/before-after-photos").then(m => m.BeforeAfterPhotos ? { default: m.BeforeAfterPhotos } : m), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const PiecesForm = dynamic(() => import("@/components/pieces-form").then(m => m.PiecesForm ? { default: m.PiecesForm } : m), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const DefautForm = dynamic(() => import("@/components/defaut-form").then(m => m.DefautForm ? { default: m.DefautForm } : m), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
 import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { addToQueue, isOnline } from "@/lib/offline";
+import { fetchWithRetry } from "@/lib/api-helpers";
+import { showRetryToast } from "@/components/error-toast";
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "Non planifié";
@@ -222,11 +245,16 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
     }
 
     try {
-      const res = await fetch(`/api/projects/${project.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patchBody),
-      });
+      const res = await fetchWithRetry(
+        `/api/projects/${project.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patchBody),
+        },
+        2,
+        (msg, retry) => showRetryToast(msg, () => { retry().catch(() => {}); }),
+      );
       if (res.ok) {
         onUpdate(newDate);
         Promise.all([
@@ -346,11 +374,16 @@ function EditableCollaborateur({ project, mode, onUpdate }: { project: Project; 
     }
 
     try {
-      const res = await fetch(`/api/projects/${project.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patchBody),
-      });
+      const res = await fetchWithRetry(
+        `/api/projects/${project.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patchBody),
+        },
+        2,
+        (msg, retry) => showRetryToast(msg, () => { retry().catch(() => {}); }),
+      );
       if (res.ok) {
         onUpdate(newValue);
         Promise.all([

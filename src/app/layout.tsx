@@ -6,6 +6,7 @@ import { SyncButton } from "@/components/sync-button";
 import { QRButton } from "@/components/qr-button";
 import { AIChatbot } from "@/components/ai-chatbot";
 import { NotificationBell } from "@/components/notifications";
+import { ErrorBoundary } from "@/components/error-boundary";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -61,7 +62,9 @@ export default function RootLayout({
             </div>
           </div>
         </header>
-        <main className="flex-1">{children}</main>
+        <main className="flex-1">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
         <Toaster position="top-center" richColors />
         <script
           dangerouslySetInnerHTML={{
@@ -71,6 +74,40 @@ export default function RootLayout({
                   navigator.serviceWorker.register('/sw.js');
                 });
               }
+
+              window.addEventListener('unhandledrejection', function(event) {
+                var msg = event.reason && event.reason.message ? event.reason.message : String(event.reason);
+                console.error('[UnhandledRejection]', msg);
+                try {
+                  fetch('/api/logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'ERROR',
+                      details: '[UnhandledRejection] ' + msg.slice(0, 500),
+                      projectId: '',
+                      projectName: ''
+                    })
+                  }).catch(function() {});
+                } catch(e) {}
+              });
+
+              window.addEventListener('error', function(event) {
+                var msg = event.message || 'Unknown error';
+                console.error('[GlobalError]', msg);
+                try {
+                  fetch('/api/logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'ERROR',
+                      details: '[GlobalError] ' + msg.slice(0, 500),
+                      projectId: '',
+                      projectName: ''
+                    })
+                  }).catch(function() {});
+                } catch(e) {}
+              });
             `,
           }}
         />

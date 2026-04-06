@@ -1,17 +1,29 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Onboarding } from "@/components/onboarding";
 import Link from "next/link";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { formatDateFR, formatDateLong, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST } from "@/lib/constants";
-import { MonteurDashboard } from "@/components/monteur-dashboard";
-import { WeekPlanning } from "@/components/week-planning";
 import { getFavorites } from "@/lib/favorites";
+import { fetchWithRetry } from "@/lib/api-helpers";
+import { showRetryToast } from "@/components/error-toast";
+
+const MonteurDashboard = dynamic(() => import("@/components/monteur-dashboard").then(m => ({ default: m.MonteurDashboard })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const WeekPlanning = dynamic(() => import("@/components/week-planning").then(m => ({ default: m.WeekPlanning })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
 
 function ProjectCard({ project, mode }: { project: Project; mode: string }) {
   const statusColors = mode.startsWith("mesures") ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
@@ -119,17 +131,40 @@ export default function Page() {
 
 function HomePage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const collaborateurParam = searchParams.get("collaborateur");
   const modeParam = searchParams.get("mode");
+  const statusParam = searchParams.get("status");
+  const collabParam = searchParams.get("collab");
+  const quickParam = searchParams.get("quick");
+  const qParam = searchParams.get("q");
   type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine";
   const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [collabFilter, setCollabFilter] = useState<string | null>(collaborateurParam);
-  const [quickFilter, setQuickFilter] = useState<string | null>(null);
+  const [search, setSearch] = useState(qParam || "");
+  const [statusFilter, setStatusFilter] = useState<string | null>(statusParam);
+  const [collabFilter, setCollabFilter] = useState<string | null>(collabParam || collaborateurParam);
+  const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
+  const isInitialMount = useRef(true);
+
+  // Sync filters to URL search params
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    const params = new URLSearchParams();
+    if (mode && mode !== "dashboard") params.set("mode", mode);
+    if (statusFilter) params.set("status", statusFilter);
+    if (collabFilter) params.set("collab", collabFilter);
+    if (quickFilter) params.set("quick", quickFilter);
+    if (search) params.set("q", search);
+    const qs = params.toString();
+    router.replace(qs ? `/?${qs}` : "/", { scroll: false });
+  }, [mode, statusFilter, collabFilter, quickFilter, search, router]);
+
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "calendar" | "collab" | "week">("list");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -176,7 +211,7 @@ function HomePage() {
     const allModes = Object.entries(MODE_API) as [Mode, string][];
     Promise.all(
       allModes.map(([key, url]) =>
-        fetch(url).then((r) => r.json()).then((data) => ({ key, data })).catch(() => ({ key, data: null }))
+        fetchWithRetry(url, undefined, 2, (msg, retry) => showRetryToast(msg, () => { retry().catch(() => {}); })).then((r) => r.json()).then((data) => ({ key, data })).catch(() => ({ key, data: null }))
       )
     ).then((results) => {
       const newData: Record<string, any> = {};
@@ -369,6 +404,7 @@ function HomePage() {
 
   return (
     <div className="px-4 py-4 max-w-5xl mx-auto w-full">
+      <Onboarding />
       {/* Toast notification */}
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
