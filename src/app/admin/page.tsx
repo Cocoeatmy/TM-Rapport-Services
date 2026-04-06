@@ -597,11 +597,11 @@ export default function AdminPage() {
           <CardContent>
             {(() => {
               const today = new Date();
-              // Capacité : 6 collaborateurs × 3.5 cab/jour (moyenne 3-4) × 5 jours
-              const NB_COLLABORATEURS = 6;
+              // Capacité : 5 monteurs × 3.5 cab/jour (moyenne 3-4) × 5 jours
+              const NB_COLLABORATEURS = 5;
               const CAB_PAR_JOUR = 3.5;
               const JOURS_PAR_SEMAINE = 5;
-              const capaciteHebdo = NB_COLLABORATEURS * CAB_PAR_JOUR * JOURS_PAR_SEMAINE; // = 105
+              const capaciteHebdo = NB_COLLABORATEURS * CAB_PAR_JOUR * JOURS_PAR_SEMAINE; // = 87.5
 
               const weeks: { label: string; cabines: number; projets: number; equipes: number }[] = [];
               for (let w = 0; w < 6; w++) {
