@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
-import { formatDateFR, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, COLLABORATEURS_LIST } from "@/lib/constants";
+import { formatDateFR, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST } from "@/lib/constants";
 import { MonteurDashboard } from "@/components/monteur-dashboard";
 import { WeekPlanning } from "@/components/week-planning";
 import { getFavorites } from "@/lib/favorites";
@@ -245,12 +245,21 @@ function HomePage() {
       p.fournisseurs.some((f) => f.toLowerCase().includes(q))
     );
   }).sort((a, b) => {
-    const dateA = mode.startsWith("mesures") ? a.dateMesures : a.dateMontage;
-    const dateB = mode.startsWith("mesures") ? b.dateMesures : b.dateMontage;
+    if (mode.startsWith("mesures")) {
+      // Mesures : trier par statut prioritaire
+      const orderA = STATUS_MESURES_SORT_ORDER[a.etatMesures] ?? 99;
+      const orderB = STATUS_MESURES_SORT_ORDER[b.etatMesures] ?? 99;
+      if (orderA !== orderB) return orderA - orderB;
+      // Même statut : trier par date
+      const dateA = a.dateMesures || "";
+      const dateB = b.dateMesures || "";
+      return dateA.localeCompare(dateB);
+    }
+    const dateA = a.dateMontage;
+    const dateB = b.dateMontage;
     if (dateA && dateB) return dateA.localeCompare(dateB);
     if (dateA && !dateB) return -1;
     if (!dateA && dateB) return 1;
-    // Les deux sans date : trier par priorité de statut
     const orderA = STATUS_SORT_ORDER[a.etatCMD] ?? 5;
     const orderB = STATUS_SORT_ORDER[b.etatCMD] ?? 5;
     return orderA - orderB;

@@ -35,6 +35,17 @@ export const STATUS_SORT_ORDER: Record<string, number> = {
   "Soucis montage": 7,
 };
 
+export const STATUS_MESURES_SORT_ORDER: Record<string, number> = {
+  "RDV - Fixé": 1,
+  "RDV - Attendre news": 2,
+  "Contact sans réponse": 3,
+  "Pas contacté": 4,
+  "Mesures partielles": 5,
+  "Mesures relevées - attente news": 6,
+  "OFR envoyée sans mesures": 7,
+  "Mesures non relevées - attendre news": 8,
+};
+
 export const CHECKLIST_ITEMS = [
   { id: "protection-sol", label: "Protection du sol mise en place" },
   { id: "verification-mesures", label: "Vérification des mesures avant montage" },
