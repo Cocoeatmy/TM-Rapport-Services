@@ -47,12 +47,18 @@ import { getCollaboratorColor } from "@/lib/collaborators";
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "Non planifié";
   const d = new Date(dateStr);
-  return d.toLocaleDateString("fr-CH", {
+  const datePart = d.toLocaleDateString("fr-CH", {
     weekday: "long",
     day: "2-digit",
     month: "long",
     year: "numeric",
   });
+  // Si la date contient une heure (format ISO avec T)
+  if (dateStr.includes("T")) {
+    const timePart = d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
+    return `${datePart} à ${timePart}`;
+  }
+  return datePart;
 }
 
 function MapAddressLink({ address }: { address: string }) {
@@ -128,21 +134,31 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const currentDate = mode === "mesures" ? project.dateMesures : project.dateMontage;
-  const [dateValue, setDateValue] = useState(currentDate || "");
+  // Extraire date et heure depuis le format ISO
+  const initDate = currentDate ? currentDate.split("T")[0] : "";
+  const initTime = currentDate && currentDate.includes("T") ? currentDate.split("T")[1]?.slice(0, 5) : "";
+  const [dateValue, setDateValue] = useState(initDate);
+  const [timeValue, setTimeValue] = useState(initTime);
   const label = mode === "mesures" ? "Date de mesures" : mode === "services" ? "Date de service" : mode === "sav" ? "Date SAV" : "Date de montage";
   const notionField = mode === "mesures" ? "dateMesures" : "dateMontage";
 
+  const buildDateString = () => {
+    if (!dateValue) return null;
+    if (timeValue) return `${dateValue}T${timeValue}:00`;
+    return dateValue;
+  };
+
   const handleSave = async () => {
     setSaving(true);
+    const newDate = buildDateString();
     try {
       const res = await fetch(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [notionField]: dateValue || null }),
+        body: JSON.stringify({ [notionField]: newDate }),
       });
       if (res.ok) {
-        onUpdate(dateValue || null);
-        // Log the change
+        onUpdate(newDate);
         await fetch("/api/logs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -150,7 +166,7 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
             projectId: project.id,
             projectName: project.projet,
             action: `Modification ${label}`,
-            details: `${formatDate(currentDate)} → ${dateValue ? formatDate(dateValue) : "Non planifié"}`,
+            details: `${formatDate(currentDate)} → ${newDate ? formatDate(newDate) : "Non planifié"}`,
           }),
         });
         setEditing(false);
@@ -166,26 +182,46 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
       <div className="flex-1 min-w-0">
         <p className="text-xs text-gray-500">{label}</p>
         {editing ? (
-          <div className="flex items-center gap-2 mt-0.5">
-            <input
-              type="date"
-              value={dateValue}
-              onChange={(e) => setDateValue(e.target.value)}
-              className="h-8 px-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 dark:bg-slate-800 dark:text-gray-100"
-            />
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center hover:bg-green-600 disabled:opacity-50"
-            >
-              <Check className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => { setEditing(false); setDateValue(currentDate || ""); }}
-              className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex items-center justify-center hover:bg-gray-300"
-            >
-              ✕
-            </button>
+          <div className="space-y-1.5 mt-0.5">
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dateValue}
+                onChange={(e) => setDateValue(e.target.value)}
+                className="h-8 px-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 dark:bg-slate-800 dark:text-gray-100 flex-1 min-w-0"
+              />
+              <input
+                type="time"
+                value={timeValue}
+                onChange={(e) => setTimeValue(e.target.value)}
+                placeholder="Heure"
+                className="h-8 px-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 dark:bg-slate-800 dark:text-gray-100 w-24"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="h-7 px-3 rounded-lg bg-green-500 text-white text-xs font-medium flex items-center justify-center gap-1 hover:bg-green-600 disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Enregistrer
+              </button>
+              <button
+                onClick={() => { setEditing(false); setDateValue(initDate); setTimeValue(initTime); }}
+                className="h-7 px-3 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-medium hover:bg-gray-300"
+              >
+                Annuler
+              </button>
+              {timeValue && (
+                <button
+                  onClick={() => setTimeValue("")}
+                  className="h-7 px-2 text-xs text-gray-400 hover:text-red-500"
+                >
+                  Retirer l'heure
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-1.5">
