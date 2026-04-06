@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
@@ -121,9 +121,9 @@ function HomePage() {
   const searchParams = useSearchParams();
   const collaborateurParam = searchParams.get("collaborateur");
   const modeParam = searchParams.get("mode");
-  type Mode = "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine";
-  const validModes: Mode[] = ["mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine"];
-  const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "cmd";
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine"];
+  const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
   const [search, setSearch] = useState("");
@@ -257,15 +257,18 @@ function HomePage() {
       {(() => {
         const switchMode = (m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); };
         const tabClass = (m: Mode) =>
-          `flex-1 text-xs font-medium py-2 rounded-lg transition-all duration-200 ${
+          `shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 ${
             mode === m
               ? "glass-tab-active text-[#1e3a5f] dark:text-white"
               : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
           }`;
         const count = (m: string) => (projectsData[m]?.length ?? "…");
         return (
-          <div className="mb-4 glass-tabs p-1.5 rounded-2xl max-w-md mx-auto sm:mx-0">
-            <div className="flex gap-1">
+          <div className="mb-4 glass-tabs p-1.5 rounded-2xl max-w-full sm:max-w-lg">
+            <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+              <button onClick={() => switchMode("dashboard")} className={tabClass("dashboard")}>
+                Dashboard
+              </button>
               <button onClick={() => switchMode("mesures")} className={tabClass("mesures")}>
                 Mesures ({count("mesures")})
               </button>
@@ -282,6 +285,20 @@ function HomePage() {
           </div>
         );
       })()}
+
+      {/* VUE DASHBOARD */}
+      {mode === "dashboard" && (
+        <div>
+          {currentUser && (projectsData["cmd"] || []).length > 0 && (
+            <MonteurDashboard userName={currentUser.name} projects={projectsData["cmd"] || []} />
+          )}
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Boutons Calendrier / Collaborateurs */}
       {!loading && (mode === "cmd" || mode === "mesures") && viewMode === "list" && (
@@ -519,11 +536,7 @@ function HomePage() {
         );
       })()}
 
-      {/* Dashboard monteur personnalisé */}
-      {viewMode === "list" && currentUser && mode === "cmd" && projects.length > 0 && (
-        <MonteurDashboard userName={currentUser.name} projects={projects} />
-      )}
-
+      {mode !== "dashboard" && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {
         const favIds = typeof window !== "undefined" ? getFavorites() : [];
@@ -762,6 +775,7 @@ function HomePage() {
           </div>
         </div>
       ) : null}
+      </>)}
     </div>
   );
 }
