@@ -23,9 +23,10 @@ import {
   Check,
 } from "lucide-react";
 import { SignaturePad } from "@/components/signature-pad";
-import { MontageChecklist, DEFAULT_CHECKLIST } from "@/components/checklist";
+import { MontageChecklist } from "@/components/checklist";
 import { ProjectChat } from "@/components/project-chat";
 import { GPSTracker } from "@/components/gps-tracker";
+import { SiteTimer } from "@/components/site-timer";
 import { PiecesForm } from "@/components/pieces-form";
 import { DefautForm } from "@/components/defaut-form";
 import { SAVForm } from "@/components/sav-form";
@@ -811,6 +812,11 @@ function ProjectPageContent({ id }: { id: string }) {
                 {/* Mode simple (1 cabine) */}
                 {!isMultiDay && (
                   <>
+                  <SiteTimer
+                    projectId={project.id}
+                    onArrival={(time) => setHeureArrivee(time)}
+                    onDeparture={(time) => setHeureDepart(time)}
+                  />
                   <GPSTracker
                     chantierAddress={project.adresseChantier}
                     onArrival={(time) => setHeureArrivee(time)}
@@ -1240,7 +1246,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 <CardTitle className="text-base">Vérifications</CardTitle>
               </CardHeader>
               <CardContent>
-                <MontageChecklist items={DEFAULT_CHECKLIST} />
+                <MontageChecklist fournisseur={project.fournisseurs?.[0]} />
               </CardContent>
             </Card>
 
