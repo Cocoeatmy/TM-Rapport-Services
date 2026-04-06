@@ -216,7 +216,11 @@ function HomePage() {
     return acc;
   }, {});
 
-  const rdvFixeCount = mode === "cmd" ? projects.filter((p) => p.etatCMD === "RDV - fixé").length : 0;
+  const rdvFixeCount = mode === "cmd" ? projects.filter((p) => p.etatCMD === "RDV - fixé").length
+    : projects.filter((p) => {
+      const date = mode.startsWith("mesures") ? p.dateMesures : p.dateMontage;
+      return !!date;
+    }).length;
   const rdvAFixerCount = mode === "cmd" ? projects.filter((p) => p.etatCMD === "Cabine à aller chercher" || p.etatCMD === "Récéptionné - RDV à fixer").length : 0;
 
   const filtered = projects.filter((p) => {
@@ -302,7 +306,7 @@ function HomePage() {
       )}
 
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && (mode === "cmd" || mode === "mesures") && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && viewMode === "list" && (
         <div className="flex gap-3 mb-4">
           <button
             onClick={() => setViewMode("calendar")}
