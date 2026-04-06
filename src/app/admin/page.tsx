@@ -601,6 +601,301 @@ export default function AdminPage() {
           </CardContent>
         </Card>
 
+        {/* Temps moyen par cabine */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="w-4 h-4 text-teal-500" />
+              Temps moyen par cabine
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(() => {
+              // Parse time from formats: "HH:MM" or "date collab HH:MM | ..."
+              const parseTime = (raw: string): number | null => {
+                if (!raw || !raw.trim()) return null;
+                // Try simple HH:MM
+                const simpleMatch = raw.trim().match(/^(\d{1,2}):(\d{2})$/);
+                if (simpleMatch) {
+                  return parseInt(simpleMatch[1]) * 60 + parseInt(simpleMatch[2]);
+                }
+                // Try multi-day or complex format: look for first HH:MM pattern
+                const timeMatches = raw.match(/(\d{1,2}):(\d{2})/g);
+                if (timeMatches && timeMatches.length > 0) {
+                  const first = timeMatches[0];
+                  const parts = first.split(":");
+                  return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+                }
+                return null;
+              };
+
+              const projectsWithTime = filteredProjects.filter(
+                (p) => p.heureArrivee && p.heureDepart && p.heureArrivee.trim() !== "" && p.heureDepart.trim() !== ""
+              ).map((p) => {
+                const arrive = parseTime(p.heureArrivee);
+                const depart = parseTime(p.heureDepart);
+                if (arrive === null || depart === null) return null;
+                let minutes = depart - arrive;
+                if (minutes <= 0) minutes += 24 * 60; // overnight
+                const hours = minutes / 60;
+                const cabines = p.nbCabines || 1;
+                const hoursPerCabine = hours / cabines;
+                return { project: p, hours, hoursPerCabine, cabines };
+              }).filter(Boolean) as { project: Project; hours: number; hoursPerCabine: number; cabines: number }[];
+
+              if (projectsWithTime.length === 0) {
+                return <p className="text-xs text-gray-400 text-center py-4">Aucun projet avec heures de début et fin renseignées</p>;
+              }
+
+              const overallAvg = projectsWithTime.reduce((s, p) => s + p.hoursPerCabine, 0) / projectsWithTime.length;
+
+              // By collaborator
+              const collabMap: Record<string, { total: number; count: number }> = {};
+              projectsWithTime.forEach((p) => {
+                const collab = p.project.collaborateurs || "Non assigné";
+                if (!collabMap[collab]) collabMap[collab] = { total: 0, count: 0 };
+                collabMap[collab].total += p.hoursPerCabine;
+                collabMap[collab].count += 1;
+              });
+              const collabStats = Object.entries(collabMap)
+                .map(([name, v]) => ({ name, avg: v.total / v.count, count: v.count }))
+                .sort((a, b) => a.avg - b.avg);
+
+              // By fournisseur
+              const fournMap: Record<string, { total: number; count: number }> = {};
+              projectsWithTime.forEach((p) => {
+                p.project.fournisseurs.forEach((f) => {
+                  if (!fournMap[f]) fournMap[f] = { total: 0, count: 0 };
+                  fournMap[f].total += p.hoursPerCabine;
+                  fournMap[f].count += 1;
+                });
+              });
+              const fournStats = Object.entries(fournMap)
+                .map(([name, v]) => ({ name, avg: v.total / v.count, count: v.count }))
+                .sort((a, b) => b.avg - a.avg);
+
+              const maxCollabAvg = Math.max(...collabStats.map((s) => s.avg), 1);
+              const maxFournAvg = Math.max(...fournStats.map((s) => s.avg), 1);
+
+              const formatH = (h: number) => {
+                const hrs = Math.floor(h);
+                const mins = Math.round((h - hrs) * 60);
+                return mins > 0 ? `${hrs}h${mins.toString().padStart(2, "0")}` : `${hrs}h`;
+              };
+
+              return (
+                <>
+                  <div className="text-center py-2">
+                    <p className="text-3xl font-bold text-teal-600">{formatH(overallAvg)}</p>
+                    <p className="text-xs text-gray-500">moyenne par cabine ({projectsWithTime.length} projets)</p>
+                  </div>
+
+                  {/* By collaborator */}
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Par collaborateur (plus rapide en haut)</p>
+                  {collabStats.slice(0, 8).map((stat) => {
+                    const key = `temps-collab-${stat.name}`;
+                    const isOpen = expanded === key;
+                    const matchedProjects = projectsWithTime.filter((p) => (p.project.collaborateurs || "Non assigné") === stat.name).map((p) => p.project);
+                    return (
+                      <div key={stat.name}>
+                        <button type="button" onClick={() => toggleExpand(key)} className="w-full text-left space-y-1 hover:bg-white/40 rounded-lg px-1 py-1 -mx-1 transition-colors">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getCollaboratorColor(stat.name.split(" & ")[0].trim()).dot }} />
+                              <span>{stat.name}</span>
+                            </span>
+                            <span className="flex items-center gap-1.5 shrink-0 ml-2">
+                              <span className="font-semibold text-teal-700">{formatH(stat.avg)}</span>
+                              <span className="text-gray-400 text-[10px]">({stat.count} proj.)</span>
+                              {isOpen ? <ChevronUp className="w-3 h-3 text-gray-400" /> : <ChevronDown className="w-3 h-3 text-gray-400" />}
+                            </span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-teal-500 transition-all duration-500"
+                              style={{ width: `${(stat.avg / maxCollabAvg) * 100}%` }}
+                            />
+                          </div>
+                        </button>
+                        {isOpen && <ProjectList items={matchedProjects} />}
+                      </div>
+                    );
+                  })}
+
+                  {/* By fournisseur */}
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide pt-2">Par fournisseur (plus long en haut)</p>
+                  {fournStats.slice(0, 8).map((stat) => (
+                    <div key={stat.name} className="space-y-1 px-1 py-1 -mx-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span>{stat.name}</span>
+                        <span className="font-semibold text-teal-700">{formatH(stat.avg)} <span className="text-gray-400 text-[10px] font-normal">({stat.count} proj.)</span></span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                          style={{ width: `${(stat.avg / maxFournAvg) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
+        {/* Répartition géographique */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-indigo-500" />
+              Répartition géographique
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(() => {
+              // Extract region from address patterns like "1000 Lausanne Vaud", "1208 Genève", etc.
+              const extractRegion = (address: string): string => {
+                if (!address || !address.trim()) return "Inconnu";
+                const trimmed = address.trim();
+
+                // Swiss cantons / major cities mapping
+                const cantonKeywords: Record<string, string> = {
+                  "Vaud": "Vaud",
+                  "Genève": "Genève", "Geneve": "Genève", "Geneva": "Genève",
+                  "Valais": "Valais", "Wallis": "Valais",
+                  "Fribourg": "Fribourg", "Freiburg": "Fribourg",
+                  "Neuchâtel": "Neuchâtel", "Neuchatel": "Neuchâtel",
+                  "Jura": "Jura",
+                  "Bern": "Berne", "Berne": "Berne",
+                  "Zürich": "Zürich", "Zurich": "Zürich",
+                  "Lucerne": "Lucerne", "Luzern": "Lucerne",
+                  "Basel": "Bâle", "Bâle": "Bâle",
+                  "Tessin": "Tessin", "Ticino": "Tessin",
+                  "Soleure": "Soleure", "Solothurn": "Soleure",
+                  "Aargau": "Argovie", "Argovie": "Argovie",
+                  "St. Gallen": "St-Gall", "St-Gall": "St-Gall",
+                  "Graubünden": "Grisons", "Grisons": "Grisons",
+                  "Thurgau": "Thurgovie", "Thurgovie": "Thurgovie",
+                  "Schwyz": "Schwyz",
+                  "Zug": "Zoug", "Zoug": "Zoug",
+                  "Nidwalden": "Nidwald", "Obwalden": "Obwald",
+                  "Uri": "Uri",
+                  "Glarus": "Glaris",
+                  "Appenzell": "Appenzell",
+                  "Schaffhausen": "Schaffhouse", "Schaffhouse": "Schaffhouse",
+                };
+
+                // Try matching canton name in the address
+                for (const [keyword, canton] of Object.entries(cantonKeywords)) {
+                  if (trimmed.toLowerCase().includes(keyword.toLowerCase())) {
+                    return canton;
+                  }
+                }
+
+                // Try to extract city from postal code pattern "NNNN City"
+                const postalMatch = trimmed.match(/\b(\d{4})\s+([A-ZÀ-Ÿa-zà-ÿ\-]+)/);
+                if (postalMatch) {
+                  const code = parseInt(postalMatch[1]);
+                  // Swiss postal code ranges for cantons
+                  if (code >= 1000 && code <= 1099) return "Lausanne (VD)";
+                  if (code >= 1100 && code <= 1199) return "Vaud";
+                  if (code >= 1200 && code <= 1299) return "Genève";
+                  if (code >= 1300 && code <= 1399) return "Vaud";
+                  if (code >= 1400 && code <= 1499) return "Vaud";
+                  if (code >= 1500 && code <= 1599) return "Vaud";
+                  if (code >= 1600 && code <= 1699) return "Fribourg";
+                  if (code >= 1700 && code <= 1799) return "Fribourg";
+                  if (code >= 1800 && code <= 1899) return "Vaud";
+                  if (code >= 1900 && code <= 1999) return "Valais";
+                  if (code >= 2000 && code <= 2099) return "Neuchâtel";
+                  if (code >= 2300 && code <= 2399) return "Jura";
+                  if (code >= 2500 && code <= 2599) return "Berne";
+                  if (code >= 2800 && code <= 2899) return "Jura";
+                  if (code >= 3000 && code <= 3999) return "Berne";
+                  if (code >= 4000 && code <= 4999) return "Bâle / Soleure";
+                  if (code >= 5000 && code <= 5999) return "Argovie";
+                  if (code >= 6000 && code <= 6099) return "Lucerne";
+                  if (code >= 6300 && code <= 6399) return "Zoug";
+                  if (code >= 6500 && code <= 6999) return "Tessin";
+                  if (code >= 7000 && code <= 7999) return "Grisons";
+                  if (code >= 8000 && code <= 8999) return "Zürich";
+                  if (code >= 9000 && code <= 9999) return "St-Gall / Thurgovie";
+                  // Fallback to city name from postal match
+                  return postalMatch[2];
+                }
+
+                // Final fallback
+                return trimmed.length > 25 ? trimmed.slice(0, 25) + "..." : trimmed;
+              };
+
+              const regionMap: Record<string, { projets: number; cabines: number; projects: Project[] }> = {};
+              filteredProjects.forEach((p) => {
+                const region = extractRegion(p.adresseChantier);
+                if (!regionMap[region]) regionMap[region] = { projets: 0, cabines: 0, projects: [] };
+                regionMap[region].projets += 1;
+                regionMap[region].cabines += p.nbCabines || 0;
+                regionMap[region].projects.push(p);
+              });
+
+              const regionStats = Object.entries(regionMap)
+                .map(([name, stats]) => ({ name, ...stats }))
+                .sort((a, b) => b.projets - a.projets);
+
+              if (regionStats.length === 0) {
+                return <p className="text-xs text-gray-400 text-center py-4">Aucun projet avec adresse</p>;
+              }
+
+              const maxProjets = Math.max(...regionStats.map((s) => s.projets), 1);
+              const totalRegionProjets = regionStats.reduce((s, r) => s + r.projets, 0);
+
+              return (
+                <>
+                  <div className="text-center py-2">
+                    <p className="text-3xl font-bold text-indigo-600">{regionStats.length}</p>
+                    <p className="text-xs text-gray-500">régions / cantons</p>
+                  </div>
+                  {regionStats.slice(0, 15).map((stat) => {
+                    const key = `geo-${stat.name}`;
+                    const isOpen = expanded === key;
+                    const pct = totalRegionProjets > 0 ? ((stat.projets / totalRegionProjets) * 100).toFixed(0) : "0";
+                    return (
+                      <div key={stat.name}>
+                        <button type="button" onClick={() => toggleExpand(key)} className="w-full text-left space-y-1 hover:bg-white/40 rounded-lg px-1 py-1 -mx-1 transition-colors">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-1.5">
+                              <MapPin className="w-3 h-3 text-indigo-400" />
+                              <span>{stat.name}</span>
+                              <span className="text-[10px] text-gray-400">{pct}%</span>
+                            </span>
+                            <span className="flex items-center gap-1.5 shrink-0 ml-2">
+                              <span className="font-semibold">{stat.projets} <span className="font-normal text-gray-400 text-[10px]">proj.</span></span>
+                              <span className="text-gray-400 text-[10px]">{stat.cabines} cab.</span>
+                              {isOpen ? <ChevronUp className="w-3 h-3 text-gray-400" /> : <ChevronDown className="w-3 h-3 text-gray-400" />}
+                            </span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-indigo-500 transition-all duration-500"
+                              style={{ width: `${(stat.projets / maxProjets) * 100}%` }}
+                            />
+                          </div>
+                        </button>
+                        {isOpen && <ProjectList items={stat.projects} />}
+                      </div>
+                    );
+                  })}
+                  {regionStats.length > 15 && (
+                    <p className="text-xs text-gray-400 text-center">
+                      +{regionStats.length - 15} autres régions
+                    </p>
+                  )}
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
         {/* Prévisions de charge */}
         <Card className="glass-card">
           <CardHeader className="pb-2">
