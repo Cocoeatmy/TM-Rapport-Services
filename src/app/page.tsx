@@ -564,6 +564,16 @@ function HomePage() {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <h2 className="text-lg font-semibold flex-1">Calendrier RDV</h2>
+              <button
+                onClick={() => {
+                  const monthStr = `${calendarMonth.year}-${String(calendarMonth.month + 1).padStart(2, "0")}`;
+                  window.open(`/api/planning-pdf?month=${monthStr}`, "_blank");
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#1e3a5f] text-white hover:bg-[#2a4f7f] transition-colors active:scale-95"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                Imprimer planning
+              </button>
             </div>
             <div className="glass-card rounded-2xl p-4">
               <div className="flex items-center justify-between mb-4">

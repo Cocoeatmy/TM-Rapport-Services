@@ -41,17 +41,17 @@ import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeliveryScan } from "@/components/delivery-scan";
 
-const SignaturePad = dynamic(() => import("@/components/signature-pad").then(m => m.SignaturePad ? { default: m.SignaturePad } : m), {
+const SignaturePad = dynamic(() => import("@/components/signature-pad").then(m => ({ default: m.SignaturePad })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
-const PhotoUpload = dynamic(() => import("@/components/photo-upload").then(m => m.PhotoUpload ? { default: m.PhotoUpload } : m), {
+const PhotoUpload = dynamic(() => import("@/components/photo-upload").then(m => ({ default: m.PhotoUpload })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
-const BeforeAfterPhotos = dynamic(() => import("@/components/before-after-photos").then(m => m.BeforeAfterPhotos ? { default: m.BeforeAfterPhotos } : m), {
+const BeforeAfterPhotos = dynamic(() => import("@/components/before-after-photos").then(m => ({ default: m.BeforeAfterPhotos })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
