@@ -43,6 +43,7 @@ import { PhotoUpload } from "@/components/photo-upload";
 import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
+import { addToQueue, isOnline } from "@/lib/offline";
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "Non planifié";
@@ -130,6 +131,60 @@ function MapAddressLink({ address }: { address: string }) {
   );
 }
 
+function ProjectHistory({ projectId }: { projectId: string }) {
+  const [logs, setLogs] = useState<{ id: string; timestamp: number; user: string; action: string; details: string }[]>([]);
+  const [open, setOpen] = useState(false);
+
+  const loadLogs = async () => {
+    try {
+      const res = await fetch("/api/logs");
+      if (res.ok) {
+        const all = await res.json();
+        if (Array.isArray(all)) {
+          setLogs(all.filter((l: any) => l.projectId === projectId));
+        }
+      }
+    } catch {}
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-4">
+        <button
+          onClick={() => { setOpen(!open); if (!open) loadLogs(); }}
+          className="w-full flex items-center justify-between text-sm"
+        >
+          <span className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
+            <Clock className="w-4 h-4" />
+            Historique des modifications
+          </span>
+          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+        {open && (
+          <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
+            {logs.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-3">Aucune modification</p>
+            ) : (
+              logs.map((log) => (
+                <div key={log.id} className="flex items-start gap-2 text-xs border-b border-gray-50 dark:border-gray-700 pb-2 last:border-0">
+                  <span className="text-gray-400 shrink-0 w-14">
+                    {new Date(log.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-700 dark:text-gray-300">{log.action}</p>
+                    {log.details && <p className="text-gray-400">{log.details}</p>}
+                  </div>
+                  <span className="text-gray-400 shrink-0">{log.user}</span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function EditableDate({ project, mode, onUpdate }: { project: Project; mode: string; onUpdate: (date: string | null) => void }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -151,40 +206,44 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
   const handleSave = async () => {
     setSaving(true);
     const newDate = buildDateString();
+    const patchBody = { [notionField]: newDate };
+    const logDetails = `${formatDate(currentDate)} → ${newDate ? formatDate(newDate) : "Non planifié"}`;
+
+    if (!isOnline()) {
+      addToQueue({ type: "update", url: `/api/projects/${project.id}`, method: "PATCH", body: patchBody });
+      onUpdate(newDate);
+      setEditing(false);
+      setSaving(false);
+      return;
+    }
+
     try {
       const res = await fetch(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [notionField]: newDate }),
+        body: JSON.stringify(patchBody),
       });
       if (res.ok) {
         onUpdate(newDate);
-        const logDetails = `${formatDate(currentDate)} → ${newDate ? formatDate(newDate) : "Non planifié"}`;
-        // Log + notification admin en parallèle
         Promise.all([
           fetch("/api/logs", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              projectId: project.id,
-              projectName: project.projet,
-              action: `Modification ${label}`,
-              details: logDetails,
-            }),
+            body: JSON.stringify({ projectId: project.id, projectName: project.projet, action: `Modification ${label}`, details: logDetails }),
           }),
           fetch("/api/notify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              projectName: project.projet,
-              action: `Modification ${label}`,
-              details: logDetails,
-            }),
+            body: JSON.stringify({ projectName: project.projet, action: `Modification ${label}`, details: logDetails }),
           }),
         ]).catch(() => {});
         setEditing(false);
       }
-    } catch {} finally {
+    } catch {
+      addToQueue({ type: "update", url: `/api/projects/${project.id}`, method: "PATCH", body: patchBody });
+      onUpdate(newDate);
+      setEditing(false);
+    } finally {
       setSaving(false);
     }
   };
@@ -271,39 +330,44 @@ function EditableCollaborateur({ project, mode, onUpdate }: { project: Project; 
   const handleSave = async () => {
     setSaving(true);
     const newValue = selected.join(" & ");
+    const patchBody = { [notionField]: newValue || "" };
+    const logDetails = `${currentCollab || "---"} → ${newValue || "---"}`;
+
+    if (!isOnline()) {
+      addToQueue({ type: "update", url: `/api/projects/${project.id}`, method: "PATCH", body: patchBody });
+      onUpdate(newValue);
+      setEditing(false);
+      setSaving(false);
+      return;
+    }
+
     try {
       const res = await fetch(`/api/projects/${project.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [notionField]: newValue || "" }),
+        body: JSON.stringify(patchBody),
       });
       if (res.ok) {
         onUpdate(newValue);
-        const logDetails = `${currentCollab || "---"} → ${newValue || "---"}`;
         Promise.all([
           fetch("/api/logs", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              projectId: project.id,
-              projectName: project.projet,
-              action: "Modification collaborateur",
-              details: logDetails,
-            }),
+            body: JSON.stringify({ projectId: project.id, projectName: project.projet, action: "Modification collaborateur", details: logDetails }),
           }),
           fetch("/api/notify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              projectName: project.projet,
-              action: "Modification collaborateur",
-              details: logDetails,
-            }),
+            body: JSON.stringify({ projectName: project.projet, action: "Modification collaborateur", details: logDetails }),
           }),
         ]).catch(() => {});
         setEditing(false);
       }
-    } catch {} finally {
+    } catch {
+      addToQueue({ type: "update", url: `/api/projects/${project.id}`, method: "PATCH", body: patchBody });
+      onUpdate(newValue);
+      setEditing(false);
+    } finally {
       setSaving(false);
     }
   };
@@ -1132,6 +1196,9 @@ function ProjectPageContent({ id }: { id: string }) {
                 <MontageChecklist items={DEFAULT_CHECKLIST} />
               </CardContent>
             </Card>
+
+            {/* Historique des modifications */}
+            <ProjectHistory projectId={id} />
 
             {/* Signature client */}
             <Card>

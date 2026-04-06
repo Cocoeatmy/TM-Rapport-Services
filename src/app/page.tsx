@@ -303,6 +303,19 @@ function HomePage() {
       {/* VUE DASHBOARD */}
       {mode === "dashboard" && (
         <div>
+          {/* Recherche globale */}
+          <div className="relative mb-4 max-w-lg">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Rechercher dans tous les projets..."
+              className="pl-9 h-11 rounded-xl glass-input"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                if (e.target.value.trim()) setMode("cmd");
+              }}
+            />
+          </div>
           {currentUser && (projectsData["cmd"] || []).length > 0 && (
             <MonteurDashboard userName={currentUser.name} projects={projectsData["cmd"] || []} isAdmin={currentUser?.role === "admin"} />
           )}
