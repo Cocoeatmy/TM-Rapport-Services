@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
+import { getData, setData } from "@/lib/kv-store";
 
 interface PieceComment {
   user: string;
@@ -22,28 +21,14 @@ interface PieceRequest {
   comments: PieceComment[];
 }
 
-const DATA_DIR = join(process.cwd(), "data");
-const PIECES_FILE = join(DATA_DIR, "pieces.json");
-
-function loadPieces(): PieceRequest[] {
-  if (!existsSync(PIECES_FILE)) return [];
-  try { return JSON.parse(readFileSync(PIECES_FILE, "utf-8")); } catch { return []; }
-}
-function savePieces(pieces: PieceRequest[]) {
-  try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-    writeFileSync(PIECES_FILE, JSON.stringify(pieces, null, 2));
-  } catch {
-    console.warn("Cannot write pieces file (serverless)");
-  }
-}
+const KEY = "pieces";
 
 export async function GET(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
   if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const projectId = request.nextUrl.searchParams.get("projectId");
-  const pieces = loadPieces();
+  const pieces = await getData<PieceRequest>(KEY);
   return NextResponse.json(projectId ? pieces.filter((p) => p.projectId === projectId) : pieces);
 }
 
@@ -54,7 +39,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const pieces = loadPieces();
+  const pieces = await getData<PieceRequest>(KEY);
   pieces.push({
     id: Math.random().toString(36).slice(2),
     ...body,
@@ -63,7 +48,7 @@ export async function POST(request: NextRequest) {
     timestamp: Date.now(),
     comments: [],
   });
-  savePieces(pieces);
+  await setData(KEY, pieces);
   return NextResponse.json({ success: true });
 }
 
@@ -75,7 +60,7 @@ export async function PATCH(request: NextRequest) {
 
   const body = await request.json();
   const { id, status, comment } = body;
-  const pieces = loadPieces();
+  const pieces = await getData<PieceRequest>(KEY);
   const idx = pieces.findIndex((p) => p.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
 
@@ -92,6 +77,6 @@ export async function PATCH(request: NextRequest) {
     pieces[idx].status = status;
   }
 
-  savePieces(pieces);
+  await setData(KEY, pieces);
   return NextResponse.json({ success: true });
 }

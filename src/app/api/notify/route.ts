@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // Create in-app notification for admin
-    createNotification(
+    await createNotification(
       ADMIN_EMAIL,
       "piece",
       `${action} - ${projectName}`,

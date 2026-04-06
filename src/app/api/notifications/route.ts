@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
+import { getData, setData } from "@/lib/kv-store";
 
 export interface AppNotification {
   id: string;
@@ -13,31 +12,16 @@ export interface AppNotification {
   read: boolean;
 }
 
-const DATA_DIR = join(process.cwd(), "data");
-const NOTIF_FILE = join(DATA_DIR, "notifications.json");
-
-function loadAllNotifications(): AppNotification[] {
-  if (!existsSync(NOTIF_FILE)) return [];
-  try { return JSON.parse(readFileSync(NOTIF_FILE, "utf-8")); } catch { return []; }
-}
-
-function saveAllNotifications(notifs: AppNotification[]) {
-  try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-    writeFileSync(NOTIF_FILE, JSON.stringify(notifs, null, 2));
-  } catch {
-    console.warn("Cannot write notifications file (serverless)");
-  }
-}
+const KEY = "notifications";
 
 /** Create a notification directly (for server-side use without HTTP). */
-export function createNotification(
+export async function createNotification(
   userId: string,
   type: AppNotification["type"],
   title: string,
   message: string,
-): AppNotification {
-  const all = loadAllNotifications();
+): Promise<AppNotification> {
+  const all = await getData<AppNotification>(KEY);
   const notif: AppNotification = {
     id: Math.random().toString(36).slice(2) + Date.now().toString(36),
     userId,
@@ -56,7 +40,7 @@ export function createNotification(
     return counts[n.userId] <= 100;
   });
 
-  saveAllNotifications(pruned);
+  await setData(KEY, pruned);
   return notif;
 }
 
@@ -66,7 +50,7 @@ export async function GET(request: NextRequest) {
   const user = await verifyToken(token);
   if (!user) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
 
-  const all = loadAllNotifications();
+  const all = await getData<AppNotification>(KEY);
   const userNotifs = all.filter((n) => n.userId === user.email);
   return NextResponse.json(userNotifs);
 }
@@ -82,7 +66,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Champs requis: userId, type, title" }, { status: 400 });
   }
 
-  const notif = createNotification(userId, type, title, message || "");
+  const notif = await createNotification(userId, type, title, message || "");
   return NextResponse.json(notif);
 }
 
@@ -93,7 +77,7 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
 
   const { id, markAllRead } = await request.json();
-  const all = loadAllNotifications();
+  const all = await getData<AppNotification>(KEY);
 
   if (markAllRead) {
     for (const n of all) {
@@ -106,6 +90,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Fournir id ou markAllRead" }, { status: 400 });
   }
 
-  saveAllNotifications(all);
+  await setData(KEY, all);
   return NextResponse.json({ success: true });
 }

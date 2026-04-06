@@ -66,7 +66,7 @@ export async function POST(_request: NextRequest) {
 
         // Create in-app notification
         try {
-          createNotification(email, "rdv", "RDV demain", message);
+          await createNotification(email, "rdv", "RDV demain", message);
           notificationCount++;
         } catch (err: any) {
           errors.push(`Notification error for ${name}: ${err.message}`);

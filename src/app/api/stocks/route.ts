@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
+import { getData, setData } from "@/lib/kv-store";
 
 interface StockItem {
   id: string;
@@ -14,22 +13,7 @@ interface StockItem {
   updatedBy: string;
 }
 
-const DATA_DIR = join(process.cwd(), "data");
-const STOCKS_FILE = join(DATA_DIR, "stocks.json");
-
-function loadStocks(): StockItem[] {
-  if (!existsSync(STOCKS_FILE)) return [];
-  try { return JSON.parse(readFileSync(STOCKS_FILE, "utf-8")); } catch { return []; }
-}
-
-function saveStocks(stocks: StockItem[]) {
-  try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-    writeFileSync(STOCKS_FILE, JSON.stringify(stocks, null, 2));
-  } catch {
-    console.warn("Cannot write stocks file (serverless)");
-  }
-}
+const KEY = "stocks";
 
 export async function GET(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
@@ -37,7 +21,7 @@ export async function GET(request: NextRequest) {
   const user = await verifyToken(token);
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-  const stocks = loadStocks();
+  const stocks = await getData<StockItem>(KEY);
   return NextResponse.json(stocks);
 }
 
@@ -49,7 +33,7 @@ export async function POST(request: NextRequest) {
   if (user.role !== "admin") return NextResponse.json({ error: "Admin uniquement" }, { status: 403 });
 
   const body = await request.json();
-  const stocks = loadStocks();
+  const stocks = await getData<StockItem>(KEY);
   const newItem: StockItem = {
     id: Math.random().toString(36).slice(2),
     name: body.name,
@@ -61,7 +45,7 @@ export async function POST(request: NextRequest) {
     updatedBy: user.name,
   };
   stocks.push(newItem);
-  saveStocks(stocks);
+  await setData(KEY, stocks);
   return NextResponse.json({ success: true, item: newItem });
 }
 
@@ -73,7 +57,7 @@ export async function PATCH(request: NextRequest) {
 
   const body = await request.json();
   const { id, quantity, adjustment } = body;
-  const stocks = loadStocks();
+  const stocks = await getData<StockItem>(KEY);
   const idx = stocks.findIndex((s) => s.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
 
@@ -85,7 +69,7 @@ export async function PATCH(request: NextRequest) {
 
   stocks[idx].lastUpdated = Date.now();
   stocks[idx].updatedBy = user.name;
-  saveStocks(stocks);
+  await setData(KEY, stocks);
   return NextResponse.json({ success: true, item: stocks[idx] });
 }
 
@@ -97,11 +81,11 @@ export async function DELETE(request: NextRequest) {
   if (user.role !== "admin") return NextResponse.json({ error: "Admin uniquement" }, { status: 403 });
 
   const { id } = await request.json();
-  const stocks = loadStocks();
+  const stocks = await getData<StockItem>(KEY);
   const idx = stocks.findIndex((s) => s.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
 
   stocks.splice(idx, 1);
-  saveStocks(stocks);
+  await setData(KEY, stocks);
   return NextResponse.json({ success: true });
 }
