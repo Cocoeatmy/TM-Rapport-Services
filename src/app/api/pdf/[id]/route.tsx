@@ -13,6 +13,57 @@ import ReactPDF, {
   Font,
 } from "@react-pdf/renderer";
 import React from "react";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
+
+interface PieceRequest {
+  id: string;
+  projectId: string;
+  projectName: string;
+  user: string;
+  description: string;
+  reference: string;
+  photoUrl: string;
+  status: "demande" | "commande" | "recu";
+  timestamp: number;
+}
+
+interface DefautRequest {
+  id: string;
+  projectId: string;
+  projectName: string;
+  user: string;
+  types: string[];
+  typesLabel: string;
+  description: string;
+  photoUrls: string[];
+  status: "signale" | "en-cours" | "resolu";
+  timestamp: number;
+}
+
+const DATA_DIR = join(process.cwd(), "data");
+
+function loadPiecesForProject(projectId: string): PieceRequest[] {
+  const file = join(DATA_DIR, "pieces.json");
+  if (!existsSync(file)) return [];
+  try {
+    const all: PieceRequest[] = JSON.parse(readFileSync(file, "utf-8"));
+    return all.filter((p) => p.projectId === projectId);
+  } catch {
+    return [];
+  }
+}
+
+function loadDefautsForProject(projectId: string): DefautRequest[] {
+  const file = join(DATA_DIR, "defauts.json");
+  if (!existsSync(file)) return [];
+  try {
+    const all: DefautRequest[] = JSON.parse(readFileSync(file, "utf-8"));
+    return all.filter((d) => d.projectId === projectId);
+  } catch {
+    return [];
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -151,6 +202,125 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
   },
+  tableHeader: {
+    flexDirection: "row",
+    backgroundColor: "#1e3a5f",
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 2,
+    marginBottom: 2,
+  },
+  tableHeaderText: {
+    color: "#ffffff",
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+  },
+  tableRow: {
+    flexDirection: "row",
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  tableRowAlt: {
+    flexDirection: "row",
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    backgroundColor: "#f9f9f9",
+  },
+  tableCell: {
+    fontSize: 8,
+    color: "#333",
+  },
+  statusBadge: {
+    fontSize: 7,
+    paddingVertical: 2,
+    paddingHorizontal: 5,
+    borderRadius: 3,
+    textAlign: "center",
+  },
+  statusDemande: {
+    backgroundColor: "#fff3cd",
+    color: "#856404",
+  },
+  statusCommande: {
+    backgroundColor: "#cce5ff",
+    color: "#004085",
+  },
+  statusRecu: {
+    backgroundColor: "#d4edda",
+    color: "#155724",
+  },
+  statusSignale: {
+    backgroundColor: "#f8d7da",
+    color: "#721c24",
+  },
+  statusEnCours: {
+    backgroundColor: "#fff3cd",
+    color: "#856404",
+  },
+  statusResolu: {
+    backgroundColor: "#d4edda",
+    color: "#155724",
+  },
+  defautCard: {
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: 4,
+    padding: 8,
+  },
+  defautHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  defautTypes: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  defautTypeBadge: {
+    backgroundColor: "#fce4ec",
+    color: "#c62828",
+    fontSize: 7,
+    paddingVertical: 2,
+    paddingHorizontal: 5,
+    borderRadius: 3,
+  },
+  defautDescription: {
+    fontSize: 9,
+    color: "#333",
+    marginBottom: 6,
+    lineHeight: 1.4,
+  },
+  defautPhotosGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  defautPhoto: {
+    width: 120,
+    height: 90,
+    objectFit: "cover",
+    borderRadius: 3,
+  },
+  piecePhotoSmall: {
+    width: 50,
+    height: 40,
+    objectFit: "cover",
+    borderRadius: 2,
+  },
+  emptyMessage: {
+    fontSize: 9,
+    color: "#999",
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingVertical: 20,
+  },
 });
 
 function formatDate(dateStr: string | null): string {
@@ -173,7 +343,43 @@ function optimizeImageUrl(url: string): string {
   return url;
 }
 
-function RapportPDF({ project }: { project: any }) {
+function pieceStatusLabel(status: string): string {
+  switch (status) {
+    case "demande": return "Demandé";
+    case "commande": return "Commandé";
+    case "recu": return "Reçu";
+    default: return status;
+  }
+}
+
+function defautStatusLabel(status: string): string {
+  switch (status) {
+    case "signale": return "Signalé";
+    case "en-cours": return "En cours";
+    case "resolu": return "Résolu";
+    default: return status;
+  }
+}
+
+function getPieceStatusStyle(status: string) {
+  switch (status) {
+    case "demande": return styles.statusDemande;
+    case "commande": return styles.statusCommande;
+    case "recu": return styles.statusRecu;
+    default: return {};
+  }
+}
+
+function getDefautStatusStyle(status: string) {
+  switch (status) {
+    case "signale": return styles.statusSignale;
+    case "en-cours": return styles.statusEnCours;
+    case "resolu": return styles.statusResolu;
+    default: return {};
+  }
+}
+
+function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceRequest[]; defauts: DefautRequest[] }) {
   const now = new Date().toLocaleDateString("fr-CH", {
     day: "2-digit",
     month: "long",
@@ -370,6 +576,88 @@ function RapportPDF({ project }: { project: any }) {
           </View>
         </Page>
       )}
+
+      {/* Pièces manquantes */}
+      {pieces.length > 0 && (
+        <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
+          <Text style={styles.sectionTitle} fixed>Pièces manquantes</Text>
+
+          {/* Table header */}
+          <View style={styles.tableHeader}>
+            <Text style={{ ...styles.tableHeaderText, width: "30%" }}>Description</Text>
+            <Text style={{ ...styles.tableHeaderText, width: "20%" }}>Référence</Text>
+            <Text style={{ ...styles.tableHeaderText, width: "15%" }}>Statut</Text>
+            <Text style={{ ...styles.tableHeaderText, width: "15%" }}>Demandeur</Text>
+            <Text style={{ ...styles.tableHeaderText, width: "20%" }}>Photo</Text>
+          </View>
+
+          {pieces.map((piece, i) => (
+            <View key={piece.id} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt} wrap={false}>
+              <Text style={{ ...styles.tableCell, width: "30%" }}>{piece.description || "---"}</Text>
+              <Text style={{ ...styles.tableCell, width: "20%" }}>{piece.reference || "---"}</Text>
+              <View style={{ width: "15%", justifyContent: "center" }}>
+                <Text style={{ ...styles.statusBadge, ...getPieceStatusStyle(piece.status) }}>
+                  {pieceStatusLabel(piece.status)}
+                </Text>
+              </View>
+              <Text style={{ ...styles.tableCell, width: "15%" }}>{piece.user || "---"}</Text>
+              <View style={{ width: "20%", alignItems: "center" }}>
+                {piece.photoUrl ? (
+                  <Image src={optimizeImageUrl(piece.photoUrl)} style={styles.piecePhotoSmall} />
+                ) : (
+                  <Text style={{ ...styles.tableCell, color: "#999" }}>Aucune</Text>
+                )}
+              </View>
+            </View>
+          ))}
+
+          <View style={styles.footer} fixed>
+            <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
+            <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+          </View>
+        </Page>
+      )}
+
+      {/* Défauts signalés */}
+      {defauts.length > 0 && (
+        <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
+          <Text style={styles.sectionTitle} fixed>Défauts signalés</Text>
+
+          {defauts.map((defaut) => (
+            <View key={defaut.id} style={styles.defautCard} wrap={false}>
+              <View style={styles.defautHeader}>
+                <View style={styles.defautTypes}>
+                  {defaut.types?.map((type, i) => (
+                    <Text key={i} style={styles.defautTypeBadge}>{type}</Text>
+                  ))}
+                </View>
+                <Text style={{ ...styles.statusBadge, ...getDefautStatusStyle(defaut.status) }}>
+                  {defautStatusLabel(defaut.status)}
+                </Text>
+              </View>
+
+              <Text style={styles.defautDescription}>{defaut.description || "Aucune description"}</Text>
+
+              <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                <Text style={{ fontSize: 7, color: "#888" }}>Signalé par : {defaut.user || "---"}</Text>
+              </View>
+
+              {defaut.photoUrls?.length > 0 && (
+                <View style={styles.defautPhotosGrid}>
+                  {defaut.photoUrls.map((url, i) => (
+                    <Image key={i} src={optimizeImageUrl(url)} style={styles.defautPhoto} />
+                  ))}
+                </View>
+              )}
+            </View>
+          ))}
+
+          <View style={styles.footer} fixed>
+            <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
+            <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+          </View>
+        </Page>
+      )}
     </Document>
   );
 }
@@ -381,9 +669,11 @@ export async function GET(
   try {
     const { id } = await params;
     const project = await getProject(id);
+    const pieces = loadPiecesForProject(id);
+    const defauts = loadDefautsForProject(id);
 
     const pdfStream = await ReactPDF.renderToStream(
-      <RapportPDF project={project} />
+      <RapportPDF project={project} pieces={pieces} defauts={defauts} />
     );
 
     const chunks: Buffer[] = [];
