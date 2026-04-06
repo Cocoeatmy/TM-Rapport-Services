@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
   MapPin,
+  ScrollText,
   ExternalLink,
   Mail,
   Database,
@@ -34,10 +35,18 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminTab, setAdminTab] = useState<"en-cours" | "termines">("en-cours");
   const [widgets, setWidgets] = useState<WidgetConfig[]>([]);
+  const [logs, setLogs] = useState<{ id: string; timestamp: number; user: string; projectId: string; projectName: string; action: string; details: string }[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
 
   useEffect(() => {
     setWidgets(getWidgetConfig());
   }, []);
+
+  const loadLogs = () => {
+    fetch("/api/logs").then((r) => r.json()).then((data) => {
+      if (Array.isArray(data)) setLogs(data);
+    }).catch(() => {});
+  };
 
   useEffect(() => {
     // Vérifier le rôle
@@ -209,6 +218,13 @@ export default function AdminPage() {
         >
           <Database className="w-4 h-4 text-purple-600" />
           Backup
+        </button>
+        <button
+          onClick={() => { setShowLogs(!showLogs); if (!showLogs) loadLogs(); }}
+          className="shrink-0 flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95"
+        >
+          <ScrollText className="w-4 h-4 text-amber-600" />
+          Logs
         </button>
         <div className="shrink-0">
           <WidgetSettings config={widgets} onChange={setWidgets} />
@@ -678,6 +694,41 @@ export default function AdminPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Logs d'activité */}
+      {showLogs && (
+        <Card className="glass-card mt-4">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ScrollText className="w-4 h-4 text-amber-500" />
+              Journal des modifications
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {logs.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">Aucune modification enregistrée</p>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {logs.map((log) => (
+                  <div key={log.id} className="flex items-start gap-3 px-2 py-2 rounded-lg border-b border-gray-50 last:border-0 text-sm">
+                    <div className="shrink-0 text-[10px] text-gray-400 w-20 pt-0.5">
+                      {new Date(log.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
+                      <br />
+                      {new Date(log.timestamp).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 dark:text-gray-100">{log.action}</p>
+                      <p className="text-xs text-gray-500 truncate">{log.projectName}</p>
+                      {log.details && <p className="text-xs text-gray-400 mt-0.5">{log.details}</p>}
+                    </div>
+                    <span className="text-[10px] text-gray-400 shrink-0 pt-0.5">{log.user}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -251,6 +251,8 @@ export async function updateProject(
     heureDepart?: string;
     commentairesMontages?: string;
     rapportMonteur?: string;
+    dateMontage?: string | null;
+    dateMesures?: string | null;
   }
 ) {
   const properties: any = {};
@@ -273,6 +275,16 @@ export async function updateProject(
   if (data.rapportMonteur !== undefined) {
     properties["Rapport monteur"] = {
       rich_text: [{ text: { content: data.rapportMonteur } }],
+    };
+  }
+  if (data.dateMontage !== undefined) {
+    properties["Date Montage"] = {
+      date: data.dateMontage ? { start: data.dateMontage } : null,
+    };
+  }
+  if (data.dateMesures !== undefined) {
+    properties["Mesures traitée le"] = {
+      date: data.dateMesures ? { start: data.dateMesures } : null,
     };
   }
 

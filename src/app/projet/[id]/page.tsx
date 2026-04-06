@@ -19,6 +19,8 @@ import {
   ChevronUp,
   Plus,
   Trash2,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { SignaturePad } from "@/components/signature-pad";
 import { MontageChecklist, DEFAULT_CHECKLIST } from "@/components/checklist";
@@ -116,6 +118,87 @@ function MapAddressLink({ address }: { address: string }) {
               </button>
             </div>
           </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EditableDate({ project, mode, onUpdate }: { project: Project; mode: string; onUpdate: (date: string | null) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const currentDate = mode === "mesures" ? project.dateMesures : project.dateMontage;
+  const [dateValue, setDateValue] = useState(currentDate || "");
+  const label = mode === "mesures" ? "Date de mesures" : mode === "services" ? "Date de service" : mode === "sav" ? "Date SAV" : "Date de montage";
+  const notionField = mode === "mesures" ? "dateMesures" : "dateMontage";
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [notionField]: dateValue || null }),
+      });
+      if (res.ok) {
+        onUpdate(dateValue || null);
+        // Log the change
+        await fetch("/api/logs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: project.id,
+            projectName: project.projet,
+            action: `Modification ${label}`,
+            details: `${formatDate(currentDate)} → ${dateValue ? formatDate(dateValue) : "Non planifié"}`,
+          }),
+        });
+        setEditing(false);
+      }
+    } catch {} finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-2">
+      <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-gray-500">{label}</p>
+        {editing ? (
+          <div className="flex items-center gap-2 mt-0.5">
+            <input
+              type="date"
+              value={dateValue}
+              onChange={(e) => setDateValue(e.target.value)}
+              className="h-8 px-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 dark:bg-slate-800 dark:text-gray-100"
+            />
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center hover:bg-green-600 disabled:opacity-50"
+            >
+              <Check className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => { setEditing(false); setDateValue(currentDate || ""); }}
+              className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex items-center justify-center hover:bg-gray-300"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+              {formatDate(currentDate)}
+            </p>
+            <button
+              onClick={() => setEditing(true)}
+              className="w-6 h-6 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center"
+            >
+              <Pencil className="w-3 h-3 text-gray-400" />
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -482,15 +565,14 @@ function ProjectPageContent({ id }: { id: string }) {
                   </div>
                 </div>
               </div>
-              <div className="flex items-start gap-2">
-                <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs text-gray-500">{mode === "mesures" ? "Date de mesures" : "Date de montage"}</p>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {formatDate(mode === "mesures" ? project.dateMesures : project.dateMontage)}
-                  </p>
-                </div>
-              </div>
+              <EditableDate
+                project={project}
+                mode={mode}
+                onUpdate={(newDate) => {
+                  const field = mode === "mesures" ? "dateMesures" : "dateMontage";
+                  setProject({ ...project, [field]: newDate });
+                }}
+              />
             </div>
 
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" />
