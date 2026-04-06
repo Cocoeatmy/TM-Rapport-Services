@@ -676,45 +676,101 @@ export default function AdminPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-1.5">
-              {filteredProjects
-                .filter((p) => p.adresseChantier)
-                .slice(0, 15)
-                .map((p) => {
-                  const names = (p.collaborateurs || "").split(" & ");
-                  return (
-                    <a
-                      key={p.id}
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.adresseChantier)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-xs py-1.5 px-2 rounded-lg hover:bg-white/60 transition-colors"
-                    >
-                      <MapPin className="w-3 h-3 text-green-500 shrink-0" />
-                      <span className="flex-1 truncate">{p.adresseChantier}</span>
-                      <div className="flex -space-x-1 shrink-0">
-                        {names.slice(0, 2).map((n) => (
-                          <span
-                            key={n}
-                            className="w-4 h-4 rounded-full text-[7px] font-bold flex items-center justify-center border border-white"
-                            style={{ backgroundColor: getCollaboratorColor(n.trim()).bg, color: getCollaboratorColor(n.trim()).text }}
-                          >
-                            {n.trim()[0]}
-                          </span>
-                        ))}
-                      </div>
-                    </a>
-                  );
-                })}
-              <a
-                href={`https://www.google.com/maps/dir/?api=1&waypoints=${filteredProjects.filter((p) => p.adresseChantier).slice(0, 10).map((p) => encodeURIComponent(p.adresseChantier)).join("|")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-center text-xs text-blue-600 hover:text-blue-800 py-2 mt-1 bg-blue-50 rounded-lg"
-              >
-                📍 Voir tous les chantiers sur Google Maps
-              </a>
-            </div>
+            {(() => {
+              const withAddress = filteredProjects.filter((p) => p.adresseChantier);
+
+              const getStatusGroup = (p: Project) => {
+                const s = p.etatCMD;
+                if (s === "RDV - fixé") return "green";
+                if (s === "Cabine à aller chercher" || s === "Récéptionné - RDV à fixer") return "yellow";
+                if (s === "Soucis montage") return "red";
+                if (s === "Cabines à recevoir" || s === "Cabines en CMD" || s === "Livraison partielle") return "blue";
+                return "gray";
+              };
+
+              const dotColor: Record<string, string> = {
+                green: "text-green-500",
+                yellow: "text-amber-500",
+                red: "text-red-500",
+                blue: "text-blue-500",
+                gray: "text-gray-400",
+              };
+
+              // Construire l'URL Google Maps avec tous les marqueurs colorés
+              const buildMapUrl = () => {
+                const groups: Record<string, string[]> = {};
+                withAddress.forEach((p) => {
+                  const color = getStatusGroup(p);
+                  if (!groups[color]) groups[color] = [];
+                  groups[color].push(p.adresseChantier);
+                });
+                // Google Maps Static ne supporte pas les couleurs custom facilement,
+                // mais on peut utiliser l'API embed avec markers
+                const markers = Object.entries(groups)
+                  .map(([color, addrs]) =>
+                    `markers=color:${color}|${addrs.map((a) => encodeURIComponent(a)).join("|")}`
+                  )
+                  .join("&");
+                return `https://www.google.com/maps/d/u/0/embed?${markers}`;
+              };
+
+              // URL alternative : ouvrir Google Maps avec tous les points comme recherche
+              const buildAllMarkersUrl = () => {
+                const parts: string[] = [];
+                withAddress.forEach((p) => {
+                  parts.push(encodeURIComponent(p.adresseChantier));
+                });
+                // Utiliser la recherche multi-points via waypoints
+                if (parts.length <= 1) {
+                  return `https://www.google.com/maps/search/?api=1&query=${parts[0] || ""}`;
+                }
+                return `https://www.google.com/maps/dir/?api=1&origin=${parts[0]}&destination=${parts[parts.length - 1]}&waypoints=${parts.slice(1, -1).join("|")}&travelmode=driving`;
+              };
+
+              return (
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap gap-2 text-[10px] text-gray-500 mb-2">
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> RDV fixé</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /> RDV à fixer</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> Soucis</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" /> En attente</span>
+                  </div>
+                  {withAddress.slice(0, 20).map((p) => {
+                    const group = getStatusGroup(p);
+                    const names = (p.collaborateurs || "").split(" & ");
+                    return (
+                      <a
+                        key={p.id}
+                        href={`/projet/${p.id}?mode=cmd`}
+                        className="flex items-center gap-2 text-xs py-1.5 px-2 rounded-lg hover:bg-white/60 transition-colors"
+                      >
+                        <MapPin className={`w-3 h-3 shrink-0 ${dotColor[group]}`} />
+                        <span className="flex-1 truncate">{p.adresseChantier}</span>
+                        <div className="flex -space-x-1 shrink-0">
+                          {names.slice(0, 2).map((n) => (
+                            <span
+                              key={n}
+                              className="w-4 h-4 rounded-full text-[7px] font-bold flex items-center justify-center border border-white"
+                              style={{ backgroundColor: getCollaboratorColor(n.trim()).bg, color: getCollaboratorColor(n.trim()).text }}
+                            >
+                              {n.trim()[0]}
+                            </span>
+                          ))}
+                        </div>
+                      </a>
+                    );
+                  })}
+                  <a
+                    href={buildAllMarkersUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-center text-xs text-blue-600 hover:text-blue-800 py-2 mt-1 bg-blue-50 rounded-lg"
+                  >
+                    📍 Voir tous les chantiers sur Google Maps
+                  </a>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
