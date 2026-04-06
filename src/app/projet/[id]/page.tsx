@@ -56,12 +56,12 @@ const BeforeAfterPhotos = dynamic(() => import("@/components/before-after-photos
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
-const PiecesForm = dynamic(() => import("@/components/pieces-form").then(m => m.PiecesForm ? { default: m.PiecesForm } : m), {
+const PiecesForm = dynamic(() => import("@/components/pieces-form").then(m => ({ default: m.PiecesForm })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
-const DefautForm = dynamic(() => import("@/components/defaut-form").then(m => m.DefautForm ? { default: m.DefautForm } : m), {
+const DefautForm = dynamic(() => import("@/components/defaut-form").then(m => ({ default: m.DefautForm })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });

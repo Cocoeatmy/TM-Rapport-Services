@@ -23,14 +23,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { getWidgetConfig, isWidgetVisible } from "@/lib/dashboard-config";
 
-const ExportExcel = dynamic(() => import("@/components/export-excel").then(m => m.ExportExcel ? { default: m.ExportExcel } : m), {
+const ExportExcel = dynamic(() => import("@/components/export-excel").then(m => ({ default: m.ExportExcel })), {
   ssr: false,
-  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-9" />,
 });
 
-const WidgetSettings = dynamic(() => import("@/components/widget-settings").then(m => m.WidgetSettings ? { default: m.WidgetSettings } : m), {
+const WidgetSettings = dynamic(() => import("@/components/widget-settings").then(m => ({ default: m.WidgetSettings })), {
   ssr: false,
-  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-9" />,
 });
 import type { WidgetConfig } from "@/lib/dashboard-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
