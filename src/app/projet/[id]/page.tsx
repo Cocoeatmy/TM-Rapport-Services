@@ -65,6 +65,11 @@ const DefautForm = dynamic(() => import("@/components/defaut-form").then(m => ({
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
+
+const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m => ({ default: m.VoiceRecorder })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-10" />,
+});
 import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
@@ -1297,6 +1302,13 @@ function ProjectPageContent({ id }: { id: string }) {
                         rows={3}
                         className="mt-3"
                       />
+                      <div className="mt-3">
+                        <VoiceRecorder
+                          onTranscript={(text) =>
+                            setRapport((prev) => (prev ? prev + "\n" + text : text))
+                          }
+                        />
+                      </div>
                     </div>
                     <Separator />
                     <PhotoUpload category="avant" label="Photos avant montage" projectId={id} notionField="Photos avant montage" existingPhotos={project.photosAvant} />
