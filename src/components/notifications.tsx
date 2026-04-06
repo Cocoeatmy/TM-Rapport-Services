@@ -53,6 +53,95 @@ export async function addNotification(
   }
 }
 
+export function PushNotificationSetup() {
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [subscribed, setSubscribed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setPermission("unsupported");
+      return;
+    }
+    setPermission(Notification.permission);
+    // Check if already subscribed
+    const stored = localStorage.getItem("tm-push-subscription");
+    if (stored) setSubscribed(true);
+  }, []);
+
+  const requestPermission = async () => {
+    if (!("Notification" in window)) return;
+    try {
+      const result = await Notification.requestPermission();
+      setPermission(result);
+      if (result === "granted") {
+        // Try to subscribe via service worker push manager
+        const registration = await navigator.serviceWorker?.ready;
+        if (registration?.pushManager) {
+          const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+          if (vapidKey) {
+            try {
+              const subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: vapidKey,
+              });
+              localStorage.setItem("tm-push-subscription", JSON.stringify(subscription));
+              setSubscribed(true);
+            } catch {
+              // Push subscription failed, use local notifications as fallback
+              localStorage.setItem("tm-push-subscription", "local-fallback");
+              setSubscribed(true);
+            }
+          } else {
+            // No VAPID key configured, use local notifications as fallback
+            localStorage.setItem("tm-push-subscription", "local-fallback");
+            setSubscribed(true);
+          }
+        }
+        // Show a test notification
+        new Notification("TM Rapport", {
+          body: "Les notifications sont activees !",
+          icon: "/icons/icon-192.png",
+        });
+      }
+    } catch {
+      /* silent */
+    }
+  };
+
+  if (permission === "unsupported") return null;
+
+  const statusLabel =
+    permission === "granted"
+      ? "Notifications activees"
+      : permission === "denied"
+        ? "Notifications bloquees"
+        : "Notifications desactivees";
+
+  const statusColor =
+    permission === "granted"
+      ? "text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400"
+      : permission === "denied"
+        ? "text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400"
+        : "text-gray-600 bg-gray-50 dark:bg-gray-800 dark:text-gray-400";
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColor}`}>
+        <Bell className="w-3 h-3 inline-block mr-1" />
+        {statusLabel}
+      </span>
+      {permission !== "granted" && permission !== "denied" && (
+        <button
+          onClick={requestPermission}
+          className="text-xs px-3 py-1.5 rounded-full bg-blue-500 text-white font-medium hover:bg-blue-600 active:bg-blue-700 transition-colors"
+        >
+          Activer les notifications
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [notifs, setNotifs] = useState<Notification[]>([]);

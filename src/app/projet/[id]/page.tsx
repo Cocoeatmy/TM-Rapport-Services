@@ -29,6 +29,7 @@ import { GPSTracker } from "@/components/gps-tracker";
 import { SiteTimer } from "@/components/site-timer";
 import { PiecesForm } from "@/components/pieces-form";
 import { DefautForm } from "@/components/defaut-form";
+import { StockUsage } from "@/components/stock-usage";
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
 import { Star, Share2 } from "lucide-react";
@@ -41,6 +42,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PhotoUpload } from "@/components/photo-upload";
+import { BeforeAfterPhotos } from "@/components/before-after-photos";
 import { DeliveryScan } from "@/components/delivery-scan";
 import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
@@ -467,6 +469,133 @@ function InfoRow({
   );
 }
 
+/** Parse time from formats: "HH:MM" or "date collab HH:MM | ..." — returns minutes since midnight */
+function parseTimeRaw(raw: string): number | null {
+  if (!raw || !raw.trim()) return null;
+  const simpleMatch = raw.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (simpleMatch) {
+    return parseInt(simpleMatch[1]) * 60 + parseInt(simpleMatch[2]);
+  }
+  const timeMatches = raw.match(/(\d{1,2}):(\d{2})/g);
+  if (timeMatches && timeMatches.length > 0) {
+    const first = timeMatches[0];
+    const parts = first.split(":");
+    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  }
+  return null;
+}
+
+/** Estimate duration for a project based on supplier historical data */
+function estimateDuration(
+  fournisseur: string,
+  nbCabines: number,
+  projects: Project[],
+): { hours: number; minutes: number; confidence: string } | null {
+  const projectsWithTime = projects
+    .filter(
+      (p) =>
+        p.heureArrivee &&
+        p.heureDepart &&
+        p.heureArrivee.trim() !== "" &&
+        p.heureDepart.trim() !== "",
+    )
+    .map((p) => {
+      const arrive = parseTimeRaw(p.heureArrivee);
+      const depart = parseTimeRaw(p.heureDepart);
+      if (arrive === null || depart === null) return null;
+      let mins = depart - arrive;
+      if (mins <= 0) mins += 24 * 60;
+      const cabines = p.nbCabines || 1;
+      const minsPerCabine = mins / cabines;
+      return { project: p, minsPerCabine };
+    })
+    .filter(Boolean) as { project: Project; minsPerCabine: number }[];
+
+  // Filter by supplier
+  const supplierProjects = projectsWithTime.filter((p) =>
+    p.project.fournisseurs.includes(fournisseur),
+  );
+
+  let avgMinsPerCabine: number;
+  let confidence: string;
+
+  if (supplierProjects.length >= 3) {
+    avgMinsPerCabine =
+      supplierProjects.reduce((s, p) => s + p.minsPerCabine, 0) /
+      supplierProjects.length;
+    confidence = `${supplierProjects.length} projets ${fournisseur}`;
+  } else if (projectsWithTime.length >= 3) {
+    avgMinsPerCabine =
+      projectsWithTime.reduce((s, p) => s + p.minsPerCabine, 0) /
+      projectsWithTime.length;
+    confidence = "moyenne generale";
+  } else {
+    return null;
+  }
+
+  const totalMins = Math.round(avgMinsPerCabine * nbCabines);
+  return {
+    hours: Math.floor(totalMins / 60),
+    minutes: totalMins % 60,
+    confidence,
+  };
+}
+
+function DurationEstimate({
+  project,
+}: {
+  project: Project;
+}) {
+  const [estimate, setEstimate] = useState<{
+    hours: number;
+    minutes: number;
+    confidence: string;
+  } | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const nbCabines = project.nbCabines || 1;
+    const fournisseur = project.fournisseurs?.[0];
+    if (!fournisseur) {
+      setLoaded(true);
+      return;
+    }
+
+    fetch("/api/projects/cmd-termine")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((completedProjects: Project[]) => {
+        const result = estimateDuration(fournisseur, nbCabines, completedProjects);
+        setEstimate(result);
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, [project.fournisseurs, project.nbCabines]);
+
+  if (!loaded) return null;
+
+  if (!estimate) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs">
+        <Clock className="w-3.5 h-3.5 shrink-0" />
+        Pas assez de donnees pour estimer la duree
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm font-medium">
+      <Clock className="w-4 h-4 shrink-0" />
+      <span>
+        Duree estimee : ~{estimate.hours}h{" "}
+        {estimate.minutes.toString().padStart(2, "0")}min
+      </span>
+      <span className="text-[10px] font-normal opacity-70 ml-1">
+        ({estimate.confidence})
+      </span>
+    </div>
+  );
+}
+
 function DocumentLinks({ files, label }: { files: { name: string; url: string }[]; label: string }) {
   if (!files.length) return null;
   return (
@@ -507,6 +636,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const [heureArrivee, setHeureArrivee] = useState("");
   const [heureDepart, setHeureDepart] = useState("");
@@ -628,6 +758,83 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Erreur réseau");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendReport = async () => {
+    if (!project) return;
+    setSending(true);
+    try {
+      // 1. Save the report data first
+      const saveRes = await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          heureArrivee: isMultiDay
+            ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
+            : heureArrivee,
+          heureDepart: isMultiDay
+            ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
+            : heureDepart,
+          commentairesMontages: commentaires,
+          rapportMonteur: isCabineMode
+            ? rapport + "\n\n" + cabines.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
+            : rapport,
+        }),
+      });
+      if (!saveRes.ok) {
+        toast.error("Erreur lors de l'enregistrement du rapport");
+        setSending(false);
+        return;
+      }
+
+      // 2. Generate PDF (this also triggers email sending on the server)
+      const pdfRes = await fetch(`/api/pdf/${id}`);
+      if (!pdfRes.ok) {
+        toast.error("Erreur lors de la generation du PDF");
+        setSending(false);
+        return;
+      }
+
+      // 3. Generate client portal link and copy to clipboard
+      const token = btoa(id);
+      const clientPortalUrl = `${window.location.origin}/client/${token}`;
+      try {
+        await navigator.clipboard.writeText(clientPortalUrl);
+      } catch {}
+
+      // 4. Show success toast
+      toast.success("Rapport envoye", {
+        description: "Lien client copie dans le presse-papiers",
+        duration: 5000,
+      });
+
+      // 5. Log the action
+      Promise.all([
+        fetch("/api/logs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: id,
+            projectName: project.projet,
+            action: "Rapport envoye",
+            details: `PDF genere et email envoye`,
+          }),
+        }),
+        fetch("/api/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectName: project.projet,
+            action: "Rapport envoye",
+            details: `PDF genere et email envoye. Lien client: ${clientPortalUrl}`,
+          }),
+        }),
+      ]).catch(() => {});
+    } catch {
+      toast.error("Erreur reseau");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -809,6 +1016,10 @@ function ProjectPageContent({ id }: { id: string }) {
                 }}
               />
             </div>
+
+            {mode === "cmd" && (
+              <DurationEstimate project={project} />
+            )}
 
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" />
             <DocumentLinks files={project.documentsMontagee} label="Documents Montage" />
@@ -1059,6 +1270,8 @@ function ProjectPageContent({ id }: { id: string }) {
                     <PhotoUpload category="montage" label="Photos montage terminé" projectId={id} notionField="Photos montage terminé" existingPhotos={project.photosMontage} />
                     <PhotoUpload category="qrcode" label="Photos QR Code" projectId={id} notionField="Photos QR Code" existingPhotos={project.photosQRCode} />
                     <PhotoUpload category="garanties" label="Photos garanties" projectId={id} notionField="Photos garanties" existingPhotos={project.photosGaranties} />
+                    <Separator />
+                    <BeforeAfterPhotos projectId={id} projectName={project.projet} />
                   </CardContent>
                 </Card>
               </>
@@ -1259,6 +1472,9 @@ function ProjectPageContent({ id }: { id: string }) {
             {/* Signaler un défaut */}
             <DefautForm projectId={id} projectName={project.projet} />
 
+            {/* Consommables utilisés */}
+            <StockUsage projectId={id} />
+
             {/* Checklist de montage */}
             <Card>
               <CardHeader className="pb-2">
@@ -1301,12 +1517,15 @@ function ProjectPageContent({ id }: { id: string }) {
               <Button
                 variant="outline"
                 className="w-full h-12 rounded-xl text-base font-medium glass-btn text-white"
-                onClick={() => {
-                  window.location.href = `/api/pdf/${id}`;
-                }}
+                onClick={handleSendReport}
+                disabled={sending}
               >
-                <FileText className="w-5 h-5 mr-2" />
-                Finaliser le chantier (PDF)
+                {sending ? (
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                ) : (
+                  <FileText className="w-5 h-5 mr-2" />
+                )}
+                Envoyer le rapport
               </Button>
             </div>
           </>

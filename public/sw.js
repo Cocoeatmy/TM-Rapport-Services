@@ -90,3 +90,21 @@ self.addEventListener("fetch", (event) => {
       .catch(() => caches.match(request))
   );
 });
+
+// Push notifications
+self.addEventListener("push", function (event) {
+  const data = event.data ? event.data.json() : {};
+  event.waitUntil(
+    self.registration.showNotification(data.title || "TM Rapport", {
+      body: data.message || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: data,
+    })
+  );
+});
+
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
+  event.waitUntil(clients.openWindow("/"));
+});
