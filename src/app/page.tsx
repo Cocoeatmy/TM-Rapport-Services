@@ -141,6 +141,7 @@ function HomePage() {
   const [error, setError] = useState("");
 
   const MODE_API: Record<Mode, string> = {
+    dashboard: "/api/projects",
     mesures: "/api/projects/mesures",
     "mesures-termine": "/api/projects/mesures-termine",
     cmd: "/api/projects",
