@@ -258,6 +258,8 @@ export async function updateProject(
     collaborateurs?: string;
     mesuresTraiteePar?: string;
     bonLivraison?: string;
+    etatCMD?: string;
+    etatMesures?: string;
   }
 ) {
   const properties: any = {};
@@ -305,6 +307,16 @@ export async function updateProject(
   if (data.bonLivraison !== undefined) {
     properties["Bon de livraison"] = {
       rich_text: [{ text: { content: data.bonLivraison } }],
+    };
+  }
+  if (data.etatCMD !== undefined) {
+    properties["État - CMD"] = {
+      status: { name: data.etatCMD },
+    };
+  }
+  if (data.etatMesures !== undefined) {
+    properties["État - Mesures"] = {
+      status: { name: data.etatMesures },
     };
   }
 

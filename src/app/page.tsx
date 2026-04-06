@@ -631,6 +631,19 @@ function HomePage() {
         </div>
       )}
 
+      {/* VUE KANBAN */}
+      {viewMode === "kanban" && (
+        <div className="mb-4">
+          <div className="flex items-center gap-3 mb-4">
+            <button onClick={() => setViewMode("list")} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h2 className="text-lg font-semibold flex-1">Kanban</h2>
+          </div>
+          <KanbanBoard projects={projects} mode={mode} onStatusChange={handleStatusChange} />
+        </div>
+      )}
+
       {/* VUE CALENDRIER */}
       {viewMode === "calendar" && (() => {
         const rdvProjects = projects.filter((p) => {
