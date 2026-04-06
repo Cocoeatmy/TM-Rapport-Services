@@ -698,6 +698,12 @@ export async function GET(
       }
     }
 
+    // Generate client portal link
+    const clientToken = Buffer.from(id).toString("base64url");
+    const origin = request.headers.get("origin") || request.headers.get("x-forwarded-host") || "https://tm-rapport.vercel.app";
+    const baseUrl = origin.startsWith("http") ? origin : `https://${origin}`;
+    const clientPortalUrl = `${baseUrl}/client/${clientToken}`;
+
     // Envoi email en arrière-plan (ne bloque pas le téléchargement)
     sendPdfByEmail({
       projectName: project.projet,
@@ -705,6 +711,7 @@ export async function GET(
       collaborateur,
       collaborateurEmail,
       pdfBuffer: buffer,
+      clientPortalUrl,
     }).then((result) => {
       if (result.success) {
         console.log(`Email envoyé pour ${project.ofrTM}`);

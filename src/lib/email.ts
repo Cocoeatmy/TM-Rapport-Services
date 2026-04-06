@@ -8,12 +8,14 @@ export async function sendPdfByEmail({
   collaborateur,
   collaborateurEmail,
   pdfBuffer,
+  clientPortalUrl,
 }: {
   projectName: string;
   ofrTM: string;
   collaborateur: string;
   collaborateurEmail: string;
   pdfBuffer: Buffer;
+  clientPortalUrl?: string;
 }) {
   const filename = `rapport-${ofrTM || projectName}.pdf`.replace(/[^a-zA-Z0-9.-]/g, "_");
 
@@ -40,7 +42,11 @@ export async function sendPdfByEmail({
               <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">${collaborateur}</td>
             </tr>
           </table>
-          <p style="color: #666; font-size: 14px;">Le rapport PDF est en pièce jointe.</p>
+          <p style="color: #666; font-size: 14px;">Le rapport PDF est en pièce jointe.</p>${clientPortalUrl ? `
+          <div style="margin: 16px 0; padding: 12px; background-color: #f0f4f8; border-radius: 8px; border-left: 4px solid #1e3a5f;">
+            <p style="margin: 0 0 8px 0; font-weight: bold; color: #1e3a5f;">Lien portail client</p>
+            <a href="${clientPortalUrl}" style="color: #1e3a5f; word-break: break-all;">${clientPortalUrl}</a>
+          </div>` : ""}
           <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
           <p style="color: #999; font-size: 12px;">TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon<br />
           +41 79 555 24 74 | www.douche-montage.ch</p>
