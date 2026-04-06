@@ -46,7 +46,7 @@ function ProjectCard({ project, mode }: { project: Project; mode: string }) {
           </div>
           <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
             <Calendar className="w-3.5 h-3.5 shrink-0" />
-            <span>{formatDateFR(project.dateMontage)}</span>
+            <span>{formatDateFR(mode.startsWith("mesures") ? project.dateMesures : project.dateMontage)}</span>
           </div>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {project.fournisseurs.slice(0, 2).map((f) => (
