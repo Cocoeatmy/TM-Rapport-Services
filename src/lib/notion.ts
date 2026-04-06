@@ -253,6 +253,8 @@ export async function updateProject(
     rapportMonteur?: string;
     dateMontage?: string | null;
     dateMesures?: string | null;
+    collaborateurs?: string;
+    mesuresTraiteePar?: string;
   }
 ) {
   const properties: any = {};
@@ -285,6 +287,16 @@ export async function updateProject(
   if (data.dateMesures !== undefined) {
     properties["Mesures traitée le"] = {
       date: data.dateMesures ? { start: data.dateMesures } : null,
+    };
+  }
+  if (data.collaborateurs !== undefined) {
+    properties["Collaborateurs montages"] = {
+      select: data.collaborateurs ? { name: data.collaborateurs } : null,
+    };
+  }
+  if (data.mesuresTraiteePar !== undefined) {
+    properties["Mesures traitée par"] = {
+      select: data.mesuresTraiteePar ? { name: data.mesuresTraiteePar } : null,
     };
   }
 

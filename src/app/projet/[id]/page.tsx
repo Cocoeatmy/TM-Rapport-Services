@@ -241,6 +241,120 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
   );
 }
 
+function EditableCollaborateur({ project, mode, onUpdate }: { project: Project; mode: string; onUpdate: (collab: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const currentCollab = mode === "mesures" ? project.mesuresTraiteePar : project.collaborateurs;
+  const COLLABS = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"];
+  const [selected, setSelected] = useState<string[]>(
+    currentCollab ? currentCollab.split(" & ").map((n) => n.trim()).filter(Boolean) : []
+  );
+  const notionField = mode === "mesures" ? "mesuresTraiteePar" : "collaborateurs";
+
+  const toggleCollab = (name: string) => {
+    setSelected((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const newValue = selected.join(" & ");
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [notionField]: newValue || "" }),
+      });
+      if (res.ok) {
+        onUpdate(newValue);
+        await fetch("/api/logs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: project.id,
+            projectName: project.projet,
+            action: "Modification collaborateur",
+            details: `${currentCollab || "---"} → ${newValue || "---"}`,
+          }),
+        });
+        setEditing(false);
+      }
+    } catch {} finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-2">
+      <Users className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-gray-500">Collaborateurs</p>
+        {editing ? (
+          <div className="space-y-2 mt-1">
+            <div className="flex flex-wrap gap-1.5">
+              {COLLABS.map((name) => {
+                const isSelected = selected.includes(name);
+                const colors = getCollaboratorColor(name);
+                return (
+                  <button
+                    key={name}
+                    onClick={() => toggleCollab(name)}
+                    className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full transition-all ${
+                      isSelected ? "ring-2 ring-offset-1 ring-blue-400" : "opacity-40"
+                    }`}
+                    style={{ backgroundColor: colors.bg, color: colors.text }}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.dot }} />
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="h-7 px-3 rounded-lg bg-green-500 text-white text-xs font-medium flex items-center gap-1 hover:bg-green-600 disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Enregistrer
+              </button>
+              <button
+                onClick={() => { setEditing(false); setSelected(currentCollab ? currentCollab.split(" & ").map((n) => n.trim()) : []); }}
+                className="h-7 px-3 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-medium hover:bg-gray-300"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {currentCollab ? (
+              currentCollab.split(" & ").map((name) => (
+                <span
+                  key={name}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
+                  style={{ backgroundColor: getCollaboratorColor(name.trim()).bg, color: getCollaboratorColor(name.trim()).text }}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getCollaboratorColor(name.trim()).dot }} />
+                  {name.trim()}
+                </span>
+              ))
+            ) : (
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">---</p>
+            )}
+            <button
+              onClick={() => setEditing(true)}
+              className="w-6 h-6 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center"
+            >
+              <Pencil className="w-3 h-3 text-gray-400" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function InfoRow({
   icon: Icon,
   label,
@@ -572,35 +686,14 @@ function ProjectPageContent({ id }: { id: string }) {
             )}
 
             <div className="grid grid-cols-2 gap-3 py-2">
-              <div className="flex items-start gap-2">
-                <Users className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs text-gray-500">Collaborateurs</p>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {(() => {
-                      const collab = mode === "mesures" ? project.mesuresTraiteePar : project.collaborateurs;
-                      if (!collab) return <p className="text-sm font-medium text-gray-900 dark:text-gray-100">---</p>;
-                      return collab.split(" & ").map((name) => (
-                        <a
-                          key={name}
-                          href={`/?collaborateur=${encodeURIComponent(name.trim())}`}
-                          className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full active:scale-95 transition-transform"
-                          style={{
-                            backgroundColor: getCollaboratorColor(name.trim()).bg,
-                            color: getCollaboratorColor(name.trim()).text,
-                          }}
-                        >
-                          <span
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: getCollaboratorColor(name.trim()).dot }}
-                          />
-                          {name.trim()}
-                        </a>
-                      ));
-                    })()}
-                  </div>
-                </div>
-              </div>
+              <EditableCollaborateur
+                project={project}
+                mode={mode}
+                onUpdate={(newCollab) => {
+                  const field = mode === "mesures" ? "mesuresTraiteePar" : "collaborateurs";
+                  setProject({ ...project, [field]: newCollab });
+                }}
+              />
               <EditableDate
                 project={project}
                 mode={mode}
