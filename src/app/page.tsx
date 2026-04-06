@@ -753,6 +753,164 @@ function HomePage() {
         );
       })()}
 
+      {/* VUE CLIENTS */}
+      {viewMode === "clients" && (() => {
+        // Gather ALL projects from all modes
+        const allProjects: Project[] = [];
+        const seenIds = new Set<string>();
+        Object.values(projectsData).forEach((list) => {
+          (list || []).forEach((p) => {
+            if (!seenIds.has(p.id)) {
+              seenIds.add(p.id);
+              allProjects.push(p);
+            }
+          });
+        });
+
+        // Group by client name (nomChantier or first meaningful part of projet)
+        const clientMap: Record<string, Project[]> = {};
+        allProjects.forEach((p) => {
+          const clientName = (p.nomChantier || p.projet.split(" - ")[0] || p.projet || "Sans nom").trim();
+          if (!clientMap[clientName]) clientMap[clientName] = [];
+          clientMap[clientName].push(p);
+        });
+
+        // Build client data sorted by most recent activity
+        const clientEntries = Object.entries(clientMap).map(([name, projs]) => {
+          const totalCabines = projs.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
+          const dates = projs.map((p) => p.dateMontage || p.dateMesures || "").filter(Boolean).sort();
+          const mostRecent = dates.length > 0 ? dates[dates.length - 1] : "";
+          return { name, projects: projs, totalCabines, mostRecent };
+        }).sort((a, b) => (b.mostRecent || "").localeCompare(a.mostRecent || ""));
+
+        const q = clientSearch.toLowerCase();
+        const filteredClients = q
+          ? clientEntries.filter((c) =>
+              c.name.toLowerCase().includes(q) ||
+              c.projects.some((p) => p.projet.toLowerCase().includes(q))
+            )
+          : clientEntries;
+
+        const toggleClient = (name: string) => {
+          setExpandedClients((prev) => {
+            const next = new Set(prev);
+            if (next.has(name)) next.delete(name);
+            else next.add(name);
+            return next;
+          });
+        };
+
+        return (
+          <div className="mb-4">
+            <div className="flex items-center gap-3 mb-4">
+              <button onClick={() => setViewMode("list")} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <h2 className="text-lg font-semibold flex-1">Historique par client</h2>
+              <span className="text-xs text-gray-500">{filteredClients.length} client{filteredClients.length !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="relative mb-4 max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Rechercher un client ou projet..."
+                className="pl-9 h-11 rounded-xl glass-input"
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+              />
+            </div>
+            <div className="space-y-3">
+              {filteredClients.map((client) => {
+                const isExpanded = expandedClients.has(client.name);
+                return (
+                  <div key={client.name} className="glass-card rounded-2xl overflow-hidden">
+                    <button
+                      onClick={() => toggleClient(client.name)}
+                      className="w-full text-left p-4 hover:bg-white/60 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Building className="w-4 h-4 text-amber-500 shrink-0" />
+                            <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{client.name}</h3>
+                          </div>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <Badge variant="secondary" className="text-xs">
+                              {client.projects.length} projet{client.projects.length !== 1 ? "s" : ""}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {client.totalCabines} cabine{client.totalCabines !== 1 ? "s" : ""}
+                            </Badge>
+                            {client.mostRecent && (
+                              <span className="text-xs text-gray-500 flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {formatDateFR(client.mostRecent)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="shrink-0 mt-1">
+                          {isExpanded ? (
+                            <ChevronUp className="w-5 h-5 text-gray-400" />
+                          ) : (
+                            <ChevronDown className="w-5 h-5 text-gray-400" />
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                    {isExpanded && (
+                      <div className="border-t border-gray-100 px-4 pb-3 pt-2 space-y-1.5">
+                        {client.projects
+                          .sort((a, b) => ((b.dateMontage || b.dateMesures || "").localeCompare(a.dateMontage || a.dateMesures || "")))
+                          .map((p) => {
+                            const date = p.dateMontage || p.dateMesures;
+                            const status = p.etatCMD || p.etatMesures || "";
+                            const statusColors: Record<string, string> = { ...STATUS_CMD_COLORS, ...STATUS_MESURES_COLORS };
+                            const statusColor = statusColors[status] || "bg-gray-100 text-gray-700";
+                            const collabField = p.collaborateurs || p.mesuresTraiteePar || "";
+                            return (
+                              <Link
+                                key={p.id}
+                                href={`/projet/${p.id}?mode=${p.etatMesures ? "mesures" : "cmd"}`}
+                                className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white/60 transition-colors"
+                              >
+                                <span className="text-xs font-mono text-gray-500 w-20 shrink-0">
+                                  {date ? new Date(date).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
+                                </span>
+                                <span className="text-sm flex-1 truncate">{p.projet}</span>
+                                {status && (
+                                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${statusColor}`}>
+                                    {status}
+                                  </span>
+                                )}
+                                {collabField && collabField.split(" & ").filter(Boolean).map((n) => (
+                                  <span
+                                    key={n}
+                                    className="inline-flex items-center gap-1 text-[10px]"
+                                    style={{ color: getCollaboratorColor(n.trim()).text }}
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getCollaboratorColor(n.trim()).dot }} />
+                                    {n.trim()}
+                                  </span>
+                                ))}
+                                <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                              </Link>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {filteredClients.length === 0 && (
+                <div className="text-center py-12 text-gray-400">
+                  <p className="text-lg">Aucun client trouve</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {mode !== "dashboard" && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {
