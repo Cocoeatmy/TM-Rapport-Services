@@ -123,7 +123,12 @@ export const RAPPORT_OPTIONS_CABINE = [
 export function formatDateFR(dateStr: string | null): string {
   if (!dateStr) return "Non planifié";
   const d = new Date(dateStr);
-  return d.toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" });
+  const datePart = d.toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" });
+  if (dateStr.includes("T")) {
+    const timePart = d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
+    return `${datePart} à ${timePart}`;
+  }
+  return datePart;
 }
 
 export function formatDateLong(dateStr: string | null): string {

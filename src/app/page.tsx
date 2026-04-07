@@ -440,36 +440,41 @@ function HomePage() {
   // --- Scheduling conflict detection ---
   const conflicts: { type: "conflict" | "overload"; collaborateur: string; date: string; count: number; projectIds: string[] }[] = [];
   {
-    const collabDateMap: Record<string, { projectIds: string[]; cabines: number }> = {};
+    // Track per-collaborator per-day: projectIds, cabines, and effective capacity
+    const collabDateMap: Record<string, { projectIds: string[]; cabines: number; effectiveCabines: number }> = {};
     filtered.forEach((p) => {
       const date = mode.startsWith("mesures") ? p.dateMesures : p.dateMontage;
       if (!date) return;
       const collabField = mode === "mesures" ? p.mesuresTraiteePar : p.collaborateurs;
       const collabs = (collabField || "").split(" & ").map((n) => n.trim()).filter(Boolean);
+      const isBinome = collabs.length >= 2;
+      // En binôme, les cabines sont partagées entre les collaborateurs
+      const cabinesPerPerson = isBinome ? (p.nbCabines || 0) / collabs.length : (p.nbCabines || 0);
       collabs.forEach((collab) => {
-        const key = `${collab}::${date}`;
-        if (!collabDateMap[key]) collabDateMap[key] = { projectIds: [], cabines: 0 };
+        const key = `${collab}::${date.split("T")[0]}`;
+        if (!collabDateMap[key]) collabDateMap[key] = { projectIds: [], cabines: 0, effectiveCabines: 0 };
         collabDateMap[key].projectIds.push(p.id);
         collabDateMap[key].cabines += p.nbCabines || 0;
+        collabDateMap[key].effectiveCabines += cabinesPerPerson;
       });
     });
     Object.entries(collabDateMap).forEach(([key, val]) => {
       const [collaborateur, date] = key.split("::");
       if (mode.startsWith("mesures")) {
         // Mesures : ~15min par mesure, ~32 mesures/jour max
-        // Conflit si > 25 projets/jour, surcharge si > 20 projets/jour
         if (val.projectIds.length > 25) {
           conflicts.push({ type: "conflict", collaborateur, date, count: val.projectIds.length, projectIds: val.projectIds });
         } else if (val.projectIds.length > 20) {
           conflicts.push({ type: "overload", collaborateur, date, count: val.projectIds.length, projectIds: val.projectIds });
         }
       } else {
-        // Montages : ~3.5 cabines/jour
-        if (val.projectIds.length >= 2) {
+        // Montages : ~3.5 cabines/jour par personne
+        // effectiveCabines tient compte des binômes (cabines / nb personnes)
+        if (val.projectIds.length >= 3) {
           conflicts.push({ type: "conflict", collaborateur, date, count: val.projectIds.length, projectIds: val.projectIds });
         }
-        if (val.cabines > 4) {
-          conflicts.push({ type: "overload", collaborateur, date, count: val.cabines, projectIds: val.projectIds });
+        if (val.effectiveCabines > 4) {
+          conflicts.push({ type: "overload", collaborateur, date, count: Math.round(val.effectiveCabines), projectIds: val.projectIds });
         }
       }
     });
@@ -609,7 +614,10 @@ function HomePage() {
             onClick={() => setViewMode("week")}
             className="glass-card flex items-center gap-2 px-4 py-3 rounded-xl hover:bg-white/80 transition-all active:scale-95"
           >
-            <span className="text-xs font-semibold text-[#1e3a5f] dark:text-white">Semaine</span>
+            <div className="text-left">
+              <span className="text-xs font-semibold text-[#1e3a5f] dark:text-white">Semaine</span>
+              <p className="text-[10px] text-gray-400">{new Date().toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}</p>
+            </div>
             <Calendar className="w-5 h-5 text-green-500" />
           </button>
           <button
