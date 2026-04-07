@@ -211,8 +211,8 @@ function DailyRouteButton({ projects }: { projects: Project[] }) {
 
 function ProjectRow({ project, colors }: { project: Project; colors: { bg: string; text: string; dot: string } }) {
   const collabNames = (project.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
-  const isBinome = collabNames.length === 2;
-  const isTeam = collabNames.length > 2 || (project.collaborateurs || "").toLowerCase().includes("team");
+  const isTeam = collabNames.length >= 5 || (project.collaborateurs || "").toLowerCase().includes("team");
+  const teamLabel = isTeam ? "Team" : collabNames.length === 2 ? "Binôme" : collabNames.length === 3 ? "Trio" : collabNames.length === 4 ? "Quatuor" : "";
 
   return (
     <Link
@@ -228,7 +228,7 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
             <span className="truncate">{project.adresseChantier}</span>
           </div>
         )}
-        {(isBinome || isTeam) && (
+        {collabNames.length >= 2 && (
           <div className="flex items-center gap-1 mt-1">
             <div className="flex -space-x-1">
               {collabNames.map((n) => (
@@ -238,8 +238,8 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
                 </span>
               ))}
             </div>
-            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${isTeam ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"}`}>
-              {isTeam ? "Team" : "Binôme"}
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+              {teamLabel}
             </span>
           </div>
         )}
@@ -253,8 +253,8 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
 function WeekProjectRow({ project }: { project: Project }) {
   const date = project.dateMontage || project.dateMesures || "";
   const collabNames = (project.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
-  const isBinome = collabNames.length === 2;
-  const isTeam = collabNames.length > 2 || (project.collaborateurs || "").toLowerCase().includes("team");
+  const isTeam = collabNames.length >= 5 || (project.collaborateurs || "").toLowerCase().includes("team");
+  const teamLabel = isTeam ? "Team" : collabNames.length === 2 ? "Binôme" : collabNames.length === 3 ? "Trio" : collabNames.length === 4 ? "Quatuor" : "";
 
   return (
     <Link
@@ -266,7 +266,7 @@ function WeekProjectRow({ project }: { project: Project }) {
       </span>
       <div className="flex-1 min-w-0">
         <p className="text-sm truncate text-gray-900 dark:text-gray-100">{project.projet}</p>
-        {(isBinome || isTeam) && (
+        {collabNames.length >= 2 && (
           <div className="flex items-center gap-1 mt-0.5">
             <div className="flex -space-x-1">
               {collabNames.map((n) => (
@@ -277,7 +277,7 @@ function WeekProjectRow({ project }: { project: Project }) {
               ))}
             </div>
             <span className={`text-[9px] font-medium px-1 py-0.5 rounded ${isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-              {isTeam ? "Team" : "Binôme"}
+              {teamLabel}
             </span>
           </div>
         )}
@@ -328,7 +328,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
     .map(([teamName, teamProjects]) => {
       const names = teamName.split(" & ").map((n) => n.trim());
       const isBinome = names.length === 2;
-      const isTeam = names.length > 2 || teamName.toLowerCase().includes("team");
+      const isTeam = names.length >= 5 || teamName.toLowerCase().includes("team");
       const todayP = teamProjects.filter((p) => (p.dateMontage || p.dateMesures || "").startsWith(todayStr));
       const thisWeekP = teamProjects.filter((p) => { const d = p.dateMontage || p.dateMesures || ""; return d > todayStr && d <= thisWeekEndStr; })
         .sort((a, b) => (a.dateMontage || a.dateMesures || "").localeCompare(b.dateMontage || b.dateMesures || ""));
@@ -581,7 +581,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                     </p>
                   </div>
                   <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${team.isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-                    {team.isTeam ? "Team" : "Binôme"}
+                    {team.isTeam ? "Team" : team.names.length === 2 ? "Binôme" : team.names.length === 3 ? "Trio" : team.names.length === 4 ? "Quatuor" : "Équipe"}
                   </span>
                   {team.todayProjects.length > 0 && <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shrink-0" />}
                   {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
