@@ -612,8 +612,17 @@ function HomePage() {
               }}
             />
           </div>
-          {currentUser && (projectsData["cmd"] || []).length > 0 && (
-            <MonteurDashboard userName={currentUser.name} projects={projectsData["cmd"] || []} isAdmin={currentUser?.role === "admin"} />
+          {currentUser && (
+            <MonteurDashboard
+              userName={currentUser.name}
+              projects={[
+                ...(projectsData["cmd"] || []),
+                ...(projectsData["mesures"] || []),
+                ...(projectsData["services"] || []),
+                ...(projectsData["sav"] || []),
+              ].filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)}
+              isAdmin={currentUser?.role === "admin"}
+            />
           )}
           {currentUser && (projectsData["cmd"] || []).length > 0 && (
             <>

@@ -446,7 +446,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                             className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
                           >
                             <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
-                              {formatDay(p.dateMontage!)}
+                              {formatDay(p.dateMontage || p.dateMesures || "")}
                             </span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm truncate text-gray-900 dark:text-gray-100">{p.projet}</p>
@@ -474,7 +474,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                             className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
                           >
                             <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
-                              {formatDay(p.dateMontage!)}
+                              {formatDay(p.dateMontage || p.dateMesures || "")}
                             </span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm truncate text-gray-900 dark:text-gray-100">{p.projet}</p>
@@ -511,23 +511,27 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
   const weekEndStr = getWeekEndStr();
   const thisWeekEndStr = getThisWeekEndStr();
 
-  // Filtrer les projets du monteur
+  // Filtrer les projets du monteur (montage + mesures + services + sav)
   const myProjects = projects.filter((p) =>
-    p.collaborateurs?.toLowerCase().includes(firstName.toLowerCase())
+    p.collaborateurs?.toLowerCase().includes(firstName.toLowerCase()) ||
+    p.mesuresTraiteePar?.toLowerCase().includes(firstName.toLowerCase())
   );
 
+  // Date effective d'un projet (mesures ou montage)
+  const getDate = (p: Project) => p.dateMontage || p.dateMesures || "";
+
   // Projets du jour
-  const todayProjects = myProjects.filter((p) => p.dateMontage === todayStr);
+  const todayProjects = myProjects.filter((p) => getDate(p).startsWith(todayStr));
 
   // Projets cette semaine (excl. aujourd'hui)
   const thisWeekProjects = myProjects
-    .filter((p) => p.dateMontage && p.dateMontage > todayStr && p.dateMontage <= thisWeekEndStr)
-    .sort((a, b) => (a.dateMontage || "").localeCompare(b.dateMontage || ""));
+    .filter((p) => { const d = getDate(p); return d && d > todayStr && d <= thisWeekEndStr; })
+    .sort((a, b) => getDate(a).localeCompare(getDate(b)));
 
   // Projets semaine prochaine
   const nextWeekProjects = myProjects
-    .filter((p) => p.dateMontage && p.dateMontage > thisWeekEndStr && p.dateMontage <= weekEndStr)
-    .sort((a, b) => (a.dateMontage || "").localeCompare(b.dateMontage || ""));
+    .filter((p) => { const d = getDate(p); return d && d > thisWeekEndStr && d <= weekEndStr; })
+    .sort((a, b) => getDate(a).localeCompare(getDate(b)));
 
   const totalCabines = myProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
 
@@ -548,8 +552,8 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
             <p className="font-semibold text-gray-900 dark:text-gray-100">Bonjour {firstName} 👋</p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {todayProjects.length > 0
-                ? `${todayProjects.length} montage${todayProjects.length > 1 ? "s" : ""} aujourd'hui`
-                : "Aucun montage aujourd'hui"}
+                ? `${todayProjects.length} intervention${todayProjects.length > 1 ? "s" : ""} aujourd'hui`
+                : "Aucune intervention aujourd'hui"}
             </p>
           </div>
           <div className="text-right">
@@ -614,7 +618,7 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
                 className="flex items-center gap-3 glass-card rounded-xl px-3 py-2"
               >
                 <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
-                  {formatDay(p.dateMontage!)}
+                  {formatDay(p.dateMontage || p.dateMesures || "")}
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm truncate">{p.projet}</p>
@@ -642,7 +646,7 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
                 className="flex items-center gap-3 glass-card rounded-xl px-3 py-2"
               >
                 <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
-                  {formatDay(p.dateMontage!)}
+                  {formatDay(p.dateMontage || p.dateMesures || "")}
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm truncate">{p.projet}</p>
