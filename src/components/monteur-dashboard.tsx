@@ -314,6 +314,31 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
     return { name, colors, myProjects, todayProjects, thisWeekProjects, nextWeekProjects, totalCabines };
   });
 
+  // Build per-binôme/team data (projects with 2+ collaborateurs)
+  const binomeMap: Record<string, Project[]> = {};
+  projects.forEach((p) => {
+    const collab = p.collaborateurs || "";
+    if (!collab.includes("&")) return;
+    const date = p.dateMontage || p.dateMesures || "";
+    if (!date || date > weekEndStr) return;
+    if (!binomeMap[collab]) binomeMap[collab] = [];
+    binomeMap[collab].push(p);
+  });
+  const binomeData = Object.entries(binomeMap)
+    .map(([teamName, teamProjects]) => {
+      const names = teamName.split(" & ").map((n) => n.trim());
+      const isBinome = names.length === 2;
+      const isTeam = names.length > 2 || teamName.toLowerCase().includes("team");
+      const todayP = teamProjects.filter((p) => (p.dateMontage || p.dateMesures || "").startsWith(todayStr));
+      const thisWeekP = teamProjects.filter((p) => { const d = p.dateMontage || p.dateMesures || ""; return d > todayStr && d <= thisWeekEndStr; })
+        .sort((a, b) => (a.dateMontage || a.dateMesures || "").localeCompare(b.dateMontage || b.dateMesures || ""));
+      const nextWeekP = teamProjects.filter((p) => { const d = p.dateMontage || p.dateMesures || ""; return d > thisWeekEndStr && d <= weekEndStr; })
+        .sort((a, b) => (a.dateMontage || a.dateMesures || "").localeCompare(b.dateMontage || b.dateMesures || ""));
+      const totalCabines = teamProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
+      return { teamName, names, isBinome, isTeam, todayProjects: todayP, thisWeekProjects: thisWeekP, nextWeekProjects: nextWeekP, totalCabines };
+    })
+    .filter((b) => b.todayProjects.length > 0 || b.thisWeekProjects.length > 0 || b.nextWeekProjects.length > 0);
+
   // Summary stats
   const totalProjectsToday = new Set(
     collabData.flatMap((c) => c.todayProjects.map((p) => p.id))
@@ -522,6 +547,80 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           </div>
         );
       })}
+
+      {/* Binômes & Teams */}
+      {binomeData.length > 0 && (
+        <>
+          <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mt-2">
+            <Users className="w-3.5 h-3.5" />
+            Binômes & Teams
+          </p>
+          {binomeData.map((team) => {
+            const isExpanded = expandedCollabs[`team-${team.teamName}`] ?? false;
+            return (
+              <div key={team.teamName} className="glass-card rounded-2xl overflow-hidden">
+                <button
+                  onClick={() => toggleCollab(`team-${team.teamName}`)}
+                  className="w-full flex items-center gap-3 p-4 hover:bg-white/40 dark:hover:bg-white/5 transition-colors"
+                >
+                  <div className="flex -space-x-2 shrink-0">
+                    {team.names.map((n) => (
+                      <div key={n} className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border-2 border-white dark:border-gray-800"
+                        style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                        {n[0]}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{team.names.join(" & ")}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {team.todayProjects.length > 0
+                        ? `${team.todayProjects.length} montage${team.todayProjects.length > 1 ? "s" : ""} aujourd'hui`
+                        : "Pas de montage aujourd'hui"}
+                      {" · "}{team.totalCabines} cab.
+                    </p>
+                  </div>
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${team.isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                    {team.isTeam ? "Team" : "Binôme"}
+                  </span>
+                  {team.todayProjects.length > 0 && <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shrink-0" />}
+                  {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
+                </button>
+                {isExpanded && (
+                  <div className="px-4 pb-4 space-y-3">
+                    {team.todayProjects.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> Aujourd'hui ({team.todayProjects.length})
+                        </p>
+                        <div className="space-y-1.5">
+                          {team.todayProjects.map((p) => <ProjectRow key={p.id} project={p} colors={getCollaboratorColor(team.names[0])} />)}
+                        </div>
+                      </div>
+                    )}
+                    {team.thisWeekProjects.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> Cette semaine ({team.thisWeekProjects.length})
+                        </p>
+                        <div className="space-y-1.5">{team.thisWeekProjects.map((p) => <WeekProjectRow key={p.id} project={p} />)}</div>
+                      </div>
+                    )}
+                    {team.nextWeekProjects.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> Semaine prochaine ({team.nextWeekProjects.length})
+                        </p>
+                        <div className="space-y-1.5">{team.nextWeekProjects.map((p) => <WeekProjectRow key={p.id} project={p} />)}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
     </div>
   );
 }
