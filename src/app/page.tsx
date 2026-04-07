@@ -833,7 +833,8 @@ function HomePage() {
 
         const collabMap: Record<string, Project[]> = {};
         rdvProjects.forEach((p) => {
-          const collab = p.collaborateurs || "Non assigné";
+          const collab = mode.startsWith("mesures") ? p.mesuresTraiteePar : p.collaborateurs;
+          if (!collab) return; // Exclure les non-assignés
           if (!collabMap[collab]) collabMap[collab] = [];
           collabMap[collab].push(p);
         });
