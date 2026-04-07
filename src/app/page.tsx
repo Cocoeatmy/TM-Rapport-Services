@@ -257,8 +257,8 @@ function HomePage() {
         setOpenDropdown(null);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
   const projects = projectsData[mode] || [];
@@ -554,7 +554,7 @@ function HomePage() {
               {/* Services dropdown */}
               <div className="relative shrink-0">
                 <button
-                  onClick={() => setOpenDropdown(openDropdown === "services" ? null : "services")}
+                  onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === "services" ? null : "services"); }}
                   className={tabClass(isServicesActive)}
                 >
                   {isServicesActive && servicesActiveLabel ? `Services \u00B7 ${servicesActiveLabel}` : "Services"}
@@ -582,7 +582,7 @@ function HomePage() {
               {/* Clients dropdown */}
               <div className="relative shrink-0">
                 <button
-                  onClick={() => setOpenDropdown(openDropdown === "clients" ? null : "clients")}
+                  onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === "clients" ? null : "clients"); }}
                   className={tabClass(isClientsActive)}
                 >
                   {isClientsActive && clientsActiveLabel ? `Clients \u00B7 ${clientsActiveLabel}` : "Clients"}
