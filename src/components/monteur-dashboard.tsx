@@ -210,6 +210,10 @@ function DailyRouteButton({ projects }: { projects: Project[] }) {
 // --- Project card used in both views ---
 
 function ProjectRow({ project, colors }: { project: Project; colors: { bg: string; text: string; dot: string } }) {
+  const collabNames = (project.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
+  const isBinome = collabNames.length === 2;
+  const isTeam = collabNames.length > 2 || (project.collaborateurs || "").toLowerCase().includes("team");
+
   return (
     <Link
       key={project.id}
@@ -222,6 +226,59 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
           <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
             <MapPin className="w-3 h-3" />
             <span className="truncate">{project.adresseChantier}</span>
+          </div>
+        )}
+        {(isBinome || isTeam) && (
+          <div className="flex items-center gap-1 mt-1">
+            <div className="flex -space-x-1">
+              {collabNames.map((n) => (
+                <span key={n} className="w-5 h-5 rounded-full text-[8px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                  style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                  {n[0]}
+                </span>
+              ))}
+            </div>
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${isTeam ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"}`}>
+              {isTeam ? "Team" : "Binôme"}
+            </span>
+          </div>
+        )}
+      </div>
+      <Badge variant="outline" className="text-[10px] shrink-0">{project.nbCabines || 0} cab.</Badge>
+      <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+    </Link>
+  );
+}
+
+function WeekProjectRow({ project }: { project: Project }) {
+  const date = project.dateMontage || project.dateMesures || "";
+  const collabNames = (project.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
+  const isBinome = collabNames.length === 2;
+  const isTeam = collabNames.length > 2 || (project.collaborateurs || "").toLowerCase().includes("team");
+
+  return (
+    <Link
+      href={`/projet/${project.id}?mode=dashboard`}
+      className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+    >
+      <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
+        {formatDay(date)}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm truncate text-gray-900 dark:text-gray-100">{project.projet}</p>
+        {(isBinome || isTeam) && (
+          <div className="flex items-center gap-1 mt-0.5">
+            <div className="flex -space-x-1">
+              {collabNames.map((n) => (
+                <span key={n} className="w-4 h-4 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                  style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                  {n[0]}
+                </span>
+              ))}
+            </div>
+            <span className={`text-[9px] font-medium px-1 py-0.5 rounded ${isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+              {isTeam ? "Team" : "Binôme"}
+            </span>
           </div>
         )}
       </div>
@@ -440,21 +497,8 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                     </p>
                     <div className="space-y-1.5">
                       {collab.thisWeekProjects.map((p) => (
-                          <Link
-                            key={p.id}
-                            href={`/projet/${p.id}?mode=dashboard`}
-                            className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
-                          >
-                            <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
-                              {formatDay(p.dateMontage || p.dateMesures || "")}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm truncate text-gray-900 dark:text-gray-100">{p.projet}</p>
-                            </div>
-                            <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
-                            <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-                          </Link>
-                        ))}
+                        <WeekProjectRow key={p.id} project={p} />
+                      ))}
                     </div>
                   </div>
                 )}
@@ -468,21 +512,8 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                     </p>
                     <div className="space-y-1.5">
                       {collab.nextWeekProjects.map((p) => (
-                          <Link
-                            key={p.id}
-                            href={`/projet/${p.id}?mode=dashboard`}
-                            className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
-                          >
-                            <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
-                              {formatDay(p.dateMontage || p.dateMesures || "")}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm truncate text-gray-900 dark:text-gray-100">{p.projet}</p>
-                            </div>
-                            <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
-                            <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-                          </Link>
-                        ))}
+                        <WeekProjectRow key={p.id} project={p} />
+                      ))}
                     </div>
                   </div>
                 )}
