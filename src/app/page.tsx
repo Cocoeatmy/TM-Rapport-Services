@@ -554,7 +554,7 @@ function HomePage() {
           )}
           {currentUser && (projectsData["cmd"] || []).length > 0 && (
             <>
-              {currentUser.role === "admin" ? (
+              {currentUser.role === "admin" && (
                 <div className="mt-4">
                   <label className="text-sm font-medium text-gray-600 dark:text-gray-400 mr-2">
                     Stats monteur :
@@ -573,8 +573,6 @@ function HomePage() {
                     <PersonalStats userName={selectedMonteurStats} projects={[...(projectsData["cmd"] || []), ...(projectsData["cmd-termine"] || [])]} />
                   )}
                 </div>
-              ) : (
-                <PersonalStats userName={currentUser.name} projects={[...(projectsData["cmd"] || []), ...(projectsData["cmd-termine"] || [])]} />
               )}
             </>
           )}
