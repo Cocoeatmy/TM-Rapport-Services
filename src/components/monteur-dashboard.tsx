@@ -204,7 +204,7 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
   return (
     <Link
       key={project.id}
-      href={`/projet/${project.id}?mode=cmd`}
+      href={`/projet/${project.id}?mode=dashboard`}
       className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
     >
       <div className="flex-1 min-w-0">
@@ -377,7 +377,7 @@ function AdminDashboard({ projects }: { projects: Project[] }) {
                         .map((p) => (
                           <Link
                             key={p.id}
-                            href={`/projet/${p.id}?mode=cmd`}
+                            href={`/projet/${p.id}?mode=dashboard`}
                             className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
                           >
                             <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
@@ -471,7 +471,7 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
             {todayProjects.map((p) => (
               <Link
                 key={p.id}
-                href={`/projet/${p.id}?mode=cmd`}
+                href={`/projet/${p.id}?mode=dashboard`}
                 className="block glass-card rounded-xl p-3 border-l-4"
                 style={{ borderLeftColor: colors.dot }}
               >
@@ -511,7 +511,7 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
             {weekProjects.map((p) => (
               <Link
                 key={p.id}
-                href={`/projet/${p.id}?mode=cmd`}
+                href={`/projet/${p.id}?mode=dashboard`}
                 className="flex items-center gap-3 glass-card rounded-xl px-3 py-2"
               >
                 <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
