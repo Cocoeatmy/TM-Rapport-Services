@@ -233,7 +233,8 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
 
 // --- Admin view ---
 
-function AdminDashboard({ projects }: { projects: Project[] }) {
+function AdminDashboard({ projects, userName }: { projects: Project[]; userName: string }) {
+  const firstName = userName.split(" ")[0];
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const todayStr = getTodayStr();
@@ -267,6 +268,27 @@ function AdminDashboard({ projects }: { projects: Project[] }) {
 
   return (
     <div className="mb-6 space-y-4">
+      {/* En-tête de bienvenue */}
+      <div className="glass-card rounded-2xl p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-lg font-bold text-blue-600 dark:text-blue-400">
+            {firstName[0]}
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-gray-900 dark:text-gray-100">Bonjour {firstName} 👋</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {totalProjectsToday > 0
+                ? `${totalProjectsToday} montage${totalProjectsToday > 1 ? "s" : ""} prévu${totalProjectsToday > 1 ? "s" : ""} aujourd'hui · ${busyToday} monteur${busyToday > 1 ? "s" : ""} actif${busyToday > 1 ? "s" : ""}`
+                : "Aucun montage prévu aujourd'hui"}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCabinesWeek}</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500">cabines cette sem.</p>
+          </div>
+        </div>
+      </div>
+
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
         <div className="glass-card rounded-2xl p-4 text-center">
@@ -446,7 +468,7 @@ function AdminDashboard({ projects }: { projects: Project[] }) {
 export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboardProps) {
   // Admin view: show all collaborators
   if (isAdmin) {
-    return <AdminDashboard projects={projects} />;
+    return <AdminDashboard projects={projects} userName={userName} />;
   }
 
   // Regular monteur view (unchanged logic)
