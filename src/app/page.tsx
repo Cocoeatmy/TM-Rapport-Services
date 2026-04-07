@@ -35,6 +35,11 @@ const KanbanBoard = dynamic(() => import("@/components/kanban-board").then(m => 
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
+const CRMClients = dynamic(() => import("@/components/crm-clients").then(m => ({ default: m.CRMClients })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
 function ProjectCard({ project, mode }: { project: Project; mode: string }) {
   const statusColors = mode.startsWith("mesures") ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
   const statusValue = mode.startsWith("mesures") ? project.etatMesures : project.etatCMD;
@@ -803,18 +808,9 @@ function HomePage() {
         );
       })()}
 
-      {/* VUE CLIENTS PLACEHOLDERS */}
+      {/* VUE CLIENTS - CRM Notion */}
       {mode.startsWith("clients-") && (
-        <div className="text-center py-16">
-          <Building className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-          <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            {mode === "clients-contacts" && "Contacts"}
-            {mode === "clients-entreprises" && "Entreprises"}
-            {mode === "clients-fournisseurs" && "Fournisseurs"}
-            {mode === "clients-grossistes" && "Grossistes"}
-          </h2>
-          <p className="text-gray-400 text-sm">Coming soon - connexion CRM Notion</p>
-        </div>
+        <CRMClients mode={mode as "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes"} />
       )}
 
       {/* Boutons Calendrier / Collaborateurs */}
