@@ -109,11 +109,26 @@ function formatDay(dateStr: string) {
   return d.toLocaleDateString("fr-CH", { weekday: "short", day: "2-digit", month: "short" });
 }
 
+function matchesCollaborator(fieldValue: string, name: string): boolean {
+  if (!fieldValue) return false;
+  const n = name.toLowerCase();
+  return fieldValue.split("&").some((part) => {
+    const trimmed = part.trim().toLowerCase();
+    // Exact match on the part or the part contains the name as a distinct word
+    return trimmed === n || trimmed.split(/\s+/).some((word) => word === n);
+  });
+}
+
 function getProjectsForCollaborator(projects: Project[], name: string) {
-  return projects.filter((p) =>
-    p.collaborateurs?.toLowerCase().includes(name.toLowerCase()) ||
-    p.mesuresTraiteePar?.toLowerCase().includes(name.toLowerCase())
-  );
+  return projects.filter((p) => {
+    const source = getProjectSource(p);
+    // For mesures projects, only match mesuresTraiteePar
+    if (source === "mesures") {
+      return matchesCollaborator(p.mesuresTraiteePar || "", name);
+    }
+    // For montage/services/sav, only match collaborateurs
+    return matchesCollaborator(p.collaborateurs || "", name);
+  });
 }
 
 function getProjectSource(p: any): string {
@@ -674,11 +689,14 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
   const weekEndStr = getWeekEndStr();
   const thisWeekEndStr = getThisWeekEndStr();
 
-  // Filtrer les projets du monteur (montage + mesures + services + sav)
-  const myProjects = projects.filter((p) =>
-    p.collaborateurs?.toLowerCase().includes(firstName.toLowerCase()) ||
-    p.mesuresTraiteePar?.toLowerCase().includes(firstName.toLowerCase())
-  );
+  // Filtrer les projets du monteur par rôle correct selon la source
+  const myProjects = projects.filter((p) => {
+    const source = getProjectSource(p);
+    if (source === "mesures") {
+      return matchesCollaborator(p.mesuresTraiteePar || "", firstName);
+    }
+    return matchesCollaborator(p.collaborateurs || "", firstName);
+  });
 
   // Date effective d'un projet (mesures ou montage)
   const getDate = (p: Project) => p.dateMontage || p.dateMesures || "";
