@@ -727,13 +727,9 @@ function HomePage() {
                     const isTermine = status.toLowerCase().includes("termin") || status.toLowerCase().includes("monté");
                     const statusColor = isTermine ? "bg-green-100 text-green-700" : allStatusColors[status] || "bg-gray-100 text-gray-700";
                     return (
-                      <Link
-                        key={p.id}
-                        href={`/projet/${p.id}?mode=cmd`}
-                        className="block glass-card rounded-2xl p-4 hover:bg-white/80 transition-all"
-                      >
+                      <div key={p.id} className="glass-card rounded-2xl p-4 hover:bg-white/80 transition-all">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
+                          <Link href={`/projet/${p.id}?mode=cmd`} className="flex-1 min-w-0">
                             <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
                               {p.projet || "Sans nom"}
                             </h4>
@@ -762,16 +758,23 @@ function HomePage() {
                                 </span>
                               ))}
                             </div>
-                          </div>
-                          <div className="flex flex-col items-end gap-2">
+                          </Link>
+                          <div className="flex flex-col items-end gap-2 shrink-0">
                             <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${isTermine || !status ? "bg-green-100 text-green-700" : statusColor}`}>
                               {status || "Terminé"}
                             </span>
-                            <FileText className="w-4 h-4 text-green-500" />
-                            <ChevronRight className="w-5 h-5 text-gray-300" />
+                            <a
+                              href={`/api/pdf/${p.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all text-[11px] font-medium"
+                            >
+                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2C5.9 2 5 2.9 5 4v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V8l-6-6H7zm0 2h5v5h5v11H7V4zm2 8v2h6v-2H9zm0 4v2h4v-2H9z"/></svg>
+                              PDF
+                            </a>
                           </div>
                         </div>
-                      </Link>
+                      </div>
                     );
                   })}
                 </div>
