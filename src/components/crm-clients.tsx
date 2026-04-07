@@ -227,33 +227,55 @@ function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAd
 
 // Dynamic form that shows ALL properties
 function EntryForm({ entry, onSubmit, onCancel, loading }: {
-  entry: CRMEntry | null; // null = create new
-  onSubmit: (properties: Record<string, any>) => void;
+  entry: CRMEntry | null;
+  onSubmit: (properties: Record<string, any>, icon?: string | null) => void;
   onCancel: () => void;
   loading: boolean;
 }) {
   const props = entry?.properties || {};
   const [values, setValues] = useState<Record<string, string>>({});
+  const [iconUrl, setIconUrl] = useState<string>(entry?.icon || "");
+  const [uploadingIcon, setUploadingIcon] = useState(false);
+  const iconInputRef = useState<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const init: Record<string, string> = {};
     if (entry) {
-      // Pre-fill all string/number properties
       for (const [k, v] of Object.entries(props)) {
         if (SKIP_KEYS.has(k) || HIDDEN_KEYS.has(k) || isRelationIdArray(v)) continue;
         if (Array.isArray(v)) init[k] = v.join(", ");
         else if (v !== null && v !== undefined) init[k] = String(v);
         else init[k] = "";
       }
-      // Ensure name is in the title field
       const titleKey = Object.entries(props).find(([, v]) => v === entry.name)?.[0];
       if (titleKey && !init[titleKey]) init[titleKey] = entry.name;
+      setIconUrl(entry.icon || "");
     }
     setValues(init);
   }, [entry]);
 
   const handleChange = (key: string, val: string) => {
     setValues((prev) => ({ ...prev, [key]: val }));
+  };
+
+  const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingIcon(true);
+    try {
+      const formData = new FormData();
+      formData.append("files", file);
+      formData.append("category", "crm-logos");
+      formData.append("projectId", "crm");
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        const url = data.files?.[0]?.url;
+        if (url) setIconUrl(url);
+      }
+    } catch {} finally {
+      setUploadingIcon(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -263,16 +285,44 @@ function EntryForm({ entry, onSubmit, onCancel, loading }: {
       if (READONLY_KEYS.has(k)) continue;
       result[k] = v;
     }
-    onSubmit(result);
+    const iconChanged = entry ? iconUrl !== (entry.icon || "") : !!iconUrl;
+    onSubmit(result, iconChanged ? (iconUrl || null) : undefined);
   };
 
-  // For new entries, show minimal fields
   const fields = entry
     ? Object.keys(props).filter((k) => !SKIP_KEYS.has(k) && !HIDDEN_KEYS.has(k) && !isRelationIdArray(props[k]))
     : ["Nom", "Email", "Téléphone"];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 max-h-[70vh] overflow-y-auto">
+      {/* Logo */}
+      <div>
+        <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Logo</label>
+        <div className="flex items-center gap-3">
+          {iconUrl && iconUrl.startsWith("http") ? (
+            <img src={iconUrl} alt="Logo" className="w-12 h-12 rounded-lg object-contain border border-gray-200 dark:border-gray-700" />
+          ) : iconUrl ? (
+            <span className="text-3xl">{iconUrl}</span>
+          ) : (
+            <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+              <User className="w-5 h-5 text-gray-400" />
+            </div>
+          )}
+          <div className="flex flex-col gap-1">
+            <label className="cursor-pointer text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
+              <Camera className="w-3 h-3" />
+              {uploadingIcon ? "Upload..." : iconUrl ? "Changer" : "Ajouter"}
+              <input type="file" accept="image/*" className="hidden" onChange={handleIconUpload} disabled={uploadingIcon} />
+            </label>
+            {iconUrl && (
+              <button type="button" onClick={() => setIconUrl("")} className="text-xs text-red-500 hover:text-red-600 text-left">
+                Supprimer
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {fields.map((key) => {
         const isReadOnly = READONLY_KEYS.has(key);
         const val = values[key] || "";
@@ -337,8 +387,8 @@ export function CRMClients({ mode, isAdmin }: { mode: ClientMode; isAdmin?: bool
 
   const type = MODE_TO_TYPE[mode];
 
-  const fetchEntries = () => {
-    fetch(`/api/crm?type=${type}`)
+  const fetchEntries = (refresh = false) => {
+    fetch(`/api/crm?type=${type}${refresh ? "&refresh=1" : ""}`)
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -380,13 +430,13 @@ export function CRMClients({ mode, isAdmin }: { mode: ClientMode; isAdmin?: bool
     });
   }, [entries, search]);
 
-  const handleCreate = async (properties: Record<string, any>) => {
+  const handleCreate = async (properties: Record<string, any>, icon?: string | null) => {
     setMutating(true);
     try {
       const res = await fetch("/api/crm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, properties }),
+        body: JSON.stringify({ type, properties, ...(icon !== undefined ? { icon } : {}) }),
       });
       if (res.ok) {
         setShowCreate(false);
@@ -395,14 +445,14 @@ export function CRMClients({ mode, isAdmin }: { mode: ClientMode; isAdmin?: bool
     } catch {} finally { setMutating(false); }
   };
 
-  const handleEdit = async (properties: Record<string, any>) => {
+  const handleEdit = async (properties: Record<string, any>, icon?: string | null) => {
     if (!editEntry) return;
     setMutating(true);
     try {
       const res = await fetch("/api/crm", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editEntry.id, type, properties }),
+        body: JSON.stringify({ id: editEntry.id, type, properties, ...(icon !== undefined ? { icon } : {}) }),
       });
       if (res.ok) {
         setEditEntry(null);

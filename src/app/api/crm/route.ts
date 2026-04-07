@@ -122,9 +122,16 @@ async function fetchDatabase(type: string): Promise<CRMEntry[]> {
 
 export async function GET(request: NextRequest) {
   const type = request.nextUrl.searchParams.get("type") || "contacts";
+  const refresh = request.nextUrl.searchParams.get("refresh");
 
   if (!CRM_DATABASES[type]) {
     return NextResponse.json({ error: `Type inconnu: ${type}` }, { status: 400 });
+  }
+
+  // Force cache invalidation
+  if (refresh) {
+    invalidateCache(`crm-${type}`);
+    delete dbSchemaCache[type];
   }
 
   try {
@@ -139,53 +146,36 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Property type mapping per database (title property name differs)
-const TITLE_PROPERTIES: Record<string, string> = {
-  contacts: "Prénom et nom",
-  entreprises: "Nom",
-  fournisseurs: "Nom",
-  grossistes: "Nom",
-};
+// Cache property types per database (auto-detected from Notion schema)
+const dbSchemaCache: Record<string, Record<string, string>> = {};
 
-// Known property types per database
-const PROPERTY_TYPES: Record<string, Record<string, string>> = {
-  contacts: {
-    "Prénom et nom": "title",
-    "Email": "email",
-    "Portable": "phone_number",
-    "Téléphone": "phone_number",
-    "Poste": "select",
-    "Étiquettes": "multi_select",
-    "Dernier contact": "date",
-  },
-  entreprises: {
-    "Nom": "title",
-    "Email": "email",
-    "Téléphone": "phone_number",
-  },
-  fournisseurs: {
-    "Nom": "title",
-    "Email": "email",
-    "Téléphone": "phone_number",
-  },
-  grossistes: {
-    "Nom": "title",
-    "Email": "email",
-    "Téléphone": "phone_number",
-  },
-};
+async function getDbSchema(type: string): Promise<Record<string, string>> {
+  if (dbSchemaCache[type]) return dbSchemaCache[type];
+  const dbId = CRM_DATABASES[type];
+  if (!dbId) return {};
+  try {
+    const db = await notion.databases.retrieve({ database_id: dbId });
+    const schema: Record<string, string> = {};
+    for (const [key, prop] of Object.entries((db as any).properties)) {
+      schema[key] = (prop as any).type;
+    }
+    dbSchemaCache[type] = schema;
+    return schema;
+  } catch {
+    return {};
+  }
+}
 
 function buildNotionProperties(
-  type: string,
+  schema: Record<string, string>,
   properties: Record<string, any>
 ): Record<string, any> {
-  const typeMap = PROPERTY_TYPES[type] || {};
   const result: Record<string, any> = {};
 
   for (const [key, value] of Object.entries(properties)) {
     if (value === undefined || value === null || value === "") continue;
 
-    const propType = typeMap[key] || "rich_text";
+    const propType = schema[key] || "rich_text";
 
     switch (propType) {
       case "title":
@@ -200,18 +190,28 @@ function buildNotionProperties(
       case "select":
         result[key] = { select: { name: String(value) } };
         break;
-      case "multi_select":
-        if (Array.isArray(value)) {
-          result[key] = { multi_select: value.map((v: string) => ({ name: v })) };
-        } else {
-          result[key] = { multi_select: [{ name: String(value) }] };
-        }
+      case "multi_select": {
+        const items = Array.isArray(value) ? value : String(value).split(",").map((s: string) => s.trim()).filter(Boolean);
+        result[key] = { multi_select: items.map((v: string) => ({ name: v })) };
         break;
+      }
       case "date":
         result[key] = { date: { start: String(value) } };
         break;
-      default:
+      case "number":
+        result[key] = { number: parseFloat(String(value)) || 0 };
+        break;
+      case "url":
+        result[key] = { url: String(value) };
+        break;
+      case "checkbox":
+        result[key] = { checkbox: value === true || value === "true" };
+        break;
+      case "rich_text":
         result[key] = { rich_text: [{ text: { content: String(value) } }] };
+        break;
+      // Skip relation, formula, rollup, etc.
+      default:
         break;
     }
   }
@@ -242,12 +242,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Propriétés requises" }, { status: 400 });
     }
 
-    const notionProps = buildNotionProperties(type, properties);
+    const schema = await getDbSchema(type);
+    const notionProps = buildNotionProperties(schema, properties);
 
-    const page = await notion.pages.create({
+    const createPayload: any = {
       parent: { database_id: CRM_DATABASES[type] },
       properties: notionProps,
-    });
+    };
+    if (body.icon) {
+      if (body.icon.startsWith("http")) {
+        createPayload.icon = { type: "external", external: { url: body.icon } };
+      } else {
+        createPayload.icon = { type: "emoji", emoji: body.icon };
+      }
+    }
+
+    const page = await notion.pages.create(createPayload);
 
     invalidateCache(`crm-${type}`);
 
@@ -278,12 +288,23 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Propriétés requises" }, { status: 400 });
     }
 
-    const notionProps = buildNotionProperties(type || "contacts", properties);
+    const dbType = type || "contacts";
+    const schema = await getDbSchema(dbType);
+    const notionProps = buildNotionProperties(schema, properties);
 
-    await notion.pages.update({
-      page_id: id,
-      properties: notionProps,
-    });
+    // Handle icon/logo update
+    const updatePayload: any = { page_id: id, properties: notionProps };
+    if (body.icon) {
+      if (body.icon.startsWith("http")) {
+        updatePayload.icon = { type: "external", external: { url: body.icon } };
+      } else {
+        updatePayload.icon = { type: "emoji", emoji: body.icon };
+      }
+    } else if (body.icon === null) {
+      updatePayload.icon = null;
+    }
+
+    await notion.pages.update(updatePayload);
 
     // Invalidate all CRM caches since we may not know the type
     if (type && CRM_DATABASES[type]) {
