@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Tag, Plus, Pencil, Trash2, X, Check } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { useEffect, useState, useMemo } from "react";
+import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Tag, Pencil, Trash2, Plus, Check, X, Globe, MapPin, Hash, Camera } from "lucide-react";
 
 interface CRMEntry {
   id: string;
@@ -21,44 +20,20 @@ const MODE_TO_TYPE: Record<ClientMode, string> = {
 };
 
 const POSTE_COLORS: Record<string, string> = {
-  "Directeur": "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  "Back Office": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  "Key Account Manager": "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  "Technicien Sanitaire": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-  "Représentant sanitaire": "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300",
-  "Fondateur": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-  "Employé de bureau": "bg-gray-100 text-gray-700 dark:bg-gray-800/50 dark:text-gray-300",
-  "Responsable site": "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
-  "Architecte": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+  "Directeur": "bg-purple-100 text-purple-700",
+  "Back Office": "bg-blue-100 text-blue-700",
+  "Key Account Manager": "bg-amber-100 text-amber-700",
+  "Technicien Sanitaire": "bg-green-100 text-green-700",
+  "Représentant sanitaire": "bg-teal-100 text-teal-700",
+  "Fondateur": "bg-red-100 text-red-700",
+  "Employé de bureau": "bg-gray-100 text-gray-700",
+  "Responsable site": "bg-indigo-100 text-indigo-700",
+  "Architecte": "bg-orange-100 text-orange-700",
 };
 
-const POSTE_OPTIONS = Object.keys(POSTE_COLORS);
-
-// Fields config per type
-const FIELDS_CONFIG: Record<string, { key: string; label: string; type: "text" | "select" | "email" | "phone" }[]> = {
-  contacts: [
-    { key: "Prénom et nom", label: "Prénom et nom", type: "text" },
-    { key: "Poste", label: "Poste", type: "select" },
-    { key: "Email", label: "Email", type: "email" },
-    { key: "Portable", label: "Portable", type: "phone" },
-    { key: "Téléphone", label: "Téléphone", type: "phone" },
-  ],
-  entreprises: [
-    { key: "Nom", label: "Nom", type: "text" },
-    { key: "Email", label: "Email", type: "email" },
-    { key: "Téléphone", label: "Téléphone", type: "phone" },
-  ],
-  fournisseurs: [
-    { key: "Nom", label: "Nom", type: "text" },
-    { key: "Email", label: "Email", type: "email" },
-    { key: "Téléphone", label: "Téléphone", type: "phone" },
-  ],
-  grossistes: [
-    { key: "Nom", label: "Nom", type: "text" },
-    { key: "Email", label: "Email", type: "email" },
-    { key: "Téléphone", label: "Téléphone", type: "phone" },
-  ],
-};
+// Keys to skip in display/edit (internal or read-only)
+const SKIP_KEYS = new Set(["__entryName"]);
+const READONLY_KEYS = new Set(["Nb. Projets", "Projets terminé", "Projets terminés"]);
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "";
@@ -67,121 +42,244 @@ function formatDate(dateStr: string | null): string {
   } catch { return ""; }
 }
 
-// Modal component
-function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
-      <div
-        className="relative z-10 w-full max-w-md glass-card rounded-2xl p-6 shadow-2xl border border-white/20 dark:border-gray-700/50"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-[#1e3a5f] dark:text-white">{title}</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+function getIcon(key: string) {
+  const k = key.toLowerCase();
+  if (k.includes("email") || k.includes("mail")) return <Mail className="w-3.5 h-3.5 text-blue-500 shrink-0" />;
+  if (k.includes("téléphone") || k.includes("portable") || k.includes("phone") || k.includes("mobile")) return <Phone className="w-3.5 h-3.5 text-green-500 shrink-0" />;
+  if (k.includes("site") || k.includes("web") || k.includes("url")) return <Globe className="w-3.5 h-3.5 text-indigo-500 shrink-0" />;
+  if (k.includes("adresse") || k.includes("address")) return <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />;
+  if (k.includes("rabais") || k.includes("nb") || k.includes("projet")) return <Hash className="w-3.5 h-3.5 text-gray-400 shrink-0" />;
+  if (k.includes("étiquette") || k.includes("tag")) return <Tag className="w-3.5 h-3.5 text-sky-500 shrink-0" />;
+  if (k.includes("date") || k.includes("contact") || k.includes("dernier")) return <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />;
+  return null;
+}
+
+function PropertyValue({ label, value }: { label: string; value: any }) {
+  if (value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) return null;
+  if (SKIP_KEYS.has(label)) return null;
+
+  const k = label.toLowerCase();
+  const icon = getIcon(label);
+
+  // Email - clickable
+  if ((k.includes("email") || k.includes("mail")) && typeof value === "string" && value.includes("@")) {
+    return (
+      <a href={`mailto:${value}`} className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 hover:underline truncate">
+        {icon} <span className="text-gray-400 shrink-0">{label}:</span> {value}
+      </a>
+    );
+  }
+
+  // Phone - clickable
+  if ((k.includes("téléphone") || k.includes("portable") || k.includes("phone") || k.includes("mobile")) && typeof value === "string" && value) {
+    return (
+      <a href={`tel:${value}`} className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 hover:underline">
+        {icon} <span className="text-gray-400 shrink-0">{label}:</span> {value}
+      </a>
+    );
+  }
+
+  // URL - clickable
+  if ((k.includes("site") || k.includes("web") || k.includes("url")) && typeof value === "string" && value) {
+    const url = value.startsWith("http") ? value : `https://${value}`;
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline truncate">
+        {icon} <span className="text-gray-400 shrink-0">{label}:</span> {value}
+      </a>
+    );
+  }
+
+  // Arrays (multi-select, relations)
+  if (Array.isArray(value)) {
+    return (
+      <div className="flex items-start gap-2 text-xs">
+        {icon} <span className="text-gray-400 shrink-0">{label}:</span>
+        <div className="flex flex-wrap gap-1">
+          {value.map((v, i) => (
+            <span key={i} className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded text-[10px]">{String(v)}</span>
+          ))}
         </div>
-        {children}
+      </div>
+    );
+  }
+
+  // Boolean
+  if (typeof value === "boolean") {
+    return (
+      <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+        {icon} <span className="text-gray-400">{label}:</span> {value ? "Oui" : "Non"}
+      </div>
+    );
+  }
+
+  // Date
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+        {icon || <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+        <span className="text-gray-400">{label}:</span> {formatDate(value)}
+      </div>
+    );
+  }
+
+  // Default string/number
+  return (
+    <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 truncate">
+      {icon} <span className="text-gray-400 shrink-0">{label}:</span> <span className="truncate">{String(value)}</span>
+    </div>
+  );
+}
+
+function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAdmin: boolean; onEdit: (e: CRMEntry) => void; onDelete: (e: CRMEntry) => void }) {
+  const p = entry.properties;
+  const poste = p["Poste"] || "";
+  const etiquettes = Array.isArray(p["Étiquettes"]) ? p["Étiquettes"] : [];
+  const isEmoji = entry.icon && !entry.icon.startsWith("http");
+  const isImage = entry.icon && entry.icon.startsWith("http");
+
+  // Get the title key (first property that equals entry.name)
+  const titleKey = Object.entries(p).find(([, v]) => v === entry.name)?.[0] || "";
+
+  // Properties to show (excluding title, already shown)
+  const displayProps = Object.entries(p)
+    .filter(([k, v]) => k !== titleKey && !SKIP_KEYS.has(k) && v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0))
+    .sort(([a], [b]) => {
+      // Prioritize key fields
+      const priority = (k: string) => {
+        const l = k.toLowerCase();
+        if (l.includes("adresse")) return 0;
+        if (l.includes("email") || l.includes("mail")) return 1;
+        if (l.includes("portable") || l.includes("mobile")) return 2;
+        if (l.includes("téléphone") || l.includes("phone")) return 3;
+        if (l.includes("site") || l.includes("web")) return 4;
+        if (l.includes("étiquette")) return 5;
+        return 10;
+      };
+      return priority(a) - priority(b);
+    });
+
+  return (
+    <div className="glass-card rounded-2xl p-4 hover:shadow-lg transition-shadow group">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 mb-2 min-w-0">
+          {isImage ? (
+            <img src={entry.icon} alt="" className="w-8 h-8 rounded object-contain shrink-0" />
+          ) : isEmoji ? (
+            <span className="text-xl shrink-0">{entry.icon}</span>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center shrink-0">
+              <User className="w-4 h-4 text-gray-500" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <h3 className="font-semibold text-[#1e3a5f] dark:text-white truncate text-sm">{entry.name}</h3>
+            <div className="flex items-center gap-1 flex-wrap">
+              {poste && <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${POSTE_COLORS[poste] || "bg-gray-100 text-gray-600"}`}>{poste}</span>}
+              {etiquettes.map((t: string) => (
+                <span key={t} className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">{t}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-1 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+          <button onClick={() => onEdit(entry)} className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center">
+            <Pencil className="w-3 h-3 text-gray-400" />
+          </button>
+          {isAdmin && (
+            <button onClick={() => onDelete(entry)} className="w-7 h-7 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center">
+              <Trash2 className="w-3 h-3 text-red-400" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-1.5 mt-1">
+        {displayProps.slice(0, 8).map(([k, v]) => (
+          <PropertyValue key={k} label={k} value={v} />
+        ))}
+        {displayProps.length > 8 && (
+          <p className="text-[10px] text-gray-400">+{displayProps.length - 8} champs</p>
+        )}
       </div>
     </div>
   );
 }
 
-// Form component for create/edit
-function EntryForm({
-  type,
-  initialValues,
-  onSubmit,
-  onCancel,
-  loading,
-}: {
-  type: string;
-  initialValues?: Record<string, any>;
-  onSubmit: (values: Record<string, any>) => void;
+// Dynamic form that shows ALL properties
+function EntryForm({ entry, onSubmit, onCancel, loading }: {
+  entry: CRMEntry | null; // null = create new
+  onSubmit: (properties: Record<string, any>) => void;
   onCancel: () => void;
   loading: boolean;
 }) {
-  const fields = FIELDS_CONFIG[type] || FIELDS_CONFIG.entreprises;
-  const [values, setValues] = useState<Record<string, string>>(() => {
+  const props = entry?.properties || {};
+  const [values, setValues] = useState<Record<string, string>>({});
+
+  useEffect(() => {
     const init: Record<string, string> = {};
-    for (const f of fields) {
-      const raw = initialValues?.[f.key];
-      // Handle different value types from Notion
-      if (Array.isArray(raw)) {
-        init[f.key] = raw.join(", ");
-      } else if (raw !== null && raw !== undefined) {
-        init[f.key] = String(raw);
-      } else {
-        // Fallback: try to find by searching all property keys case-insensitively
-        const found = Object.entries(initialValues || {}).find(
-          ([k]) => k.toLowerCase() === f.key.toLowerCase()
-        );
-        init[f.key] = found ? String(found[1] ?? "") : "";
+    if (entry) {
+      // Pre-fill all string/number properties
+      for (const [k, v] of Object.entries(props)) {
+        if (SKIP_KEYS.has(k)) continue;
+        if (Array.isArray(v)) init[k] = v.join(", ");
+        else if (v !== null && v !== undefined) init[k] = String(v);
+        else init[k] = "";
       }
+      // Ensure name is in the title field
+      const titleKey = Object.entries(props).find(([, v]) => v === entry.name)?.[0];
+      if (titleKey && !init[titleKey]) init[titleKey] = entry.name;
     }
-    // If the title field is still empty, use the entry name
-    const titleKey = fields[0]?.key;
-    if (titleKey && !init[titleKey] && (initialValues as any)?.__entryName) {
-      init[titleKey] = (initialValues as any).__entryName;
-    }
-    return init;
-  });
+    setValues(init);
+  }, [entry]);
+
+  const handleChange = (key: string, val: string) => {
+    setValues((prev) => ({ ...prev, [key]: val }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Filter out empty values
-    const filtered: Record<string, string> = {};
+    const result: Record<string, any> = {};
     for (const [k, v] of Object.entries(values)) {
-      if (v.trim()) filtered[k] = v.trim();
+      if (READONLY_KEYS.has(k)) continue;
+      result[k] = v;
     }
-    onSubmit(filtered);
+    onSubmit(result);
   };
 
+  // For new entries, show minimal fields
+  const fields = entry
+    ? Object.keys(props).filter((k) => !SKIP_KEYS.has(k))
+    : ["Nom", "Email", "Téléphone"];
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      {fields.map((field) => (
-        <div key={field.key}>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-            {field.label}
-          </label>
-          {field.type === "select" ? (
-            <select
-              value={values[field.key] || ""}
-              onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-              className="w-full h-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-slate-800/70 px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-            >
-              <option value="">-- Sélectionner --</option>
-              {POSTE_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          ) : (
-            <Input
-              type={field.type === "email" ? "email" : field.type === "phone" ? "tel" : "text"}
-              value={values[field.key] || ""}
-              onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-              placeholder={field.label}
-            />
-          )}
-        </div>
-      ))}
-      <div className="flex gap-2 pt-2">
-        <button
-          type="submit"
-          disabled={loading}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-          {loading ? "Enregistrement..." : "Enregistrer"}
+    <form onSubmit={handleSubmit} className="space-y-3 max-h-[70vh] overflow-y-auto">
+      {fields.map((key) => {
+        const isReadOnly = READONLY_KEYS.has(key);
+        const val = values[key] || "";
+        return (
+          <div key={key}>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-0.5 block">{key}</label>
+            {isReadOnly ? (
+              <p className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">{val || "—"}</p>
+            ) : (
+              <input
+                type={key.toLowerCase().includes("email") || key.toLowerCase().includes("mail") ? "email" : key.toLowerCase().includes("date") ? "date" : "text"}
+                value={val}
+                onChange={(e) => handleChange(key, e.target.value)}
+                placeholder={key}
+                className="w-full h-9 px-3 text-sm rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-slate-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500/30 focus:outline-none"
+              />
+            )}
+          </div>
+        );
+      })}
+      <div className="flex gap-2 pt-2 sticky bottom-0 bg-white dark:bg-slate-800">
+        <button type="submit" disabled={loading}
+          className="flex-1 h-9 rounded-lg bg-blue-600 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5">
+          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          Enregistrer
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={loading}
-          className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-        >
+        <button type="button" onClick={onCancel} className="h-9 px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300">
           Annuler
         </button>
       </div>
@@ -189,183 +287,37 @@ function EntryForm({
   );
 }
 
-// Confirm dialog
-function ConfirmDialog({
-  open,
-  onClose,
-  onConfirm,
-  loading,
-  name,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  loading: boolean;
-  name: string;
-}) {
+function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
   if (!open) return null;
   return (
-    <Modal open={open} onClose={onClose} title="Confirmer la suppression">
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Voulez-vous vraiment supprimer <strong>{name}</strong> ? Cette action est irréversible.
-      </p>
-      <div className="flex gap-2">
-        <button
-          onClick={onConfirm}
-          disabled={loading}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-          {loading ? "Suppression..." : "Supprimer"}
-        </button>
-        <button
-          onClick={onClose}
-          disabled={loading}
-          className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-        >
-          Annuler
-        </button>
+    <>
+      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-x-4 top-[10%] z-50 max-w-md mx-auto bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-5 max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">{children}</div>
       </div>
-    </Modal>
+    </>
   );
 }
 
-function EntryCard({
-  entry,
-  type,
-  isAdmin,
-  onEdit,
-  onDelete,
-}: {
-  entry: CRMEntry;
-  type: string;
-  isAdmin: boolean;
-  onEdit: (entry: CRMEntry) => void;
-  onDelete: (entry: CRMEntry) => void;
-}) {
-  const p = entry.properties;
-  const poste = p["Poste"] || "";
-  const email = p["Email"] || p["email"] || p["E-mail"] || "";
-  const portable = p["Portable"] || p["portable"] || p["Mobile"] || "";
-  const telephone = p["Téléphone"] || p["telephone"] || p["Phone"] || "";
-  const etiquettes = Array.isArray(p["Étiquettes"]) ? p["Étiquettes"] : [];
-  const dernierContact = p["Dernier contact"] || null;
-  const posteColor = POSTE_COLORS[poste] || "bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400";
-
-  const isEmoji = entry.icon && !entry.icon.startsWith("http");
-  const isImage = entry.icon && entry.icon.startsWith("http");
-
-  // Find any string property that could be useful to display
-  const allStrings = Object.entries(p)
-    .filter(([k, v]) => typeof v === "string" && v && !["Poste", "Email", "email", "E-mail", "Portable", "portable", "Mobile", "Téléphone", "telephone", "Phone", "Dernier contact"].includes(k))
-    .slice(0, 3);
-
-  return (
-    <div className="glass-card rounded-2xl p-4 hover:shadow-lg transition-shadow group">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            {isImage ? (
-              <img src={entry.icon} alt="" className="w-6 h-6 rounded object-contain shrink-0" />
-            ) : isEmoji ? (
-              <span className="text-base shrink-0">{entry.icon}</span>
-            ) : (
-              <User className="w-4 h-4 text-gray-400 shrink-0" />
-            )}
-            <h3 className="font-semibold text-[#1e3a5f] dark:text-white truncate">{entry.name}</h3>
-          </div>
-          {poste && (
-            <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mb-2 ${posteColor}`}>
-              {poste}
-            </span>
-          )}
-          {etiquettes.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-2">
-              {etiquettes.map((tag: string) => (
-                <span key={tag} className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
-                  <Tag className="w-2.5 h-2.5" />
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          {dernierContact && (
-            <div className="flex items-center gap-1 text-[10px] text-gray-400">
-              <Calendar className="w-3 h-3" />
-              {formatDate(dernierContact)}
-            </div>
-          )}
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={() => onEdit(entry)}
-              className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-              title="Modifier"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            {isAdmin && (
-              <button
-                onClick={() => onDelete(entry)}
-                className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                title="Supprimer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-2 space-y-1.5">
-        {email && (
-          <a href={`mailto:${email}`} className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 hover:underline truncate">
-            <Mail className="w-3.5 h-3.5 shrink-0" />
-            {email}
-          </a>
-        )}
-        {portable && (
-          <a href={`tel:${portable}`} className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 hover:underline">
-            <Phone className="w-3.5 h-3.5 shrink-0" />
-            {portable}
-          </a>
-        )}
-        {telephone && telephone !== portable && (
-          <a href={`tel:${telephone}`} className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 hover:underline">
-            <Phone className="w-3.5 h-3.5 shrink-0" />
-            {telephone}
-            <span className="text-[10px] text-gray-400">(fixe)</span>
-          </a>
-        )}
-        {allStrings.map(([k, v]) => (
-          <p key={k} className="text-xs text-gray-500 dark:text-gray-400 truncate">
-            <span className="text-gray-400">{k}:</span> {v}
-          </p>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function CRMClients({ mode, isAdmin = false }: { mode: ClientMode; isAdmin?: boolean }) {
+export function CRMClients({ mode, isAdmin }: { mode: ClientMode; isAdmin?: boolean }) {
   const [entries, setEntries] = useState<CRMEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-
-  // Modal states
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editEntry, setEditEntry] = useState<CRMEntry | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [deleteEntry, setDeleteEntry] = useState<CRMEntry | null>(null);
   const [mutating, setMutating] = useState(false);
 
   const type = MODE_TO_TYPE[mode];
 
-  const fetchEntries = useCallback(() => {
-    setLoading(true);
-    setError("");
-
+  const fetchEntries = () => {
     fetch(`/api/crm?type=${type}`)
       .then((r) => r.json())
       .then((data) => {
@@ -376,13 +328,14 @@ export function CRMClients({ mode, isAdmin = false }: { mode: ClientMode; isAdmi
           setError(data.error);
         }
       })
-      .catch((e) => setError(e.message || "Erreur de chargement"))
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [type]);
+  };
 
   useEffect(() => {
+    setLoading(true);
+    setError("");
     setEntries([]);
-    // Try localStorage cache
     try {
       const cached = localStorage.getItem(`tm-crm-${type}`);
       if (cached) {
@@ -393,9 +346,8 @@ export function CRMClients({ mode, isAdmin = false }: { mode: ClientMode; isAdmi
         }
       }
     } catch {}
-
     fetchEntries();
-  }, [type, fetchEntries]);
+  }, [type]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return entries;
@@ -416,15 +368,11 @@ export function CRMClients({ mode, isAdmin = false }: { mode: ClientMode; isAdmi
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, properties }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur");
-      setShowCreateModal(false);
-      fetchEntries();
-    } catch (err: any) {
-      alert(err.message || "Erreur lors de la création");
-    } finally {
-      setMutating(false);
-    }
+      if (res.ok) {
+        setShowCreate(false);
+        fetchEntries();
+      }
+    } catch {} finally { setMutating(false); }
   };
 
   const handleEdit = async (properties: Record<string, any>) => {
@@ -436,15 +384,11 @@ export function CRMClients({ mode, isAdmin = false }: { mode: ClientMode; isAdmi
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: editEntry.id, type, properties }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur");
-      setEditEntry(null);
-      fetchEntries();
-    } catch (err: any) {
-      alert(err.message || "Erreur lors de la mise à jour");
-    } finally {
-      setMutating(false);
-    }
+      if (res.ok) {
+        setEditEntry(null);
+        fetchEntries();
+      }
+    } catch {} finally { setMutating(false); }
   };
 
   const handleDelete = async () => {
@@ -456,15 +400,11 @@ export function CRMClients({ mode, isAdmin = false }: { mode: ClientMode; isAdmi
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: deleteEntry.id, type }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur");
-      setDeleteEntry(null);
-      fetchEntries();
-    } catch (err: any) {
-      alert(err.message || "Erreur lors de la suppression");
-    } finally {
-      setMutating(false);
-    }
+      if (res.ok) {
+        setDeleteEntry(null);
+        setEntries((prev) => prev.filter((e) => e.id !== deleteEntry.id));
+      }
+    } catch {} finally { setMutating(false); }
   };
 
   if (loading && entries.length === 0) {
@@ -487,7 +427,7 @@ export function CRMClients({ mode, isAdmin = false }: { mode: ClientMode; isAdmi
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-2 mb-4">
         <div className="relative flex-1 max-w-lg">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -499,28 +439,19 @@ export function CRMClients({ mode, isAdmin = false }: { mode: ClientMode; isAdmi
           />
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 active:scale-95 transition-all shrink-0"
+          onClick={() => setShowCreate(true)}
+          className="shrink-0 h-10 px-4 rounded-xl bg-blue-600 text-white text-sm font-medium flex items-center gap-1.5 hover:bg-blue-700 active:scale-95 transition-all"
         >
           <Plus className="w-4 h-4" />
           Nouveau
         </button>
       </div>
 
-      <p className="text-xs text-gray-400 mb-3">
-        {filtered.length} résultat{filtered.length !== 1 ? "s" : ""}
-      </p>
+      <p className="text-xs text-gray-400 mb-3">{filtered.length} résultat{filtered.length !== 1 ? "s" : ""}</p>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((e) => (
-          <EntryCard
-            key={e.id}
-            entry={e}
-            type={type}
-            isAdmin={isAdmin}
-            onEdit={setEditEntry}
-            onDelete={setDeleteEntry}
-          />
+          <EntryCard key={e.id} entry={e} isAdmin={!!isAdmin} onEdit={setEditEntry} onDelete={setDeleteEntry} />
         ))}
         {filtered.length === 0 && (
           <p className="col-span-full text-center text-sm text-gray-400 py-8">Aucun résultat</p>
@@ -528,36 +459,33 @@ export function CRMClients({ mode, isAdmin = false }: { mode: ClientMode; isAdmi
       </div>
 
       {/* Create Modal */}
-      <Modal open={showCreateModal} onClose={() => !mutating && setShowCreateModal(false)} title="Nouveau contact">
-        <EntryForm
-          type={type}
-          onSubmit={handleCreate}
-          onCancel={() => setShowCreateModal(false)}
-          loading={mutating}
-        />
+      <Modal open={showCreate} onClose={() => !mutating && setShowCreate(false)} title="Nouveau">
+        <EntryForm entry={null} onSubmit={handleCreate} onCancel={() => setShowCreate(false)} loading={mutating} />
       </Modal>
 
       {/* Edit Modal */}
       <Modal open={!!editEntry} onClose={() => !mutating && setEditEntry(null)} title="Modifier">
         {editEntry && (
-          <EntryForm
-            type={type}
-            initialValues={{ ...editEntry.properties, __entryName: editEntry.name }}
-            onSubmit={handleEdit}
-            onCancel={() => setEditEntry(null)}
-            loading={mutating}
-          />
+          <EntryForm entry={editEntry} onSubmit={handleEdit} onCancel={() => setEditEntry(null)} loading={mutating} />
         )}
       </Modal>
 
-      {/* Delete Confirm */}
-      <ConfirmDialog
-        open={!!deleteEntry}
-        onClose={() => !mutating && setDeleteEntry(null)}
-        onConfirm={handleDelete}
-        loading={mutating}
-        name={deleteEntry?.name || ""}
-      />
+      {/* Delete Confirmation */}
+      <Modal open={!!deleteEntry} onClose={() => !mutating && setDeleteEntry(null)} title="Supprimer">
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Supprimer <strong>{deleteEntry?.name}</strong> ? Cette action est irréversible.
+        </p>
+        <div className="flex gap-2">
+          <button onClick={handleDelete} disabled={mutating}
+            className="flex-1 h-9 rounded-lg bg-red-600 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5">
+            {mutating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            Supprimer
+          </button>
+          <button onClick={() => setDeleteEntry(null)} className="h-9 px-4 rounded-lg border border-gray-200 text-sm text-gray-600">
+            Annuler
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
