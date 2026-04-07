@@ -180,7 +180,7 @@ export async function getProjects(): Promise<Project[]> {
     sorts: [{ property: "Date Montage", direction: "descending" }],
     page_size: 100,
   });
-  return response.results.map(mapPageToProject);
+  return response.results.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"));
 }
 
 export async function getProjectsMesures(): Promise<Project[]> {
@@ -206,7 +206,7 @@ export async function getProjectsMesures(): Promise<Project[]> {
     sorts: [{ property: "Date Montage", direction: "descending" }],
     page_size: 100,
   });
-  return response.results.map(mapPageToProject);
+  return response.results.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"));
 }
 
 export async function getProjectsServices(): Promise<Project[]> {
@@ -222,7 +222,7 @@ export async function getProjectsServices(): Promise<Project[]> {
     sorts: [{ property: "Date Montage", direction: "descending" }],
     page_size: 100,
   });
-  return response.results.map(mapPageToProject);
+  return response.results.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"));
 }
 
 export async function getProjectsSAV(): Promise<Project[]> {
@@ -238,7 +238,7 @@ export async function getProjectsSAV(): Promise<Project[]> {
     sorts: [{ property: "Date Montage", direction: "descending" }],
     page_size: 100,
   });
-  return response.results.map(mapPageToProject);
+  return response.results.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"));
 }
 
 export async function getProject(pageId: string): Promise<Project> {
