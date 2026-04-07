@@ -612,18 +612,21 @@ function HomePage() {
               }}
             />
           </div>
-          {currentUser && (
-            <MonteurDashboard
-              userName={currentUser.name}
-              projects={[
-                ...(projectsData["cmd"] || []),
-                ...(projectsData["mesures"] || []),
-                ...(projectsData["services"] || []),
-                ...(projectsData["sav"] || []),
-              ].filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)}
-              isAdmin={currentUser?.role === "admin"}
-            />
-          )}
+          {currentUser && (() => {
+            const tagged = [
+              ...(projectsData["cmd"] || []).map((p) => ({ ...p, _source: "montage" as const })),
+              ...(projectsData["mesures"] || []).map((p) => ({ ...p, _source: "mesures" as const })),
+              ...(projectsData["services"] || []).map((p) => ({ ...p, _source: "services" as const })),
+              ...(projectsData["sav"] || []).map((p) => ({ ...p, _source: "sav" as const })),
+            ].filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+            return (
+              <MonteurDashboard
+                userName={currentUser.name}
+                projects={tagged}
+                isAdmin={currentUser?.role === "admin"}
+              />
+            );
+          })()}
           {currentUser && (projectsData["cmd"] || []).length > 0 && (
             <>
               {currentUser.role === "admin" && (

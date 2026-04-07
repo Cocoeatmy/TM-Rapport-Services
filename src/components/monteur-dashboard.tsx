@@ -111,8 +111,34 @@ function formatDay(dateStr: string) {
 
 function getProjectsForCollaborator(projects: Project[], name: string) {
   return projects.filter((p) =>
-    p.collaborateurs?.toLowerCase().includes(name.toLowerCase())
+    p.collaborateurs?.toLowerCase().includes(name.toLowerCase()) ||
+    p.mesuresTraiteePar?.toLowerCase().includes(name.toLowerCase())
   );
+}
+
+function getProjectSource(p: any): string {
+  return (p as any)._source || "montage";
+}
+
+function countCabinesBySource(projects: Project[], collabName?: string) {
+  const counts: Record<string, number> = {};
+  for (const p of projects) {
+    const source = getProjectSource(p);
+    const cab = p.nbCabines || 0;
+    // If in binôme/team, divide cabines by number of collaborateurs
+    const collabNames = (p.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
+    const divisor = (collabName && source === "montage" && collabNames.length > 1) ? collabNames.length : 1;
+    counts[source] = (counts[source] || 0) + Math.round(cab / divisor);
+  }
+  return counts;
+}
+
+function formatCabinesSummary(counts: Record<string, number>): string {
+  const labels: Record<string, string> = { montage: "montage", mesures: "mesures", services: "services", sav: "SAV" };
+  return Object.entries(counts)
+    .filter(([, v]) => v > 0)
+    .map(([k, v]) => `${v} ${labels[k] || k}`)
+    .join(" · ");
 }
 
 // --- Route planning button ---
@@ -310,8 +336,11 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
     const nextWeekProjects = myProjects
       .filter((p) => p.dateMontage && p.dateMontage > thisWeekEndStr && p.dateMontage <= weekEndStr)
       .sort((a, b) => (a.dateMontage || "").localeCompare(b.dateMontage || ""));
-    const totalCabines = myProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
-    return { name, colors, myProjects, todayProjects, thisWeekProjects, nextWeekProjects, totalCabines };
+    const allUpcoming = [...todayProjects, ...thisWeekProjects, ...nextWeekProjects];
+    const cabinesBySource = countCabinesBySource(allUpcoming, name);
+    const totalCabines = Object.values(cabinesBySource).reduce((s, v) => s + v, 0);
+    const cabinesSummary = formatCabinesSummary(cabinesBySource);
+    return { name, colors, myProjects, todayProjects, thisWeekProjects, nextWeekProjects, totalCabines, cabinesSummary };
   });
 
   // Build per-binôme/team data (projects with 2+ collaborateurs)
@@ -343,10 +372,13 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const totalProjectsToday = new Set(
     collabData.flatMap((c) => c.todayProjects.map((p) => p.id))
   ).size;
-  const totalCabinesWeek = collabData.reduce(
-    (sum, c) => sum + [...c.thisWeekProjects, ...c.nextWeekProjects, ...c.todayProjects].reduce((s, p) => s + (p.nbCabines || 0), 0),
-    0
-  );
+  const totalCabinesWeek = collabData.reduce((sum, c) => sum + c.totalCabines, 0);
+  const allWeekCabinesBySource: Record<string, number> = {};
+  collabData.forEach((c) => {
+    const counts = countCabinesBySource([...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects], c.name);
+    Object.entries(counts).forEach(([k, v]) => { allWeekCabinesBySource[k] = (allWeekCabinesBySource[k] || 0) + v; });
+  });
+  const weekSummary = formatCabinesSummary(allWeekCabinesBySource);
   const busyToday = collabData.filter((c) => c.todayProjects.length > 0).length;
 
   return (
@@ -367,7 +399,8 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           </div>
           <button onClick={() => setShowWeekProjects(!showWeekProjects)} className="text-right hover:opacity-70 transition-opacity">
             <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCabinesWeek}</p>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500">cabines cette sem. ▾</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500">cab. cette sem. ▾</p>
+            {weekSummary && <p className="text-[9px] text-gray-400 mt-0.5">{weekSummary}</p>}
           </button>
         </div>
         {showWeekProjects && (() => {
@@ -479,7 +512,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                   {collab.todayProjects.length > 0
                     ? `${collab.todayProjects.length} montage${collab.todayProjects.length > 1 ? "s" : ""} aujourd'hui`
                     : "Aucun montage aujourd'hui"}
-                  {" · "}{collab.totalCabines} cab.
+                  {collab.cabinesSummary ? ` · ${collab.cabinesSummary}` : ""}
                 </p>
               </div>
               {collab.todayProjects.length > 0 && (
@@ -663,7 +696,10 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
     .filter((p) => { const d = getDate(p); return d && d > thisWeekEndStr && d <= weekEndStr; })
     .sort((a, b) => getDate(a).localeCompare(getDate(b)));
 
-  const totalCabines = myProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
+  const allUpcoming = [...todayProjects, ...thisWeekProjects, ...nextWeekProjects];
+  const myCabinesBySource = countCabinesBySource(allUpcoming, firstName);
+  const totalCabines = Object.values(myCabinesBySource).reduce((s, v) => s + v, 0);
+  const mySummary = formatCabinesSummary(myCabinesBySource);
 
   if (myProjects.length === 0) return null;
 
@@ -688,7 +724,8 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold" style={{ color: colors.text }}>{totalCabines}</p>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500">cabines en cours</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500">cab. à venir</p>
+            {mySummary && <p className="text-[9px] text-gray-400 mt-0.5">{mySummary}</p>}
           </div>
         </div>
       </div>
