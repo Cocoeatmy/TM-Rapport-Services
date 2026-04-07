@@ -6,6 +6,7 @@ import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Ta
 interface CRMEntry {
   id: string;
   name: string;
+  icon: string;
   properties: Record<string, any>;
 }
 
@@ -47,6 +48,9 @@ function EntryCard({ entry }: { entry: CRMEntry }) {
   const dernierContact = p["Dernier contact"] || null;
   const posteColor = POSTE_COLORS[poste] || "bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400";
 
+  const isEmoji = entry.icon && !entry.icon.startsWith("http");
+  const isImage = entry.icon && entry.icon.startsWith("http");
+
   // Find any string property that could be useful to display
   const allStrings = Object.entries(p)
     .filter(([k, v]) => typeof v === "string" && v && !["Poste", "Email", "email", "E-mail", "Portable", "portable", "Mobile", "Téléphone", "telephone", "Phone", "Dernier contact"].includes(k))
@@ -57,7 +61,13 @@ function EntryCard({ entry }: { entry: CRMEntry }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <User className="w-4 h-4 text-gray-400 shrink-0" />
+            {isImage ? (
+              <img src={entry.icon} alt="" className="w-6 h-6 rounded object-contain shrink-0" />
+            ) : isEmoji ? (
+              <span className="text-base shrink-0">{entry.icon}</span>
+            ) : (
+              <User className="w-4 h-4 text-gray-400 shrink-0" />
+            )}
             <h3 className="font-semibold text-[#1e3a5f] dark:text-white truncate">{entry.name}</h3>
           </div>
           {poste && (

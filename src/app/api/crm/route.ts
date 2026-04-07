@@ -14,6 +14,7 @@ const CRM_DATABASES: Record<string, string> = {
 export interface CRMEntry {
   id: string;
   name: string;
+  icon: string;
   properties: Record<string, any>;
 }
 
@@ -64,6 +65,9 @@ function extractAllProperties(props: any): Record<string, any> {
       case "relation":
         result[key] = prop.relation?.map((r: any) => r.id) || [];
         break;
+      case "files":
+        result[key] = prop.files?.map((f: any) => f.file?.url || f.external?.url || "").filter(Boolean) || [];
+        break;
       case "status":
         result[key] = prop.status?.name || "";
         break;
@@ -95,11 +99,21 @@ async function fetchDatabase(type: string): Promise<CRMEntry[]> {
     cursor = response.has_more ? response.next_cursor : undefined;
   } while (cursor);
 
-  const entries = allResults.map((page) => ({
-    id: page.id,
-    name: extractTitle(page.properties),
-    properties: extractAllProperties(page.properties),
-  })).filter((e) => e.name.trim() !== "").sort((a, b) => a.name.localeCompare(b.name));
+  const entries = allResults.map((page) => {
+    // Extract page icon (logo)
+    let icon = "";
+    if (page.icon) {
+      if (page.icon.type === "external") icon = page.icon.external?.url || "";
+      else if (page.icon.type === "file") icon = page.icon.file?.url || "";
+      else if (page.icon.type === "emoji") icon = page.icon.emoji || "";
+    }
+    return {
+      id: page.id,
+      name: extractTitle(page.properties),
+      icon,
+      properties: extractAllProperties(page.properties),
+    };
+  }).filter((e) => e.name.trim() !== "").sort((a, b) => a.name.localeCompare(b.name));
 
   setCache(cacheKey, entries);
   return entries;
