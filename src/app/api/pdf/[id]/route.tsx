@@ -523,7 +523,6 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
                 {project.photosAvant.map((p: any, i: number) => (
                   <View key={i} style={styles.photoContainer}>
                     <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
-                    <Text style={styles.photoLabel}>{p.name}</Text>
                   </View>
                 ))}
               </View>
@@ -537,7 +536,6 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
                 {project.photosMontage.map((p: any, i: number) => (
                   <View key={i} style={styles.photoContainer}>
                     <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
-                    <Text style={styles.photoLabel}>{p.name}</Text>
                   </View>
                 ))}
               </View>

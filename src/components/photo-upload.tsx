@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Camera, ImagePlus, X, Loader2 } from "lucide-react";
+import { Camera, ImagePlus, X, Loader2, Download } from "lucide-react";
 
 interface PhotoUploadProps {
   category: string;
@@ -77,12 +77,23 @@ export function PhotoUpload({
       <label className="text-sm font-medium text-gray-700 mb-2 block">{label}</label>
       <div className="grid grid-cols-3 gap-2">
         {allImages.map((url, i) => (
-          <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
+          <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
             <img
               src={url}
               alt={`${label} ${i + 1}`}
               className="w-full h-full object-cover"
             />
+            <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 p-1 bg-gradient-to-t from-black/50 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+              <a
+                href={url}
+                download={`photo-${i + 1}.jpg`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-7 h-7 bg-white/80 rounded-full flex items-center justify-center hover:bg-white"
+              >
+                <Download className="w-3.5 h-3.5 text-gray-700" />
+              </a>
+            </div>
             {i >= existingPhotos.length && (
               <button
                 onClick={() => removePreview(i - existingPhotos.length)}
