@@ -227,9 +227,11 @@ function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAd
       return priority(a) - priority(b);
     });
 
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <div className="glass-card rounded-2xl p-4 hover:shadow-lg transition-shadow group">
-      <div className="flex items-start justify-between gap-2">
+    <div className="glass-card rounded-2xl p-4 hover:shadow-lg transition-shadow">
+      <div className="flex items-start justify-between gap-2" onClick={() => setExpanded(!expanded)}>
         <div className="flex items-center gap-2 mb-2 min-w-0">
           {isImage ? (
             <LogoImage src={entry.icon} name={entry.name} />
@@ -250,7 +252,7 @@ function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAd
             </div>
           </div>
         </div>
-        <div className="flex gap-1 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+        <div className="flex gap-1 shrink-0">
           <button onClick={() => onEdit(entry)} className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center">
             <Pencil className="w-3 h-3 text-gray-400" />
           </button>
@@ -263,11 +265,11 @@ function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAd
       </div>
 
       <div className="space-y-1.5 mt-1">
-        {displayProps.slice(0, 8).map(([k, v]) => (
+        {(expanded ? displayProps : displayProps.slice(0, 4)).map(([k, v]) => (
           <PropertyValue key={k} label={k} value={v} />
         ))}
-        {displayProps.length > 8 && (
-          <p className="text-[10px] text-gray-400">+{displayProps.length - 8} champs</p>
+        {!expanded && displayProps.length > 4 && (
+          <p className="text-[10px] text-blue-500 cursor-pointer" onClick={() => setExpanded(true)}>Voir {displayProps.length - 4} champs de plus…</p>
         )}
       </div>
     </div>
