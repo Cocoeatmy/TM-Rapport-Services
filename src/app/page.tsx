@@ -602,7 +602,7 @@ function HomePage() {
               {new Set(
                 projects
                   .filter((p) => mode === "cmd" ? p.etatCMD === "RDV - fixé" : !!(mode.startsWith("mesures") ? p.dateMesures : p.dateMontage))
-                  .map((p) => p.collaborateurs)
+                  .map((p) => mode.startsWith("mesures") ? p.mesuresTraiteePar : p.collaborateurs)
                   .filter(Boolean)
               ).size}
             </span>
