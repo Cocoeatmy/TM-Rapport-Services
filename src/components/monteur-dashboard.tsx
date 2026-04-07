@@ -237,6 +237,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const firstName = userName.split(" ")[0];
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
+  const [showWeekProjects, setShowWeekProjects] = useState(false);
   const todayStr = getTodayStr();
   const weekEndStr = getWeekEndStr();
   const thisWeekEndStr = getThisWeekEndStr();
@@ -282,11 +283,42 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                 : "Aucun montage prévu aujourd'hui"}
             </p>
           </div>
-          <div className="text-right">
+          <button onClick={() => setShowWeekProjects(!showWeekProjects)} className="text-right hover:opacity-70 transition-opacity">
             <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCabinesWeek}</p>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500">cabines cette sem.</p>
-          </div>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500">cabines cette sem. ▾</p>
+          </button>
         </div>
+        {showWeekProjects && (() => {
+          const allWeekProjects = collabData
+            .flatMap((c) => [...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects])
+            .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+            .sort((a, b) => (a.dateMontage || "").localeCompare(b.dateMontage || ""));
+          return (
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1.5">
+              {allWeekProjects.map((p) => {
+                const names = (p.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
+                return (
+                  <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
+                    <span className="text-gray-400 font-mono w-16 shrink-0">
+                      {p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
+                    </span>
+                    <span className="flex-1 truncate text-gray-900 dark:text-gray-100">{p.projet}</span>
+                    <div className="flex -space-x-1 shrink-0">
+                      {names.slice(0, 2).map((n) => (
+                        <span key={n} className="w-5 h-5 rounded-full text-[8px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                          style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                          {n[0]}
+                        </span>
+                      ))}
+                    </div>
+                    <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Summary cards */}
