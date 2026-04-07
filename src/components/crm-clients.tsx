@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Tag, Pencil, Trash2, Plus, Check, X, Globe, MapPin, Hash, Camera } from "lucide-react";
 
 interface CRMEntry {
@@ -150,6 +150,55 @@ function PropertyValue({ label, value }: { label: string; value: any }) {
   );
 }
 
+function LogoImage({ src, name }: { src: string; name: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const initials = name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setVisible(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: "200px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  if (error) {
+    return (
+      <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center shrink-0 text-[10px] font-bold text-gray-500">
+        {initials}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} className="w-8 h-8 rounded-lg shrink-0 relative">
+      {!loaded && (
+        <div className="absolute inset-0 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center text-[10px] font-bold text-gray-400 animate-pulse">
+          {initials}
+        </div>
+      )}
+      {visible && (
+        <img
+          src={src}
+          alt=""
+          className={`w-8 h-8 rounded-lg object-contain transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={() => setError(true)}
+        />
+      )}
+    </div>
+  );
+}
+
 function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAdmin: boolean; onEdit: (e: CRMEntry) => void; onDelete: (e: CRMEntry) => void }) {
   const p = entry.properties;
   const poste = p["Poste"] || "";
@@ -183,7 +232,7 @@ function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAd
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 mb-2 min-w-0">
           {isImage ? (
-            <img src={entry.icon} alt="" className="w-8 h-8 rounded object-contain shrink-0" />
+            <LogoImage src={entry.icon} name={entry.name} />
           ) : isEmoji ? (
             <span className="text-xl shrink-0">{entry.icon}</span>
           ) : (
