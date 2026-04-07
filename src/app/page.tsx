@@ -148,8 +148,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -191,7 +191,7 @@ function HomePage() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [conflictFilter, setConflictFilter] = useState<string | null>(null);
 
-  const MODE_API: Record<Mode, string> = {
+  const MODE_API: Record<string, string> = {
     dashboard: "/api/projects",
     mesures: "/api/projects/mesures",
     "mesures-termine": "/api/projects/mesures-termine",
@@ -201,7 +201,12 @@ function HomePage() {
     "services-termine": "/api/projects/services-termine",
     sav: "/api/projects/sav",
     "sav-termine": "/api/projects/sav-termine",
+    rapport: "/api/projects/cmd-termine",
   };
+
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [rapportSearch, setRapportSearch] = useState("");
 
   // Cache-first: charger depuis localStorage instantanément, puis API en arrière-plan
   useEffect(() => {
@@ -221,7 +226,7 @@ function HomePage() {
     }).catch(() => {});
 
     // 2. Pré-charger TOUS les onglets en arrière-plan
-    const allModes = Object.entries(MODE_API) as [Mode, string][];
+    const allModes = Object.entries(MODE_API) as [string, string][];
     Promise.all(
       allModes.map(([key, url]) =>
         fetchWithRetry(url, undefined, 2, (msg, retry) => showRetryToast(msg, () => { retry().catch(() => {}); })).then((r) => r.json()).then((data) => ({ key, data })).catch(() => ({ key, data: null }))
@@ -238,6 +243,17 @@ function HomePage() {
       });
       setLoading(false);
     }).catch(() => setLoading(false));
+  }, []);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const projects = projectsData[mode] || [];
@@ -502,31 +518,93 @@ function HomePage() {
       )}
       {/* Onglets navigation */}
       {(() => {
-        const switchMode = (m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); };
-        const tabClass = (m: Mode) =>
-          `shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 ${
-            mode === m
+        const switchMode = (m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setOpenDropdown(null); };
+        const count = (m: string) => (projectsData[m]?.length ?? "...");
+
+        const servicesModes: Mode[] = ["mesures", "cmd", "services", "sav"];
+        const servicesLabels: Record<string, string> = { mesures: "Mesures", cmd: "Montages", services: "Services", sav: "SAV" };
+        const isServicesActive = servicesModes.includes(mode) || mode === "mesures-termine" || mode === "cmd-termine" || mode === "services-termine" || mode === "sav-termine";
+        const servicesActiveLabel = servicesLabels[mode] || servicesLabels[mode.replace("-termine", "")] || "";
+
+        const clientsModes: Mode[] = ["clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes"];
+        const clientsLabels: Record<string, string> = { "clients-contacts": "Contacts", "clients-entreprises": "Entreprises", "clients-fournisseurs": "Fournisseurs", "clients-grossistes": "Grossistes" };
+        const isClientsActive = clientsModes.includes(mode);
+        const clientsActiveLabel = clientsLabels[mode] || "";
+
+        const tabClass = (active: boolean) =>
+          `shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 relative inline-flex items-center gap-1 ${
+            active
               ? "glass-tab-active text-[#1e3a5f] dark:text-white"
               : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
           }`;
-        const count = (m: string) => (projectsData[m]?.length ?? "…");
+
         return (
-          <div className="mb-4 glass-tabs p-1.5 rounded-2xl max-w-full sm:max-w-lg">
+          <div className="mb-4 glass-tabs p-1.5 rounded-2xl max-w-full sm:max-w-lg" ref={dropdownRef}>
             <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-              <button onClick={() => switchMode("dashboard")} className={tabClass("dashboard")}>
+              {/* Dashboard */}
+              <button onClick={() => switchMode("dashboard")} className={tabClass(mode === "dashboard")}>
                 Dashboard
               </button>
-              <button onClick={() => switchMode("mesures")} className={tabClass("mesures")}>
-                Mesures ({count("mesures")})
-              </button>
-              <button onClick={() => switchMode("cmd")} className={tabClass("cmd")}>
-                Montages ({count("cmd")})
-              </button>
-              <button onClick={() => switchMode("services")} className={tabClass("services")}>
-                Services ({count("services")})
-              </button>
-              <button onClick={() => switchMode("sav")} className={tabClass("sav")}>
-                SAV ({count("sav")})
+
+              {/* Services dropdown */}
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => setOpenDropdown(openDropdown === "services" ? null : "services")}
+                  className={tabClass(isServicesActive)}
+                >
+                  {isServicesActive && servicesActiveLabel ? `Services \u00B7 ${servicesActiveLabel}` : "Services"}
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {openDropdown === "services" && (
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
+                    {servicesModes.map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => switchMode(m)}
+                        className={`w-full text-left text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                          mode === m || mode === `${m}-termine`
+                            ? "bg-[#1e3a5f] text-white"
+                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
+                        }`}
+                      >
+                        {servicesLabels[m]} ({count(m)})
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Clients dropdown */}
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => setOpenDropdown(openDropdown === "clients" ? null : "clients")}
+                  className={tabClass(isClientsActive)}
+                >
+                  {isClientsActive && clientsActiveLabel ? `Clients \u00B7 ${clientsActiveLabel}` : "Clients"}
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {openDropdown === "clients" && (
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
+                    {clientsModes.map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => switchMode(m)}
+                        className={`w-full text-left text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
+                          mode === m
+                            ? "bg-[#1e3a5f] text-white"
+                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
+                        }`}
+                      >
+                        {clientsLabels[m]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Rapport */}
+              <button onClick={() => switchMode("rapport")} className={tabClass(mode === "rapport")}>
+                Rapport
               </button>
             </div>
           </div>
@@ -584,8 +662,163 @@ function HomePage() {
         </div>
       )}
 
+      {/* VUE RAPPORT */}
+      {mode === "rapport" && (() => {
+        // Gather completed projects from cmd-termine and all projects with rapportMonteur/heureArrivee
+        const allCompleted: Project[] = [];
+        const seenIds = new Set<string>();
+        const sources = ["cmd-termine", "cmd", "services-termine", "services", "sav-termine", "sav"];
+        sources.forEach((key) => {
+          (projectsData[key] || []).forEach((p) => {
+            if (!seenIds.has(p.id) && (p.rapportMonteur || p.heureArrivee)) {
+              seenIds.add(p.id);
+              allCompleted.push(p);
+            }
+          });
+        });
+
+        // Sort by date descending
+        const sorted = allCompleted.sort((a, b) => {
+          const dA = a.dateMontage || a.dateMesures || "";
+          const dB = b.dateMontage || b.dateMesures || "";
+          return dB.localeCompare(dA);
+        });
+
+        // Filter by search
+        const q = rapportSearch.toLowerCase();
+        const rapportFiltered = q
+          ? sorted.filter((p) =>
+              p.projet.toLowerCase().includes(q) ||
+              p.ofrTM.toLowerCase().includes(q) ||
+              p.collaborateurs.toLowerCase().includes(q) ||
+              p.nomChantier.toLowerCase().includes(q)
+            )
+          : sorted;
+
+        // Group by month
+        const grouped: Record<string, Project[]> = {};
+        rapportFiltered.forEach((p) => {
+          const date = p.dateMontage || p.dateMesures || "";
+          const monthKey = date ? date.substring(0, 7) : "Sans date";
+          if (!grouped[monthKey]) grouped[monthKey] = [];
+          grouped[monthKey].push(p);
+        });
+
+        const monthNames = ["Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre"];
+        const formatMonth = (key: string) => {
+          if (key === "Sans date") return key;
+          const [y, m] = key.split("-");
+          return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
+        };
+
+        return (
+          <div>
+            <div className="relative mb-4 max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Rechercher un rapport (projet, OFR, collaborateur...)"
+                className="pl-9 h-11 rounded-xl glass-input"
+                value={rapportSearch}
+                onChange={(e) => setRapportSearch(e.target.value)}
+              />
+            </div>
+            <p className="text-sm text-gray-500 mb-4">{rapportFiltered.length} rapport{rapportFiltered.length !== 1 ? "s" : ""} completes</p>
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            )}
+            {Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([monthKey, projs]) => (
+              <div key={monthKey} className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4" />
+                  {formatMonth(monthKey)} ({projs.length})
+                </h3>
+                <div className="space-y-3">
+                  {projs.map((p) => {
+                    const date = p.dateMontage || p.dateMesures;
+                    const status = p.etatCMD || p.etatMesures || "";
+                    const allStatusColors: Record<string, string> = { ...STATUS_CMD_COLORS, ...STATUS_MESURES_COLORS };
+                    const statusColor = allStatusColors[status] || "bg-gray-100 text-gray-700";
+                    return (
+                      <Link
+                        key={p.id}
+                        href={`/projet/${p.id}?mode=cmd`}
+                        className="block glass-card rounded-2xl p-4 hover:bg-white/80 transition-all"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
+                              {p.projet || "Sans nom"}
+                            </h4>
+                            {p.ofrTM && (
+                              <p className="text-xs text-gray-500 mt-0.5">OFR {p.ofrTM}</p>
+                            )}
+                            <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-600 dark:text-gray-400">
+                              <Calendar className="w-3.5 h-3.5 shrink-0" />
+                              <span>{date ? formatDateFR(date) : "---"}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {(p.collaborateurs || "").split(" & ").filter(Boolean).map((name) => (
+                                <span
+                                  key={name}
+                                  className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full"
+                                  style={{
+                                    backgroundColor: getCollaboratorColor(name.trim()).bg,
+                                    color: getCollaboratorColor(name.trim()).text,
+                                  }}
+                                >
+                                  <span
+                                    className="w-1.5 h-1.5 rounded-full"
+                                    style={{ backgroundColor: getCollaboratorColor(name.trim()).dot }}
+                                  />
+                                  {name.trim()}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            {status && (
+                              <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap glass-status ${statusColor}`}>
+                                {status}
+                              </span>
+                            )}
+                            <FileText className="w-4 h-4 text-green-500" />
+                            <ChevronRight className="w-5 h-5 text-gray-300" />
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {rapportFiltered.length === 0 && !loading && (
+              <div className="text-center py-12 text-gray-400">
+                <FileText className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                <p className="text-lg">Aucun rapport trouve</p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* VUE CLIENTS PLACEHOLDERS */}
+      {mode.startsWith("clients-") && (
+        <div className="text-center py-16">
+          <Building className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+          <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            {mode === "clients-contacts" && "Contacts"}
+            {mode === "clients-entreprises" && "Entreprises"}
+            {mode === "clients-fournisseurs" && "Fournisseurs"}
+            {mode === "clients-grossistes" && "Grossistes"}
+          </h2>
+          <p className="text-gray-400 text-sm">Coming soon - connexion CRM Notion</p>
+        </div>
+      )}
+
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && mode !== "rapport" && viewMode === "list" && (
         <div className="flex gap-3 mb-4">
           <button
             onClick={() => setViewMode("calendar")}
