@@ -31,8 +31,9 @@ const POSTE_COLORS: Record<string, string> = {
   "Architecte": "bg-orange-100 text-orange-700",
 };
 
-// Keys to skip in display/edit (internal or read-only)
+// Keys to skip in display/edit (internal, read-only, or relation IDs)
 const SKIP_KEYS = new Set(["__entryName"]);
+const HIDDEN_KEYS = new Set(["Dossiers (CMD)", "Dossiers", "Contacts", "Opportunités", "Projets CRM", "Entreprise", "Grossistes", "Fournisseurs"]);
 const READONLY_KEYS = new Set(["Nb. Projets", "Projets terminé", "Projets terminés"]);
 
 function formatDate(dateStr: string | null): string {
@@ -54,9 +55,15 @@ function getIcon(key: string) {
   return null;
 }
 
+function isRelationIdArray(value: any): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.length > 0 && typeof value[0] === "string" && /^[0-9a-f-]{30,}$/.test(value[0]);
+}
+
 function PropertyValue({ label, value }: { label: string; value: any }) {
   if (value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) return null;
-  if (SKIP_KEYS.has(label)) return null;
+  if (SKIP_KEYS.has(label) || HIDDEN_KEYS.has(label)) return null;
+  if (isRelationIdArray(value)) return null;
 
   const k = label.toLowerCase();
   const icon = getIcon(label);
@@ -142,7 +149,7 @@ function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAd
 
   // Properties to show (excluding title, already shown)
   const displayProps = Object.entries(p)
-    .filter(([k, v]) => k !== titleKey && !SKIP_KEYS.has(k) && v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0))
+    .filter(([k, v]) => k !== titleKey && !SKIP_KEYS.has(k) && !HIDDEN_KEYS.has(k) && !isRelationIdArray(v) && v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0))
     .sort(([a], [b]) => {
       // Prioritize key fields
       const priority = (k: string) => {
@@ -220,7 +227,7 @@ function EntryForm({ entry, onSubmit, onCancel, loading }: {
     if (entry) {
       // Pre-fill all string/number properties
       for (const [k, v] of Object.entries(props)) {
-        if (SKIP_KEYS.has(k)) continue;
+        if (SKIP_KEYS.has(k) || HIDDEN_KEYS.has(k) || isRelationIdArray(v)) continue;
         if (Array.isArray(v)) init[k] = v.join(", ");
         else if (v !== null && v !== undefined) init[k] = String(v);
         else init[k] = "";
@@ -248,7 +255,7 @@ function EntryForm({ entry, onSubmit, onCancel, loading }: {
 
   // For new entries, show minimal fields
   const fields = entry
-    ? Object.keys(props).filter((k) => !SKIP_KEYS.has(k))
+    ? Object.keys(props).filter((k) => !SKIP_KEYS.has(k) && !HIDDEN_KEYS.has(k) && !isRelationIdArray(props[k]))
     : ["Nom", "Email", "Téléphone"];
 
   return (
