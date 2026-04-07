@@ -31,7 +31,26 @@ function isInMonth(dateStr: string | null, range: { start: string; end: string }
 }
 
 function userInProject(project: Project, userName: string): boolean {
-  return (project.collaborateurs || "").toLowerCase().includes(userName.toLowerCase());
+  const collabs = (project.collaborateurs || "").split("&").map((s) => s.trim().toLowerCase());
+  const n = userName.toLowerCase();
+  return collabs.some((c) => c === n || c.split(/\s+/).some((w) => w === n));
+}
+
+function getCollabCount(project: Project): number {
+  return (project.collaborateurs || "").split("&").map((s) => s.trim()).filter(Boolean).length || 1;
+}
+
+function getTeamLabel(project: Project): string {
+  const count = getCollabCount(project);
+  if (count === 1) return "solo";
+  if (count === 2) return "binôme";
+  if (count === 3) return "trio";
+  if (count === 4) return "quatuor";
+  return "team";
+}
+
+function getEffectiveCabines(project: Project): number {
+  return Math.round((project.nbCabines || 0) / getCollabCount(project));
 }
 
 function getProjectMinutes(p: Project): number {
@@ -55,10 +74,26 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
 
     // --- This month ---
     const thisMonthProjects = myProjects.filter((p) => isInMonth(p.dateMontage, thisMonth));
-    const cabinesThisMonth = thisMonthProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
+    const cabinesThisMonth = thisMonthProjects.reduce((sum, p) => sum + getEffectiveCabines(p), 0);
     const projetsTermines = thisMonthProjects.filter(
       (p) => p.heureDepart && p.heureDepart.trim() !== ""
     ).length;
+
+    // Solo vs team breakdown
+    const soloProjects = thisMonthProjects.filter((p) => getCollabCount(p) === 1);
+    const teamProjects = thisMonthProjects.filter((p) => getCollabCount(p) > 1);
+    const cabinesSolo = soloProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
+    const cabinesTeam = teamProjects.reduce((sum, p) => sum + getEffectiveCabines(p), 0);
+    const cabinesTeamTotal = teamProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
+
+    // Team composition breakdown
+    const teamBreakdown: Record<string, { projects: number; cabines: number }> = {};
+    teamProjects.forEach((p) => {
+      const label = getTeamLabel(p);
+      if (!teamBreakdown[label]) teamBreakdown[label] = { projects: 0, cabines: 0 };
+      teamBreakdown[label].projects++;
+      teamBreakdown[label].cabines += p.nbCabines || 0;
+    });
 
     const timesThisMonth = thisMonthProjects
       .map((p) => {
@@ -106,7 +141,7 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
 
     // --- Last month comparison ---
     const lastMonthProjects = myProjects.filter((p) => isInMonth(p.dateMontage, lastMonth));
-    const cabinesLastMonth = lastMonthProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
+    const cabinesLastMonth = lastMonthProjects.reduce((sum, p) => sum + getEffectiveCabines(p), 0);
     const totalMinutesLastMonth = lastMonthProjects.reduce(
       (sum, p) => sum + getProjectMinutes(p),
       0
@@ -142,10 +177,16 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
       if (count > mostCabinesDay.count) mostCabinesDay = { date, count };
     });
 
-    const careerTotal = myProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
+    const careerTotal = myProjects.reduce((sum, p) => sum + getEffectiveCabines(p), 0);
 
     return {
       cabinesThisMonth,
+      cabinesSolo,
+      cabinesTeam,
+      cabinesTeamTotal,
+      teamBreakdown,
+      soloCount: soloProjects.length,
+      teamCount: teamProjects.length,
       projetsTermines,
       avgTimePerCabine,
       totalMinutesThisMonth,
@@ -195,12 +236,12 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
         </h3>
         <div className="grid grid-cols-2 gap-3">
           <StatCard
-            label="Cabines installees"
+            label="Cabines (part effective)"
             value={stats.cabinesThisMonth}
             color={color.dot}
           />
           <StatCard
-            label="Projets termines"
+            label="Projets terminés"
             value={stats.projetsTermines}
             color={color.dot}
           />
@@ -214,6 +255,25 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
             value={formatMinutes(stats.totalMinutesThisMonth)}
             color={color.dot}
           />
+        </div>
+
+        {/* Ventilation solo / équipe */}
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500 dark:text-gray-400">Solo ({stats.soloCount} projet{stats.soloCount > 1 ? "s" : ""})</span>
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{stats.cabinesSolo} cab.</span>
+          </div>
+          {Object.entries(stats.teamBreakdown).map(([label, data]) => (
+            <div key={label} className="flex items-center justify-between text-xs">
+              <span className="text-gray-500 dark:text-gray-400">
+                <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full mr-1 ${label === "team" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>{label}</span>
+                ({data.projects} projet{data.projects > 1 ? "s" : ""})
+              </span>
+              <span className="font-semibold text-gray-900 dark:text-gray-100">
+                {data.cabines} cab. total · ~{Math.round(data.cabines / (label === "binôme" ? 2 : label === "trio" ? 3 : label === "quatuor" ? 4 : 5))}/pers.
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
