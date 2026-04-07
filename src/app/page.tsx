@@ -1279,7 +1279,7 @@ function HomePage() {
         );
       })()}
 
-      {mode !== "dashboard" && (<>
+      {mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("clients-") && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {
         const favIds = typeof window !== "undefined" ? getFavorites() : [];
