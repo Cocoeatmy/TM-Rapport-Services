@@ -147,58 +147,59 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
   };
 
   return (
-    <>
-      {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(null)} />}
-      <div className="mb-4 relative z-50">
-        <div className="glass-tabs p-1.5 rounded-2xl max-w-full sm:max-w-lg">
-          <div className="flex gap-1">
-            <button onClick={() => handleSelect("dashboard")} className={tabCls(mode === "dashboard")}>
-              Dashboard
-            </button>
-
-            <button onClick={() => setOpen(open === "services" ? null : "services")} className={tabCls(isServicesActive)}>
-              {isServicesActive && servicesActiveLabel ? `Services · ${servicesActiveLabel}` : "Services"}
-              <ChevronDown className={`w-3 h-3 transition-transform ${open === "services" ? "rotate-180" : ""}`} />
-            </button>
-
-            <button onClick={() => setOpen(open === "clients" ? null : "clients")} className={tabCls(isClientsActive)}>
-              {isClientsActive && clientsActiveLabel ? `Clients · ${clientsActiveLabel}` : "Clients"}
-              <ChevronDown className={`w-3 h-3 transition-transform ${open === "clients" ? "rotate-180" : ""}`} />
-            </button>
-
-            <button onClick={() => handleSelect("rapport")} className={tabCls(mode === "rapport")}>
-              Rapport
-            </button>
-          </div>
+    <div className="mb-4 space-y-1.5">
+      {/* Ligne principale */}
+      <div className="glass-tabs p-1.5 rounded-2xl max-w-full sm:max-w-lg">
+        <div className="flex gap-1">
+          <button onClick={() => { handleSelect("dashboard"); setOpen(null); }} className={tabCls(mode === "dashboard")}>
+            Dashboard
+          </button>
+          <button onClick={() => setOpen(open === "services" ? null : "services")} className={tabCls(isServicesActive || open === "services")}>
+            Services
+            <ChevronDown className={`w-3 h-3 transition-transform ${open === "services" ? "rotate-180" : ""}`} />
+          </button>
+          <button onClick={() => setOpen(open === "clients" ? null : "clients")} className={tabCls(isClientsActive || open === "clients")}>
+            Clients
+            <ChevronDown className={`w-3 h-3 transition-transform ${open === "clients" ? "rotate-180" : ""}`} />
+          </button>
+          <button onClick={() => { handleSelect("rapport"); setOpen(null); }} className={tabCls(mode === "rapport")}>
+            Rapport
+          </button>
         </div>
-
-        {/* Dropdowns rendered outside glass-tabs */}
-        {open === "services" && (
-          <div className="absolute left-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
-            {servicesModes.map((m) => (
-              <button key={m} onClick={() => handleSelect(m)}
-                className={`w-full text-left text-xs font-medium px-3 py-2.5 rounded-lg transition-colors ${
-                  mode === m || mode === `${m}-termine` ? "bg-[#1e3a5f] text-white" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
-                }`}>
-                {servicesLabels[m]} ({count(m)})
-              </button>
-            ))}
-          </div>
-        )}
-        {open === "clients" && (
-          <div className="absolute left-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
-            {clientsModes.map((m) => (
-              <button key={m} onClick={() => handleSelect(m)}
-                className={`w-full text-left text-xs font-medium px-3 py-2.5 rounded-lg transition-colors ${
-                  mode === m ? "bg-[#1e3a5f] text-white" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
-                }`}>
-                {clientsLabels[m]}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
-    </>
+
+      {/* Sous-menu Services - deuxième ligne */}
+      {open === "services" && (
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1">
+          {servicesModes.map((m) => (
+            <button key={m} onClick={() => handleSelect(m)}
+              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                mode === m || mode === `${m}-termine`
+                  ? "bg-[#1e3a5f] text-white"
+                  : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+              }`}>
+              {servicesLabels[m]} ({count(m)})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Sous-menu Clients - deuxième ligne */}
+      {open === "clients" && (
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1">
+          {clientsModes.map((m) => (
+            <button key={m} onClick={() => handleSelect(m)}
+              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                mode === m
+                  ? "bg-[#1e3a5f] text-white"
+                  : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+              }`}>
+              {clientsLabels[m]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
