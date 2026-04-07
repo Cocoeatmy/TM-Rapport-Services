@@ -502,7 +502,7 @@ function HomePage() {
       )}
       {/* Onglets navigation */}
       {(() => {
-        const switchMode = (m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); };
+        const switchMode = (m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); };
         const tabClass = (m: Mode) =>
           `shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 ${
             mode === m
