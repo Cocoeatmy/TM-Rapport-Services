@@ -122,6 +122,91 @@ function ProjectCard({ project, mode }: { project: Project; mode: string }) {
   );
 }
 
+function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const count = (m: string) => (projectsData[m]?.length ?? "...");
+
+  const servicesModes = ["mesures", "cmd", "services", "sav"];
+  const servicesLabels: Record<string, string> = { mesures: "Mesures", cmd: "Montages", services: "Services", sav: "SAV" };
+  const isServicesActive = servicesModes.includes(mode) || mode.endsWith("-termine");
+  const servicesActiveLabel = servicesLabels[mode] || servicesLabels[mode.replace("-termine", "")] || "";
+
+  const clientsModes = ["clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes"];
+  const clientsLabels: Record<string, string> = { "clients-contacts": "Contacts", "clients-entreprises": "Entreprises", "clients-fournisseurs": "Fournisseurs", "clients-grossistes": "Grossistes" };
+  const isClientsActive = clientsModes.includes(mode);
+  const clientsActiveLabel = clientsLabels[mode] || "";
+
+  const tabCls = (active: boolean) =>
+    `shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 inline-flex items-center gap-1 ${
+      active ? "glass-tab-active text-[#1e3a5f] dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
+    }`;
+
+  const handleSelect = (m: string) => {
+    setOpen(null);
+    onSwitchMode(m);
+  };
+
+  return (
+    <div className="mb-4 glass-tabs p-1.5 rounded-2xl max-w-full sm:max-w-lg">
+      <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+        <button onClick={() => handleSelect("dashboard")} className={tabCls(mode === "dashboard")}>
+          Dashboard
+        </button>
+
+        {/* Services */}
+        <div className="relative shrink-0">
+          <button onClick={() => setOpen(open === "services" ? null : "services")} className={tabCls(isServicesActive)}>
+            {isServicesActive && servicesActiveLabel ? `Services · ${servicesActiveLabel}` : "Services"}
+            <ChevronDown className={`w-3 h-3 transition-transform ${open === "services" ? "rotate-180" : ""}`} />
+          </button>
+          {open === "services" && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setOpen(null)} />
+              <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
+                {servicesModes.map((m) => (
+                  <button key={m} onClick={() => handleSelect(m)}
+                    className={`w-full text-left text-xs font-medium px-3 py-2.5 rounded-lg transition-colors ${
+                      mode === m || mode === `${m}-termine` ? "bg-[#1e3a5f] text-white" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
+                    }`}>
+                    {servicesLabels[m]} ({count(m)})
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Clients */}
+        <div className="relative shrink-0">
+          <button onClick={() => setOpen(open === "clients" ? null : "clients")} className={tabCls(isClientsActive)}>
+            {isClientsActive && clientsActiveLabel ? `Clients · ${clientsActiveLabel}` : "Clients"}
+            <ChevronDown className={`w-3 h-3 transition-transform ${open === "clients" ? "rotate-180" : ""}`} />
+          </button>
+          {open === "clients" && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setOpen(null)} />
+              <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
+                {clientsModes.map((m) => (
+                  <button key={m} onClick={() => handleSelect(m)}
+                    className={`w-full text-left text-xs font-medium px-3 py-2.5 rounded-lg transition-colors ${
+                      mode === m ? "bg-[#1e3a5f] text-white" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
+                    }`}>
+                    {clientsLabels[m]}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <button onClick={() => handleSelect("rapport")} className={tabCls(mode === "rapport")}>
+          Rapport
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SkeletonCard() {
   return (
     <div className="glass-card rounded-2xl p-4 animate-pulse">
@@ -209,8 +294,6 @@ function HomePage() {
     rapport: "/api/projects/cmd-termine",
   };
 
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const [rapportSearch, setRapportSearch] = useState("");
 
   // Cache-first: charger depuis localStorage instantanément, puis API en arrière-plan
@@ -250,16 +333,7 @@ function HomePage() {
     }).catch(() => setLoading(false));
   }, []);
 
-  // Close dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpenDropdown(null);
-      }
-    };
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, []);
+
 
   const projects = projectsData[mode] || [];
   const isTermineMode = mode.endsWith("-termine");
@@ -522,99 +596,7 @@ function HomePage() {
         </div>
       )}
       {/* Onglets navigation */}
-      {(() => {
-        const switchMode = (m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setOpenDropdown(null); };
-        const count = (m: string) => (projectsData[m]?.length ?? "...");
-
-        const servicesModes: Mode[] = ["mesures", "cmd", "services", "sav"];
-        const servicesLabels: Record<string, string> = { mesures: "Mesures", cmd: "Montages", services: "Services", sav: "SAV" };
-        const isServicesActive = servicesModes.includes(mode) || mode === "mesures-termine" || mode === "cmd-termine" || mode === "services-termine" || mode === "sav-termine";
-        const servicesActiveLabel = servicesLabels[mode] || servicesLabels[mode.replace("-termine", "")] || "";
-
-        const clientsModes: Mode[] = ["clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes"];
-        const clientsLabels: Record<string, string> = { "clients-contacts": "Contacts", "clients-entreprises": "Entreprises", "clients-fournisseurs": "Fournisseurs", "clients-grossistes": "Grossistes" };
-        const isClientsActive = clientsModes.includes(mode);
-        const clientsActiveLabel = clientsLabels[mode] || "";
-
-        const tabClass = (active: boolean) =>
-          `shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 relative inline-flex items-center gap-1 ${
-            active
-              ? "glass-tab-active text-[#1e3a5f] dark:text-white"
-              : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
-          }`;
-
-        return (
-          <div className="mb-4 glass-tabs p-1.5 rounded-2xl max-w-full sm:max-w-lg" ref={dropdownRef}>
-            <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-              {/* Dashboard */}
-              <button onClick={() => switchMode("dashboard")} className={tabClass(mode === "dashboard")}>
-                Dashboard
-              </button>
-
-              {/* Services dropdown */}
-              <div className="relative shrink-0">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === "services" ? null : "services"); }}
-                  className={tabClass(isServicesActive)}
-                >
-                  {isServicesActive && servicesActiveLabel ? `Services \u00B7 ${servicesActiveLabel}` : "Services"}
-                  <ChevronDown className="w-3 h-3" />
-                </button>
-                {openDropdown === "services" && (
-                  <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
-                    {servicesModes.map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => switchMode(m)}
-                        className={`w-full text-left text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
-                          mode === m || mode === `${m}-termine`
-                            ? "bg-[#1e3a5f] text-white"
-                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
-                        }`}
-                      >
-                        {servicesLabels[m]} ({count(m)})
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Clients dropdown */}
-              <div className="relative shrink-0">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === "clients" ? null : "clients"); }}
-                  className={tabClass(isClientsActive)}
-                >
-                  {isClientsActive && clientsActiveLabel ? `Clients \u00B7 ${clientsActiveLabel}` : "Clients"}
-                  <ChevronDown className="w-3 h-3" />
-                </button>
-                {openDropdown === "clients" && (
-                  <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
-                    {clientsModes.map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => switchMode(m)}
-                        className={`w-full text-left text-xs font-medium px-3 py-2 rounded-lg transition-colors ${
-                          mode === m
-                            ? "bg-[#1e3a5f] text-white"
-                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
-                        }`}
-                      >
-                        {clientsLabels[m]}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Rapport */}
-              <button onClick={() => switchMode("rapport")} className={tabClass(mode === "rapport")}>
-                Rapport
-              </button>
-            </div>
-          </div>
-        );
-      })()}
+      <NavBar mode={mode} projectsData={projectsData} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); }} />
 
       {/* VUE DASHBOARD */}
       {mode === "dashboard" && (
