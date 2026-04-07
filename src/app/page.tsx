@@ -162,7 +162,9 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
             Clients
             <ChevronDown className={`w-3 h-3 transition-transform ${open === "clients" ? "rotate-180" : ""}`} />
           </button>
-          <button onClick={() => { handleSelect("rapport"); setOpen(null); }} className={tabCls(mode === "rapport")}>
+          <button onClick={() => { handleSelect("rapport"); setOpen(null); }} className={`shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 inline-flex items-center gap-1 ${
+            mode === "rapport" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
+          }`}>
             Rapport
           </button>
         </div>
@@ -722,7 +724,8 @@ function HomePage() {
                     const date = p.dateMontage || p.dateMesures;
                     const status = p.etatCMD || p.etatMesures || "";
                     const allStatusColors: Record<string, string> = { ...STATUS_CMD_COLORS, ...STATUS_MESURES_COLORS };
-                    const statusColor = allStatusColors[status] || "bg-gray-100 text-gray-700";
+                    const isTermine = status.toLowerCase().includes("termin") || status.toLowerCase().includes("monté");
+                    const statusColor = isTermine ? "bg-green-100 text-green-700" : allStatusColors[status] || "bg-gray-100 text-gray-700";
                     return (
                       <Link
                         key={p.id}
@@ -761,11 +764,9 @@ function HomePage() {
                             </div>
                           </div>
                           <div className="flex flex-col items-end gap-2">
-                            {status && (
-                              <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap glass-status ${statusColor}`}>
-                                {status}
-                              </span>
-                            )}
+                            <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${isTermine || !status ? "bg-green-100 text-green-700" : statusColor}`}>
+                              {status || "Terminé"}
+                            </span>
                             <FileText className="w-4 h-4 text-green-500" />
                             <ChevronRight className="w-5 h-5 text-gray-300" />
                           </div>
