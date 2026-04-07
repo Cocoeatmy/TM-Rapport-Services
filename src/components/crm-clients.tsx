@@ -110,6 +110,19 @@ function PropertyValue({ label, value }: { label: string; value: any }) {
     );
   }
 
+  // Percentage (rabais, etc.)
+  if (k.includes("rabais") || k.includes("taux") || k.includes("marge")) {
+    const num = typeof value === "number" ? value : parseFloat(String(value));
+    if (!isNaN(num)) {
+      const pct = num < 1 ? Math.round(num * 100) : Math.round(num);
+      return (
+        <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+          {icon} <span className="text-gray-400">{label}:</span> <span className="font-medium">{pct} %</span>
+        </div>
+      );
+    }
+  }
+
   // Boolean
   if (typeof value === "boolean") {
     return (
