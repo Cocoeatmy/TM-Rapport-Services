@@ -729,7 +729,7 @@ function HomePage() {
                     return (
                       <div key={p.id} className="glass-card rounded-2xl p-4 hover:bg-white/80 transition-all">
                         <div className="flex items-start justify-between gap-3">
-                          <Link href={`/projet/${p.id}?mode=cmd`} className="flex-1 min-w-0">
+                          <Link href={`/projet/${p.id}?mode=rapport`} className="flex-1 min-w-0">
                             <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
                               {p.projet || "Sans nom"}
                             </h4>
