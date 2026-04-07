@@ -107,7 +107,24 @@ function EntryForm({
   const [values, setValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     for (const f of fields) {
-      init[f.key] = initialValues?.[f.key] || "";
+      const raw = initialValues?.[f.key];
+      // Handle different value types from Notion
+      if (Array.isArray(raw)) {
+        init[f.key] = raw.join(", ");
+      } else if (raw !== null && raw !== undefined) {
+        init[f.key] = String(raw);
+      } else {
+        // Fallback: try to find by searching all property keys case-insensitively
+        const found = Object.entries(initialValues || {}).find(
+          ([k]) => k.toLowerCase() === f.key.toLowerCase()
+        );
+        init[f.key] = found ? String(found[1] ?? "") : "";
+      }
+    }
+    // If the title field is still empty, use the entry name
+    const titleKey = fields[0]?.key;
+    if (titleKey && !init[titleKey] && (initialValues as any)?.__entryName) {
+      init[titleKey] = (initialValues as any).__entryName;
     }
     return init;
   });
@@ -525,7 +542,7 @@ export function CRMClients({ mode, isAdmin = false }: { mode: ClientMode; isAdmi
         {editEntry && (
           <EntryForm
             type={type}
-            initialValues={editEntry.properties}
+            initialValues={{ ...editEntry.properties, __entryName: editEntry.name }}
             onSubmit={handleEdit}
             onCancel={() => setEditEntry(null)}
             loading={mutating}
