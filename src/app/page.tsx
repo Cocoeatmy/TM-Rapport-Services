@@ -147,22 +147,22 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
   };
 
   return (
-    <div className="mb-4 glass-tabs p-1.5 rounded-2xl max-w-full sm:max-w-lg">
-      <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-        <button onClick={() => handleSelect("dashboard")} className={tabCls(mode === "dashboard")}>
-          Dashboard
-        </button>
-
-        {/* Services */}
-        <div className="relative shrink-0">
-          <button onClick={() => setOpen(open === "services" ? null : "services")} className={tabCls(isServicesActive)}>
-            {isServicesActive && servicesActiveLabel ? `Services · ${servicesActiveLabel}` : "Services"}
-            <ChevronDown className={`w-3 h-3 transition-transform ${open === "services" ? "rotate-180" : ""}`} />
+    <>
+      {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(null)} />}
+      <div className="mb-4 glass-tabs p-1.5 rounded-2xl max-w-full sm:max-w-lg relative z-50">
+        <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+          <button onClick={() => handleSelect("dashboard")} className={tabCls(mode === "dashboard")}>
+            Dashboard
           </button>
-          {open === "services" && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setOpen(null)} />
-              <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
+
+          {/* Services */}
+          <div className="relative shrink-0">
+            <button onClick={() => setOpen(open === "services" ? null : "services")} className={tabCls(isServicesActive)}>
+              {isServicesActive && servicesActiveLabel ? `Services · ${servicesActiveLabel}` : "Services"}
+              <ChevronDown className={`w-3 h-3 transition-transform ${open === "services" ? "rotate-180" : ""}`} />
+            </button>
+            {open === "services" && (
+              <div className="absolute left-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
                 {servicesModes.map((m) => (
                   <button key={m} onClick={() => handleSelect(m)}
                     className={`w-full text-left text-xs font-medium px-3 py-2.5 rounded-lg transition-colors ${
@@ -172,20 +172,17 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
                   </button>
                 ))}
               </div>
-            </>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* Clients */}
-        <div className="relative shrink-0">
-          <button onClick={() => setOpen(open === "clients" ? null : "clients")} className={tabCls(isClientsActive)}>
-            {isClientsActive && clientsActiveLabel ? `Clients · ${clientsActiveLabel}` : "Clients"}
-            <ChevronDown className={`w-3 h-3 transition-transform ${open === "clients" ? "rotate-180" : ""}`} />
-          </button>
-          {open === "clients" && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setOpen(null)} />
-              <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
+          {/* Clients */}
+          <div className="relative shrink-0">
+            <button onClick={() => setOpen(open === "clients" ? null : "clients")} className={tabCls(isClientsActive)}>
+              {isClientsActive && clientsActiveLabel ? `Clients · ${clientsActiveLabel}` : "Clients"}
+              <ChevronDown className={`w-3 h-3 transition-transform ${open === "clients" ? "rotate-180" : ""}`} />
+            </button>
+            {open === "clients" && (
+              <div className="absolute left-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-1 w-48">
                 {clientsModes.map((m) => (
                   <button key={m} onClick={() => handleSelect(m)}
                     className={`w-full text-left text-xs font-medium px-3 py-2.5 rounded-lg transition-colors ${
@@ -195,15 +192,15 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
                   </button>
                 ))}
               </div>
-            </>
-          )}
-        </div>
+            )}
+          </div>
 
-        <button onClick={() => handleSelect("rapport")} className={tabCls(mode === "rapport")}>
-          Rapport
-        </button>
+          <button onClick={() => handleSelect("rapport")} className={tabCls(mode === "rapport")}>
+            Rapport
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
