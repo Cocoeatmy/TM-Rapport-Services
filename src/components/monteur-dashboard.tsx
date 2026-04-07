@@ -269,7 +269,7 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
             <span className="truncate">{project.adresseChantier}</span>
           </div>
         )}
-        {collabNames.length >= 2 && (
+        {collabNames.length >= 1 && (
           <div className="flex items-center gap-1 mt-1">
             <div className="flex -space-x-1">
               {collabNames.map((n) => (
@@ -307,7 +307,7 @@ function WeekProjectRow({ project }: { project: Project }) {
       </span>
       <div className="flex-1 min-w-0">
         <p className="text-sm truncate text-gray-900 dark:text-gray-100">{project.projet}</p>
-        {collabNames.length >= 2 && (
+        {collabNames.length >= 1 && (
           <div className="flex items-center gap-1 mt-0.5">
             <div className="flex -space-x-1">
               {collabNames.map((n) => (
