@@ -120,9 +120,34 @@ async function fetchDatabase(type: string): Promise<CRMEntry[]> {
   return entries;
 }
 
+// Get full schema with select/multi_select options
+async function getDbSchemaFull(type: string): Promise<Record<string, { type: string; options?: string[] }>> {
+  const dbId = CRM_DATABASES[type];
+  if (!dbId) return {};
+  try {
+    const db = await notion.databases.retrieve({ database_id: dbId });
+    const schema: Record<string, { type: string; options?: string[] }> = {};
+    for (const [key, prop] of Object.entries((db as any).properties)) {
+      const p = prop as any;
+      const entry: { type: string; options?: string[] } = { type: p.type };
+      if (p.type === "select" && p.select?.options) {
+        entry.options = p.select.options.map((o: any) => o.name);
+      }
+      if (p.type === "multi_select" && p.multi_select?.options) {
+        entry.options = p.multi_select.options.map((o: any) => o.name);
+      }
+      schema[key] = entry;
+    }
+    return schema;
+  } catch {
+    return {};
+  }
+}
+
 export async function GET(request: NextRequest) {
   const type = request.nextUrl.searchParams.get("type") || "contacts";
   const refresh = request.nextUrl.searchParams.get("refresh");
+  const schema = request.nextUrl.searchParams.get("schema");
 
   if (!CRM_DATABASES[type]) {
     return NextResponse.json({ error: `Type inconnu: ${type}` }, { status: 400 });
@@ -132,6 +157,16 @@ export async function GET(request: NextRequest) {
   if (refresh) {
     invalidateCache(`crm-${type}`);
     delete dbSchemaCache[type];
+  }
+
+  // Return schema with options
+  if (schema) {
+    try {
+      const fullSchema = await getDbSchemaFull(type);
+      return NextResponse.json(fullSchema);
+    } catch (error: any) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
   }
 
   try {

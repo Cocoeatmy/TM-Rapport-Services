@@ -226,32 +226,50 @@ function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAd
 }
 
 // Dynamic form that shows ALL properties
-function EntryForm({ entry, onSubmit, onCancel, loading }: {
+function EntryForm({ entry, type, onSubmit, onCancel, loading }: {
   entry: CRMEntry | null;
+  type: string;
   onSubmit: (properties: Record<string, any>, icon?: string | null) => void;
   onCancel: () => void;
   loading: boolean;
 }) {
   const props = entry?.properties || {};
   const [values, setValues] = useState<Record<string, string>>({});
+  const [multiValues, setMultiValues] = useState<Record<string, string[]>>({});
   const [iconUrl, setIconUrl] = useState<string>(entry?.icon || "");
   const [uploadingIcon, setUploadingIcon] = useState(false);
-  const iconInputRef = useState<HTMLInputElement | null>(null);
+  const [schema, setSchema] = useState<Record<string, { type: string; options?: string[] }>>({});
+  const [newOption, setNewOption] = useState<Record<string, string>>({});
+
+  // Load schema with options
+  useEffect(() => {
+    fetch(`/api/crm?type=${type}&schema=1`)
+      .then((r) => r.json())
+      .then((data) => { if (data && !data.error) setSchema(data); })
+      .catch(() => {});
+  }, [type]);
 
   useEffect(() => {
     const init: Record<string, string> = {};
+    const initMulti: Record<string, string[]> = {};
     if (entry) {
       for (const [k, v] of Object.entries(props)) {
         if (SKIP_KEYS.has(k) || HIDDEN_KEYS.has(k) || isRelationIdArray(v)) continue;
-        if (Array.isArray(v)) init[k] = v.join(", ");
-        else if (v !== null && v !== undefined) init[k] = String(v);
-        else init[k] = "";
+        if (Array.isArray(v)) {
+          initMulti[k] = v.map(String);
+          init[k] = v.join(", ");
+        } else if (v !== null && v !== undefined) {
+          init[k] = String(v);
+        } else {
+          init[k] = "";
+        }
       }
       const titleKey = Object.entries(props).find(([, v]) => v === entry.name)?.[0];
       if (titleKey && !init[titleKey]) init[titleKey] = entry.name;
       setIconUrl(entry.icon || "");
     }
     setValues(init);
+    setMultiValues(initMulti);
   }, [entry]);
 
   const handleChange = (key: string, val: string) => {
@@ -283,7 +301,16 @@ function EntryForm({ entry, onSubmit, onCancel, loading }: {
     const result: Record<string, any> = {};
     for (const [k, v] of Object.entries(values)) {
       if (READONLY_KEYS.has(k)) continue;
-      result[k] = v;
+      const schemaType = schema[k]?.type;
+      if (schemaType === "multi_select") {
+        result[k] = multiValues[k] || v.split(",").map((s: string) => s.trim()).filter(Boolean);
+      } else {
+        result[k] = v;
+      }
+    }
+    // Include multi_select fields not in values
+    for (const [k, v] of Object.entries(multiValues)) {
+      if (!result[k]) result[k] = v;
     }
     const iconChanged = entry ? iconUrl !== (entry.icon || "") : !!iconUrl;
     onSubmit(result, iconChanged ? (iconUrl || null) : undefined);
@@ -326,11 +353,60 @@ function EntryForm({ entry, onSubmit, onCancel, loading }: {
       {fields.map((key) => {
         const isReadOnly = READONLY_KEYS.has(key);
         const val = values[key] || "";
+        const schemaEntry = schema[key];
+        const fieldType = schemaEntry?.type;
+        const options = schemaEntry?.options || [];
+
         return (
           <div key={key}>
             <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-0.5 block">{key}</label>
             {isReadOnly ? (
               <p className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">{val || "—"}</p>
+            ) : fieldType === "select" && options.length > 0 ? (
+              <select
+                value={val}
+                onChange={(e) => handleChange(key, e.target.value)}
+                className="w-full h-9 px-3 text-sm rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-slate-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500/30 focus:outline-none"
+              >
+                <option value="">— Sélectionner —</option>
+                {options.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ) : fieldType === "multi_select" ? (
+              <div>
+                <div className="flex flex-wrap gap-1.5 mb-1.5">
+                  {(multiValues[key] || []).map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                      {tag}
+                      <button type="button" onClick={() => setMultiValues((prev) => ({ ...prev, [key]: (prev[key] || []).filter((t) => t !== tag) }))} className="hover:text-red-500">×</button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1 mb-1">
+                  {options.filter((o) => !(multiValues[key] || []).includes(o)).map((o) => (
+                    <button key={o} type="button" onClick={() => setMultiValues((prev) => ({ ...prev, [key]: [...(prev[key] || []), o] }))}
+                      className="text-[10px] px-2 py-0.5 rounded-full border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                      + {o}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    value={newOption[key] || ""}
+                    onChange={(e) => setNewOption((prev) => ({ ...prev, [key]: e.target.value }))}
+                    placeholder="Nouvelle option..."
+                    className="flex-1 h-7 px-2 text-xs rounded border border-gray-200 dark:border-gray-700 dark:bg-slate-800 dark:text-gray-100"
+                  />
+                  <button type="button" onClick={() => {
+                    const v = (newOption[key] || "").trim();
+                    if (!v) return;
+                    setMultiValues((prev) => ({ ...prev, [key]: [...(prev[key] || []), v] }));
+                    setNewOption((prev) => ({ ...prev, [key]: "" }));
+                  }} className="h-7 px-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
             ) : (
               <input
                 type={key.toLowerCase().includes("email") || key.toLowerCase().includes("mail") ? "email" : key.toLowerCase().includes("date") ? "date" : "text"}
@@ -530,13 +606,13 @@ export function CRMClients({ mode, isAdmin }: { mode: ClientMode; isAdmin?: bool
 
       {/* Create Modal */}
       <Modal open={showCreate} onClose={() => !mutating && setShowCreate(false)} title="Nouveau">
-        <EntryForm entry={null} onSubmit={handleCreate} onCancel={() => setShowCreate(false)} loading={mutating} />
+        <EntryForm entry={null} type={type} onSubmit={handleCreate} onCancel={() => setShowCreate(false)} loading={mutating} />
       </Modal>
 
       {/* Edit Modal */}
       <Modal open={!!editEntry} onClose={() => !mutating && setEditEntry(null)} title="Modifier">
         {editEntry && (
-          <EntryForm entry={editEntry} onSubmit={handleEdit} onCancel={() => setEditEntry(null)} loading={mutating} />
+          <EntryForm entry={editEntry} type={type} onSubmit={handleEdit} onCancel={() => setEditEntry(null)} loading={mutating} />
         )}
       </Modal>
 
