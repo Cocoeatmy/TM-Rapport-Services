@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Calendar, MapPin, Clock, ChevronRight, Box, Truck, Users, BarChart3, Navigation, Route } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
@@ -225,6 +225,8 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
 // --- Admin view ---
 
 function AdminDashboard({ projects }: { projects: Project[] }) {
+  const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
+  const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const todayStr = getTodayStr();
   const weekEndStr = getWeekEndStr();
 
@@ -308,77 +310,89 @@ function AdminDashboard({ projects }: { projects: Project[] }) {
       {/* Per-collaborator sections */}
       {collabData.map((collab) => {
         if (collab.myProjects.length === 0) return null;
+        const isExpanded = expandedCollabs[collab.name] ?? false;
         return (
-          <div key={collab.name} className="glass-card rounded-2xl p-4 space-y-3">
-            {/* Collaborator header */}
-            <div className="flex items-center gap-3">
+          <div key={collab.name} className="glass-card rounded-2xl overflow-hidden">
+            {/* Collaborator header - clickable */}
+            <button
+              onClick={() => toggleCollab(collab.name)}
+              className="w-full flex items-center gap-3 p-4 hover:bg-white/40 dark:hover:bg-white/5 transition-colors"
+            >
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
                 style={{ backgroundColor: collab.colors.bg, color: collab.colors.text }}
               >
                 {collab.name[0]}
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 text-left">
                 <p className="font-semibold text-gray-900 dark:text-gray-100">{collab.name}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {collab.todayProjects.length > 0
                     ? `${collab.todayProjects.length} montage${collab.todayProjects.length > 1 ? "s" : ""} aujourd'hui`
                     : "Aucun montage aujourd'hui"}
+                  {" · "}{collab.totalCabines} cab.
                 </p>
               </div>
-              <div className="text-right shrink-0">
-                <p className="text-lg font-bold" style={{ color: collab.colors.text }}>
-                  {collab.totalCabines}
-                </p>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500">cabines</p>
-              </div>
-            </div>
+              {collab.todayProjects.length > 0 && (
+                <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shrink-0" />
+              )}
+              {isExpanded ? (
+                <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+              )}
+            </button>
 
-            {/* Today's projects */}
-            {collab.todayProjects.length > 0 && (
-              <div>
-                <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  Aujourd'hui ({collab.todayProjects.length})
-                </p>
-                <div className="space-y-1.5">
-                  {collab.todayProjects.map((p) => (
-                    <ProjectRow key={p.id} project={p} colors={collab.colors} />
-                  ))}
-                </div>
-                <div className="mt-2">
-                  <DailyRouteButton projects={collab.todayProjects} />
-                </div>
-              </div>
-            )}
+            {/* Collapsible content */}
+            {isExpanded && (
+              <div className="px-4 pb-4 space-y-3">
+                {/* Today's projects */}
+                {collab.todayProjects.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      Aujourd'hui ({collab.todayProjects.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {collab.todayProjects.map((p) => (
+                        <ProjectRow key={p.id} project={p} colors={collab.colors} />
+                      ))}
+                    </div>
+                    <div className="mt-2">
+                      <DailyRouteButton projects={collab.todayProjects} />
+                    </div>
+                  </div>
+                )}
 
-            {/* Week's projects (excluding today) */}
-            {collab.weekProjects.filter((p) => p.dateMontage !== todayStr).length > 0 && (
-              <div>
-                <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  Cette semaine ({collab.weekProjects.filter((p) => p.dateMontage !== todayStr).length})
-                </p>
-                <div className="space-y-1.5">
-                  {collab.weekProjects
-                    .filter((p) => p.dateMontage !== todayStr)
-                    .map((p) => (
-                      <Link
-                        key={p.id}
-                        href={`/projet/${p.id}?mode=cmd`}
-                        className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
-                      >
-                        <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
-                          {formatDay(p.dateMontage!)}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm truncate text-gray-900 dark:text-gray-100">{p.projet}</p>
-                        </div>
-                        <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
-                        <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-                      </Link>
-                    ))}
-                </div>
+                {/* Week's projects (excluding today) */}
+                {collab.weekProjects.filter((p) => p.dateMontage !== todayStr).length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Cette semaine ({collab.weekProjects.filter((p) => p.dateMontage !== todayStr).length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {collab.weekProjects
+                        .filter((p) => p.dateMontage !== todayStr)
+                        .map((p) => (
+                          <Link
+                            key={p.id}
+                            href={`/projet/${p.id}?mode=cmd`}
+                            className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+                          >
+                            <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
+                              {formatDay(p.dateMontage!)}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm truncate text-gray-900 dark:text-gray-100">{p.projet}</p>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                            <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                          </Link>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
