@@ -826,7 +826,8 @@ function ProjectPageContent({ id }: { id: string }) {
         return;
       }
 
-      // 2. Generate PDF (this also triggers email sending on the server)
+      // 2. Wait for Notion to propagate the data, then generate PDF
+      await new Promise((r) => setTimeout(r, 2000));
       const pdfRes = await fetch(`/api/pdf/${id}`);
       if (!pdfRes.ok) {
         toast.error("Erreur lors de la generation du PDF");

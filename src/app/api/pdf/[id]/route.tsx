@@ -162,8 +162,8 @@ const styles = StyleSheet.create({
   },
   photo: {
     width: "100%",
-    height: 150,
-    objectFit: "cover",
+    height: 200,
+    objectFit: "contain",
     borderRadius: 4,
   },
   photoLabel: {
@@ -305,13 +305,13 @@ const styles = StyleSheet.create({
   defautPhoto: {
     width: 120,
     height: 90,
-    objectFit: "cover",
+    objectFit: "contain",
     borderRadius: 3,
   },
   piecePhotoSmall: {
     width: 50,
     height: 40,
-    objectFit: "cover",
+    objectFit: "contain",
     borderRadius: 2,
   },
   emptyMessage: {
