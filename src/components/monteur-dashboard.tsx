@@ -279,9 +279,11 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
                 </span>
               ))}
             </div>
-            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-              {teamLabel}
-            </span>
+            {teamLabel && (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                {teamLabel}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -317,9 +319,11 @@ function WeekProjectRow({ project }: { project: Project }) {
                 </span>
               ))}
             </div>
-            <span className={`text-[9px] font-medium px-1 py-0.5 rounded ${isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-              {teamLabel}
-            </span>
+            {teamLabel && (
+              <span className={`text-[9px] font-medium px-1 py-0.5 rounded ${isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                {teamLabel}
+              </span>
+            )}
           </div>
         )}
       </div>
