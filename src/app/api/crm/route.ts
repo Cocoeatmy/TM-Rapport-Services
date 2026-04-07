@@ -1,108 +1,124 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { notion } from "@/lib/notion";
 import { getCached, setCache } from "@/lib/server-cache";
 
 export const dynamic = "force-dynamic";
 
-const CRM_DATABASE_ID = "28a1895b917981caa612e1a0f00feba3";
+const CRM_DATABASES: Record<string, string> = {
+  contacts: "28a1895b9179811e98efc8848571d8db",
+  entreprises: "28a1895b9179811fb736eca6c8e2ffb3",
+  fournisseurs: "2d11895b9179807b988df489cfdc469d",
+  grossistes: "2d11895b917980a1a202fa866102e0e5",
+};
 
-export interface CRMContact {
+export interface CRMEntry {
   id: string;
   name: string;
-  poste: string;
-  etiquettes: string[];
-  entreprise: string[];
-  grossistes: string[];
-  fournisseurs: string[];
-  email: string;
-  portable: string;
-  telephone: string;
-  dernierContact: string | null;
+  properties: Record<string, any>;
 }
 
-function extractTitle(prop: any): string {
-  if (!prop || prop.type !== "title") return "";
-  return prop.title?.map((t: any) => t.plain_text).join("") || "";
+function extractTitle(props: any): string {
+  for (const key of Object.keys(props)) {
+    const prop = props[key];
+    if (prop?.type === "title") {
+      return prop.title?.map((t: any) => t.plain_text).join("") || "";
+    }
+  }
+  return "";
 }
 
-function extractSelect(prop: any): string {
-  if (!prop || prop.type !== "select") return "";
-  return prop.select?.name || "";
+function extractAllProperties(props: any): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, prop] of Object.entries(props) as any[]) {
+    switch (prop.type) {
+      case "title":
+        result[key] = prop.title?.map((t: any) => t.plain_text).join("") || "";
+        break;
+      case "rich_text":
+        result[key] = prop.rich_text?.map((t: any) => t.plain_text).join("") || "";
+        break;
+      case "select":
+        result[key] = prop.select?.name || "";
+        break;
+      case "multi_select":
+        result[key] = prop.multi_select?.map((s: any) => s.name) || [];
+        break;
+      case "email":
+        result[key] = prop.email || "";
+        break;
+      case "phone_number":
+        result[key] = prop.phone_number || "";
+        break;
+      case "url":
+        result[key] = prop.url || "";
+        break;
+      case "date":
+        result[key] = prop.date?.start || null;
+        break;
+      case "number":
+        result[key] = prop.number;
+        break;
+      case "checkbox":
+        result[key] = prop.checkbox || false;
+        break;
+      case "relation":
+        result[key] = prop.relation?.map((r: any) => r.id) || [];
+        break;
+      case "status":
+        result[key] = prop.status?.name || "";
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
 }
 
-function extractMultiSelect(prop: any): string[] {
-  if (!prop || prop.type !== "multi_select") return [];
-  return prop.multi_select?.map((s: any) => s.name) || [];
-}
-
-function extractRelationIds(prop: any): string[] {
-  if (!prop || prop.type !== "relation") return [];
-  return prop.relation?.map((r: any) => r.id) || [];
-}
-
-function extractEmail(prop: any): string {
-  if (!prop || prop.type !== "email") return "";
-  return prop.email || "";
-}
-
-function extractPhone(prop: any): string {
-  if (!prop || prop.type !== "phone_number") return "";
-  return prop.phone_number || "";
-}
-
-function extractDate(prop: any): string | null {
-  if (!prop || prop.type !== "date" || !prop.date) return null;
-  return prop.date.start || null;
-}
-
-function mapPageToContact(page: any): CRMContact {
-  const p = page.properties;
-  return {
-    id: page.id,
-    name: extractTitle(p["Prénom et nom"]),
-    poste: extractSelect(p["Poste"]),
-    etiquettes: extractMultiSelect(p["Étiquettes"]),
-    entreprise: extractRelationIds(p["Entreprise"]),
-    grossistes: extractRelationIds(p["Grossistes"]),
-    fournisseurs: extractRelationIds(p["Fournisseurs"]),
-    email: extractEmail(p["Email"]),
-    portable: extractPhone(p["Portable"]),
-    telephone: extractPhone(p["Téléphone"]),
-    dernierContact: extractDate(p["Dernier contact"]),
-  };
-}
-
-async function fetchAllCRMContacts(): Promise<CRMContact[]> {
-  const cached = getCached<CRMContact[]>("crm-contacts");
+async function fetchDatabase(type: string): Promise<CRMEntry[]> {
+  const cacheKey = `crm-${type}`;
+  const cached = getCached<CRMEntry[]>(cacheKey);
   if (cached) return cached;
+
+  const dbId = CRM_DATABASES[type];
+  if (!dbId) return [];
 
   const allResults: any[] = [];
   let cursor: string | undefined = undefined;
 
   do {
     const response: any = await notion.databases.query({
-      database_id: CRM_DATABASE_ID,
+      database_id: dbId,
       start_cursor: cursor,
       page_size: 100,
-      sorts: [{ property: "Prénom et nom", direction: "ascending" }],
     });
     allResults.push(...response.results);
     cursor = response.has_more ? response.next_cursor : undefined;
   } while (cursor);
 
-  const contacts = allResults.map(mapPageToContact).filter((c) => c.name.trim() !== "");
-  setCache("crm-contacts", contacts);
-  return contacts;
+  const entries = allResults.map((page) => ({
+    id: page.id,
+    name: extractTitle(page.properties),
+    properties: extractAllProperties(page.properties),
+  })).filter((e) => e.name.trim() !== "").sort((a, b) => a.name.localeCompare(b.name));
+
+  setCache(cacheKey, entries);
+  return entries;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const type = request.nextUrl.searchParams.get("type") || "contacts";
+
+  if (!CRM_DATABASES[type]) {
+    return NextResponse.json({ error: `Type inconnu: ${type}` }, { status: 400 });
+  }
+
   try {
-    const contacts = await fetchAllCRMContacts();
-    return NextResponse.json(contacts);
+    const entries = await fetchDatabase(type);
+    return NextResponse.json(entries);
   } catch (error: any) {
-    console.error("Error fetching CRM contacts:", error);
+    console.error(`Error fetching CRM ${type}:`, error);
     return NextResponse.json(
-      { error: error.message || "Erreur lors de la récupération des contacts CRM" },
+      { error: error.message || "Erreur lors de la récupération des données CRM" },
       { status: 500 }
     );
   }
