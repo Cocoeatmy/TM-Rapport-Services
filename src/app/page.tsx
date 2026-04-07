@@ -788,7 +788,7 @@ function HomePage() {
 
       {/* VUE CLIENTS - CRM Notion */}
       {mode.startsWith("clients-") && (
-        <CRMClients mode={mode as "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes"} />
+        <CRMClients mode={mode as "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes"} isAdmin={currentUser?.role === "admin"} />
       )}
 
       {/* Boutons Calendrier / Collaborateurs */}

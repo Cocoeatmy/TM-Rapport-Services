@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { notion } from "@/lib/notion";
-import { getCached, setCache } from "@/lib/server-cache";
+import { getCached, setCache, invalidateCache } from "@/lib/server-cache";
+import { verifyToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +134,212 @@ export async function GET(request: NextRequest) {
     console.error(`Error fetching CRM ${type}:`, error);
     return NextResponse.json(
       { error: error.message || "Erreur lors de la récupération des données CRM" },
+      { status: 500 }
+    );
+  }
+}
+
+// Property type mapping per database (title property name differs)
+const TITLE_PROPERTIES: Record<string, string> = {
+  contacts: "Prénom et nom",
+  entreprises: "Nom",
+  fournisseurs: "Nom",
+  grossistes: "Nom",
+};
+
+// Known property types per database
+const PROPERTY_TYPES: Record<string, Record<string, string>> = {
+  contacts: {
+    "Prénom et nom": "title",
+    "Email": "email",
+    "Portable": "phone_number",
+    "Téléphone": "phone_number",
+    "Poste": "select",
+    "Étiquettes": "multi_select",
+    "Dernier contact": "date",
+  },
+  entreprises: {
+    "Nom": "title",
+    "Email": "email",
+    "Téléphone": "phone_number",
+  },
+  fournisseurs: {
+    "Nom": "title",
+    "Email": "email",
+    "Téléphone": "phone_number",
+  },
+  grossistes: {
+    "Nom": "title",
+    "Email": "email",
+    "Téléphone": "phone_number",
+  },
+};
+
+function buildNotionProperties(
+  type: string,
+  properties: Record<string, any>
+): Record<string, any> {
+  const typeMap = PROPERTY_TYPES[type] || {};
+  const result: Record<string, any> = {};
+
+  for (const [key, value] of Object.entries(properties)) {
+    if (value === undefined || value === null || value === "") continue;
+
+    const propType = typeMap[key] || "rich_text";
+
+    switch (propType) {
+      case "title":
+        result[key] = { title: [{ text: { content: String(value) } }] };
+        break;
+      case "email":
+        result[key] = { email: String(value) };
+        break;
+      case "phone_number":
+        result[key] = { phone_number: String(value) };
+        break;
+      case "select":
+        result[key] = { select: { name: String(value) } };
+        break;
+      case "multi_select":
+        if (Array.isArray(value)) {
+          result[key] = { multi_select: value.map((v: string) => ({ name: v })) };
+        } else {
+          result[key] = { multi_select: [{ name: String(value) }] };
+        }
+        break;
+      case "date":
+        result[key] = { date: { start: String(value) } };
+        break;
+      default:
+        result[key] = { rich_text: [{ text: { content: String(value) } }] };
+        break;
+    }
+  }
+
+  return result;
+}
+
+async function authenticateRequest(request: NextRequest) {
+  const token = request.cookies.get("auth-token")?.value;
+  if (!token) return null;
+  return verifyToken(token);
+}
+
+export async function POST(request: NextRequest) {
+  const user = await authenticateRequest(request);
+  if (!user) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { type, properties } = body;
+
+    if (!type || !CRM_DATABASES[type]) {
+      return NextResponse.json({ error: `Type inconnu: ${type}` }, { status: 400 });
+    }
+    if (!properties || Object.keys(properties).length === 0) {
+      return NextResponse.json({ error: "Propriétés requises" }, { status: 400 });
+    }
+
+    const notionProps = buildNotionProperties(type, properties);
+
+    const page = await notion.pages.create({
+      parent: { database_id: CRM_DATABASES[type] },
+      properties: notionProps,
+    });
+
+    invalidateCache(`crm-${type}`);
+
+    return NextResponse.json({ success: true, id: page.id });
+  } catch (error: any) {
+    console.error("Error creating CRM entry:", error);
+    return NextResponse.json(
+      { error: error.message || "Erreur lors de la création" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  const user = await authenticateRequest(request);
+  if (!user) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { id, type, properties } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "ID requis" }, { status: 400 });
+    }
+    if (!properties || Object.keys(properties).length === 0) {
+      return NextResponse.json({ error: "Propriétés requises" }, { status: 400 });
+    }
+
+    const notionProps = buildNotionProperties(type || "contacts", properties);
+
+    await notion.pages.update({
+      page_id: id,
+      properties: notionProps,
+    });
+
+    // Invalidate all CRM caches since we may not know the type
+    if (type && CRM_DATABASES[type]) {
+      invalidateCache(`crm-${type}`);
+    } else {
+      for (const t of Object.keys(CRM_DATABASES)) {
+        invalidateCache(`crm-${t}`);
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Error updating CRM entry:", error);
+    return NextResponse.json(
+      { error: error.message || "Erreur lors de la mise à jour" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const user = await authenticateRequest(request);
+  if (!user) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
+  if (user.role !== "admin") {
+    return NextResponse.json({ error: "Admin uniquement" }, { status: 403 });
+  }
+
+  try {
+    const body = await request.json();
+    const { id, type } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "ID requis" }, { status: 400 });
+    }
+
+    await notion.pages.update({
+      page_id: id,
+      archived: true,
+    });
+
+    // Invalidate cache
+    if (type && CRM_DATABASES[type]) {
+      invalidateCache(`crm-${type}`);
+    } else {
+      for (const t of Object.keys(CRM_DATABASES)) {
+        invalidateCache(`crm-${t}`);
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Error deleting CRM entry:", error);
+    return NextResponse.json(
+      { error: error.message || "Erreur lors de la suppression" },
       { status: 500 }
     );
   }
