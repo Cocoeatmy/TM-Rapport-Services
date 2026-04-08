@@ -897,7 +897,7 @@ function ProjectPageContent({ id }: { id: string }) {
   }
 
   return (
-    <div className="max-w-lg mx-auto w-full pb-8 px-4">
+    <div className="max-w-4xl mx-auto w-full pb-8 px-4">
       {/* Header */}
       <div className="sticky z-40 glass-card border-b px-4 py-3" style={{ borderRadius: 0, top: headerHeight }}>
         <div className="flex items-center gap-3">
@@ -939,7 +939,9 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       </div>
 
-      <div className="px-4 space-y-4 mt-4">
+      <div className="px-4 mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Colonne gauche - Informations */}
+        <div className="space-y-4">
         {/* Informations projet */}
         <Card>
           <CardHeader className="pb-2">
@@ -1068,10 +1070,11 @@ function ProjectPageContent({ id }: { id: string }) {
           </CardContent>
         </Card>
 
+        </div>
+        {/* Colonne droite - Rapport */}
+        <div className="space-y-4">
         {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
           <>
-            <Separator />
-
             {/* Horaires */}
             <Card>
               <CardHeader className="pb-2">
@@ -1645,6 +1648,7 @@ function ProjectPageContent({ id }: { id: string }) {
             <SAVForm projectId={id} projectName={project.projet} />
           </>
         )}
+        </div>
       </div>
 
       {/* Chat flottant */}

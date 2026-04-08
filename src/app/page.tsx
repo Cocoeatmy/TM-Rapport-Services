@@ -585,7 +585,7 @@ function HomePage() {
     : filtered;
 
   return (
-    <div className="px-4 py-4 max-w-5xl mx-auto w-full">
+    <div className="px-4 py-4 max-w-7xl mx-auto w-full">
       <Onboarding />
       {/* Toast notification */}
       {toast && (
