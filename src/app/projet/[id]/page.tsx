@@ -948,7 +948,7 @@ function ProjectPageContent({ id }: { id: string }) {
           <CardContent className="space-y-0">
             <div className="flex flex-wrap gap-x-6 gap-y-0">
               <InfoRow icon={Hash} label="N° OFR TM" value={project.ofrTM} />
-              {mode === "cmd" && (
+              {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
                 <>
                   {project.cmdGrossiste && <InfoRow icon={Hash} label="N° CMD Grossiste" value={project.cmdGrossiste} />}
                   {project.cmdFournisseurs && <InfoRow icon={Hash} label="N° CMD Fournisseurs" value={project.cmdFournisseurs} />}
@@ -983,7 +983,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 </div>
               </div>
             )}
-            {mode === "cmd" && (
+            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
             <div className="grid grid-cols-2 gap-3 py-2">
               <div className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
@@ -1056,19 +1056,19 @@ function ProjectPageContent({ id }: { id: string }) {
               />
             </div>
 
-            {mode === "cmd" && (
+            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
               <DurationEstimate project={project} />
             )}
 
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" />
             <DocumentLinks files={project.documentsMontagee} label="Documents Montage" />
-            {mode === "cmd" && (
+            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
               <DeliveryScan projectId={id} bonLivraison={project.bonLivraison} />
             )}
           </CardContent>
         </Card>
 
-        {mode === "cmd" && (
+        {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
           <>
             <Separator />
 
@@ -1573,6 +1573,16 @@ function ProjectPageContent({ id }: { id: string }) {
                 )}
                 Envoyer le rapport
               </Button>
+
+              <a
+                href={`/api/pdf/${id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-12 rounded-xl text-base font-medium flex items-center justify-center gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2C5.9 2 5 2.9 5 4v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V8l-6-6H7zm0 2h5v5h5v11H7V4zm2 8v2h6v-2H9zm0 4v2h4v-2H9z"/></svg>
+                Voir le PDF
+              </a>
             </div>
           </>
         )}
