@@ -340,6 +340,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const [showWeekProjects, setShowWeekProjects] = useState(false);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | null>(null);
   const todayStr = getTodayStr();
   const weekEndStr = getWeekEndStr();
   const thisWeekEndStr = getThisWeekEndStr();
@@ -459,19 +460,87 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="glass-card rounded-2xl p-4 text-center">
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "today" ? null : "today")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
           <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalProjectsToday}</p>
           <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Montages aujourd'hui</p>
-        </div>
-        <div className="glass-card rounded-2xl p-4 text-center">
+        </button>
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "week" ? null : "week")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
           <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalCabinesWeek}</p>
           <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Cabines cette semaine</p>
-        </div>
-        <div className="glass-card rounded-2xl p-4 text-center">
+        </button>
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "active" ? null : "active")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
           <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{busyToday}</p>
           <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Monteurs actifs</p>
-        </div>
+        </button>
       </div>
+
+      {/* Summary panel */}
+      {showSummaryPanel && (() => {
+        let panelProjects: Project[] = [];
+        let panelTitle = "";
+
+        if (showSummaryPanel === "today") {
+          panelTitle = "Montages aujourd'hui";
+          panelProjects = collabData
+            .flatMap((c) => c.todayProjects)
+            .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+        } else if (showSummaryPanel === "week") {
+          panelTitle = "Cabines cette semaine";
+          panelProjects = collabData
+            .flatMap((c) => [...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects])
+            .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+            .sort((a, b) => ((a.dateMontage || a.dateMesures || "").split("T")[0]).localeCompare((b.dateMontage || b.dateMesures || "").split("T")[0]));
+        } else if (showSummaryPanel === "active") {
+          panelTitle = "Monteurs actifs aujourd'hui";
+          const activeCollabs = collabData.filter((c) => c.todayProjects.length > 0);
+          return (
+            <div className="glass-card rounded-2xl p-4 space-y-2">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{panelTitle}</p>
+              {activeCollabs.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun monteur actif</p>}
+              {activeCollabs.map((c) => (
+                <div key={c.name} className="flex items-center gap-3 py-1.5">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                    style={{ backgroundColor: c.colors.bg, color: c.colors.text }}>{c.name[0]}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{c.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{c.todayProjects.length} montage{c.todayProjects.length > 1 ? "s" : ""}</p>
+                  </div>
+                  <div className="text-right text-xs text-gray-500">
+                    {c.todayProjects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        }
+
+        return (
+          <div className="glass-card rounded-2xl p-4 space-y-1.5">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{panelTitle} ({panelProjects.length})</p>
+            {panelProjects.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
+            {panelProjects.map((p) => {
+              const names = (p.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
+              const date = (p.dateMontage || p.dateMesures || "").split("T")[0];
+              return (
+                <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
+                  <span className="text-gray-400 font-mono w-16 shrink-0">
+                    {date ? new Date(date + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
+                  </span>
+                  <span className="flex-1 truncate text-gray-900 dark:text-gray-100">{p.projet}</span>
+                  <div className="flex -space-x-1 shrink-0">
+                    {names.slice(0, 3).map((n) => (
+                      <span key={n} className="w-5 h-5 rounded-full text-[8px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                        style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{n[0]}</span>
+                    ))}
+                  </div>
+                  <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                </Link>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Weekly hours summary */}
       {(() => {
