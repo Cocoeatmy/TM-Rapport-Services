@@ -348,13 +348,14 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const collabData = COLLABORATEURS_LIST.map((name) => {
     const colors = getCollaboratorColor(name);
     const myProjects = getProjectsForCollaborator(projects, name);
-    const todayProjects = myProjects.filter((p) => p.dateMontage === todayStr);
+    const getD = (p: Project) => (p.dateMontage || p.dateMesures || "").split("T")[0];
+    const todayProjects = myProjects.filter((p) => getD(p) === todayStr);
     const thisWeekProjects = myProjects
-      .filter((p) => p.dateMontage && p.dateMontage > todayStr && p.dateMontage <= thisWeekEndStr)
-      .sort((a, b) => (a.dateMontage || "").localeCompare(b.dateMontage || ""));
+      .filter((p) => { const d = getD(p); return d && d > todayStr && d <= thisWeekEndStr; })
+      .sort((a, b) => getD(a).localeCompare(getD(b)));
     const nextWeekProjects = myProjects
-      .filter((p) => p.dateMontage && p.dateMontage > thisWeekEndStr && p.dateMontage <= weekEndStr)
-      .sort((a, b) => (a.dateMontage || "").localeCompare(b.dateMontage || ""));
+      .filter((p) => { const d = getD(p); return d && d > thisWeekEndStr && d <= weekEndStr; })
+      .sort((a, b) => getD(a).localeCompare(getD(b)));
     const allUpcoming = [...todayProjects, ...thisWeekProjects, ...nextWeekProjects];
     const cabinesBySource = countCabinesBySource(allUpcoming, name);
     const totalCabines = Object.values(cabinesBySource).reduce((s, v) => s + v, 0);
@@ -377,11 +378,12 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
       const names = teamName.split(" & ").map((n) => n.trim());
       const isBinome = names.length === 2;
       const isTeam = names.length >= 5 || teamName.toLowerCase().includes("team");
-      const todayP = teamProjects.filter((p) => (p.dateMontage || p.dateMesures || "").startsWith(todayStr));
-      const thisWeekP = teamProjects.filter((p) => { const d = p.dateMontage || p.dateMesures || ""; return d > todayStr && d <= thisWeekEndStr; })
-        .sort((a, b) => (a.dateMontage || a.dateMesures || "").localeCompare(b.dateMontage || b.dateMesures || ""));
-      const nextWeekP = teamProjects.filter((p) => { const d = p.dateMontage || p.dateMesures || ""; return d > thisWeekEndStr && d <= weekEndStr; })
-        .sort((a, b) => (a.dateMontage || a.dateMesures || "").localeCompare(b.dateMontage || b.dateMesures || ""));
+      const getD = (p: Project) => (p.dateMontage || p.dateMesures || "").split("T")[0];
+      const todayP = teamProjects.filter((p) => getD(p) === todayStr);
+      const thisWeekP = teamProjects.filter((p) => { const d = getD(p); return d && d > todayStr && d <= thisWeekEndStr; })
+        .sort((a, b) => getD(a).localeCompare(getD(b)));
+      const nextWeekP = teamProjects.filter((p) => { const d = getD(p); return d && d > thisWeekEndStr && d <= weekEndStr; })
+        .sort((a, b) => getD(a).localeCompare(getD(b)));
       const totalCabines = teamProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
       return { teamName, names, isBinome, isTeam, todayProjects: todayP, thisWeekProjects: thisWeekP, nextWeekProjects: nextWeekP, totalCabines };
     })
