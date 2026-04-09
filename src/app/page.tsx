@@ -1308,12 +1308,17 @@ function HomePage() {
         };
         const nameFilter = fournisseurNameFilter[mode];
         const fournisseursProjects = allCmd.filter((p) => {
+          // 1. État CMD ≠ Annulé et ≠ Terminé
           if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
-          if (p.typeClient !== "Fournisseurs") return false;
+          // 2. Type de client = Fournisseurs
+          if (p.typeClient !== "Fournisseurs" && p.typeClient !== "Fournisseur") return false;
+
           if (nameFilter) {
-            const searchText = `${p.projet} ${p.fournisseurs.join(" ")}`.toLowerCase();
-            return searchText.includes(nameFilter.toLowerCase());
+            // Sous-menu : le titre du projet COMMENCE par le mot-clé
+            return p.projet.toLowerCase().startsWith(nameFilter.toLowerCase());
           }
+
+          // "Tous" : tous les projets Fournisseurs non terminés
           return true;
         });
 
@@ -1341,10 +1346,6 @@ function HomePage() {
           return acc;
         }, {});
 
-        const fCollabCounts = COLLABORATEURS_LIST.reduce<Record<string, number>>((acc, name) => {
-          acc[name] = fournisseursProjects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase())).length;
-          return acc;
-        }, {});
 
         return (
           <div>
@@ -1380,35 +1381,6 @@ function HomePage() {
                   {status} ({count})
                 </button>
               ))}
-            </div>
-            {/* Filtres collab */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3 scrollbar-hide">
-              <button
-                onClick={() => setCollabFilter(null)}
-                className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                  !collabFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"
-                }`}
-              >
-                Tous
-              </button>
-              {COLLABORATEURS_LIST.map((name) => {
-                const colors = getCollaboratorColor(name);
-                return (
-                  <button
-                    key={name}
-                    onClick={() => setCollabFilter(collabFilter === name ? null : name)}
-                    className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors inline-flex items-center gap-1 whitespace-nowrap"
-                    style={
-                      collabFilter === name
-                        ? { backgroundColor: "#1e3a5f", color: "white" }
-                        : { backgroundColor: colors.bg, color: colors.text }
-                    }
-                  >
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: collabFilter === name ? "white" : colors.dot }} />
-                    {name} ({fCollabCounts[name] || 0})
-                  </button>
-                );
-              })}
             </div>
             <p className="text-sm text-gray-500 mb-3">
               {fournisseursFiltered.length} projet{fournisseursFiltered.length !== 1 ? "s" : ""}
