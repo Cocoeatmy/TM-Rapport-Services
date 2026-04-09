@@ -1197,14 +1197,12 @@ function HomePage() {
         };
         const keywords = grossisteKeywords[mode];
         const grossistesProjects = allCmd.filter((p) => {
-          // Exclure Annulé et Terminé
           if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
-          // Type de client = Grossistes
           if (p.typeClient !== "Grossistes") return false;
-          // Si sous-menu sélectionné, filtrer par mots-clés
           if (keywords) {
-            const searchText = `${p.projet} ${p.nomChantier} ${p.fournisseurs.join(" ")} ${p.cmdGrossiste} ${p.ofrGrossiste}`.toLowerCase();
-            return keywords.some((kw) => searchText.includes(kw.toLowerCase()));
+            // Chercher dans les noms résolus de la relation Grossistes
+            const grossisteText = (p.grossistesNames || []).join(" ").toLowerCase();
+            return keywords.some((kw) => grossisteText.includes(kw.toLowerCase()));
           }
           return true;
         });

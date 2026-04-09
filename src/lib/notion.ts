@@ -49,6 +49,8 @@ export interface Project {
   sav: boolean;
   bonLivraison: string;
   typeClient: string;
+  grossistesRelation: string[]; // IDs des grossistes liés
+  grossistesNames: string[]; // Noms résolus des grossistes
 }
 
 export interface FileItem {
@@ -85,6 +87,11 @@ function extractStatus(prop: any): string {
 function extractNumber(prop: any): number | null {
   if (!prop || prop.type !== "number") return null;
   return prop.number;
+}
+
+function extractRelationIds(prop: any): string[] {
+  if (!prop || prop.type !== "relation") return [];
+  return prop.relation?.map((r: any) => r.id) || [];
 }
 
 function extractDate(prop: any): string | null {
@@ -161,7 +168,39 @@ export function mapPageToProject(page: any): Project {
     sav: p["SAV"]?.checkbox || false,
     bonLivraison: extractText(p["Bon de livraison"]),
     typeClient: extractSelect(p["Type de client"]),
+    grossistesRelation: extractRelationIds(p["Grossistes"]),
+    grossistesNames: [], // resolved later
   };
+}
+
+// Cache for relation page titles
+const relationNameCache: Record<string, string> = {};
+
+async function resolveRelationNames(ids: string[]): Promise<Record<string, string>> {
+  const uncached = ids.filter((id) => !relationNameCache[id]);
+  // Resolve in batches of 10 to avoid rate limits
+  for (let i = 0; i < uncached.length; i += 10) {
+    const batch = uncached.slice(i, i + 10);
+    await Promise.all(batch.map(async (id) => {
+      try {
+        const page = await notion.pages.retrieve({ page_id: id });
+        const props = (page as any).properties;
+        // Find the title property
+        for (const val of Object.values(props) as any[]) {
+          if (val?.type === "title") {
+            relationNameCache[id] = val.title?.map((t: any) => t.plain_text).join("") || id;
+            break;
+          }
+        }
+        if (!relationNameCache[id]) relationNameCache[id] = id;
+      } catch {
+        relationNameCache[id] = id;
+      }
+    }));
+  }
+  const result: Record<string, string> = {};
+  ids.forEach((id) => { result[id] = relationNameCache[id] || id; });
+  return result;
 }
 
 async function queryAll(filter: any, sorts?: any[]): Promise<Project[]> {
@@ -178,7 +217,18 @@ async function queryAll(filter: any, sorts?: any[]): Promise<Project[]> {
     allResults.push(...response.results);
     cursor = response.has_more ? response.next_cursor : undefined;
   } while (cursor);
-  return allResults.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"));
+  const projects = allResults.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"));
+
+  // Resolve grossistes relation names
+  const allGrossisteIds = [...new Set(projects.flatMap((p) => p.grossistesRelation))];
+  if (allGrossisteIds.length > 0) {
+    const names = await resolveRelationNames(allGrossisteIds);
+    projects.forEach((p) => {
+      p.grossistesNames = p.grossistesRelation.map((id) => names[id] || id);
+    });
+  }
+
+  return projects;
 }
 
 export async function getProjects(): Promise<Project[]> {
