@@ -298,6 +298,19 @@ export async function getProjectsSAV(): Promise<Project[]> {
   );
 }
 
+// Tous les projets non terminés/non annulés (pour les vues Grossistes/Fournisseurs)
+export async function getAllActiveProjects(): Promise<Project[]> {
+  return queryAll(
+    {
+      and: [
+        { property: "État - CMD", status: { does_not_equal: "Annulé" } },
+        { property: "État - CMD", status: { does_not_equal: "Terminé" } },
+      ],
+    },
+    [{ property: "Date Montage", direction: "descending" }]
+  );
+}
+
 export async function getProject(pageId: string): Promise<Project> {
   const page = await notion.pages.retrieve({ page_id: pageId });
   return mapPageToProject(page);

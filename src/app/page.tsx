@@ -581,20 +581,20 @@ function HomePage() {
     sav: "/api/projects/sav",
     "sav-termine": "/api/projects/sav-termine",
     rapport: "/api/projects/cmd-termine",
-    grossistes: "/api/projects",
-    "grossistes-bms": "/api/projects",
-    "grossistes-dubat": "/api/projects",
-    "grossistes-tema": "/api/projects",
-    "grossistes-matway": "/api/projects",
-    "grossistes-bringhen": "/api/projects",
-    fournisseurs: "/api/projects",
-    "fournisseurs-duka": "/api/projects",
-    "fournisseurs-duscholux": "/api/projects",
-    "fournisseurs-ronal": "/api/projects",
-    "fournisseurs-nelo": "/api/projects",
-    "fournisseurs-novellini": "/api/projects",
-    "fournisseurs-samo": "/api/projects",
-    stats: "/api/projects",
+    grossistes: "/api/projects/all-active",
+    "grossistes-bms": "/api/projects/all-active",
+    "grossistes-dubat": "/api/projects/all-active",
+    "grossistes-tema": "/api/projects/all-active",
+    "grossistes-matway": "/api/projects/all-active",
+    "grossistes-bringhen": "/api/projects/all-active",
+    fournisseurs: "/api/projects/all-active",
+    "fournisseurs-duka": "/api/projects/all-active",
+    "fournisseurs-duscholux": "/api/projects/all-active",
+    "fournisseurs-ronal": "/api/projects/all-active",
+    "fournisseurs-nelo": "/api/projects/all-active",
+    "fournisseurs-novellini": "/api/projects/all-active",
+    "fournisseurs-samo": "/api/projects/all-active",
+    stats: "/api/projects/all-active",
     archives: "/api/projects/cmd-termine",
   };
 
@@ -1186,8 +1186,8 @@ function HomePage() {
 
       {/* VUE GROSSISTES */}
       {mode.startsWith("grossistes") && (() => {
-        const allCmd = [...(projectsData["cmd"] || []), ...(projectsData["mesures"] || []), ...(projectsData["services"] || []), ...(projectsData["sav"] || [])]
-          .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+        // Utiliser les données all-active qui contiennent TOUS les projets non terminés/non annulés
+        const allCmd = projectsData[mode] || projectsData["grossistes"] || [];
 
         const grossisteKeywords: Record<string, string[]> = {
           "grossistes-bms": ["Gétaz", "Getaz"],
@@ -1202,20 +1202,26 @@ function HomePage() {
           if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
 
           if (keywords) {
-            // Sous-menu: chercher dans grossistesNames (relation résolue)
-            const grossisteText = (p.grossistesNames || []).join(" ").toLowerCase();
-            if (grossisteText && keywords.some((kw) => grossisteText.includes(kw.toLowerCase()))) return true;
-            // Fallback: chercher dans le nom du projet si le projet contient le nom du grossiste
+            // Priorité 1: chercher dans le nom du projet (le plus fiable - les projets commencent par le nom du grossiste)
             const projetText = p.projet.toLowerCase();
             if (keywords.some((kw) => projetText.includes(kw.toLowerCase()))) return true;
+            // Priorité 2: chercher dans grossistesNames (relation Notion résolue)
+            const grossisteText = (p.grossistesNames || []).join(" ").toLowerCase();
+            if (grossisteText && keywords.some((kw) => grossisteText.includes(kw.toLowerCase()))) return true;
+            // Priorité 3: chercher dans le nom du chantier
+            const chantierText = p.nomChantier.toLowerCase();
+            if (keywords.some((kw) => chantierText.includes(kw.toLowerCase()))) return true;
             return false;
           }
 
-          // "Tous": montrer uniquement les projets Type de client = Grossistes
-          // OU ceux qui ont une relation Grossistes remplie
+          // "Tous": montrer les projets dont le nom commence par un grossiste connu
+          // OU Type de client = Grossistes OU relation Grossistes remplie
+          const allGrossisteNames = ["Gétaz", "Getaz", "Dubat", "Tema", "Matway", "MatWay", "Bringhen"];
+          const projetLower = p.projet.toLowerCase();
+          const matchesName = allGrossisteNames.some((kw) => projetLower.includes(kw.toLowerCase()));
           const hasTypeGrossiste = p.typeClient === "Grossistes";
           const hasGrossistesRelation = (p.grossistesRelation || []).length > 0;
-          return hasTypeGrossiste || hasGrossistesRelation;
+          return matchesName || hasTypeGrossiste || hasGrossistesRelation;
         });
 
         const q = search.toLowerCase();
@@ -1337,7 +1343,7 @@ function HomePage() {
 
       {/* VUE FOURNISSEURS */}
       {mode.startsWith("fournisseurs") && !mode.startsWith("fournisseurs-menu") && (() => {
-        const allCmd = projectsData["cmd"] || [];
+        const allCmd = projectsData[mode] || projectsData["fournisseurs"] || [];
         const fournisseurNameFilter: Record<string, string> = {
           "fournisseurs-duka": "Duka", "fournisseurs-duscholux": "Duscholux", "fournisseurs-ronal": "Ronal",
           "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-samo": "Samo",
