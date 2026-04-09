@@ -48,6 +48,7 @@ export interface Project {
   etatSAV: string;
   sav: boolean;
   bonLivraison: string;
+  typeClient: string;
 }
 
 export interface FileItem {
@@ -159,6 +160,7 @@ export function mapPageToProject(page: any): Project {
     etatSAV: extractStatus(p["État - SAV"]),
     sav: p["SAV"]?.checkbox || false,
     bonLivraison: extractText(p["Bon de livraison"]),
+    typeClient: extractSelect(p["Type de client"]),
   };
 }
 
