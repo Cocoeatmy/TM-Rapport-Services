@@ -1199,29 +1199,17 @@ function HomePage() {
         const keywords = grossisteKeywords[mode];
 
         const grossistesProjects = allCmd.filter((p) => {
+          // Exclure Annulé et Terminé
           if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
 
           if (keywords) {
-            // Priorité 1: chercher dans le nom du projet (le plus fiable - les projets commencent par le nom du grossiste)
-            const projetText = p.projet.toLowerCase();
-            if (keywords.some((kw) => projetText.includes(kw.toLowerCase()))) return true;
-            // Priorité 2: chercher dans grossistesNames (relation Notion résolue)
-            const grossisteText = (p.grossistesNames || []).join(" ").toLowerCase();
-            if (grossisteText && keywords.some((kw) => grossisteText.includes(kw.toLowerCase()))) return true;
-            // Priorité 3: chercher dans le nom du chantier
-            const chantierText = p.nomChantier.toLowerCase();
-            if (keywords.some((kw) => chantierText.includes(kw.toLowerCase()))) return true;
-            return false;
+            // Sous-menu (BMS, Dubat, etc.) : le titre du projet COMMENCE par le mot-clé
+            const projetLower = p.projet.toLowerCase();
+            return keywords.some((kw) => projetLower.startsWith(kw.toLowerCase()));
           }
 
-          // "Tous": montrer les projets dont le nom commence par un grossiste connu
-          // OU Type de client = Grossistes OU relation Grossistes remplie
-          const allGrossisteNames = ["Gétaz", "Getaz", "Dubat", "Tema", "Matway", "MatWay", "Bringhen"];
-          const projetLower = p.projet.toLowerCase();
-          const matchesName = allGrossisteNames.some((kw) => projetLower.includes(kw.toLowerCase()));
-          const hasTypeGrossiste = p.typeClient === "Grossistes";
-          const hasGrossistesRelation = (p.grossistesRelation || []).length > 0;
-          return matchesName || hasTypeGrossiste || hasGrossistesRelation;
+          // "Tous" : Type de client = Grossistes (ou Grossiste)
+          return p.typeClient === "Grossistes" || p.typeClient === "Grossiste";
         });
 
         const q = search.toLowerCase();
