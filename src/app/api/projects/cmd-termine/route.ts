@@ -5,16 +5,27 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const response = await notion.databases.query({
-      database_id: databaseId,
-      filter: {
-        property: "État - CMD",
-        status: { equals: "Terminé" },
-      },
-      sorts: [{ property: "Date Montage", direction: "descending" }],
-      page_size: 100,
-    });
-    return NextResponse.json(response.results.map(mapPageToProject));
+    const allResults: any[] = [];
+    let cursor: string | undefined = undefined;
+
+    do {
+      const response: any = await notion.databases.query({
+        database_id: databaseId,
+        filter: {
+          property: "État - CMD",
+          status: { equals: "Terminé" },
+        },
+        sorts: [{ property: "Date Montage", direction: "descending" }],
+        page_size: 100,
+        start_cursor: cursor,
+      });
+      allResults.push(...response.results);
+      cursor = response.has_more ? response.next_cursor : undefined;
+    } while (cursor);
+
+    return NextResponse.json(
+      allResults.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"))
+    );
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Erreur" },

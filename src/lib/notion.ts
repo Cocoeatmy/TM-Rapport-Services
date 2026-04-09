@@ -164,10 +164,26 @@ export function mapPageToProject(page: any): Project {
   };
 }
 
+async function queryAll(filter: any, sorts?: any[]): Promise<Project[]> {
+  const allResults: any[] = [];
+  let cursor: string | undefined = undefined;
+  do {
+    const response: any = await notion.databases.query({
+      database_id: databaseId,
+      filter,
+      sorts,
+      page_size: 100,
+      start_cursor: cursor,
+    });
+    allResults.push(...response.results);
+    cursor = response.has_more ? response.next_cursor : undefined;
+  } while (cursor);
+  return allResults.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"));
+}
+
 export async function getProjects(): Promise<Project[]> {
-  const response = await notion.databases.query({
-    database_id: databaseId,
-    filter: {
+  return queryAll(
+    {
       or: [
         { property: "État - CMD", status: { equals: "Cabines à recevoir" } },
         { property: "État - CMD", status: { equals: "Livraison partielle" } },
@@ -179,16 +195,13 @@ export async function getProjects(): Promise<Project[]> {
         { property: "État - CMD", status: { equals: "Soucis montage" } },
       ],
     },
-    sorts: [{ property: "Date Montage", direction: "descending" }],
-    page_size: 100,
-  });
-  return response.results.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"));
+    [{ property: "Date Montage", direction: "descending" }]
+  );
 }
 
 export async function getProjectsMesures(): Promise<Project[]> {
-  const response = await notion.databases.query({
-    database_id: databaseId,
-    filter: {
+  return queryAll(
+    {
       and: [
         { property: "État - CMD", status: { equals: "En attente de mesures" } },
         {
@@ -205,42 +218,34 @@ export async function getProjectsMesures(): Promise<Project[]> {
         },
       ],
     },
-    sorts: [{ property: "Date Montage", direction: "descending" }],
-    page_size: 100,
-  });
-  return response.results.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"));
+    [{ property: "Date Montage", direction: "descending" }]
+  );
 }
 
 export async function getProjectsServices(): Promise<Project[]> {
-  const response = await notion.databases.query({
-    database_id: databaseId,
-    filter: {
+  return queryAll(
+    {
       and: [
         { property: "Type de services", multi_select: { contains: "Services" } },
         { property: "État - CMD", status: { does_not_equal: "Annulé" } },
         { property: "État - CMD", status: { does_not_equal: "Terminé" } },
       ],
     },
-    sorts: [{ property: "Date Montage", direction: "descending" }],
-    page_size: 100,
-  });
-  return response.results.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"));
+    [{ property: "Date Montage", direction: "descending" }]
+  );
 }
 
 export async function getProjectsSAV(): Promise<Project[]> {
-  const response = await notion.databases.query({
-    database_id: databaseId,
-    filter: {
+  return queryAll(
+    {
       and: [
         { property: "État - SAV", status: { does_not_equal: "Aucun SAV" } },
         { property: "État - SAV", status: { does_not_equal: "Terminé" } },
         { property: "SAV Clôturé", checkbox: { equals: false } },
       ],
     },
-    sorts: [{ property: "Date Montage", direction: "descending" }],
-    page_size: 100,
-  });
-  return response.results.map(mapPageToProject).filter((p) => !p.projet.startsWith("[DATA]"));
+    [{ property: "Date Montage", direction: "descending" }]
+  );
 }
 
 export async function getProject(pageId: string): Promise<Project> {
