@@ -637,15 +637,18 @@ function HomePage() {
       if (d.user) setCurrentUser(d.user);
     }).catch(() => {});
 
-    // 2. Pré-charger TOUS les onglets en arrière-plan
+    // 2. Pré-charger TOUS les onglets en arrière-plan (dédupliqué par URL)
     const allModes = Object.entries(MODE_API) as [string, string][];
+    const uniqueUrls = [...new Set(allModes.map(([, url]) => url))];
+    const urlDataMap: Record<string, any> = {};
     Promise.all(
-      allModes.map(([key, url]) =>
-        fetchWithRetry(url, undefined, 2, (msg, retry) => showRetryToast(msg, () => { retry().catch(() => {}); })).then((r) => r.json()).then((data) => ({ key, data })).catch(() => ({ key, data: null }))
+      uniqueUrls.map((url) =>
+        fetchWithRetry(url, undefined, 2, (msg, retry) => showRetryToast(msg, () => { retry().catch(() => {}); })).then((r) => r.json()).then((data) => { urlDataMap[url] = data; }).catch(() => {})
       )
-    ).then((results) => {
+    ).then(() => {
       const newData: Record<string, any> = {};
-      results.forEach(({ key, data }) => {
+      allModes.forEach(([key, url]) => {
+        const data = urlDataMap[url];
         if (Array.isArray(data)) newData[key] = data;
       });
       setProjectsData((prev) => {
@@ -659,13 +662,16 @@ function HomePage() {
 
   const refreshAllProjects = useCallback(() => {
     const allModes = Object.entries(MODE_API) as [string, string][];
+    const uniqueUrls = [...new Set(allModes.map(([, url]) => url))];
+    const urlDataMap: Record<string, any> = {};
     Promise.all(
-      allModes.map(([key, url]) =>
-        fetchWithRetry(url, undefined, 2, (msg, retry) => showRetryToast(msg, () => { retry().catch(() => {}); })).then((r) => r.json()).then((data) => ({ key, data })).catch(() => ({ key, data: null }))
+      uniqueUrls.map((url) =>
+        fetchWithRetry(url, undefined, 2, (msg, retry) => showRetryToast(msg, () => { retry().catch(() => {}); })).then((r) => r.json()).then((data) => { urlDataMap[url] = data; }).catch(() => {})
       )
-    ).then((results) => {
+    ).then(() => {
       const newData: Record<string, any> = {};
-      results.forEach(({ key, data }) => {
+      allModes.forEach(([key, url]) => {
+        const data = urlDataMap[url];
         if (Array.isArray(data)) newData[key] = data;
       });
       setProjectsData((prev) => {

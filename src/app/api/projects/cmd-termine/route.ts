@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { notion, databaseId, mapPageToProject } from "@/lib/notion";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 120;
 
 export async function GET() {
   try {

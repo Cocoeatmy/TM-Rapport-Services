@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAllActiveProjects } from "@/lib/notion";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 300;
+export const revalidate = 120; // ISR: re-validate toutes les 2 minutes
 
 export async function GET() {
   try {

@@ -6,6 +6,21 @@ export const notion = new Client({
 
 export const databaseId = process.env.NOTION_DATABASE_ID!;
 
+// Cache mémoire serveur (survit entre les requêtes sur le même processus)
+const memoryCache = new Map<string, { data: any; expiry: number }>();
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+function getCached<T>(key: string): T | null {
+  const entry = memoryCache.get(key);
+  if (entry && Date.now() < entry.expiry) return entry.data as T;
+  if (entry) memoryCache.delete(key);
+  return null;
+}
+
+function setCache(key: string, data: any): void {
+  memoryCache.set(key, { data, expiry: Date.now() + CACHE_TTL });
+}
+
 export interface Project {
   id: string;
   projet: string;
@@ -232,7 +247,9 @@ async function queryAll(filter: any, sorts?: any[]): Promise<Project[]> {
 }
 
 export async function getProjects(): Promise<Project[]> {
-  return queryAll(
+  const cached = getCached<Project[]>("projects-cmd");
+  if (cached) return cached;
+  const result = await queryAll(
     {
       or: [
         { property: "État - CMD", status: { equals: "Cabines à recevoir" } },
@@ -247,10 +264,14 @@ export async function getProjects(): Promise<Project[]> {
     },
     [{ property: "Date Montage", direction: "descending" }]
   );
+  setCache("projects-cmd", result);
+  return result;
 }
 
 export async function getProjectsMesures(): Promise<Project[]> {
-  return queryAll(
+  const cached = getCached<Project[]>("projects-mesures");
+  if (cached) return cached;
+  const result = await queryAll(
     {
       and: [
         { property: "État - CMD", status: { equals: "En attente de mesures" } },
@@ -270,10 +291,14 @@ export async function getProjectsMesures(): Promise<Project[]> {
     },
     [{ property: "Date Montage", direction: "descending" }]
   );
+  setCache("projects-mesures", result);
+  return result;
 }
 
 export async function getProjectsServices(): Promise<Project[]> {
-  return queryAll(
+  const cached = getCached<Project[]>("projects-services");
+  if (cached) return cached;
+  const result = await queryAll(
     {
       and: [
         { property: "Type de services", multi_select: { contains: "Services" } },
@@ -283,10 +308,14 @@ export async function getProjectsServices(): Promise<Project[]> {
     },
     [{ property: "Date Montage", direction: "descending" }]
   );
+  setCache("projects-services", result);
+  return result;
 }
 
 export async function getProjectsSAV(): Promise<Project[]> {
-  return queryAll(
+  const cached = getCached<Project[]>("projects-sav");
+  if (cached) return cached;
+  const result = await queryAll(
     {
       and: [
         { property: "État - SAV", status: { does_not_equal: "Aucun SAV" } },
@@ -296,11 +325,15 @@ export async function getProjectsSAV(): Promise<Project[]> {
     },
     [{ property: "Date Montage", direction: "descending" }]
   );
+  setCache("projects-sav", result);
+  return result;
 }
 
 // Tous les projets non terminés/non annulés (pour les vues Grossistes/Fournisseurs)
 export async function getAllActiveProjects(): Promise<Project[]> {
-  return queryAll(
+  const cached = getCached<Project[]>("projects-all-active");
+  if (cached) return cached;
+  const result = await queryAll(
     {
       and: [
         { property: "État - CMD", status: { does_not_equal: "Annulé" } },
@@ -309,6 +342,8 @@ export async function getAllActiveProjects(): Promise<Project[]> {
     },
     [{ property: "Date Montage", direction: "descending" }]
   );
+  setCache("projects-all-active", result);
+  return result;
 }
 
 export async function getProject(pageId: string): Promise<Project> {

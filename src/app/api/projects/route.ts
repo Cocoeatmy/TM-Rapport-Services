@@ -3,7 +3,7 @@ import { getProjects, createProject, deleteProject } from "@/lib/notion";
 import { getCached, setCache, invalidateCache } from "@/lib/server-cache";
 import { verifyToken } from "@/lib/auth";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 120;
 
 export async function GET() {
   try {
