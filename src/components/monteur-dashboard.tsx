@@ -340,7 +340,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | null>(null);
   const todayStr = getTodayStr();
   const weekEndStr = getWeekEndStr();
   const thisWeekEndStr = getThisWeekEndStr();
@@ -473,6 +473,27 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Monteurs actifs</p>
         </button>
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        {(() => {
+          const rdvAFixerStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
+          const rdvAFixerCount = projects.filter((p) => rdvAFixerStatuses.includes(p.etatCMD)).length;
+          return (
+            <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rdv-a-fixer" ? null : "rdv-a-fixer")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{rdvAFixerCount}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV à fixer</p>
+            </button>
+          );
+        })()}
+        {(() => {
+          const rdvFixeCount = projects.filter((p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé").length;
+          return (
+            <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rdv-fixe" ? null : "rdv-fixe")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{rdvFixeCount}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV fixé</p>
+            </button>
+          );
+        })()}
+      </div>
 
       {/* Summary panel */}
       {showSummaryPanel && (() => {
@@ -512,6 +533,17 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               ))}
             </div>
           );
+        } else if (showSummaryPanel === "rdv-a-fixer") {
+          panelTitle = "RDV à fixer";
+          const rdvAFixerStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
+          panelProjects = projects
+            .filter((p) => rdvAFixerStatuses.includes(p.etatCMD))
+            .sort((a, b) => ((a.dateMontage || "z").split("T")[0]).localeCompare((b.dateMontage || "z").split("T")[0]));
+        } else if (showSummaryPanel === "rdv-fixe") {
+          panelTitle = "RDV fixé";
+          panelProjects = projects
+            .filter((p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé")
+            .sort((a, b) => ((a.dateMontage || a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMontage || b.dateMesures || "z").split("T")[0]));
         }
 
         return (
