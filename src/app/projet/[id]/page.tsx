@@ -1162,17 +1162,33 @@ function ProjectPageContent({ id }: { id: string }) {
                             />
                           </div>
                           <div>
-                            <Label className="text-xs">Collaborateur</Label>
-                            <select
-                              value={entry.collaborateur}
-                              onChange={(e) => updatePointage(idx, "collaborateur", e.target.value)}
-                              className="mt-0.5 h-10 w-full rounded-md border border-gray-200 bg-white px-2 text-sm truncate"
-                            >
-                              <option value="">Sélectionner...</option>
-                              {COLLABORATEURS_LIST.map((c) => (
-                                <option key={c} value={c}>{c}</option>
-                              ))}
-                            </select>
+                            <Label className="text-xs">Collaborateurs</Label>
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {COLLABORATEURS_LIST.map((c) => {
+                                const selected = (entry.collaborateur || "").split(" & ").map((s) => s.trim()).includes(c);
+                                const colors = getCollaboratorColor(c);
+                                return (
+                                  <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => {
+                                      const current = (entry.collaborateur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
+                                      const newVal = selected
+                                        ? current.filter((n) => n !== c).join(" & ")
+                                        : [...current, c].join(" & ");
+                                      updatePointage(idx, "collaborateur", newVal);
+                                    }}
+                                    className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full transition-all ${
+                                      selected ? "ring-2 ring-offset-1 ring-blue-400" : "opacity-40"
+                                    }`}
+                                    style={{ backgroundColor: colors.bg, color: colors.text }}
+                                  >
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.dot }} />
+                                    {c}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
