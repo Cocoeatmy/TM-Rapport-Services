@@ -1187,17 +1187,24 @@ function HomePage() {
       {/* VUE GROSSISTES */}
       {mode.startsWith("grossistes") && (() => {
         const allCmd = projectsData["cmd"] || [];
-        const grossisteNameFilter: Record<string, string> = {
-          "grossistes-bms": "BMS", "grossistes-dubat": "Dubat", "grossistes-tema": "Tema",
-          "grossistes-matway": "MatWay", "grossistes-bringhen": "Bringhen",
+        // Mots-clés par grossiste (cherchés dans le nom du projet et nom chantier)
+        const grossisteKeywords: Record<string, string[]> = {
+          "grossistes-bms": ["Gétaz", "Getaz", "BMS"],
+          "grossistes-dubat": ["Dubat"],
+          "grossistes-tema": ["Tema"],
+          "grossistes-matway": ["Matway", "MatWay"],
+          "grossistes-bringhen": ["Bringhen"],
         };
-        const nameFilter = grossisteNameFilter[mode];
+        const keywords = grossisteKeywords[mode];
         const grossistesProjects = allCmd.filter((p) => {
+          // Exclure Annulé et Terminé
+          if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
+          // Type de client = Grossistes
           if (p.typeClient !== "Grossistes") return false;
-          if (nameFilter) {
-            return p.fournisseurs.some((f) => f.toLowerCase().includes(nameFilter.toLowerCase())) ||
-              p.projet.toLowerCase().includes(nameFilter.toLowerCase()) ||
-              p.nomChantier.toLowerCase().includes(nameFilter.toLowerCase());
+          // Si sous-menu sélectionné, filtrer par mots-clés
+          if (keywords) {
+            const searchText = `${p.projet} ${p.nomChantier} ${p.fournisseurs.join(" ")} ${p.cmdGrossiste} ${p.ofrGrossiste}`.toLowerCase();
+            return keywords.some((kw) => searchText.includes(kw.toLowerCase()));
           }
           return true;
         });
@@ -1328,10 +1335,11 @@ function HomePage() {
         };
         const nameFilter = fournisseurNameFilter[mode];
         const fournisseursProjects = allCmd.filter((p) => {
+          if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
           if (p.typeClient !== "Fournisseurs") return false;
           if (nameFilter) {
-            return p.fournisseurs.some((f) => f.toLowerCase().includes(nameFilter.toLowerCase())) ||
-              p.projet.toLowerCase().includes(nameFilter.toLowerCase());
+            const searchText = `${p.projet} ${p.fournisseurs.join(" ")}`.toLowerCase();
+            return searchText.includes(nameFilter.toLowerCase());
           }
           return true;
         });
