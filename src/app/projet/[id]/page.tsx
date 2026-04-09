@@ -850,9 +850,18 @@ function ProjectPageContent({ id }: { id: string }) {
         return;
       }
 
-      // 2. Wait for Notion to propagate, then generate PDF
-      await new Promise((r) => setTimeout(r, 4000));
-      const pdfRes = await fetch(`/api/pdf/${id}`);
+      // 2. Generate PDF with override params (don't rely on Notion propagation)
+      const arriveeFinal = isMultiDay
+        ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
+        : heureArrivee;
+      const departFinal = isMultiDay
+        ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
+        : heureDepart;
+      const pdfParams = new URLSearchParams();
+      if (arriveeFinal) pdfParams.set("arrivee", arriveeFinal);
+      if (departFinal) pdfParams.set("depart", departFinal);
+      await new Promise((r) => setTimeout(r, 2000));
+      const pdfRes = await fetch(`/api/pdf/${id}?${pdfParams.toString()}`);
       if (!pdfRes.ok) {
         toast.error("Erreur lors de la generation du PDF");
         setSending(false);

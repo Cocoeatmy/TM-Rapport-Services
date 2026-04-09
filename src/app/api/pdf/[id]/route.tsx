@@ -667,6 +667,13 @@ export async function GET(
   try {
     const { id } = await params;
     const project = await getProject(id);
+
+    // Override heures from query params if provided (avoids Notion propagation delay)
+    const arriveeOverride = request.nextUrl.searchParams.get("arrivee");
+    const departOverride = request.nextUrl.searchParams.get("depart");
+    if (arriveeOverride) project.heureArrivee = arriveeOverride;
+    if (departOverride) project.heureDepart = departOverride;
+
     const pieces = loadPiecesForProject(id);
     const defauts = loadDefautsForProject(id);
 
