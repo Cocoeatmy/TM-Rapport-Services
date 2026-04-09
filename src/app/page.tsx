@@ -1186,25 +1186,36 @@ function HomePage() {
 
       {/* VUE GROSSISTES */}
       {mode.startsWith("grossistes") && (() => {
-        const allCmd = projectsData["cmd"] || [];
-        // Mots-clés par grossiste (cherchés dans le nom du projet et nom chantier)
+        const allCmd = [...(projectsData["cmd"] || []), ...(projectsData["mesures"] || []), ...(projectsData["services"] || []), ...(projectsData["sav"] || [])]
+          .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+
         const grossisteKeywords: Record<string, string[]> = {
-          "grossistes-bms": ["Gétaz", "Getaz", "BMS"],
+          "grossistes-bms": ["Gétaz", "Getaz"],
           "grossistes-dubat": ["Dubat"],
           "grossistes-tema": ["Tema"],
           "grossistes-matway": ["Matway", "MatWay"],
           "grossistes-bringhen": ["Bringhen"],
         };
         const keywords = grossisteKeywords[mode];
+
         const grossistesProjects = allCmd.filter((p) => {
           if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
-          if (p.typeClient !== "Grossistes") return false;
+
           if (keywords) {
-            // Chercher dans les noms résolus de la relation Grossistes
+            // Sous-menu: chercher dans grossistesNames (relation résolue)
             const grossisteText = (p.grossistesNames || []).join(" ").toLowerCase();
-            return keywords.some((kw) => grossisteText.includes(kw.toLowerCase()));
+            if (grossisteText && keywords.some((kw) => grossisteText.includes(kw.toLowerCase()))) return true;
+            // Fallback: chercher dans le nom du projet si le projet contient le nom du grossiste
+            const projetText = p.projet.toLowerCase();
+            if (keywords.some((kw) => projetText.includes(kw.toLowerCase()))) return true;
+            return false;
           }
-          return true;
+
+          // "Tous": montrer uniquement les projets Type de client = Grossistes
+          // OU ceux qui ont une relation Grossistes remplie
+          const hasTypeGrossiste = p.typeClient === "Grossistes";
+          const hasGrossistesRelation = (p.grossistesRelation || []).length > 0;
+          return hasTypeGrossiste || hasGrossistesRelation;
         });
 
         const q = search.toLowerCase();
