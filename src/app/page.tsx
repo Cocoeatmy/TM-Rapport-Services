@@ -166,7 +166,7 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
   return (
     <div className="mb-4 space-y-1.5">
       {/* Ligne principale */}
-      <div className="glass-tabs p-1.5 rounded-2xl max-w-full sm:max-w-lg">
+      <div className="glass-tabs p-1.5 rounded-2xl max-w-full sm:max-w-2xl overflow-x-auto scrollbar-hide">
         <div className="flex gap-1">
           <button onClick={() => { handleSelect("dashboard"); setOpen(null); }} className={tabCls(mode === "dashboard")}>
             Dashboard
@@ -183,6 +183,15 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
             mode === "rapport" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
           }`}>
             Rapport
+          </button>
+          <button onClick={() => { handleSelect("grossistes"); setOpen(null); }} className={tabCls(mode === "grossistes")}>
+            Grossistes
+          </button>
+          <button onClick={() => { handleSelect("fournisseurs"); setOpen(null); }} className={tabCls(mode === "fournisseurs")}>
+            Fournisseurs
+          </button>
+          <button onClick={() => { handleSelect("stats"); setOpen(null); }} className={tabCls(mode === "stats")}>
+            Stats
           </button>
         </div>
       </div>
@@ -469,8 +478,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "fournisseurs" | "stats";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "fournisseurs", "stats"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -512,6 +521,7 @@ function HomePage() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [conflictFilter, setConflictFilter] = useState<string | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
+  const [statsExpandedSections, setStatsExpandedSections] = useState<Set<string>>(new Set(["kpis", "monthly"]));
 
   const MODE_API: Record<string, string> = {
     dashboard: "/api/projects",
@@ -882,7 +892,7 @@ function HomePage() {
         <div className="flex-1 min-w-0">
           <NavBar mode={mode} projectsData={projectsData} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); }} />
         </div>
-        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("clients-") && (
+        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "grossistes" && mode !== "fournisseurs" && mode !== "stats" && !mode.startsWith("clients-") && (
           <button
             onClick={() => setShowNewProject(true)}
             className="shrink-0 mt-1.5 w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
@@ -1112,8 +1122,551 @@ function HomePage() {
         <CRMClients mode={mode as "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes"} isAdmin={currentUser?.role === "admin"} />
       )}
 
+      {/* VUE GROSSISTES */}
+      {mode === "grossistes" && (() => {
+        const allCmd = projectsData["cmd"] || [];
+        const grossistesProjects = allCmd.filter((p) => p.typeClient === "Grossistes");
+
+        const q = search.toLowerCase();
+        const grossistesFiltered = grossistesProjects.filter((p) => {
+          if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
+          if (statusFilter && p.etatCMD !== statusFilter) return false;
+          return (
+            p.projet.toLowerCase().includes(q) ||
+            p.ofrTM.toLowerCase().includes(q) ||
+            p.nomChantier.toLowerCase().includes(q) ||
+            p.fournisseurs.some((f) => f.toLowerCase().includes(q))
+          );
+        }).sort((a, b) => {
+          const dateA = a.dateMontage;
+          const dateB = b.dateMontage;
+          if (dateA && dateB) return dateA.localeCompare(dateB);
+          if (dateA && !dateB) return -1;
+          if (!dateA && dateB) return 1;
+          return (STATUS_SORT_ORDER[a.etatCMD] ?? 5) - (STATUS_SORT_ORDER[b.etatCMD] ?? 5);
+        });
+
+        const gStatusCounts = grossistesProjects.reduce<Record<string, number>>((acc, p) => {
+          if (p.etatCMD) acc[p.etatCMD] = (acc[p.etatCMD] || 0) + 1;
+          return acc;
+        }, {});
+
+        const gCollabCounts = COLLABORATEURS_LIST.reduce<Record<string, number>>((acc, name) => {
+          acc[name] = grossistesProjects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase())).length;
+          return acc;
+        }, {});
+
+        return (
+          <div>
+            <div className="relative mb-4 max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Rechercher dans les projets Grossistes..."
+                className="pl-9 h-11 rounded-xl glass-input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            {/* Filtres statut */}
+            <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
+              <button
+                onClick={() => setStatusFilter(null)}
+                className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                  !statusFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"
+                }`}
+              >
+                Tous ({grossistesProjects.length})
+              </button>
+              {Object.entries(gStatusCounts).map(([status, count]) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(statusFilter === status ? null : status)}
+                  className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${
+                    statusFilter === status
+                      ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                      : `${STATUS_CMD_COLORS[status] || "bg-gray-100 text-gray-700"} border-transparent`
+                  }`}
+                >
+                  {status} ({count})
+                </button>
+              ))}
+            </div>
+            {/* Filtres collab */}
+            <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3 scrollbar-hide">
+              <button
+                onClick={() => setCollabFilter(null)}
+                className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                  !collabFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"
+                }`}
+              >
+                Tous
+              </button>
+              {COLLABORATEURS_LIST.map((name) => {
+                const colors = getCollaboratorColor(name);
+                return (
+                  <button
+                    key={name}
+                    onClick={() => setCollabFilter(collabFilter === name ? null : name)}
+                    className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors inline-flex items-center gap-1 whitespace-nowrap"
+                    style={
+                      collabFilter === name
+                        ? { backgroundColor: "#1e3a5f", color: "white" }
+                        : { backgroundColor: colors.bg, color: colors.text }
+                    }
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: collabFilter === name ? "white" : colors.dot }} />
+                    {name} ({gCollabCounts[name] || 0})
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-sm text-gray-500 mb-3">
+              {grossistesFiltered.length} projet{grossistesFiltered.length !== 1 ? "s" : ""}
+              {" · "}
+              {grossistesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cabine{grossistesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
+            </p>
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            )}
+            <div className="space-y-3">
+              {grossistesFiltered.map((project) => (
+                <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
+              ))}
+              {grossistesFiltered.length === 0 && !loading && (
+                <div className="text-center py-12 text-gray-400">
+                  <p className="text-lg">Aucun projet Grossistes</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* VUE FOURNISSEURS */}
+      {mode === "fournisseurs" && (() => {
+        const allCmd = projectsData["cmd"] || [];
+        const fournisseursProjects = allCmd.filter((p) => p.typeClient === "Fournisseurs");
+
+        const q = search.toLowerCase();
+        const fournisseursFiltered = fournisseursProjects.filter((p) => {
+          if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
+          if (statusFilter && p.etatCMD !== statusFilter) return false;
+          return (
+            p.projet.toLowerCase().includes(q) ||
+            p.ofrTM.toLowerCase().includes(q) ||
+            p.nomChantier.toLowerCase().includes(q) ||
+            p.fournisseurs.some((f) => f.toLowerCase().includes(q))
+          );
+        }).sort((a, b) => {
+          const dateA = a.dateMontage;
+          const dateB = b.dateMontage;
+          if (dateA && dateB) return dateA.localeCompare(dateB);
+          if (dateA && !dateB) return -1;
+          if (!dateA && dateB) return 1;
+          return (STATUS_SORT_ORDER[a.etatCMD] ?? 5) - (STATUS_SORT_ORDER[b.etatCMD] ?? 5);
+        });
+
+        const fStatusCounts = fournisseursProjects.reduce<Record<string, number>>((acc, p) => {
+          if (p.etatCMD) acc[p.etatCMD] = (acc[p.etatCMD] || 0) + 1;
+          return acc;
+        }, {});
+
+        const fCollabCounts = COLLABORATEURS_LIST.reduce<Record<string, number>>((acc, name) => {
+          acc[name] = fournisseursProjects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase())).length;
+          return acc;
+        }, {});
+
+        return (
+          <div>
+            <div className="relative mb-4 max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Rechercher dans les projets Fournisseurs..."
+                className="pl-9 h-11 rounded-xl glass-input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            {/* Filtres statut */}
+            <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
+              <button
+                onClick={() => setStatusFilter(null)}
+                className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                  !statusFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"
+                }`}
+              >
+                Tous ({fournisseursProjects.length})
+              </button>
+              {Object.entries(fStatusCounts).map(([status, count]) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(statusFilter === status ? null : status)}
+                  className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${
+                    statusFilter === status
+                      ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                      : `${STATUS_CMD_COLORS[status] || "bg-gray-100 text-gray-700"} border-transparent`
+                  }`}
+                >
+                  {status} ({count})
+                </button>
+              ))}
+            </div>
+            {/* Filtres collab */}
+            <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3 scrollbar-hide">
+              <button
+                onClick={() => setCollabFilter(null)}
+                className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                  !collabFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"
+                }`}
+              >
+                Tous
+              </button>
+              {COLLABORATEURS_LIST.map((name) => {
+                const colors = getCollaboratorColor(name);
+                return (
+                  <button
+                    key={name}
+                    onClick={() => setCollabFilter(collabFilter === name ? null : name)}
+                    className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors inline-flex items-center gap-1 whitespace-nowrap"
+                    style={
+                      collabFilter === name
+                        ? { backgroundColor: "#1e3a5f", color: "white" }
+                        : { backgroundColor: colors.bg, color: colors.text }
+                    }
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: collabFilter === name ? "white" : colors.dot }} />
+                    {name} ({fCollabCounts[name] || 0})
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-sm text-gray-500 mb-3">
+              {fournisseursFiltered.length} projet{fournisseursFiltered.length !== 1 ? "s" : ""}
+              {" · "}
+              {fournisseursFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cabine{fournisseursFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
+            </p>
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            )}
+            <div className="space-y-3">
+              {fournisseursFiltered.map((project) => (
+                <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
+              ))}
+              {fournisseursFiltered.length === 0 && !loading && (
+                <div className="text-center py-12 text-gray-400">
+                  <p className="text-lg">Aucun projet Fournisseurs</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* VUE STATS */}
+      {mode === "stats" && (() => {
+        const cmdProjects = projectsData["cmd"] || [];
+        const cmdTermine = projectsData["cmd-termine"] || [];
+        const mesuresProjects = projectsData["mesures"] || [];
+        const mesuresTermine = projectsData["mesures-termine"] || [];
+        const savProjects = projectsData["sav"] || [];
+        const allActive = cmdProjects;
+        const allCompleted = cmdTermine;
+        const allProjects = [...cmdProjects, ...cmdTermine];
+
+        // KPIs
+        const totalInProgress = cmdProjects.length;
+        const totalCabinesInProgress = cmdProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+        const now = new Date();
+        const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const completedThisMonth = allCompleted.filter((p) => (p.dateMontage || "").startsWith(thisMonth)).length;
+        const completionRate = allProjects.length > 0 ? Math.round((allCompleted.length / allProjects.length) * 100) : 0;
+
+        // Monthly stats for last 6 months
+        const monthNames = ["Jan", "Fev", "Mar", "Avr", "Mai", "Jun", "Jul", "Aou", "Sep", "Oct", "Nov", "Dec"];
+        const last6Months: { key: string; label: string; projects: number; cabines: number }[] = [];
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const label = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+          const monthProjects = allProjects.filter((p) => (p.dateMontage || "").startsWith(key));
+          const monthCabines = monthProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+          last6Months.push({ key, label, projects: monthProjects.length, cabines: monthCabines });
+        }
+        const maxMonthProjects = Math.max(...last6Months.map((m) => m.projects), 1);
+        const maxMonthCabines = Math.max(...last6Months.map((m) => m.cabines), 1);
+
+        // Breakdown by collaborator
+        const collabStats = COLLABORATEURS_LIST.map((name) => {
+          const collabProjects = allProjects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase()));
+          const cabines = collabProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+          const soucisCount = collabProjects.filter((p) => p.soucisMontage).length;
+          const soucisRate = collabProjects.length > 0 ? Math.round((soucisCount / collabProjects.length) * 100) : 0;
+          return { name, projects: collabProjects.length, cabines, soucisCount, soucisRate };
+        }).sort((a, b) => b.projects - a.projects);
+
+        // Breakdown by fournisseur
+        const fournisseurMap: Record<string, { projects: number; cabines: number }> = {};
+        allProjects.forEach((p) => {
+          p.fournisseurs.forEach((f) => {
+            if (!fournisseurMap[f]) fournisseurMap[f] = { projects: 0, cabines: 0 };
+            fournisseurMap[f].projects += 1;
+            fournisseurMap[f].cabines += p.nbCabines || 0;
+          });
+        });
+        const fournisseurStats = Object.entries(fournisseurMap).sort((a, b) => b[1].projects - a[1].projects);
+
+        // Breakdown by typeClient
+        const typeClientMap: Record<string, { projects: number; cabines: number }> = {};
+        cmdProjects.forEach((p) => {
+          const tc = p.typeClient || "Non defini";
+          if (!typeClientMap[tc]) typeClientMap[tc] = { projects: 0, cabines: 0 };
+          typeClientMap[tc].projects += 1;
+          typeClientMap[tc].cabines += p.nbCabines || 0;
+        });
+        const typeClientStats = Object.entries(typeClientMap).sort((a, b) => b[1].projects - a[1].projects);
+
+        // SAV stats
+        const savTotal = savProjects.length;
+        const savFromAll = allProjects.filter((p) => p.sav).length;
+        const savRate = allProjects.length > 0 ? Math.round((savFromAll / allProjects.length) * 100) : 0;
+
+        const expandedSections = statsExpandedSections;
+        const toggleSection = (s: string) => {
+          setStatsExpandedSections((prev) => {
+            const next = new Set(prev);
+            if (next.has(s)) next.delete(s); else next.add(s);
+            return next;
+          });
+        };
+
+        return (
+          <div className="space-y-4">
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            )}
+
+            {/* KPIs */}
+            <div>
+              <button onClick={() => toggleSection("kpis")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                {expandedSections.has("kpis") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                Indicateurs cles
+              </button>
+              {expandedSections.has("kpis") && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="glass-card rounded-2xl p-4 text-center">
+                    <p className="text-3xl font-bold text-[#1e3a5f] dark:text-white">{totalInProgress}</p>
+                    <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
+                  </div>
+                  <div className="glass-card rounded-2xl p-4 text-center">
+                    <p className="text-3xl font-bold text-[#1e3a5f] dark:text-white">{totalCabinesInProgress}</p>
+                    <p className="text-xs text-gray-500 mt-1">Cabines en cours</p>
+                  </div>
+                  <div className="glass-card rounded-2xl p-4 text-center">
+                    <p className="text-3xl font-bold text-green-600">{completedThisMonth}</p>
+                    <p className="text-xs text-gray-500 mt-1">Termines ce mois</p>
+                  </div>
+                  <div className="glass-card rounded-2xl p-4 text-center">
+                    <p className="text-3xl font-bold text-blue-600">{completionRate}%</p>
+                    <p className="text-xs text-gray-500 mt-1">Taux completion</p>
+                    <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${completionRate}%` }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Monthly chart */}
+            <div>
+              <button onClick={() => toggleSection("monthly")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                {expandedSections.has("monthly") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                Tendance mensuelle (6 mois)
+              </button>
+              {expandedSections.has("monthly") && (
+                <div className="glass-card rounded-2xl p-4">
+                  <div className="space-y-3">
+                    {last6Months.map((m) => (
+                      <div key={m.key} className="flex items-center gap-3">
+                        <span className="text-xs font-medium text-gray-500 w-20 shrink-0">{m.label}</span>
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-400 w-14 shrink-0">Projets</span>
+                            <div className="flex-1 h-4 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-blue-500 rounded-full transition-all flex items-center justify-end pr-1"
+                                style={{ width: `${Math.max((m.projects / maxMonthProjects) * 100, 2)}%` }}
+                              >
+                                <span className="text-[9px] font-bold text-white">{m.projects}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-400 w-14 shrink-0">Cabines</span>
+                            <div className="flex-1 h-4 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-green-500 rounded-full transition-all flex items-center justify-end pr-1"
+                                style={{ width: `${Math.max((m.cabines / maxMonthCabines) * 100, 2)}%` }}
+                              >
+                                <span className="text-[9px] font-bold text-white">{m.cabines}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Collaborators breakdown */}
+            <div>
+              <button onClick={() => toggleSection("collabs")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                {expandedSections.has("collabs") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                Par collaborateur
+              </button>
+              {expandedSections.has("collabs") && (
+                <div className="space-y-2">
+                  {collabStats.map((cs) => {
+                    const colors = getCollaboratorColor(cs.name);
+                    const maxCollabProjects = Math.max(...collabStats.map((c) => c.projects), 1);
+                    return (
+                      <div key={cs.name} className="glass-card rounded-2xl p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: colors.dot }} />
+                          <span className="text-sm font-semibold">{cs.name}</span>
+                          <span className="ml-auto text-xs text-gray-500">{cs.projects} projets</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 text-center mb-2">
+                          <div>
+                            <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.cabines}</p>
+                            <p className="text-[10px] text-gray-400">cabines</p>
+                          </div>
+                          <div>
+                            <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.soucisCount}</p>
+                            <p className="text-[10px] text-gray-400">soucis</p>
+                          </div>
+                          <div>
+                            <p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p>
+                            <p className="text-[10px] text-gray-400">taux soucis</p>
+                          </div>
+                        </div>
+                        <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${(cs.projects / maxCollabProjects) * 100}%`, backgroundColor: colors.dot }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Fournisseurs breakdown */}
+            <div>
+              <button onClick={() => toggleSection("fournisseurs")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                {expandedSections.has("fournisseurs") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                Par fournisseur
+              </button>
+              {expandedSections.has("fournisseurs") && (
+                <div className="glass-card rounded-2xl p-4">
+                  <div className="space-y-2">
+                    {fournisseurStats.slice(0, 15).map(([name, data]) => {
+                      const maxFProjects = Math.max(...fournisseurStats.map(([, d]) => d.projects), 1);
+                      return (
+                        <div key={name} className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0 truncate">{name}</span>
+                          <div className="flex-1 h-5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-amber-500 rounded-full transition-all flex items-center justify-end pr-1.5"
+                              style={{ width: `${Math.max((data.projects / maxFProjects) * 100, 5)}%` }}
+                            >
+                              <span className="text-[9px] font-bold text-white">{data.projects}</span>
+                            </div>
+                          </div>
+                          <span className="text-xs text-gray-500 shrink-0 w-16 text-right">{data.cabines} cab.</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Type client breakdown */}
+            <div>
+              <button onClick={() => toggleSection("typeclient")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                {expandedSections.has("typeclient") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                Par type de client
+              </button>
+              {expandedSections.has("typeclient") && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {typeClientStats.map(([type, data]) => {
+                    const totalTypeProjects = typeClientStats.reduce((s, [, d]) => s + d.projects, 0);
+                    const pct = totalTypeProjects > 0 ? Math.round((data.projects / totalTypeProjects) * 100) : 0;
+                    return (
+                      <div key={type} className="glass-card rounded-2xl p-4">
+                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{type}</h4>
+                        <div className="grid grid-cols-2 gap-3 text-center mb-3">
+                          <div>
+                            <p className="text-2xl font-bold text-[#1e3a5f] dark:text-white">{data.projects}</p>
+                            <p className="text-[10px] text-gray-400">projets</p>
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-[#1e3a5f] dark:text-white">{data.cabines}</p>
+                            <p className="text-[10px] text-gray-400">cabines</p>
+                          </div>
+                        </div>
+                        <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1 text-right">{pct}% du total</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* SAV stats */}
+            <div>
+              <button onClick={() => toggleSection("sav")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                {expandedSections.has("sav") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                SAV
+              </button>
+              {expandedSections.has("sav") && (
+                <div className="glass-card rounded-2xl p-4">
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <p className="text-3xl font-bold text-red-500">{savTotal}</p>
+                      <p className="text-xs text-gray-500 mt-1">SAV en cours</p>
+                    </div>
+                    <div>
+                      <p className="text-3xl font-bold text-orange-500">{savFromAll}</p>
+                      <p className="text-xs text-gray-500 mt-1">Projets avec SAV</p>
+                    </div>
+                    <div>
+                      <p className={`text-3xl font-bold ${savRate > 10 ? "text-red-500" : savRate > 5 ? "text-yellow-500" : "text-green-500"}`}>{savRate}%</p>
+                      <p className="text-xs text-gray-500 mt-1">Taux SAV</p>
+                      <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${savRate > 10 ? "bg-red-500" : savRate > 5 ? "bg-yellow-500" : "bg-green-500"}`} style={{ width: `${Math.min(savRate, 100)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && mode !== "rapport" && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && mode !== "rapport" && mode !== "grossistes" && mode !== "fournisseurs" && mode !== "stats" && viewMode === "list" && (
         <div className="flex gap-3 mb-4">
           <button
             onClick={() => setViewMode("calendar")}
@@ -1574,7 +2127,7 @@ function HomePage() {
         );
       })()}
 
-      {mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("clients-") && (<>
+      {mode !== "dashboard" && mode !== "rapport" && mode !== "grossistes" && mode !== "fournisseurs" && mode !== "stats" && !mode.startsWith("clients-") && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {
         const favIds = typeof window !== "undefined" ? getFavorites() : [];
