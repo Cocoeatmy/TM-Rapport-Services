@@ -205,6 +205,9 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
           <button onClick={() => { handleSelect("stats"); setOpen(null); }} className={tabCls(mode === "stats")}>
             Stats
           </button>
+          <button onClick={() => { handleSelect("archives"); setOpen(null); }} className={tabCls(mode === "archives")}>
+            Archives
+          </button>
         </div>
       </div>
 
@@ -522,8 +525,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "stats";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "stats"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "stats" | "archives";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "stats", "archives"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -592,6 +595,7 @@ function HomePage() {
     "fournisseurs-novellini": "/api/projects",
     "fournisseurs-samo": "/api/projects",
     stats: "/api/projects",
+    archives: "/api/projects/cmd-termine",
   };
 
   const [rapportSearch, setRapportSearch] = useState("");
@@ -950,7 +954,7 @@ function HomePage() {
         <div className="flex-1 min-w-0">
           <NavBar mode={mode} projectsData={projectsData} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); }} />
         </div>
-        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "grossistes" && mode !== "fournisseurs" && mode !== "stats" && !mode.startsWith("clients-") && (
+        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "grossistes" && mode !== "fournisseurs" && mode !== "stats" && mode !== "archives" && !mode.startsWith("clients-") && (
           <button
             onClick={() => setShowNewProject(true)}
             className="shrink-0 mt-1.5 w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
@@ -2210,7 +2214,106 @@ function HomePage() {
         );
       })()}
 
-      {mode !== "dashboard" && mode !== "rapport" && mode !== "grossistes" && mode !== "fournisseurs" && mode !== "stats" && !mode.startsWith("clients-") && (<>
+      {/* VUE ARCHIVES */}
+      {mode === "archives" && (() => {
+        const archiveProjects = (projectsData["archives"] || projectsData["cmd-termine"] || [])
+          .sort((a: any, b: any) => ((b.dateMontage || "").localeCompare(a.dateMontage || "")));
+
+        const q = search.toLowerCase();
+        const archiveFiltered = q
+          ? archiveProjects.filter((p: any) =>
+              p.projet.toLowerCase().includes(q) ||
+              p.ofrTM.toLowerCase().includes(q) ||
+              p.nomChantier.toLowerCase().includes(q) ||
+              p.collaborateurs.toLowerCase().includes(q) ||
+              p.fournisseurs.some((f: string) => f.toLowerCase().includes(q))
+            )
+          : archiveProjects;
+
+        // Group by month
+        const grouped: Record<string, any[]> = {};
+        archiveFiltered.forEach((p: any) => {
+          const date = p.dateMontage || "";
+          const monthKey = date ? date.substring(0, 7) : "Sans date";
+          if (!grouped[monthKey]) grouped[monthKey] = [];
+          grouped[monthKey].push(p);
+        });
+
+        const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+        const formatMonth = (key: string) => {
+          if (key === "Sans date") return key;
+          const [y, m] = key.split("-");
+          return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
+        };
+
+        return (
+          <div>
+            <div className="relative mb-4 max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Rechercher dans les archives..."
+                className="pl-9 h-11 rounded-xl glass-input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <p className="text-sm text-gray-500 mb-4">{archiveFiltered.length} projet{archiveFiltered.length !== 1 ? "s" : ""} terminé{archiveFiltered.length !== 1 ? "s" : ""}</p>
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            )}
+            {Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([monthKey, projs]) => (
+              <div key={monthKey} className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4" />
+                  {formatMonth(monthKey)} ({projs.length})
+                </h3>
+                <div className="space-y-3">
+                  {projs.map((p: any) => (
+                    <Link key={p.id} href={`/projet/${p.id}?mode=archives`}
+                      className="block glass-card rounded-2xl p-4 hover:bg-white/80 dark:hover:bg-white/10 transition-all">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{p.projet || "Sans nom"}</h4>
+                          {p.ofrTM && <p className="text-xs text-gray-500 mt-0.5">OFR {p.ofrTM}</p>}
+                          <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            <Calendar className="w-3.5 h-3.5 shrink-0" />
+                            <span>{p.dateMontage ? formatDateFR(p.dateMontage) : "---"}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {(p.collaborateurs || "").split(" & ").filter(Boolean).map((name: string) => (
+                              <span key={name} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full"
+                                style={{ backgroundColor: getCollaboratorColor(name.trim()).bg, color: getCollaboratorColor(name.trim()).text }}>
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getCollaboratorColor(name.trim()).dot }} />
+                                {name.trim()}
+                              </span>
+                            ))}
+                            {p.fournisseurs?.slice(0, 2).map((f: string) => (
+                              <Badge key={f} variant="secondary" className="text-xs">{f}</Badge>
+                            ))}
+                            <Badge variant="outline" className="text-xs">{p.nbCabines || 0} cab.</Badge>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 whitespace-nowrap">
+                          Terminé
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {archiveFiltered.length === 0 && !loading && (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-lg">Aucun projet archivé</p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {mode !== "dashboard" && mode !== "rapport" && mode !== "grossistes" && mode !== "fournisseurs" && mode !== "stats" && mode !== "archives" && !mode.startsWith("clients-") && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {
         const favIds = typeof window !== "undefined" ? getFavorites() : [];
