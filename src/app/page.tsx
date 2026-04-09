@@ -1238,10 +1238,6 @@ function HomePage() {
           return acc;
         }, {});
 
-        const gCollabCounts = COLLABORATEURS_LIST.reduce<Record<string, number>>((acc, name) => {
-          acc[name] = grossistesProjects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase())).length;
-          return acc;
-        }, {});
 
         return (
           <div>
@@ -1278,34 +1274,6 @@ function HomePage() {
                 </button>
               ))}
             </div>
-            {/* Filtres collab */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3 scrollbar-hide">
-              <button
-                onClick={() => setCollabFilter(null)}
-                className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                  !collabFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"
-                }`}
-              >
-                Tous
-              </button>
-              {COLLABORATEURS_LIST.map((name) => {
-                const colors = getCollaboratorColor(name);
-                return (
-                  <button
-                    key={name}
-                    onClick={() => setCollabFilter(collabFilter === name ? null : name)}
-                    className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors inline-flex items-center gap-1 whitespace-nowrap"
-                    style={
-                      collabFilter === name
-                        ? { backgroundColor: "#1e3a5f", color: "white" }
-                        : { backgroundColor: colors.bg, color: colors.text }
-                    }
-                  >
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: collabFilter === name ? "white" : colors.dot }} />
-                    {name} ({gCollabCounts[name] || 0})
-                  </button>
-                );
-              })}
             </div>
             <p className="text-sm text-gray-500 mb-3">
               {grossistesFiltered.length} projet{grossistesFiltered.length !== 1 ? "s" : ""}
