@@ -153,6 +153,16 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
   const isClientsActive = clientsModes.includes(mode);
   const clientsActiveLabel = clientsLabels[mode] || "";
 
+  const grossistesModes = ["grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen"];
+  const grossistesLabels: Record<string, string> = { grossistes: "Tous", "grossistes-bms": "BMS", "grossistes-dubat": "Dubat", "grossistes-tema": "Tema Sàrl", "grossistes-matway": "MatWay", "grossistes-bringhen": "Bringhen" };
+  const isGrossisteActive = grossistesModes.includes(mode);
+  const grossisteActiveLabel = grossistesLabels[mode] || "";
+
+  const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo"];
+  const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-ronal": "Ronal", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-samo": "Samo" };
+  const isFournisseursActive = fournisseursModes.includes(mode);
+  const fournisseurActiveLabel = fournisseursLabels[mode] || "";
+
   const tabCls = (active: boolean) =>
     `shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 inline-flex items-center gap-1 ${
       active ? "glass-tab-active text-[#1e3a5f] dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
@@ -184,11 +194,13 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
           }`}>
             Rapport
           </button>
-          <button onClick={() => { handleSelect("grossistes"); setOpen(null); }} className={tabCls(mode === "grossistes")}>
-            Grossistes
+          <button onClick={() => setOpen(open === "grossistes" ? null : "grossistes")} className={tabCls(isGrossisteActive || open === "grossistes")}>
+            {isGrossisteActive && grossisteActiveLabel && grossisteActiveLabel !== "Tous" ? `Grossistes · ${grossisteActiveLabel}` : "Grossistes"}
+            <ChevronDown className={`w-3 h-3 transition-transform ${open === "grossistes" ? "rotate-180" : ""}`} />
           </button>
-          <button onClick={() => { handleSelect("fournisseurs"); setOpen(null); }} className={tabCls(mode === "fournisseurs")}>
-            Fournisseurs
+          <button onClick={() => setOpen(open === "fournisseurs-menu" ? null : "fournisseurs-menu")} className={tabCls(isFournisseursActive || open === "fournisseurs-menu")}>
+            {isFournisseursActive && fournisseurActiveLabel && fournisseurActiveLabel !== "Tous" ? `Fournisseurs · ${fournisseurActiveLabel}` : "Fournisseurs"}
+            <ChevronDown className={`w-3 h-3 transition-transform ${open === "fournisseurs-menu" ? "rotate-180" : ""}`} />
           </button>
           <button onClick={() => { handleSelect("stats"); setOpen(null); }} className={tabCls(mode === "stats")}>
             Stats
@@ -223,6 +235,38 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
                   : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
               }`}>
               {clientsLabels[m]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Sous-menu Grossistes */}
+      {open === "grossistes" && (
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1">
+          {grossistesModes.map((m) => (
+            <button key={m} onClick={() => handleSelect(m)}
+              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                mode === m
+                  ? "bg-[#1e3a5f] text-white"
+                  : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+              }`}>
+              {grossistesLabels[m]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Sous-menu Fournisseurs */}
+      {open === "fournisseurs-menu" && (
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1">
+          {fournisseursModes.map((m) => (
+            <button key={m} onClick={() => handleSelect(m)}
+              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                mode === m
+                  ? "bg-[#1e3a5f] text-white"
+                  : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+              }`}>
+              {fournisseursLabels[m]}
             </button>
           ))}
         </div>
@@ -478,8 +522,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "fournisseurs" | "stats";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "fournisseurs", "stats"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "stats";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "stats"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -534,6 +578,20 @@ function HomePage() {
     sav: "/api/projects/sav",
     "sav-termine": "/api/projects/sav-termine",
     rapport: "/api/projects/cmd-termine",
+    grossistes: "/api/projects",
+    "grossistes-bms": "/api/projects",
+    "grossistes-dubat": "/api/projects",
+    "grossistes-tema": "/api/projects",
+    "grossistes-matway": "/api/projects",
+    "grossistes-bringhen": "/api/projects",
+    fournisseurs: "/api/projects",
+    "fournisseurs-duka": "/api/projects",
+    "fournisseurs-duscholux": "/api/projects",
+    "fournisseurs-ronal": "/api/projects",
+    "fournisseurs-nelo": "/api/projects",
+    "fournisseurs-novellini": "/api/projects",
+    "fournisseurs-samo": "/api/projects",
+    stats: "/api/projects",
   };
 
   const [rapportSearch, setRapportSearch] = useState("");
@@ -1123,9 +1181,22 @@ function HomePage() {
       )}
 
       {/* VUE GROSSISTES */}
-      {mode === "grossistes" && (() => {
+      {mode.startsWith("grossistes") && (() => {
         const allCmd = projectsData["cmd"] || [];
-        const grossistesProjects = allCmd.filter((p) => p.typeClient === "Grossistes");
+        const grossisteNameFilter: Record<string, string> = {
+          "grossistes-bms": "BMS", "grossistes-dubat": "Dubat", "grossistes-tema": "Tema",
+          "grossistes-matway": "MatWay", "grossistes-bringhen": "Bringhen",
+        };
+        const nameFilter = grossisteNameFilter[mode];
+        const grossistesProjects = allCmd.filter((p) => {
+          if (p.typeClient !== "Grossistes") return false;
+          if (nameFilter) {
+            return p.fournisseurs.some((f) => f.toLowerCase().includes(nameFilter.toLowerCase())) ||
+              p.projet.toLowerCase().includes(nameFilter.toLowerCase()) ||
+              p.nomChantier.toLowerCase().includes(nameFilter.toLowerCase());
+          }
+          return true;
+        });
 
         const q = search.toLowerCase();
         const grossistesFiltered = grossistesProjects.filter((p) => {
@@ -1245,9 +1316,21 @@ function HomePage() {
       })()}
 
       {/* VUE FOURNISSEURS */}
-      {mode === "fournisseurs" && (() => {
+      {mode.startsWith("fournisseurs") && !mode.startsWith("fournisseurs-menu") && (() => {
         const allCmd = projectsData["cmd"] || [];
-        const fournisseursProjects = allCmd.filter((p) => p.typeClient === "Fournisseurs");
+        const fournisseurNameFilter: Record<string, string> = {
+          "fournisseurs-duka": "Duka", "fournisseurs-duscholux": "Duscholux", "fournisseurs-ronal": "Ronal",
+          "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-samo": "Samo",
+        };
+        const nameFilter = fournisseurNameFilter[mode];
+        const fournisseursProjects = allCmd.filter((p) => {
+          if (p.typeClient !== "Fournisseurs") return false;
+          if (nameFilter) {
+            return p.fournisseurs.some((f) => f.toLowerCase().includes(nameFilter.toLowerCase())) ||
+              p.projet.toLowerCase().includes(nameFilter.toLowerCase());
+          }
+          return true;
+        });
 
         const q = search.toLowerCase();
         const fournisseursFiltered = fournisseursProjects.filter((p) => {
