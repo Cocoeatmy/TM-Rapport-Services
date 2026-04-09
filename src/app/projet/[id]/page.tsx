@@ -77,6 +77,7 @@ import { getCollaboratorColor } from "@/lib/collaborators";
 import { addToQueue, isOnline } from "@/lib/offline";
 import { fetchWithRetry } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
+import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "Non planifié";
@@ -508,6 +509,78 @@ function InfoRow({
   );
 }
 
+function StatusDropdown({
+  project,
+  mode,
+  onUpdate,
+}: {
+  project: Project;
+  mode: string;
+  onUpdate: (field: string, value: string) => void;
+}) {
+  const isMesures = mode === "mesures";
+  const statusColors = isMesures ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
+  const currentStatus = isMesures ? project.etatMesures : project.etatCMD;
+  const field = isMesures ? "etatMesures" : "etatCMD";
+  const label = isMesures ? "Mesures" : "CMD";
+  const colorClass = statusColors[currentStatus] || "bg-gray-100 text-gray-700";
+  const [saving, setSaving] = useState(false);
+
+  const handleChange = async (newStatus: string) => {
+    if (newStatus === currentStatus) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: newStatus }),
+      });
+      if (res.ok) {
+        onUpdate(field, newStatus);
+        toast.success(`Statut ${label} mis a jour`);
+        // Log the change
+        try {
+          await fetch("/api/logs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              projectId: project.id,
+              projectName: project.projet,
+              action: `Reclassification ${label}`,
+              details: `${currentStatus} -> ${newStatus}`,
+            }),
+          });
+        } catch {}
+      } else {
+        toast.error("Erreur lors du changement de statut");
+      }
+    } catch {
+      toast.error("Erreur reseau");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${colorClass}`}>
+        {currentStatus || "---"}
+      </span>
+      <select
+        value={currentStatus || ""}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={saving}
+        className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-700 dark:text-gray-300 disabled:opacity-50"
+      >
+        {!currentStatus && <option value="">---</option>}
+        {Object.keys(statusColors).map((status) => (
+          <option key={status} value={status}>{status}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 /** Parse time from formats: "HH:MM" or "date collab HH:MM | ..." — returns minutes since midnight */
 function parseTimeRaw(raw: string): number | null {
   if (!raw || !raw.trim()) return null;
@@ -677,6 +750,13 @@ function ProjectPageContent({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [reformulating, setReformulating] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth").then((r) => r.json()).then((d) => {
+      if (d.user) setCurrentUser(d.user);
+    }).catch(() => {});
+  }, []);
 
   const handleReformulate = async () => {
     if (!rapport.trim()) return;
@@ -946,6 +1026,17 @@ function ProjectPageContent({ id }: { id: string }) {
             </h1>
             {project.ofrTM && (
               <p className="text-xs text-gray-500">OFR {project.ofrTM}</p>
+            )}
+            {currentUser?.role === "admin" && (
+              <div className="mt-1">
+                <StatusDropdown
+                  project={project}
+                  mode={mode}
+                  onUpdate={(field, value) => {
+                    setProject((prev) => prev ? { ...prev, [field]: value } : prev);
+                  }}
+                />
+              </div>
             )}
           </div>
           <button

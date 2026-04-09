@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Onboarding } from "@/components/onboarding";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
@@ -40,85 +40,102 @@ const CRMClients = dynamic(() => import("@/components/crm-clients").then(m => ({
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
-function ProjectCard({ project, mode }: { project: Project; mode: string }) {
+function ProjectCard({ project, mode, isAdmin, onDelete }: { project: Project; mode: string; isAdmin?: boolean; onDelete?: (id: string) => void }) {
   const statusColors = mode.startsWith("mesures") ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
   const statusValue = mode.startsWith("mesures") ? project.etatMesures : project.etatCMD;
   const statusColor = statusColors[statusValue] || "bg-gray-100 text-gray-700";
 
   return (
-    <Link
-      href={`/projet/${project.id}?mode=${mode}`}
-      prefetch={true}
-      className="block glass-card rounded-2xl p-4"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
-            {project.projet || "Sans nom"}
-          </h3>
-          {project.ofrTM && (
-            <p className="text-xs text-gray-500 mt-0.5">OFR {project.ofrTM}</p>
-          )}
-          {project.nomChantier && (
-            <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-600 dark:text-gray-400">
-              <FileText className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">{project.nomChantier}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
-            <MapPin className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">
-              {project.adresseChantier || "---"}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
-            <Calendar className="w-3.5 h-3.5 shrink-0" />
-            <span>{formatDateFR(mode.startsWith("mesures") ? project.dateMesures : project.dateMontage)}</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {project.fournisseurs.slice(0, 2).map((f) => (
-              <Badge key={f} variant="secondary" className="text-xs">
-                {f}
-              </Badge>
-            ))}
-            {project.nbCabines && (
-              <Badge variant="outline" className="text-xs">
-                {project.nbCabines} cabine{project.nbCabines > 1 ? "s" : ""}
-              </Badge>
+    <div className="relative group">
+      <Link
+        href={`/projet/${project.id}?mode=${mode}`}
+        prefetch={true}
+        className="block glass-card rounded-2xl p-4"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
+              {project.projet || "Sans nom"}
+            </h3>
+            {project.ofrTM && (
+              <p className="text-xs text-gray-500 mt-0.5">OFR {project.ofrTM}</p>
             )}
-            {project.emplacementCabine && (
-              <Badge variant="outline" className="text-xs">
-                {project.emplacementCabine}
-              </Badge>
+            {project.nomChantier && (
+              <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-600 dark:text-gray-400">
+                <FileText className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{project.nomChantier}</span>
+              </div>
             )}
-            {((mode === "mesures" ? project.mesuresTraiteePar : project.collaborateurs) || "").split(" & ").filter(Boolean).map((name) => (
-              <span
-                key={name}
-                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full"
-                style={{
-                  backgroundColor: getCollaboratorColor(name.trim()).bg,
-                  color: getCollaboratorColor(name.trim()).text,
-                }}
-              >
-                <span
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ backgroundColor: getCollaboratorColor(name.trim()).dot }}
-                />
-                {name.trim()}
+            <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
+              <MapPin className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">
+                {project.adresseChantier || "---"}
               </span>
-            ))}
+            </div>
+            <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
+              <Calendar className="w-3.5 h-3.5 shrink-0" />
+              <span>{formatDateFR(mode.startsWith("mesures") ? project.dateMesures : project.dateMontage)}</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {project.fournisseurs.slice(0, 2).map((f) => (
+                <Badge key={f} variant="secondary" className="text-xs">
+                  {f}
+                </Badge>
+              ))}
+              {project.nbCabines && (
+                <Badge variant="outline" className="text-xs">
+                  {project.nbCabines} cabine{project.nbCabines > 1 ? "s" : ""}
+                </Badge>
+              )}
+              {project.emplacementCabine && (
+                <Badge variant="outline" className="text-xs">
+                  {project.emplacementCabine}
+                </Badge>
+              )}
+              {((mode === "mesures" ? project.mesuresTraiteePar : project.collaborateurs) || "").split(" & ").filter(Boolean).map((name) => (
+                <span
+                  key={name}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full"
+                  style={{
+                    backgroundColor: getCollaboratorColor(name.trim()).bg,
+                    color: getCollaboratorColor(name.trim()).text,
+                  }}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: getCollaboratorColor(name.trim()).dot }}
+                  />
+                  {name.trim()}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <span
+              className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap glass-status ${statusColor}`}
+            >
+              {statusValue || "---"}
+            </span>
+            <ChevronRight className="w-5 h-5 text-gray-300" />
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <span
-            className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap glass-status ${statusColor}`}
-          >
-            {statusValue || "---"}
-          </span>
-          <ChevronRight className="w-5 h-5 text-gray-300" />
-        </div>
-      </div>
-    </Link>
+      </Link>
+      {isAdmin && onDelete && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (confirm(`Archiver le projet "${project.projet}" ? Cette action est reversible depuis Notion.`)) {
+              onDelete(project.id);
+            }
+          }}
+          className="absolute top-3 right-3 w-7 h-7 rounded-full bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/50 transition-all z-10"
+          title="Archiver le projet"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -219,6 +236,222 @@ function SkeletonCard() {
   );
 }
 
+function NewProjectModal({ open, onClose, onCreated, currentMode }: { open: boolean; onClose: () => void; onCreated: () => void; currentMode: string }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    projet: "",
+    ofrTM: "",
+    nomChantier: "",
+    adresseChantier: "",
+    nbCabines: "",
+    date: "",
+    collaborateur: "",
+    status: "",
+  });
+
+  const isMesuresMode = currentMode.startsWith("mesures");
+  const statusOptions = isMesuresMode ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.projet.trim()) {
+      setError("Le nom du projet est requis");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      const body: any = {
+        projet: form.projet.trim(),
+      };
+      if (form.ofrTM) body.ofrTM = form.ofrTM;
+      if (form.nomChantier) body.nomChantier = form.nomChantier;
+      if (form.adresseChantier) body.adresseChantier = form.adresseChantier;
+      if (form.nbCabines) body.nbCabines = Number(form.nbCabines);
+      if (form.date) {
+        if (isMesuresMode) {
+          body.dateMesures = form.date;
+        } else {
+          body.dateMontage = form.date;
+        }
+      }
+      if (form.collaborateur) {
+        if (isMesuresMode) {
+          body.mesuresTraiteePar = form.collaborateur;
+        } else {
+          body.collaborateurs = form.collaborateur;
+        }
+      }
+      if (form.status) {
+        if (isMesuresMode) {
+          body.etatMesures = form.status;
+          body.etatCMD = "En attente de mesures";
+        } else {
+          body.etatCMD = form.status;
+        }
+      }
+
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Erreur lors de la creation");
+        return;
+      }
+
+      setForm({ projet: "", ofrTM: "", nomChantier: "", adresseChantier: "", nbCabines: "", date: "", collaborateur: "", status: "" });
+      onCreated();
+      onClose();
+    } catch {
+      setError("Erreur reseau, veuillez reessayer");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Nouveau projet</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Projet (nom) *</label>
+            <Input
+              value={form.projet}
+              onChange={(e) => setForm({ ...form, projet: e.target.value })}
+              placeholder="Nom du projet"
+              className="h-10 rounded-xl glass-input"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">N. OFR TM</label>
+              <Input
+                value={form.ofrTM}
+                onChange={(e) => setForm({ ...form, ofrTM: e.target.value })}
+                placeholder="Ex: 12345"
+                className="h-10 rounded-xl glass-input"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Nb. Cabines</label>
+              <Input
+                type="number"
+                min={0}
+                value={form.nbCabines}
+                onChange={(e) => setForm({ ...form, nbCabines: e.target.value })}
+                placeholder="0"
+                className="h-10 rounded-xl glass-input"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Nom chantier</label>
+            <Input
+              value={form.nomChantier}
+              onChange={(e) => setForm({ ...form, nomChantier: e.target.value })}
+              placeholder="Nom du chantier"
+              className="h-10 rounded-xl glass-input"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Adresse chantier</label>
+            <Input
+              value={form.adresseChantier}
+              onChange={(e) => setForm({ ...form, adresseChantier: e.target.value })}
+              placeholder="Adresse du chantier"
+              className="h-10 rounded-xl glass-input"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+              {isMesuresMode ? "Date de mesures" : "Date de montage"}
+            </label>
+            <Input
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              className="h-10 rounded-xl glass-input"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Collaborateur</label>
+            <select
+              value={form.collaborateur}
+              onChange={(e) => setForm({ ...form, collaborateur: e.target.value })}
+              className="w-full h-10 rounded-xl glass-input bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 text-sm"
+            >
+              <option value="">-- Aucun --</option>
+              {COLLABORATEURS_LIST.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Statut initial</label>
+            <select
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+              className="w-full h-10 rounded-xl glass-input bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 text-sm"
+            >
+              <option value="">-- Par defaut --</option>
+              {Object.keys(statusOptions).map((status) => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 h-10 rounded-xl bg-[#1e3a5f] text-white text-sm font-medium hover:bg-[#2a4f7f] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Creer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function Page() {
   return (
     <Suspense fallback={<div className="px-4 py-8 text-center text-gray-400">Chargement...</div>}>
@@ -278,6 +511,7 @@ function HomePage() {
   const [selectedMonteurStats, setSelectedMonteurStats] = useState<string>("");
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [conflictFilter, setConflictFilter] = useState<string | null>(null);
+  const [showNewProject, setShowNewProject] = useState(false);
 
   const MODE_API: Record<string, string> = {
     dashboard: "/api/projects",
@@ -331,7 +565,57 @@ function HomePage() {
     }).catch(() => setLoading(false));
   }, []);
 
+  const refreshAllProjects = useCallback(() => {
+    const allModes = Object.entries(MODE_API) as [string, string][];
+    Promise.all(
+      allModes.map(([key, url]) =>
+        fetchWithRetry(url, undefined, 2, (msg, retry) => showRetryToast(msg, () => { retry().catch(() => {}); })).then((r) => r.json()).then((data) => ({ key, data })).catch(() => ({ key, data: null }))
+      )
+    ).then((results) => {
+      const newData: Record<string, any> = {};
+      results.forEach(({ key, data }) => {
+        if (Array.isArray(data)) newData[key] = data;
+      });
+      setProjectsData((prev) => {
+        const merged = { ...prev, ...newData };
+        try { localStorage.setItem("tm-projects-cache", JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    });
+  }, []);
 
+  const handleDeleteProject = useCallback(async (projectId: string) => {
+    // Optimistic removal
+    setProjectsData((prev) => {
+      const updated: Record<string, Project[]> = {};
+      Object.entries(prev).forEach(([key, list]) => {
+        updated[key] = (list || []).filter((p) => p.id !== projectId);
+      });
+      try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+
+    try {
+      const res = await fetch("/api/projects", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pageId: projectId }),
+      });
+      if (res.ok) {
+        setToast("Projet archive avec succes");
+        setTimeout(() => setToast(null), 3000);
+      } else {
+        // Revert on failure
+        refreshAllProjects();
+        setToast("Erreur lors de l'archivage");
+        setTimeout(() => setToast(null), 3000);
+      }
+    } catch {
+      refreshAllProjects();
+      setToast("Erreur reseau");
+      setTimeout(() => setToast(null), 3000);
+    }
+  }, [refreshAllProjects]);
 
   const projects = projectsData[mode] || [];
   const isTermineMode = mode.endsWith("-termine");
@@ -593,8 +877,29 @@ function HomePage() {
           {toast}
         </div>
       )}
-      {/* Onglets navigation */}
-      <NavBar mode={mode} projectsData={projectsData} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); }} />
+      {/* Onglets navigation + Nouveau projet */}
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <NavBar mode={mode} projectsData={projectsData} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); }} />
+        </div>
+        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("clients-") && (
+          <button
+            onClick={() => setShowNewProject(true)}
+            className="shrink-0 mt-1.5 w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
+            title="Nouveau projet"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      {/* Modal nouveau projet */}
+      <NewProjectModal
+        open={showNewProject}
+        onClose={() => setShowNewProject(false)}
+        onCreated={refreshAllProjects}
+        currentMode={mode}
+      />
 
       {/* VUE DASHBOARD */}
       {mode === "dashboard" && (
@@ -1523,7 +1828,7 @@ function HomePage() {
 
             <div className="space-y-3">
               {displayedFiltered.map((project) => (
-                <ProjectCard key={project.id} project={project} mode={mode} />
+                <ProjectCard key={project.id} project={project} mode={mode} isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
               ))}
               {displayedFiltered.length === 0 && !error && (
                 <div className="text-center py-12 text-gray-400">

@@ -325,3 +325,94 @@ export async function updateProject(
     properties,
   });
 }
+
+export async function createProject(data: {
+  projet: string;
+  ofrTM?: string;
+  nomChantier?: string;
+  adresseChantier?: string;
+  nbCabines?: number;
+  dateMontage?: string;
+  dateMesures?: string;
+  collaborateurs?: string;
+  mesuresTraiteePar?: string;
+  etatCMD?: string;
+  etatMesures?: string;
+  contacts?: string;
+}): Promise<string> {
+  const properties: any = {
+    Projet: {
+      title: [{ text: { content: data.projet } }],
+    },
+  };
+
+  if (data.ofrTM) {
+    properties["N° OFR TM"] = {
+      rich_text: [{ text: { content: data.ofrTM } }],
+    };
+  }
+  if (data.nomChantier) {
+    properties["Nom chantier"] = {
+      rich_text: [{ text: { content: data.nomChantier } }],
+    };
+  }
+  if (data.adresseChantier) {
+    properties["Adresse chantier"] = {
+      rich_text: [{ text: { content: data.adresseChantier } }],
+    };
+  }
+  if (data.nbCabines !== undefined && data.nbCabines !== null) {
+    properties["Nb. Cabines"] = {
+      number: data.nbCabines,
+    };
+  }
+  if (data.dateMontage) {
+    properties["Date Montage"] = {
+      date: { start: data.dateMontage },
+    };
+  }
+  if (data.dateMesures) {
+    properties["Mesures traitée le"] = {
+      date: { start: data.dateMesures },
+    };
+  }
+  if (data.collaborateurs) {
+    properties["Collaborateurs montages"] = {
+      select: { name: data.collaborateurs },
+    };
+  }
+  if (data.mesuresTraiteePar) {
+    properties["Mesures traitée par"] = {
+      select: { name: data.mesuresTraiteePar },
+    };
+  }
+  if (data.etatCMD) {
+    properties["État - CMD"] = {
+      status: { name: data.etatCMD },
+    };
+  }
+  if (data.etatMesures) {
+    properties["État - Mesures"] = {
+      status: { name: data.etatMesures },
+    };
+  }
+  if (data.contacts) {
+    properties["Contacts projet"] = {
+      rich_text: [{ text: { content: data.contacts } }],
+    };
+  }
+
+  const page = await notion.pages.create({
+    parent: { database_id: databaseId },
+    properties,
+  });
+
+  return page.id;
+}
+
+export async function deleteProject(pageId: string): Promise<void> {
+  await notion.pages.update({
+    page_id: pageId,
+    archived: true,
+  });
+}
