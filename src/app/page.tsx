@@ -1199,17 +1199,19 @@ function HomePage() {
         const keywords = grossisteKeywords[mode];
 
         const grossistesProjects = allCmd.filter((p) => {
-          // Exclure Annulé et Terminé
+          // 1. État CMD ≠ Annulé et ≠ Terminé
           if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
+          // 2. Type de client = Grossistes
+          if (p.typeClient !== "Grossistes" && p.typeClient !== "Grossiste") return false;
 
           if (keywords) {
-            // Sous-menu (BMS, Dubat, etc.) : le titre du projet COMMENCE par le mot-clé
+            // Sous-menu : le titre du projet COMMENCE par le mot-clé
             const projetLower = p.projet.toLowerCase();
             return keywords.some((kw) => projetLower.startsWith(kw.toLowerCase()));
           }
 
-          // "Tous" : Type de client = Grossistes (ou Grossiste)
-          return p.typeClient === "Grossistes" || p.typeClient === "Grossiste";
+          // "Tous" : tous les projets Grossistes non terminés
+          return true;
         });
 
         const q = search.toLowerCase();
