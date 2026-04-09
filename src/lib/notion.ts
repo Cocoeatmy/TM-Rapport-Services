@@ -167,7 +167,7 @@ export function mapPageToProject(page: any): Project {
     etatSAV: extractStatus(p["État - SAV"]),
     sav: p["SAV"]?.checkbox || false,
     bonLivraison: extractText(p["Bon de livraison"]),
-    typeClient: extractStatus(p["Type de client"]),
+    typeClient: extractSelect(p["Type de client"]) || extractStatus(p["Type de client"]) || extractText(p["Type de client"]),
     grossistesRelation: extractRelationIds(p["Grossistes"]),
     grossistesNames: [], // resolved later
   };
