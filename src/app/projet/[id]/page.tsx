@@ -22,6 +22,7 @@ import {
   Trash2,
   Pencil,
   Check,
+  Sparkles,
 } from "lucide-react";
 import { MontageChecklist } from "@/components/checklist";
 import { ProjectChat } from "@/components/project-chat";
@@ -675,6 +676,29 @@ function ProjectPageContent({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
+  const [reformulating, setReformulating] = useState(false);
+
+  const handleReformulate = async () => {
+    if (!rapport.trim()) return;
+    setReformulating(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Reformule ce texte de rapport de montage de cabines de douche de manière professionnelle, claire et concise. Garde le sens exact mais améliore la formulation. Réponds uniquement avec le texte reformulé, sans introduction ni commentaire :\n\n${rapport}`,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.response) {
+          setRapport(data.response.trim());
+        }
+      }
+    } catch {} finally {
+      setReformulating(false);
+    }
+  };
 
   const [heureArrivee, setHeureArrivee] = useState("");
   const [heureDepart, setHeureDepart] = useState("");
@@ -826,8 +850,8 @@ function ProjectPageContent({ id }: { id: string }) {
         return;
       }
 
-      // 2. Wait for Notion to propagate the data, then generate PDF
-      await new Promise((r) => setTimeout(r, 2000));
+      // 2. Wait for Notion to propagate, then generate PDF
+      await new Promise((r) => setTimeout(r, 4000));
       const pdfRes = await fetch(`/api/pdf/${id}`);
       if (!pdfRes.ok) {
         toast.error("Erreur lors de la generation du PDF");
@@ -1322,6 +1346,17 @@ function ProjectPageContent({ id }: { id: string }) {
                         rows={3}
                         className="mt-3"
                       />
+                      {rapport.trim().length > 10 && (
+                        <button
+                          type="button"
+                          onClick={handleReformulate}
+                          disabled={reformulating}
+                          className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50"
+                        >
+                          {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                          {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+                        </button>
+                      )}
                       <div className="mt-3">
                         <VoiceRecorder
                           onTranscript={(text) =>
@@ -1526,6 +1561,17 @@ function ProjectPageContent({ id }: { id: string }) {
                       rows={3}
                       className="mt-3"
                     />
+                    {rapport.trim().length > 10 && (
+                      <button
+                        type="button"
+                        onClick={handleReformulate}
+                        disabled={reformulating}
+                        className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50"
+                      >
+                        {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                        {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+                      </button>
+                    )}
                   </CardContent>
                 </Card>
               </>
@@ -1574,7 +1620,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 {saving ? (
                   <Loader2 className="w-5 h-5 animate-spin mr-2" />
                 ) : (
-                  <Send className="w-5 h-5 mr-2" />
+                  <FileText className="w-5 h-5 mr-2" />
                 )}
                 Enregistrer le rapport
               </Button>
@@ -1588,7 +1634,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 {sending ? (
                   <Loader2 className="w-5 h-5 animate-spin mr-2" />
                 ) : (
-                  <FileText className="w-5 h-5 mr-2" />
+                  <Send className="w-5 h-5 mr-2" />
                 )}
                 Envoyer le rapport
               </Button>
