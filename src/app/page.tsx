@@ -954,7 +954,7 @@ function HomePage() {
         <div className="flex-1 min-w-0">
           <NavBar mode={mode} projectsData={projectsData} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); }} />
         </div>
-        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "grossistes" && mode !== "fournisseurs" && mode !== "stats" && mode !== "archives" && !mode.startsWith("clients-") && (
+        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && !mode.startsWith("clients-") && (
           <button
             onClick={() => setShowNewProject(true)}
             className="shrink-0 mt-1.5 w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
@@ -1766,7 +1766,7 @@ function HomePage() {
       })()}
 
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && mode !== "rapport" && mode !== "grossistes" && mode !== "fournisseurs" && mode !== "stats" && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && viewMode === "list" && (
         <div className="flex gap-3 mb-4">
           <button
             onClick={() => setViewMode("calendar")}
@@ -2326,7 +2326,7 @@ function HomePage() {
         );
       })()}
 
-      {mode !== "dashboard" && mode !== "rapport" && mode !== "grossistes" && mode !== "fournisseurs" && mode !== "stats" && mode !== "archives" && !mode.startsWith("clients-") && (<>
+      {mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && !mode.startsWith("clients-") && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {
         const favIds = typeof window !== "undefined" ? getFavorites() : [];
