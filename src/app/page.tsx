@@ -160,6 +160,13 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
 
   const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo"];
   const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-ronal": "Ronal", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-samo": "Samo" };
+  const fournisseursLogos: Record<string, string> = {
+    "fournisseurs-duka": "https://www.duka.it/img/logo.svg",
+    "fournisseurs-duscholux": "https://www.duscholux.com/images/duscholux_logo_horizontal_dark.png",
+    "fournisseurs-ronal": "https://www.ronalgroup.com/app/uploads/2017/10/SanSwiss_logo-neu.svg",
+    "fournisseurs-novellini": "https://www.novellini.com/content/experience-fragments/com/it/it/site/footer/master/_jcr_content/root/container/container_479623923/image.coreimg.png/1584973747874/logo-novellini-black%402x.png",
+    "fournisseurs-samo": "https://www.samo.it/img/samo/logo-samo_home-grey.png",
+  };
   const isFournisseursActive = fournisseursModes.includes(mode);
   const fournisseurActiveLabel = fournisseursLabels[mode] || "";
 
@@ -261,17 +268,27 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
 
       {/* Sous-menu Fournisseurs */}
       {open === "fournisseurs-menu" && (
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1">
-          {fournisseursModes.map((m) => (
-            <button key={m} onClick={() => handleSelect(m)}
-              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
-                mode === m
-                  ? "bg-[#1e3a5f] text-white"
-                  : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
-              }`}>
-              {fournisseursLabels[m]}
-            </button>
-          ))}
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center">
+          {fournisseursModes.map((m) => {
+            const logo = fournisseursLogos[m];
+            const isActive = mode === m;
+            return (
+              <button key={m} onClick={() => handleSelect(m)}
+                className={`shrink-0 rounded-xl transition-all px-3 py-1.5 flex items-center justify-center ${
+                  isActive
+                    ? "bg-[#1e3a5f] ring-2 ring-[#1e3a5f] ring-offset-2"
+                    : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
+                }`}>
+                {logo ? (
+                  <img src={logo} alt={fournisseursLabels[m]} className={`h-5 w-auto object-contain ${isActive ? "brightness-0 invert" : ""}`} />
+                ) : (
+                  <span className={`text-xs font-medium ${isActive ? "text-white" : "text-gray-600 dark:text-gray-300"}`}>
+                    {fournisseursLabels[m]}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
