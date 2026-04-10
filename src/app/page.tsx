@@ -140,7 +140,13 @@ function ProjectCard({ project, mode, isAdmin, onDelete }: { project: Project; m
 }
 
 function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void }) {
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(
+    mode.startsWith("grossistes") ? "grossistes" :
+    mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
+    mode.startsWith("services") || mode === "mesures" || mode === "cmd" || mode === "sav" ? "services" :
+    mode.startsWith("clients") ? "clients" :
+    null
+  );
   const count = (m: string) => (projectsData[m]?.length ?? "...");
 
   const servicesModes = ["mesures", "cmd", "services", "sav"];
@@ -184,7 +190,14 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
     }`;
 
   const handleSelect = (m: string) => {
-    setOpen(null);
+    // Garder le sous-menu ouvert pour grossistes et fournisseurs
+    if (m.startsWith("grossistes")) {
+      setOpen("grossistes");
+    } else if (m.startsWith("fournisseurs")) {
+      setOpen("fournisseurs-menu");
+    } else {
+      setOpen(null);
+    }
     onSwitchMode(m);
   };
 
