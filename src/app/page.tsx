@@ -573,6 +573,63 @@ function NewProjectModal({ open, onClose, onCreated, currentMode }: { open: bool
   );
 }
 
+function StatsDateFilter({ mode, from, to, month, year, onModeChange, onFromChange, onToChange, onMonthChange, onYearChange }: {
+  mode: "all"|"range"|"month"|"year"; from: string; to: string; month: string; year: string;
+  onModeChange: (m: "all"|"range"|"month"|"year") => void; onFromChange: (v: string) => void; onToChange: (v: string) => void; onMonthChange: (v: string) => void; onYearChange: (v: string) => void;
+}) {
+  const modes = [
+    { key: "all" as const, label: "Tout" },
+    { key: "month" as const, label: "Mois" },
+    { key: "year" as const, label: "Année" },
+    { key: "range" as const, label: "Période" },
+  ];
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-gray-100 dark:border-gray-700 mb-4">
+      <div className="flex gap-1.5 mb-2">
+        {modes.map(m => (
+          <button key={m.key} onClick={() => onModeChange(m.key)}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${mode === m.key ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"}`}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+      {mode === "range" && (
+        <div className="flex gap-2 items-center">
+          <input type="date" value={from} onChange={e => onFromChange(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200" />
+          <span className="text-xs text-gray-400">→</span>
+          <input type="date" value={to} onChange={e => onToChange(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200" />
+        </div>
+      )}
+      {mode === "month" && (
+        <input type="month" value={month} onChange={e => onMonthChange(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200" />
+      )}
+      {mode === "year" && (
+        <select value={year} onChange={e => onYearChange(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200">
+          {Array.from({length: 5}, (_, i) => String(new Date().getFullYear() - i)).map(y => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
+function filterByStatsDate(projects: any[], dateMode: "all"|"range"|"month"|"year", from: string, to: string, month: string, year: string) {
+  if (dateMode === "all") return projects;
+  return projects.filter(p => {
+    const d = (p.dateMontage || "").split("T")[0];
+    if (!d) return false;
+    if (dateMode === "range") {
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    }
+    if (dateMode === "month") return d.startsWith(month);
+    if (dateMode === "year") return d.startsWith(year);
+    return true;
+  });
+}
+
 export default function Page() {
   return (
     <Suspense fallback={<div className="px-4 py-8 text-center text-gray-400">Chargement...</div>}>
@@ -600,6 +657,11 @@ function HomePage() {
   const [collabFilter, setCollabFilter] = useState<string | null>(collabParam || collaborateurParam);
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
   const [subView, setSubView] = useState<"projets" | "stats">("projets");
+  const [statsDateMode, setStatsDateMode] = useState<"all" | "range" | "month" | "year">("all");
+  const [statsDateFrom, setStatsDateFrom] = useState("");
+  const [statsDateTo, setStatsDateTo] = useState("");
+  const [statsMonth, setStatsMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; });
+  const [statsYear, setStatsYear] = useState(() => String(new Date().getFullYear()));
   const isInitialMount = useRef(true);
 
   // Sync filters to URL search params
@@ -1311,12 +1373,15 @@ function HomePage() {
         }, {});
 
 
-        const totalCab = grossistesProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
-        const rdvFixe = grossistesProjects.filter(p => p.etatCMD === "RDV - fixé");
-        const termineCount = (projectsData["archives"] || []).filter((p: any) => {
+        const gStatsFiltered = filterByStatsDate(grossistesProjects, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+        const gArchivesAll = (projectsData["archives"] || []).filter((p: any) => {
           if (keywords) return keywords.some(kw => p.projet.toLowerCase().startsWith(kw.toLowerCase()));
           return p.typeClient === "Grossistes" || p.typeClient === "Grossiste";
-        }).length;
+        });
+        const gArchivesFiltered = filterByStatsDate(gArchivesAll, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+        const totalCab = gStatsFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
+        const rdvFixe = gStatsFiltered.filter((p: any) => p.etatCMD === "RDV - fixé");
+        const termineCount = gArchivesFiltered.length;
 
         return (
           <div>
@@ -1364,10 +1429,12 @@ function HomePage() {
               </>
             ) : (
               <div className="space-y-4">
+                <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
+                  onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
                 {/* KPIs */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{grossistesProjects.length}</p>
+                    <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{gStatsFiltered.length}</p>
                     <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
                   </div>
                   <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
@@ -1387,17 +1454,21 @@ function HomePage() {
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
                   <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Répartition par statut</h3>
                   <div className="space-y-2">
-                    {Object.entries(gStatusCounts).sort(([,a],[,b]) => b - a).map(([status, count]) => (
-                      <div key={status} className="flex items-center gap-2">
-                        <div className="w-32 sm:w-40 text-xs text-gray-600 dark:text-gray-400 truncate">{status}</div>
-                        <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden">
-                          <div className="h-full bg-[#1e3a5f] rounded-full flex items-center justify-end pr-1.5"
-                            style={{width:`${Math.max((count / grossistesProjects.length) * 100, 8)}%`}}>
-                            <span className="text-[10px] text-white font-medium">{count}</span>
+                    {(() => {
+                      const sc: Record<string, number> = {};
+                      gStatsFiltered.forEach((p: any) => { if (p.etatCMD) sc[p.etatCMD] = (sc[p.etatCMD] || 0) + 1; });
+                      return Object.entries(sc).sort(([,a],[,b]) => b - a).map(([status, count]) => (
+                        <div key={status} className="flex items-center gap-2">
+                          <div className="w-32 sm:w-40 text-xs text-gray-600 dark:text-gray-400 truncate">{status}</div>
+                          <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden">
+                            <div className="h-full bg-[#1e3a5f] rounded-full flex items-center justify-end pr-1.5"
+                              style={{width:`${Math.max((count / gStatsFiltered.length) * 100, 8)}%`}}>
+                              <span className="text-[10px] text-white font-medium">{count}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 </div>
                 {/* Répartition par collaborateur */}
@@ -1406,7 +1477,7 @@ function HomePage() {
                   <div className="space-y-2">
                     {(() => {
                       const collabCount: Record<string, {projets: number, cabines: number}> = {};
-                      grossistesProjects.forEach(p => {
+                      gStatsFiltered.forEach((p: any) => {
                         const names = p.collaborateurs ? p.collaborateurs.split("&").map((n: string) => n.trim()).filter(Boolean) : ["Non assigné"];
                         names.forEach((n: string) => {
                           if (!collabCount[n]) collabCount[n] = {projets:0, cabines:0};
@@ -1490,12 +1561,15 @@ function HomePage() {
           return acc;
         }, {});
 
-        const fTotalCab = fournisseursProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
-        const fRdvFixe = fournisseursProjects.filter(p => p.etatCMD === "RDV - fixé");
-        const fTermineCount = (projectsData["archives"] || []).filter((p: any) => {
+        const fStatsFiltered = filterByStatsDate(fournisseursProjects, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+        const fArchivesAll = (projectsData["archives"] || []).filter((p: any) => {
           if (nameFilter) return p.projet.toLowerCase().startsWith(nameFilter.toLowerCase());
           return p.typeClient === "Fournisseurs" || p.typeClient === "Fournisseur";
-        }).length;
+        });
+        const fArchivesFiltered = filterByStatsDate(fArchivesAll, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+        const fTotalCab = fStatsFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
+        const fRdvFixe = fStatsFiltered.filter((p: any) => p.etatCMD === "RDV - fixé");
+        const fTermineCount = fArchivesFiltered.length;
 
         return (
           <div>
@@ -1546,9 +1620,11 @@ function HomePage() {
               </>
             ) : (
               <div className="space-y-4">
+                <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
+                  onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{fournisseursProjects.length}</p>
+                    <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{fStatsFiltered.length}</p>
                     <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
                   </div>
                   <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
@@ -1567,17 +1643,21 @@ function HomePage() {
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
                   <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Répartition par statut</h3>
                   <div className="space-y-2">
-                    {Object.entries(fStatusCounts).sort(([,a],[,b]) => b - a).map(([status, count]) => (
-                      <div key={status} className="flex items-center gap-2">
-                        <div className="w-32 sm:w-40 text-xs text-gray-600 dark:text-gray-400 truncate">{status}</div>
-                        <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden">
-                          <div className="h-full bg-[#1e3a5f] rounded-full flex items-center justify-end pr-1.5"
-                            style={{width:`${Math.max((count / fournisseursProjects.length) * 100, 8)}%`}}>
-                            <span className="text-[10px] text-white font-medium">{count}</span>
+                    {(() => {
+                      const sc: Record<string, number> = {};
+                      fStatsFiltered.forEach((p: any) => { if (p.etatCMD) sc[p.etatCMD] = (sc[p.etatCMD] || 0) + 1; });
+                      return Object.entries(sc).sort(([,a],[,b]) => b - a).map(([status, count]) => (
+                        <div key={status} className="flex items-center gap-2">
+                          <div className="w-32 sm:w-40 text-xs text-gray-600 dark:text-gray-400 truncate">{status}</div>
+                          <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden">
+                            <div className="h-full bg-[#1e3a5f] rounded-full flex items-center justify-end pr-1.5"
+                              style={{width:`${Math.max((count / fStatsFiltered.length) * 100, 8)}%`}}>
+                              <span className="text-[10px] text-white font-medium">{count}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 </div>
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
@@ -1585,7 +1665,7 @@ function HomePage() {
                   <div className="space-y-2">
                     {(() => {
                       const collabCount: Record<string, {projets: number, cabines: number}> = {};
-                      fournisseursProjects.forEach(p => {
+                      fStatsFiltered.forEach((p: any) => {
                         const names = p.collaborateurs ? p.collaborateurs.split("&").map((n: string) => n.trim()).filter(Boolean) : ["Non assigné"];
                         names.forEach((n: string) => {
                           if (!collabCount[n]) collabCount[n] = {projets:0, cabines:0};
