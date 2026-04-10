@@ -264,6 +264,7 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
           {grossistesModes.map((m) => {
             const logo = grossistesLogos[m];
             const isActive = mode === m;
+            const bigLogo = m === "grossistes-dubat" || m === "grossistes-tema" || m === "grossistes-matway";
             return (
               <button key={m} onClick={() => handleSelect(m)}
                 className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center ${
@@ -272,7 +273,7 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
                 }`}>
                 {logo ? (
-                  <img src={logo} alt={grossistesLabels[m]} className="h-7 max-w-[100px] w-auto object-contain" />
+                  <img src={logo} alt={grossistesLabels[m]} className={`${bigLogo ? "h-9" : "h-7"} max-w-[108px] w-auto object-contain`} />
                 ) : (
                   <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
                     {grossistesLabels[m]}
