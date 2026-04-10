@@ -264,17 +264,15 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
           {grossistesModes.map((m) => {
             const logo = grossistesLogos[m];
             const isActive = mode === m;
-            const extraBig = m === "grossistes-dubat" || m === "grossistes-matway";
-            const big = m === "grossistes-tema";
             return (
               <button key={m} onClick={() => handleSelect(m)}
-                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center ${
+                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] px-2 py-1 flex items-center justify-center ${
                   isActive
                     ? "bg-white ring-2 ring-[#1e3a5f] ring-offset-1 shadow-md"
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
                 }`}>
                 {logo ? (
-                  <img src={logo} alt={grossistesLabels[m]} className={`${extraBig ? "h-10" : big ? "h-9" : "h-7"} max-w-[108px] w-auto object-contain`} />
+                  <img src={logo} alt={grossistesLabels[m]} className="max-h-[36px] max-w-[110px] w-full h-full object-contain" />
                 ) : (
                   <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
                     {grossistesLabels[m]}
@@ -292,16 +290,15 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
           {fournisseursModes.map((m) => {
             const logo = fournisseursLogos[m];
             const isActive = mode === m;
-            const bigLogo = m === "fournisseurs-duka" || m === "fournisseurs-duscholux" || m === "fournisseurs-ronal" || m === "fournisseurs-samo";
             return (
               <button key={m} onClick={() => handleSelect(m)}
-                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center ${
+                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] px-2 py-1 flex items-center justify-center ${
                   isActive
                     ? "bg-white ring-2 ring-[#1e3a5f] ring-offset-1 shadow-md"
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
                 }`}>
                 {logo ? (
-                  <img src={logo} alt={fournisseursLabels[m]} className={`${bigLogo ? "h-9" : "h-7"} max-w-[108px] w-auto object-contain`} />
+                  <img src={logo} alt={fournisseursLabels[m]} className="max-h-[36px] max-w-[110px] w-full h-full object-contain" />
                 ) : (
                   <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
                     {fournisseursLabels[m]}
