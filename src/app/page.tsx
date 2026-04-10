@@ -155,6 +155,13 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
 
   const grossistesModes = ["grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen"];
   const grossistesLabels: Record<string, string> = { grossistes: "Tous", "grossistes-bms": "BMS", "grossistes-dubat": "Dubat", "grossistes-tema": "Tema Sàrl", "grossistes-matway": "MatWay", "grossistes-bringhen": "Bringhen" };
+  const grossistesLogos: Record<string, string> = {
+    "grossistes-bms": "/logos/fournisseurs/BMS-Logo.png",
+    "grossistes-dubat": "/logos/fournisseurs/Dubat-Logo.png",
+    "grossistes-tema": "/logos/fournisseurs/Tema-Logo.png",
+    "grossistes-matway": "/logos/fournisseurs/Matway-Logo.png",
+    "grossistes-bringhen": "/logos/fournisseurs/Bringhen-logo.jpg",
+  };
   const isGrossisteActive = grossistesModes.includes(mode);
   const grossisteActiveLabel = grossistesLabels[mode] || "";
 
@@ -253,17 +260,27 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
 
       {/* Sous-menu Grossistes */}
       {open === "grossistes" && (
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1">
-          {grossistesModes.map((m) => (
-            <button key={m} onClick={() => handleSelect(m)}
-              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
-                mode === m
-                  ? "bg-[#1e3a5f] text-white"
-                  : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
-              }`}>
-              {grossistesLabels[m]}
-            </button>
-          ))}
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center">
+          {grossistesModes.map((m) => {
+            const logo = grossistesLogos[m];
+            const isActive = mode === m;
+            return (
+              <button key={m} onClick={() => handleSelect(m)}
+                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center ${
+                  isActive
+                    ? "bg-white ring-2 ring-[#1e3a5f] ring-offset-1 shadow-md"
+                    : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
+                }`}>
+                {logo ? (
+                  <img src={logo} alt={grossistesLabels[m]} className="h-7 max-w-[100px] w-auto object-contain" />
+                ) : (
+                  <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
+                    {grossistesLabels[m]}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
