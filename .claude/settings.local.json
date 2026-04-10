@@ -64,7 +64,8 @@
       "WebFetch(domain:asset.brandfetch.io)",
       "WebFetch(domain:img.nelo.swiss)",
       "WebFetch(domain:www.opengraph.xyz)",
-      "WebFetch(domain:static.wixstatic.com)"
+      "WebFetch(domain:static.wixstatic.com)",
+      "Bash(npm install:*)"
     ]
   }
 }

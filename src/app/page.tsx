@@ -1300,7 +1300,6 @@ function HomePage() {
                 </button>
               ))}
             </div>
-            </div>
             <p className="text-sm text-gray-500 mb-3">
               {grossistesFiltered.length} projet{grossistesFiltered.length !== 1 ? "s" : ""}
               {" · "}
