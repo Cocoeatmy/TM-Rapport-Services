@@ -599,6 +599,7 @@ function HomePage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(statusParam);
   const [collabFilter, setCollabFilter] = useState<string | null>(collabParam || collaborateurParam);
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
+  const [subView, setSubView] = useState<"projets" | "stats">("projets");
   const isInitialMount = useRef(true);
 
   // Sync filters to URL search params
@@ -1023,7 +1024,7 @@ function HomePage() {
       {/* Onglets navigation + Nouveau projet */}
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <NavBar mode={mode} projectsData={projectsData} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); }} />
+          <NavBar mode={mode} projectsData={projectsData} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }} />
         </div>
         {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && !mode.startsWith("clients-") && (
           <button
@@ -1310,61 +1311,134 @@ function HomePage() {
         }, {});
 
 
+        const totalCab = grossistesProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+        const rdvFixe = grossistesProjects.filter(p => p.etatCMD === "RDV - fixé");
+        const termineCount = (projectsData["archives"] || []).filter((p: any) => {
+          if (keywords) return keywords.some(kw => p.projet.toLowerCase().startsWith(kw.toLowerCase()));
+          return p.typeClient === "Grossistes" || p.typeClient === "Grossiste";
+        }).length;
+
         return (
           <div>
-            <div className="relative mb-4 max-w-lg">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Rechercher dans les projets Grossistes..."
-                className="pl-9 h-11 rounded-xl glass-input"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            {/* Filtres statut */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
-              <button
-                onClick={() => setStatusFilter(null)}
-                className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                  !statusFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"
-                }`}
-              >
-                Tous ({grossistesProjects.length})
+            {/* Onglets Projets / Stats */}
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setSubView("projets")}
+                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "projets" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
+                Projets ({grossistesProjects.length})
               </button>
-              {Object.entries(gStatusCounts).map(([status, count]) => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(statusFilter === status ? null : status)}
-                  className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${
-                    statusFilter === status
-                      ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
-                      : `${STATUS_CMD_COLORS[status] || "bg-gray-100 text-gray-700"} border-transparent`
-                  }`}
-                >
-                  {status} ({count})
-                </button>
-              ))}
+              <button onClick={() => setSubView("stats")}
+                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "stats" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
+                Stats
+              </button>
             </div>
-            <p className="text-sm text-gray-500 mb-3">
-              {grossistesFiltered.length} projet{grossistesFiltered.length !== 1 ? "s" : ""}
-              {" · "}
-              {grossistesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cabine{grossistesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
-            </p>
-            {loading && (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+
+            {subView === "projets" ? (
+              <>
+                <div className="relative mb-4 max-w-lg">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input placeholder="Rechercher..." className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
+                  <button onClick={() => setStatusFilter(null)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${!statusFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"}`}>
+                    Tous ({grossistesProjects.length})
+                  </button>
+                  {Object.entries(gStatusCounts).map(([status, count]) => (
+                    <button key={status} onClick={() => setStatusFilter(statusFilter === status ? null : status)}
+                      className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${statusFilter === status ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : `${STATUS_CMD_COLORS[status] || "bg-gray-100 text-gray-700"} border-transparent`}`}>
+                      {status} ({count})
+                    </button>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-500 mb-3">
+                  {grossistesFiltered.length} projet{grossistesFiltered.length !== 1 ? "s" : ""}{" · "}{grossistesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cabine{grossistesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
+                </p>
+                {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
+                <div className="space-y-3">
+                  {grossistesFiltered.map((project) => (
+                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
+                  ))}
+                  {grossistesFiltered.length === 0 && !loading && (
+                    <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet</p></div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                {/* KPIs */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{grossistesProjects.length}</p>
+                    <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-green-600">{totalCab}</p>
+                    <p className="text-xs text-gray-500 mt-1">Cabines</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-blue-600">{rdvFixe.length}</p>
+                    <p className="text-xs text-gray-500 mt-1">RDV fixés</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-purple-600">{termineCount}</p>
+                    <p className="text-xs text-gray-500 mt-1">Terminés</p>
+                  </div>
+                </div>
+                {/* Répartition par statut */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                  <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Répartition par statut</h3>
+                  <div className="space-y-2">
+                    {Object.entries(gStatusCounts).sort(([,a],[,b]) => b - a).map(([status, count]) => (
+                      <div key={status} className="flex items-center gap-2">
+                        <div className="w-32 sm:w-40 text-xs text-gray-600 dark:text-gray-400 truncate">{status}</div>
+                        <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden">
+                          <div className="h-full bg-[#1e3a5f] rounded-full flex items-center justify-end pr-1.5"
+                            style={{width:`${Math.max((count / grossistesProjects.length) * 100, 8)}%`}}>
+                            <span className="text-[10px] text-white font-medium">{count}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Répartition par collaborateur */}
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                  <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Par collaborateur</h3>
+                  <div className="space-y-2">
+                    {(() => {
+                      const collabCount: Record<string, {projets: number, cabines: number}> = {};
+                      grossistesProjects.forEach(p => {
+                        const names = p.collaborateurs ? p.collaborateurs.split("&").map((n: string) => n.trim()).filter(Boolean) : ["Non assigné"];
+                        names.forEach((n: string) => {
+                          if (!collabCount[n]) collabCount[n] = {projets:0, cabines:0};
+                          collabCount[n].projets++;
+                          collabCount[n].cabines += (p.nbCabines || 0);
+                        });
+                      });
+                      return Object.entries(collabCount).sort(([,a],[,b]) => b.cabines - a.cabines).map(([name, data]) => (
+                        <div key={name} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{name}</span>
+                          <span className="text-xs text-gray-500">{data.projets} proj. · {data.cabines} cab.</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+                {/* Prochains RDV */}
+                {rdvFixe.length > 0 && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                    <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Prochains RDV fixés</h3>
+                    <div className="space-y-2">
+                      {rdvFixe.sort((a,b) => (a.dateMontage||"").localeCompare(b.dateMontage||"")).slice(0, 8).map(p => (
+                        <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[60%]">{p.projet}</span>
+                          <span className="text-xs text-gray-500">{p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", {day:"numeric",month:"short"}) : "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-            <div className="space-y-3">
-              {grossistesFiltered.map((project) => (
-                <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
-              ))}
-              {grossistesFiltered.length === 0 && !loading && (
-                <div className="text-center py-12 text-gray-400">
-                  <p className="text-lg">Aucun projet Grossistes</p>
-                </div>
-              )}
-            </div>
           </div>
         );
       })()}
@@ -1416,62 +1490,133 @@ function HomePage() {
           return acc;
         }, {});
 
+        const fTotalCab = fournisseursProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+        const fRdvFixe = fournisseursProjects.filter(p => p.etatCMD === "RDV - fixé");
+        const fTermineCount = (projectsData["archives"] || []).filter((p: any) => {
+          if (nameFilter) return p.projet.toLowerCase().startsWith(nameFilter.toLowerCase());
+          return p.typeClient === "Fournisseurs" || p.typeClient === "Fournisseur";
+        }).length;
 
         return (
           <div>
-            <div className="relative mb-4 max-w-lg">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Rechercher dans les projets Fournisseurs..."
-                className="pl-9 h-11 rounded-xl glass-input"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            {/* Filtres statut */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
-              <button
-                onClick={() => setStatusFilter(null)}
-                className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                  !statusFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"
-                }`}
-              >
-                Tous ({fournisseursProjects.length})
+            {/* Onglets Projets / Stats */}
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setSubView("projets")}
+                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "projets" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
+                Projets ({fournisseursProjects.length})
               </button>
-              {Object.entries(fStatusCounts).map(([status, count]) => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(statusFilter === status ? null : status)}
-                  className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${
-                    statusFilter === status
-                      ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+              <button onClick={() => setSubView("stats")}
+                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "stats" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
+                Stats
+              </button>
+            </div>
+
+            {subView === "projets" ? (
+              <>
+                <div className="relative mb-4 max-w-lg">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input placeholder="Rechercher..." className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
+                  <button onClick={() => setStatusFilter(null)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${!statusFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"}`}>
+                    Tous ({fournisseursProjects.length})
+                  </button>
+                  {Object.entries(fStatusCounts).map(([status, count]) => (
+                    <button key={status} onClick={() => setStatusFilter(statusFilter === status ? null : status)}
+                      className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${statusFilter === status ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
                       : `${STATUS_CMD_COLORS[status] || "bg-gray-100 text-gray-700"} border-transparent`
                   }`}
                 >
                   {status} ({count})
                 </button>
               ))}
-            </div>
-            <p className="text-sm text-gray-500 mb-3">
-              {fournisseursFiltered.length} projet{fournisseursFiltered.length !== 1 ? "s" : ""}
-              {" · "}
-              {fournisseursFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cabine{fournisseursFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
-            </p>
-            {loading && (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+                <p className="text-sm text-gray-500 mb-3">
+                  {fournisseursFiltered.length} projet{fournisseursFiltered.length !== 1 ? "s" : ""}{" · "}{fournisseursFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cabine{fournisseursFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
+                </p>
+                {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
+                <div className="space-y-3">
+                  {fournisseursFiltered.map((project) => (
+                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
+                  ))}
+                  {fournisseursFiltered.length === 0 && !loading && (
+                    <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet</p></div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{fournisseursProjects.length}</p>
+                    <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-green-600">{fTotalCab}</p>
+                    <p className="text-xs text-gray-500 mt-1">Cabines</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-blue-600">{fRdvFixe.length}</p>
+                    <p className="text-xs text-gray-500 mt-1">RDV fixés</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-purple-600">{fTermineCount}</p>
+                    <p className="text-xs text-gray-500 mt-1">Terminés</p>
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                  <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Répartition par statut</h3>
+                  <div className="space-y-2">
+                    {Object.entries(fStatusCounts).sort(([,a],[,b]) => b - a).map(([status, count]) => (
+                      <div key={status} className="flex items-center gap-2">
+                        <div className="w-32 sm:w-40 text-xs text-gray-600 dark:text-gray-400 truncate">{status}</div>
+                        <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden">
+                          <div className="h-full bg-[#1e3a5f] rounded-full flex items-center justify-end pr-1.5"
+                            style={{width:`${Math.max((count / fournisseursProjects.length) * 100, 8)}%`}}>
+                            <span className="text-[10px] text-white font-medium">{count}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                  <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Par collaborateur</h3>
+                  <div className="space-y-2">
+                    {(() => {
+                      const collabCount: Record<string, {projets: number, cabines: number}> = {};
+                      fournisseursProjects.forEach(p => {
+                        const names = p.collaborateurs ? p.collaborateurs.split("&").map((n: string) => n.trim()).filter(Boolean) : ["Non assigné"];
+                        names.forEach((n: string) => {
+                          if (!collabCount[n]) collabCount[n] = {projets:0, cabines:0};
+                          collabCount[n].projets++;
+                          collabCount[n].cabines += (p.nbCabines || 0);
+                        });
+                      });
+                      return Object.entries(collabCount).sort(([,a],[,b]) => b.cabines - a.cabines).map(([name, data]) => (
+                        <div key={name} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{name}</span>
+                          <span className="text-xs text-gray-500">{data.projets} proj. · {data.cabines} cab.</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+                {fRdvFixe.length > 0 && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                    <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Prochains RDV fixés</h3>
+                    <div className="space-y-2">
+                      {fRdvFixe.sort((a,b) => (a.dateMontage||"").localeCompare(b.dateMontage||"")).slice(0, 8).map(p => (
+                        <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[60%]">{p.projet}</span>
+                          <span className="text-xs text-gray-500">{p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", {day:"numeric",month:"short"}) : "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-            <div className="space-y-3">
-              {fournisseursFiltered.map((project) => (
-                <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
-              ))}
-              {fournisseursFiltered.length === 0 && !loading && (
-                <div className="text-center py-12 text-gray-400">
-                  <p className="text-lg">Aucun projet Fournisseurs</p>
-                </div>
-              )}
-            </div>
           </div>
         );
       })()}
