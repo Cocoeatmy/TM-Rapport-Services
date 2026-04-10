@@ -158,8 +158,8 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
   const isGrossisteActive = grossistesModes.includes(mode);
   const grossisteActiveLabel = grossistesLabels[mode] || "";
 
-  const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-koralle"];
-  const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-ronal": "Ronal", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-samo": "Samo", "fournisseurs-koralle": "Koralle" };
+  const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo"];
+  const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-ronal": "Ronal", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-samo": "Samo" };
   const fournisseursLogos: Record<string, string> = {
     "fournisseurs-duka": "/logos/fournisseurs/duka.ch-logo.png",
     "fournisseurs-duscholux": "/logos/fournisseurs/Duscholux-logo.png",
@@ -167,7 +167,6 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
     "fournisseurs-nelo": "/logos/fournisseurs/Nelo-logo.jpg",
     "fournisseurs-novellini": "/logos/fournisseurs/Novellini-logo.png",
     "fournisseurs-samo": "/logos/fournisseurs/Samo-logo.jpg",
-    "fournisseurs-koralle": "/logos/fournisseurs/Koralle-logo.jpg",
   };
   const isFournisseursActive = fournisseursModes.includes(mode);
   const fournisseurActiveLabel = fournisseursLabels[mode] || "";
@@ -276,15 +275,15 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
             const isActive = mode === m;
             return (
               <button key={m} onClick={() => handleSelect(m)}
-                className={`shrink-0 rounded-xl transition-all px-3 py-1.5 flex items-center justify-center ${
+                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center ${
                   isActive
-                    ? "bg-[#1e3a5f] ring-2 ring-[#1e3a5f] ring-offset-2"
+                    ? "bg-white ring-2 ring-[#1e3a5f] ring-offset-1 shadow-md"
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
                 }`}>
                 {logo ? (
-                  <img src={logo} alt={fournisseursLabels[m]} className={`h-5 w-auto object-contain ${isActive ? "brightness-0 invert" : ""}`} />
+                  <img src={logo} alt={fournisseursLabels[m]} className="h-7 max-w-[100px] w-auto object-contain" />
                 ) : (
-                  <span className={`text-xs font-medium ${isActive ? "text-white" : "text-gray-600 dark:text-gray-300"}`}>
+                  <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
                     {fournisseursLabels[m]}
                   </span>
                 )}
@@ -544,8 +543,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-koralle" | "stats" | "archives";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-koralle", "stats", "archives"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "stats" | "archives";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "stats", "archives"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -613,7 +612,6 @@ function HomePage() {
     "fournisseurs-nelo": "/api/projects/all-active",
     "fournisseurs-novellini": "/api/projects/all-active",
     "fournisseurs-samo": "/api/projects/all-active",
-    "fournisseurs-koralle": "/api/projects/all-active",
     stats: "/api/projects/all-active",
     archives: "/api/projects/cmd-termine",
   };
@@ -1330,7 +1328,6 @@ function HomePage() {
         const fournisseurNameFilter: Record<string, string> = {
           "fournisseurs-duka": "Duka", "fournisseurs-duscholux": "Duscholux", "fournisseurs-ronal": "Ronal",
           "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-samo": "Samo",
-          "fournisseurs-koralle": "Koralle",
         };
         const nameFilter = fournisseurNameFilter[mode];
         const fournisseursProjects = allCmd.filter((p) => {
