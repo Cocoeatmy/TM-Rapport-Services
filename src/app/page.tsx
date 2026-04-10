@@ -666,6 +666,13 @@ function HomePage() {
 
   // Sync filters to URL search params
   useEffect(() => {
+    const header = document.getElementById("main-header");
+    if (header) {
+      document.documentElement.style.setProperty("--header-h", `${header.offsetHeight}px`);
+    }
+  }, []);
+
+  useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
@@ -1084,7 +1091,7 @@ function HomePage() {
         </div>
       )}
       {/* Onglets navigation + Nouveau projet — fixé en haut */}
-      <div className="sticky top-[60px] z-30 bg-gradient-to-b from-slate-50 via-slate-50 to-slate-50/95 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900/95 -mx-4 px-4 pb-2 pt-1">
+      <div className="sticky z-40 -mx-4 px-4 pb-2 pt-1 backdrop-blur-md bg-white/70 dark:bg-slate-900/70" style={{top: `var(--header-h, 60px)`}}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <NavBar mode={mode} projectsData={projectsData} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }} />
