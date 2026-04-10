@@ -1083,7 +1083,8 @@ function HomePage() {
           {toast}
         </div>
       )}
-      {/* Onglets navigation + Nouveau projet */}
+      {/* Onglets navigation + Nouveau projet — fixé en haut */}
+      <div className="sticky top-[60px] z-30 bg-gradient-to-b from-slate-50 via-slate-50 to-slate-50/95 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900/95 -mx-4 px-4 pb-2 pt-1">
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <NavBar mode={mode} projectsData={projectsData} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }} />
@@ -1097,6 +1098,7 @@ function HomePage() {
             <Plus className="w-5 h-5" />
           </button>
         )}
+      </div>
       </div>
 
       {/* Modal nouveau projet */}
