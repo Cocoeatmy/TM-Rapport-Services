@@ -204,7 +204,7 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
   return (
     <div className="mb-4 space-y-1.5">
       {/* Ligne principale */}
-      <div className="glass-tabs p-1.5 rounded-2xl max-w-full overflow-x-auto scrollbar-hide">
+      <div className="p-1.5 max-w-full overflow-x-auto scrollbar-hide">
         <div className="flex gap-1">
           <button onClick={() => { handleSelect("dashboard"); setOpen(null); }} className={tabCls(mode === "dashboard")}>
             Dashboard
