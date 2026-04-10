@@ -266,13 +266,13 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
             const isActive = mode === m;
             return (
               <button key={m} onClick={() => handleSelect(m)}
-                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] px-2 py-1 flex items-center justify-center ${
+                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] p-1 flex items-center justify-center overflow-hidden ${
                   isActive
                     ? "bg-white ring-2 ring-[#1e3a5f] ring-offset-1 shadow-md"
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
                 }`}>
                 {logo ? (
-                  <img src={logo} alt={grossistesLabels[m]} className="max-h-[36px] max-w-[110px] w-full h-full object-contain" />
+                  <img src={logo} alt={grossistesLabels[m]} className="max-h-[40px] max-w-[112px] w-full h-full object-contain" />
                 ) : (
                   <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
                     {grossistesLabels[m]}
@@ -292,13 +292,13 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
             const isActive = mode === m;
             return (
               <button key={m} onClick={() => handleSelect(m)}
-                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] px-2 py-1 flex items-center justify-center ${
+                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] p-1 flex items-center justify-center overflow-hidden ${
                   isActive
                     ? "bg-white ring-2 ring-[#1e3a5f] ring-offset-1 shadow-md"
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
                 }`}>
                 {logo ? (
-                  <img src={logo} alt={fournisseursLabels[m]} className="max-h-[36px] max-w-[110px] w-full h-full object-contain" />
+                  <img src={logo} alt={fournisseursLabels[m]} className="max-h-[40px] max-w-[112px] w-full h-full object-contain" />
                 ) : (
                   <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
                     {fournisseursLabels[m]}
