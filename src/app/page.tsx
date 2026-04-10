@@ -264,15 +264,23 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
           {grossistesModes.map((m) => {
             const logo = grossistesLogos[m];
             const isActive = mode === m;
+            const logoScale: Record<string, number> = {
+              "grossistes-bms": 1,
+              "grossistes-dubat": 1.6,
+              "grossistes-tema": 1.5,
+              "grossistes-matway": 2,
+              "grossistes-bringhen": 1,
+            };
+            const scale = logoScale[m] || 1;
             return (
               <button key={m} onClick={() => handleSelect(m)}
-                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] p-1 flex items-center justify-center overflow-hidden ${
+                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center overflow-hidden ${
                   isActive
                     ? "bg-white ring-2 ring-[#1e3a5f] ring-offset-1 shadow-md"
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
                 }`}>
                 {logo ? (
-                  <img src={logo} alt={grossistesLabels[m]} className="max-h-[40px] max-w-[112px] w-full h-full object-contain" />
+                  <img src={logo} alt={grossistesLabels[m]} className="max-w-[104px] max-h-[36px] object-contain" style={{transform:`scale(${scale})`}} />
                 ) : (
                   <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
                     {grossistesLabels[m]}
@@ -290,15 +298,24 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
           {fournisseursModes.map((m) => {
             const logo = fournisseursLogos[m];
             const isActive = mode === m;
+            const logoScale: Record<string, number> = {
+              "fournisseurs-duka": 1.8,
+              "fournisseurs-duscholux": 1.6,
+              "fournisseurs-ronal": 2.2,
+              "fournisseurs-nelo": 2,
+              "fournisseurs-novellini": 1,
+              "fournisseurs-samo": 2.2,
+            };
+            const scale = logoScale[m] || 1;
             return (
               <button key={m} onClick={() => handleSelect(m)}
-                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] p-1 flex items-center justify-center overflow-hidden ${
+                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center overflow-hidden ${
                   isActive
                     ? "bg-white ring-2 ring-[#1e3a5f] ring-offset-1 shadow-md"
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
                 }`}>
                 {logo ? (
-                  <img src={logo} alt={fournisseursLabels[m]} className="max-h-[40px] max-w-[112px] w-full h-full object-contain" />
+                  <img src={logo} alt={fournisseursLabels[m]} className="max-w-[104px] max-h-[36px] object-contain" style={{transform:`scale(${scale})`}} />
                 ) : (
                   <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
                     {fournisseursLabels[m]}
