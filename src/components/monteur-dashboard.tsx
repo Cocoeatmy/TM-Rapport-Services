@@ -554,7 +554,6 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{panelTitle} ({panelProjects.length})</p>
             {panelProjects.length > 0 && (
               <div className="flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 mb-1">
-                <span className="w-16 shrink-0">{dateLabel}</span>
                 <span className="w-20 shrink-0">N° OFR TM</span>
                 <span className="w-20 shrink-0 hidden sm:block">N° Mes. Fourn.</span>
                 <span className="w-20 shrink-0 hidden sm:block">N° CMD Fourn.</span>
@@ -563,43 +562,97 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               </div>
             )}
             {panelProjects.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
-            {panelProjects.map((p, idx) => {
-              const isMesure = p.etatMesures === "RDV - Fixé";
-              const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
-              const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
-              const date = isRdvAFixer
-                ? (p.dateMesures || "").split("T")[0]
-                : (p.dateMontage || p.dateMesures || "").split("T")[0];
-              const rowBg = idx % 2 === 0
-                ? "bg-blue-50/60 dark:bg-blue-950/20"
-                : "bg-blue-100/60 dark:bg-blue-900/20";
-              return (
-                <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                  className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
-                  <span className="text-gray-400 font-mono w-16 shrink-0">
-                    {date ? new Date(date + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
-                  </span>
-                  <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
-                  <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
-                  <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                  <span className="flex-1 truncate text-gray-900 dark:text-gray-100">{p.projet}</span>
-                  {(showSummaryPanel === "rdv-fixe") && (
-                    p.etatMesures === "RDV - Fixé" ? (
-                      <span className="shrink-0 text-[9px] font-semibold px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">Mesures</span>
-                    ) : p.etatCMD === "RDV - fixé" ? (
-                      <span className="shrink-0 text-[9px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">Montages</span>
-                    ) : null
-                  )}
-                  <div className="flex -space-x-1 shrink-0">
-                    {names.slice(0, 3).map((n) => (
-                      <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
-                        style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
-                    ))}
+            {(() => {
+              // Group projects by date
+              const grouped: { dateKey: string; dateLabel: string; weekday: string; isToday: boolean; isThisWeek: boolean; projects: typeof panelProjects }[] = [];
+              const todayStr = new Date().toISOString().split("T")[0];
+              const now = new Date();
+              const weekEnd = new Date(now);
+              weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
+              const weekEndStr = weekEnd.toISOString().split("T")[0];
+
+              let lastDateKey = "";
+              panelProjects.forEach((p) => {
+                const date = isRdvAFixer
+                  ? (p.dateMesures || "").split("T")[0]
+                  : (p.dateMontage || p.dateMesures || "").split("T")[0];
+                const dateKey = date || "no-date";
+
+                if (dateKey !== lastDateKey) {
+                  const d = date ? new Date(date + "T00:00:00") : null;
+                  const weekday = d ? d.toLocaleDateString("fr-CH", { weekday: "long" }) : "";
+                  const label = d ? d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" }) : "Date non définie";
+                  grouped.push({
+                    dateKey,
+                    dateLabel: label.charAt(0).toUpperCase() + label.slice(1),
+                    weekday,
+                    isToday: dateKey === todayStr,
+                    isThisWeek: dateKey >= todayStr && dateKey <= weekEndStr,
+                    projects: [],
+                  });
+                  lastDateKey = dateKey;
+                }
+                grouped[grouped.length - 1].projects.push(p);
+              });
+
+              return grouped.map((group) => (
+                <div key={group.dateKey} className="mb-1">
+                  {/* Day separator */}
+                  <div className={`flex items-center gap-2 px-2 py-1.5 mt-2 mb-1 rounded-lg ${
+                    group.isToday
+                      ? "bg-green-50 dark:bg-green-900/20 border-l-3 border-green-500"
+                      : group.isThisWeek
+                        ? "bg-blue-50/80 dark:bg-blue-900/10 border-l-3 border-blue-400"
+                        : "bg-gray-50 dark:bg-gray-800/50 border-l-3 border-gray-300 dark:border-gray-600"
+                  }`}>
+                    <span className={`text-[11px] font-bold ${
+                      group.isToday ? "text-green-700 dark:text-green-300" : group.isThisWeek ? "text-blue-700 dark:text-blue-300" : "text-gray-500 dark:text-gray-400"
+                    }`}>
+                      {group.isToday ? "📍 Aujourd'hui" : group.dateLabel}
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                      group.isToday
+                        ? "bg-green-100 text-green-700 dark:bg-green-800/30 dark:text-green-300"
+                        : "bg-gray-200/60 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                    }`}>
+                      {group.projects.length} projet{group.projects.length > 1 ? "s" : ""} · {group.projects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
+                    </span>
                   </div>
-                  <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
-                </Link>
-              );
-            })}
+                  {/* Projects for this day */}
+                  {group.projects.map((p, idx) => {
+                    const isMesure = p.etatMesures === "RDV - Fixé";
+                    const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
+                    const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
+                    const rowBg = idx % 2 === 0
+                      ? "bg-white/60 dark:bg-slate-800/40"
+                      : "bg-blue-50/40 dark:bg-blue-950/15";
+                    return (
+                      <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
+                        <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
+                        <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
+                        <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
+                        <span className="flex-1 truncate text-gray-900 dark:text-gray-100">{p.projet}</span>
+                        {(showSummaryPanel === "rdv-fixe") && (
+                          isMesure ? (
+                            <span className="shrink-0 text-[9px] font-semibold px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">Mesures</span>
+                          ) : p.etatCMD === "RDV - fixé" ? (
+                            <span className="shrink-0 text-[9px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">Montages</span>
+                          ) : null
+                        )}
+                        <div className="flex -space-x-1 shrink-0">
+                          {names.slice(0, 3).map((n) => (
+                            <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                              style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
+                          ))}
+                        </div>
+                        <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ));
+            })()}
           </div>
         );
       })()}
