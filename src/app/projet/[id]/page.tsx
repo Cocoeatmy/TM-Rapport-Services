@@ -1278,16 +1278,21 @@ function ProjectPageContent({ id }: { id: string }) {
                   </div>
                 </div>
               )}
+              {project.contactsProjetNames && project.contactsProjetNames.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <Users className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Contact Projet</p>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {project.contactsProjetNames.map((c) => (
+                        <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {project.contactsProjetNames && project.contactsProjetNames.length > 0 && (
-              <div>
-                <InfoRow icon={Users} label="Contact projet" value={project.contactsProjetNames.join(", ")} />
-                <div className="ml-7 mt-1">
-                  <ContactButtons contactName={project.contactsProjetNames[0]} />
-                </div>
-              </div>
-            )}
             {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
             <div className="grid grid-cols-2 gap-3 py-2">
               <div className="flex items-start gap-2">
@@ -1367,16 +1372,22 @@ function ProjectPageContent({ id }: { id: string }) {
             )}
 
             {/* Contacts projet */}
+            {/* Contacts pour RDV + Appeler/WhatsApp */}
             {mode === "mesures" && (
               <div className="py-2">
                 <EditableTextField
-                  label="Contacts projet"
-                  value={project.contacts}
+                  label="Contacts pour RDV"
+                  value={project.contactsRDV}
                   projectId={id}
-                  fieldName="contacts"
-                  notionField="Contacts projet"
-                  onUpdate={(v) => setProject({ ...project, contacts: v })}
+                  fieldName="contactsRDV"
+                  notionField="Contacts pour RDV"
+                  onUpdate={(v) => setProject({ ...project, contactsRDV: v })}
                 />
+                {project.contactsRDV && (
+                  <div className="ml-7 mt-1">
+                    <ContactButtons contactName={project.contactsRDV} />
+                  </div>
+                )}
               </div>
             )}
 

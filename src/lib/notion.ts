@@ -59,6 +59,7 @@ export interface Project {
   photosMesures: FileItem[];
   photosLocalite: FileItem[];
   contacts: string;
+  contactsRDV: string;
   commentairesMesures: string;
   soucisMontage: boolean;
   causeSoucis: string;
@@ -189,6 +190,7 @@ export function mapPageToProject(page: any): Project {
     photosMesures: extractFiles(p["Photos mesures"]),
     photosLocalite: extractFiles(p["Photos localité"]),
     contacts: extractText(p["Contacts projet"]),
+    contactsRDV: extractText(p["Contacts pour RDV"]),
     commentairesMesures: extractText(p["Commentaires Mesures"]),
     soucisMontage: p["Soucis montage"]?.checkbox || false,
     causeSoucis: extractSelect(p["Cause Soucis montages"]),
@@ -405,6 +407,7 @@ export async function updateProject(
     etatCMD?: string;
     etatMesures?: string;
     contacts?: string;
+    contactsRDV?: string;
     commentairesMesures?: string;
     nomChantier?: string;
     nbCabines?: number;
@@ -470,6 +473,11 @@ export async function updateProject(
   if (data.contacts !== undefined) {
     properties["Contacts projet"] = {
       rich_text: [{ text: { content: data.contacts } }],
+    };
+  }
+  if (data.contactsRDV !== undefined) {
+    properties["Contacts pour RDV"] = {
+      rich_text: [{ text: { content: data.contactsRDV } }],
     };
   }
   if (data.commentairesMesures !== undefined) {
