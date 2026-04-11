@@ -503,7 +503,7 @@ function EditableTextField({ label, value, projectId, fieldName, notionField, mu
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.response) setDraft(data.response.trim());
+        if (data.answer || data.response) setDraft((data.answer || data.response).trim());
       }
     } catch {} finally {
       setAiLoading(false);
@@ -1002,8 +1002,8 @@ function ProjectPageContent({ id }: { id: string }) {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.response) {
-          setRapport(data.response.trim());
+        if (data.answer || data.response) {
+          setRapport((data.answer || data.response).trim());
         }
       }
     } catch {} finally {
