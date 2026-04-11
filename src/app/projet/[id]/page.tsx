@@ -1278,26 +1278,13 @@ function ProjectPageContent({ id }: { id: string }) {
                   </div>
                 </div>
               )}
-              {project.contactsProjetNames && project.contactsProjetNames.length > 0 && (
-                <div className="flex items-start gap-2">
-                  <Users className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Contacts projet</p>
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {project.contactsProjetNames.map((c) => (
-                        <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {project.contacts && (
+            {project.contactsProjetNames && project.contactsProjetNames.length > 0 && (
               <div>
-                <InfoRow icon={Users} label="Contact" value={project.contacts} />
+                <InfoRow icon={Users} label="Contact projet" value={project.contactsProjetNames.join(", ")} />
                 <div className="ml-7 mt-1">
-                  <ContactButtons contactName={project.contacts} />
+                  <ContactButtons contactName={project.contactsProjetNames[0]} />
                 </div>
               </div>
             )}
