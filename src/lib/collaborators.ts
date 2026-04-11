@@ -10,6 +10,28 @@ const COLLABORATOR_COLORS: Record<string, { bg: string; text: string; dot: strin
   "Atelier Art Home": { bg: "#f3e8ff", text: "#7e22ce", dot: "#a855f7" },
 };
 
+const COLLABORATOR_INITIALS: Record<string, string> = {
+  "Micael": "MF",
+  "Ferreira Micael": "MF",
+  "Claudio": "CZ",
+  "Jean-Marc": "JMN",
+  "Jacobo": "JF",
+  "Miguel": "MR",
+  "Loïc": "LS",
+  "Loic": "LS",
+  "Team TM": "TM",
+  "Atelier Art Home": "AH",
+};
+
+export function getCollaboratorInitials(name: string): string {
+  const trimmed = name.trim();
+  if (COLLABORATOR_INITIALS[trimmed]) return COLLABORATOR_INITIALS[trimmed];
+  // Fallback: première lettre de chaque mot
+  const parts = trimmed.split(/[\s-]+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return trimmed[0]?.toUpperCase() || "?";
+}
+
 export function getCollaboratorColor(name: string) {
   if (COLLABORATOR_COLORS[name]) return COLLABORATOR_COLORS[name];
   let hash = 0;

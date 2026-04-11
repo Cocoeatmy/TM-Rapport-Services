@@ -65,7 +65,12 @@
       "WebFetch(domain:img.nelo.swiss)",
       "WebFetch(domain:www.opengraph.xyz)",
       "WebFetch(domain:static.wixstatic.com)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(sed -i '' 's/>{c\\\\.name\\\\[0\\\\]}<\\\\/div>/>{getCollaboratorInitials\\(c.name\\)}<\\\\/div>/g' src/components/monteur-dashboard.tsx)",
+      "Bash(sed -i '' 's/>{c\\\\.name\\\\[0\\\\]}<\\\\/span>/>{getCollaboratorInitials\\(c.name\\)}<\\\\/span>/g' src/components/monteur-dashboard.tsx)",
+      "Bash(sed -i '' 's/>{collab\\\\.name\\\\[0\\\\]}<\\\\/span>/>{getCollaboratorInitials\\(collab.name\\)}<\\\\/span>/g' src/components/monteur-dashboard.tsx)",
+      "Bash(sed -i '' 's/>{firstName\\\\[0\\\\]}<\\\\/span>/>{getCollaboratorInitials\\(firstName\\)}<\\\\/span>/g' src/components/monteur-dashboard.tsx)",
+      "Bash(sed -i '' 's/>{firstName\\\\[0\\\\]}<\\\\/div>/>{getCollaboratorInitials\\(firstName\\)}<\\\\/div>/g' src/components/monteur-dashboard.tsx)"
     ]
   }
 }
