@@ -1315,18 +1315,35 @@ function ProjectPageContent({ id }: { id: string }) {
                   </div>
                 </div>
               )}
-              {project.grossistesNames && project.grossistesNames.length > 0 && (
-                <div className="flex items-start gap-2">
-                  <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Grossistes</p>
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {project.grossistesNames.map((g) => (
-                        <Badge key={g} variant="outline" className="text-xs">{g}</Badge>
-                      ))}
+              {/* Grossistes OU Fournisseurs selon Type de client */}
+              {project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur" ? (
+                project.fournisseursNames && project.fournisseursNames.length > 0 && (
+                  <div className="flex items-start gap-2">
+                    <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">Fournisseurs</p>
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {project.fournisseursNames.map((f) => (
+                          <Badge key={f} variant="outline" className="text-xs">{f}</Badge>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )
+              ) : (
+                project.grossistesNames && project.grossistesNames.length > 0 && (
+                  <div className="flex items-start gap-2">
+                    <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">Grossistes</p>
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {project.grossistesNames.map((g) => (
+                          <Badge key={g} variant="outline" className="text-xs">{g}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )
               )}
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2">

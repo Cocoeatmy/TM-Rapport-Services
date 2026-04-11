@@ -72,8 +72,10 @@ export interface Project {
   sav: boolean;
   bonLivraison: string;
   typeClient: string;
-  grossistesRelation: string[]; // IDs des grossistes liés
-  grossistesNames: string[]; // Noms résolus des grossistes
+  grossistesRelation: string[];
+  grossistesNames: string[];
+  fournisseursRelation: string[];
+  fournisseursNames: string[];
   sanitaireRelation: string[]; // IDs Sanitaire (Entreprise)
   sanitaireNames: string[];
   contactsProjetRelation: string[]; // IDs Contacts projet
@@ -209,7 +211,9 @@ export function mapPageToProject(page: any): Project {
     bonLivraison: extractText(p["Bon de livraison"]),
     typeClient: extractSelect(p["Type de client"]) || extractStatus(p["Type de client"]) || extractText(p["Type de client"]),
     grossistesRelation: extractRelationIds(p["Grossistes"]),
-    grossistesNames: [], // resolved later
+    fournisseursRelation: extractRelationIds(p["Fournisseurs"]),
+    grossistesNames: [],
+    fournisseursNames: [],
     sanitaireRelation: extractRelationIds(p["Sanitaire (Entreprise)"]),
     sanitaireNames: [],
     contactsProjetRelation: extractRelationIds(p["Contact Projet"]).length > 0 ? extractRelationIds(p["Contact Projet"]) : extractRelationIds(p["Contacts projet"]),
@@ -272,14 +276,16 @@ async function queryAll(filter: any, sorts?: any[]): Promise<Project[]> {
     });
   }
 
-  // Resolve sanitaire + contacts projet relation names
+  // Resolve fournisseurs + sanitaire + contacts projet relation names
   const allRelIds = [...new Set([
+    ...projects.flatMap((p) => p.fournisseursRelation),
     ...projects.flatMap((p) => p.sanitaireRelation),
     ...projects.flatMap((p) => p.contactsProjetRelation),
   ])];
   if (allRelIds.length > 0) {
     const names = await resolveRelationNames(allRelIds);
     projects.forEach((p) => {
+      p.fournisseursNames = p.fournisseursRelation.map((id) => names[id] || id);
       p.sanitaireNames = p.sanitaireRelation.map((id) => names[id] || id);
       p.contactsProjetNames = p.contactsProjetRelation.map((id) => names[id] || id);
     });
@@ -392,10 +398,11 @@ export async function getProject(pageId: string): Promise<Project> {
   const page = await notion.pages.retrieve({ page_id: pageId });
   const project = mapPageToProject(page);
   // Resolve relation names for single project
-  const allRelIds = [...new Set([...project.grossistesRelation, ...project.sanitaireRelation, ...project.contactsProjetRelation])];
+  const allRelIds = [...new Set([...project.grossistesRelation, ...project.fournisseursRelation, ...project.sanitaireRelation, ...project.contactsProjetRelation])];
   if (allRelIds.length > 0) {
     const names = await resolveRelationNames(allRelIds);
     project.grossistesNames = project.grossistesRelation.map((id) => names[id] || id);
+    project.fournisseursNames = project.fournisseursRelation.map((id) => names[id] || id);
     project.sanitaireNames = project.sanitaireRelation.map((id) => names[id] || id);
     project.contactsProjetNames = project.contactsProjetRelation.map((id) => names[id] || id);
   }
