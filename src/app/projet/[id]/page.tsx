@@ -946,6 +946,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [reformulating, setReformulating] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   const [showAllDates, setShowAllDates] = useState(false);
+  const [showRapport, setShowRapport] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth").then((r) => r.json()).then((d) => {
@@ -1259,8 +1260,8 @@ function ProjectPageContent({ id }: { id: string }) {
       </div>
 
       <div className="px-4 mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Colonne gauche - Informations */}
-        <div className="space-y-4">
+        {/* Colonne gauche - Informations (masquée sur mobile quand rapport ouvert) */}
+        <div className={`space-y-4 ${showRapport ? "hidden lg:block" : ""}`}>
         {/* === SECTION 1 : Informations projet === */}
         <Card>
           <CardHeader className="pb-2">
@@ -1581,9 +1582,30 @@ function ProjectPageContent({ id }: { id: string }) {
           </CardContent>
         </Card>
 
+        {/* Bouton démarrer le rapport */}
+        {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && !showRapport && (
+          <button
+            onClick={() => setShowRapport(true)}
+            className="w-full py-4 rounded-2xl bg-green-600 hover:bg-green-700 active:scale-[0.98] text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg transition-all"
+          >
+            <FileText className="w-5 h-5" />
+            Démarrer le rapport de services
+          </button>
+        )}
+
+        {showRapport && (mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
+          <button
+            onClick={() => setShowRapport(false)}
+            className="w-full py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium text-sm flex items-center justify-center gap-2 transition-all"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Retour aux informations projet
+          </button>
+        )}
+
         </div>
-        {/* Colonne droite - Rapport */}
-        <div className="space-y-4">
+        {/* Colonne droite - Rapport (visible uniquement quand showRapport) */}
+        <div className={`space-y-4 ${!showRapport ? "hidden" : ""}`}>
         {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
           <>
             {/* Horaires */}
