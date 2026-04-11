@@ -165,6 +165,72 @@ function MapAddressLink({ address }: { address: string }) {
   );
 }
 
+function ReportConsultations({ projectId }: { projectId: string }) {
+  const [consultations, setConsultations] = useState<any[]>([]);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const token = btoa(projectId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    fetch(`/api/client/${token}/track`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setConsultations(data); })
+      .catch(() => {});
+  }, [open, projectId]);
+
+  const viewCount = consultations.filter(c => c.action === "view").length;
+  const pdfCount = consultations.filter(c => c.action === "pdf").length;
+  const lastView = consultations.length > 0 ? consultations[consultations.length - 1] : null;
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden mb-4">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between p-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-3 h-3 rounded-full ${consultations.length > 0 ? "bg-green-500" : "bg-gray-300"}`} />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Suivi consultation rapport
+          </span>
+          {consultations.length > 0 && (
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+              Consulté {viewCount}×
+            </span>
+          )}
+          {consultations.length === 0 && (
+            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+              Pas encore consulté
+            </span>
+          )}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-2">
+          {consultations.length === 0 ? (
+            <p className="text-sm text-gray-400">Le client n&apos;a pas encore consulté le rapport.</p>
+          ) : (
+            <>
+              <div className="flex gap-4 text-xs text-gray-500 mb-2">
+                <span>👁 {viewCount} ouverture{viewCount > 1 ? "s" : ""} portail</span>
+                <span>📄 {pdfCount} ouverture{pdfCount > 1 ? "s" : ""} PDF</span>
+              </div>
+              {consultations.slice().reverse().slice(0, 10).map((c, i) => (
+                <div key={i} className="flex items-center justify-between text-xs py-1.5 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                  <span className="text-gray-600 dark:text-gray-300">
+                    {c.action === "pdf" ? "📄 A ouvert le PDF" : "👁 A consulté le portail"}
+                  </span>
+                  <span className="text-gray-400">
+                    {new Date(c.timestamp).toLocaleString("fr-CH", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectHistory({ projectId }: { projectId: string }) {
   const [logs, setLogs] = useState<{ id: string; timestamp: number; user: string; action: string; details: string }[]>([]);
   const [open, setOpen] = useState(false);
@@ -1698,6 +1764,9 @@ function ProjectPageContent({ id }: { id: string }) {
 
             {/* Historique des modifications */}
             <ProjectHistory projectId={id} />
+
+            {/* Suivi consultations rapport */}
+            {isAdmin && <ReportConsultations projectId={id} />}
 
             {/* Signature client */}
             <Card>
