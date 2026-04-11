@@ -235,7 +235,7 @@ function ReportConsultations({ projectId }: { projectId: string }) {
   );
 }
 
-function ProjectHistory({ projectId }: { projectId: string }) {
+function ProjectHistory({ projectId, onCountChange }: { projectId: string; onCountChange?: (count: number) => void }) {
   const [logs, setLogs] = useState<{ id: string; timestamp: number; user: string; action: string; details: string }[]>([]);
   const [open, setOpen] = useState(false);
 
@@ -245,11 +245,17 @@ function ProjectHistory({ projectId }: { projectId: string }) {
       if (res.ok) {
         const all = await res.json();
         if (Array.isArray(all)) {
-          setLogs(all.filter((l: any) => l.projectId === projectId));
+          const filtered = all.filter((l: any) => l.projectId === projectId);
+          setLogs(filtered);
+          onCountChange?.(filtered.length);
         }
       }
     } catch {}
   };
+
+  useEffect(() => {
+    loadLogs();
+  }, [projectId]);
 
   return (
     <Card>
@@ -986,6 +992,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [signature, setSignature] = useState("");
   const [fav, setFav] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [historyCount, setHistoryCount] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(60);
 
   useEffect(() => { setFav(isFavorite(id)); }, [id]);
@@ -1261,10 +1268,13 @@ function ProjectPageContent({ id }: { id: string }) {
           {currentUser?.role === "admin" && (
             <button
               onClick={() => setShowHistory(!showHistory)}
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
+              className={`relative w-9 h-9 flex items-center justify-center rounded-full active:scale-90 transition-all ${historyCount > 0 ? "bg-yellow-50" : ""} hover:bg-gray-100`}
               title="Historique des modifications"
             >
-              <History className={`w-5 h-5 ${showHistory ? "text-blue-500" : "text-gray-300"}`} />
+              <History className={`w-5 h-5 ${showHistory ? "text-blue-500" : historyCount > 0 ? "text-yellow-500" : "text-gray-300"}`} />
+              {historyCount > 0 && !showHistory && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-yellow-400 text-[8px] font-bold text-white rounded-full flex items-center justify-center">{historyCount > 9 ? "9+" : historyCount}</span>
+              )}
             </button>
           )}
         </div>
@@ -1273,7 +1283,7 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Historique des modifications (toggle) */}
       {showHistory && currentUser?.role === "admin" && (
         <div className="px-4 mt-2">
-          <ProjectHistory projectId={id} />
+          <ProjectHistory projectId={id} onCountChange={setHistoryCount} />
         </div>
       )}
 
