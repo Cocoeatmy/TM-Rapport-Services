@@ -8,6 +8,27 @@ import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborato
 import { COLLABORATEURS_LIST } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 
+const CLIENT_LOGOS: { prefix: string; logo: string }[] = [
+  { prefix: "getaz", logo: "/logos/fournisseurs/BMS-Logo.png" },
+  { prefix: "gétaz", logo: "/logos/fournisseurs/BMS-Logo.png" },
+  { prefix: "duka", logo: "/logos/fournisseurs/duka.ch-logo.png" },
+  { prefix: "duscholux", logo: "/logos/fournisseurs/Duscholux-logo.png" },
+  { prefix: "ronal", logo: "/logos/fournisseurs/ronal-logo.png" },
+  { prefix: "nelo", logo: "/logos/fournisseurs/Nelo-logo.jpg" },
+  { prefix: "novellini", logo: "/logos/fournisseurs/Novellini-logo.png" },
+  { prefix: "samo", logo: "/logos/fournisseurs/Samo-logo.jpg" },
+  { prefix: "dubat", logo: "/logos/fournisseurs/Dubat-Logo.png" },
+  { prefix: "tema", logo: "/logos/fournisseurs/Tema-Logo.png" },
+  { prefix: "matway", logo: "/logos/fournisseurs/Matway-Logo.png" },
+  { prefix: "bringhen", logo: "/logos/fournisseurs/Bringhen-logo.jpg" },
+];
+
+function getClientLogo(projectName: string): string | null {
+  const lower = projectName.toLowerCase();
+  const match = CLIENT_LOGOS.find((c) => lower.startsWith(c.prefix));
+  return match ? match.logo : null;
+}
+
 interface MonteurDashboardProps {
   userName: string;
   projects: Project[];
@@ -583,6 +604,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                   <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                   <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                   <span className="flex-1 truncate text-gray-900 dark:text-gray-100">{p.projet}</span>
+                  {(() => { const logo = getClientLogo(p.projet); return logo ? (
+                    <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
+                  ) : null; })()}
                   <div className="flex -space-x-1 shrink-0">
                     {names.slice(0, 3).map((n) => (
                       <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
@@ -659,6 +683,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                             <span className="shrink-0 text-[9px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">Montages</span>
                           ) : null
                         )}
+                        {(() => { const logo = getClientLogo(p.projet); return logo ? (
+                          <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
+                        ) : null; })()}
                         <div className="flex -space-x-1 shrink-0">
                           {names.slice(0, 3).map((n) => (
                             <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
