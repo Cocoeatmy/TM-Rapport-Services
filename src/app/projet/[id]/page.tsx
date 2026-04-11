@@ -1406,6 +1406,29 @@ function ProjectPageContent({ id }: { id: string }) {
             <CardTitle className="text-base">Informations Dates</CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Mesures traitée le + Mesures traitée par (au-dessus de date montage) */}
+            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (project.dateMesures || project.mesuresTraiteePar) && (
+              <div className="grid grid-cols-2 gap-3 mb-3 pb-3 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex items-start gap-2">
+                  <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Mesures traitée le</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {project.dateMesures ? new Date(project.dateMesures.split("T")[0] + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "long", year: "numeric" }) : "---"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Users className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Mesures traitée par</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.mesuresTraiteePar || "---"}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Date de montage/mesures + Collaborateurs */}
             <div className="grid grid-cols-2 gap-3">
               <EditableDate
                 project={project}
