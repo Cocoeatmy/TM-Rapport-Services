@@ -113,6 +113,13 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
     );
   };
 
+  // Auto-start GPS tracking dès que les coordonnées sont prêtes
+  useEffect(() => {
+    if (chantierCoords && status === "idle" && navigator.geolocation) {
+      startWatching();
+    }
+  }, [chantierCoords]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -149,16 +156,12 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
         Pointage GPS
       </label>
 
-      {/* Auto-tracking toggle */}
-      {status === "idle" && chantierCoords && (
-        <button
-          type="button"
-          onClick={startWatching}
-          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-dashed border-green-300 text-sm text-green-600 hover:bg-green-50 active:scale-95 transition-all"
-        >
-          <Radio className="w-4 h-4" />
-          Activer le suivi GPS automatique
-        </button>
+      {/* Statut en attente de coordonnées */}
+      {status === "idle" && (
+        <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+          <span className="w-2.5 h-2.5 rounded-full bg-gray-400 animate-pulse" />
+          <span className="text-xs text-gray-500">Initialisation du GPS...</span>
+        </div>
       )}
 
       {status === "watching" && (
