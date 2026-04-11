@@ -53,6 +53,8 @@ export interface Project {
   facturations: string;
   etatCMD: string;
   cmdGrossiste: string;
+  cmdTM: string;
+  cmdTMUsine: string;
   cmdFournisseurs: string;
   servCmdFournisseurs: string;
   etatMesures: string;
@@ -191,6 +193,8 @@ export function mapPageToProject(page: any): Project {
     facturations: extractSelect(p["Facturations"]),
     etatCMD: extractStatus(p["État - CMD"]),
     cmdGrossiste: extractText(p["N° CMD Grossiste"]),
+    cmdTM: extractText(p["N° CMD TM"]),
+    cmdTMUsine: extractText(p["N° CMD TM - Usine"]),
     cmdFournisseurs: extractText(p["n° CMD Fournisseurs"]),
     servCmdFournisseurs: extractText(p["N° Serv. CMD Fournisseurs"]),
     etatMesures: extractStatus(p["État - Mesures"]),

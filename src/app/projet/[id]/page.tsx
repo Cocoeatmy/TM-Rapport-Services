@@ -1272,6 +1272,8 @@ function ProjectPageContent({ id }: { id: string }) {
               {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
                 <>
                   {project.cmdGrossiste && <InfoRow icon={Hash} label="N° CMD Grossiste" value={project.cmdGrossiste} />}
+                  {project.cmdTM && <InfoRow icon={Hash} label="N° CMD TM" value={project.cmdTM} />}
+                  {project.cmdTMUsine && <InfoRow icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} />}
                   {project.cmdFournisseurs && <InfoRow icon={Hash} label="N° CMD Fournisseurs" value={project.cmdFournisseurs} />}
                   {project.servCmdFournisseurs && <InfoRow icon={Hash} label="N° Serv. CMD Fournisseurs" value={project.servCmdFournisseurs} />}
                 </>
@@ -1280,6 +1282,8 @@ function ProjectPageContent({ id }: { id: string }) {
                 <>
                   {project.ofrGrossiste && <InfoRow icon={Hash} label="N° OFR Grossiste" value={project.ofrGrossiste} />}
                   {project.cmdGrossiste && <InfoRow icon={Hash} label="N° CMD Grossiste" value={project.cmdGrossiste} />}
+                  {project.cmdTM && <InfoRow icon={Hash} label="N° CMD TM" value={project.cmdTM} />}
+                  {project.cmdTMUsine && <InfoRow icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} />}
                   {project.servMesuresFournisseurs && <InfoRow icon={Hash} label="N° Serv. Mesures Fournisseurs" value={project.servMesuresFournisseurs} />}
                 </>
               )}
