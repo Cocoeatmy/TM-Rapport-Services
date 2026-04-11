@@ -2125,9 +2125,6 @@ function ProjectPageContent({ id }: { id: string }) {
             {/* Historique des modifications */}
             <ProjectHistory projectId={id} />
 
-            {/* Suivi consultations rapport */}
-            {currentUser?.role === "admin" && <ReportConsultations projectId={id} />}
-
             {/* Signature client */}
             <Card>
               <CardContent className="pt-4">
@@ -2177,6 +2174,9 @@ function ProjectPageContent({ id }: { id: string }) {
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2C5.9 2 5 2.9 5 4v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V8l-6-6H7zm0 2h5v5h5v11H7V4zm2 8v2h6v-2H9zm0 4v2h4v-2H9z"/></svg>
                 Voir le PDF
               </a>
+
+              {/* Suivi consultations rapport */}
+              {currentUser?.role === "admin" && <ReportConsultations projectId={id} />}
             </div>
           </>
         )}
