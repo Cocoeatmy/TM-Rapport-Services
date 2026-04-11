@@ -1206,7 +1206,7 @@ function ProjectPageContent({ id }: { id: string }) {
       <div className="px-4 mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Colonne gauche - Informations */}
         <div className="space-y-4">
-        {/* Informations projet */}
+        {/* === SECTION 1 : Informations projet === */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Informations projet</CardTitle>
@@ -1241,8 +1241,16 @@ function ProjectPageContent({ id }: { id: string }) {
                 <MapAddressLink address={project.adresseChantier} />
               )}
             </div>
-            {/* Type de client, Grossistes, Sanitaire, Contacts projet */}
-            <div className="flex flex-wrap gap-x-4 gap-y-2 py-2">
+          </CardContent>
+        </Card>
+
+        {/* === SECTION 2 : Informations client === */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Informations client</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
               {project.typeClient && (
                 <div className="flex items-start gap-2">
                   <Tag className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
@@ -1265,6 +1273,8 @@ function ProjectPageContent({ id }: { id: string }) {
                   </div>
                 </div>
               )}
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
               {project.sanitaireNames && project.sanitaireNames.length > 0 && (
                 <div className="flex items-start gap-2">
                   <Building2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
@@ -1292,27 +1302,61 @@ function ProjectPageContent({ id }: { id: string }) {
                 </div>
               )}
             </div>
-
-            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
-            <div className="grid grid-cols-2 gap-3 py-2">
-              <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs text-gray-500">Emplacement cabine</p>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.emplacementCabine || "---"}</p>
+            {/* Contacts pour RDV + Appeler/WhatsApp */}
+            {project.contactsRDV && (
+              <div className="pt-1">
+                <div className="flex items-start gap-2">
+                  <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Contacts pour RDV</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.contactsRDV}</p>
+                  </div>
+                </div>
+                <div className="ml-6 mt-1">
+                  <ContactButtons contactName={project.contactsRDV} />
                 </div>
               </div>
-              <div className="flex items-start gap-2">
-                <Box className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs text-gray-500">Nb. Cabines</p>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.nbCabines ?? "---"}</p>
-                </div>
-              </div>
-            </div>
             )}
+          </CardContent>
+        </Card>
 
-            <div className="grid grid-cols-3 gap-3 py-2">
+        {/* === SECTION 3 : Informations Dates === */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Informations Dates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              <EditableDate
+                project={project}
+                mode={mode}
+                onUpdate={(newDate) => {
+                  const field = mode === "mesures" ? "dateMesures" : "dateMontage";
+                  setProject({ ...project, [field]: newDate });
+                }}
+              />
+              <EditableCollaborateur
+                project={project}
+                mode={mode}
+                onUpdate={(newCollab) => {
+                  const field = mode === "mesures" ? "mesuresTraiteePar" : "collaborateurs";
+                  setProject({ ...project, [field]: newCollab });
+                }}
+              />
+            </div>
+            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
+              <DurationEstimate project={project} />
+            )}
+          </CardContent>
+        </Card>
+
+        {/* === SECTION 4 : Informations cabines === */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Informations cabines</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-3">
               <div className="flex items-start gap-2">
                 <Box className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                 <div>
@@ -1347,65 +1391,40 @@ function ProjectPageContent({ id }: { id: string }) {
                 </div>
               )}
             </div>
-
-            <div className="grid grid-cols-2 gap-3 py-2">
-              <EditableCollaborateur
-                project={project}
-                mode={mode}
-                onUpdate={(newCollab) => {
-                  const field = mode === "mesures" ? "mesuresTraiteePar" : "collaborateurs";
-                  setProject({ ...project, [field]: newCollab });
-                }}
-              />
-              <EditableDate
-                project={project}
-                mode={mode}
-                onUpdate={(newDate) => {
-                  const field = mode === "mesures" ? "dateMesures" : "dateMontage";
-                  setProject({ ...project, [field]: newDate });
-                }}
-              />
-            </div>
-
             {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
-              <DurationEstimate project={project} />
-            )}
-
-            {/* Contacts projet */}
-            {/* Contacts pour RDV + Appeler/WhatsApp */}
-            {mode === "mesures" && (
-              <div className="py-2">
-                <EditableTextField
-                  label="Contacts pour RDV"
-                  value={project.contactsRDV}
-                  projectId={id}
-                  fieldName="contactsRDV"
-                  notionField="Contacts pour RDV"
-                  onUpdate={(v) => setProject({ ...project, contactsRDV: v })}
-                />
-                {project.contactsRDV && (
-                  <div className="ml-7 mt-1">
-                    <ContactButtons contactName={project.contactsRDV} />
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Emplacement cabine</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.emplacementCabine || "---"}</p>
                   </div>
-                )}
+                </div>
               </div>
             )}
+          </CardContent>
+        </Card>
 
-            {/* Commentaires Mesures */}
-            {mode === "mesures" && (
-              <div className="py-2">
-                <EditableTextField
-                  label="Commentaires Mesures"
-                  value={project.commentairesMesures}
-                  projectId={id}
-                  fieldName="commentairesMesures"
-                  notionField="Commentaires Mesures"
-                  multiline
-                  onUpdate={(v) => setProject({ ...project, commentairesMesures: v })}
-                />
-              </div>
-            )}
+        {/* === Commentaires Mesures === */}
+        {mode === "mesures" && (
+          <Card>
+            <CardContent className="pt-4">
+              <EditableTextField
+                label="Commentaires Mesures"
+                value={project.commentairesMesures}
+                projectId={id}
+                fieldName="commentairesMesures"
+                notionField="Commentaires Mesures"
+                multiline
+                onUpdate={(v) => setProject({ ...project, commentairesMesures: v })}
+              />
+            </CardContent>
+          </Card>
+        )}
 
+        {/* === Documents === */}
+        <Card>
+          <CardContent className="pt-4">
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" />
             <DocumentLinks files={project.documentsMontagee} label="Documents Montage" />
             {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
