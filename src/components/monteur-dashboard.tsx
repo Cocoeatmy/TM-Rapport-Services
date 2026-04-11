@@ -663,30 +663,48 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
 
             {/* Autres panels : groupé par jour avec séparateurs */}
             {!isRdvAFixer && (() => {
-              const grouped: { dateKey: string; dateLabel: string; isToday: boolean; isThisWeek: boolean; projects: typeof panelProjects }[] = [];
               const todayStr = new Date().toISOString().split("T")[0];
               const now = new Date();
               const weekEnd = new Date(now);
               weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
               const weekEndStr = weekEnd.toISOString().split("T")[0];
 
-              let lastDateKey = "";
+              // Build a map of dateKey → projects, expanding multi-day projects
+              const dayMap: Record<string, Project[]> = {};
               panelProjects.forEach((p) => {
-                const date = (p.dateMontage || p.dateMesures || "").split("T")[0];
-                const dateKey = date || "no-date";
-                if (dateKey !== lastDateKey) {
-                  const d = date ? new Date(date + "T00:00:00") : null;
-                  const label = d ? d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" }) : "Date non définie";
-                  grouped.push({
-                    dateKey,
-                    dateLabel: label.charAt(0).toUpperCase() + label.slice(1),
-                    isToday: dateKey === todayStr,
-                    isThisWeek: dateKey >= todayStr && dateKey <= weekEndStr,
-                    projects: [],
-                  });
-                  lastDateKey = dateKey;
+                const startDate = (p.dateMontage || p.dateMesures || "").split("T")[0];
+                if (!startDate) {
+                  if (!dayMap["no-date"]) dayMap["no-date"] = [];
+                  dayMap["no-date"].push(p);
+                  return;
                 }
-                grouped[grouped.length - 1].projects.push(p);
+                const endDate = (p.dateMontageEnd || "").split("T")[0];
+                if (endDate && endDate > startDate) {
+                  // Multi-day: add to each working day
+                  const days = getWorkingDays(startDate, endDate);
+                  days.forEach((d) => {
+                    if (!dayMap[d]) dayMap[d] = [];
+                    dayMap[d].push(p);
+                  });
+                } else {
+                  // Single day
+                  if (!dayMap[startDate]) dayMap[startDate] = [];
+                  dayMap[startDate].push(p);
+                }
+              });
+
+              // Sort days and build grouped array
+              const sortedDays = Object.keys(dayMap).sort((a, b) => a === "no-date" ? 1 : b === "no-date" ? -1 : a.localeCompare(b));
+              const grouped = sortedDays.map((dateKey) => {
+                const d = dateKey !== "no-date" ? new Date(dateKey + "T00:00:00") : null;
+                const label = d ? d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" }) : "Date non définie";
+                return {
+                  dateKey,
+                  dateLabel: label.charAt(0).toUpperCase() + label.slice(1),
+                  isToday: dateKey === todayStr,
+                  isThisWeek: dateKey >= todayStr && dateKey <= weekEndStr,
+                  projects: dayMap[dateKey],
+                };
               });
 
               return grouped.map((group) => (
