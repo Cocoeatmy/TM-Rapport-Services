@@ -419,6 +419,77 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
   );
 }
 
+function EditableTextField({ label, value, projectId, fieldName, notionField, multiline, onUpdate }: {
+  label: string; value: string; projectId: string; fieldName: string; notionField: string; multiline?: boolean; onUpdate: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [fieldName]: draft }),
+      });
+      onUpdate(draft);
+      setEditing(false);
+    } catch (err) {
+      console.error("Save error:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-2">
+      <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-gray-500">{label}</p>
+        {editing ? (
+          <div className="mt-1 space-y-1">
+            {multiline ? (
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                className="w-full text-sm border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none"
+                rows={3}
+              />
+            ) : (
+              <input
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                className="w-full text-sm border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200"
+              />
+            )}
+            <div className="flex gap-1">
+              <button onClick={handleSave} disabled={saving}
+                className="text-xs bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600 disabled:opacity-50">
+                {saving ? "..." : "✓"}
+              </button>
+              <button onClick={() => { setEditing(false); setDraft(value || ""); }}
+                className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">
+                ✕
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{value || "---"}</p>
+            <button onClick={() => { setDraft(value || ""); setEditing(true); }}
+              className="text-gray-400 hover:text-blue-500 p-0.5">
+              <Pencil className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EditableCollaborateur({ project, mode, onUpdate }: { project: Project; mode: string; onUpdate: (collab: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1195,40 +1266,41 @@ function ProjectPageContent({ id }: { id: string }) {
             </div>
             )}
 
-            {(project.fournisseurs.length > 0 || project.seriesCabines.length > 0) && (
-              <div className="grid grid-cols-2 gap-3 py-2">
-                {project.fournisseurs.length > 0 && (
-                  <div className="flex items-start gap-2">
-                    <Truck className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-500">Fournisseurs</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {project.fournisseurs.map((f) => (
-                          <Badge key={f} variant="secondary" className="text-xs">
-                            {f}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {project.seriesCabines.length > 0 && (
-                  <div className="flex items-start gap-2">
-                    <Box className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-500">Séries Cabines</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {project.seriesCabines.map((s) => (
-                          <Badge key={s} variant="outline" className="text-xs">
-                            {s}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
+            <div className="grid grid-cols-3 gap-3 py-2">
+              <div className="flex items-start gap-2">
+                <Box className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-gray-500">Nb. Cabines</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.nbCabines ?? "---"}</p>
+                </div>
               </div>
-            )}
+              {project.fournisseurs.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <Truck className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Fournisseurs</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {project.fournisseurs.map((f) => (
+                        <Badge key={f} variant="secondary" className="text-xs">{f}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {project.seriesCabines.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <Box className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Séries Cabines</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {project.seriesCabines.map((s) => (
+                        <Badge key={s} variant="outline" className="text-xs">{s}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-3 py-2">
               <EditableCollaborateur
@@ -1251,6 +1323,35 @@ function ProjectPageContent({ id }: { id: string }) {
 
             {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
               <DurationEstimate project={project} />
+            )}
+
+            {/* Contacts projet */}
+            {mode === "mesures" && (
+              <div className="py-2">
+                <EditableTextField
+                  label="Contacts projet"
+                  value={project.contacts}
+                  projectId={id}
+                  fieldName="contacts"
+                  notionField="Contacts projet"
+                  onUpdate={(v) => setProject({ ...project, contacts: v })}
+                />
+              </div>
+            )}
+
+            {/* Commentaires Mesures */}
+            {mode === "mesures" && (
+              <div className="py-2">
+                <EditableTextField
+                  label="Commentaires Mesures"
+                  value={project.commentairesMesures}
+                  projectId={id}
+                  fieldName="commentairesMesures"
+                  notionField="Commentaires Mesures"
+                  multiline
+                  onUpdate={(v) => setProject({ ...project, commentairesMesures: v })}
+                />
+              </div>
             )}
 
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" />

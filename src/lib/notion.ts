@@ -59,6 +59,7 @@ export interface Project {
   photosMesures: FileItem[];
   photosLocalite: FileItem[];
   contacts: string;
+  commentairesMesures: string;
   soucisMontage: boolean;
   causeSoucis: string;
   etatSAV: string;
@@ -184,6 +185,7 @@ export function mapPageToProject(page: any): Project {
     photosMesures: extractFiles(p["Photos mesures"]),
     photosLocalite: extractFiles(p["Photos localité"]),
     contacts: extractText(p["Contacts projet"]),
+    commentairesMesures: extractText(p["Commentaires Mesures"]),
     soucisMontage: p["Soucis montage"]?.checkbox || false,
     causeSoucis: extractSelect(p["Cause Soucis montages"]),
     etatSAV: extractStatus(p["État - SAV"]),
@@ -372,6 +374,10 @@ export async function updateProject(
     bonLivraison?: string;
     etatCMD?: string;
     etatMesures?: string;
+    contacts?: string;
+    commentairesMesures?: string;
+    nomChantier?: string;
+    nbCabines?: number;
   }
 ) {
   const properties: any = {};
@@ -431,6 +437,26 @@ export async function updateProject(
       status: { name: data.etatMesures },
     };
   }
+  if (data.contacts !== undefined) {
+    properties["Contacts projet"] = {
+      rich_text: [{ text: { content: data.contacts } }],
+    };
+  }
+  if (data.commentairesMesures !== undefined) {
+    properties["Commentaires Mesures"] = {
+      rich_text: [{ text: { content: data.commentairesMesures } }],
+    };
+  }
+  if (data.nomChantier !== undefined) {
+    properties["Nom chantier"] = {
+      rich_text: [{ text: { content: data.nomChantier } }],
+    };
+  }
+  if (data.nbCabines !== undefined) {
+    properties["Nb. Cabines"] = {
+      number: data.nbCabines,
+    };
+  }
 
   await notion.pages.update({
     page_id: pageId,
@@ -451,6 +477,7 @@ export async function createProject(data: {
   etatCMD?: string;
   etatMesures?: string;
   contacts?: string;
+  commentairesMesures?: string;
 }): Promise<string> {
   const properties: any = {
     Projet: {
@@ -511,6 +538,21 @@ export async function createProject(data: {
   if (data.contacts) {
     properties["Contacts projet"] = {
       rich_text: [{ text: { content: data.contacts } }],
+    };
+  }
+  if (data.commentairesMesures) {
+    properties["Commentaires Mesures"] = {
+      rich_text: [{ text: { content: data.commentairesMesures } }],
+    };
+  }
+  if (data.nomChantier) {
+    properties["Nom chantier"] = {
+      rich_text: [{ text: { content: data.nomChantier } }],
+    };
+  }
+  if (data.nbCabines !== undefined) {
+    properties["Nb. Cabines"] = {
+      number: data.nbCabines,
     };
   }
 
