@@ -1642,11 +1642,13 @@ function ProjectPageContent({ id }: { id: string }) {
                     onArrival={(time) => setHeureArrivee(time)}
                     onDeparture={(time) => setHeureDepart(time)}
                   />
-                  <GPSTracker
-                    chantierAddress={project.adresseChantier}
-                    onArrival={(time) => setHeureArrivee(time)}
-                    onDeparture={(time) => setHeureDepart(time)}
-                  />
+                  {currentUser?.role === "admin" && (
+                    <GPSTracker
+                      chantierAddress={project.adresseChantier}
+                      onArrival={(time) => setHeureArrivee(time)}
+                      onDeparture={(time) => setHeureDepart(time)}
+                    />
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="min-w-0">
                       <Label htmlFor="arrivee">Heure d'arrivée</Label>
