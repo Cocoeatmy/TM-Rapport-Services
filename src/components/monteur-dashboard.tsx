@@ -555,6 +555,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             {panelProjects.length > 0 && (
               <div className="flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 mb-1">
                 <span className="w-16 shrink-0">{dateLabel}</span>
+                <span className="w-20 shrink-0">N° OFR TM</span>
+                <span className="w-20 shrink-0 hidden sm:block">N° Mes. Fourn.</span>
+                <span className="w-20 shrink-0 hidden sm:block">N° CMD Fourn.</span>
                 <span className="flex-1">Projet</span>
                 <span className="w-14 text-right">Cabines</span>
               </div>
@@ -574,6 +577,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                   <span className="text-gray-400 font-mono w-16 shrink-0">
                     {date ? new Date(date + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
                   </span>
+                  <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
+                  <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
+                  <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                   <span className="flex-1 truncate text-gray-900 dark:text-gray-100">{p.projet}</span>
                   {(showSummaryPanel === "rdv-fixe") && (
                     p.etatMesures === "RDV - Fixé" ? (
