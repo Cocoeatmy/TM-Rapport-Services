@@ -1267,27 +1267,31 @@ function ProjectPageContent({ id }: { id: string }) {
             <CardTitle className="text-base">Informations projet</CardTitle>
           </CardHeader>
           <CardContent className="space-y-0">
-            <div className="flex flex-wrap gap-x-6 gap-y-0">
+            {/* Ligne 1 : N° OFR TM | N° CMD TM | N° CMD TM - Usine */}
+            <div className="grid grid-cols-3 gap-3 py-2">
               <InfoRow icon={Hash} label="N° OFR TM" value={project.ofrTM} />
-              {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
-                <>
-                  {project.cmdGrossiste && <InfoRow icon={Hash} label="N° CMD Grossiste" value={project.cmdGrossiste} />}
-                  {project.cmdTM && <InfoRow icon={Hash} label="N° CMD TM" value={project.cmdTM} />}
-                  {project.cmdTMUsine && <InfoRow icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} />}
-                  {project.cmdFournisseurs && <InfoRow icon={Hash} label="N° CMD Fournisseurs" value={project.cmdFournisseurs} />}
-                  {project.servCmdFournisseurs && <InfoRow icon={Hash} label="N° Serv. CMD Fournisseurs" value={project.servCmdFournisseurs} />}
-                </>
-              )}
-              {mode === "mesures" && (
-                <>
-                  {project.ofrGrossiste && <InfoRow icon={Hash} label="N° OFR Grossiste" value={project.ofrGrossiste} />}
-                  {project.cmdGrossiste && <InfoRow icon={Hash} label="N° CMD Grossiste" value={project.cmdGrossiste} />}
-                  {project.cmdTM && <InfoRow icon={Hash} label="N° CMD TM" value={project.cmdTM} />}
-                  {project.cmdTMUsine && <InfoRow icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} />}
-                  {project.servMesuresFournisseurs && <InfoRow icon={Hash} label="N° Serv. Mesures Fournisseurs" value={project.servMesuresFournisseurs} />}
-                </>
-              )}
+              <InfoRow icon={Hash} label="N° CMD TM" value={project.cmdTM} />
+              <InfoRow icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} />
             </div>
+
+            {/* Ligne 2 : N° OFR Grossiste | N° CMD Grossiste */}
+            {(project.ofrGrossiste || project.cmdGrossiste) && (
+              <div className="grid grid-cols-2 gap-3 py-2">
+                <InfoRow icon={Hash} label="N° OFR Grossiste" value={project.ofrGrossiste} />
+                <InfoRow icon={Hash} label="N° CMD Grossiste" value={project.cmdGrossiste} />
+              </div>
+            )}
+
+            {/* Ligne 3 : N° CMD Fournisseurs | N° Serv. Mesures Fournisseurs | N° Serv. CMD Fournisseurs */}
+            {(project.cmdFournisseurs || project.servMesuresFournisseurs || project.servCmdFournisseurs) && (
+              <div className="grid grid-cols-3 gap-3 py-2">
+                <InfoRow icon={Hash} label="N° CMD Fournisseurs" value={project.cmdFournisseurs} />
+                <InfoRow icon={Hash} label="N° Serv. Mesures Fourn." value={project.servMesuresFournisseurs} />
+                <InfoRow icon={Hash} label="N° Serv. CMD Fourn." value={project.servCmdFournisseurs} />
+              </div>
+            )}
+
+            {/* Ligne 4 : Nom projet | Adresse chantier */}
             <div className="grid grid-cols-2 gap-3 py-2">
               <div className="flex items-start gap-2">
                 <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
