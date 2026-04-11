@@ -25,6 +25,7 @@ import {
   Sparkles,
   Tag,
   Building2,
+  History,
 } from "lucide-react";
 import { MontageChecklist } from "@/components/checklist";
 import { ProjectChat } from "@/components/project-chat";
@@ -984,6 +985,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [signature, setSignature] = useState("");
   const [fav, setFav] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(60);
 
   useEffect(() => { setFav(isFavorite(id)); }, [id]);
@@ -1256,8 +1258,24 @@ function ProjectPageContent({ id }: { id: string }) {
           >
             <Star className={`w-5 h-5 ${fav ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
           </button>
+          {currentUser?.role === "admin" && (
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
+              title="Historique des modifications"
+            >
+              <History className={`w-5 h-5 ${showHistory ? "text-blue-500" : "text-gray-300"}`} />
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Historique des modifications (toggle) */}
+      {showHistory && currentUser?.role === "admin" && (
+        <div className="px-4 mt-2">
+          <ProjectHistory projectId={id} />
+        </div>
+      )}
 
       <div className={`px-4 mt-4 ${showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "max-w-2xl mx-auto"}`}>
         {/* Colonne gauche - Informations (masquée sur mobile quand rapport ouvert) */}
@@ -2121,9 +2139,6 @@ function ProjectPageContent({ id }: { id: string }) {
                 <MontageChecklist fournisseur={project.fournisseurs?.[0]} />
               </CardContent>
             </Card>
-
-            {/* Historique des modifications */}
-            <ProjectHistory projectId={id} />
 
             {/* Signature client */}
             <Card>
