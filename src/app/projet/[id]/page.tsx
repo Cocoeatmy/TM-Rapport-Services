@@ -41,6 +41,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeliveryScan } from "@/components/delivery-scan";
+import { CartonPhotos } from "@/components/carton-photos";
 
 const SignaturePad = dynamic(() => import("@/components/signature-pad").then(m => ({ default: m.SignaturePad })), {
   ssr: false,
@@ -1256,6 +1257,9 @@ function ProjectPageContent({ id }: { id: string }) {
             <DocumentLinks files={project.documentsMontagee} label="Documents Montage" />
             {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
               <DeliveryScan projectId={id} bonLivraison={project.bonLivraison} />
+            )}
+            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
+              <CartonPhotos projectId={id} />
             )}
           </CardContent>
         </Card>
