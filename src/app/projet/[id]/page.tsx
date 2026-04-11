@@ -1259,7 +1259,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       </div>
 
-      <div className="px-4 mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className={`px-4 mt-4 ${showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "max-w-2xl mx-auto"}`}>
         {/* Colonne gauche - Informations (masquée sur mobile quand rapport ouvert) */}
         <div className={`space-y-4 ${showRapport ? "hidden lg:block" : ""}`}>
         {/* === SECTION 1 : Informations projet === */}
