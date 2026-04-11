@@ -564,7 +564,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             )}
             {panelProjects.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
             {panelProjects.map((p, idx) => {
-              const names = (p.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
+              const isMesure = p.etatMesures === "RDV - Fixé";
+              const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
+              const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
               const date = isRdvAFixer
                 ? (p.dateMesures || "").split("T")[0]
                 : (p.dateMontage || p.dateMesures || "").split("T")[0];
