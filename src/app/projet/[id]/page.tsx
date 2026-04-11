@@ -566,6 +566,11 @@ function EditableTextField({ label, value, projectId, fieldName, notionField, mu
                 </button>
               )}
             </div>
+            {multiline && (
+              <div className="mt-1">
+                <VoiceRecorder onTranscript={(text) => setDraft((prev) => prev ? prev + "\n" + text : text)} />
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-1">
