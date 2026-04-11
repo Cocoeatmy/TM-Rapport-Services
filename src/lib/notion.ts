@@ -202,7 +202,7 @@ export function mapPageToProject(page: any): Project {
     grossistesNames: [], // resolved later
     sanitaireRelation: extractRelationIds(p["Sanitaire (Entreprise)"]),
     sanitaireNames: [],
-    contactsProjetRelation: extractRelationIds(p["Contacts projet"]),
+    contactsProjetRelation: extractRelationIds(p["Contact Projet"]).length > 0 ? extractRelationIds(p["Contact Projet"]) : extractRelationIds(p["Contacts projet"]),
     contactsProjetNames: [],
   };
 }
