@@ -33,6 +33,11 @@ export interface Project {
   adresseChantier: string;
   dateMontage: string | null;
   dateMontageEnd: string | null;
+  dateDemandeProjet: string | null;
+  dateMesuresRecue: string | null;
+  dateOffre: string | null;
+  dateCMDRecue: string | null;
+  dateCMDUsine: string | null;
   collaborateurs: string;
   documentsMontagee: FileItem[];
   documentsMesures: FileItem[];
@@ -164,6 +169,11 @@ export function mapPageToProject(page: any): Project {
     adresseChantier: extractPlace(p["Adresse chantier"]) || extractFormula(p["n8n - Adresse chantier"]),
     dateMontage: extractDate(p["Date Montage"]),
     dateMontageEnd: extractDateEnd(p["Date Montage"]),
+    dateDemandeProjet: extractDate(p["Demande projet reçue le"]),
+    dateMesuresRecue: extractDate(p["Date Mesures reçue le"]),
+    dateOffre: extractDate(p["Date Offre"]),
+    dateCMDRecue: extractDate(p["CMD reçue le"]),
+    dateCMDUsine: extractDate(p["Date CMD – Usine"]),
     collaborateurs: extractSelect(p["Collaborateurs montages"]),
     documentsMontagee: extractFiles(p["Documents pour Montage"]),
     documentsMesures: extractFiles(p["Documents pour prise de mesures"]),
@@ -401,6 +411,11 @@ export async function updateProject(
     rapportMonteur?: string;
     dateMontage?: string | null;
     dateMesures?: string | null;
+    dateDemandeProjet?: string | null;
+    dateMesuresRecue?: string | null;
+    dateOffre?: string | null;
+    dateCMDRecue?: string | null;
+    dateCMDUsine?: string | null;
     collaborateurs?: string;
     mesuresTraiteePar?: string;
     bonLivraison?: string;
@@ -443,6 +458,31 @@ export async function updateProject(
   if (data.dateMesures !== undefined) {
     properties["Mesures traitée le"] = {
       date: data.dateMesures ? { start: data.dateMesures } : null,
+    };
+  }
+  if (data.dateDemandeProjet !== undefined) {
+    properties["Demande projet reçue le"] = {
+      date: data.dateDemandeProjet ? { start: data.dateDemandeProjet } : null,
+    };
+  }
+  if (data.dateMesuresRecue !== undefined) {
+    properties["Date Mesures reçue le"] = {
+      date: data.dateMesuresRecue ? { start: data.dateMesuresRecue } : null,
+    };
+  }
+  if (data.dateOffre !== undefined) {
+    properties["Date Offre"] = {
+      date: data.dateOffre ? { start: data.dateOffre } : null,
+    };
+  }
+  if (data.dateCMDRecue !== undefined) {
+    properties["CMD reçue le"] = {
+      date: data.dateCMDRecue ? { start: data.dateCMDRecue } : null,
+    };
+  }
+  if (data.dateCMDUsine !== undefined) {
+    properties["Date CMD – Usine"] = {
+      date: data.dateCMDUsine ? { start: data.dateCMDUsine } : null,
     };
   }
   if (data.collaborateurs !== undefined) {

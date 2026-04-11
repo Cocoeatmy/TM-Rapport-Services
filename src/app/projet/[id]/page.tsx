@@ -421,6 +421,60 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
   );
 }
 
+function ExtraDateField({ label, value, projectId, fieldName, onUpdate }: {
+  label: string; value: string | null; projectId: string; fieldName: string; onUpdate: (v: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ? value.split("T")[0] : "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [fieldName]: draft || null }),
+      });
+      onUpdate(draft || null);
+      setEditing(false);
+    } catch (err) {
+      console.error("Save error:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const formatted = value
+    ? new Date(value.split("T")[0] + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" })
+    : null;
+
+  return (
+    <div className="flex items-start gap-1.5">
+      <Clock className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] text-gray-400">{label}</p>
+        {editing ? (
+          <div className="flex items-center gap-1 mt-0.5">
+            <input type="date" value={draft} onChange={(e) => setDraft(e.target.value)}
+              className="text-xs border rounded px-1.5 py-1 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 w-full" />
+            <button onClick={handleSave} disabled={saving}
+              className="text-[10px] bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 shrink-0">✓</button>
+            <button onClick={() => { setEditing(false); setDraft(value ? value.split("T")[0] : ""); }}
+              className="text-[10px] bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded shrink-0">✕</button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-200">{formatted || "—"}</p>
+            <button onClick={() => { setDraft(value ? value.split("T")[0] : ""); setEditing(true); }}
+              className="text-gray-300 hover:text-blue-500 p-0.5"><Pencil className="w-2.5 h-2.5" /></button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EditableTextField({ label, value, projectId, fieldName, notionField, multiline, onUpdate }: {
   label: string; value: string; projectId: string; fieldName: string; notionField: string; multiline?: boolean; onUpdate: (v: string) => void;
 }) {
@@ -891,6 +945,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [sending, setSending] = useState(false);
   const [reformulating, setReformulating] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
+  const [showAllDates, setShowAllDates] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth").then((r) => r.json()).then((d) => {
@@ -1347,6 +1402,48 @@ function ProjectPageContent({ id }: { id: string }) {
             {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
               <DurationEstimate project={project} />
             )}
+
+            {/* Dates additionnelles — visibles uniquement si remplies, ou toutes si mode édition */}
+            {(() => {
+              const extraDates = [
+                { label: "Demande projet reçue le", value: project.dateDemandeProjet, field: "dateDemandeProjet" },
+                { label: "Date Mesures reçue le", value: project.dateMesuresRecue, field: "dateMesuresRecue" },
+                { label: "Date Offre", value: project.dateOffre, field: "dateOffre" },
+                { label: "CMD reçue le", value: project.dateCMDRecue, field: "dateCMDRecue" },
+                { label: "Date CMD – Usine", value: project.dateCMDUsine, field: "dateCMDUsine" },
+              ];
+              const filledDates = extraDates.filter(d => d.value);
+              const datesToShow = showAllDates ? extraDates : filledDates;
+              const emptyCount = 5 - filledDates.length;
+              return (
+                <>
+                  {datesToShow.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
+                      {datesToShow.map((d) => (
+                        <ExtraDateField
+                          key={d.field}
+                          label={d.label}
+                          value={d.value}
+                          projectId={id}
+                          fieldName={d.field}
+                          onUpdate={(v) => setProject((prev) => prev ? { ...prev, [d.field]: v } : prev)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {emptyCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllDates(!showAllDates)}
+                      className="text-xs text-blue-500 hover:text-blue-700 mt-2 flex items-center gap-1"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      {showAllDates ? "Masquer les dates vides" : `Modifier les dates (${emptyCount} non remplies)`}
+                    </button>
+                  )}
+                </>
+              );
+            })()}
           </CardContent>
         </Card>
 
