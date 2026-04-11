@@ -32,6 +32,7 @@ export interface Project {
   nomChantier: string;
   adresseChantier: string;
   dateMontage: string | null;
+  dateMontageEnd: string | null;
   collaborateurs: string;
   documentsMontagee: FileItem[];
   documentsMesures: FileItem[];
@@ -114,6 +115,11 @@ function extractDate(prop: any): string | null {
   return prop.date.start || null;
 }
 
+function extractDateEnd(prop: any): string | null {
+  if (!prop || prop.type !== "date" || !prop.date) return null;
+  return prop.date.end || null;
+}
+
 function extractFiles(prop: any): FileItem[] {
   if (!prop || prop.type !== "files") return [];
   return (prop.files?.map((f: any) => ({
@@ -151,6 +157,7 @@ export function mapPageToProject(page: any): Project {
     nomChantier: extractText(p["Nom chantier"]),
     adresseChantier: extractPlace(p["Adresse chantier"]) || extractFormula(p["n8n - Adresse chantier"]),
     dateMontage: extractDate(p["Date Montage"]),
+    dateMontageEnd: extractDateEnd(p["Date Montage"]),
     collaborateurs: extractSelect(p["Collaborateurs montages"]),
     documentsMontagee: extractFiles(p["Documents pour Montage"]),
     documentsMesures: extractFiles(p["Documents pour prise de mesures"]),

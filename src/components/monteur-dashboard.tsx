@@ -29,6 +29,40 @@ function getClientLogo(projectName: string): string | null {
   return match ? match.logo : null;
 }
 
+// Get all working days (Mon-Fri) between start and end dates
+function getWorkingDays(startStr: string, endStr: string): string[] {
+  const days: string[] = [];
+  const start = new Date(startStr.split("T")[0] + "T00:00:00");
+  const end = new Date(endStr.split("T")[0] + "T00:00:00");
+  const current = new Date(start);
+  while (current <= end) {
+    const dow = current.getDay();
+    if (dow !== 0 && dow !== 6) { // Skip Sunday (0) and Saturday (6)
+      days.push(current.toISOString().split("T")[0]);
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return days;
+}
+
+// Check if a project spans a given date (considering multi-day projects, excluding weekends)
+function projectSpansDate(p: Project, dateStr: string): boolean {
+  const startRaw = (p.dateMontage || "").split("T")[0];
+  const endRaw = (p.dateMontageEnd || "").split("T")[0];
+  if (!startRaw) return false;
+  if (!endRaw) return startRaw === dateStr;
+  return getWorkingDays(startRaw, endRaw).includes(dateStr);
+}
+
+// Check if a project is active during a date range (for week views)
+function projectActiveDuringRange(p: Project, rangeStart: string, rangeEnd: string): boolean {
+  const startRaw = (p.dateMontage || "").split("T")[0];
+  const endRaw = (p.dateMontageEnd || startRaw).split("T")[0];
+  if (!startRaw) return false;
+  // Project overlaps range if project start <= range end AND project end >= range start
+  return startRaw <= rangeEnd && endRaw >= rangeStart;
+}
+
 interface MonteurDashboardProps {
   userName: string;
   projects: Project[];
@@ -371,12 +405,18 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
     const colors = getCollaboratorColor(name);
     const myProjects = getProjectsForCollaborator(projects, name);
     const getD = (p: Project) => (p.dateMontage || p.dateMesures || "").split("T")[0];
-    const todayProjects = myProjects.filter((p) => getD(p) === todayStr);
+    const todayProjects = myProjects.filter((p) => projectSpansDate(p, todayStr));
     const thisWeekProjects = myProjects
-      .filter((p) => { const d = getD(p); return d && d > todayStr && d <= thisWeekEndStr; })
+      .filter((p) => {
+        if (todayProjects.includes(p)) return false;
+        return projectActiveDuringRange(p, todayStr, thisWeekEndStr);
+      })
       .sort((a, b) => getD(a).localeCompare(getD(b)));
     const nextWeekProjects = myProjects
-      .filter((p) => { const d = getD(p); return d && d > thisWeekEndStr && d <= weekEndStr; })
+      .filter((p) => {
+        if (todayProjects.includes(p) || thisWeekProjects.includes(p)) return false;
+        return projectActiveDuringRange(p, thisWeekEndStr, weekEndStr);
+      })
       .sort((a, b) => getD(a).localeCompare(getD(b)));
     const allUpcoming = [...todayProjects, ...thisWeekProjects, ...nextWeekProjects];
     const cabinesBySource = countCabinesBySource(allUpcoming, name);
@@ -390,8 +430,8 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   projects.forEach((p) => {
     const collab = p.collaborateurs || "";
     if (!collab.includes("&")) return;
-    const date = p.dateMontage || p.dateMesures || "";
-    if (!date || date > weekEndStr) return;
+    // Check if project is active within next 2 weeks
+    if (!projectActiveDuringRange(p, todayStr, weekEndStr)) return;
     if (!binomeMap[collab]) binomeMap[collab] = [];
     binomeMap[collab].push(p);
   });
@@ -401,10 +441,10 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
       const isBinome = names.length === 2;
       const isTeam = names.length >= 5 || teamName.toLowerCase().includes("team");
       const getD = (p: Project) => (p.dateMontage || p.dateMesures || "").split("T")[0];
-      const todayP = teamProjects.filter((p) => getD(p) === todayStr);
-      const thisWeekP = teamProjects.filter((p) => { const d = getD(p); return d && d > todayStr && d <= thisWeekEndStr; })
+      const todayP = teamProjects.filter((p) => projectSpansDate(p, todayStr));
+      const thisWeekP = teamProjects.filter((p) => { if (todayP.includes(p)) return false; return projectActiveDuringRange(p, todayStr, thisWeekEndStr); })
         .sort((a, b) => getD(a).localeCompare(getD(b)));
-      const nextWeekP = teamProjects.filter((p) => { const d = getD(p); return d && d > thisWeekEndStr && d <= weekEndStr; })
+      const nextWeekP = teamProjects.filter((p) => { if (todayP.includes(p) || thisWeekP.includes(p)) return false; return projectActiveDuringRange(p, thisWeekEndStr, weekEndStr); })
         .sort((a, b) => getD(a).localeCompare(getD(b)));
       const totalCabines = teamProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
       return { teamName, names, isBinome, isTeam, todayProjects: todayP, thisWeekProjects: thisWeekP, nextWeekProjects: nextWeekP, totalCabines };
@@ -613,6 +653,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                         style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
                     ))}
                   </div>
+                  {p.dateMontageEnd && (() => { const days = getWorkingDays(p.dateMontage || "", p.dateMontageEnd); return days.length > 1 ? (
+                    <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{days.length}j</span>
+                  ) : null; })()}
                   <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
                 </Link>
               );
@@ -692,6 +735,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                               style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
                           ))}
                         </div>
+                        {p.dateMontageEnd && (() => { const days = getWorkingDays(p.dateMontage || "", p.dateMontageEnd); return days.length > 1 ? (
+                          <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{days.length}j</span>
+                        ) : null; })()}
                         <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
                       </Link>
                     );
@@ -937,17 +983,23 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
   // Date effective d'un projet (mesures ou montage)
   const getDate = (p: Project) => p.dateMontage || p.dateMesures || "";
 
-  // Projets du jour
-  const todayProjects = myProjects.filter((p) => getDate(p).startsWith(todayStr));
+  // Projets du jour (inclut les projets multi-jours qui couvrent aujourd'hui)
+  const todayProjects = myProjects.filter((p) => projectSpansDate(p, todayStr));
 
   // Projets cette semaine (excl. aujourd'hui)
   const thisWeekProjects = myProjects
-    .filter((p) => { const d = getDate(p); return d && d > todayStr && d <= thisWeekEndStr; })
+    .filter((p) => {
+      if (todayProjects.includes(p)) return false; // déjà dans "aujourd'hui"
+      return projectActiveDuringRange(p, todayStr, thisWeekEndStr);
+    })
     .sort((a, b) => getDate(a).localeCompare(getDate(b)));
 
   // Projets semaine prochaine
   const nextWeekProjects = myProjects
-    .filter((p) => { const d = getDate(p); return d && d > thisWeekEndStr && d <= weekEndStr; })
+    .filter((p) => {
+      if (todayProjects.includes(p) || thisWeekProjects.includes(p)) return false;
+      return projectActiveDuringRange(p, thisWeekEndStr, weekEndStr);
+    })
     .sort((a, b) => getDate(a).localeCompare(getDate(b)));
 
   const allUpcoming = [...todayProjects, ...thisWeekProjects, ...nextWeekProjects];
