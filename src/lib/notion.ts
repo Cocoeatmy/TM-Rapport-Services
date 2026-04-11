@@ -68,6 +68,10 @@ export interface Project {
   typeClient: string;
   grossistesRelation: string[]; // IDs des grossistes liés
   grossistesNames: string[]; // Noms résolus des grossistes
+  sanitaireRelation: string[]; // IDs Sanitaire (Entreprise)
+  sanitaireNames: string[];
+  contactsProjetRelation: string[]; // IDs Contacts projet
+  contactsProjetNames: string[];
 }
 
 export interface FileItem {
@@ -194,6 +198,10 @@ export function mapPageToProject(page: any): Project {
     typeClient: extractSelect(p["Type de client"]) || extractStatus(p["Type de client"]) || extractText(p["Type de client"]),
     grossistesRelation: extractRelationIds(p["Grossistes"]),
     grossistesNames: [], // resolved later
+    sanitaireRelation: extractRelationIds(p["Sanitaire (Entreprise)"]),
+    sanitaireNames: [],
+    contactsProjetRelation: extractRelationIds(p["Contacts projet"]),
+    contactsProjetNames: [],
   };
 }
 
@@ -249,6 +257,19 @@ async function queryAll(filter: any, sorts?: any[]): Promise<Project[]> {
     const names = await resolveRelationNames(allGrossisteIds);
     projects.forEach((p) => {
       p.grossistesNames = p.grossistesRelation.map((id) => names[id] || id);
+    });
+  }
+
+  // Resolve sanitaire + contacts projet relation names
+  const allRelIds = [...new Set([
+    ...projects.flatMap((p) => p.sanitaireRelation),
+    ...projects.flatMap((p) => p.contactsProjetRelation),
+  ])];
+  if (allRelIds.length > 0) {
+    const names = await resolveRelationNames(allRelIds);
+    projects.forEach((p) => {
+      p.sanitaireNames = p.sanitaireRelation.map((id) => names[id] || id);
+      p.contactsProjetNames = p.contactsProjetRelation.map((id) => names[id] || id);
     });
   }
 
@@ -357,7 +378,16 @@ export async function getAllActiveProjects(): Promise<Project[]> {
 
 export async function getProject(pageId: string): Promise<Project> {
   const page = await notion.pages.retrieve({ page_id: pageId });
-  return mapPageToProject(page);
+  const project = mapPageToProject(page);
+  // Resolve relation names for single project
+  const allRelIds = [...new Set([...project.grossistesRelation, ...project.sanitaireRelation, ...project.contactsProjetRelation])];
+  if (allRelIds.length > 0) {
+    const names = await resolveRelationNames(allRelIds);
+    project.grossistesNames = project.grossistesRelation.map((id) => names[id] || id);
+    project.sanitaireNames = project.sanitaireRelation.map((id) => names[id] || id);
+    project.contactsProjetNames = project.contactsProjetRelation.map((id) => names[id] || id);
+  }
+  return project;
 }
 
 export async function updateProject(

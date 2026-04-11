@@ -23,6 +23,8 @@ import {
   Pencil,
   Check,
   Sparkles,
+  Tag,
+  Building2,
 } from "lucide-react";
 import { MontageChecklist } from "@/components/checklist";
 import { ProjectChat } from "@/components/project-chat";
@@ -1239,6 +1241,58 @@ function ProjectPageContent({ id }: { id: string }) {
                 <MapAddressLink address={project.adresseChantier} />
               )}
             </div>
+            {/* Type de client, Grossistes, Sanitaire, Contacts projet */}
+            <div className="flex flex-wrap gap-x-4 gap-y-2 py-2">
+              {project.typeClient && (
+                <div className="flex items-start gap-2">
+                  <Tag className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Type de client</p>
+                    <Badge variant="secondary" className="text-xs mt-0.5">{project.typeClient}</Badge>
+                  </div>
+                </div>
+              )}
+              {project.grossistesNames && project.grossistesNames.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Grossistes</p>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {project.grossistesNames.map((g) => (
+                        <Badge key={g} variant="outline" className="text-xs">{g}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {project.sanitaireNames && project.sanitaireNames.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <Building2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Sanitaire (Entreprise)</p>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {project.sanitaireNames.map((s) => (
+                        <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {project.contactsProjetNames && project.contactsProjetNames.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <Users className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Contacts projet</p>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {project.contactsProjetNames.map((c) => (
+                        <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {project.contacts && (
               <div>
                 <InfoRow icon={Users} label="Contact" value={project.contacts} />
