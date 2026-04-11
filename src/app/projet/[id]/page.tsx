@@ -1275,11 +1275,12 @@ function ProjectPageContent({ id }: { id: string }) {
               <InfoRow icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} />
             </div>
 
-            {/* Ligne 2 : N° OFR Grossiste | N° CMD Grossiste */}
+            {/* Ligne 2 : N° OFR Grossiste | N° CMD Grossiste | (vide) */}
             {(project.ofrGrossiste || project.cmdGrossiste) && (
-              <div className="grid grid-cols-2 gap-3 py-2">
+              <div className="grid grid-cols-3 gap-3 py-2">
                 <InfoRow icon={Hash} label="N° OFR Grossiste" value={project.ofrGrossiste} />
                 <InfoRow icon={Hash} label="N° CMD Grossiste" value={project.cmdGrossiste} />
+                <div />
               </div>
             )}
 
@@ -1314,7 +1315,8 @@ function ProjectPageContent({ id }: { id: string }) {
             <CardTitle className="text-base">Informations client</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {/* Ligne 1 : Type de client | Grossistes/Fournisseurs */}
+            <div className="grid grid-cols-2 gap-3">
               {project.typeClient && (
                 <div className="flex items-start gap-2">
                   <Tag className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
@@ -1326,7 +1328,7 @@ function ProjectPageContent({ id }: { id: string }) {
               )}
               {/* Grossistes OU Fournisseurs selon Type de client */}
               {project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur" ? (
-                project.fournisseursNames && project.fournisseursNames.length > 0 && (
+                project.fournisseursNames && project.fournisseursNames.length > 0 ? (
                   <div className="flex items-start gap-2">
                     <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                     <div>
@@ -1338,9 +1340,9 @@ function ProjectPageContent({ id }: { id: string }) {
                       </div>
                     </div>
                   </div>
-                )
+                ) : <div />
               ) : (
-                project.grossistesNames && project.grossistesNames.length > 0 && (
+                project.grossistesNames && project.grossistesNames.length > 0 ? (
                   <div className="flex items-start gap-2">
                     <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                     <div>
@@ -1352,10 +1354,11 @@ function ProjectPageContent({ id }: { id: string }) {
                       </div>
                     </div>
                   </div>
-                )
+                ) : <div />
               )}
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {/* Ligne 2 : Sanitaire | Contact Projet */}
+            <div className="grid grid-cols-2 gap-3">
               {project.sanitaireNames && project.sanitaireNames.length > 0 && (
                 <div className="flex items-start gap-2">
                   <Building2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
