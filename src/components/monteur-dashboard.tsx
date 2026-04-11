@@ -546,13 +546,25 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             .sort((a, b) => ((a.dateMontage || a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMontage || b.dateMesures || "z").split("T")[0]));
         }
 
+        const isRdvAFixer = showSummaryPanel === "rdv-a-fixer";
+        const dateLabel = isRdvAFixer ? "Mesures relevées" : "Date";
+
         return (
           <div className="glass-card rounded-2xl p-4 space-y-1.5">
             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{panelTitle} ({panelProjects.length})</p>
+            {panelProjects.length > 0 && (
+              <div className="flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 mb-1">
+                <span className="w-16 shrink-0">{dateLabel}</span>
+                <span className="flex-1">Projet</span>
+                <span className="w-14 text-right">Cabines</span>
+              </div>
+            )}
             {panelProjects.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
             {panelProjects.map((p) => {
               const names = (p.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
-              const date = (p.dateMontage || p.dateMesures || "").split("T")[0];
+              const date = isRdvAFixer
+                ? (p.dateMesures || "").split("T")[0]
+                : (p.dateMontage || p.dateMesures || "").split("T")[0];
               return (
                 <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                   className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
