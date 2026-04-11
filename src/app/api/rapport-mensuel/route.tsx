@@ -12,11 +12,9 @@ import ReactPDF, {
 } from "@react-pdf/renderer";
 import React from "react";
 import { LOGO_BASE64 } from "@/lib/logo";
-import { readFileSync, existsSync } from "fs";
-import { join } from "path";
+import { getData } from "@/lib/kv-store";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const DATA_DIR = join(process.cwd(), "data");
 
 export const dynamic = "force-dynamic";
 
@@ -45,24 +43,12 @@ interface DefautRequest {
   timestamp: number;
 }
 
-function loadAllPieces(): PieceRequest[] {
-  const file = join(DATA_DIR, "pieces.json");
-  if (!existsSync(file)) return [];
-  try {
-    return JSON.parse(readFileSync(file, "utf-8"));
-  } catch {
-    return [];
-  }
+async function loadAllPieces(): Promise<PieceRequest[]> {
+  return getData<PieceRequest>("pieces");
 }
 
-function loadAllDefauts(): DefautRequest[] {
-  const file = join(DATA_DIR, "defauts.json");
-  if (!existsSync(file)) return [];
-  try {
-    return JSON.parse(readFileSync(file, "utf-8"));
-  } catch {
-    return [];
-  }
+async function loadAllDefauts(): Promise<DefautRequest[]> {
+  return getData<DefautRequest>("defauts");
 }
 
 function computeHours(heureArrivee: string, heureDepart: string): number {
@@ -405,8 +391,8 @@ export async function POST(request: NextRequest) {
     const tauxSoucis = totalProjets > 0 ? nbSoucis / totalProjets : 0;
 
     // Pièces manquantes & défauts
-    const allPieces = loadAllPieces();
-    const allDefauts = loadAllDefauts();
+    const allPieces = await loadAllPieces();
+    const allDefauts = await loadAllDefauts();
     const nbPieces = allPieces.length;
     const nbDefauts = allDefauts.length;
 

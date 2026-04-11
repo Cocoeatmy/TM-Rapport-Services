@@ -1,17 +1,38 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
 import { notion, databaseId } from "./notion";
 
-const DATA_DIR = join(process.cwd(), "data");
+// ---------------------------------------------------------------------------
+// In-memory cache  (survives across requests in the same serverless process)
+// ---------------------------------------------------------------------------
 
-// In-memory cache of Notion page IDs for each data key
+interface CacheEntry<T = unknown> {
+  data: T[];
+  expiry: number;
+}
+
+const memoryCache = new Map<string, CacheEntry>();
+const CACHE_TTL = 60_000; // 1 minute
+
+function getCached<T>(key: string): T[] | null {
+  const entry = memoryCache.get(key);
+  if (entry && Date.now() < entry.expiry) return entry.data as T[];
+  if (entry) memoryCache.delete(key);
+  return null;
+}
+
+function setCache<T>(key: string, data: T[]): void {
+  memoryCache.set(key, { data, expiry: Date.now() + CACHE_TTL });
+}
+
+// ---------------------------------------------------------------------------
+// Notion page ID cache  (maps data key -> Notion page ID)
+// ---------------------------------------------------------------------------
+
 const pageIdCache: Record<string, string> = {};
 
-// Notion has a 2000 character limit per rich_text block
 const NOTION_BLOCK_CHAR_LIMIT = 2000;
 
 /**
- * Find or create a Notion page that stores backup data for a given key.
+ * Find or create a Notion page that stores data for a given key.
  * Pages are identified by a title prefix "[DATA] <key>".
  */
 async function getOrCreateBackupPageId(key: string): Promise<string> {
@@ -20,7 +41,6 @@ async function getOrCreateBackupPageId(key: string): Promise<string> {
   const title = `[DATA] ${key}`;
 
   try {
-    // Search for existing backup page in the database
     const response = await notion.databases.query({
       database_id: databaseId,
       filter: {
@@ -48,10 +68,14 @@ async function getOrCreateBackupPageId(key: string): Promise<string> {
     pageIdCache[key] = page.id;
     return pageIdCache[key];
   } catch (err) {
-    console.error(`[kv-store] Failed to get/create backup page for "${key}":`, err);
+    console.error(`[kv-store] Failed to get/create page for "${key}":`, err);
     throw err;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Notion read / write
+// ---------------------------------------------------------------------------
 
 /**
  * Write JSON data into the content blocks of a Notion page.
@@ -59,51 +83,46 @@ async function getOrCreateBackupPageId(key: string): Promise<string> {
  * paragraph blocks (each <= 2000 chars).
  */
 async function writeToNotion(key: string, jsonString: string): Promise<void> {
-  try {
-    const pageId = await getOrCreateBackupPageId(key);
+  const pageId = await getOrCreateBackupPageId(key);
 
-    // Delete all existing child blocks
-    const existingBlocks = await notion.blocks.children.list({
+  // Delete all existing child blocks
+  const existingBlocks = await notion.blocks.children.list({
+    block_id: pageId,
+    page_size: 100,
+  });
+
+  for (const block of existingBlocks.results) {
+    try {
+      await notion.blocks.delete({ block_id: block.id });
+    } catch {
+      // Ignore delete errors for individual blocks
+    }
+  }
+
+  // Chunk the JSON string and create paragraph blocks
+  const chunks: string[] = [];
+  for (let i = 0; i < jsonString.length; i += NOTION_BLOCK_CHAR_LIMIT) {
+    chunks.push(jsonString.slice(i, i + NOTION_BLOCK_CHAR_LIMIT));
+  }
+
+  if (chunks.length === 0) {
+    chunks.push("[]");
+  }
+
+  // Notion API allows appending up to 100 blocks at a time
+  const batchSize = 100;
+  for (let i = 0; i < chunks.length; i += batchSize) {
+    const batch = chunks.slice(i, i + batchSize);
+    await notion.blocks.children.append({
       block_id: pageId,
-      page_size: 100,
+      children: batch.map((chunk) => ({
+        object: "block" as const,
+        type: "paragraph" as const,
+        paragraph: {
+          rich_text: [{ type: "text" as const, text: { content: chunk } }],
+        },
+      })),
     });
-
-    for (const block of existingBlocks.results) {
-      try {
-        await notion.blocks.delete({ block_id: block.id });
-      } catch {
-        // Ignore delete errors for individual blocks
-      }
-    }
-
-    // Chunk the JSON string and create paragraph blocks
-    const chunks: string[] = [];
-    for (let i = 0; i < jsonString.length; i += NOTION_BLOCK_CHAR_LIMIT) {
-      chunks.push(jsonString.slice(i, i + NOTION_BLOCK_CHAR_LIMIT));
-    }
-
-    // If data is empty, write a single block with "[]"
-    if (chunks.length === 0) {
-      chunks.push("[]");
-    }
-
-    // Notion API allows appending up to 100 blocks at a time
-    const batchSize = 100;
-    for (let i = 0; i < chunks.length; i += batchSize) {
-      const batch = chunks.slice(i, i + batchSize);
-      await notion.blocks.children.append({
-        block_id: pageId,
-        children: batch.map((chunk) => ({
-          object: "block" as const,
-          type: "paragraph" as const,
-          paragraph: {
-            rich_text: [{ type: "text" as const, text: { content: chunk } }],
-          },
-        })),
-      });
-    }
-  } catch (err) {
-    console.error(`[kv-store] Failed to write to Notion for "${key}":`, err);
   }
 }
 
@@ -118,7 +137,6 @@ async function readFromNotion<T>(key: string): Promise<T[]> {
     let allText = "";
     let cursor: string | undefined;
 
-    // Paginate through all blocks
     do {
       const response = await notion.blocks.children.list({
         block_id: pageId,
@@ -127,7 +145,7 @@ async function readFromNotion<T>(key: string): Promise<T[]> {
       });
 
       for (const block of response.results) {
-        const b = block as any;
+        const b = block as Record<string, any>;
         if (b.type === "paragraph" && b.paragraph?.rich_text) {
           for (const rt of b.paragraph.rich_text) {
             allText += rt.plain_text || "";
@@ -146,40 +164,29 @@ async function readFromNotion<T>(key: string): Promise<T[]> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Public API  –  Notion is the PRIMARY source of truth
+// ---------------------------------------------------------------------------
+
 /**
  * Read data for a given key.
- * Tries the local filesystem first; falls back to Notion backup.
+ *
+ * 1. Return from in-memory cache if fresh.
+ * 2. Otherwise fetch from Notion (the primary store).
+ * 3. Populate the in-memory cache for the next fast read.
  */
 export async function getData<T>(key: string): Promise<T[]> {
-  const filePath = join(DATA_DIR, `${key}.json`);
+  // 1. In-memory cache (fast, survives within the same process)
+  const cached = getCached<T>(key);
+  if (cached !== null) return cached;
 
-  // Try local file first
-  if (existsSync(filePath)) {
-    try {
-      const content = readFileSync(filePath, "utf-8").trim();
-      if (content) {
-        const parsed = JSON.parse(content);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {
-      // File exists but couldn't be parsed, fall through to Notion
-    }
-  }
-
-  // Fallback: read from Notion
-  console.log(`[kv-store] Local file missing/empty for "${key}", fetching from Notion...`);
+  // 2. Primary store: Notion
+  console.log(`[kv-store] Cache miss for "${key}", fetching from Notion...`);
   const data = await readFromNotion<T>(key);
 
-  // Write back to local file for next fast read
+  // 3. Populate cache
   if (data.length > 0) {
-    try {
-      if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-      writeFileSync(filePath, JSON.stringify(data, null, 2));
-    } catch {
-      // Serverless may not allow writing
-    }
+    setCache(key, data);
   }
 
   return data;
@@ -187,24 +194,21 @@ export async function getData<T>(key: string): Promise<T[]> {
 
 /**
  * Write data for a given key.
- * Writes to local filesystem, then syncs to Notion in the background.
+ *
+ * 1. Update the in-memory cache immediately.
+ * 2. Write to Notion (the primary store) – awaited to ensure persistence.
  */
 export async function setData<T>(key: string, data: T[]): Promise<void> {
-  const filePath = join(DATA_DIR, `${key}.json`);
-  const jsonString = JSON.stringify(data, null, 2);
+  // 1. Update in-memory cache immediately
+  setCache(key, data);
 
-  // Write to local file (fast)
-  try {
-    if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-    writeFileSync(filePath, jsonString);
-  } catch {
-    console.warn(`[kv-store] Cannot write local file for "${key}" (serverless)`);
-  }
-
-  // Sync to Notion in the background (don't await)
-  // Use compact JSON for Notion to minimize block count
+  // 2. Write to Notion (primary store) – use compact JSON to minimize blocks
   const compactJson = JSON.stringify(data);
-  writeToNotion(key, compactJson).catch((err) => {
-    console.error(`[kv-store] Background Notion sync failed for "${key}":`, err);
-  });
+  try {
+    await writeToNotion(key, compactJson);
+  } catch (err) {
+    console.error(`[kv-store] Notion write failed for "${key}":`, err);
+    // Re-throw so callers know the write didn't persist
+    throw err;
+  }
 }

@@ -13,8 +13,7 @@ import ReactPDF, {
   Font,
 } from "@react-pdf/renderer";
 import React from "react";
-import { readFileSync, existsSync } from "fs";
-import { join } from "path";
+import { getData } from "@/lib/kv-store";
 
 interface PieceRequest {
   id: string;
@@ -41,28 +40,14 @@ interface DefautRequest {
   timestamp: number;
 }
 
-const DATA_DIR = join(process.cwd(), "data");
-
-function loadPiecesForProject(projectId: string): PieceRequest[] {
-  const file = join(DATA_DIR, "pieces.json");
-  if (!existsSync(file)) return [];
-  try {
-    const all: PieceRequest[] = JSON.parse(readFileSync(file, "utf-8"));
-    return all.filter((p) => p.projectId === projectId);
-  } catch {
-    return [];
-  }
+async function loadPiecesForProject(projectId: string): Promise<PieceRequest[]> {
+  const all = await getData<PieceRequest>("pieces");
+  return all.filter((p) => p.projectId === projectId);
 }
 
-function loadDefautsForProject(projectId: string): DefautRequest[] {
-  const file = join(DATA_DIR, "defauts.json");
-  if (!existsSync(file)) return [];
-  try {
-    const all: DefautRequest[] = JSON.parse(readFileSync(file, "utf-8"));
-    return all.filter((d) => d.projectId === projectId);
-  } catch {
-    return [];
-  }
+async function loadDefautsForProject(projectId: string): Promise<DefautRequest[]> {
+  const all = await getData<DefautRequest>("defauts");
+  return all.filter((d) => d.projectId === projectId);
 }
 
 export const dynamic = "force-dynamic";
@@ -674,8 +659,8 @@ export async function GET(
     if (arriveeOverride) project.heureArrivee = arriveeOverride;
     if (departOverride) project.heureDepart = departOverride;
 
-    const pieces = loadPiecesForProject(id);
-    const defauts = loadDefautsForProject(id);
+    const pieces = await loadPiecesForProject(id);
+    const defauts = await loadDefautsForProject(id);
 
     const pdfStream = await ReactPDF.renderToStream(
       <RapportPDF project={project} pieces={pieces} defauts={defauts} />
