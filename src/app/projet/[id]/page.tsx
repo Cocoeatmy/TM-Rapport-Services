@@ -1515,21 +1515,6 @@ function ProjectPageContent({ id }: { id: string }) {
               );
             })()}
 
-            {/* Pointage GPS + Chrono — visible directement */}
-            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
-              <div className="mt-4 space-y-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                <SiteTimer
-                  projectId={id}
-                  onArrival={(t) => setProject((prev) => prev ? { ...prev, heureArrivee: t } : prev)}
-                  onDeparture={(t) => setProject((prev) => prev ? { ...prev, heureDepart: t } : prev)}
-                />
-                <GPSTracker
-                  chantierAddress={project.adresseChantier}
-                  onArrival={(t) => setProject((prev) => prev ? { ...prev, heureArrivee: t } : prev)}
-                  onDeparture={(t) => setProject((prev) => prev ? { ...prev, heureDepart: t } : prev)}
-                />
-              </div>
-            )}
           </CardContent>
         </Card>
 
