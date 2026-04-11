@@ -1579,7 +1579,22 @@ function ProjectPageContent({ id }: { id: string }) {
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" />
             <DocumentLinks files={project.documentsMontagee} label="Documents Montage" />
 
-            {/* Commentaires Mesures — juste sous Documents Montage */}
+            {/* Commentaires Montages — sous Documents Montage */}
+            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
+              <div className="mt-3">
+                <EditableTextField
+                  label="Commentaires Montages"
+                  value={project.commentairesMontages}
+                  projectId={id}
+                  fieldName="commentairesMontages"
+                  notionField="Commentaires Montages"
+                  multiline
+                  onUpdate={(v) => setProject({ ...project, commentairesMontages: v })}
+                />
+              </div>
+            )}
+
+            {/* Commentaires Mesures — sous Documents Montage */}
             {mode === "mesures" && (
               <div className="mt-3">
                 <EditableTextField
