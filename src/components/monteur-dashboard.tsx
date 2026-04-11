@@ -560,14 +560,17 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               </div>
             )}
             {panelProjects.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
-            {panelProjects.map((p) => {
+            {panelProjects.map((p, idx) => {
               const names = (p.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
               const date = isRdvAFixer
                 ? (p.dateMesures || "").split("T")[0]
                 : (p.dateMontage || p.dateMesures || "").split("T")[0];
+              const rowBg = idx % 2 === 0
+                ? "bg-blue-50/60 dark:bg-blue-950/20"
+                : "bg-blue-100/60 dark:bg-blue-900/20";
               return (
                 <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
                   <span className="text-gray-400 font-mono w-16 shrink-0">
                     {date ? new Date(date + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
                   </span>
