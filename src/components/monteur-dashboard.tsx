@@ -598,23 +598,17 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               return grouped.map((group) => (
                 <div key={group.dateKey} className="mb-1">
                   {/* Day separator */}
-                  <div className={`flex items-center gap-2 px-2 py-1.5 mt-2 mb-1 rounded-lg ${
+                  <div className={`flex items-center gap-2 px-3 py-2 mt-3 mb-1 rounded-lg shadow-sm ${
                     group.isToday
-                      ? "bg-green-50 dark:bg-green-900/20 border-l-3 border-green-500"
+                      ? "bg-green-600 dark:bg-green-700"
                       : group.isThisWeek
-                        ? "bg-blue-50/80 dark:bg-blue-900/10 border-l-3 border-blue-400"
-                        : "bg-gray-50 dark:bg-gray-800/50 border-l-3 border-gray-300 dark:border-gray-600"
+                        ? "bg-[#1e3a5f] dark:bg-[#1e3a5f]"
+                        : "bg-slate-500 dark:bg-slate-600"
                   }`}>
-                    <span className={`text-[11px] font-bold ${
-                      group.isToday ? "text-green-700 dark:text-green-300" : group.isThisWeek ? "text-blue-700 dark:text-blue-300" : "text-gray-500 dark:text-gray-400"
-                    }`}>
+                    <span className="text-[12px] font-bold text-white">
                       {group.isToday ? "📍 Aujourd'hui" : group.dateLabel}
                     </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                      group.isToday
-                        ? "bg-green-100 text-green-700 dark:bg-green-800/30 dark:text-green-300"
-                        : "bg-gray-200/60 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
-                    }`}>
+                    <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-semibold bg-white/20 text-white">
                       {group.projects.length} projet{group.projects.length > 1 ? "s" : ""} · {group.projects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
                     </span>
                   </div>
