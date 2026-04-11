@@ -488,6 +488,27 @@ function EditableTextField({ label, value, projectId, fieldName, notionField, mu
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
   const [saving, setSaving] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const handleAiReformulate = async () => {
+    if (!draft.trim() || draft.trim().length < 10) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Reformule ce texte de manière professionnelle, claire et concise pour un rapport technique. Garde le sens exact mais améliore la formulation. Réponds uniquement avec le texte reformulé :\n\n${draft}`,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.response) setDraft(data.response.trim());
+      }
+    } catch {} finally {
+      setAiLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -528,7 +549,7 @@ function EditableTextField({ label, value, projectId, fieldName, notionField, mu
                 className="w-full text-sm border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200"
               />
             )}
-            <div className="flex gap-1">
+            <div className="flex items-center gap-1">
               <button onClick={handleSave} disabled={saving}
                 className="text-xs bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600 disabled:opacity-50">
                 {saving ? "..." : "✓"}
@@ -537,6 +558,13 @@ function EditableTextField({ label, value, projectId, fieldName, notionField, mu
                 className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">
                 ✕
               </button>
+              {multiline && draft.trim().length > 10 && (
+                <button onClick={handleAiReformulate} disabled={aiLoading}
+                  className="ml-auto flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50">
+                  {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  {aiLoading ? "IA..." : "✨ Reformuler"}
+                </button>
+              )}
             </div>
           </div>
         ) : (
