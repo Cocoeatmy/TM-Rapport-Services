@@ -1554,28 +1554,26 @@ function ProjectPageContent({ id }: { id: string }) {
           </CardContent>
         </Card>
 
-        {/* === Commentaires Mesures === */}
-        {mode === "mesures" && (
-          <Card>
-            <CardContent className="pt-4">
-              <EditableTextField
-                label="Commentaires Mesures"
-                value={project.commentairesMesures}
-                projectId={id}
-                fieldName="commentairesMesures"
-                notionField="Commentaires Mesures"
-                multiline
-                onUpdate={(v) => setProject({ ...project, commentairesMesures: v })}
-              />
-            </CardContent>
-          </Card>
-        )}
-
         {/* === Documents === */}
         <Card>
           <CardContent className="pt-4">
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" />
             <DocumentLinks files={project.documentsMontagee} label="Documents Montage" />
+
+            {/* Commentaires Mesures — juste sous Documents Montage */}
+            {mode === "mesures" && (
+              <div className="mt-3">
+                <EditableTextField
+                  label="Commentaires Mesures"
+                  value={project.commentairesMesures}
+                  projectId={id}
+                  fieldName="commentairesMesures"
+                  notionField="Commentaires Mesures"
+                  multiline
+                  onUpdate={(v) => setProject({ ...project, commentairesMesures: v })}
+                />
+              </div>
+            )}
             {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
               <DeliveryScan projectId={id} bonLivraison={project.bonLivraison} />
             )}
