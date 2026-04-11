@@ -575,6 +575,13 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                     {date ? new Date(date + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
                   </span>
                   <span className="flex-1 truncate text-gray-900 dark:text-gray-100">{p.projet}</span>
+                  {(showSummaryPanel === "rdv-fixe") && (
+                    p.etatMesures === "RDV - Fixé" ? (
+                      <span className="shrink-0 text-[9px] font-semibold px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">Mesures</span>
+                    ) : p.etatCMD === "RDV - fixé" ? (
+                      <span className="shrink-0 text-[9px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">Montages</span>
+                    ) : null
+                  )}
                   <div className="flex -space-x-1 shrink-0">
                     {names.slice(0, 3).map((n) => (
                       <span key={n} className="w-5 h-5 rounded-full text-[8px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
