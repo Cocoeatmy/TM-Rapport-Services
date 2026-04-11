@@ -1770,7 +1770,7 @@ function ProjectPageContent({ id }: { id: string }) {
             <ProjectHistory projectId={id} />
 
             {/* Suivi consultations rapport */}
-            {isAdmin && <ReportConsultations projectId={id} />}
+            {currentUser?.role === "admin" && <ReportConsultations projectId={id} />}
 
             {/* Signature client */}
             <Card>

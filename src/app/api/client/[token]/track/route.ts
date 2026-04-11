@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kvStore } from "@/lib/kv-store";
+import { getData, setData } from "@/lib/kv-store";
 import { getProject } from "@/lib/notion";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function POST(
     }
 
     // Get existing consultations
-    const consultations = await kvStore.get<any[]>("rapport-consultations") || [];
+    const consultations = await getData<any>("rapport-consultations") || [];
 
     // Add new consultation
     consultations.push({
@@ -36,7 +36,7 @@ export async function POST(
 
     // Keep last 1000 consultations
     const trimmed = consultations.slice(-1000);
-    await kvStore.set("rapport-consultations", trimmed);
+    await setData("rapport-consultations", trimmed);
 
     // Notify admin on first view or PDF open
     try {
@@ -87,7 +87,7 @@ export async function GET(
       return NextResponse.json({ error: "Invalid token" }, { status: 400 });
     }
 
-    const consultations = await kvStore.get<any[]>("rapport-consultations") || [];
+    const consultations = await getData<any>("rapport-consultations") || [];
     const projectConsultations = consultations.filter((c: any) => c.projectId === projectId);
 
     return NextResponse.json(projectConsultations);
