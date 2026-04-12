@@ -672,6 +672,7 @@ function HomePage() {
     }
   }, []);
 
+  // Sync filters to URL (without search — search uses debounce to avoid losing focus)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -682,10 +683,9 @@ function HomePage() {
     if (statusFilter) params.set("status", statusFilter);
     if (collabFilter) params.set("collab", collabFilter);
     if (quickFilter) params.set("quick", quickFilter);
-    if (search) params.set("q", search);
     const qs = params.toString();
     router.replace(qs ? `/?${qs}` : "/", { scroll: false });
-  }, [mode, statusFilter, collabFilter, quickFilter, search, router]);
+  }, [mode, statusFilter, collabFilter, quickFilter, router]);
 
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "calendar" | "collab" | "week" | "clients" | "kanban">("list");
