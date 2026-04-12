@@ -894,9 +894,13 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               </div>
               {/* Dernière connexion */}
               {(() => {
-                const lastSeen = Object.entries(userActivities).find(([name]) =>
-                  name.toLowerCase().includes(collab.name.toLowerCase()) || collab.name.toLowerCase().includes(name.split(" ")[0].toLowerCase())
-                )?.[1];
+                const collabLower = collab.name.toLowerCase();
+                const lastSeen = Object.entries(userActivities).find(([name]) => {
+                  const nameLower = name.toLowerCase();
+                  const nameFirst = nameLower.split(" ")[0];
+                  // Match: "Claudio Zanutto" contains "Claudio", or "Claudio" contains "Claudio"
+                  return nameLower.includes(collabLower) || collabLower.includes(nameFirst) || nameFirst === collabLower;
+                })?.[1];
                 if (!lastSeen) return (
                   <span className="text-[9px] text-gray-300 dark:text-gray-600 shrink-0 text-right">Jamais<br/>connecté</span>
                 );
