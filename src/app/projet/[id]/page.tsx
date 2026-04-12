@@ -1780,14 +1780,14 @@ function ProjectPageContent({ id }: { id: string }) {
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-2">
                           <div>
                             <Label className="text-xs">Date</Label>
                             <Input
                               type="date"
                               value={entry.date}
                               onChange={(e) => updatePointage(idx, "date", e.target.value)}
-                              className="mt-0.5 h-10 text-sm"
+                              className="mt-0.5 h-10 text-sm max-w-[200px]"
                             />
                           </div>
                           <div>
