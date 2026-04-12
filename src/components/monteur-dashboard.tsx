@@ -1100,29 +1100,7 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
           </p>
           <div className="space-y-2">
             {todayProjects.map((p) => (
-              <Link
-                key={p.id}
-                href={`/projet/${p.id}?mode=dashboard`}
-                className="block glass-card rounded-xl p-3 border-l-4"
-                style={{ borderLeftColor: colors.dot }}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{p.projet}</p>
-                    <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      <MapPin className="w-3 h-3" />
-                      <span className="truncate">{p.adresseChantier || p.nomChantier || "---"}</span>
-                    </div>
-                    <div className="flex gap-1.5 mt-1.5">
-                      {p.fournisseurs.slice(0, 1).map((f) => (
-                        <Badge key={f} variant="secondary" className="text-[10px]">{f}</Badge>
-                      ))}
-                      <Badge variant="outline" className="text-[10px]">{p.nbCabines || 0} cab.</Badge>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-300 dark:text-gray-600 shrink-0" />
-                </div>
-              </Link>
+              <ProjectRow key={p.id} project={p} colors={colors} />
             ))}
           </div>
           <div className="mt-3">
@@ -1140,20 +1118,7 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
           </p>
           <div className="space-y-1.5">
             {thisWeekProjects.map((p) => (
-              <Link
-                key={p.id}
-                href={`/projet/${p.id}?mode=dashboard`}
-                className="flex items-center gap-3 glass-card rounded-xl px-3 py-2"
-              >
-                <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
-                  {formatDay(p.dateMontage || p.dateMesures || "")}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate">{p.projet}</p>
-                </div>
-                <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
-                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-              </Link>
+              <WeekProjectRow key={p.id} project={p} />
             ))}
           </div>
         </div>
@@ -1168,20 +1133,7 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
           </p>
           <div className="space-y-1.5">
             {nextWeekProjects.map((p) => (
-              <Link
-                key={p.id}
-                href={`/projet/${p.id}?mode=dashboard`}
-                className="flex items-center gap-3 glass-card rounded-xl px-3 py-2"
-              >
-                <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
-                  {formatDay(p.dateMontage || p.dateMesures || "")}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate">{p.projet}</p>
-                </div>
-                <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
-                <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-              </Link>
+              <WeekProjectRow key={p.id} project={p} />
             ))}
           </div>
         </div>
