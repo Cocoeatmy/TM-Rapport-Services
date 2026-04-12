@@ -139,7 +139,7 @@ function ProjectCard({ project, mode, isAdmin, onDelete }: { project: Project; m
   );
 }
 
-function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void }) {
+function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean }) {
   const [open, setOpen] = useState<string | null>(
     mode.startsWith("grossistes") ? "grossistes" :
     mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
@@ -217,11 +217,6 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
             Clients
             <ChevronDown className={`w-3 h-3 transition-transform ${open === "clients" ? "rotate-180" : ""}`} />
           </button>
-          <button onClick={() => { handleSelect("rapport"); setOpen(null); }} className={`shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 inline-flex items-center gap-1 ${
-            mode === "rapport" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
-          }`}>
-            Rapport
-          </button>
           <button onClick={() => setOpen(open === "grossistes" ? null : "grossistes")} className={tabCls(isGrossisteActive || open === "grossistes")}>
             {isGrossisteActive && grossisteActiveLabel && grossisteActiveLabel !== "Tous" ? `Grossistes · ${grossisteActiveLabel}` : "Grossistes"}
             <ChevronDown className={`w-3 h-3 transition-transform ${open === "grossistes" ? "rotate-180" : ""}`} />
@@ -230,12 +225,21 @@ function NavBar({ mode, projectsData, onSwitchMode }: { mode: string; projectsDa
             {isFournisseursActive && fournisseurActiveLabel && fournisseurActiveLabel !== "Tous" ? `Fournisseurs · ${fournisseurActiveLabel}` : "Fournisseurs"}
             <ChevronDown className={`w-3 h-3 transition-transform ${open === "fournisseurs-menu" ? "rotate-180" : ""}`} />
           </button>
-          <button onClick={() => { handleSelect("stats"); setOpen(null); }} className={tabCls(mode === "stats")}>
-            Stats
+          <button onClick={() => { handleSelect("rapport"); setOpen(null); }} className={`shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 inline-flex items-center gap-1 ${
+            mode === "rapport" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
+          }`}>
+            Rapport
           </button>
-          <button onClick={() => { handleSelect("archives"); setOpen(null); }} className={tabCls(mode === "archives")}>
-            Archives
-          </button>
+          {isAdmin && (
+            <button onClick={() => { handleSelect("stats"); setOpen(null); }} className={tabCls(mode === "stats")}>
+              Stats
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={() => { handleSelect("archives"); setOpen(null); }} className={tabCls(mode === "archives")}>
+              Archives
+            </button>
+          )}
         </div>
       </div>
 
@@ -1058,7 +1062,7 @@ function HomePage() {
       <div className="sticky z-40 -mx-4 px-4 pb-2 pt-1" style={{top: `var(--header-h, 60px)`}}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <NavBar mode={mode} projectsData={projectsData} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }} />
+          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }} />
         </div>
         {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && !mode.startsWith("clients-") && (
           <button
