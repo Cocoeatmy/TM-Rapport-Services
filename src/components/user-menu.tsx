@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle } from "lucide-react";
+import { getCollaboratorInitials } from "@/lib/collaborators";
 
 interface UserData {
   email: string;
@@ -54,12 +55,7 @@ export function UserMenu() {
     );
   }
 
-  const initials = user.name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const initials = getCollaboratorInitials(user.name);
 
   return (
     <div className="relative">

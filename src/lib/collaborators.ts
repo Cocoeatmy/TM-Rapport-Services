@@ -12,13 +12,21 @@ const COLLABORATOR_COLORS: Record<string, { bg: string; text: string; dot: strin
 
 const COLLABORATOR_INITIALS: Record<string, string> = {
   "Micael": "MF",
+  "Micael Ferreira": "MF",
   "Ferreira Micael": "MF",
   "Claudio": "CZ",
+  "Claudio Zanutto": "CZ",
   "Jean-Marc": "JMN",
+  "Jean-Marc Nelzi": "JMN",
+  "Jean-Marc Nezli": "JMN",
   "Jacobo": "JF",
+  "Jacobo Fontan Cassas": "JF",
   "Miguel": "MR",
+  "Miguel Roberto": "MR",
   "Loïc": "LS",
   "Loic": "LS",
+  "Loic Schiro": "LS",
+  "Loïc Schiro": "LS",
   "Team TM": "TM",
   "Atelier Art Home": "AH",
 };
