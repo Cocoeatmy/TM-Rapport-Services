@@ -42,34 +42,36 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
   }, [onScan]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-black/90 shrink-0">
-        <div className="flex items-center gap-2 text-white">
-          <ScanLine className="w-5 h-5" />
-          <span className="font-medium text-sm">Scanner QR Code</span>
-        </div>
+    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
+      {/* Close button - always on top */}
+      <div className="absolute top-4 right-4 z-10">
         <button
           onClick={() => {
             if (scannerRef.current) scannerRef.current.stop().catch(() => {});
             onClose();
           }}
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-500 text-white text-sm font-medium active:scale-95 transition-transform"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-red-500 text-white text-sm font-semibold active:scale-95 transition-transform shadow-lg"
         >
           <X className="w-4 h-4" />
           Fermer
         </button>
       </div>
 
-      {/* Scanner area */}
-      <div className="flex-1 flex items-center justify-center overflow-hidden">
-        <div className="w-full max-w-sm px-4">
-          <div id="qr-reader" className="rounded-2xl overflow-hidden [&>video]:!w-full [&>video]:!h-auto [&>video]:!object-cover" style={{ maxHeight: "60vh" }} />
-        </div>
+      {/* Title - top */}
+      <div className="absolute top-5 left-4 flex items-center gap-2 text-white z-10">
+        <ScanLine className="w-5 h-5" />
+        <span className="font-medium text-sm">Scanner QR Code</span>
       </div>
 
-      {/* Footer */}
-      <div className="px-4 py-4 bg-black/90 shrink-0 text-center">
+      {/* Scanner area - centered */}
+      <div
+        id="qr-reader"
+        className="w-[85vw] h-[85vw] max-w-[400px] max-h-[400px] rounded-2xl overflow-hidden"
+        style={{ position: "relative" }}
+      />
+
+      {/* Info text - bottom */}
+      <div className="absolute bottom-8 left-0 right-0 text-center px-4">
         {error && (
           <p className="text-red-400 text-sm mb-2">{error}</p>
         )}
