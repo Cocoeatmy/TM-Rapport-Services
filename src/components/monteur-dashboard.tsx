@@ -328,11 +328,14 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
       className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
     >
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate text-gray-900 dark:text-gray-100">{project.projet}</p>
+        {project.ofrTM && (
+          <p className="text-[10px] font-mono text-gray-400 dark:text-gray-500">{project.ofrTM}</p>
+        )}
+        <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-3">{project.projet}</p>
         {project.adresseChantier && (
-          <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            <MapPin className="w-3 h-3" />
-            <span className="truncate">{project.adresseChantier}</span>
+          <div className="flex items-center gap-1 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+            <MapPin className="w-3 h-3 shrink-0" />
+            <span className="line-clamp-1">{project.adresseChantier}</span>
           </div>
         )}
         {collabNames.length >= 1 && (
@@ -374,7 +377,10 @@ function WeekProjectRow({ project }: { project: Project }) {
         {formatDay(date)}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm truncate text-gray-900 dark:text-gray-100">{project.projet}</p>
+        {project.ofrTM && (
+          <p className="text-[10px] font-mono text-gray-400 dark:text-gray-500">{project.ofrTM}</p>
+        )}
+        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3">{project.projet}</p>
         {collabNames.length >= 1 && (
           <div className="flex items-center gap-1 mt-0.5">
             <div className="flex -space-x-1">
