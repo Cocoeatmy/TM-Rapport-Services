@@ -1679,7 +1679,7 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* Bouton démarrer le rapport */}
         {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && !showRapport && (
           <button
-            onClick={() => setShowRapport(true)}
+            onClick={() => { setShowRapport(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
             className="w-full py-4 rounded-2xl bg-green-600 hover:bg-green-700 active:scale-[0.98] text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg transition-all"
           >
             <FileText className="w-5 h-5" />
@@ -1689,7 +1689,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
         {showRapport && (mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
           <button
-            onClick={() => setShowRapport(false)}
+            onClick={() => { setShowRapport(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
             className="w-full py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium text-sm flex items-center justify-center gap-2 transition-all"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -1884,14 +1884,6 @@ function ProjectPageContent({ id }: { id: string }) {
                   </div>
                 )}
 
-                {commentaires && (
-                  <div>
-                    <Label>Commentaires montage</Label>
-                    <div className="mt-1 p-3 bg-gray-50 rounded-lg text-sm text-gray-700 whitespace-pre-wrap">
-                      {commentaires}
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
