@@ -9,9 +9,29 @@ interface ContactButtonsProps {
   phoneNumber?: string;
 }
 
+function extractPhoneFromText(text: string): string {
+  if (!text) return "";
+  // Chercher un numéro de téléphone dans le texte
+  // Formats: +41 79 555 24 74, 079 555 24 74, 0795552474, +41795552474
+  const patterns = [
+    /(\+\d{2}\s?\d{2}\s?\d{3}\s?\d{2}\s?\d{2})/,  // +41 79 555 24 74
+    /(\+\d{10,13})/,                                  // +41795552474
+    /(0\d{2}\s?\d{3}\s?\d{2}\s?\d{2})/,              // 079 555 24 74
+    /(0\d{9,10})/,                                     // 0795552474
+    /(\d{3}\s?\d{3}\s?\d{2}\s?\d{2})/,               // 079 555 24 74 sans 0
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return match[1];
+  }
+  return "";
+}
+
 export function ContactButtons({ contactName, phoneNumber }: ContactButtonsProps) {
+  // Extraire automatiquement le numéro depuis contactName si pas de phoneNumber
+  const autoPhone = phoneNumber || extractPhoneFromText(contactName || "");
   const [showInput, setShowInput] = useState(false);
-  const [number, setNumber] = useState(phoneNumber || "");
+  const [number, setNumber] = useState(autoPhone);
 
   const cleanNumber = (n: string) => {
     let cleaned = n.replace(/\s/g, "").replace(/[^0-9+]/g, "");
@@ -50,7 +70,7 @@ export function ContactButtons({ contactName, phoneNumber }: ContactButtonsProps
         </button>
       </div>
 
-      {showInput && !phoneNumber && (
+      {showInput && !autoPhone && (
         <div className="mt-2 flex gap-2">
           <Input
             type="tel"
