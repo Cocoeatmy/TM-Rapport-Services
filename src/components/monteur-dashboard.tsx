@@ -52,9 +52,14 @@ function getWorkingDays(startStr: string, endStr: string): string[] {
   return days;
 }
 
+// Get the effective date for a project (montage or mesures)
+function getEffectiveDate(p: Project): string {
+  return (p.dateMontage || p.dateMesures || "").split("T")[0];
+}
+
 // Check if a project spans a given date (considering multi-day projects, excluding weekends)
 function projectSpansDate(p: Project, dateStr: string): boolean {
-  const startRaw = (p.dateMontage || "").split("T")[0];
+  const startRaw = getEffectiveDate(p);
   const endRaw = (p.dateMontageEnd || "").split("T")[0];
   if (!startRaw) return false;
   if (!endRaw) return startRaw === dateStr;
@@ -63,10 +68,9 @@ function projectSpansDate(p: Project, dateStr: string): boolean {
 
 // Check if a project is active during a date range (for week views)
 function projectActiveDuringRange(p: Project, rangeStart: string, rangeEnd: string): boolean {
-  const startRaw = (p.dateMontage || "").split("T")[0];
+  const startRaw = getEffectiveDate(p);
   const endRaw = (p.dateMontageEnd || startRaw).split("T")[0];
   if (!startRaw) return false;
-  // Project overlaps range if project start <= range end AND project end >= range start
   return startRaw <= rangeEnd && endRaw >= rangeStart;
 }
 
