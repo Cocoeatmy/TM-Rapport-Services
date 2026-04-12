@@ -1671,7 +1671,7 @@ function ProjectPageContent({ id }: { id: string }) {
               <DeliveryScan projectId={id} bonLivraison={project.bonLivraison} />
             )}
             {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
-              <CartonPhotos projectId={id} />
+              <CartonPhotos projectId={id} initialPhotos={project.photosCartons} />
             )}
           </CardContent>
         </Card>

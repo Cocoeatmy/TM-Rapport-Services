@@ -49,6 +49,7 @@ export interface Project {
   photosMontage: FileItem[];
   photosQRCode: FileItem[];
   photosGaranties: FileItem[];
+  photosCartons: FileItem[];
   rapportDeMontage: string;
   facturations: string;
   etatCMD: string;
@@ -189,6 +190,7 @@ export function mapPageToProject(page: any): Project {
     photosMontage: extractFiles(p["Photos montage terminé"]),
     photosQRCode: extractFiles(p["Photos QR Code"]),
     photosGaranties: extractFiles(p["Photos garanties"]),
+    photosCartons: extractFiles(p["État des cartons réceptionnés"]),
     rapportDeMontage: extractSelect(p["Rapport de montage"]),
     facturations: extractSelect(p["Facturations"]),
     etatCMD: extractStatus(p["État - CMD"]),
@@ -544,6 +546,16 @@ export async function updateProject(
   if (data.nbCabines !== undefined) {
     properties["Nb. Cabines"] = {
       number: data.nbCabines,
+    };
+  }
+  if ((data as any).photosCartons !== undefined) {
+    const urls: string[] = (data as any).photosCartons;
+    properties["État des cartons réceptionnés"] = {
+      files: urls.map((url) => ({
+        type: "external" as const,
+        name: url.split("/").pop()?.slice(0, 100) || "carton.jpg",
+        external: { url },
+      })),
     };
   }
 

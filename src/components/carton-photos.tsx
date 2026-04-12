@@ -5,32 +5,61 @@ import { Camera, X, Package, Loader2, Download } from "lucide-react";
 
 interface CartonPhotosProps {
   projectId: string;
+  initialPhotos?: { name: string; url: string }[];
 }
 
-export function CartonPhotos({ projectId }: CartonPhotosProps) {
+export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
-  // Load saved photos from localStorage
+  // Load photos: from Notion (initialPhotos) + localStorage (local additions)
   useEffect(() => {
+    const notionUrls = (initialPhotos || []).map((p) => p.url);
     try {
       const saved = localStorage.getItem(`carton-photos-${projectId}`);
-      if (saved) setPhotos(JSON.parse(saved));
-    } catch {}
-  }, [projectId]);
+      if (saved) {
+        const localUrls = JSON.parse(saved) as string[];
+        // Merge: Notion photos + local photos not already in Notion
+        const merged = [...notionUrls];
+        localUrls.forEach((url) => {
+          if (!merged.includes(url)) merged.push(url);
+        });
+        setPhotos(merged);
+      } else {
+        setPhotos(notionUrls);
+      }
+    } catch {
+      setPhotos(notionUrls);
+    }
+    setLoaded(true);
+  }, [projectId, initialPhotos]);
 
-  // Save photos to localStorage
+  // Save to localStorage when photos change
   useEffect(() => {
+    if (!loaded) return;
     try {
       localStorage.setItem(`carton-photos-${projectId}`, JSON.stringify(photos));
     } catch {}
-  }, [photos, projectId]);
+  }, [photos, projectId, loaded]);
+
+  // Sync a photo URL to Notion via PATCH
+  const syncToNotion = async (allUrls: string[]) => {
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photosCartons: allUrls }),
+      });
+    } catch {}
+  };
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     setUploading(true);
+    const newUrls: string[] = [];
     try {
       for (const file of Array.from(files)) {
         const formData = new FormData();
@@ -44,8 +73,16 @@ export function CartonPhotos({ projectId }: CartonPhotosProps) {
         );
         const data = await res.json();
         if (data.secure_url) {
-          setPhotos((prev) => [...prev, data.secure_url]);
+          newUrls.push(data.secure_url);
         }
+      }
+      if (newUrls.length > 0) {
+        setPhotos((prev) => {
+          const updated = [...prev, ...newUrls];
+          // Sync all URLs to Notion
+          syncToNotion(updated);
+          return updated;
+        });
       }
     } catch (err) {
       console.error("Upload error:", err);
@@ -56,7 +93,11 @@ export function CartonPhotos({ projectId }: CartonPhotosProps) {
   };
 
   const removePhoto = (index: number) => {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotos((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      syncToNotion(updated);
+      return updated;
+    });
   };
 
   return (
