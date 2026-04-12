@@ -230,7 +230,7 @@ export default function AdminPage() {
           className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 active:bg-white/80 transition-colors text-xs"
         >
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-gray-900 truncate">{p.projet || "Sans nom"}</p>
+            <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-2 mt-0.5">{p.projet || "Sans nom"}</p>
             <p className="text-gray-500 truncate">{p.adresseChantier || p.nomChantier || "---"}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
