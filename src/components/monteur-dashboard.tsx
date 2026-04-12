@@ -30,15 +30,22 @@ function getClientLogo(projectName: string): string | null {
 }
 
 // Get all working days (Mon-Fri) between start and end dates
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function getWorkingDays(startStr: string, endStr: string): string[] {
   const days: string[] = [];
-  const start = new Date(startStr.split("T")[0] + "T00:00:00");
-  const end = new Date(endStr.split("T")[0] + "T00:00:00");
+  const start = new Date(startStr.split("T")[0] + "T12:00:00");
+  const end = new Date(endStr.split("T")[0] + "T12:00:00");
   const current = new Date(start);
   while (current <= end) {
     const dow = current.getDay();
-    if (dow !== 0 && dow !== 6) { // Skip Sunday (0) and Saturday (6)
-      days.push(current.toISOString().split("T")[0]);
+    if (dow !== 0 && dow !== 6) {
+      days.push(formatLocalDate(current));
     }
     current.setDate(current.getDate() + 1);
   }
@@ -638,7 +645,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                 <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
                   <span className="text-gray-400 font-mono w-16 shrink-0">
-                    {date ? new Date(date + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
+                    {date ? new Date(date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
                   </span>
                   <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
                   <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
@@ -696,7 +703,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               // Sort days and build grouped array
               const sortedDays = Object.keys(dayMap).sort((a, b) => a === "no-date" ? 1 : b === "no-date" ? -1 : a.localeCompare(b));
               const grouped = sortedDays.map((dateKey) => {
-                const d = dateKey !== "no-date" ? new Date(dateKey + "T00:00:00") : null;
+                const d = dateKey !== "no-date" ? new Date(dateKey + "T12:00:00") : null;
                 const label = d ? d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" }) : "Date non définie";
                 return {
                   dateKey,

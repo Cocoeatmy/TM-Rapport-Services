@@ -411,10 +411,26 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
               {formatDate(currentDate)}
+              {project.dateMontageEnd && mode !== "mesures" && (
+                <span className="text-gray-400"> → {formatDate(project.dateMontageEnd)}</span>
+              )}
             </p>
+            {project.dateMontageEnd && mode !== "mesures" && (() => {
+              const start = currentDate?.split("T")[0] || "";
+              const end = project.dateMontageEnd.split("T")[0];
+              if (!start || !end) return null;
+              const startD = new Date(start + "T12:00:00");
+              const endD = new Date(end + "T12:00:00");
+              let workDays = 0;
+              const cur = new Date(startD);
+              while (cur <= endD) { if (cur.getDay() !== 0 && cur.getDay() !== 6) workDays++; cur.setDate(cur.getDate() + 1); }
+              return workDays > 1 ? (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 ml-1">{workDays} jours ouvrables</span>
+              ) : null;
+            })()}
             <button
               onClick={() => setEditing(true)}
               className="w-6 h-6 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center"
