@@ -214,7 +214,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
             <ChevronDown className={`w-3 h-3 transition-transform ${open === "services" ? "rotate-180" : ""}`} />
           </button>
           <button onClick={() => setOpen(open === "clients" ? null : "clients")} className={tabCls(isClientsActive || open === "clients")}>
-            Clients
+            CRM
             <ChevronDown className={`w-3 h-3 transition-transform ${open === "clients" ? "rotate-180" : ""}`} />
           </button>
           <button onClick={() => setOpen(open === "grossistes" ? null : "grossistes")} className={tabCls(isGrossisteActive || open === "grossistes")}>
