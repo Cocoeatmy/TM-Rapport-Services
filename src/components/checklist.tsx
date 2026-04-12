@@ -83,7 +83,7 @@ export function MontageChecklist({ title = "Checklist de montage", items, fourni
               ) : (
                 <Circle className="w-5 h-5 text-gray-300 shrink-0" />
               )}
-              <span className={isChecked ? "line-through opacity-70" : ""}>{item.label}</span>
+              <span className={isChecked ? "opacity-70" : ""}>{item.label}</span>
             </button>
           );
         })}
