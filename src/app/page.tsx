@@ -360,211 +360,175 @@ function SkeletonCard() {
 function NewProjectModal({ open, onClose, onCreated, currentMode }: { open: boolean; onClose: () => void; onCreated: () => void; currentMode: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({
-    projet: "",
-    ofrTM: "",
-    nomChantier: "",
-    adresseChantier: "",
-    nbCabines: "",
-    date: "",
-    collaborateur: "",
-    status: "",
-  });
+  const emptyForm = {
+    projet: "", ofrTM: "", cmdTM: "", cmdTMUsine: "", ofrGrossiste: "", cmdGrossiste: "",
+    cmdFournisseurs: "", servMesuresFournisseurs: "", servCmdFournisseurs: "",
+    nomChantier: "", adresseChantier: "", emplacementCabine: "", nbCabines: "",
+    typeClient: "", contactsRDV: "", commentairesMesures: "", commentairesMontages: "",
+    dateMontage: "", dateMesures: "", collaborateur: "", mesuresTraiteePar: "", status: "",
+  };
+  const [form, setForm] = useState(emptyForm);
+  const set = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }));
 
   const isMesuresMode = currentMode.startsWith("mesures");
   const statusOptions = isMesuresMode ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
+  const inputCls = "h-9 rounded-lg text-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 px-2.5 w-full";
+  const labelCls = "text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-0.5 block uppercase tracking-wide";
+  const sectionCls = "text-xs font-bold text-[#1e3a5f] dark:text-blue-300 uppercase tracking-wider pb-1 border-b border-gray-100 dark:border-gray-800 mb-2";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.projet.trim()) {
-      setError("Le nom du projet est requis");
-      return;
-    }
-
+    if (!form.projet.trim()) { setError("Le nom du projet est requis"); return; }
     setSaving(true);
     setError("");
-
     try {
-      const body: any = {
-        projet: form.projet.trim(),
-      };
+      const body: any = { projet: form.projet.trim() };
       if (form.ofrTM) body.ofrTM = form.ofrTM;
+      if (form.cmdTM) body.cmdTM = form.cmdTM;
+      if (form.cmdTMUsine) body.cmdTMUsine = form.cmdTMUsine;
+      if (form.ofrGrossiste) body.ofrGrossiste = form.ofrGrossiste;
+      if (form.cmdGrossiste) body.cmdGrossiste = form.cmdGrossiste;
+      if (form.cmdFournisseurs) body.cmdFournisseurs = form.cmdFournisseurs;
+      if (form.servMesuresFournisseurs) body.servMesuresFournisseurs = form.servMesuresFournisseurs;
+      if (form.servCmdFournisseurs) body.servCmdFournisseurs = form.servCmdFournisseurs;
       if (form.nomChantier) body.nomChantier = form.nomChantier;
       if (form.adresseChantier) body.adresseChantier = form.adresseChantier;
       if (form.nbCabines) body.nbCabines = Number(form.nbCabines);
-      if (form.date) {
-        if (isMesuresMode) {
-          body.dateMesures = form.date;
-        } else {
-          body.dateMontage = form.date;
-        }
-      }
-      if (form.collaborateur) {
-        if (isMesuresMode) {
-          body.mesuresTraiteePar = form.collaborateur;
-        } else {
-          body.collaborateurs = form.collaborateur;
-        }
-      }
+      if (form.contactsRDV) body.contactsRDV = form.contactsRDV;
+      if (form.commentairesMesures) body.commentairesMesures = form.commentairesMesures;
+      if (form.commentairesMontages) body.commentairesMontages = form.commentairesMontages;
+      if (form.dateMontage) body.dateMontage = form.dateMontage;
+      if (form.dateMesures) body.dateMesures = form.dateMesures;
+      if (form.collaborateur) body.collaborateurs = form.collaborateur;
+      if (form.mesuresTraiteePar) body.mesuresTraiteePar = form.mesuresTraiteePar;
       if (form.status) {
-        if (isMesuresMode) {
-          body.etatMesures = form.status;
-          body.etatCMD = "En attente de mesures";
-        } else {
-          body.etatCMD = form.status;
-        }
+        if (isMesuresMode) { body.etatMesures = form.status; body.etatCMD = "En attente de mesures"; }
+        else { body.etatCMD = form.status; }
       }
-
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Erreur lors de la creation");
-        return;
-      }
-
-      setForm({ projet: "", ofrTM: "", nomChantier: "", adresseChantier: "", nbCabines: "", date: "", collaborateur: "", status: "" });
+      const res = await fetch("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) { const data = await res.json(); setError(data.error || "Erreur"); return; }
+      // Notify admin if non-admin creates
+      fetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectName: form.projet, action: "Nouveau projet créé", details: `Par un collaborateur — ${form.nomChantier || form.projet}` })
+      }).catch(() => {});
+      setForm(emptyForm);
       onCreated();
       onClose();
-    } catch {
-      setError("Erreur reseau, veuillez reessayer");
-    } finally {
-      setSaving(false);
-    }
+    } catch { setError("Erreur réseau"); } finally { setSaving(false); }
   };
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Nouveau projet</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
+        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-5">
           {error && (
             <div className="flex items-center gap-2 bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {error}
+              <AlertCircle className="w-4 h-4 shrink-0" />{error}
             </div>
           )}
 
+          {/* === Informations projet === */}
           <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Projet (nom) *</label>
-            <Input
-              value={form.projet}
-              onChange={(e) => setForm({ ...form, projet: e.target.value })}
-              placeholder="Nom du projet"
-              className="h-10 rounded-xl glass-input"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">N. OFR TM</label>
-              <Input
-                value={form.ofrTM}
-                onChange={(e) => setForm({ ...form, ofrTM: e.target.value })}
-                placeholder="Ex: 12345"
-                className="h-10 rounded-xl glass-input"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Nb. Cabines</label>
-              <Input
-                type="number"
-                min={0}
-                value={form.nbCabines}
-                onChange={(e) => setForm({ ...form, nbCabines: e.target.value })}
-                placeholder="0"
-                className="h-10 rounded-xl glass-input"
-              />
+            <p className={sectionCls}>Informations projet</p>
+            <div className="space-y-2">
+              <div>
+                <label className={labelCls}>Projet (nom) *</label>
+                <input value={form.projet} onChange={(e) => set("projet", e.target.value)} placeholder="Nom du projet" className={inputCls} required />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div><label className={labelCls}>N° OFR TM</label><input value={form.ofrTM} onChange={(e) => set("ofrTM", e.target.value)} className={inputCls} /></div>
+                <div><label className={labelCls}>N° CMD TM</label><input value={form.cmdTM} onChange={(e) => set("cmdTM", e.target.value)} className={inputCls} /></div>
+                <div><label className={labelCls}>N° CMD TM - Usine</label><input value={form.cmdTMUsine} onChange={(e) => set("cmdTMUsine", e.target.value)} className={inputCls} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={labelCls}>N° OFR Grossiste</label><input value={form.ofrGrossiste} onChange={(e) => set("ofrGrossiste", e.target.value)} className={inputCls} /></div>
+                <div><label className={labelCls}>N° CMD Grossiste</label><input value={form.cmdGrossiste} onChange={(e) => set("cmdGrossiste", e.target.value)} className={inputCls} /></div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div><label className={labelCls}>N° CMD Fournisseurs</label><input value={form.cmdFournisseurs} onChange={(e) => set("cmdFournisseurs", e.target.value)} className={inputCls} /></div>
+                <div><label className={labelCls}>N° Serv. Mesures Fourn.</label><input value={form.servMesuresFournisseurs} onChange={(e) => set("servMesuresFournisseurs", e.target.value)} className={inputCls} /></div>
+                <div><label className={labelCls}>N° Serv. CMD Fourn.</label><input value={form.servCmdFournisseurs} onChange={(e) => set("servCmdFournisseurs", e.target.value)} className={inputCls} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className={labelCls}>Nom chantier</label><input value={form.nomChantier} onChange={(e) => set("nomChantier", e.target.value)} className={inputCls} /></div>
+                <div><label className={labelCls}>Adresse chantier</label><input value={form.adresseChantier} onChange={(e) => set("adresseChantier", e.target.value)} className={inputCls} /></div>
+              </div>
             </div>
           </div>
 
+          {/* === Informations client === */}
           <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Nom chantier</label>
-            <Input
-              value={form.nomChantier}
-              onChange={(e) => setForm({ ...form, nomChantier: e.target.value })}
-              placeholder="Nom du chantier"
-              className="h-10 rounded-xl glass-input"
-            />
+            <p className={sectionCls}>Informations client</p>
+            <div className="space-y-2">
+              <div><label className={labelCls}>Contacts pour RDV</label><input value={form.contactsRDV} onChange={(e) => set("contactsRDV", e.target.value)} placeholder="Nom : +41 79 ..." className={inputCls} /></div>
+            </div>
           </div>
 
+          {/* === Informations dates === */}
           <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Adresse chantier</label>
-            <Input
-              value={form.adresseChantier}
-              onChange={(e) => setForm({ ...form, adresseChantier: e.target.value })}
-              placeholder="Adresse du chantier"
-              className="h-10 rounded-xl glass-input"
-            />
+            <p className={sectionCls}>Informations dates</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className={labelCls}>Date de mesures</label><input type="date" value={form.dateMesures} onChange={(e) => set("dateMesures", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Mesures traitée par</label>
+                <select value={form.mesuresTraiteePar} onChange={(e) => set("mesuresTraiteePar", e.target.value)} className={inputCls}>
+                  <option value="">-- Aucun --</option>
+                  {COLLABORATEURS_LIST.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <div><label className={labelCls}>Date de montage</label><input type="date" value={form.dateMontage} onChange={(e) => set("dateMontage", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Collaborateurs montage</label>
+                <select value={form.collaborateur} onChange={(e) => set("collaborateur", e.target.value)} className={inputCls}>
+                  <option value="">-- Aucun --</option>
+                  {COLLABORATEURS_LIST.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+            </div>
           </div>
 
+          {/* === Informations cabines === */}
           <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-              {isMesuresMode ? "Date de mesures" : "Date de montage"}
-            </label>
-            <Input
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm({ ...form, date: e.target.value })}
-              className="h-10 rounded-xl glass-input"
-            />
+            <p className={sectionCls}>Informations cabines</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className={labelCls}>Nb. Cabines</label><input type="number" min={0} value={form.nbCabines} onChange={(e) => set("nbCabines", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Emplacement cabine</label><input value={form.emplacementCabine} onChange={(e) => set("emplacementCabine", e.target.value)} className={inputCls} /></div>
+            </div>
           </div>
 
+          {/* === Commentaires === */}
           <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Collaborateur</label>
-            <select
-              value={form.collaborateur}
-              onChange={(e) => setForm({ ...form, collaborateur: e.target.value })}
-              className="w-full h-10 rounded-xl glass-input bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 text-sm"
-            >
-              <option value="">-- Aucun --</option>
-              {COLLABORATEURS_LIST.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
+            <p className={sectionCls}>Commentaires</p>
+            <div className="space-y-2">
+              <div><label className={labelCls}>Commentaires Mesures</label><textarea value={form.commentairesMesures} onChange={(e) => set("commentairesMesures", e.target.value)} rows={2} className={`${inputCls} py-1.5 resize-none`} /></div>
+              <div><label className={labelCls}>Commentaires Montages</label><textarea value={form.commentairesMontages} onChange={(e) => set("commentairesMontages", e.target.value)} rows={2} className={`${inputCls} py-1.5 resize-none`} /></div>
+            </div>
+          </div>
+
+          {/* === Statut === */}
+          <div>
+            <p className={sectionCls}>Statut</p>
+            <select value={form.status} onChange={(e) => set("status", e.target.value)} className={inputCls}>
+              <option value="">-- Par défaut --</option>
+              {Object.keys(statusOptions).map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
 
-          <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">Statut initial</label>
-            <select
-              value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="w-full h-10 rounded-xl glass-input bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 text-sm"
-            >
-              <option value="">-- Par defaut --</option>
-              {Object.keys(statusOptions).map((status) => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
+          <div className="flex gap-3 pt-2 sticky bottom-0 bg-white dark:bg-slate-900 pb-2">
+            <button type="button" onClick={onClose}
+              className="flex-1 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-200 transition-colors">
               Annuler
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 h-10 rounded-xl bg-[#1e3a5f] text-white text-sm font-medium hover:bg-[#2a4f7f] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
+            <button type="submit" disabled={saving}
+              className="flex-1 h-10 rounded-xl bg-[#1e3a5f] text-white text-sm font-medium hover:bg-[#2a4f7f] transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Creer
+              Créer
             </button>
           </div>
         </form>
