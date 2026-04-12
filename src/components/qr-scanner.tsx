@@ -42,22 +42,38 @@ export function QRScanner({ onScan, onClose }: QRScannerProps) {
   }, [onScan]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center">
-      <div className="w-full max-w-sm px-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 text-white">
-            <ScanLine className="w-5 h-5" />
-            <span className="font-medium">Scanner QR Code</span>
-          </div>
-          <button onClick={onClose} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
-            <X className="w-5 h-5 text-white" />
-          </button>
+    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-black/90 shrink-0">
+        <div className="flex items-center gap-2 text-white">
+          <ScanLine className="w-5 h-5" />
+          <span className="font-medium text-sm">Scanner QR Code</span>
         </div>
-        <div id="qr-reader" className="rounded-2xl overflow-hidden" />
+        <button
+          onClick={() => {
+            if (scannerRef.current) scannerRef.current.stop().catch(() => {});
+            onClose();
+          }}
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-500 text-white text-sm font-medium active:scale-95 transition-transform"
+        >
+          <X className="w-4 h-4" />
+          Fermer
+        </button>
+      </div>
+
+      {/* Scanner area */}
+      <div className="flex-1 flex items-center justify-center overflow-hidden">
+        <div className="w-full max-w-sm px-4">
+          <div id="qr-reader" className="rounded-2xl overflow-hidden [&>video]:!w-full [&>video]:!h-auto [&>video]:!object-cover" style={{ maxHeight: "60vh" }} />
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-4 bg-black/90 shrink-0 text-center">
         {error && (
-          <p className="text-red-400 text-sm text-center mt-4">{error}</p>
+          <p className="text-red-400 text-sm mb-2">{error}</p>
         )}
-        <p className="text-white/60 text-xs text-center mt-4">
+        <p className="text-white/60 text-xs">
           Pointez la caméra vers le QR code de la cabine
         </p>
       </div>
