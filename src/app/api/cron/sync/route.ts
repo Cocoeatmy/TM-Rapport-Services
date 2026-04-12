@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProjects, getProjectsMesures, getProjectsServices, getProjectsSAV, getAllActiveProjects } from "@/lib/notion";
+import { setData } from "@/lib/kv-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -40,6 +41,9 @@ export async function GET(request: NextRequest) {
 
     const totalMs = Date.now() - startTime;
     console.log(`[CRON SYNC] Completed in ${totalMs}ms`, results);
+
+    // Save last sync timestamp for the sync button to read
+    await setData("last-server-sync", [{ timestamp: new Date().toISOString(), duration: totalMs, results }] as any);
 
     return NextResponse.json({
       success: true,

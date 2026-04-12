@@ -18,12 +18,21 @@ export function SyncButton() {
   const [syncing, setSyncing] = useState(false);
   const [online, setOnline] = useState(true);
   const [lastSync, setLastSync] = useState<number>(0);
+  const [serverSyncTime, setServerSyncTime] = useState<string | null>(null);
   const [queueCount, setQueueCount] = useState(0);
 
   useEffect(() => {
     setOnline(isOnline());
     setLastSync(getCacheTimestamp());
     setQueueCount(getQueue().length);
+
+    // Fetch last server sync time
+    fetch("/api/sync-status")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.timestamp) setServerSyncTime(data.timestamp);
+      })
+      .catch(() => {});
 
     const handleOnline = () => {
       setOnline(true);
@@ -133,12 +142,26 @@ export function SyncButton() {
   }, []);
 
   const formatLastSync = () => {
-    if (!lastSync) return "Jamais";
-    const diff = Date.now() - lastSync;
+    // Use the most recent sync: client or server
+    const serverTs = serverSyncTime ? new Date(serverSyncTime).getTime() : 0;
+    const mostRecent = Math.max(lastSync, serverTs);
+
+    if (!mostRecent) return "Jamais";
+    const diff = Date.now() - mostRecent;
+    const isServer = serverTs > lastSync;
+
     if (diff < 60000) return "À l'instant";
     if (diff < 3600000) return `Il y a ${Math.floor(diff / 60000)} min`;
-    if (diff < 86400000) return `Il y a ${Math.floor(diff / 3600000)}h`;
-    return new Date(lastSync).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    if (diff < 86400000) {
+      const hours = Math.floor(diff / 3600000);
+      if (isServer) {
+        const d = new Date(serverTs);
+        return `Auto ${d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}`;
+      }
+      return `Il y a ${hours}h`;
+    }
+    const d = new Date(mostRecent);
+    return `${isServer ? "Auto " : ""}${d.toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })} ${d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}`;
   };
 
   return (
