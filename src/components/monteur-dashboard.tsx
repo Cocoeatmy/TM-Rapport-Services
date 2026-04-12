@@ -545,17 +545,28 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           return (
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1.5">
               {allWeekProjects.map((p) => {
-                const names = (p.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
+                const source = getProjectSource(p);
+                const isMesure = source === "mesures";
+                const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
+                const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
+                const logo = getClientLogo(p.projet);
                 return (
                   <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                     className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
                     <span className="text-gray-400 font-mono w-16 shrink-0">
-                      {p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
+                      {(p.dateMontage || p.dateMesures) ? new Date((p.dateMontage || p.dateMesures || "") + (p.dateMontage?.includes("T") ? "" : "T12:00:00")).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
                     </span>
-                    <span className="flex-1 truncate text-gray-900 dark:text-gray-100">{p.projet}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
+                        <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${isMesure ? "bg-cyan-100 text-cyan-700" : "bg-orange-100 text-orange-700"}`}>{isMesure ? "Mesures" : "Montages"}</span>
+                      </div>
+                      <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
+                    </div>
+                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded" />}
                     <div className="flex -space-x-1 shrink-0">
-                      {names.slice(0, 2).map((n) => (
-                        <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                      {names.slice(0, 3).map((n) => (
+                        <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
                           style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
                           {getCollaboratorInitials(n)}
                         </span>
@@ -694,7 +705,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                   <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
                   <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                   <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                  <span className="flex-1 truncate text-gray-900 dark:text-gray-100">{p.projet}</span>
+                  <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
                   {(() => { const logo = getClientLogo(p.projet); return logo ? (
                     <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
                   ) : null; })()}
@@ -787,7 +798,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                         <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                        <span className="flex-1 truncate text-gray-900 dark:text-gray-100">{p.projet}</span>
+                        <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
                         {(showSummaryPanel === "rdv-fixe") && (
                           isMesure ? (
                             <span className="shrink-0 text-[9px] font-semibold px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">Mesures</span>
