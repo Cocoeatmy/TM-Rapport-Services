@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useState, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Onboarding } from "@/components/onboarding";
+import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2 } from "lucide-react";
@@ -1051,6 +1052,7 @@ function HomePage() {
 
   return (
     <div className="px-4 py-4 max-w-7xl mx-auto w-full">
+      <PullToRefresh />
       <Onboarding />
       {/* Toast notification */}
       {toast && (

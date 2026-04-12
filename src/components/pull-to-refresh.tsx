@@ -1,72 +1,91 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
 export function PullToRefresh() {
+  const [visible, setVisible] = useState(false);
   const [pulling, setPulling] = useState(false);
-  const [pullDistance, setPullDistance] = useState(0);
+  const [distance, setDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef(0);
-  const threshold = 80;
+  const isActive = useRef(false);
+  const threshold = 100;
+
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    if (window.scrollY > 0 || refreshing) return;
+    startY.current = e.touches[0].clientY;
+    isActive.current = true;
+  }, [refreshing]);
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (!isActive.current || refreshing) return;
+    const diff = e.touches[0].clientY - startY.current;
+    if (diff > 10 && window.scrollY <= 0) {
+      const d = Math.min(diff * 0.5, 150);
+      setDistance(d);
+      setPulling(true);
+      setVisible(true);
+    } else if (diff <= 0) {
+      isActive.current = false;
+      setPulling(false);
+      setVisible(false);
+      setDistance(0);
+    }
+  }, [refreshing]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isActive.current || !pulling) {
+      isActive.current = false;
+      return;
+    }
+    isActive.current = false;
+
+    if (distance >= threshold) {
+      setRefreshing(true);
+      setDistance(60);
+      setPulling(false);
+      setTimeout(() => {
+        window.location.reload();
+      }, 400);
+    } else {
+      setPulling(false);
+      setVisible(false);
+      setDistance(0);
+    }
+  }, [pulling, distance]);
 
   useEffect(() => {
-    let active = false;
-
-    const onTouchStart = (e: TouchEvent) => {
-      // Only activate when scrolled to top
-      if (window.scrollY > 5) return;
-      startY.current = e.touches[0].clientY;
-      active = true;
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (!active || refreshing) return;
-      const diff = e.touches[0].clientY - startY.current;
-      if (diff > 0 && window.scrollY <= 0) {
-        setPulling(true);
-        setPullDistance(Math.min(diff * 0.4, 120));
-      }
-    };
-
-    const onTouchEnd = () => {
-      if (!active || !pulling) { active = false; return; }
-      active = false;
-      if (pullDistance >= threshold) {
-        setRefreshing(true);
-        setPullDistance(50);
-        // Simple page reload
-        setTimeout(() => {
-          window.location.reload();
-        }, 300);
-      } else {
-        setPulling(false);
-        setPullDistance(0);
-      }
-    };
-
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchmove", onTouchMove, { passive: true });
-    document.addEventListener("touchend", onTouchEnd, { passive: true });
-
+    document.addEventListener("touchstart", handleTouchStart, { passive: true });
+    document.addEventListener("touchmove", handleTouchMove, { passive: true });
+    document.addEventListener("touchend", handleTouchEnd, { passive: true });
     return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      document.removeEventListener("touchmove", onTouchMove);
-      document.removeEventListener("touchend", onTouchEnd);
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [pulling, pullDistance, refreshing]);
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
 
-  if (!pulling && !refreshing) return null;
+  if (!visible) return null;
+
+  const ready = distance >= threshold;
 
   return (
     <div
-      className="fixed left-0 right-0 z-[60] flex items-center justify-center transition-transform duration-200"
-      style={{ top: 0, transform: `translateY(${pullDistance - 40}px)` }}
+      className="fixed left-1/2 z-[100] transition-all duration-200"
+      style={{
+        top: `${Math.max(distance - 50, 10)}px`,
+        transform: "translateX(-50%)",
+      }}
     >
-      <div className={`w-10 h-10 rounded-full bg-white dark:bg-slate-800 shadow-lg flex items-center justify-center border border-gray-200 dark:border-gray-700 ${refreshing ? "" : ""}`}>
+      <div className={`w-11 h-11 rounded-full shadow-xl flex items-center justify-center transition-colors duration-200 ${
+        refreshing ? "bg-blue-500" : ready ? "bg-green-500" : "bg-white dark:bg-slate-800"
+      } border-2 ${refreshing ? "border-blue-400" : ready ? "border-green-400" : "border-gray-200 dark:border-gray-600"}`}>
         <RefreshCw
-          className={`w-5 h-5 text-blue-500 transition-transform duration-200 ${refreshing ? "animate-spin" : ""}`}
-          style={{ transform: refreshing ? undefined : `rotate(${pullDistance * 3}deg)` }}
+          className={`w-5 h-5 transition-all duration-200 ${
+            refreshing ? "text-white animate-spin" : ready ? "text-white" : "text-gray-400"
+          }`}
+          style={!refreshing ? { transform: `rotate(${distance * 2.5}deg)` } : undefined}
         />
       </div>
     </div>
