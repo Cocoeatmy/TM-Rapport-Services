@@ -7,6 +7,7 @@ import { QRButton } from "@/components/qr-button";
 import { AIChatbot } from "@/components/ai-chatbot";
 import { NotificationBell } from "@/components/notifications";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { PullToRefresh } from "@/components/pull-to-refresh";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -62,6 +63,7 @@ export default function RootLayout({
             </div>
           </div>
         </header>
+        <PullToRefresh />
         <main className="flex-1">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>
