@@ -433,6 +433,20 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const [showWeekProjects, setShowWeekProjects] = useState(false);
   const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | null>(null);
+  const [userActivities, setUserActivities] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch("/api/user-activity")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const map: Record<string, string> = {};
+          data.forEach((a: any) => { map[a.name] = a.lastSeen; });
+          setUserActivities(map);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const todayStr = getTodayStr();
   const weekEndStr = getWeekEndStr();
   const thisWeekEndStr = getThisWeekEndStr();
@@ -867,6 +881,26 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                   {collab.cabinesSummary ? ` · ${collab.cabinesSummary}` : ""}
                 </p>
               </div>
+              {/* Dernière connexion */}
+              {(() => {
+                const lastSeen = Object.entries(userActivities).find(([name]) =>
+                  name.toLowerCase().includes(collab.name.toLowerCase()) || collab.name.toLowerCase().includes(name.split(" ")[0].toLowerCase())
+                )?.[1];
+                if (!lastSeen) return (
+                  <span className="text-[9px] text-gray-300 dark:text-gray-600 shrink-0 text-right">Jamais<br/>connecté</span>
+                );
+                const d = new Date(lastSeen);
+                const now = Date.now();
+                const diff = now - d.getTime();
+                const isRecent = diff < 3600000; // < 1h
+                const isToday = d.toDateString() === new Date().toDateString();
+                return (
+                  <div className={`text-[9px] shrink-0 text-right px-1.5 py-1 rounded-lg ${isRecent ? "bg-green-50 text-green-600" : isToday ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-400"}`}>
+                    <p className="font-medium">{d.toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}</p>
+                    <p>{d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}</p>
+                  </div>
+                );
+              })()}
               {collab.todayProjects.length > 0 && (
                 <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shrink-0" />
               )}

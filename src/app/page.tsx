@@ -718,7 +718,11 @@ function HomePage() {
 
     // Charger l'utilisateur connecté
     fetch("/api/auth").then((r) => r.json()).then((d) => {
-      if (d.user) setCurrentUser(d.user);
+      if (d.user) {
+        setCurrentUser(d.user);
+        // Record user activity
+        fetch("/api/user-activity", { method: "POST" }).catch(() => {});
+      }
     }).catch(() => {});
 
     // 2. Pré-charger TOUS les onglets en arrière-plan (dédupliqué par URL)
