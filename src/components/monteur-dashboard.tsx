@@ -317,44 +317,54 @@ function DailyRouteButton({ projects }: { projects: Project[] }) {
 // --- Project card used in both views ---
 
 function ProjectRow({ project, colors }: { project: Project; colors: { bg: string; text: string; dot: string } }) {
-  const collabNames = (project.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
-  const isTeam = collabNames.length >= 5 || (project.collaborateurs || "").toLowerCase().includes("team");
+  const source = getProjectSource(project);
+  const isMesure = source === "mesures";
+  const collabField = isMesure ? (project.mesuresTraiteePar || "") : (project.collaborateurs || "");
+  const collabNames = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
+  const isTeam = collabNames.length >= 5 || collabField.toLowerCase().includes("team");
   const teamLabel = isTeam ? "Team" : collabNames.length === 2 ? "Binôme" : collabNames.length === 3 ? "Trio" : collabNames.length === 4 ? "Quatuor" : "";
+  const logo = getClientLogo(project.projet);
 
   return (
     <Link
       key={project.id}
       href={`/projet/${project.id}?mode=dashboard`}
-      className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+      className="flex items-center gap-2 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
     >
       <div className="flex-1 min-w-0">
-        {project.ofrTM && (
-          <p className="text-[10px] font-mono text-gray-400 dark:text-gray-500">{project.ofrTM}</p>
-        )}
-        <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-3">{project.projet}</p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {project.ofrTM && (
+            <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">{project.ofrTM}</span>
+          )}
+          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${isMesure ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300" : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"}`}>
+            {isMesure ? "Mesures" : "Montages"}
+          </span>
+          {teamLabel && (
+            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+              {teamLabel}
+            </span>
+          )}
+        </div>
+        <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-2 mt-0.5">{project.projet}</p>
         {project.adresseChantier && (
           <div className="flex items-center gap-1 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
             <MapPin className="w-3 h-3 shrink-0" />
             <span className="line-clamp-1">{project.adresseChantier}</span>
           </div>
         )}
-        {collabNames.length >= 1 && (
-          <div className="flex items-center gap-1 mt-1">
+        <div className="flex items-center gap-1 mt-1">
+          {collabNames.length >= 1 && (
             <div className="flex -space-x-1">
               {collabNames.map((n) => (
-                <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
                   style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
                   {getCollaboratorInitials(n)}
                 </span>
               ))}
             </div>
-            {teamLabel && (
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-                {teamLabel}
-              </span>
-            )}
-          </div>
-        )}
+          )}
+          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded" />}
+        </div>
       </div>
       <Badge variant="outline" className="text-[10px] shrink-0">{project.nbCabines || 0} cab.</Badge>
       <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
@@ -364,40 +374,50 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
 
 function WeekProjectRow({ project }: { project: Project }) {
   const date = project.dateMontage || project.dateMesures || "";
-  const collabNames = (project.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
-  const isTeam = collabNames.length >= 5 || (project.collaborateurs || "").toLowerCase().includes("team");
+  const source = getProjectSource(project);
+  const isMesure = source === "mesures";
+  const collabField = isMesure ? (project.mesuresTraiteePar || "") : (project.collaborateurs || "");
+  const collabNames = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
+  const isTeam = collabNames.length >= 5 || collabField.toLowerCase().includes("team");
   const teamLabel = isTeam ? "Team" : collabNames.length === 2 ? "Binôme" : collabNames.length === 3 ? "Trio" : collabNames.length === 4 ? "Quatuor" : "";
+  const logo = getClientLogo(project.projet);
 
   return (
     <Link
       href={`/projet/${project.id}?mode=dashboard`}
-      className="flex items-center gap-3 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+      className="flex items-center gap-2 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
     >
-      <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
+      <span className="text-[10px] font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
         {formatDay(date)}
       </span>
       <div className="flex-1 min-w-0">
-        {project.ofrTM && (
-          <p className="text-[10px] font-mono text-gray-400 dark:text-gray-500">{project.ofrTM}</p>
-        )}
-        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3">{project.projet}</p>
-        {collabNames.length >= 1 && (
-          <div className="flex items-center gap-1 mt-0.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {project.ofrTM && (
+            <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">{project.ofrTM}</span>
+          )}
+          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${isMesure ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300" : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"}`}>
+            {isMesure ? "Mesures" : "Montages"}
+          </span>
+          {teamLabel && (
+            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+              {teamLabel}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2 mt-0.5">{project.projet}</p>
+        <div className="flex items-center gap-1 mt-0.5">
+          {collabNames.length >= 1 && (
             <div className="flex -space-x-1">
               {collabNames.map((n) => (
-                <span key={n} className="w-4 h-4 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
                   style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
                   {getCollaboratorInitials(n)}
                 </span>
               ))}
             </div>
-            {teamLabel && (
-              <span className={`text-[9px] font-medium px-1 py-0.5 rounded ${isTeam ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-                {teamLabel}
-              </span>
-            )}
-          </div>
-        )}
+          )}
+          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded" />}
+        </div>
       </div>
       <Badge variant="outline" className="text-[10px] shrink-0">{project.nbCabines || 0} cab.</Badge>
       <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
