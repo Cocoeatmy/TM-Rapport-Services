@@ -2231,7 +2231,7 @@ function HomePage() {
       })()}
 
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && viewMode === "list" && (
         <div className="flex gap-3 mb-4">
           <button
             onClick={() => setViewMode("calendar")}
