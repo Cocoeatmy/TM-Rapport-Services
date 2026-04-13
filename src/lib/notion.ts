@@ -216,7 +216,17 @@ export function mapPageToProject(page: any): Project {
     causeSoucis: extractSelect(p["Cause Soucis montages"]),
     etatSAV: extractStatus(p["État - SAV"]),
     sav: p["SAV"]?.checkbox || false,
-    bonLivraison: extractText(p["Bon de livraison"]),
+    bonLivraison: (() => {
+      const bl = p["Bon de livraison"];
+      if (!bl) return "";
+      // Support both text and files type
+      if (bl.type === "files" && bl.files?.length > 0) {
+        const f = bl.files[0];
+        return f.type === "external" ? f.external?.url || "" : f.file?.url || "";
+      }
+      if (bl.type === "rich_text") return bl.rich_text?.map((t: any) => t.plain_text).join("") || "";
+      return "";
+    })(),
     typeClient: extractSelect(p["Type de client"]) || extractStatus(p["Type de client"]) || extractText(p["Type de client"]),
     grossistesRelation: extractRelationIds(p["Grossistes"]),
     fournisseursRelation: extractRelationIds(p["Fournisseurs"]),
@@ -511,9 +521,19 @@ export async function updateProject(
     };
   }
   if (data.bonLivraison !== undefined) {
-    properties["Bon de livraison"] = {
-      rich_text: [{ text: { content: data.bonLivraison } }],
-    };
+    if (data.bonLivraison && data.bonLivraison.startsWith("http")) {
+      // Store as file (external URL)
+      properties["Bon de livraison"] = {
+        files: [{
+          type: "external" as const,
+          name: "bon-de-livraison.jpg",
+          external: { url: data.bonLivraison },
+        }],
+      };
+    } else {
+      // Clear the field
+      properties["Bon de livraison"] = { files: [] };
+    }
   }
   if (data.etatCMD !== undefined) {
     properties["État - CMD"] = {
