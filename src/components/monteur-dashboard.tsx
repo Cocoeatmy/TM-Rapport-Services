@@ -599,7 +599,11 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
       <div className="grid grid-cols-2 gap-3">
         {(() => {
           const rdvAFixerStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
-          const rdvAFixerCount = projects.filter((p) => rdvAFixerStatuses.includes(p.etatCMD)).length;
+          const mesuresAFixerStatuses = ["Pas contacté", "Contact sans réponse"];
+          const rdvAFixerCount = projects.filter((p) =>
+            rdvAFixerStatuses.includes(p.etatCMD) ||
+            (p.etatCMD === "En attente de mesures" && mesuresAFixerStatuses.includes(p.etatMesures))
+          ).length;
           return (
             <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rdv-a-fixer" ? null : "rdv-a-fixer")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
               <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{rdvAFixerCount}</p>
@@ -657,11 +661,90 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             </div>
           );
         } else if (showSummaryPanel === "rdv-a-fixer") {
-          panelTitle = "RDV à fixer";
-          const rdvAFixerStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
-          panelProjects = projects
-            .filter((p) => rdvAFixerStatuses.includes(p.etatCMD))
-            .sort((a, b) => ((a.dateMontage || "z").split("T")[0]).localeCompare((b.dateMontage || "z").split("T")[0]));
+          // Split into 3 categories
+          const montageStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
+          const mesuresStatuses = ["Pas contacté", "Contact sans réponse"];
+
+          const montageProjects = projects.filter((p) => montageStatuses.includes(p.etatCMD))
+            .sort((a, b) => ((a.dateMesures || a.dateMontage || "z").split("T")[0]).localeCompare((b.dateMesures || b.dateMontage || "z").split("T")[0]));
+
+          const mesuresProjects = projects.filter((p) => p.etatCMD === "En attente de mesures" && mesuresStatuses.includes(p.etatMesures))
+            .sort((a, b) => ((a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMesures || "z").split("T")[0]));
+
+          const servicesProjects = projects.filter((p) =>
+            montageStatuses.includes(p.etatCMD) && p.typeServices && p.typeServices.some((t) => t !== "Montages" && t !== "Montage")
+          ).sort((a, b) => ((a.dateMontage || "z").split("T")[0]).localeCompare((b.dateMontage || "z").split("T")[0]));
+
+          // Remove services from montage list to avoid duplicates
+          const pureMontageProjets = montageProjects.filter((p) => !servicesProjects.some((s) => s.id === p.id));
+
+          const totalCount = pureMontageProjets.length + mesuresProjects.length + servicesProjects.length;
+
+          const renderCategory = (title: string, color: string, bgColor: string, categoryProjects: Project[]) => {
+            if (categoryProjects.length === 0) return null;
+            return (
+              <div key={title} className="mb-4">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 ${bgColor}`}>
+                  <span className={`text-[12px] font-bold ${color}`}>{title}</span>
+                  <span className="ml-auto text-[10px] font-semibold bg-white/60 dark:bg-white/10 px-2 py-0.5 rounded-full">
+                    {categoryProjects.length} projet{categoryProjects.length > 1 ? "s" : ""}
+                  </span>
+                </div>
+                {categoryProjects.map((p, idx) => {
+                  const isMesure = p.etatMesures && mesuresStatuses.includes(p.etatMesures);
+                  const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
+                  const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
+                  const date = (p.dateMesures || p.dateMontage || "").split("T")[0];
+                  const rowBg = idx % 2 === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "bg-blue-100/60 dark:bg-blue-900/20";
+                  return (
+                    <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
+                      <span className="text-gray-400 font-mono w-16 shrink-0">
+                        {date ? new Date(date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
+                      </span>
+                      <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
+                      <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
+                      <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
+                      <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                      {p.typeServices && p.typeServices.length > 0 && p.typeServices.flatMap((ts) => {
+                        const parts = ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts];
+                        return parts.map((part) => {
+                          const tsColors: Record<string, string> = {
+                            "Montages": "bg-orange-100 text-orange-700", "Montage": "bg-orange-100 text-orange-700",
+                            "Mesures": "bg-cyan-100 text-cyan-700", "Services": "bg-emerald-100 text-emerald-700",
+                            "SAV": "bg-red-100 text-red-700", "Livraison": "bg-amber-100 text-amber-700",
+                            "Dépannage": "bg-pink-100 text-pink-700", "Démontage": "bg-rose-100 text-rose-700",
+                            "Remplacement": "bg-indigo-100 text-indigo-700",
+                          };
+                          return <span key={part} className={`shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${tsColors[part] || "bg-gray-100 text-gray-600"}`}>{part}</span>;
+                        });
+                      })}
+                      {(() => { const logo = getClientLogo(p.projet); return logo ? (
+                        <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
+                      ) : null; })()}
+                      <div className="flex -space-x-1 shrink-0">
+                        {names.slice(0, 3).map((n) => (
+                          <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                            style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
+                        ))}
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          };
+
+          return (
+            <div className="glass-card rounded-2xl p-4">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">RDV à fixer ({totalCount})</p>
+              {renderCategory("Mesures à relever", "text-cyan-700 dark:text-cyan-300", "bg-cyan-50 dark:bg-cyan-900/20", mesuresProjects)}
+              {renderCategory("Montages à planifier", "text-orange-700 dark:text-orange-300", "bg-orange-50 dark:bg-orange-900/20", pureMontageProjets)}
+              {renderCategory("Services à planifier", "text-emerald-700 dark:text-emerald-300", "bg-emerald-50 dark:bg-emerald-900/20", servicesProjects)}
+              {totalCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
+            </div>
+          );
         } else if (showSummaryPanel === "rdv-fixe") {
           panelTitle = "RDV fixé";
           panelProjects = projects
