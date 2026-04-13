@@ -1713,14 +1713,26 @@ function ProjectPageContent({ id }: { id: string }) {
                   <>
                   <SiteTimer
                     projectId={project.id}
-                    onArrival={(time) => setHeureArrivee(time)}
-                    onDeparture={(time) => setHeureDepart(time)}
+                    onArrival={(time) => {
+                      setHeureArrivee(time);
+                      fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArrivee: time }) }).catch(console.error);
+                    }}
+                    onDeparture={(time) => {
+                      setHeureDepart(time);
+                      fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
+                    }}
                   />
                   {currentUser?.role === "admin" && (
                     <GPSTracker
                       chantierAddress={project.adresseChantier}
-                      onArrival={(time) => setHeureArrivee(time)}
-                      onDeparture={(time) => setHeureDepart(time)}
+                      onArrival={(time) => {
+                        setHeureArrivee(time);
+                        fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArrivee: time }) }).catch(console.error);
+                      }}
+                      onDeparture={(time) => {
+                        setHeureDepart(time);
+                        fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
+                      }}
                     />
                   )}
                   <div className="grid grid-cols-2 gap-3">
@@ -1968,7 +1980,7 @@ function ProjectPageContent({ id }: { id: string }) {
                     <PhotoUpload category="qrcode" label="Photos QR Code" projectId={id} notionField="Photos QR Code" existingPhotos={project.photosQRCode} />
                     <PhotoUpload category="garanties" label="Photos garanties" projectId={id} notionField="Photos garanties" existingPhotos={project.photosGaranties} />
                     <Separator />
-                    <BeforeAfterPhotos projectId={id} projectName={project.projet} />
+                    <BeforeAfterPhotos projectId={id} projectName={project.projet} initialBefore={project.photosAvant} initialAfter={project.photosMontage} />
                   </CardContent>
                 </Card>
               </>

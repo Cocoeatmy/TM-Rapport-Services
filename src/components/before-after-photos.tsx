@@ -12,18 +12,20 @@ interface BeforeAfterPhoto {
 interface BeforeAfterPhotosProps {
   projectId: string;
   projectName: string;
+  initialBefore?: BeforeAfterPhoto[];
+  initialAfter?: BeforeAfterPhoto[];
 }
 
 function getStorageKey(projectId: string) {
   return `tm-before-after-${projectId}`;
 }
 
-function loadFromStorage(projectId: string): { before: BeforeAfterPhoto[]; after: BeforeAfterPhoto[] } {
+function loadFromStorage(projectId: string): { before: BeforeAfterPhoto[]; after: BeforeAfterPhoto[] } | null {
   try {
     const raw = localStorage.getItem(getStorageKey(projectId));
     if (raw) return JSON.parse(raw);
   } catch {}
-  return { before: [], after: [] };
+  return null;
 }
 
 function saveToStorage(projectId: string, data: { before: BeforeAfterPhoto[]; after: BeforeAfterPhoto[] }) {
@@ -32,23 +34,61 @@ function saveToStorage(projectId: string, data: { before: BeforeAfterPhoto[]; af
   } catch {}
 }
 
-export function BeforeAfterPhotos({ projectId, projectName }: BeforeAfterPhotosProps) {
+export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initialAfter }: BeforeAfterPhotosProps) {
   const [before, setBefore] = useState<BeforeAfterPhoto[]>([]);
   const [after, setAfter] = useState<BeforeAfterPhoto[]>([]);
   const [uploadingBefore, setUploadingBefore] = useState(false);
   const [uploadingAfter, setUploadingAfter] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const beforeRef = useRef<HTMLInputElement>(null);
   const afterRef = useRef<HTMLInputElement>(null);
 
+  // Load photos: Notion (initialBefore/initialAfter) + localStorage (local additions)
   useEffect(() => {
-    const stored = loadFromStorage(projectId);
-    setBefore(stored.before);
-    setAfter(stored.after);
-  }, [projectId]);
+    const notionBefore = (initialBefore || []);
+    const notionAfter = (initialAfter || []);
+    const notionBeforeUrls = notionBefore.map((p) => p.url);
+    const notionAfterUrls = notionAfter.map((p) => p.url);
 
-  const persist = (newBefore: BeforeAfterPhoto[], newAfter: BeforeAfterPhoto[]) => {
-    saveToStorage(projectId, { before: newBefore, after: newAfter });
+    const stored = loadFromStorage(projectId);
+    if (stored) {
+      // Merge: Notion photos + local photos not already in Notion
+      const mergedBefore = [...notionBefore];
+      (stored.before || []).forEach((p) => {
+        if (!notionBeforeUrls.includes(p.url)) mergedBefore.push(p);
+      });
+      const mergedAfter = [...notionAfter];
+      (stored.after || []).forEach((p) => {
+        if (!notionAfterUrls.includes(p.url)) mergedAfter.push(p);
+      });
+      setBefore(mergedBefore);
+      setAfter(mergedAfter);
+    } else {
+      setBefore(notionBefore);
+      setAfter(notionAfter);
+    }
+    setLoaded(true);
+  }, [projectId, initialBefore, initialAfter]);
+
+  // Save to localStorage when photos change
+  useEffect(() => {
+    if (!loaded) return;
+    saveToStorage(projectId, { before, after });
+  }, [before, after, projectId, loaded]);
+
+  // Sync to Notion via PATCH API
+  const syncToNotion = async (newBefore: BeforeAfterPhoto[], newAfter: BeforeAfterPhoto[]) => {
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          photosAvant: newBefore.map((p) => p.url),
+          photosMontage: newAfter.map((p) => p.url),
+        }),
+      });
+    } catch {}
   };
 
   const handleUpload = async (
@@ -72,11 +112,11 @@ export function BeforeAfterPhotos({ projectId, projectName }: BeforeAfterPhotosP
         if (side === "before") {
           const updated = [...before, ...data.files];
           setBefore(updated);
-          persist(updated, after);
+          syncToNotion(updated, after);
         } else {
           const updated = [...after, ...data.files];
           setAfter(updated);
-          persist(before, updated);
+          syncToNotion(before, updated);
         }
       }
     } catch (err) {
@@ -92,11 +132,11 @@ export function BeforeAfterPhotos({ projectId, projectName }: BeforeAfterPhotosP
     if (side === "before") {
       const updated = before.filter((_, i) => i !== index);
       setBefore(updated);
-      persist(updated, after);
+      syncToNotion(updated, after);
     } else {
       const updated = after.filter((_, i) => i !== index);
       setAfter(updated);
-      persist(before, updated);
+      syncToNotion(before, updated);
     }
   };
 

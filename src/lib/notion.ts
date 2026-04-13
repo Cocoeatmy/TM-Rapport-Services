@@ -580,6 +580,26 @@ export async function updateProject(
       })),
     };
   }
+  if ((data as any).photosAvant !== undefined) {
+    const urls: string[] = (data as any).photosAvant;
+    properties["Photos avant montage"] = {
+      files: urls.map((url) => ({
+        type: "external" as const,
+        name: url.split("/").pop()?.slice(0, 100) || "avant.jpg",
+        external: { url },
+      })),
+    };
+  }
+  if ((data as any).photosMontage !== undefined) {
+    const urls: string[] = (data as any).photosMontage;
+    properties["Photos montage terminé"] = {
+      files: urls.map((url) => ({
+        type: "external" as const,
+        name: url.split("/").pop()?.slice(0, 100) || "montage.jpg",
+        external: { url },
+      })),
+    };
+  }
 
   await notion.pages.update({
     page_id: pageId,
