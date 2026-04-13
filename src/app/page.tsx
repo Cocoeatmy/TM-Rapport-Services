@@ -1788,7 +1788,8 @@ function HomePage() {
         // Grossiste vs Fournisseur from DB2
         const grossisteTotal = typeClientAgg["Grossiste"] || 0;
         const fournisseurTotal = typeClientAgg["Fournisseur"] || 0;
-        const gfTotal = grossisteTotal + fournisseurTotal;
+        const sanitaireTotal = typeClientAgg["Sanitaire"] || 0;
+        const gfTotal = grossisteTotal + fournisseurTotal + sanitaireTotal;
 
         // DB3: marques — group by name, sum monthly across years
         const mrqByYear = statsMarques.filter((r: any) => {
@@ -2119,15 +2120,15 @@ function HomePage() {
               )}
             </div>
 
-            {/* Repartition Grossistes vs Fournisseurs (from DB2) */}
+            {/* Repartition Grossistes vs Fournisseurs vs Sanitaires (from DB2) */}
             <div>
               <button onClick={() => toggleSection("gvf")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                 {expandedSections.has("gvf") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                Repartition Grossistes vs Fournisseurs
+                Repartition Grossistes / Fournisseurs / Sanitaires
               </button>
               {expandedSections.has("gvf") && (
                 <div className="glass-card rounded-2xl p-4">
-                  <div className="grid grid-cols-2 gap-4 text-center mb-4">
+                  <div className="grid grid-cols-3 gap-3 text-center mb-4">
                     <div>
                       <p className="text-3xl font-bold text-blue-600">{grossisteTotal}</p>
                       <p className="text-xs text-gray-500 mt-1">Grossistes</p>
@@ -2136,17 +2137,23 @@ function HomePage() {
                       <p className="text-3xl font-bold text-amber-600">{fournisseurTotal}</p>
                       <p className="text-xs text-gray-500 mt-1">Fournisseurs</p>
                     </div>
+                    <div>
+                      <p className="text-3xl font-bold text-green-600">{sanitaireTotal}</p>
+                      <p className="text-xs text-gray-500 mt-1">Sanitaires</p>
+                    </div>
                   </div>
                   {gfTotal > 0 && (
-                    <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex">
+                    <div className="h-5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex">
                       <div className="h-full bg-blue-500 transition-all" style={{ width: `${(grossisteTotal / gfTotal) * 100}%` }} />
                       <div className="h-full bg-amber-500 transition-all" style={{ width: `${(fournisseurTotal / gfTotal) * 100}%` }} />
+                      <div className="h-full bg-green-500 transition-all" style={{ width: `${(sanitaireTotal / gfTotal) * 100}%` }} />
                     </div>
                   )}
                   {gfTotal > 0 && (
                     <div className="flex justify-between mt-1">
-                      <span className="text-[10px] text-blue-600">{Math.round((grossisteTotal / gfTotal) * 100)}%</span>
-                      <span className="text-[10px] text-amber-600">{Math.round((fournisseurTotal / gfTotal) * 100)}%</span>
+                      <span className="text-[10px] text-blue-600">{Math.round((grossisteTotal / gfTotal) * 100)}% Grossistes</span>
+                      <span className="text-[10px] text-amber-600">{Math.round((fournisseurTotal / gfTotal) * 100)}% Fournisseurs</span>
+                      <span className="text-[10px] text-green-600">{Math.round((sanitaireTotal / gfTotal) * 100)}% Sanitaires</span>
                     </div>
                   )}
                 </div>
