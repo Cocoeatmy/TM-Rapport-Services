@@ -569,16 +569,41 @@ function StatsDateFilter({ mode, from, to, month, year, onModeChange, onFromChan
           <input type="date" value={to} onChange={e => onToChange(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200" />
         </div>
       )}
-      {mode === "month" && (
-        <input type="month" value={month} onChange={e => onMonthChange(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200" />
-      )}
-      {mode === "year" && (
-        <select value={year} onChange={e => onYearChange(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200">
-          {Array.from({length: 5}, (_, i) => String(new Date().getFullYear() - i)).map(y => (
-            <option key={y} value={y}>{y}</option>
-          ))}
-        </select>
-      )}
+      {mode === "month" && (() => {
+        const moisNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+        const selectedYear = month ? month.split("-")[0] : String(new Date().getFullYear());
+        const selectedMonth = month ? Number(month.split("-")[1]) : null;
+        return (
+          <div className="flex flex-wrap gap-1.5">
+            {moisNames.map((m, i) => {
+              const val = `${selectedYear}-${String(i + 1).padStart(2, "0")}`;
+              const isActive = selectedMonth === i + 1;
+              return (
+                <button key={m} onClick={() => onMonthChange(val)}
+                  className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg transition-colors ${isActive ? "bg-[#1e3a5f] text-white" : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"}`}>
+                  {m}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
+      {mode === "year" && (() => {
+        const currentYear = new Date().getFullYear();
+        const startYear = 2024;
+        const years: number[] = [];
+        for (let y = startYear; y <= currentYear; y++) years.push(y);
+        return (
+          <div className="flex flex-wrap gap-1.5">
+            {years.map((y) => (
+              <button key={y} onClick={() => onYearChange(String(y))}
+                className={`text-[11px] font-medium px-3 py-1.5 rounded-lg transition-colors ${String(y) === year ? "bg-[#1e3a5f] text-white" : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"}`}>
+                {y}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }
