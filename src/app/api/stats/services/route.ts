@@ -46,11 +46,36 @@ export async function GET() {
       cursor = response.has_more ? response.next_cursor : undefined;
     } while (cursor);
 
+    // Log first few rows for debugging
+    if (allResults.length > 0) {
+      const sample = allResults.slice(0, 3).map((p: any) => {
+        const jour = p.properties["Jours"];
+        const jourText = jour?.type === "title" ? jour.title?.map((t: any) => t.plain_text).join("") : jour?.type;
+        return jourText;
+      });
+      console.log("[stats/services] Sample Jours values:", sample, "Total rows:", allResults.length);
+    }
+
     const rows = allResults.filter((page: any) => {
-      // Exclude "Objectif" rows
-      const jour = page.properties["Jours"];
+      // Exclude "Objectif" rows and non-day rows
+      const props = page.properties;
+
+      // Check all text fields for "objectif"
+      for (const key of Object.keys(props)) {
+        const prop = props[key];
+        let text = "";
+        if (prop?.type === "title") text = prop.title?.map((t: any) => t.plain_text).join("") || "";
+        else if (prop?.type === "rich_text") text = prop.rich_text?.map((t: any) => t.plain_text).join("") || "";
+        else if (prop?.type === "select") text = prop.select?.name || "";
+        if (text.toLowerCase().includes("objectif")) return false;
+      }
+
+      // Only keep rows where "Jours" is a valid day number (1-31)
+      const jour = props["Jours"];
       const jourText = jour?.type === "title" ? jour.title?.map((t: any) => t.plain_text).join("") || "" : "";
-      if (jourText.toLowerCase().includes("objectif")) return false;
+      const jourNum = parseInt(jourText, 10);
+      if (isNaN(jourNum) || jourNum < 1 || jourNum > 31) return false;
+
       return true;
     }).map((page: any) => {
       const p = page.properties;
