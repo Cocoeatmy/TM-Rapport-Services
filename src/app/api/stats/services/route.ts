@@ -55,12 +55,47 @@ export async function GET() {
     }).map((page: any) => {
       const p = page.properties;
       const anneeRaw = dateVal(p["Année"]);
-      const moisRaw = dateVal(p["Mois"]);
+      const annee = yearVal(p["Année"]) ?? (anneeRaw ? new Date(anneeRaw).getFullYear() : null);
+
+      // Extract month — could be date ("2026-04-01"), select ("04.Avril"), or text ("04.Avril")
+      let mois: string | null = null;
+      const moisProp = p["Mois"];
+      if (moisProp) {
+        if (moisProp.type === "date" && moisProp.date?.start) {
+          mois = moisProp.date.start.substring(0, 7); // "YYYY-MM"
+        } else {
+          // Extract month number from text like "04.Avril" or select
+          let moisText = "";
+          if (moisProp.type === "select") moisText = moisProp.select?.name || "";
+          else if (moisProp.type === "rich_text") moisText = moisProp.rich_text?.map((t: any) => t.plain_text).join("") || "";
+          else if (moisProp.type === "title") moisText = moisProp.title?.map((t: any) => t.plain_text).join("") || "";
+
+          if (moisText) {
+            // Try to extract month number from "04.Avril" or "04" or "Avril"
+            const numMatch = moisText.match(/^(\d{1,2})/);
+            if (numMatch && annee) {
+              mois = `${annee}-${numMatch[1].padStart(2, "0")}`;
+            } else {
+              // Try month name
+              const moisNames: Record<string, string> = {
+                "janvier": "01", "février": "02", "mars": "03", "avril": "04",
+                "mai": "05", "juin": "06", "juillet": "07", "août": "08",
+                "septembre": "09", "octobre": "10", "novembre": "11", "décembre": "12",
+              };
+              const lower = moisText.toLowerCase();
+              for (const [name, num] of Object.entries(moisNames)) {
+                if (lower.includes(name)) { mois = annee ? `${annee}-${num}` : null; break; }
+              }
+            }
+          }
+        }
+      }
+
       return {
         id: page.id,
         jour: txt(p["Jours"]),
-        annee: yearVal(p["Année"]) ?? (anneeRaw ? new Date(anneeRaw).getFullYear() : null),
-        mois: moisRaw ? moisRaw.substring(0, 7) : null, // "YYYY-MM"
+        annee,
+        mois,
         semaine: txt(p["Semaines"]),
         mesures: num(p["Nb. de Mesures"]),
         cabines: num(p["Nb. Cabine"]),
