@@ -1720,8 +1720,15 @@ function HomePage() {
 
         // DB1: daily services data
         const svcFiltered = statsServices.filter((r: any) => {
-          if (filterYear && r.annee !== filterYear) return false;
-          if (filterMonth && r.mois !== filterMonth) return false;
+          if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
+          if (statsDateMode === "month" && filterMonth && r.mois !== filterMonth) return false;
+          if (statsDateMode === "range") {
+            // Build a date string from annee + mois for range comparison
+            const rowDate = r.mois ? `${r.mois}-${String(r.jour || "01").padStart(2, "0")}` : null;
+            if (!rowDate) return false;
+            if (statsDateFrom && rowDate < statsDateFrom) return false;
+            if (statsDateTo && rowDate > statsDateTo) return false;
+          }
           return true;
         });
 
@@ -1755,7 +1762,8 @@ function HomePage() {
 
         // DB2: clients by type
         const cliByYear = statsClients.filter((r: any) => {
-          if (filterYear && r.annee !== filterYear) return false;
+          if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
+          if (statsDateMode === "range" && filterYear && r.annee !== filterYear) return false;
           return true;
         });
         // Group clients by name, sum monthly across years
@@ -1794,7 +1802,8 @@ function HomePage() {
 
         // DB3: marques — group by name, sum monthly across years
         const mrqByYear = statsMarques.filter((r: any) => {
-          if (filterYear && r.annee !== filterYear) return false;
+          if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
+          if (statsDateMode === "range" && filterYear && r.annee !== filterYear) return false;
           return true;
         });
         const mrqGrouped: Record<string, any> = {};
@@ -1814,7 +1823,8 @@ function HomePage() {
 
         // DB4: series
         const serByYear = statsSeries.filter((r: any) => {
-          if (filterYear && r.annee !== filterYear) return false;
+          if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
+          if (statsDateMode === "range" && filterYear && r.annee !== filterYear) return false;
           return true;
         });
         // Group series by fournisseur+serie name, sum counts across years
