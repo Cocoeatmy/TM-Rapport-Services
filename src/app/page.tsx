@@ -674,6 +674,32 @@ function HomePage() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [statsExpandedSections, setStatsExpandedSections] = useState<Set<string>>(new Set(["kpis", "monthly"]));
 
+  // Stats from dedicated Notion databases
+  const [statsServices, setStatsServices] = useState<any[]>([]);
+  const [statsClients, setStatsClients] = useState<any[]>([]);
+  const [statsMarques, setStatsMarques] = useState<any[]>([]);
+  const [statsSeries, setStatsSeries] = useState<any[]>([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const statsLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (mode !== "stats" || statsLoadedRef.current) return;
+    statsLoadedRef.current = true;
+    setStatsLoading(true);
+    Promise.all([
+      fetch("/api/stats/services").then((r) => r.json()).catch(() => []),
+      fetch("/api/stats/clients").then((r) => r.json()).catch(() => []),
+      fetch("/api/stats/marques").then((r) => r.json()).catch(() => []),
+      fetch("/api/stats/series").then((r) => r.json()).catch(() => []),
+    ]).then(([svc, cli, mrq, ser]) => {
+      if (Array.isArray(svc)) setStatsServices(svc);
+      if (Array.isArray(cli)) setStatsClients(cli);
+      if (Array.isArray(mrq)) setStatsMarques(mrq);
+      if (Array.isArray(ser)) setStatsSeries(ser);
+      setStatsLoading(false);
+    });
+  }, [mode]);
+
   const MODE_API: Record<string, string> = {
     dashboard: "/api/projects",
     mesures: "/api/projects/mesures",
@@ -1686,41 +1712,92 @@ function HomePage() {
 
       {/* VUE STATS */}
       {mode === "stats" && (() => {
-        const cmdProjects = projectsData["cmd"] || [];
-        const cmdTermine = projectsData["cmd-termine"] || [];
-        const mesuresProjects = projectsData["mesures"] || [];
-        const mesuresTermine = projectsData["mesures-termine"] || [];
-        const savProjects = projectsData["sav"] || [];
-        const allActive = cmdProjects;
-        const allCompleted = cmdTermine;
-        const allProjectsRaw = [...cmdProjects, ...cmdTermine];
+        // Filter helpers for the 4 databases
+        const filterYear = statsDateMode === "year" ? Number(statsYear) : null;
+        const filterMonth = statsDateMode === "month" ? statsMonth : null; // "YYYY-MM"
+        const filterMonthNum = filterMonth ? Number(filterMonth.split("-")[1]) : null;
+        const filterMonthYear = filterMonth ? Number(filterMonth.split("-")[0]) : null;
+
+        // DB1: daily services data
+        const svcFiltered = statsServices.filter((r: any) => {
+          if (filterYear && r.annee !== filterYear) return false;
+          if (filterMonth && r.mois !== filterMonth) return false;
+          return true;
+        });
+
+        // Aggregate DB1 by month for tendance (last 12 months or filtered)
+        const monthNames12 = ["Jan", "Fev", "Mar", "Avr", "Mai", "Jun", "Jul", "Aou", "Sep", "Oct", "Nov", "Dec"];
+        const svcByMonth: Record<string, { mesures: number; cabines: number; montages: number; demontages: number; services: number; sav: number; ca: number }> = {};
+        svcFiltered.forEach((r: any) => {
+          const key = r.mois || "unknown";
+          if (key === "unknown") return;
+          if (!svcByMonth[key]) svcByMonth[key] = { mesures: 0, cabines: 0, montages: 0, demontages: 0, services: 0, sav: 0, ca: 0 };
+          svcByMonth[key].mesures += r.mesures;
+          svcByMonth[key].cabines += r.cabines;
+          svcByMonth[key].montages += r.montages;
+          svcByMonth[key].demontages += r.demontages;
+          svcByMonth[key].services += r.services;
+          svcByMonth[key].sav += r.sav;
+          svcByMonth[key].ca += r.ca;
+        });
+        const monthlyKeys = Object.keys(svcByMonth).sort();
+        const last12 = monthlyKeys.slice(-12);
+
+        // KPIs from DB1
+        const totalMesures = svcFiltered.reduce((s: number, r: any) => s + r.mesures, 0);
+        const totalMontages = svcFiltered.reduce((s: number, r: any) => s + r.montages, 0);
+        const totalCabines = svcFiltered.reduce((s: number, r: any) => s + r.cabines, 0);
+        const totalCA = svcFiltered.reduce((s: number, r: any) => s + r.ca, 0);
+        const totalServices = svcFiltered.reduce((s: number, r: any) => s + r.services, 0);
+        const totalSAV = svcFiltered.reduce((s: number, r: any) => s + r.sav, 0);
+        const totalOFR = svcFiltered.reduce((s: number, r: any) => s + r.ofr, 0);
+
+        // DB2: clients by type
+        const cliFiltered = statsClients.filter((r: any) => {
+          if (filterYear && r.annee !== filterYear) return false;
+          return true;
+        });
+        const MOIS_NAMES = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+        const typeClientAgg: Record<string, number> = {};
+        cliFiltered.forEach((r: any) => {
+          const tc = r.typeClient || "Non defini";
+          let val = 0;
+          if (filterMonthNum && filterMonthYear) {
+            val = r.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0;
+          } else {
+            val = r.total || Object.values(r.monthly as Record<string, number>).reduce((a: number, b: number) => a + b, 0);
+          }
+          typeClientAgg[tc] = (typeClientAgg[tc] || 0) + val;
+        });
+        const typeClientStats = Object.entries(typeClientAgg).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+
+        // Grossiste vs Fournisseur from DB2
+        const grossisteTotal = typeClientAgg["Grossiste"] || 0;
+        const fournisseurTotal = typeClientAgg["Fournisseur"] || 0;
+        const gfTotal = grossisteTotal + fournisseurTotal;
+
+        // DB3: marques
+        const mrqFiltered = statsMarques.filter((r: any) => {
+          if (filterYear && r.annee !== filterYear) return false;
+          return true;
+        });
+
+        // DB4: series
+        const serFiltered = statsSeries.filter((r: any) => {
+          if (filterYear && r.annee !== filterYear) return false;
+          return true;
+        });
+        const seriesByFournisseur: Record<string, { serie: string; count: number }[]> = {};
+        serFiltered.forEach((r: any) => {
+          const f = r.fournisseur || "Autre";
+          if (!seriesByFournisseur[f]) seriesByFournisseur[f] = [];
+          seriesByFournisseur[f].push({ serie: r.serie, count: r.count });
+        });
+        Object.values(seriesByFournisseur).forEach((arr) => arr.sort((a, b) => b.count - a.count));
+
+        // Collaborator stats (keep from project data as-is)
+        const allProjectsRaw = [...(projectsData["cmd"] || []), ...(projectsData["cmd-termine"] || [])];
         const allProjects: Project[] = filterByStatsDate(allProjectsRaw, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
-        const allActiveFiltered: Project[] = filterByStatsDate(cmdProjects, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
-        const allCompletedFiltered: Project[] = filterByStatsDate(allCompleted, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
-
-        // KPIs
-        const totalInProgress = allActiveFiltered.length;
-        const totalCabinesInProgress = allActiveFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
-        const now = new Date();
-        const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        const completedThisMonth = allCompletedFiltered.filter((p: any) => (p.dateMontage || "").startsWith(thisMonth)).length;
-        const completionRate = allProjects.length > 0 ? Math.round((allCompletedFiltered.length / allProjects.length) * 100) : 0;
-
-        // Monthly stats for last 6 months
-        const monthNames = ["Jan", "Fev", "Mar", "Avr", "Mai", "Jun", "Jul", "Aou", "Sep", "Oct", "Nov", "Dec"];
-        const last6Months: { key: string; label: string; projects: number; cabines: number }[] = [];
-        for (let i = 5; i >= 0; i--) {
-          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-          const label = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-          const monthProjects = allProjects.filter((p) => (p.dateMontage || "").startsWith(key));
-          const monthCabines = monthProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
-          last6Months.push({ key, label, projects: monthProjects.length, cabines: monthCabines });
-        }
-        const maxMonthProjects = Math.max(...last6Months.map((m) => m.projects), 1);
-        const maxMonthCabines = Math.max(...last6Months.map((m) => m.cabines), 1);
-
-        // Breakdown by collaborator
         const collabStats = COLLABORATEURS_LIST.map((name) => {
           const collabProjects = allProjects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase()));
           const cabines = collabProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
@@ -1728,32 +1805,6 @@ function HomePage() {
           const soucisRate = collabProjects.length > 0 ? Math.round((soucisCount / collabProjects.length) * 100) : 0;
           return { name, projects: collabProjects.length, cabines, soucisCount, soucisRate };
         }).sort((a, b) => b.projects - a.projects);
-
-        // Breakdown by fournisseur
-        const fournisseurMap: Record<string, { projects: number; cabines: number }> = {};
-        allProjects.forEach((p) => {
-          p.fournisseurs.forEach((f) => {
-            if (!fournisseurMap[f]) fournisseurMap[f] = { projects: 0, cabines: 0 };
-            fournisseurMap[f].projects += 1;
-            fournisseurMap[f].cabines += p.nbCabines || 0;
-          });
-        });
-        const fournisseurStats = Object.entries(fournisseurMap).sort((a, b) => b[1].projects - a[1].projects);
-
-        // Breakdown by typeClient
-        const typeClientMap: Record<string, { projects: number; cabines: number }> = {};
-        cmdProjects.forEach((p) => {
-          const tc = p.typeClient || "Non defini";
-          if (!typeClientMap[tc]) typeClientMap[tc] = { projects: 0, cabines: 0 };
-          typeClientMap[tc].projects += 1;
-          typeClientMap[tc].cabines += p.nbCabines || 0;
-        });
-        const typeClientStats = Object.entries(typeClientMap).sort((a, b) => b[1].projects - a[1].projects);
-
-        // SAV stats
-        const savTotal = savProjects.length;
-        const savFromAll = allProjects.filter((p) => p.sav).length;
-        const savRate = allProjects.length > 0 ? Math.round((savFromAll / allProjects.length) * 100) : 0;
 
         const expandedSections = statsExpandedSections;
         const toggleSection = (s: string) => {
@@ -1766,7 +1817,7 @@ function HomePage() {
 
         return (
           <div className="space-y-4">
-            {loading && (
+            {statsLoading && (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
               </div>
@@ -1785,72 +1836,95 @@ function HomePage() {
               {expandedSections.has("kpis") && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-3xl font-bold text-[#1e3a5f] dark:text-white">{totalInProgress}</p>
-                    <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
+                    <p className="text-3xl font-bold text-[#1e3a5f] dark:text-white">{totalMontages}</p>
+                    <p className="text-xs text-gray-500 mt-1">Montages</p>
                   </div>
                   <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-3xl font-bold text-[#1e3a5f] dark:text-white">{totalCabinesInProgress}</p>
-                    <p className="text-xs text-gray-500 mt-1">Cabines en cours</p>
+                    <p className="text-3xl font-bold text-[#1e3a5f] dark:text-white">{totalCabines}</p>
+                    <p className="text-xs text-gray-500 mt-1">Cabines</p>
                   </div>
                   <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-3xl font-bold text-green-600">{completedThisMonth}</p>
-                    <p className="text-xs text-gray-500 mt-1">Termines ce mois</p>
+                    <p className="text-3xl font-bold text-green-600">{totalMesures}</p>
+                    <p className="text-xs text-gray-500 mt-1">Mesures</p>
                   </div>
                   <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-3xl font-bold text-blue-600">{completionRate}%</p>
-                    <p className="text-xs text-gray-500 mt-1">Taux completion</p>
-                    <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${completionRate}%` }} />
-                    </div>
+                    <p className="text-3xl font-bold text-blue-600">{totalCA > 0 ? `${(totalCA / 1000).toFixed(0)}k` : "0"}</p>
+                    <p className="text-xs text-gray-500 mt-1">CA (CHF)</p>
+                  </div>
+                </div>
+              )}
+              {expandedSections.has("kpis") && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                  <div className="glass-card rounded-2xl p-4 text-center">
+                    <p className="text-2xl font-bold text-purple-600">{totalServices}</p>
+                    <p className="text-xs text-gray-500 mt-1">Services</p>
+                  </div>
+                  <div className="glass-card rounded-2xl p-4 text-center">
+                    <p className="text-2xl font-bold text-red-500">{totalSAV}</p>
+                    <p className="text-xs text-gray-500 mt-1">SAV</p>
+                  </div>
+                  <div className="glass-card rounded-2xl p-4 text-center">
+                    <p className="text-2xl font-bold text-amber-600">{totalOFR}</p>
+                    <p className="text-xs text-gray-500 mt-1">Offres</p>
+                  </div>
+                  <div className="glass-card rounded-2xl p-4 text-center">
+                    <p className="text-2xl font-bold text-teal-600">{svcFiltered.reduce((s: number, r: any) => s + r.demontages, 0)}</p>
+                    <p className="text-xs text-gray-500 mt-1">Demontages</p>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Monthly chart */}
+            {/* Tendance mensuelle (12 mois) from DB1 */}
             <div>
               <button onClick={() => toggleSection("monthly")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                 {expandedSections.has("monthly") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                Tendance mensuelle (6 mois)
+                Tendance mensuelle (12 mois)
               </button>
               {expandedSections.has("monthly") && (
                 <div className="glass-card rounded-2xl p-4">
                   <div className="space-y-3">
-                    {last6Months.map((m) => (
-                      <div key={m.key} className="flex items-center gap-3">
-                        <span className="text-xs font-medium text-gray-500 w-20 shrink-0">{m.label}</span>
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-gray-400 w-14 shrink-0">Projets</span>
-                            <div className="flex-1 h-4 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-blue-500 rounded-full transition-all flex items-center justify-end pr-1"
-                                style={{ width: `${Math.max((m.projects / maxMonthProjects) * 100, 2)}%` }}
-                              >
-                                <span className="text-[9px] font-bold text-white">{m.projects}</span>
-                              </div>
-                            </div>
+                    {last12.map((key) => {
+                      const d = svcByMonth[key];
+                      const [yy, mm] = key.split("-");
+                      const label = `${monthNames12[Number(mm) - 1]} ${yy}`;
+                      const maxVal = Math.max(...last12.map((k) => Math.max(svcByMonth[k].montages, svcByMonth[k].cabines, svcByMonth[k].mesures)), 1);
+                      const bars = [
+                        { label: "Montages", val: d.montages, color: "bg-blue-500" },
+                        { label: "Cabines", val: d.cabines, color: "bg-green-500" },
+                        { label: "Mesures", val: d.mesures, color: "bg-yellow-500" },
+                        { label: "Services", val: d.services, color: "bg-purple-500" },
+                        { label: "SAV", val: d.sav, color: "bg-red-400" },
+                      ];
+                      return (
+                        <div key={key}>
+                          <div className="flex items-center gap-3 mb-1">
+                            <span className="text-xs font-medium text-gray-500 w-20 shrink-0">{label}</span>
+                            <span className="text-[10px] text-gray-400 ml-auto">CA: {d.ca > 0 ? `${(d.ca / 1000).toFixed(1)}k` : "0"}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-gray-400 w-14 shrink-0">Cabines</span>
-                            <div className="flex-1 h-4 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-green-500 rounded-full transition-all flex items-center justify-end pr-1"
-                                style={{ width: `${Math.max((m.cabines / maxMonthCabines) * 100, 2)}%` }}
-                              >
-                                <span className="text-[9px] font-bold text-white">{m.cabines}</span>
+                          <div className="space-y-0.5 ml-[84px]">
+                            {bars.filter((b) => b.val > 0).map((b) => (
+                              <div key={b.label} className="flex items-center gap-2">
+                                <span className="text-[9px] text-gray-400 w-14 shrink-0">{b.label}</span>
+                                <div className="flex-1 h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                  <div className={`h-full ${b.color} rounded-full transition-all flex items-center justify-end pr-1`}
+                                    style={{ width: `${Math.max((b.val / maxVal) * 100, 3)}%` }}>
+                                    <span className="text-[8px] font-bold text-white">{b.val}</span>
+                                  </div>
+                                </div>
                               </div>
-                            </div>
+                            ))}
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
+                    {last12.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Aucune donnee pour cette periode</p>}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Collaborators breakdown */}
+            {/* Collaborators breakdown (from project data, kept as-is) */}
             <div>
               <button onClick={() => toggleSection("collabs")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                 {expandedSections.has("collabs") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1892,38 +1966,7 @@ function HomePage() {
               )}
             </div>
 
-            {/* Fournisseurs breakdown */}
-            <div>
-              <button onClick={() => toggleSection("fournisseurs")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
-                {expandedSections.has("fournisseurs") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                Par fournisseur
-              </button>
-              {expandedSections.has("fournisseurs") && (
-                <div className="glass-card rounded-2xl p-4">
-                  <div className="space-y-2">
-                    {fournisseurStats.slice(0, 15).map(([name, data]) => {
-                      const maxFProjects = Math.max(...fournisseurStats.map(([, d]) => d.projects), 1);
-                      return (
-                        <div key={name} className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0 truncate">{name}</span>
-                          <div className="flex-1 h-5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-amber-500 rounded-full transition-all flex items-center justify-end pr-1.5"
-                              style={{ width: `${Math.max((data.projects / maxFProjects) * 100, 5)}%` }}
-                            >
-                              <span className="text-[9px] font-bold text-white">{data.projects}</span>
-                            </div>
-                          </div>
-                          <span className="text-xs text-gray-500 shrink-0 w-16 text-right">{data.cabines} cab.</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Type client breakdown */}
+            {/* Par type de client (from DB2) */}
             <div>
               <button onClick={() => toggleSection("typeclient")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                 {expandedSections.has("typeclient") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1931,21 +1974,15 @@ function HomePage() {
               </button>
               {expandedSections.has("typeclient") && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {typeClientStats.map(([type, data]) => {
-                    const totalTypeProjects = typeClientStats.reduce((s, [, d]) => s + d.projects, 0);
-                    const pct = totalTypeProjects > 0 ? Math.round((data.projects / totalTypeProjects) * 100) : 0;
+                  {typeClientStats.map(([type, total]) => {
+                    const grandTotal = typeClientStats.reduce((s, [, v]) => s + v, 0);
+                    const pct = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0;
                     return (
                       <div key={type} className="glass-card rounded-2xl p-4">
                         <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{type}</h4>
-                        <div className="grid grid-cols-2 gap-3 text-center mb-3">
-                          <div>
-                            <p className="text-2xl font-bold text-[#1e3a5f] dark:text-white">{data.projects}</p>
-                            <p className="text-[10px] text-gray-400">projets</p>
-                          </div>
-                          <div>
-                            <p className="text-2xl font-bold text-[#1e3a5f] dark:text-white">{data.cabines}</p>
-                            <p className="text-[10px] text-gray-400">cabines</p>
-                          </div>
+                        <div className="text-center mb-3">
+                          <p className="text-2xl font-bold text-[#1e3a5f] dark:text-white">{total}</p>
+                          <p className="text-[10px] text-gray-400">montages</p>
                         </div>
                         <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                           <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
@@ -1954,35 +1991,129 @@ function HomePage() {
                       </div>
                     );
                   })}
+                  {typeClientStats.length === 0 && <p className="text-xs text-gray-400 text-center py-4 col-span-2">Aucune donnee</p>}
                 </div>
               )}
             </div>
 
-            {/* SAV stats */}
+            {/* Par fournisseur/marque (from DB3) */}
             <div>
-              <button onClick={() => toggleSection("sav")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
-                {expandedSections.has("sav") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                SAV
+              <button onClick={() => toggleSection("marques")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                {expandedSections.has("marques") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                Par fournisseur / marque
               </button>
-              {expandedSections.has("sav") && (
+              {expandedSections.has("marques") && (
                 <div className="glass-card rounded-2xl p-4">
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    <div>
-                      <p className="text-3xl font-bold text-red-500">{savTotal}</p>
-                      <p className="text-xs text-gray-500 mt-1">SAV en cours</p>
-                    </div>
-                    <div>
-                      <p className="text-3xl font-bold text-orange-500">{savFromAll}</p>
-                      <p className="text-xs text-gray-500 mt-1">Projets avec SAV</p>
-                    </div>
-                    <div>
-                      <p className={`text-3xl font-bold ${savRate > 10 ? "text-red-500" : savRate > 5 ? "text-yellow-500" : "text-green-500"}`}>{savRate}%</p>
-                      <p className="text-xs text-gray-500 mt-1">Taux SAV</p>
-                      <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all ${savRate > 10 ? "bg-red-500" : savRate > 5 ? "bg-yellow-500" : "bg-green-500"}`} style={{ width: `${Math.min(savRate, 100)}%` }} />
+                  <div className="space-y-3">
+                    {mrqFiltered.filter((r: any) => {
+                      if (filterMonthNum) return (r.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0) > 0;
+                      return (r.total || Object.values(r.monthly as Record<string, number>).reduce((a: number, b: number) => a + b, 0)) > 0;
+                    }).sort((a: any, b: any) => {
+                      const aVal = filterMonthNum ? (a.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0) : (a.total || Object.values(a.monthly as Record<string, number>).reduce((x: number, y: number) => x + y, 0));
+                      const bVal = filterMonthNum ? (b.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0) : (b.total || Object.values(b.monthly as Record<string, number>).reduce((x: number, y: number) => x + y, 0));
+                      return bVal - aVal;
+                    }).map((r: any) => {
+                      const totalVal = filterMonthNum ? (r.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0) : (r.total || Object.values(r.monthly as Record<string, number>).reduce((a: number, b: number) => a + b, 0));
+                      const maxMrq = Math.max(...mrqFiltered.map((m: any) => filterMonthNum ? (m.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0) : (m.total || Object.values(m.monthly as Record<string, number>).reduce((a: number, b: number) => a + b, 0))), 1);
+                      return (
+                        <div key={r.id}>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0 truncate">{r.marque}</span>
+                            <div className="flex-1 h-5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-amber-500 rounded-full transition-all flex items-center justify-end pr-1.5"
+                                style={{ width: `${Math.max((totalVal / maxMrq) * 100, 5)}%` }}>
+                                <span className="text-[9px] font-bold text-white">{totalVal}</span>
+                              </div>
+                            </div>
+                          </div>
+                          {!filterMonthNum && (
+                            <div className="ml-[140px] flex gap-0.5 mt-1">
+                              {MOIS_NAMES.map((m, i) => {
+                                const v = r.monthly[m] || 0;
+                                return (
+                                  <div key={m} className="flex flex-col items-center" style={{ width: "calc(100%/12)" }}>
+                                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-sm overflow-hidden" style={{ height: 20 }}>
+                                      <div className="bg-amber-400 w-full rounded-sm" style={{ height: v > 0 ? Math.max((v / Math.max(...Object.values(r.monthly as Record<string, number>), 1)) * 20, 2) : 0, marginTop: 20 - (v > 0 ? Math.max((v / Math.max(...Object.values(r.monthly as Record<string, number>), 1)) * 20, 2) : 0) }} />
+                                    </div>
+                                    <span className="text-[7px] text-gray-400 mt-0.5">{monthNames12[i]}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {mrqFiltered.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Aucune donnee</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Par serie de cabine (from DB4) */}
+            <div>
+              <button onClick={() => toggleSection("series")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                {expandedSections.has("series") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                Par serie de cabine
+              </button>
+              {expandedSections.has("series") && (
+                <div className="space-y-3">
+                  {Object.entries(seriesByFournisseur).sort(([, a], [, b]) => b.reduce((s, x) => s + x.count, 0) - a.reduce((s, x) => s + x.count, 0)).map(([fournisseur, items]) => (
+                    <div key={fournisseur} className="glass-card rounded-2xl p-4">
+                      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{fournisseur}</h4>
+                      <div className="space-y-1.5">
+                        {items.map((it) => {
+                          const maxCount = Math.max(...items.map((x) => x.count), 1);
+                          return (
+                            <div key={it.serie} className="flex items-center gap-3">
+                              <span className="text-xs text-gray-600 dark:text-gray-400 w-36 shrink-0 truncate">{it.serie}</span>
+                              <div className="flex-1 h-4 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-teal-500 rounded-full transition-all flex items-center justify-end pr-1"
+                                  style={{ width: `${Math.max((it.count / maxCount) * 100, 5)}%` }}>
+                                  <span className="text-[8px] font-bold text-white">{it.count}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
+                  ))}
+                  {Object.keys(seriesByFournisseur).length === 0 && <p className="text-xs text-gray-400 text-center py-4">Aucune donnee</p>}
+                </div>
+              )}
+            </div>
+
+            {/* Repartition Grossistes vs Fournisseurs (from DB2) */}
+            <div>
+              <button onClick={() => toggleSection("gvf")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                {expandedSections.has("gvf") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                Repartition Grossistes vs Fournisseurs
+              </button>
+              {expandedSections.has("gvf") && (
+                <div className="glass-card rounded-2xl p-4">
+                  <div className="grid grid-cols-2 gap-4 text-center mb-4">
+                    <div>
+                      <p className="text-3xl font-bold text-blue-600">{grossisteTotal}</p>
+                      <p className="text-xs text-gray-500 mt-1">Grossistes</p>
+                    </div>
+                    <div>
+                      <p className="text-3xl font-bold text-amber-600">{fournisseurTotal}</p>
+                      <p className="text-xs text-gray-500 mt-1">Fournisseurs</p>
+                    </div>
                   </div>
+                  {gfTotal > 0 && (
+                    <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex">
+                      <div className="h-full bg-blue-500 transition-all" style={{ width: `${(grossisteTotal / gfTotal) * 100}%` }} />
+                      <div className="h-full bg-amber-500 transition-all" style={{ width: `${(fournisseurTotal / gfTotal) * 100}%` }} />
+                    </div>
+                  )}
+                  {gfTotal > 0 && (
+                    <div className="flex justify-between mt-1">
+                      <span className="text-[10px] text-blue-600">{Math.round((grossisteTotal / gfTotal) * 100)}%</span>
+                      <span className="text-[10px] text-amber-600">{Math.round((fournisseurTotal / gfTotal) * 100)}%</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
