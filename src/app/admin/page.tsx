@@ -224,18 +224,6 @@ export default function AdminPage() {
           Rapport mensuel
         </button>
         <button
-          onClick={async () => {
-            const res = await fetch("/api/backup", { method: "POST" });
-            const data = await res.json();
-            if (res.ok) alert(`Backup créé : ${data.backup} (${data.files} fichiers)`);
-            else alert("Erreur: " + (data.error || "Erreur"));
-          }}
-          className="shrink-0 flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95"
-        >
-          <Database className="w-4 h-4 text-purple-600" />
-          Backup
-        </button>
-        <button
           onClick={() => { setShowLogs(!showLogs); if (!showLogs) loadLogs(); }}
           className="shrink-0 flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95"
         >

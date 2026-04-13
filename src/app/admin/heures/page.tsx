@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Loader2,
   Shield,
+  Users as UsersIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCollaboratorColor } from "@/lib/collaborators";
@@ -187,20 +188,45 @@ export default function HeuresPage() {
   // Filter entries for selected month
   const monthEntries = allEntries.filter((e) => e.date.startsWith(selectedMonth));
 
-  // Group by collaborator
+  // Group by individual collaborator AND by team
   const collabMap = new Map<string, TimeEntry[]>();
-  for (const entry of monthEntries) {
-    // Try to match collaborator to known list
-    const matchedCollab = COLLABORATEURS_LIST.find(
-      (c) => entry.collaborateur.toLowerCase().includes(c.toLowerCase())
-    ) || entry.collaborateur || "Non assigne";
+  const teamMap = new Map<string, TimeEntry[]>();
 
-    if (!collabMap.has(matchedCollab)) collabMap.set(matchedCollab, []);
-    collabMap.get(matchedCollab)!.push(entry);
+  for (const entry of monthEntries) {
+    const rawCollab = entry.collaborateur || "Non assigne";
+    const names = rawCollab.split("&").map((n) => n.trim()).filter(Boolean);
+
+    if (names.length > 1) {
+      // Team/Binôme entry — add to team map
+      const teamKey = names.sort().join(" & ");
+      if (!teamMap.has(teamKey)) teamMap.set(teamKey, []);
+      teamMap.get(teamKey)!.push(entry);
+    }
+
+    // Add to each individual collaborator
+    for (const name of names) {
+      const matchedCollab = COLLABORATEURS_LIST.find(
+        (c) => name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(name.toLowerCase())
+      ) || name;
+
+      if (!collabMap.has(matchedCollab)) collabMap.set(matchedCollab, []);
+      collabMap.get(matchedCollab)!.push(entry);
+    }
+
+    // If no names found
+    if (names.length === 0) {
+      if (!collabMap.has("Non assigne")) collabMap.set("Non assigne", []);
+      collabMap.get("Non assigne")!.push(entry);
+    }
   }
 
   // Sort collaborators alphabetically
   const collabEntries = Array.from(collabMap.entries()).sort(([a], [b]) =>
+    a.localeCompare(b)
+  );
+
+  // Sort teams
+  const teamEntries = Array.from(teamMap.entries()).sort(([a], [b]) =>
     a.localeCompare(b)
   );
 
@@ -372,6 +398,97 @@ export default function HeuresPage() {
           </Card>
         );
       })}
+
+      {/* Binômes / Teams */}
+      {teamEntries.length > 0 && (
+        <>
+          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mt-6 mb-3 flex items-center gap-2">
+            <UsersIcon className="w-4 h-4" />
+            Binômes & Teams
+          </h2>
+          {teamEntries.map(([team, entries]) => {
+            const names = team.split(" & ");
+            const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+            const teamTotal = entries.reduce((s, e) => s + e.minutes, 0);
+
+            const weekMap = new Map<number, TimeEntry[]>();
+            for (const e of sorted) {
+              const wk = getWeekNumber(e.date);
+              if (!weekMap.has(wk)) weekMap.set(wk, []);
+              weekMap.get(wk)!.push(e);
+            }
+            const weeks = Array.from(weekMap.entries()).sort(([a], [b]) => a - b);
+
+            return (
+              <Card key={team} className="mb-4">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <div className="flex -space-x-2">
+                      {names.map((n) => {
+                        const c = getCollaboratorColor(n.trim());
+                        return (
+                          <div key={n} className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 border-white dark:border-gray-900"
+                            style={{ backgroundColor: c.bg, color: c.text }}>
+                            {n.trim()[0]}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <span className="flex-1">{team}</span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                      {names.length === 2 ? "Binôme" : "Team"}
+                    </span>
+                    <span className="text-sm font-bold px-3 py-1 rounded-full bg-blue-50 text-blue-600">
+                      {formatMinutes(teamTotal)}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                          <th className="text-left py-2 pr-2">Date</th>
+                          <th className="text-left py-2 pr-2">Projet</th>
+                          <th className="text-center py-2 px-2">Arrivee</th>
+                          <th className="text-center py-2 px-2">Depart</th>
+                          <th className="text-right py-2 pl-2">Heures</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weeks.map(([weekNum, weekEntries]) => {
+                          const weekTotal = weekEntries.reduce((s, e) => s + e.minutes, 0);
+                          return (
+                            <Fragment key={weekNum}>
+                              {weekEntries.map((e, i) => {
+                                const d = new Date(e.date);
+                                const dayLabel = d.toLocaleDateString("fr-CH", { weekday: "short", day: "2-digit", month: "short" });
+                                return (
+                                  <tr key={`${e.date}-${e.projectId}-${i}`} className="border-b border-gray-50 dark:border-gray-800">
+                                    <td className="py-1.5 pr-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{dayLabel}</td>
+                                    <td className="py-1.5 pr-2 text-gray-900 dark:text-gray-100 truncate max-w-[150px]">{e.projectName}</td>
+                                    <td className="py-1.5 px-2 text-center text-gray-600 font-mono">{e.arrivee || "-"}</td>
+                                    <td className="py-1.5 px-2 text-center text-gray-600 font-mono">{e.depart || "-"}</td>
+                                    <td className="py-1.5 pl-2 text-right font-medium">{e.minutes > 0 ? formatMinutes(e.minutes) : "-"}</td>
+                                  </tr>
+                                );
+                              })}
+                              <tr className="bg-gray-50 dark:bg-gray-800/30">
+                                <td colSpan={4} className="py-1.5 pr-2 text-xs font-semibold text-gray-500 text-right">Semaine {weekNum}</td>
+                                <td className="py-1.5 pl-2 text-right text-xs font-bold text-blue-600">{formatMinutes(weekTotal)}</td>
+                              </tr>
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </>
+      )}
     </div>
   );
 }
