@@ -2240,10 +2240,23 @@ function ProjectPageContent({ id }: { id: string }) {
             )}
 
             {/* Pièce manquante */}
-            <PiecesForm projectId={id} projectName={project.projet} />
+            <PiecesForm projectId={id} projectName={project.projet} onSubmitted={() => {
+              // Re-fetch project to show new signalement
+              setTimeout(() => {
+                fetch(`/api/projects/${id}`).then(r => r.json()).then(data => {
+                  if (data?.id) setProject(data);
+                }).catch(() => {});
+              }, 1500);
+            }} />
 
             {/* Signaler un défaut */}
-            <DefautForm projectId={id} projectName={project.projet} />
+            <DefautForm projectId={id} projectName={project.projet} onSubmitted={() => {
+              setTimeout(() => {
+                fetch(`/api/projects/${id}`).then(r => r.json()).then(data => {
+                  if (data?.id) setProject(data);
+                }).catch(() => {});
+              }, 1500);
+            }} />
 
             {/* Consommables utilisés */}
             <StockUsage projectId={id} />

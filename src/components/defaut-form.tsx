@@ -20,9 +20,10 @@ const DEFAUT_TYPES = [
 interface DefautFormProps {
   projectId: string;
   projectName: string;
+  onSubmitted?: () => void;
 }
 
-export function DefautForm({ projectId, projectName }: DefautFormProps) {
+export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormProps) {
   const [open, setOpen] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [description, setDescription] = useState("");
@@ -108,6 +109,7 @@ export function DefautForm({ projectId, projectName }: DefautFormProps) {
       });
       if (res.ok) {
         toast.success("Défaut signalé avec succès");
+        onSubmitted?.();
         resetForm();
         setOpen(false);
       } else {

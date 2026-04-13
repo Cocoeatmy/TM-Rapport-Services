@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getData, setData } from "@/lib/kv-store";
 import { notion } from "@/lib/notion";
+import { invalidateCache } from "@/lib/server-cache";
 
 interface DefautComment {
   user: string;
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
       }
 
       await notion.pages.update({ page_id: body.projectId, properties });
+      invalidateCache(`project-${body.projectId}`);
     } catch (err) {
       console.error("Notion defaut sync error:", err);
       // kv-store already saved as backup, continue

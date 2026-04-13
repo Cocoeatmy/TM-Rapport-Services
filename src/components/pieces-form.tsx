@@ -12,9 +12,10 @@ const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m
 interface PiecesFormProps {
   projectId: string;
   projectName: string;
+  onSubmitted?: () => void;
 }
 
-export function PiecesForm({ projectId, projectName }: PiecesFormProps) {
+export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormProps) {
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [reference, setReference] = useState("");
@@ -73,6 +74,7 @@ export function PiecesForm({ projectId, projectName }: PiecesFormProps) {
       });
       if (res.ok) {
         toast.success("Demande de pièce envoyée");
+        onSubmitted?.();
         setDescription("");
         setReference("");
         removePhoto();
