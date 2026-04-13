@@ -1753,10 +1753,24 @@ function HomePage() {
         const totalOFR = svcFiltered.reduce((s: number, r: any) => s + r.ofr, 0);
 
         // DB2: clients by type
-        const cliFiltered = statsClients.filter((r: any) => {
+        const cliByYear = statsClients.filter((r: any) => {
           if (filterYear && r.annee !== filterYear) return false;
           return true;
         });
+        // Group clients by name, sum monthly across years
+        const cliGrouped: Record<string, any> = {};
+        cliByYear.forEach((r: any) => {
+          const name = r.client;
+          if (!cliGrouped[name]) {
+            cliGrouped[name] = { ...r, monthly: { ...r.monthly }, total: r.total || 0 };
+          } else {
+            Object.keys(r.monthly || {}).forEach((m: string) => {
+              cliGrouped[name].monthly[m] = (cliGrouped[name].monthly[m] || 0) + (r.monthly[m] || 0);
+            });
+            cliGrouped[name].total = (cliGrouped[name].total || 0) + (r.total || 0);
+          }
+        });
+        const cliFiltered = Object.values(cliGrouped);
         const MOIS_NAMES = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
         const typeClientAgg: Record<string, number> = {};
         cliFiltered.forEach((r: any) => {
@@ -1776,22 +1790,43 @@ function HomePage() {
         const fournisseurTotal = typeClientAgg["Fournisseur"] || 0;
         const gfTotal = grossisteTotal + fournisseurTotal;
 
-        // DB3: marques
-        const mrqFiltered = statsMarques.filter((r: any) => {
+        // DB3: marques — group by name, sum monthly across years
+        const mrqByYear = statsMarques.filter((r: any) => {
           if (filterYear && r.annee !== filterYear) return false;
           return true;
         });
+        const mrqGrouped: Record<string, any> = {};
+        mrqByYear.forEach((r: any) => {
+          const name = r.marque;
+          if (!mrqGrouped[name]) {
+            mrqGrouped[name] = { ...r, monthly: { ...r.monthly }, total: r.total || 0 };
+          } else {
+            // Sum monthly values
+            Object.keys(r.monthly || {}).forEach((m: string) => {
+              mrqGrouped[name].monthly[m] = (mrqGrouped[name].monthly[m] || 0) + (r.monthly[m] || 0);
+            });
+            mrqGrouped[name].total = (mrqGrouped[name].total || 0) + (r.total || 0);
+          }
+        });
+        const mrqFiltered = Object.values(mrqGrouped);
 
         // DB4: series
-        const serFiltered = statsSeries.filter((r: any) => {
+        const serByYear = statsSeries.filter((r: any) => {
           if (filterYear && r.annee !== filterYear) return false;
           return true;
         });
+        // Group series by fournisseur+serie name, sum counts across years
         const seriesByFournisseur: Record<string, { serie: string; count: number }[]> = {};
-        serFiltered.forEach((r: any) => {
+        const serDedup: Record<string, number> = {};
+        serByYear.forEach((r: any) => {
           const f = r.fournisseur || "Autre";
+          const key = `${f}::${r.serie}`;
+          serDedup[key] = (serDedup[key] || 0) + (r.count || 0);
+        });
+        Object.entries(serDedup).forEach(([key, count]) => {
+          const [f, serie] = key.split("::");
           if (!seriesByFournisseur[f]) seriesByFournisseur[f] = [];
-          seriesByFournisseur[f].push({ serie: r.serie, count: r.count });
+          seriesByFournisseur[f].push({ serie, count });
         });
         Object.values(seriesByFournisseur).forEach((arr) => arr.sort((a, b) => b.count - a.count));
 
