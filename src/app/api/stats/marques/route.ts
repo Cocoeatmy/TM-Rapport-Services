@@ -31,6 +31,16 @@ function dateVal(prop: any): string | null {
   return prop.date.start || null;
 }
 
+function yearVal(prop: any): number | null {
+  if (!prop) return null;
+  if (prop.type === "date" && prop.date?.start) return new Date(prop.date.start).getFullYear();
+  if (prop.type === "number" && prop.number != null) return prop.number;
+  if (prop.type === "select" && prop.select?.name) return parseInt(prop.select.name, 10) || null;
+  if (prop.type === "rich_text") return parseInt(prop.rich_text?.map((x: any) => x.plain_text).join("") || "", 10) || null;
+  if (prop.type === "title") return parseInt(prop.title?.map((x: any) => x.plain_text).join("") || "", 10) || null;
+  return null;
+}
+
 const MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
 export async function GET() {
@@ -57,7 +67,7 @@ export async function GET() {
       return {
         id: page.id,
         marque: txt(p["Marque"]),
-        annee: anneeRaw ? new Date(anneeRaw).getFullYear() : null,
+        annee: yearVal(p["Année"]),
         monthly,
         total: formulaNum(p["Total"]),
       };
