@@ -46,7 +46,13 @@ export async function GET() {
       cursor = response.has_more ? response.next_cursor : undefined;
     } while (cursor);
 
-    const rows = allResults.map((page: any) => {
+    const rows = allResults.filter((page: any) => {
+      // Exclude "Objectif" rows
+      const jour = page.properties["Jours"];
+      const jourText = jour?.type === "title" ? jour.title?.map((t: any) => t.plain_text).join("") || "" : "";
+      if (jourText.toLowerCase().includes("objectif")) return false;
+      return true;
+    }).map((page: any) => {
       const p = page.properties;
       const anneeRaw = dateVal(p["Année"]);
       const moisRaw = dateVal(p["Mois"]);
