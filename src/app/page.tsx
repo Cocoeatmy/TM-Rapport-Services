@@ -1727,17 +1727,18 @@ function HomePage() {
 
         // Aggregate DB1 by month for tendance (last 12 months or filtered)
         const monthNames12 = ["Jan", "Fev", "Mar", "Avr", "Mai", "Jun", "Jul", "Aou", "Sep", "Oct", "Nov", "Dec"];
-        const svcByMonth: Record<string, { mesures: number; cabines: number; montages: number; demontages: number; services: number; sav: number; ca: number }> = {};
+        const svcByMonth: Record<string, { mesures: number; cabines: number; montages: number; demontages: number; services: number; sav: number; ofr: number; ca: number }> = {};
         svcFiltered.forEach((r: any) => {
           const key = r.mois || "unknown";
           if (key === "unknown") return;
-          if (!svcByMonth[key]) svcByMonth[key] = { mesures: 0, cabines: 0, montages: 0, demontages: 0, services: 0, sav: 0, ca: 0 };
+          if (!svcByMonth[key]) svcByMonth[key] = { mesures: 0, cabines: 0, montages: 0, demontages: 0, services: 0, sav: 0, ofr: 0, ca: 0 };
           svcByMonth[key].mesures += r.mesures;
           svcByMonth[key].cabines += r.cabines;
           svcByMonth[key].montages += r.montages;
           svcByMonth[key].demontages += r.demontages;
           svcByMonth[key].services += r.services;
           svcByMonth[key].sav += r.sav;
+          svcByMonth[key].ofr += r.ofr;
           svcByMonth[key].ca += r.ca;
         });
         const monthlyKeys = Object.keys(svcByMonth).sort();
@@ -1924,13 +1925,15 @@ function HomePage() {
                       const d = svcByMonth[key];
                       const [yy, mm] = key.split("-");
                       const label = `${monthNames12[Number(mm) - 1]} ${yy}`;
-                      const maxVal = Math.max(...last12.map((k) => Math.max(svcByMonth[k].montages, svcByMonth[k].cabines, svcByMonth[k].mesures)), 1);
+                      const maxVal = Math.max(...last12.map((k) => Math.max(svcByMonth[k].montages, svcByMonth[k].cabines, svcByMonth[k].mesures, svcByMonth[k].ofr)), 1);
                       const bars = [
-                        { label: "Montages", val: d.montages, color: "bg-blue-500" },
+                        { label: "Mesures", val: d.mesures, color: "bg-cyan-500" },
                         { label: "Cabines", val: d.cabines, color: "bg-green-500" },
-                        { label: "Mesures", val: d.mesures, color: "bg-yellow-500" },
-                        { label: "Services", val: d.services, color: "bg-purple-500" },
+                        { label: "Montages", val: d.montages, color: "bg-orange-500" },
+                        { label: "Démontages", val: d.demontages, color: "bg-rose-500" },
+                        { label: "Services", val: d.services, color: "bg-emerald-500" },
                         { label: "SAV", val: d.sav, color: "bg-red-400" },
+                        { label: "Nb. OFR", val: d.ofr, color: "bg-blue-500" },
                       ];
                       return (
                         <div key={key}>
