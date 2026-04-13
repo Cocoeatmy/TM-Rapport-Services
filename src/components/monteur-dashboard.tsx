@@ -669,7 +669,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             .sort((a, b) => ((a.dateMesures || a.dateMontage || "z").split("T")[0]).localeCompare((b.dateMesures || b.dateMontage || "z").split("T")[0]));
 
           const mesuresProjects = projects.filter((p) => p.etatCMD === "En attente de mesures" && mesuresStatuses.includes(p.etatMesures))
-            .sort((a, b) => ((a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMesures || "z").split("T")[0]));
+            .sort((a, b) => ((a.dateMesuresRecue || a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMesuresRecue || b.dateMesures || "z").split("T")[0]));
 
           const servicesProjects = projects.filter((p) =>
             montageStatuses.includes(p.etatCMD) && p.typeServices && p.typeServices.some((t) => t !== "Montages" && t !== "Montage")
@@ -680,7 +680,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
 
           const totalCount = pureMontageProjets.length + mesuresProjects.length + servicesProjects.length;
 
-          const renderCategory = (title: string, color: string, bgColor: string, categoryProjects: Project[]) => {
+          const renderCategory = (title: string, color: string, bgColor: string, categoryProjects: Project[], dateLabel?: string, useDateField?: "dateMesuresRecue") => {
             if (categoryProjects.length === 0) return null;
             return (
               <div key={title} className="mb-4">
@@ -690,11 +690,18 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                     {categoryProjects.length} projet{categoryProjects.length > 1 ? "s" : ""}
                   </span>
                 </div>
+                {dateLabel && (
+                  <div className="flex items-center gap-2 px-2 py-0.5 mb-1 text-[9px] font-semibold text-gray-400 uppercase tracking-wider">
+                    <span className="w-16 shrink-0">{dateLabel}</span>
+                  </div>
+                )}
                 {categoryProjects.map((p, idx) => {
                   const isMesure = p.etatMesures && mesuresStatuses.includes(p.etatMesures);
                   const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
                   const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
-                  const date = (p.dateMesures || p.dateMontage || "").split("T")[0];
+                  const date = useDateField === "dateMesuresRecue"
+                    ? (p.dateMesuresRecue || p.dateMesures || "").split("T")[0]
+                    : (p.dateMesures || p.dateMontage || "").split("T")[0];
                   const rowBg = idx % 2 === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "bg-blue-100/60 dark:bg-blue-900/20";
                   return (
                     <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
@@ -739,7 +746,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           return (
             <div className="glass-card rounded-2xl p-4">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">RDV à fixer ({totalCount})</p>
-              {renderCategory("Mesures à relever", "text-cyan-700 dark:text-cyan-300", "bg-cyan-50 dark:bg-cyan-900/20", mesuresProjects)}
+              {renderCategory("Mesures à relever", "text-cyan-700 dark:text-cyan-300", "bg-cyan-50 dark:bg-cyan-900/20", mesuresProjects, "Reçue le", "dateMesuresRecue")}
               {renderCategory("Montages à planifier", "text-orange-700 dark:text-orange-300", "bg-orange-50 dark:bg-orange-900/20", pureMontageProjets)}
               {renderCategory("Services à planifier", "text-emerald-700 dark:text-emerald-300", "bg-emerald-50 dark:bg-emerald-900/20", servicesProjects)}
               {totalCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
