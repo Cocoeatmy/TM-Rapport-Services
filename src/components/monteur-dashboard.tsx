@@ -1037,7 +1037,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                 const isRecent = diff < 3600000; // < 1h
                 const isToday = d.toDateString() === new Date().toDateString();
                 return (
-                  <div className={`text-[9px] shrink-0 text-right px-1.5 py-1 rounded-lg ${isRecent ? "bg-green-50 text-green-600" : isToday ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-400"}`}>
+                  <div className={`text-[9px] shrink-0 text-right px-1.5 py-1 rounded-lg mr-2 ${isRecent ? "bg-green-50 text-green-600" : isToday ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-400"}`}>
                     <p className="font-medium">{d.toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}</p>
                     <p>{d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
