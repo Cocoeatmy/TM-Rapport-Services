@@ -486,6 +486,38 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
           )}
         </View>
 
+        {/* Alertes défauts / pièces manquantes */}
+        {(pieces.length > 0 || defauts.length > 0) && (
+          <View style={{ marginTop: 12, padding: 10, backgroundColor: "#fef2f2", borderRadius: 6, borderWidth: 1, borderColor: "#fecaca" }}>
+            <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#991b1b", marginBottom: 6 }}>
+              ⚠ Signalements sur ce projet
+            </Text>
+            {pieces.length > 0 && (
+              <View style={{ flexDirection: "row", marginBottom: 3 }}>
+                <Text style={{ fontSize: 9, color: "#dc2626", fontFamily: "Helvetica-Bold", width: 130 }}>
+                  Pièces manquantes : {pieces.length}
+                </Text>
+                <Text style={{ fontSize: 9, color: "#7f1d1d", flex: 1 }}>
+                  {pieces.map((p) => p.description || p.reference || "Sans description").join(", ")}
+                </Text>
+              </View>
+            )}
+            {defauts.length > 0 && (
+              <View style={{ flexDirection: "row", marginBottom: 3 }}>
+                <Text style={{ fontSize: 9, color: "#dc2626", fontFamily: "Helvetica-Bold", width: 130 }}>
+                  Défauts signalés : {defauts.length}
+                </Text>
+                <Text style={{ fontSize: 9, color: "#7f1d1d", flex: 1 }}>
+                  {defauts.map((d) => (d.types || []).join(", ") || d.description || "Sans description").join(" | ")}
+                </Text>
+              </View>
+            )}
+            <Text style={{ fontSize: 8, color: "#991b1b", marginTop: 4 }}>
+              Voir les pages détaillées en annexe du rapport.
+            </Text>
+          </View>
+        )}
+
         {/* Footer */}
         <View style={styles.footer} fixed>
           <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
