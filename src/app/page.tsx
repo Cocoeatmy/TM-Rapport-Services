@@ -2116,6 +2116,8 @@ function HomePage() {
                         { bar: "bg-lime-600", mini: "bg-lime-400" },
                       ];
                       const colors = marqueColors[r.marque] || fallbackColors[idx % fallbackColors.length];
+                      const grandTotalMrq = mrqFiltered.reduce((s: number, m: any) => s + (filterMonthNum ? (m.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0) : (m.total || Object.values(m.monthly as Record<string, number>).reduce((a: number, b: number) => a + b, 0))), 0);
+                      const pctMrq = grandTotalMrq > 0 ? Math.round((totalVal / grandTotalMrq) * 100) : 0;
                       return (
                         <div key={r.id || r.marque}>
                           <div className="flex items-center gap-3">
@@ -2123,7 +2125,7 @@ function HomePage() {
                             <div className="flex-1 h-5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                               <div className={`h-full ${colors.bar} rounded-full transition-all flex items-center justify-end pr-1.5`}
                                 style={{ width: `${Math.max((totalVal / maxMrq) * 100, 5)}%` }}>
-                                <span className="text-[9px] font-bold text-white">{totalVal}</span>
+                                <span className="text-[9px] font-bold text-white">{pctMrq}% · {totalVal}</span>
                               </div>
                             </div>
                           </div>
