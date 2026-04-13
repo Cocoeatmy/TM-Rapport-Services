@@ -673,14 +673,14 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
 
           const servicesProjects = projects.filter((p) =>
             montageStatuses.includes(p.etatCMD) && p.typeServices && p.typeServices.some((t) => t !== "Montages" && t !== "Montage")
-          ).sort((a, b) => ((a.dateMontage || "z").split("T")[0]).localeCompare((b.dateMontage || "z").split("T")[0]));
+          ).sort((a, b) => ((a.dateDemandeProjet || a.dateMontage || "z").split("T")[0]).localeCompare((b.dateDemandeProjet || b.dateMontage || "z").split("T")[0]));
 
           // Remove services from montage list to avoid duplicates
           const pureMontageProjets = montageProjects.filter((p) => !servicesProjects.some((s) => s.id === p.id));
 
           const totalCount = pureMontageProjets.length + mesuresProjects.length + servicesProjects.length;
 
-          const renderCategory = (title: string, color: string, bgColor: string, categoryProjects: Project[], dateLabel?: string, useDateField?: "dateMesuresRecue") => {
+          const renderCategory = (title: string, color: string, bgColor: string, categoryProjects: Project[], dateLabel?: string, useDateField?: "dateMesuresRecue" | "dateDemandeProjet") => {
             if (categoryProjects.length === 0) return null;
             return (
               <div key={title} className="mb-4">
@@ -701,6 +701,8 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                   const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
                   const date = useDateField === "dateMesuresRecue"
                     ? (p.dateMesuresRecue || p.dateMesures || "").split("T")[0]
+                    : useDateField === "dateDemandeProjet"
+                    ? (p.dateDemandeProjet || p.dateMontage || "").split("T")[0]
                     : (p.dateMesures || p.dateMontage || "").split("T")[0];
                   const rowBg = idx % 2 === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "bg-blue-100/60 dark:bg-blue-900/20";
                   return (
@@ -748,7 +750,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">RDV à fixer ({totalCount})</p>
               {renderCategory("Mesures à relever", "text-cyan-700 dark:text-cyan-300", "bg-cyan-50 dark:bg-cyan-900/20", mesuresProjects, "Reçue le", "dateMesuresRecue")}
               {renderCategory("Montages à planifier", "text-orange-700 dark:text-orange-300", "bg-orange-50 dark:bg-orange-900/20", pureMontageProjets)}
-              {renderCategory("Services à planifier", "text-emerald-700 dark:text-emerald-300", "bg-emerald-50 dark:bg-emerald-900/20", servicesProjects)}
+              {renderCategory("Services à planifier", "text-emerald-700 dark:text-emerald-300", "bg-emerald-50 dark:bg-emerald-900/20", servicesProjects, "Reçue le", "dateDemandeProjet")}
               {totalCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
             </div>
           );
