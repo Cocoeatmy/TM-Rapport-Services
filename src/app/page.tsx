@@ -1878,8 +1878,8 @@ function HomePage() {
         });
         Object.values(seriesByFournisseur).forEach((arr) => arr.sort((a, b) => b.count - a.count));
 
-        // Collaborator stats (keep from project data as-is)
-        const allProjectsRaw = [...(projectsData["cmd"] || []), ...(projectsData["cmd-termine"] || [])];
+        // Collaborator stats (only completed/archived projects)
+        const allProjectsRaw = projectsData["cmd-termine"] || projectsData["archives"] || [];
         const allProjects: Project[] = filterByStatsDate(allProjectsRaw, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
         const collabStats = COLLABORATEURS_LIST.map((name) => {
           const collabProjects = allProjects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase()));
