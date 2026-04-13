@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Camera, Loader2, Send, ShieldAlert, X, Check } from "lucide-react";
+import { Camera, Loader2, Send, ShieldAlert, X, Check, Sparkles } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import dynamic from "next/dynamic";
+const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m => ({ default: m.VoiceRecorder })), { ssr: false });
 
 const DEFAUT_TYPES = [
   { id: "usine", label: "Défaut d'usine" },
@@ -27,7 +29,18 @@ export function DefautForm({ projectId, projectName }: DefautFormProps) {
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAI = async () => {
+    if (!description.trim() || description.trim().length < 10) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/ai", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: `Reformule cette description de défaut de manière claire et professionnelle pour un rapport technique. Réponds uniquement avec le texte reformulé :\n\n${description}` }) });
+      if (res.ok) { const data = await res.json(); if (data.answer || data.response) setDescription((data.answer || data.response).trim()); }
+    } catch {} finally { setAiLoading(false); }
+  };
 
   const toggleType = (id: string) => {
     setSelectedTypes((prev) =>
@@ -160,6 +173,15 @@ export function DefautForm({ projectId, projectName }: DefautFormProps) {
           rows={2}
           className="mt-1"
         />
+        <div className="flex items-center gap-2 mt-1">
+          <VoiceRecorder onTranscript={(text) => setDescription((prev) => prev ? prev + " " + text : text)} />
+          {description.trim().length > 10 && (
+            <button onClick={handleAI} disabled={aiLoading} className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 disabled:opacity-50">
+              {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {aiLoading ? "IA..." : "✨ Reformuler"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Photos */}

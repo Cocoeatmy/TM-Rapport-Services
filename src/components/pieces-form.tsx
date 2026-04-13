@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Package, Camera, Loader2, Send, AlertTriangle, X, ImageIcon } from "lucide-react";
+import { Package, Camera, Loader2, Send, AlertTriangle, X, ImageIcon, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import dynamic from "next/dynamic";
+const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m => ({ default: m.VoiceRecorder })), { ssr: false });
 
 interface PiecesFormProps {
   projectId: string;
@@ -19,7 +21,18 @@ export function PiecesForm({ projectId, projectName }: PiecesFormProps) {
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAI = async () => {
+    if (!description.trim() || description.trim().length < 10) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/ai", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: `Reformule cette description de pièce manquante de manière claire et professionnelle pour un rapport technique. Réponds uniquement avec le texte reformulé :\n\n${description}` }) });
+      if (res.ok) { const data = await res.json(); if (data.answer || data.response) setDescription((data.answer || data.response).trim()); }
+    } catch {} finally { setAiLoading(false); }
+  };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -101,6 +114,15 @@ export function PiecesForm({ projectId, projectName }: PiecesFormProps) {
           rows={2}
           className="mt-1"
         />
+        <div className="flex items-center gap-2 mt-1">
+          <VoiceRecorder onTranscript={(text) => setDescription((prev) => prev ? prev + " " + text : text)} />
+          {description.trim().length > 10 && (
+            <button onClick={handleAI} disabled={aiLoading} className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 disabled:opacity-50">
+              {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {aiLoading ? "IA..." : "✨ Reformuler"}
+            </button>
+          )}
+        </div>
       </div>
       <div>
         <Label className="text-xs">Référence (si connue)</Label>
