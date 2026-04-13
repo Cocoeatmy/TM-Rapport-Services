@@ -705,27 +705,19 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                   <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
                   <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                   <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
-                    {p.typeServices && p.typeServices.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {p.typeServices.map((ts) => {
-                          const tsColors: Record<string, string> = {
-                            "Montages": "bg-orange-100 text-orange-700",
-                            "Mesures": "bg-cyan-100 text-cyan-700",
-                            "Services": "bg-emerald-100 text-emerald-700",
-                            "SAV": "bg-red-100 text-red-700",
-                            "Livraison": "bg-amber-100 text-amber-700",
-                            "Dépannage": "bg-pink-100 text-pink-700",
-                            "Remplacement": "bg-indigo-100 text-indigo-700",
-                          };
-                          return (
-                            <span key={ts} className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${tsColors[ts] || "bg-gray-100 text-gray-600"}`}>{ts}</span>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                  {p.typeServices && p.typeServices.length > 0 && p.typeServices.map((ts) => {
+                    const tsColors: Record<string, string> = {
+                      "Montages": "bg-orange-100 text-orange-700",
+                      "Mesures": "bg-cyan-100 text-cyan-700",
+                      "Services": "bg-emerald-100 text-emerald-700",
+                      "SAV": "bg-red-100 text-red-700",
+                      "Livraison": "bg-amber-100 text-amber-700",
+                      "Dépannage": "bg-pink-100 text-pink-700",
+                      "Remplacement": "bg-indigo-100 text-indigo-700",
+                    };
+                    return <span key={ts} className={`shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${tsColors[ts] || "bg-gray-100 text-gray-600"}`}>{ts}</span>;
+                  })}
                   {(() => { const logo = getClientLogo(p.projet); return logo ? (
                     <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
                   ) : null; })()}
@@ -818,30 +810,26 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                         <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
-                          {(showSummaryPanel === "rdv-fixe") && (
-                            <div className="flex flex-wrap gap-1 mt-0.5">
-                              {isMesure ? (
-                                <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-cyan-100 text-cyan-700">Mesures</span>
-                              ) : (
-                                (p.typeServices && p.typeServices.length > 0) ? p.typeServices.map((ts) => {
-                                  const tsColors: Record<string, string> = {
-                                    "Montages": "bg-orange-100 text-orange-700",
-                                    "Services": "bg-emerald-100 text-emerald-700",
-                                    "SAV": "bg-red-100 text-red-700",
-                                    "Livraison": "bg-amber-100 text-amber-700",
-                                    "Dépannage": "bg-pink-100 text-pink-700",
-                                    "Remplacement": "bg-indigo-100 text-indigo-700",
-                                  };
-                                  return <span key={ts} className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${tsColors[ts] || "bg-gray-100 text-gray-600"}`}>{ts}</span>;
-                                }) : (
-                                  <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Montages</span>
-                                )
-                              )}
-                            </div>
-                          )}
-                        </div>
+                        <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                        {(showSummaryPanel === "rdv-fixe") && (
+                          isMesure ? (
+                            <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-cyan-100 text-cyan-700">Mesures</span>
+                          ) : (
+                            (p.typeServices && p.typeServices.length > 0) ? p.typeServices.map((ts) => {
+                              const tsColors: Record<string, string> = {
+                                "Montages": "bg-orange-100 text-orange-700",
+                                "Services": "bg-emerald-100 text-emerald-700",
+                                "SAV": "bg-red-100 text-red-700",
+                                "Livraison": "bg-amber-100 text-amber-700",
+                                "Dépannage": "bg-pink-100 text-pink-700",
+                                "Remplacement": "bg-indigo-100 text-indigo-700",
+                              };
+                              return <span key={ts} className={`shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${tsColors[ts] || "bg-gray-100 text-gray-600"}`}>{ts}</span>;
+                            }) : (
+                              <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Montages</span>
+                            )
+                          )
+                        )}
                         {(() => { const logo = getClientLogo(p.projet); return logo ? (
                           <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
                         ) : null; })()}
