@@ -2097,15 +2097,31 @@ function HomePage() {
                       const aVal = filterMonthNum ? (a.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0) : (a.total || Object.values(a.monthly as Record<string, number>).reduce((x: number, y: number) => x + y, 0));
                       const bVal = filterMonthNum ? (b.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0) : (b.total || Object.values(b.monthly as Record<string, number>).reduce((x: number, y: number) => x + y, 0));
                       return bVal - aVal;
-                    }).map((r: any) => {
+                    }).map((r: any, idx: number) => {
                       const totalVal = filterMonthNum ? (r.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0) : (r.total || Object.values(r.monthly as Record<string, number>).reduce((a: number, b: number) => a + b, 0));
                       const maxMrq = Math.max(...mrqFiltered.map((m: any) => filterMonthNum ? (m.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0) : (m.total || Object.values(m.monthly as Record<string, number>).reduce((a: number, b: number) => a + b, 0))), 1);
+                      const marqueColors: Record<string, { bar: string; mini: string }> = {
+                        "RONAL": { bar: "bg-blue-600", mini: "bg-blue-400" },
+                        "Duka": { bar: "bg-emerald-600", mini: "bg-emerald-400" },
+                        "Duscholux": { bar: "bg-violet-600", mini: "bg-violet-400" },
+                        "NELO": { bar: "bg-sky-600", mini: "bg-sky-400" },
+                        "Koralle": { bar: "bg-rose-600", mini: "bg-rose-400" },
+                        "Novellini": { bar: "bg-teal-600", mini: "bg-teal-400" },
+                        "Megius": { bar: "bg-fuchsia-600", mini: "bg-fuchsia-400" },
+                        "Samo": { bar: "bg-indigo-600", mini: "bg-indigo-400" },
+                      };
+                      const fallbackColors = [
+                        { bar: "bg-cyan-600", mini: "bg-cyan-400" },
+                        { bar: "bg-pink-600", mini: "bg-pink-400" },
+                        { bar: "bg-lime-600", mini: "bg-lime-400" },
+                      ];
+                      const colors = marqueColors[r.marque] || fallbackColors[idx % fallbackColors.length];
                       return (
-                        <div key={r.id}>
+                        <div key={r.id || r.marque}>
                           <div className="flex items-center gap-3">
                             <span className="text-sm font-medium text-gray-700 dark:text-gray-300 w-32 shrink-0 truncate">{r.marque}</span>
                             <div className="flex-1 h-5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                              <div className="h-full bg-amber-500 rounded-full transition-all flex items-center justify-end pr-1.5"
+                              <div className={`h-full ${colors.bar} rounded-full transition-all flex items-center justify-end pr-1.5`}
                                 style={{ width: `${Math.max((totalVal / maxMrq) * 100, 5)}%` }}>
                                 <span className="text-[9px] font-bold text-white">{totalVal}</span>
                               </div>
@@ -2118,7 +2134,7 @@ function HomePage() {
                                 return (
                                   <div key={m} className="flex flex-col items-center" style={{ width: "calc(100%/12)" }}>
                                     <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-sm overflow-hidden" style={{ height: 20 }}>
-                                      <div className="bg-amber-400 w-full rounded-sm" style={{ height: v > 0 ? Math.max((v / Math.max(...Object.values(r.monthly as Record<string, number>), 1)) * 20, 2) : 0, marginTop: 20 - (v > 0 ? Math.max((v / Math.max(...Object.values(r.monthly as Record<string, number>), 1)) * 20, 2) : 0) }} />
+                                      <div className={`${colors.mini} w-full rounded-sm`} style={{ height: v > 0 ? Math.max((v / Math.max(...Object.values(r.monthly as Record<string, number>), 1)) * 20, 2) : 0, marginTop: 20 - (v > 0 ? Math.max((v / Math.max(...Object.values(r.monthly as Record<string, number>), 1)) * 20, 2) : 0) }} />
                                     </div>
                                     <span className="text-[7px] text-gray-400 mt-0.5">{monthNames12[i]}</span>
                                   </div>
