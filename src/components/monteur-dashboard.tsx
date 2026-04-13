@@ -752,8 +752,8 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             .sort((a, b) => ((a.dateMontage || a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMontage || b.dateMesures || "z").split("T")[0]));
         }
 
-        const isRdvAFixer = showSummaryPanel === "rdv-a-fixer";
-        const dateLabel = isRdvAFixer ? "Mesures relevées" : "Date";
+        const isRdvAFixer = false; // rdv-a-fixer has its own return above
+        const dateLabel = "Date";
 
         return (
           <div className="glass-card rounded-2xl p-4 space-y-1.5">
