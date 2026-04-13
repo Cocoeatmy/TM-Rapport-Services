@@ -59,24 +59,10 @@ export async function GET() {
 
     const rows = allResults.map((page: any) => {
       const p = page.properties;
-      // Find the count field — could be "Nb. de Montages", "Nb. de cabines", etc.
-      let count = 0;
-      for (const key of Object.keys(p)) {
-        if (key.toLowerCase().startsWith("nb")) {
-          const v = num(p[key]);
-          if (v > 0) count = v;
-        }
-      }
-      // Also check for formula/rollup types
-      if (count === 0) {
-        for (const key of Object.keys(p)) {
-          if (key.toLowerCase().startsWith("nb")) {
-            const prop = p[key];
-            if (prop?.type === "formula" && prop.formula?.number != null) count = prop.formula.number;
-            if (prop?.type === "rollup" && prop.rollup?.number != null) count = prop.rollup.number;
-          }
-        }
-      }
+      const countProp = p["Nb. de cabine installée"] || p["Nb. de cabines installées"] || p["Nb. de cabines installée"];
+      let count = num(countProp);
+      if (count === 0 && countProp?.type === "formula") count = countProp.formula?.number ?? 0;
+      if (count === 0 && countProp?.type === "rollup") count = countProp.rollup?.number ?? 0;
       return {
         id: page.id,
         serie: txt(p["Série"]),
