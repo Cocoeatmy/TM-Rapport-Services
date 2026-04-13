@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getData, setData } from "@/lib/kv-store";
+import { notion } from "@/lib/notion";
 
 interface PieceComment {
   user: string;
@@ -49,6 +50,53 @@ export async function POST(request: NextRequest) {
     comments: [],
   });
   await setData(KEY, pieces);
+
+  // Write to Notion project page (primary storage)
+  if (body.projectId) {
+    try {
+      const now = new Date();
+      const dateStr = `${String(now.getDate()).padStart(2, "0")}.${String(now.getMonth() + 1).padStart(2, "0")}.${now.getFullYear()}`;
+      const summary = `Description: ${body.description || "-"} | Référence: ${body.reference || "-"} | Statut: demande | Par: ${user.name} | Date: ${dateStr}`;
+
+      // Read existing text to append
+      const page = await notion.pages.retrieve({ page_id: body.projectId });
+      const existingText = (page as any).properties["Infos - Pièces manquantes"]?.rich_text?.map((t: any) => t.plain_text).join("") || "";
+      const newText = existingText ? `${existingText}\n${summary}` : summary;
+
+      const properties: any = {
+        "Infos - Pièces manquantes": {
+          rich_text: [{ text: { content: newText.slice(0, 2000) } }],
+        },
+      };
+
+      // Add photo if present
+      if (body.photoUrl) {
+        const existingFiles = (page as any).properties["Photos - Pièces manquante"]?.files || [];
+        const mappedExisting = existingFiles.map((f: any) => ({
+          type: "external" as const,
+          name: f.name || "photo.jpg",
+          external: { url: f.type === "external" ? f.external?.url : f.file?.url || "" },
+        })).filter((f: any) => f.external.url);
+
+        properties["Photos - Pièces manquante"] = {
+          files: [
+            ...mappedExisting,
+            {
+              type: "external" as const,
+              name: `piece-${dateStr}.jpg`,
+              external: { url: body.photoUrl },
+            },
+          ],
+        };
+      }
+
+      await notion.pages.update({ page_id: body.projectId, properties });
+    } catch (err) {
+      console.error("Notion piece sync error:", err);
+      // kv-store already saved as backup, continue
+    }
+  }
+
   return NextResponse.json({ success: true });
 }
 

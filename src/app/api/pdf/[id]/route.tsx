@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProject } from "@/lib/notion";
+import { getProject, type Project } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { sendPdfByEmail } from "@/lib/email";
 import { verifyToken } from "@/lib/auth";
@@ -40,12 +40,85 @@ interface DefautRequest {
   timestamp: number;
 }
 
-async function loadPiecesForProject(projectId: string): Promise<PieceRequest[]> {
+function parsePiecesFromNotion(text: string): PieceRequest[] {
+  if (!text.trim()) return [];
+  return text.split("\n").filter(Boolean).map((line, i) => {
+    const desc = line.match(/Description:\s*([^|]*)/)?.[1]?.trim() || "";
+    const ref = line.match(/Référence:\s*([^|]*)/)?.[1]?.trim() || "";
+    const status = (line.match(/Statut:\s*([^|]*)/)?.[1]?.trim() || "demande") as PieceRequest["status"];
+    const user = line.match(/Par:\s*([^|]*)/)?.[1]?.trim() || "";
+    return {
+      id: `notion-piece-${i}`,
+      projectId: "",
+      projectName: "",
+      user,
+      description: desc,
+      reference: ref,
+      photoUrl: "",
+      status,
+      timestamp: 0,
+    };
+  });
+}
+
+function parseDefautsFromNotion(text: string): DefautRequest[] {
+  if (!text.trim()) return [];
+  return text.split("\n").filter(Boolean).map((line, i) => {
+    const typesStr = line.match(/Types:\s*([^|]*)/)?.[1]?.trim() || "";
+    const types = typesStr.split(",").map(t => t.trim()).filter(Boolean);
+    const desc = line.match(/Description:\s*([^|]*)/)?.[1]?.trim() || "";
+    const user = line.match(/Par:\s*([^|]*)/)?.[1]?.trim() || "";
+    return {
+      id: `notion-defaut-${i}`,
+      projectId: "",
+      projectName: "",
+      user,
+      types,
+      typesLabel: typesStr,
+      description: desc,
+      photoUrls: [],
+      status: "signale" as DefautRequest["status"],
+      timestamp: 0,
+    };
+  });
+}
+
+async function loadPiecesForProject(projectId: string, project?: Project): Promise<PieceRequest[]> {
+  // Try Notion fields first
+  if (project?.infoPiecesManquantes) {
+    const parsed = parsePiecesFromNotion(project.infoPiecesManquantes);
+    // Attach photo URLs from Notion files
+    if (project.photosPiecesManquantes.length > 0 && parsed.length > 0) {
+      parsed.forEach((p, i) => {
+        if (i < project.photosPiecesManquantes.length) {
+          p.photoUrl = project.photosPiecesManquantes[i].url;
+        }
+      });
+    }
+    if (parsed.length > 0) return parsed;
+  }
+  // Fallback to kv-store
   const all = await getData<PieceRequest>("pieces");
   return all.filter((p) => p.projectId === projectId);
 }
 
-async function loadDefautsForProject(projectId: string): Promise<DefautRequest[]> {
+async function loadDefautsForProject(projectId: string, project?: Project): Promise<DefautRequest[]> {
+  // Try Notion fields first
+  if (project?.infoDefautsSignale) {
+    const parsed = parseDefautsFromNotion(project.infoDefautsSignale);
+    // Attach photo URLs from Notion files
+    if (project.photosDefautsSignale.length > 0 && parsed.length > 0) {
+      // Distribute photos across defauts
+      const photosPerDefaut = Math.ceil(project.photosDefautsSignale.length / Math.max(parsed.length, 1));
+      parsed.forEach((d, i) => {
+        const start = i * photosPerDefaut;
+        const end = Math.min(start + photosPerDefaut, project.photosDefautsSignale.length);
+        d.photoUrls = project.photosDefautsSignale.slice(start, end).map(f => f.url);
+      });
+    }
+    if (parsed.length > 0) return parsed;
+  }
+  // Fallback to kv-store
   const all = await getData<DefautRequest>("defauts");
   return all.filter((d) => d.projectId === projectId);
 }
@@ -691,8 +764,8 @@ export async function GET(
     if (arriveeOverride) project.heureArrivee = arriveeOverride;
     if (departOverride) project.heureDepart = departOverride;
 
-    const pieces = await loadPiecesForProject(id);
-    const defauts = await loadDefautsForProject(id);
+    const pieces = await loadPiecesForProject(id, project);
+    const defauts = await loadDefautsForProject(id, project);
 
     const pdfStream = await ReactPDF.renderToStream(
       <RapportPDF project={project} pieces={pieces} defauts={defauts} />

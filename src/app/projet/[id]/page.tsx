@@ -2186,6 +2186,51 @@ function ProjectPageContent({ id }: { id: string }) {
               </>
             )}
 
+            {/* Historique Notion - Pièces manquantes & Défauts signalés */}
+            {(project.infoPiecesManquantes || project.infoDefautsSignale) && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Signalements enregistrés</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {project.infoPiecesManquantes && (
+                    <div>
+                      <p className="text-sm font-medium text-orange-600 dark:text-orange-400 mb-1">Pièces manquantes</p>
+                      {project.infoPiecesManquantes.split("\n").filter(Boolean).map((line, i) => (
+                        <p key={i} className="text-xs text-muted-foreground border-l-2 border-orange-300 pl-2 mb-1">{line}</p>
+                      ))}
+                      {project.photosPiecesManquantes.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {project.photosPiecesManquantes.map((f, i) => (
+                            <a key={i} href={f.url} target="_blank" rel="noopener noreferrer">
+                              <img src={f.url} alt={f.name} className="w-16 h-16 object-cover rounded border" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {project.infoDefautsSignale && (
+                    <div>
+                      <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">Défauts signalés</p>
+                      {project.infoDefautsSignale.split("\n").filter(Boolean).map((line, i) => (
+                        <p key={i} className="text-xs text-muted-foreground border-l-2 border-red-300 pl-2 mb-1">{line}</p>
+                      ))}
+                      {project.photosDefautsSignale.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {project.photosDefautsSignale.map((f, i) => (
+                            <a key={i} href={f.url} target="_blank" rel="noopener noreferrer">
+                              <img src={f.url} alt={f.name} className="w-16 h-16 object-cover rounded border" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Pièce manquante */}
             <PiecesForm projectId={id} projectName={project.projet} />
 

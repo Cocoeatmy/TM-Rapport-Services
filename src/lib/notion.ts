@@ -84,6 +84,10 @@ export interface Project {
   sanitaireNames: string[];
   contactsProjetRelation: string[]; // IDs Contacts projet
   contactsProjetNames: string[];
+  infoPiecesManquantes: string;
+  infoDefautsSignale: string;
+  photosPiecesManquantes: FileItem[];
+  photosDefautsSignale: FileItem[];
 }
 
 export interface FileItem {
@@ -236,6 +240,10 @@ export function mapPageToProject(page: any): Project {
     sanitaireNames: [],
     contactsProjetRelation: extractRelationIds(p["Contact Projet"]).length > 0 ? extractRelationIds(p["Contact Projet"]) : extractRelationIds(p["Contacts projet"]),
     contactsProjetNames: [],
+    infoPiecesManquantes: extractText(p["Infos - Pièces manquantes"]),
+    infoDefautsSignale: extractText(p["Infos - Défauts signalé"]),
+    photosPiecesManquantes: extractFiles(p["Photos - Pièces manquante"]),
+    photosDefautsSignale: extractFiles(p["Photos - Défauts signalé"]),
   };
 }
 
