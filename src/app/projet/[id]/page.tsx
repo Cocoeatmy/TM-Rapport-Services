@@ -958,24 +958,32 @@ function DurationEstimate({
   );
 }
 
-function DocumentLinks({ files, label }: { files: { name: string; url: string }[]; label: string }) {
+function DocumentLinks({ files, label, projectId, notionField }: { files: { name: string; url: string }[]; label: string; projectId?: string; notionField?: string }) {
   if (!files.length) return null;
+
+  const handleOpen = (index: number, originalUrl: string) => {
+    if (projectId && notionField) {
+      // Use proxy to get fresh URL
+      window.open(`/api/file-proxy?projectId=${projectId}&field=${encodeURIComponent(notionField)}&index=${index}`, "_blank");
+    } else {
+      window.open(originalUrl, "_blank");
+    }
+  };
+
   return (
     <div className="mt-3">
       <p className="text-xs text-gray-500 mb-1.5">{label}</p>
       <div className="space-y-1.5">
         {files.map((f, i) => (
-          <a
+          <button
             key={i}
-            href={f.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg active:bg-blue-100"
+            onClick={() => handleOpen(i, f.url)}
+            className="w-full flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg active:bg-blue-100 text-left"
           >
             <FileText className="w-4 h-4 shrink-0" />
             <span className="truncate flex-1">{f.name}</span>
             <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-          </a>
+          </button>
         ))}
       </div>
     </div>
@@ -1635,8 +1643,8 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* === Documents === */}
         <Card>
           <CardContent className="pt-4">
-            <DocumentLinks files={project.documentsMesures} label="Documents Mesures" />
-            <DocumentLinks files={project.documentsMontagee} label="Documents Montage" />
+            <DocumentLinks files={project.documentsMesures} label="Documents Mesures" projectId={id} notionField="Documents pour prise de mesures" />
+            <DocumentLinks files={project.documentsMontagee} label="Documents Montage" projectId={id} notionField="Documents pour Montage" />
 
             {/* Commentaires Montages — sous Documents Montage */}
             {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
