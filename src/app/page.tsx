@@ -1899,7 +1899,7 @@ function HomePage() {
         };
 
         return (
-          <div className="space-y-4">
+          <div className="space-y-4" key={`stats-${statsDateMode}-${statsYear}-${statsMonth}`}>
             {statsLoading && (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
