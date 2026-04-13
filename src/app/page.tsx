@@ -1693,15 +1693,18 @@ function HomePage() {
         const savProjects = projectsData["sav"] || [];
         const allActive = cmdProjects;
         const allCompleted = cmdTermine;
-        const allProjects = [...cmdProjects, ...cmdTermine];
+        const allProjectsRaw = [...cmdProjects, ...cmdTermine];
+        const allProjects: Project[] = filterByStatsDate(allProjectsRaw, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+        const allActiveFiltered: Project[] = filterByStatsDate(cmdProjects, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+        const allCompletedFiltered: Project[] = filterByStatsDate(allCompleted, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
 
         // KPIs
-        const totalInProgress = cmdProjects.length;
-        const totalCabinesInProgress = cmdProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+        const totalInProgress = allActiveFiltered.length;
+        const totalCabinesInProgress = allActiveFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
         const now = new Date();
         const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        const completedThisMonth = allCompleted.filter((p) => (p.dateMontage || "").startsWith(thisMonth)).length;
-        const completionRate = allProjects.length > 0 ? Math.round((allCompleted.length / allProjects.length) * 100) : 0;
+        const completedThisMonth = allCompletedFiltered.filter((p: any) => (p.dateMontage || "").startsWith(thisMonth)).length;
+        const completionRate = allProjects.length > 0 ? Math.round((allCompletedFiltered.length / allProjects.length) * 100) : 0;
 
         // Monthly stats for last 6 months
         const monthNames = ["Jan", "Fev", "Mar", "Avr", "Mai", "Jun", "Jul", "Aou", "Sep", "Oct", "Nov", "Dec"];
@@ -1768,6 +1771,10 @@ function HomePage() {
                 <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
               </div>
             )}
+
+            {/* Filtre de dates */}
+            <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
+              onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
 
             {/* KPIs */}
             <div>
