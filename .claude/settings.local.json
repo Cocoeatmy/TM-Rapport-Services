@@ -70,7 +70,8 @@
       "Bash(sed -i '' 's/>{c\\\\.name\\\\[0\\\\]}<\\\\/span>/>{getCollaboratorInitials\\(c.name\\)}<\\\\/span>/g' src/components/monteur-dashboard.tsx)",
       "Bash(sed -i '' 's/>{collab\\\\.name\\\\[0\\\\]}<\\\\/span>/>{getCollaboratorInitials\\(collab.name\\)}<\\\\/span>/g' src/components/monteur-dashboard.tsx)",
       "Bash(sed -i '' 's/>{firstName\\\\[0\\\\]}<\\\\/span>/>{getCollaboratorInitials\\(firstName\\)}<\\\\/span>/g' src/components/monteur-dashboard.tsx)",
-      "Bash(sed -i '' 's/>{firstName\\\\[0\\\\]}<\\\\/div>/>{getCollaboratorInitials\\(firstName\\)}<\\\\/div>/g' src/components/monteur-dashboard.tsx)"
+      "Bash(sed -i '' 's/>{firstName\\\\[0\\\\]}<\\\\/div>/>{getCollaboratorInitials\\(firstName\\)}<\\\\/div>/g' src/components/monteur-dashboard.tsx)",
+      "Bash(curl -s \"https://tm-rapport-services.vercel.app/api/cron/sync\")"
     ]
   }
 }
