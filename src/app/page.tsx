@@ -1722,12 +1722,23 @@ function HomePage() {
         const svcFiltered = statsServices.filter((r: any) => {
           if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
           if (statsDateMode === "month" && filterMonth && r.mois !== filterMonth) return false;
-          if (statsDateMode === "range") {
-            // Build a date string from annee + mois for range comparison
-            const rowDate = r.mois ? `${r.mois}-${String(r.jour || "01").padStart(2, "0")}` : null;
-            if (!rowDate) return false;
-            if (statsDateFrom && rowDate < statsDateFrom) return false;
-            if (statsDateTo && rowDate > statsDateTo) return false;
+          if (statsDateMode === "range" && (statsDateFrom || statsDateTo)) {
+            // Build date from available fields
+            let rowDate: string | null = null;
+            const jourNum = r.jour ? parseInt(r.jour, 10) : 1;
+            const jour = isNaN(jourNum) ? "01" : String(jourNum).padStart(2, "0");
+
+            if (r.mois) {
+              rowDate = `${r.mois}-${jour}`;
+            } else if (r.annee) {
+              rowDate = `${r.annee}-01-${jour}`;
+            }
+
+            if (!rowDate) return true; // no date info, keep it
+            // Compare only the parts we have (from/to are "YYYY-MM-DD")
+            const fromDate = statsDateFrom || "0000-00-00";
+            const toDate = statsDateTo || "9999-12-31";
+            if (rowDate < fromDate || rowDate > toDate) return false;
           }
           return true;
         });
