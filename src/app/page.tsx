@@ -1924,7 +1924,7 @@ function HomePage() {
                   </div>
                   <div className="glass-card rounded-2xl p-4 text-center">
                     <p className="text-3xl font-bold text-[#1e3a5f] dark:text-white">{totalCabines}</p>
-                    <p className="text-xs text-gray-500 mt-1">Cabines</p>
+                    <p className="text-xs text-gray-500 mt-1">Cabines mesurées</p>
                   </div>
                   <div className="glass-card rounded-2xl p-4 text-center">
                     <p className="text-3xl font-bold text-green-600">{totalMesures}</p>
