@@ -188,33 +188,37 @@ export default function HeuresPage() {
   // Filter entries for selected month
   const monthEntries = allEntries.filter((e) => e.date.startsWith(selectedMonth));
 
-  // Group by individual collaborator AND by team
+  // Group: solo → collabMap, binôme/team → teamMap
   const collabMap = new Map<string, TimeEntry[]>();
   const teamMap = new Map<string, TimeEntry[]>();
+  // Track binôme minutes per collaborator (for display in parentheses)
+  const collabTeamMinutes = new Map<string, number>();
 
   for (const entry of monthEntries) {
     const rawCollab = entry.collaborateur || "Non assigne";
     const names = rawCollab.split("&").map((n) => n.trim()).filter(Boolean);
 
     if (names.length > 1) {
-      // Team/Binôme entry — add to team map
+      // Team/Binôme → only in teamMap
       const teamKey = names.sort().join(" & ");
       if (!teamMap.has(teamKey)) teamMap.set(teamKey, []);
       teamMap.get(teamKey)!.push(entry);
-    }
 
-    // Add to each individual collaborator
-    for (const name of names) {
-      const matchedCollab = COLLABORATEURS_LIST.find(
-        (c) => name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(name.toLowerCase())
-      ) || name;
-
-      if (!collabMap.has(matchedCollab)) collabMap.set(matchedCollab, []);
-      collabMap.get(matchedCollab)!.push(entry);
-    }
-
-    // If no names found
-    if (names.length === 0) {
+      // Track binôme minutes per individual
+      for (const name of names) {
+        const matched = COLLABORATEURS_LIST.find(
+          (c) => name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(name.toLowerCase())
+        ) || name;
+        collabTeamMinutes.set(matched, (collabTeamMinutes.get(matched) || 0) + entry.minutes);
+      }
+    } else if (names.length === 1) {
+      // Solo → collabMap
+      const matched = COLLABORATEURS_LIST.find(
+        (c) => names[0].toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(names[0].toLowerCase())
+      ) || names[0];
+      if (!collabMap.has(matched)) collabMap.set(matched, []);
+      collabMap.get(matched)!.push(entry);
+    } else {
       if (!collabMap.has("Non assigne")) collabMap.set("Non assigne", []);
       collabMap.get("Non assigne")!.push(entry);
     }
@@ -295,6 +299,7 @@ export default function HeuresPage() {
         const colors = getCollaboratorColor(collab);
         const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
         const collabTotal = entries.reduce((s, e) => s + e.minutes, 0);
+        const teamMinutes = collabTeamMinutes.get(collab) || 0;
 
         // Group by week for subtotals
         const weekMap = new Map<number, TimeEntry[]>();
@@ -321,6 +326,9 @@ export default function HeuresPage() {
                   style={{ backgroundColor: colors.bg, color: colors.text }}
                 >
                   {formatMinutes(collabTotal)}
+                  {teamMinutes > 0 && (
+                    <span className="text-[10px] font-normal opacity-70 ml-1">(+{formatMinutes(teamMinutes)} en équipe)</span>
+                  )}
                 </span>
               </CardTitle>
             </CardHeader>
