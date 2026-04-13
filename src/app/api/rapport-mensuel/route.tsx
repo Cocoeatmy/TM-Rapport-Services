@@ -14,7 +14,7 @@ import React from "react";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { getData } from "@/lib/kv-store";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
 export const dynamic = "force-dynamic";
 

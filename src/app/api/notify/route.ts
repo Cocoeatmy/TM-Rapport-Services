@@ -3,7 +3,7 @@ import { verifyToken } from "@/lib/auth";
 import { Resend } from "resend";
 import { createNotification } from "@/app/api/notifications/route";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 const ADMIN_EMAIL = "ferreira.micael@gmail.com";
 
 export async function POST(request: NextRequest) {

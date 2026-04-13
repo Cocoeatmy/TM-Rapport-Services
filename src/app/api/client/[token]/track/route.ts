@@ -44,7 +44,7 @@ export async function POST(
       const actionLabel = action === "pdf" ? "a ouvert le rapport PDF" : "a consulté le portail";
       // Send notification email to admin
       const { Resend } = await import("resend");
-      const resend = new Resend(process.env.RESEND_API_KEY);
+      const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
       await resend.emails.send({
         from: "TM Rapport Services <onboarding@resend.dev>",
         to: "ferreira.micael@gmail.com",
