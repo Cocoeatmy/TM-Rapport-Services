@@ -51,15 +51,38 @@ export async function GET() {
       cursor = response.has_more ? response.next_cursor : undefined;
     } while (cursor);
 
+    // Log property names from first result for debugging
+    if (allResults.length > 0) {
+      const propNames = Object.keys(allResults[0].properties);
+      console.log("[stats/series] Property names:", propNames);
+    }
+
     const rows = allResults.map((page: any) => {
       const p = page.properties;
-      const anneeRaw = dateVal(p["Année"]);
+      // Find the count field — could be "Nb. de Montages", "Nb. de cabines", etc.
+      let count = 0;
+      for (const key of Object.keys(p)) {
+        if (key.toLowerCase().startsWith("nb")) {
+          const v = num(p[key]);
+          if (v > 0) count = v;
+        }
+      }
+      // Also check for formula/rollup types
+      if (count === 0) {
+        for (const key of Object.keys(p)) {
+          if (key.toLowerCase().startsWith("nb")) {
+            const prop = p[key];
+            if (prop?.type === "formula" && prop.formula?.number != null) count = prop.formula.number;
+            if (prop?.type === "rollup" && prop.rollup?.number != null) count = prop.rollup.number;
+          }
+        }
+      }
       return {
         id: page.id,
         serie: txt(p["Série"]),
         annee: yearVal(p["Année"]),
         fournisseur: sel(p["Fournisseur"]),
-        count: num(p["Nb. de ..."]),
+        count,
       };
     });
 
