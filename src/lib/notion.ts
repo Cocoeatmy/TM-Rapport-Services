@@ -568,6 +568,16 @@ export async function updateProject(
       rich_text: [{ text: { content: data.commentairesMesures } }],
     };
   }
+  if ((data as any).infoPiecesManquantes !== undefined) {
+    properties["Infos - Pièces manquantes"] = {
+      rich_text: [{ text: { content: ((data as any).infoPiecesManquantes || "").slice(0, 2000) } }],
+    };
+  }
+  if ((data as any).infoDefautsSignale !== undefined) {
+    properties["Infos - Défauts signalé"] = {
+      rich_text: [{ text: { content: ((data as any).infoDefautsSignale || "").slice(0, 2000) } }],
+    };
+  }
   if (data.nomChantier !== undefined) {
     properties["Nom chantier"] = {
       rich_text: [{ text: { content: data.nomChantier } }],

@@ -498,6 +498,75 @@ function ExtraDateField({ label, value, projectId, fieldName, onUpdate }: {
   );
 }
 
+function EditableSignalement({ label, color, text, photos, projectId, notionTextField, onUpdate }: {
+  label: string; color: "orange" | "red"; text: string; photos: { name: string; url: string }[];
+  projectId: string; notionTextField: string; onUpdate: (newText: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(text);
+  const [saving, setSaving] = useState(false);
+
+  const borderColor = color === "orange" ? "border-orange-300" : "border-red-300";
+  const textColor = color === "orange" ? "text-orange-600 dark:text-orange-400" : "text-red-600 dark:text-red-400";
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [notionTextField.includes("Pièces") ? "infoPiecesManquantes" : "infoDefautsSignale"]: draft }),
+      });
+      onUpdate(draft);
+      setEditing(false);
+    } catch {} finally { setSaving(false); }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <p className={`text-sm font-medium ${textColor}`}>{label}</p>
+        <button onClick={() => { setDraft(text); setEditing(!editing); }}
+          className="text-gray-400 hover:text-blue-500 p-1">
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      {editing ? (
+        <div className="space-y-2">
+          <textarea value={draft} onChange={(e) => setDraft(e.target.value)}
+            className="w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none"
+            rows={Math.max(draft.split("\n").length + 1, 3)} />
+          <div className="flex gap-1">
+            <button onClick={handleSave} disabled={saving}
+              className="text-xs bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600 disabled:opacity-50">
+              {saving ? "..." : "✓ Enregistrer"}
+            </button>
+            <button onClick={() => setEditing(false)}
+              className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">
+              Annuler
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {text.split("\n").filter(Boolean).map((line, i) => (
+            <p key={i} className={`text-xs text-muted-foreground border-l-2 ${borderColor} pl-2 mb-1`}>{line}</p>
+          ))}
+        </>
+      )}
+      {photos.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {photos.map((f, i) => (
+            <a key={i} href={f.url} target="_blank" rel="noopener noreferrer">
+              <img src={f.url} alt={f.name} className="w-16 h-16 object-cover rounded border" />
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EditableTextField({ label, value, projectId, fieldName, notionField, multiline, onUpdate }: {
   label: string; value: string; projectId: string; fieldName: string; notionField: string; multiline?: boolean; onUpdate: (v: string) => void;
 }) {
@@ -2202,38 +2271,26 @@ function ProjectPageContent({ id }: { id: string }) {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {project.infoPiecesManquantes && (
-                    <div>
-                      <p className="text-sm font-medium text-orange-600 dark:text-orange-400 mb-1">Pièces manquantes</p>
-                      {project.infoPiecesManquantes.split("\n").filter(Boolean).map((line, i) => (
-                        <p key={i} className="text-xs text-muted-foreground border-l-2 border-orange-300 pl-2 mb-1">{line}</p>
-                      ))}
-                      {project.photosPiecesManquantes.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {project.photosPiecesManquantes.map((f, i) => (
-                            <a key={i} href={f.url} target="_blank" rel="noopener noreferrer">
-                              <img src={f.url} alt={f.name} className="w-16 h-16 object-cover rounded border" />
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <EditableSignalement
+                      label="Pièces manquantes"
+                      color="orange"
+                      text={project.infoPiecesManquantes}
+                      photos={project.photosPiecesManquantes}
+                      projectId={id}
+                      notionTextField="Infos - Pièces manquantes"
+                      onUpdate={(newText) => setProject((prev) => prev ? { ...prev, infoPiecesManquantes: newText } : prev)}
+                    />
                   )}
                   {project.infoDefautsSignale && (
-                    <div>
-                      <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">Défauts signalés</p>
-                      {project.infoDefautsSignale.split("\n").filter(Boolean).map((line, i) => (
-                        <p key={i} className="text-xs text-muted-foreground border-l-2 border-red-300 pl-2 mb-1">{line}</p>
-                      ))}
-                      {project.photosDefautsSignale.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {project.photosDefautsSignale.map((f, i) => (
-                            <a key={i} href={f.url} target="_blank" rel="noopener noreferrer">
-                              <img src={f.url} alt={f.name} className="w-16 h-16 object-cover rounded border" />
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <EditableSignalement
+                      label="Défauts signalés"
+                      color="red"
+                      text={project.infoDefautsSignale}
+                      photos={project.photosDefautsSignale}
+                      projectId={id}
+                      notionTextField="Infos - Défauts signalé"
+                      onUpdate={(newText) => setProject((prev) => prev ? { ...prev, infoDefautsSignale: newText } : prev)}
+                    />
                   )}
                 </CardContent>
               </Card>
