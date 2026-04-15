@@ -591,6 +591,14 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
           </View>
         )}
 
+        {/* Signature client */}
+        {project.signatureUrl && (
+          <View style={{ marginTop: 16, padding: 10, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 6 }} wrap={false}>
+            <Text style={{ fontSize: 9, color: "#6b7280", marginBottom: 6 }}>Signature du client</Text>
+            <Image src={project.signatureUrl} style={{ width: 200, height: 80, objectFit: "contain" }} />
+          </View>
+        )}
+
         {/* Footer */}
         <View style={styles.footer} fixed>
           <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>

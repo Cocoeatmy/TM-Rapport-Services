@@ -47,15 +47,14 @@ export const STATUS_MESURES_SORT_ORDER: Record<string, number> = {
 };
 
 export const BASE_CHECKLIST_ITEMS = [
+  { id: "controle-avant", label: "Contrôle de l'état avant intervention" },
   { id: "protection-sol", label: "Protection du sol mise en place" },
   { id: "verification-mesures", label: "Vérification des mesures avant montage" },
   { id: "pieces-completes", label: "Toutes les pièces sont présentes" },
-  { id: "fixation-murale", label: "Fixations murales posées et vérifiées" },
-  { id: "etancheite", label: "Étanchéité vérifiée (joints silicone)" },
   { id: "porte-reglage", label: "Porte(s) réglée(s) et fonctionnelle(s)" },
   { id: "vitrages-propres", label: "Vitrages nettoyés" },
-  { id: "evacuation-eau", label: "Évacuation d'eau testée" },
   { id: "nettoyage-chantier", label: "Nettoyage du chantier effectué" },
+  { id: "controle-apres", label: "Contrôle de l'état après intervention" },
 ];
 
 export const SUPPLIER_CHECKLIST_ITEMS: Record<string, { id: string; label: string }[]> = {

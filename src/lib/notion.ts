@@ -75,6 +75,7 @@ export interface Project {
   etatSAV: string;
   sav: boolean;
   bonLivraison: string;
+  signatureUrl: string;
   typeClient: string;
   grossistesRelation: string[];
   grossistesNames: string[];
@@ -229,6 +230,16 @@ export function mapPageToProject(page: any): Project {
         return f.type === "external" ? f.external?.url || "" : f.file?.url || "";
       }
       if (bl.type === "rich_text") return bl.rich_text?.map((t: any) => t.plain_text).join("") || "";
+      return "";
+    })(),
+    signatureUrl: (() => {
+      const sig = p["Signature client"];
+      if (!sig) return "";
+      if (sig.type === "files" && sig.files?.length > 0) {
+        const f = sig.files[0];
+        return f.type === "external" ? f.external?.url || "" : f.file?.url || "";
+      }
+      if (sig.type === "rich_text") return sig.rich_text?.map((t: any) => t.plain_text).join("") || "";
       return "";
     })(),
     typeClient: extractSelect(p["Type de client"]) || extractStatus(p["Type de client"]) || extractText(p["Type de client"]),
@@ -587,6 +598,14 @@ export async function updateProject(
     properties["Nb. Cabines"] = {
       number: data.nbCabines,
     };
+  }
+  if ((data as any).signatureUrl !== undefined) {
+    const sigUrl = (data as any).signatureUrl;
+    if (sigUrl) {
+      properties["Signature client"] = {
+        files: [{ type: "external" as const, name: "signature.png", external: { url: sigUrl } }],
+      };
+    }
   }
   if ((data as any).photosCartons !== undefined) {
     const urls: string[] = (data as any).photosCartons;

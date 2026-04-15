@@ -1116,6 +1116,13 @@ function ProjectPageContent({ id }: { id: string }) {
   const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [signature, setSignature] = useState("");
+
+  // Load signature from Notion
+  useEffect(() => {
+    if (project?.signatureUrl && !signature) {
+      setSignature(project.signatureUrl);
+    }
+  }, [project?.signatureUrl]);
   const [fav, setFav] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historyCount, setHistoryCount] = useState(0);
@@ -2323,7 +2330,26 @@ function ProjectPageContent({ id }: { id: string }) {
                 <SignaturePad
                   label="Signature du client"
                   existingSignature={signature}
-                  onSave={(dataUrl) => setSignature(dataUrl)}
+                  onSave={async (dataUrl) => {
+                    setSignature(dataUrl);
+                    // Upload signature to Cloudinary and save URL in Notion
+                    try {
+                      const blob = await fetch(dataUrl).then(r => r.blob());
+                      const formData = new FormData();
+                      formData.append("files", new File([blob], "signature.png", { type: "image/png" }));
+                      formData.append("category", "signatures");
+                      formData.append("projectId", id);
+                      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+                      const uploadData = await uploadRes.json();
+                      if (uploadData.files?.[0]?.url) {
+                        await fetch(`/api/projects/${id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ signatureUrl: uploadData.files[0].url }),
+                        });
+                      }
+                    } catch (err) { console.error("Signature upload error:", err); }
+                  }}
                 />
               </CardContent>
             </Card>
