@@ -1760,14 +1760,16 @@ function ProjectPageContent({ id }: { id: string }) {
           </CardContent>
         </Card>
 
-        {/* Bouton démarrer le rapport */}
+        {/* Bouton démarrer/consulter le rapport */}
         {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && !showRapport && (
           <button
             onClick={() => { setShowRapport(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-            className="w-full py-4 rounded-2xl bg-green-600 hover:bg-green-700 active:scale-[0.98] text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg transition-all"
+            className={`w-full py-4 rounded-2xl active:scale-[0.98] text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg transition-all ${
+              project.rapportMonteur ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"
+            }`}
           >
             <FileText className="w-5 h-5" />
-            Démarrer le rapport de services
+            {project.rapportMonteur ? "Consulter le rapport de services" : "Démarrer le rapport de services"}
           </button>
         )}
 

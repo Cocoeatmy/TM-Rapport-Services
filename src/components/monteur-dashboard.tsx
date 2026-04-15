@@ -605,23 +605,27 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         {(() => {
           const rdvAFixerStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
           const mesuresAFixerStatuses = ["Pas contacté", "Contact sans réponse"];
-          const rdvAFixerCount = projects.filter((p) =>
+          const rdvAFixerProjects = projects.filter((p) =>
             rdvAFixerStatuses.includes(p.etatCMD) ||
             (p.etatCMD === "En attente de mesures" && mesuresAFixerStatuses.includes(p.etatMesures))
-          ).length;
+          );
+          const rdvAFixerCab = rdvAFixerProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
           return (
             <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rdv-a-fixer" ? null : "rdv-a-fixer")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
-              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{rdvAFixerCount}</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{rdvAFixerProjects.length}</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV à fixer</p>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500">{rdvAFixerCab} cab.</p>
             </button>
           );
         })()}
         {(() => {
-          const rdvFixeCount = projects.filter((p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé").length;
+          const rdvFixeProjects = projects.filter((p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé");
+          const rdvFixeCab = rdvFixeProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
           return (
             <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rdv-fixe" ? null : "rdv-fixe")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{rdvFixeCount}</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{rdvFixeProjects.length}</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV fixé</p>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500">{rdvFixeCab} cab.</p>
             </button>
           );
         })()}

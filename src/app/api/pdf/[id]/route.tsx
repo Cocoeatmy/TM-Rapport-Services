@@ -438,7 +438,7 @@ function getDefautStatusStyle(status: string) {
 }
 
 function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceRequest[]; defauts: DefautRequest[] }) {
-  const now = new Date().toLocaleDateString("fr-CH", {
+  const now = new Date(project.dateMontage || Date.now()).toLocaleDateString("fr-CH", {
     day: "2-digit",
     month: "long",
     year: "numeric",
@@ -537,16 +537,7 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
         {/* Rapport */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Commentaires & Rapport</Text>
-          {project.commentairesMontages && (
-            <View style={{ marginBottom: 8 }}>
-              <Text style={{ fontSize: 8, color: "#666", marginBottom: 3 }}>
-                Commentaires montage
-              </Text>
-              <View style={styles.textBlock}>
-                <Text>{project.commentairesMontages}</Text>
-              </View>
-            </View>
-          )}
+          {/* Commentaires montages exclus du PDF - informations internes */}
           {project.rapportMonteur && (
             <View>
               <Text style={{ fontSize: 8, color: "#666", marginBottom: 3 }}>
