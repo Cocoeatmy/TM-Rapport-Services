@@ -8,6 +8,7 @@ interface PhotoUploadProps {
   label: string;
   projectId: string;
   notionField?: string;
+  filePrefix?: string;
   existingPhotos?: { name: string; url: string }[];
   onUpload?: (files: { name: string; url: string }[]) => void;
 }
@@ -17,6 +18,7 @@ export function PhotoUpload({
   label,
   projectId,
   notionField,
+  filePrefix,
   existingPhotos = [],
   onUpload,
 }: PhotoUploadProps) {
@@ -38,9 +40,14 @@ export function PhotoUpload({
 
     setUploading(true);
     const formData = new FormData();
-    for (const file of Array.from(files)) {
-      formData.append("files", file);
-    }
+    const currentCount = photos.length + existingPhotos.length;
+    Array.from(files).forEach((file, i) => {
+      const idx = currentCount + i + 1;
+      const ext = file.name.split(".").pop() || "jpg";
+      const newName = filePrefix ? `${filePrefix}.${idx}.${ext}` : file.name;
+      const renamedFile = new File([file], newName, { type: file.type });
+      formData.append("files", renamedFile);
+    });
     formData.append("category", category);
     formData.append("projectId", projectId);
     if (notionField) formData.append("notionField", notionField);

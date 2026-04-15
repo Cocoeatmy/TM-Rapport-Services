@@ -2067,10 +2067,10 @@ function ProjectPageContent({ id }: { id: string }) {
                       </div>
                     </div>
                     <Separator />
-                    <PhotoUpload category="avant" label="Photos avant montage" projectId={id} notionField="Photos avant montage" existingPhotos={project.photosAvant} />
-                    <PhotoUpload category="montage" label="Photos montage terminé" projectId={id} notionField="Photos montage terminé" existingPhotos={project.photosMontage} />
-                    <PhotoUpload category="qrcode" label="Photos QR Code" projectId={id} notionField="Photos QR Code" existingPhotos={project.photosQRCode} />
-                    <PhotoUpload category="garanties" label="Photos garanties" projectId={id} notionField="Photos garanties" existingPhotos={project.photosGaranties} />
+                    <PhotoUpload category="avant" label="Photos avant montage" projectId={id} notionField="Photos avant montage" filePrefix="Etat avant intervention" existingPhotos={project.photosAvant} />
+                    <PhotoUpload category="montage" label="Photos montage terminé" projectId={id} notionField="Photos montage terminé" filePrefix="Photos - Montage termine" existingPhotos={project.photosMontage} />
+                    <PhotoUpload category="qrcode" label="Photos QR Code" projectId={id} notionField="Photos QR Code" filePrefix="Photos - QR Code" existingPhotos={project.photosQRCode} />
+                    <PhotoUpload category="garanties" label="Photos garanties" projectId={id} notionField="Photos garanties" filePrefix="Photos - Garantie" existingPhotos={project.photosGaranties} />
                     <Separator />
                     <BeforeAfterPhotos projectId={id} projectName={project.projet} initialBefore={project.photosAvant} initialAfter={project.photosMontage} />
                   </CardContent>
@@ -2433,6 +2433,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   label="Photos situations"
                   projectId={id}
                   notionField="Photos situations"
+                  filePrefix="Photos - Situations"
                   existingPhotos={project.photosSituations}
                 />
                 <PhotoUpload
@@ -2440,6 +2441,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   label="Photos mesures"
                   projectId={id}
                   notionField="Photos mesures"
+                  filePrefix="Photos - Mesures"
                   existingPhotos={project.photosMesures}
                 />
                 <PhotoUpload
@@ -2447,6 +2449,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   label="Photos localité"
                   projectId={id}
                   notionField="Photos localité"
+                  filePrefix="Photos - Localite"
                   existingPhotos={project.photosLocalite}
                 />
               </CardContent>

@@ -777,8 +777,12 @@ export async function GET(
     }
     const buffer = Buffer.concat(chunks);
 
-    const filename = `rapport-${project.ofrTM || project.projet || "montage"}.pdf`
-      .replace(/[^a-zA-Z0-9.-]/g, "_");
+    const dateMontageStr = project.dateMontage
+      ? new Date(project.dateMontage.split("T")[0] + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "2-digit" }).replace(/\//g, ".")
+      : new Date().toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "2-digit" }).replace(/\//g, ".");
+    const filename = `Rapport de montage - ${project.ofrTM || ""} - ${project.projet || ""} - ${dateMontageStr}.pdf`
+      .replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ &+.,'-]/g, "_")
+      .replace(/__+/g, "_");
 
     // Envoyer le PDF par email automatiquement
     const token = request.cookies.get("auth-token")?.value;
