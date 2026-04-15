@@ -1790,11 +1790,21 @@ function ProjectPageContent({ id }: { id: string }) {
                   <>
                   <SiteTimer
                     projectId={project.id}
+                    heureArrivee={heureArrivee}
+                    heureDepart={heureDepart}
                     onArrival={(time) => {
                       setHeureArrivee(time);
                       fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArrivee: time }) }).catch(console.error);
                     }}
                     onDeparture={(time) => {
+                      setHeureDepart(time);
+                      fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
+                    }}
+                    onArriveeChange={(time) => {
+                      setHeureArrivee(time);
+                      fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArrivee: time }) }).catch(console.error);
+                    }}
+                    onDepartChange={(time) => {
                       setHeureDepart(time);
                       fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
                     }}
@@ -1812,28 +1822,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       }}
                     />
                   )}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="min-w-0">
-                      <Label htmlFor="arrivee">Heure d'arrivée</Label>
-                      <Input
-                        id="arrivee"
-                        type="time"
-                        value={heureArrivee}
-                        onChange={(e) => setHeureArrivee(e.target.value)}
-                        className="mt-1 h-11 w-full"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <Label htmlFor="depart">Heure de départ</Label>
-                      <Input
-                        id="depart"
-                        type="time"
-                        value={heureDepart}
-                        onChange={(e) => setHeureDepart(e.target.value)}
-                        className="mt-1 h-11 w-full"
-                      />
-                    </div>
-                  </div>
+                  {/* Heures arrivée/départ intégrées dans le SiteTimer ci-dessus */}
                   {heureArrivee && heureDepart && (() => {
                     const [ah, am] = heureArrivee.split(":").map(Number);
                     const [dh, dm] = heureDepart.split(":").map(Number);
