@@ -31,9 +31,12 @@ const pageIdCache: Record<string, string> = {};
 
 const NOTION_BLOCK_CHAR_LIMIT = 2000;
 
+// Storage parent page — all [DATA] pages live here, NOT in the projects database
+const STORAGE_PAGE_ID = "3431895b9179804eb9bfc51868936cf2";
+
 /**
  * Find or create a Notion page that stores data for a given key.
- * Pages are identified by a title prefix "[DATA] <key>".
+ * Pages are children of the TM App Storage page (not in the projects DB).
  */
 async function getOrCreateBackupPageId(key: string): Promise<string> {
   if (pageIdCache[key]) return pageIdCache[key];
@@ -41,25 +44,25 @@ async function getOrCreateBackupPageId(key: string): Promise<string> {
   const title = `[DATA] ${key}`;
 
   try {
-    const response = await notion.databases.query({
-      database_id: databaseId,
-      filter: {
-        property: "Projet",
-        title: { equals: title },
-      },
-      page_size: 1,
+    // Search for existing child page under storage parent
+    const children = await notion.blocks.children.list({
+      block_id: STORAGE_PAGE_ID,
+      page_size: 100,
     });
 
-    if (response.results.length > 0) {
-      pageIdCache[key] = response.results[0].id;
-      return pageIdCache[key];
+    for (const block of children.results) {
+      const b = block as any;
+      if (b.type === "child_page" && b.child_page?.title === title) {
+        pageIdCache[key] = b.id;
+        return pageIdCache[key];
+      }
     }
 
-    // Create the page if it doesn't exist
+    // Create the page as a child of the storage page
     const page = await notion.pages.create({
-      parent: { database_id: databaseId },
+      parent: { page_id: STORAGE_PAGE_ID },
       properties: {
-        Projet: {
+        title: {
           title: [{ text: { content: title } }],
         },
       },

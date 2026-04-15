@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { notion, databaseId } from "@/lib/notion";
+import { notion } from "@/lib/notion";
+
+const STORAGE_PAGE_ID = "3431895b9179804eb9bfc51868936cf2";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +23,17 @@ const CACHE_TTL = 30_000; // 30 seconds
 
 async function findBackupPage(): Promise<string | null> {
   try {
-    const res = await notion.databases.query({
-      database_id: databaseId,
-      filter: { property: "Projet", title: { equals: BACKUP_PAGE_TITLE } },
-      page_size: 1,
+    const children = await notion.blocks.children.list({
+      block_id: STORAGE_PAGE_ID,
+      page_size: 100,
     });
-    return res.results[0]?.id || null;
+    for (const block of children.results) {
+      const b = block as any;
+      if (b.type === "child_page" && b.child_page?.title === BACKUP_PAGE_TITLE) {
+        return b.id;
+      }
+    }
+    return null;
   } catch {
     return null;
   }
@@ -78,9 +85,9 @@ async function saveActivities(data: UserActivity[]): Promise<void> {
     if (!pageId) {
       // Create the backup page
       const page = await notion.pages.create({
-        parent: { database_id: databaseId },
+        parent: { page_id: STORAGE_PAGE_ID },
         properties: {
-          Projet: { title: [{ text: { content: BACKUP_PAGE_TITLE } }] },
+          title: { title: [{ text: { content: BACKUP_PAGE_TITLE } }] },
         },
       });
       pageId = page.id;
