@@ -755,15 +755,15 @@ function HomePage() {
 
   const [rapportSearch, setRapportSearch] = useState("");
 
-  // Cache-first: charger depuis localStorage instantanément, puis API en arrière-plan
+  // Cache-first: afficher le cache instantanément, puis mettre à jour en arrière-plan
   useEffect(() => {
-    // 1. Charger le cache local immédiatement
+    // 1. Charger le cache local IMMÉDIATEMENT — affichage instantané
     try {
       const cached = localStorage.getItem("tm-projects-cache");
       if (cached) {
         const parsed = JSON.parse(cached);
         setProjectsData(parsed);
-        setLoading(false);
+        setLoading(false); // Afficher immédiatement avec les données cachées
       }
     } catch {}
 
@@ -771,32 +771,31 @@ function HomePage() {
     fetch("/api/auth").then((r) => r.json()).then((d) => {
       if (d.user) {
         setCurrentUser(d.user);
-        // Record user activity
         fetch("/api/user-activity", { method: "POST" }).catch(() => {});
       }
     }).catch(() => {});
 
-    // 2. Pré-charger TOUS les onglets en arrière-plan (dédupliqué par URL)
+    // 2. Mettre à jour chaque endpoint INDIVIDUELLEMENT dès qu'il arrive
     const allModes = Object.entries(MODE_API) as [string, string][];
     const uniqueUrls = [...new Set(allModes.map(([, url]) => url))];
-    const urlDataMap: Record<string, any> = {};
-    Promise.all(
-      uniqueUrls.map((url) =>
-        fetchWithRetry(url, undefined, 2, (msg, retry) => showRetryToast(msg, () => { retry().catch(() => {}); })).then((r) => r.json()).then((data) => { urlDataMap[url] = data; }).catch(() => {})
-      )
-    ).then(() => {
-      const newData: Record<string, any> = {};
-      allModes.forEach(([key, url]) => {
-        const data = urlDataMap[url];
-        if (Array.isArray(data)) newData[key] = data;
+
+    // Fetch each unique URL and update state as soon as each arrives
+    uniqueUrls.forEach((url) => {
+      fetch(url).then((r) => r.json()).then((data) => {
+        if (!Array.isArray(data)) return;
+        // Map this URL's data to all modes that use it
+        const modesForUrl = allModes.filter(([, u]) => u === url);
+        setProjectsData((prev) => {
+          const updated = { ...prev };
+          modesForUrl.forEach(([key]) => { updated[key] = data; });
+          try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+          return updated;
+        });
+        setLoading(false);
+      }).catch(() => {
+        setLoading(false);
       });
-      setProjectsData((prev) => {
-        const merged = { ...prev, ...newData };
-        try { localStorage.setItem("tm-projects-cache", JSON.stringify(merged)); } catch {}
-        return merged;
-      });
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    });
   }, []);
 
   const refreshAllProjects = useCallback(() => {
