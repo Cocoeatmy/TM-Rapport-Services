@@ -1210,6 +1210,23 @@ function ProjectPageContent({ id }: { id: string }) {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Polling: re-fetch project data every 15s for real-time collaboration
+  useEffect(() => {
+    if (!project?.id) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/projects/${project.id}`);
+        const data = await res.json();
+        if (data?.id) {
+          setProject(data);
+          if (data.heureArrivee) setHeureArrivee(data.heureArrivee);
+          if (data.heureDepart) setHeureDepart(data.heureDepart);
+        }
+      } catch {}
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [project?.id]);
+
   const handleSave = async () => {
     setSaving(true);
     try {

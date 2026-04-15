@@ -36,6 +36,18 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
   const watchId = useRef<number | null>(null);
   const wasInside = useRef(false);
 
+  // Refs to avoid stale closures in geolocation callbacks
+  const statusRef = useRef(status);
+  const chantierCoordsRef = useRef(chantierCoords);
+  const onArrivalRef = useRef(onArrival);
+  const onDepartureRef = useRef(onDeparture);
+
+  // Keep refs in sync
+  useEffect(() => { statusRef.current = status; }, [status]);
+  useEffect(() => { chantierCoordsRef.current = chantierCoords; }, [chantierCoords]);
+  useEffect(() => { onArrivalRef.current = onArrival; }, [onArrival]);
+  useEffect(() => { onDepartureRef.current = onDeparture; }, [onDeparture]);
+
   // Geocode the chantier address to get coordinates
   useEffect(() => {
     if (!chantierAddress) return;
@@ -62,40 +74,43 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
       .catch(() => {});
   }, [chantierAddress]);
 
+  // Stable position callback that reads from refs (no stale closures)
   const checkPosition = useCallback((position: GeolocationPosition) => {
-    if (!chantierCoords) return;
+    const coords = chantierCoordsRef.current;
+    if (!coords) return;
 
     const dist = haversineDistance(
       position.coords.latitude, position.coords.longitude,
-      chantierCoords.lat, chantierCoords.lng
+      coords.lat, coords.lng
     );
     setDistance(Math.round(dist));
 
     const isInside = dist <= GEOFENCE_RADIUS_METERS;
+    const currentStatus = statusRef.current;
 
-    if (isInside && !wasInside.current && status === "watching") {
-      // Entré dans la zone → arrivée
+    if (isInside && !wasInside.current && currentStatus === "watching") {
+      // Entré dans la zone -> arrivée
       wasInside.current = true;
       const time = getCurrentTime();
       setArrivalTime(time);
       setStatus("arrived");
-      onArrival?.(time);
-    } else if (!isInside && wasInside.current && status === "arrived") {
-      // Sorti de la zone → départ
+      onArrivalRef.current?.(time);
+    } else if (!isInside && wasInside.current && currentStatus === "arrived") {
+      // Sorti de la zone -> départ
       wasInside.current = false;
       const time = getCurrentTime();
       setDepartureTime(time);
       setStatus("departed");
-      onDeparture?.(time);
+      onDepartureRef.current?.(time);
       // Stop watching
       if (watchId.current !== null) {
         navigator.geolocation.clearWatch(watchId.current);
         watchId.current = null;
       }
     }
-  }, [chantierCoords, status, onArrival, onDeparture]);
+  }, []); // No deps needed - reads from refs
 
-  const startWatching = () => {
+  const startWatching = useCallback(() => {
     if (!navigator.geolocation) {
       setError("GPS non disponible sur cet appareil");
       return;
@@ -111,13 +126,15 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
       },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
     );
-  };
+  }, [checkPosition]);
 
   // Auto-start GPS tracking dès que les coordonnées sont prêtes
   useEffect(() => {
     if (chantierCoords && status === "idle" && navigator.geolocation) {
       startWatching();
     }
+    // Only run when chantierCoords becomes available
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierCoords]);
 
   // Cleanup on unmount
