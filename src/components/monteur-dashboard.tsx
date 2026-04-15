@@ -387,9 +387,14 @@ function WeekProjectRow({ project }: { project: Project }) {
       href={`/projet/${project.id}?mode=dashboard`}
       className="flex items-center gap-2 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
     >
-      <span className="text-[10px] font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
-        {formatDay(date)}
-      </span>
+      <div className="text-[10px] font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
+        <div>{formatDay(date)}</div>
+        {date.includes("T") && (
+          <div className="text-[9px] text-blue-500 font-semibold">
+            {new Date(date).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}
+          </div>
+        )}
+      </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
           {project.ofrTM && (
@@ -455,7 +460,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const collabData = COLLABORATEURS_LIST.map((name) => {
     const colors = getCollaboratorColor(name);
     const myProjects = getProjectsForCollaborator(projects, name);
-    const getD = (p: Project) => (p.dateMontage || p.dateMesures || "").split("T")[0];
+    const getD = (p: Project) => p.dateMontage || p.dateMesures || "";
     const todayProjects = myProjects.filter((p) => projectSpansDate(p, todayStr));
     const thisWeekProjects = myProjects
       .filter((p) => {
@@ -491,7 +496,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
       const names = teamName.split(" & ").map((n) => n.trim());
       const isBinome = names.length === 2;
       const isTeam = names.length >= 5 || teamName.toLowerCase().includes("team");
-      const getD = (p: Project) => (p.dateMontage || p.dateMesures || "").split("T")[0];
+      const getD = (p: Project) => p.dateMontage || p.dateMesures || "";
       const todayP = teamProjects.filter((p) => projectSpansDate(p, todayStr));
       const thisWeekP = teamProjects.filter((p) => { if (todayP.includes(p)) return false; return projectActiveDuringRange(p, todayStr, thisWeekEndStr); })
         .sort((a, b) => getD(a).localeCompare(getD(b)));
