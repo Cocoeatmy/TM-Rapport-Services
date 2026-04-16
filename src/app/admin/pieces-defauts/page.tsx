@@ -157,13 +157,30 @@ export default function PiecesDefautsPage() {
   }, []);
 
   useEffect(() => {
+    // Load from Notion project fields (primary) + kv-store (fallback)
     Promise.all([
-      fetch("/api/pieces").then((r) => r.json()),
-      fetch("/api/defauts").then((r) => r.json()),
+      fetch("/api/signalements").then((r) => r.json()).catch(() => ({ pieces: [], defauts: [] })),
+      fetch("/api/pieces").then((r) => r.json()).catch(() => []),
+      fetch("/api/defauts").then((r) => r.json()).catch(() => []),
     ])
-      .then(([p, d]) => {
-        if (Array.isArray(p)) setPieces(p);
-        if (Array.isArray(d)) setDefauts(d);
+      .then(([notionData, kvPieces, kvDefauts]) => {
+        // Merge Notion + kv-store, deduplicate by description
+        const allPieces = [...(notionData.pieces || [])];
+        const seenPieces = new Set(allPieces.map((p: any) => `${p.projectId}-${p.description}`));
+        (Array.isArray(kvPieces) ? kvPieces : []).forEach((p: any) => {
+          const key = `${p.projectId}-${p.description}`;
+          if (!seenPieces.has(key)) { allPieces.push(p); seenPieces.add(key); }
+        });
+
+        const allDefauts = [...(notionData.defauts || [])];
+        const seenDefauts = new Set(allDefauts.map((d: any) => `${d.projectId}-${d.description}`));
+        (Array.isArray(kvDefauts) ? kvDefauts : []).forEach((d: any) => {
+          const key = `${d.projectId}-${d.description}`;
+          if (!seenDefauts.has(key)) { allDefauts.push(d); seenDefauts.add(key); }
+        });
+
+        setPieces(allPieces);
+        setDefauts(allDefauts);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
