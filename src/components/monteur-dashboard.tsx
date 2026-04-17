@@ -638,7 +638,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rdv-a-fixer" ? null : "rdv-a-fixer")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
               <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{rdvAFixerProjects.length}</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV à fixer</p>
-              <div className="text-left mt-1.5 space-y-0.5">
+              <div className="text-center mt-1.5 space-y-0.5">
                 {montagesRdvCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Montages: {montagesRdvCab} cab.</p>}
                 {mesuresRdvCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Mesures: {mesuresRdvCab} cab.</p>}
                 {servicesRdvCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Services: {servicesRdvCab} cab.</p>}
@@ -655,7 +655,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rdv-fixe" ? null : "rdv-fixe")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
               <p className="text-2xl font-bold text-green-600 dark:text-green-400">{rdvFixeProjects.length}</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV fixé</p>
-              <div className="text-left mt-1.5 space-y-0.5">
+              <div className="text-center mt-1.5 space-y-0.5">
                 {montagesFixeCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Montages: {montagesFixeCab} cab.</p>}
                 {mesuresFixeCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Mesures: {mesuresFixeCab} cab.</p>}
                 {servicesFixeCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Services: {servicesFixeCab} cab.</p>}
