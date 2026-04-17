@@ -614,31 +614,37 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
         <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
           <Text style={styles.sectionTitle} fixed>Photos du chantier</Text>
 
-          {project.photosAvant?.length > 0 && (
-            <View style={styles.section} wrap={false}>
-              <Text style={{ ...styles.label, marginBottom: 6 }}>Avant montage</Text>
-              <View style={styles.photosGrid}>
-                {project.photosAvant.map((p: any, i: number) => (
-                  <View key={i} style={styles.photoContainer}>
-                    <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
+          {/* Avant / Après côte à côte */}
+          {(project.photosAvant?.length > 0 || project.photosMontage?.length > 0) && (() => {
+            const maxLen = Math.max(project.photosAvant?.length || 0, project.photosMontage?.length || 0);
+            return (
+              <View style={styles.section}>
+                {/* En-têtes colonnes */}
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
+                  <Text style={{ ...styles.label, width: "48%" }}>Avant montage</Text>
+                  <Text style={{ ...styles.label, width: "48%" }}>Montage terminé</Text>
+                </View>
+                {Array.from({ length: maxLen }, (_, i) => (
+                  <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 10 }} wrap={false}>
+                    <View style={{ width: "48%" }}>
+                      {project.photosAvant?.[i] ? (
+                        <Image src={optimizeImageUrl(project.photosAvant[i].url)} style={styles.photo} />
+                      ) : (
+                        <View style={{ ...styles.photo, backgroundColor: "#f3f4f6" }} />
+                      )}
+                    </View>
+                    <View style={{ width: "48%" }}>
+                      {project.photosMontage?.[i] ? (
+                        <Image src={optimizeImageUrl(project.photosMontage[i].url)} style={styles.photo} />
+                      ) : (
+                        <View style={{ ...styles.photo, backgroundColor: "#f3f4f6" }} />
+                      )}
+                    </View>
                   </View>
                 ))}
               </View>
-            </View>
-          )}
-
-          {project.photosMontage?.length > 0 && (
-            <View style={styles.section} wrap={false}>
-              <Text style={{ ...styles.label, marginBottom: 6 }}>Montage terminé</Text>
-              <View style={styles.photosGrid}>
-                {project.photosMontage.map((p: any, i: number) => (
-                  <View key={i} style={styles.photoContainer}>
-                    <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
+            );
+          })()}
 
           {project.photosQRCode?.length > 0 && (
             <View style={styles.section} wrap={false}>

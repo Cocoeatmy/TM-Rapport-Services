@@ -34,7 +34,7 @@ import { SiteTimer } from "@/components/site-timer";
 import { StockUsage } from "@/components/stock-usage";
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
-import { Star, Share2 } from "lucide-react";
+import { Star, Share2, RefreshCw } from "lucide-react";
 import { toggleFavorite, isFavorite } from "@/lib/favorites";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2455,9 +2455,12 @@ function ProjectPageContent({ id }: { id: string }) {
                 rel="noopener noreferrer"
                 className="w-full h-12 rounded-xl text-base font-medium flex items-center justify-center gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800"
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2C5.9 2 5 2.9 5 4v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V8l-6-6H7zm0 2h5v5h5v11H7V4zm2 8v2h6v-2H9zm0 4v2h4v-2H9z"/></svg>
-                Voir le PDF
+                <RefreshCw className="w-5 h-5" />
+                Actualiser et télécharger le PDF
               </a>
+              <p className="text-[10px] text-gray-400 text-center -mt-2">
+                Régénère le rapport avec toutes les dernières photos et données
+              </p>
 
               {/* Suivi consultations rapport */}
               {currentUser?.role === "admin" && <ReportConsultations projectId={id} />}
