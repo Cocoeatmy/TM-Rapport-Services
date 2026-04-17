@@ -151,7 +151,7 @@ export function KanbanBoard({ projects, mode, onStatusChange }: KanbanBoardProps
                         className="block"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                        <p className="text-[11px] font-medium text-gray-900 dark:text-gray-100 line-clamp-2 leading-snug">
                           {project.projet || "Sans nom"}
                         </p>
                         {project.ofrTM && (
