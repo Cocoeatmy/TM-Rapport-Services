@@ -706,6 +706,7 @@ function HomePage() {
   const [statsSeries, setStatsSeries] = useState<any[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
   const statsLoadedRef = useRef(false);
+  const [cabineAttributions, setCabineAttributions] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     if (mode !== "stats" || statsLoadedRef.current) return;
@@ -716,11 +717,17 @@ function HomePage() {
       fetch("/api/stats/clients").then((r) => r.json()).catch(() => []),
       fetch("/api/stats/marques").then((r) => r.json()).catch(() => []),
       fetch("/api/stats/series").then((r) => r.json()).catch(() => []),
-    ]).then(([svc, cli, mrq, ser]) => {
+      fetch("/api/cabine-attribution").then((r) => r.json()).catch(() => []),
+    ]).then(([svc, cli, mrq, ser, attrs]) => {
       if (Array.isArray(svc)) setStatsServices(svc);
       if (Array.isArray(cli)) setStatsClients(cli);
       if (Array.isArray(mrq)) setStatsMarques(mrq);
       if (Array.isArray(ser)) setStatsSeries(ser);
+      if (Array.isArray(attrs)) {
+        const attrMap: Record<string, string[]> = {};
+        attrs.forEach((a: { projectId: string; attribution: string[] }) => { attrMap[a.projectId] = a.attribution; });
+        setCabineAttributions(attrMap);
+      }
       setStatsLoading(false);
     });
   }, [mode]);
@@ -1882,11 +1889,18 @@ function HomePage() {
         const allProjects: Project[] = filterByStatsDate(allProjectsRaw, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
         const collabStats = COLLABORATEURS_LIST.map((name) => {
           const collabProjects = allProjects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase()));
-          const cabines = collabProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+          // Count cabines: use per-cabin attribution if available, otherwise count project cabines
+          const cabines = collabProjects.reduce((s, p) => {
+            const attr = cabineAttributions[p.id];
+            if (attr?.length) {
+              return s + attr.filter((m) => m.toLowerCase() === name.toLowerCase()).length;
+            }
+            return s + (p.nbCabines || 0);
+          }, 0);
           const soucisCount = collabProjects.filter((p) => p.soucisMontage).length;
           const soucisRate = collabProjects.length > 0 ? Math.round((soucisCount / collabProjects.length) * 100) : 0;
           return { name, projects: collabProjects.length, cabines, soucisCount, soucisRate };
-        }).sort((a, b) => b.projects - a.projects);
+        }).sort((a, b) => b.cabines - a.cabines);
 
         const expandedSections = statsExpandedSections;
         const toggleSection = (s: string) => {

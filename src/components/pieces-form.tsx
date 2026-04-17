@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Package, Camera, Loader2, Send, AlertTriangle, X, ImageIcon, Sparkles } from "lucide-react";
+import { Package, Camera, Loader2, Send, AlertTriangle, X, ImagePlus, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -19,11 +19,12 @@ export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormPr
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [reference, setReference] = useState("");
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   const handleAI = async () => {
     if (!description.trim() || description.trim().length < 10) return;
@@ -35,49 +36,60 @@ export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormPr
     } catch {} finally { setAiLoading(false); }
   };
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhoto(file);
-    setPhotoPreview(URL.createObjectURL(file));
+  const handlePhotoFiles = (files: FileList | null) => {
+    if (!files?.length) return;
+    const newFiles = Array.from(files);
+    setPhotos((prev) => [...prev, ...newFiles]);
+    setPhotoPreviews((prev) => [...prev, ...newFiles.map((f) => URL.createObjectURL(f))]);
   };
 
-  const removePhoto = () => {
-    setPhoto(null);
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setPhotoPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const removePhoto = (index: number) => {
+    URL.revokeObjectURL(photoPreviews[index]);
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const reset = () => {
+    setDescription("");
+    setReference("");
+    photoPreviews.forEach((p) => URL.revokeObjectURL(p));
+    setPhotos([]);
+    setPhotoPreviews([]);
+    if (cameraRef.current) cameraRef.current.value = "";
+    if (galleryRef.current) galleryRef.current.value = "";
   };
 
   const handleSubmit = async () => {
     if (!description.trim()) return;
     setSending(true);
     try {
-      let photoUrl = "";
+      const photoUrls: string[] = [];
 
-      if (photo) {
+      if (photos.length > 0) {
         const formData = new FormData();
-        formData.append("files", photo);
+        photos.forEach((p, i) => {
+          const ext = p.name.split(".").pop() || "jpg";
+          formData.append("files", new File([p], `piece-${i + 1}.${ext}`, { type: p.type }));
+        });
         formData.append("projectId", projectId);
         formData.append("category", "pieces");
+        formData.append("notionField", "Photos - Pièces manquante");
         const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
         if (uploadRes.ok) {
           const uploadData = await uploadRes.json();
-          photoUrl = uploadData.files?.[0]?.url || "";
+          photoUrls.push(...(uploadData.files?.map((f: { url: string }) => f.url) || []));
         }
       }
 
       const res = await fetch("/api/pieces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, projectName, description, reference, photoUrl }),
+        body: JSON.stringify({ projectId, projectName, description, reference, photoUrls }),
       });
       if (res.ok) {
         toast.success("Demande de pièce envoyée");
         onSubmitted?.();
-        setDescription("");
-        setReference("");
-        removePhoto();
+        reset();
         setOpen(false);
       } else {
         toast.error("Erreur lors de l'envoi");
@@ -136,36 +148,42 @@ export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormPr
         />
       </div>
 
-      {/* Photo éclaté produit */}
+      {/* Photos */}
       <div>
-        <Label className="text-xs">Photo de l&apos;éclaté / pièce</Label>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handlePhotoChange}
-          className="hidden"
-        />
-        {photoPreview ? (
-          <div className="relative mt-1 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-            <img src={photoPreview} alt="Aperçu pièce" className="w-full max-h-48 object-contain bg-gray-50 dark:bg-gray-900" />
-            <button
-              onClick={removePhoto}
-              className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
-            >
-              <X className="w-4 h-4" />
-            </button>
+        <Label className="text-xs">Photos de la pièce / éclaté</Label>
+        {photoPreviews.length > 0 && (
+          <div className="grid grid-cols-3 gap-2 mt-1 mb-2">
+            {photoPreviews.map((preview, i) => (
+              <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200">
+                <img src={preview} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                <button
+                  onClick={() => removePhoto(i)}
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
           </div>
-        ) : (
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="mt-1 w-full flex items-center justify-center gap-2 py-4 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400 hover:border-orange-400 hover:text-orange-500 active:bg-orange-50 transition-colors"
-          >
-            <Camera className="w-5 h-5" />
-            Prendre une photo
-          </button>
         )}
+        <div className="flex gap-2 mt-1">
+          <button
+            onClick={() => cameraRef.current?.click()}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-orange-400 hover:text-orange-500 active:bg-orange-50 transition-colors"
+          >
+            <Camera className="w-4 h-4" />
+            Photo
+          </button>
+          <button
+            onClick={() => galleryRef.current?.click()}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-orange-400 hover:text-orange-500 active:bg-orange-50 transition-colors"
+          >
+            <ImagePlus className="w-4 h-4" />
+            Galerie
+          </button>
+        </div>
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
+        <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
       </div>
 
       <div className="flex gap-2">
@@ -178,7 +196,7 @@ export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormPr
           Envoyer
         </button>
         <button
-          onClick={() => { setOpen(false); setDescription(""); setReference(""); removePhoto(); }}
+          onClick={() => { setOpen(false); reset(); }}
           className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-600"
         >
           Annuler

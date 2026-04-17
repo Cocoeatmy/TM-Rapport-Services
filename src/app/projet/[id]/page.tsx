@@ -1113,7 +1113,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [heureDepart, setHeureDepart] = useState("");
   const [commentaires, setCommentaires] = useState("");
   const [rapport, setRapport] = useState("");
-  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean }[]>([]);
+  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [signature, setSignature] = useState("");
 
@@ -1172,8 +1172,18 @@ function ProjectPageContent({ id }: { id: string }) {
           nom: `Cabine ${i + 1}`,
           rapport: "",
           open: i === 0,
+          monteur: "",
         }))
       );
+      // Load existing attribution
+      fetch(`/api/cabine-attribution?projectId=${data.id}`)
+        .then((r) => r.json())
+        .then((attr) => {
+          if (attr?.attribution?.length) {
+            setCabines((prev) => prev.map((c, i) => ({ ...c, monteur: attr.attribution[i] || "" })));
+          }
+        })
+        .catch(() => {});
       if (data.heureArrivee || data.heureDepart) {
         setPointages([{ date: today, collaborateur: "", arrivee: data.heureArrivee || "", depart: data.heureDepart || "" }]);
       }
@@ -1246,6 +1256,14 @@ function ProjectPageContent({ id }: { id: string }) {
             : rapport,
         }),
       });
+      // Save cabine attribution if in multi-cabin mode
+      if (isCabineMode && cabines.some((c) => c.monteur)) {
+        await fetch("/api/cabine-attribution", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: id, attribution: cabines.map((c) => c.monteur) }),
+        });
+      }
       if (res.ok) {
         toast.success("Rapport enregistré avec succès");
       } else {
@@ -2130,6 +2148,27 @@ function ProjectPageContent({ id }: { id: string }) {
                             />
                           </div>
 
+                          {/* Monteur responsable de cette cabine */}
+                          <div>
+                            <Label className="text-xs text-gray-600">Monteur responsable</Label>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {COLLABORATEURS_LIST.map((name) => (
+                                <button
+                                  key={name}
+                                  type="button"
+                                  onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, monteur: c.monteur === name ? "" : name } : c))}
+                                  className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
+                                    cabine.monteur === name
+                                      ? "border-blue-600 bg-blue-600 text-white"
+                                      : "border-gray-200 text-gray-600 hover:border-blue-300"
+                                  }`}
+                                >
+                                  {name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
                           {/* Rapport cabine */}
                           <div>
                             <Label>Rapport</Label>
@@ -2190,21 +2229,29 @@ function ProjectPageContent({ id }: { id: string }) {
                             category={`cabine-${idx + 1}-avant`}
                             label="Photos avant montage"
                             projectId={id}
+                            notionField="Photos avant montage"
+                            filePrefix={`Etat avant intervention.Cab${idx + 1}`}
                           />
                           <PhotoUpload
                             category={`cabine-${idx + 1}-montage`}
                             label="Photos montage terminé"
                             projectId={id}
+                            notionField="Photos montage terminé"
+                            filePrefix={`Photos - Montage termine.Cab${idx + 1}`}
                           />
                           <PhotoUpload
                             category={`cabine-${idx + 1}-qrcode`}
                             label="Photos QR Code"
                             projectId={id}
+                            notionField="Photos QR Code"
+                            filePrefix={`Photos - QR Code.Cab${idx + 1}`}
                           />
                           <PhotoUpload
                             category={`cabine-${idx + 1}-garanties`}
                             label="Photos garanties"
                             projectId={id}
+                            notionField="Photos garanties"
+                            filePrefix={`Photos - Garantie.Cab${idx + 1}`}
                           />
                         </CardContent>
                       )}

@@ -70,8 +70,12 @@ export async function POST(request: NextRequest) {
         },
       };
 
-      // Add photo if present
-      if (body.photoUrl) {
+      // Add photos if present (support single photoUrl or array photoUrls)
+      const newPhotoUrls: string[] = body.photoUrls?.length > 0
+        ? body.photoUrls
+        : body.photoUrl ? [body.photoUrl] : [];
+
+      if (newPhotoUrls.length > 0) {
         const existingFiles = (page as any).properties["Photos - Pièces manquante"]?.files || [];
         const mappedExisting = existingFiles.map((f: any) => ({
           type: "external" as const,
@@ -82,11 +86,11 @@ export async function POST(request: NextRequest) {
         properties["Photos - Pièces manquante"] = {
           files: [
             ...mappedExisting,
-            {
+            ...newPhotoUrls.map((url, i) => ({
               type: "external" as const,
-              name: `piece-${dateStr}.jpg`,
-              external: { url: body.photoUrl },
-            },
+              name: `piece-${dateStr}-${i + 1}.jpg`,
+              external: { url },
+            })),
           ],
         };
       }

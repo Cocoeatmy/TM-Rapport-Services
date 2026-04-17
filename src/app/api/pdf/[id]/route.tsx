@@ -22,7 +22,8 @@ interface PieceRequest {
   user: string;
   description: string;
   reference: string;
-  photoUrl: string;
+  photoUrl?: string;
+  photoUrls?: string[];
   status: "demande" | "commande" | "recu";
   timestamp: number;
 }
@@ -87,13 +88,19 @@ async function loadPiecesForProject(projectId: string, project?: Project): Promi
   // Try Notion fields first
   if (project?.infoPiecesManquantes) {
     const parsed = parsePiecesFromNotion(project.infoPiecesManquantes);
-    // Attach photo URLs from Notion files
+    // Distribute all Notion photos evenly across pieces
     if (project.photosPiecesManquantes.length > 0 && parsed.length > 0) {
-      parsed.forEach((p, i) => {
-        if (i < project.photosPiecesManquantes.length) {
-          p.photoUrl = project.photosPiecesManquantes[i].url;
-        }
-      });
+      const allPhotoUrls = project.photosPiecesManquantes.map((f) => f.url);
+      if (parsed.length === 1) {
+        // All photos belong to the single piece
+        parsed[0].photoUrls = allPhotoUrls;
+      } else {
+        // Distribute photos across pieces (round-robin by index)
+        parsed.forEach((p, i) => {
+          const piecePhotos = allPhotoUrls.filter((_, pi) => pi % parsed.length === i);
+          if (piecePhotos.length > 0) p.photoUrls = piecePhotos;
+        });
+      }
     }
     if (parsed.length > 0) return parsed;
   }
@@ -220,7 +227,7 @@ const styles = StyleSheet.create({
   },
   photo: {
     width: "100%",
-    height: 200,
+    height: 240,
     objectFit: "contain",
     borderRadius: 4,
   },
@@ -366,11 +373,13 @@ const styles = StyleSheet.create({
     objectFit: "contain",
     borderRadius: 3,
   },
-  piecePhotoSmall: {
-    width: 50,
-    height: 40,
+  piecePhoto: {
+    width: 160,
+    height: 120,
     objectFit: "contain",
-    borderRadius: 2,
+    borderRadius: 3,
+    marginRight: 6,
+    marginBottom: 6,
   },
   emptyMessage: {
     fontSize: 9,
@@ -586,7 +595,7 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
         {project.signatureUrl && (
           <View style={{ marginTop: 16, padding: 10, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 6 }} wrap={false}>
             <Text style={{ fontSize: 9, color: "#6b7280", marginBottom: 6 }}>Signature du client</Text>
-            <Image src={project.signatureUrl} style={{ width: 200, height: 80, objectFit: "contain" }} />
+            <Image src={optimizeImageUrl(project.signatureUrl)} style={{ width: 220, height: 90, objectFit: "contain" }} />
           </View>
         )}
 
@@ -669,32 +678,34 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
         <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
           <Text style={styles.sectionTitle} fixed>Pièces manquantes</Text>
 
-          {/* Table header */}
-          <View style={styles.tableHeader}>
-            <Text style={{ ...styles.tableHeaderText, width: "30%" }}>Description</Text>
-            <Text style={{ ...styles.tableHeaderText, width: "20%" }}>Référence</Text>
-            <Text style={{ ...styles.tableHeaderText, width: "15%" }}>Statut</Text>
-            <Text style={{ ...styles.tableHeaderText, width: "15%" }}>Demandeur</Text>
-            <Text style={{ ...styles.tableHeaderText, width: "20%" }}>Photo</Text>
-          </View>
-
           {pieces.map((piece, i) => (
-            <View key={piece.id} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt} wrap={false}>
-              <Text style={{ ...styles.tableCell, width: "30%" }}>{piece.description || "---"}</Text>
-              <Text style={{ ...styles.tableCell, width: "20%" }}>{piece.reference || "---"}</Text>
-              <View style={{ width: "15%", justifyContent: "center" }}>
+            <View key={piece.id} style={styles.defautCard} wrap={false}>
+              <View style={styles.defautHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>
+                    {piece.description || "Pièce manquante"}
+                  </Text>
+                  {piece.reference && piece.reference !== "---" && (
+                    <Text style={{ fontSize: 8, color: "#555", marginTop: 2 }}>Réf. : {piece.reference}</Text>
+                  )}
+                </View>
                 <Text style={{ ...styles.statusBadge, ...getPieceStatusStyle(piece.status) }}>
                   {pieceStatusLabel(piece.status)}
                 </Text>
               </View>
-              <Text style={{ ...styles.tableCell, width: "15%" }}>{piece.user || "---"}</Text>
-              <View style={{ width: "20%", alignItems: "center" }}>
-                {piece.photoUrl ? (
-                  <Image src={optimizeImageUrl(piece.photoUrl)} style={styles.piecePhotoSmall} />
-                ) : (
-                  <Text style={{ ...styles.tableCell, color: "#999" }}>Aucune</Text>
-                )}
+              <View style={{ flexDirection: "row", marginBottom: 6 }}>
+                <Text style={{ fontSize: 7, color: "#888" }}>Demandé par : {piece.user || "---"}</Text>
               </View>
+              {/* Photos */}
+              {piece.photoUrls && piece.photoUrls.length > 0 ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                  {piece.photoUrls.map((url: string, pi: number) => (
+                    <Image key={pi} src={optimizeImageUrl(url)} style={styles.piecePhoto} />
+                  ))}
+                </View>
+              ) : piece.photoUrl ? (
+                <Image src={optimizeImageUrl(piece.photoUrl)} style={styles.piecePhoto} />
+              ) : null}
             </View>
           ))}
 
