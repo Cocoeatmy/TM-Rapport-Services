@@ -41,7 +41,7 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`${geistSans.variable} h-full antialiased`}>
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="apple-touch-startup-image" href="/icons/icon-512.png" />
@@ -50,7 +50,7 @@ export default function RootLayout({
         <header id="main-header" className="sticky top-0 z-50 glass-header text-white">
           <div className="flex items-center justify-between px-4 py-3">
             <a href="/" className="flex items-center gap-2.5">
-              <img src="/icons/logo-app.png?v=4" alt="TM" className="w-9 h-9 rounded-xl shadow-lg" />
+              <img src="/icons/logo-app.png?v=5" alt="TM" className="w-9 h-9 rounded-xl shadow-lg" />
               <span className="font-semibold text-lg tracking-tight">TM Rapport Services</span>
             </a>
             <div className="flex items-center gap-2">
