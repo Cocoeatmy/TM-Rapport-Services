@@ -597,28 +597,28 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-5 gap-3">
-        <div className="glass-card rounded-2xl p-4 text-center">
-          <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresTodayCount}</p>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Mesures aujourd'hui</p>
-          <p className="text-[10px] text-gray-400 dark:text-gray-500">{mesuresTodayCabines} cab.</p>
+      <div className="grid grid-cols-5 gap-1.5 sm:gap-3 items-start">
+        <div className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center">
+          <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresTodayCount}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures aujourd'hui</p>
+          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{mesuresTodayCabines} cab.</p>
         </div>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "today" ? null : "today")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
-          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalProjectsToday}</p>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Montages aujourd'hui</p>
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "today" ? null : "today")} className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all">
+          <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{totalProjectsToday}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Montages aujourd'hui</p>
         </button>
-        <div className="glass-card rounded-2xl p-4 text-center">
-          <p className="text-2xl font-bold text-violet-600 dark:text-violet-400">{servicesTodayCount}</p>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Services aujourd'hui</p>
-          <p className="text-[10px] text-gray-400 dark:text-gray-500">{servicesTodayCabines} cab.</p>
+        <div className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center">
+          <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{servicesTodayCount}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Services aujourd'hui</p>
+          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{servicesTodayCabines} cab.</p>
         </div>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "week" ? null : "week")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
-          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalCabinesWeek}</p>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Cabines cette semaine</p>
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "week" ? null : "week")} className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all">
+          <p className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalCabinesWeek}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Cabines cette semaine</p>
         </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "active" ? null : "active")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
-          <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{busyToday}</p>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Monteurs actifs</p>
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "active" ? null : "active")} className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all">
+          <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{busyToday}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Monteurs actifs</p>
         </button>
       </div>
       <div className="grid grid-cols-2 gap-3">
