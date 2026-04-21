@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getAllActiveProjects } from "@/lib/notion";
+import { cachedOrFetch } from "@/lib/server-cache";
 
-export const revalidate = 120; // ISR: re-validate toutes les 2 minutes
+export const revalidate = 120;
 
 export async function GET() {
   try {
-    const projects = await getAllActiveProjects();
+    const projects = await cachedOrFetch("projects-all-active", getAllActiveProjects);
     return NextResponse.json(projects, {
       headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60" },
     });

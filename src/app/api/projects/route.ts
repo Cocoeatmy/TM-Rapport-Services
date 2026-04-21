@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProjects, createProject, deleteProject } from "@/lib/notion";
-import { getCached, setCache, invalidateCache } from "@/lib/server-cache";
+import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
 import { verifyToken } from "@/lib/auth";
 
 export const revalidate = 120;
 
 export async function GET() {
   try {
-    // Cache serveur 60s
-    const cached = getCached("projects");
-    if (cached) {
-      return NextResponse.json(cached);
-    }
-
-    const projects = await getProjects();
-    setCache("projects", projects);
+    // Stale-while-revalidate : réponse instantanée depuis le cache,
+    // rafraîchissement en arrière-plan si la donnée dépasse 30 s.
+    const projects = await cachedOrFetch("projects", getProjects);
     return NextResponse.json(projects);
   } catch (error: any) {
     console.error("Error fetching projects:", error);

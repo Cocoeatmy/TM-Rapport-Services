@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProject, updateProject } from "@/lib/notion";
-import { getCached, setCache, invalidateCache } from "@/lib/server-cache";
+import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -10,14 +10,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-
-    const cached = getCached(`project-${id}`);
-    if (cached) {
-      return NextResponse.json(cached);
-    }
-
-    const project = await getProject(id);
-    setCache(`project-${id}`, project);
+    const project = await cachedOrFetch(`project-${id}`, () => getProject(id));
     return NextResponse.json(project);
   } catch (error: any) {
     console.error("Error fetching project:", error);

@@ -6,20 +6,9 @@ export const notion = new Client({
 
 export const databaseId = process.env.NOTION_DATABASE_ID!;
 
-// Cache mémoire serveur (survit entre les requêtes sur le même processus)
-const memoryCache = new Map<string, { data: any; expiry: number }>();
-const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
-
-function getCached<T>(key: string): T | null {
-  const entry = memoryCache.get(key);
-  if (entry && Date.now() < entry.expiry) return entry.data as T;
-  if (entry) memoryCache.delete(key);
-  return null;
-}
-
-function setCache(key: string, data: any): void {
-  memoryCache.set(key, { data, expiry: Date.now() + CACHE_TTL });
-}
+// Plus de cache interne ici : la mise en cache (avec stale-while-revalidate)
+// est gérée au niveau des routes API via `@/lib/server-cache`. Cela garantit
+// une seule source de vérité et une invalidation cohérente après PATCH/POST.
 
 export interface Project {
   id: string;
@@ -258,30 +247,49 @@ export function mapPageToProject(page: any): Project {
   };
 }
 
-// Cache for relation page titles
+// Cache for relation page titles (noms de pages liées)
 const relationNameCache: Record<string, string> = {};
+// In-flight dedup: si plusieurs appels demandent le même id en parallèle, on ne tire qu'une seule requête.
+const relationInflight: Record<string, Promise<string>> = {};
+
+async function fetchRelationName(id: string): Promise<string> {
+  const cached = relationNameCache[id];
+  if (cached) return cached;
+  const pending = relationInflight[id];
+  if (pending) return pending;
+  const p = (async () => {
+    try {
+      const page = await notion.pages.retrieve({ page_id: id });
+      const props = (page as any).properties;
+      for (const val of Object.values(props) as any[]) {
+        if (val?.type === "title") {
+          const name = val.title?.map((t: any) => t.plain_text).join("") || id;
+          relationNameCache[id] = name;
+          return name;
+        }
+      }
+      relationNameCache[id] = id;
+      return id;
+    } catch {
+      relationNameCache[id] = id;
+      return id;
+    } finally {
+      delete relationInflight[id];
+    }
+  })();
+  relationInflight[id] = p;
+  return p;
+}
 
 async function resolveRelationNames(ids: string[]): Promise<Record<string, string>> {
-  const uncached = ids.filter((id) => !relationNameCache[id]);
-  // Resolve in batches of 10 to avoid rate limits
-  for (let i = 0; i < uncached.length; i += 10) {
-    const batch = uncached.slice(i, i + 10);
-    await Promise.all(batch.map(async (id) => {
-      try {
-        const page = await notion.pages.retrieve({ page_id: id });
-        const props = (page as any).properties;
-        // Find the title property
-        for (const val of Object.values(props) as any[]) {
-          if (val?.type === "title") {
-            relationNameCache[id] = val.title?.map((t: any) => t.plain_text).join("") || id;
-            break;
-          }
-        }
-        if (!relationNameCache[id]) relationNameCache[id] = id;
-      } catch {
-        relationNameCache[id] = id;
-      }
-    }));
+  // Dédup + cache lookup en un seul passage
+  const uniqueIds = [...new Set(ids)];
+  const uncached = uniqueIds.filter((id) => !relationNameCache[id]);
+  // Toutes les requêtes sont lancées en parallèle (Notion tolère 3 req/s en moyenne
+  // mais accepte des bursts — la dédup via `relationInflight` évite les doublons,
+  // et le cache persistant côté module fait que les appels suivants sont instantanés).
+  if (uncached.length > 0) {
+    await Promise.all(uncached.map((id) => fetchRelationName(id)));
   }
   const result: Record<string, string> = {};
   ids.forEach((id) => { result[id] = relationNameCache[id] || id; });
@@ -332,9 +340,7 @@ async function queryAll(filter: any, sorts?: any[]): Promise<Project[]> {
 }
 
 export async function getProjects(): Promise<Project[]> {
-  const cached = getCached<Project[]>("projects-cmd");
-  if (cached) return cached;
-  const result = await queryAll(
+  return queryAll(
     {
       or: [
         { property: "État - CMD", status: { equals: "Cabines à recevoir" } },
@@ -349,14 +355,10 @@ export async function getProjects(): Promise<Project[]> {
     },
     [{ property: "Date Montage", direction: "descending" }]
   );
-  setCache("projects-cmd", result);
-  return result;
 }
 
 export async function getProjectsMesures(): Promise<Project[]> {
-  const cached = getCached<Project[]>("projects-mesures");
-  if (cached) return cached;
-  const result = await queryAll(
+  return queryAll(
     {
       and: [
         { property: "État - CMD", status: { equals: "En attente de mesures" } },
@@ -376,14 +378,10 @@ export async function getProjectsMesures(): Promise<Project[]> {
     },
     [{ property: "Date Montage", direction: "descending" }]
   );
-  setCache("projects-mesures", result);
-  return result;
 }
 
 export async function getProjectsServices(): Promise<Project[]> {
-  const cached = getCached<Project[]>("projects-services");
-  if (cached) return cached;
-  const result = await queryAll(
+  return queryAll(
     {
       and: [
         { property: "Type de services", multi_select: { contains: "Services" } },
@@ -393,14 +391,10 @@ export async function getProjectsServices(): Promise<Project[]> {
     },
     [{ property: "Date Montage", direction: "descending" }]
   );
-  setCache("projects-services", result);
-  return result;
 }
 
 export async function getProjectsSAV(): Promise<Project[]> {
-  const cached = getCached<Project[]>("projects-sav");
-  if (cached) return cached;
-  const result = await queryAll(
+  return queryAll(
     {
       and: [
         { property: "État - SAV", status: { does_not_equal: "Aucun SAV" } },
@@ -410,15 +404,11 @@ export async function getProjectsSAV(): Promise<Project[]> {
     },
     [{ property: "Date Montage", direction: "descending" }]
   );
-  setCache("projects-sav", result);
-  return result;
 }
 
 // Tous les projets non terminés/non annulés (pour les vues Grossistes/Fournisseurs)
 export async function getAllActiveProjects(): Promise<Project[]> {
-  const cached = getCached<Project[]>("projects-all-active");
-  if (cached) return cached;
-  const result = await queryAll(
+  return queryAll(
     {
       and: [
         { property: "État - CMD", status: { does_not_equal: "Annulé" } },
@@ -427,8 +417,6 @@ export async function getAllActiveProjects(): Promise<Project[]> {
     },
     [{ property: "Date Montage", direction: "descending" }]
   );
-  setCache("projects-all-active", result);
-  return result;
 }
 
 export async function getProject(pageId: string): Promise<Project> {
