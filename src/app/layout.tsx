@@ -12,7 +12,9 @@ import "./globals.css";
 const geistSans = Geist({
   variable: "--font-sans",
   subsets: ["latin"],
+  display: "swap",
 });
+
 
 export const metadata: Metadata = {
   title: "TM Rapport Services",
@@ -45,6 +47,12 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="apple-touch-startup-image" href="/icons/icon-512.png" />
+        {/* Preconnect : ouvre la connexion TCP+TLS en avance pour les hôtes critiques.
+            Gain : 100-300 ms sur la 1ère requête image distante. */}
+        <link rel="preconnect" href="https://res.cloudinary.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+        {/* Précharge le logo (sera repeint dans le header sans attendre le CSS). */}
+        <link rel="preload" as="image" href="/icons/logo-app.png?v=5" />
       </head>
       <body className="min-h-full flex flex-col lg-bg">
         <header id="main-header" className="sticky top-0 z-50 glass-header text-white">

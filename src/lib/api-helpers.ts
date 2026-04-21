@@ -56,3 +56,21 @@ function getBackoffMs(attempt: number): number {
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Demande au service worker de purger son cache API.
+ * À appeler après toute mutation côté client (POST/PATCH/DELETE) pour que la
+ * prochaine lecture récupère les données fraîches au lieu d'une version mise
+ * en cache par le SW.
+ */
+export function invalidateApiCache(): void {
+  if (typeof window === "undefined") return;
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.ready
+    .then((reg) => {
+      reg.active?.postMessage({ type: "INVALIDATE_API_CACHE" });
+    })
+    .catch(() => {
+      /* pas de SW actif : rien à purger */
+    });
+}
