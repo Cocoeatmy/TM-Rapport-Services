@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Camera, X, Package, Loader2, Download } from "lucide-react";
+import { thumbnailUrl } from "@/lib/image-url";
 
 interface CartonPhotosProps {
   projectId: string;
@@ -112,7 +113,7 @@ export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
         <div className="grid grid-cols-3 gap-2 mb-2">
           {photos.map((url, i) => (
             <div key={i} className="relative group rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-              <img src={url} alt={`Carton ${i + 1}`} className="w-full h-24 object-cover" />
+              <img src={thumbnailUrl(url, 200)} alt={`Carton ${i + 1}`} loading="lazy" decoding="async" className="w-full h-24 object-cover" />
               <button
                 type="button"
                 onClick={() => removePhoto(i)}

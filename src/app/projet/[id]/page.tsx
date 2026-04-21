@@ -82,6 +82,7 @@ import { addToQueue, isOnline } from "@/lib/offline";
 import { fetchWithRetry } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
+import { thumbnailUrl } from "@/lib/image-url";
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "Non planifié";
@@ -558,7 +559,7 @@ function EditableSignalement({ label, color, text, photos, projectId, notionText
         <div className="flex flex-wrap gap-2 mt-2">
           {photos.map((f, i) => (
             <a key={i} href={f.url} target="_blank" rel="noopener noreferrer">
-              <img src={f.url} alt={f.name} className="w-16 h-16 object-cover rounded border" />
+              <img src={thumbnailUrl(f.url, 128)} alt={f.name} loading="lazy" decoding="async" className="w-16 h-16 object-cover rounded border" />
             </a>
           ))}
         </div>

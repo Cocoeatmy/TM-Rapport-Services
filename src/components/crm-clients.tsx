@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Tag, Pencil, Trash2, Plus, Check, X, Globe, MapPin, Hash, Camera } from "lucide-react";
+import { thumbnailUrl } from "@/lib/image-url";
 
 interface CRMEntry {
   id: string;
@@ -187,10 +188,11 @@ function LogoImage({ src, name }: { src: string; name: string }) {
       )}
       {visible && (
         <img
-          src={src}
+          src={src.startsWith("http") ? thumbnailUrl(src, 64) : src}
           alt=""
           className={`w-8 h-8 rounded-lg object-contain transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
           decoding="async"
+          loading="lazy"
           onLoad={() => setLoaded(true)}
           onError={() => setError(true)}
         />
@@ -378,7 +380,7 @@ function EntryForm({ entry, type, onSubmit, onCancel, loading }: {
         <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">Logo</label>
         <div className="flex items-center gap-3">
           {iconUrl && iconUrl.startsWith("http") ? (
-            <img src={iconUrl} alt="Logo" className="w-12 h-12 rounded-lg object-contain border border-gray-200 dark:border-gray-700" />
+            <img src={thumbnailUrl(iconUrl, 96)} alt="Logo" loading="lazy" decoding="async" className="w-12 h-12 rounded-lg object-contain border border-gray-200 dark:border-gray-700" />
           ) : iconUrl ? (
             <span className="text-3xl">{iconUrl}</span>
           ) : (
