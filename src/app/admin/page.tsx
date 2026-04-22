@@ -88,7 +88,15 @@ export default function AdminPage() {
 
   // State pour les sections dépliées
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+
+  // Filtre temps à 3 niveaux :
+  //   - yearFilter : "all" ou "YYYY"
+  //   - monthRangeStart / monthRangeEnd : "YYYY-MM" (null = pas de filtre mois)
+  //   - si seul monthRangeStart est set → un mois précis
+  //   - si les deux → une plage inclusive de X à Y
+  const [yearFilter, setYearFilter] = useState<string>("all");
+  const [monthRangeStart, setMonthRangeStart] = useState<string | null>(null);
+  const [monthRangeEnd, setMonthRangeEnd] = useState<string | null>(null);
 
   const toggleExpand = (key: string) => {
     setExpanded(expanded === key ? null : key);
@@ -104,24 +112,69 @@ export default function AdminPage() {
 
   const projects = adminTab === "en-cours" ? projectsEnCours : projectsTermines;
 
-  // Extraire les mois disponibles depuis les dates de montage
-  const availableMonths = Array.from(
+  // Années disponibles (ordre décroissant, année courante en premier).
+  const availableYears = Array.from(
     new Set(
       projects
-        .map((p) => p.dateMontage?.slice(0, 7))
+        .map((p) => p.dateMontage?.slice(0, 4))
         .filter(Boolean)
     )
   ).sort().reverse() as string[];
 
-  // Filtrer les projets par mois
-  const filteredProjects = selectedMonth === "all"
-    ? projects
-    : projects.filter((p) => p.dateMontage?.startsWith(selectedMonth));
+  // Liste des 12 mois de l'année filtrée (pour le picker mois).
+  const monthsForYear = yearFilter !== "all"
+    ? Array.from({ length: 12 }, (_, i) => `${yearFilter}-${String(i + 1).padStart(2, "0")}`)
+    : [];
+
+  // Projets filtrés par année + plage de mois (ou mois seul).
+  const filteredProjects = projects.filter((p) => {
+    const month = p.dateMontage?.slice(0, 7);
+    // Filtre année
+    if (yearFilter !== "all" && !p.dateMontage?.startsWith(yearFilter)) return false;
+    // Filtre mois (un seul ou plage)
+    if (monthRangeStart) {
+      if (!month) return false;
+      const end = monthRangeEnd || monthRangeStart;
+      if (month < monthRangeStart || month > end) return false;
+    }
+    return true;
+  });
+
+  const MONTH_SHORT = ["Janv.", "Fév.", "Mars", "Avril", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];
 
   const monthLabel = (m: string) => {
     const [y, mo] = m.split("-");
-    const months = ["Janv.", "Fév.", "Mars", "Avril", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];
-    return `${months[parseInt(mo) - 1]} ${y}`;
+    return `${MONTH_SHORT[parseInt(mo) - 1]} ${y}`;
+  };
+
+  // Reset de la plage (utilisé quand on change d'année ou sur "tous les mois").
+  const clearMonthRange = () => {
+    setMonthRangeStart(null);
+    setMonthRangeEnd(null);
+  };
+
+  // Clic sur un mois :
+  //   - 1er clic : sélectionne ce mois (range = ce mois seul)
+  //   - 2e clic sur un autre mois : crée la plage (ordre auto)
+  //   - clic sur le mois déjà sélectionné (range "single") : désélectionne
+  //   - clic avec plage déjà active : reset, recommence à ce mois
+  const handleMonthClick = (month: string) => {
+    const rangeActive = !!(monthRangeStart && monthRangeEnd);
+    if (!monthRangeStart || rangeActive) {
+      setMonthRangeStart(month);
+      setMonthRangeEnd(null);
+      return;
+    }
+    if (month === monthRangeStart) {
+      clearMonthRange();
+      return;
+    }
+    if (month < monthRangeStart) {
+      setMonthRangeEnd(monthRangeStart);
+      setMonthRangeStart(month);
+    } else {
+      setMonthRangeEnd(month);
+    }
   };
 
   // Stats par équipe (valeur exacte du champ Notion)
@@ -257,7 +310,7 @@ export default function AdminPage() {
       {/* Onglets En cours / Terminés */}
       <div className="flex gap-1 mb-4 glass-tabs p-1.5 rounded-2xl max-w-xs">
         <button
-          onClick={() => { setAdminTab("en-cours"); setSelectedMonth("all"); setExpanded(null); }}
+          onClick={() => { setAdminTab("en-cours"); setYearFilter("all"); clearMonthRange(); setExpanded(null); }}
           className={`flex-1 text-sm font-medium py-2 rounded-lg transition-all duration-200 ${
             adminTab === "en-cours"
               ? "glass-tab-active text-[#1e3a5f]"
@@ -267,7 +320,7 @@ export default function AdminPage() {
           En cours ({projectsEnCours.length})
         </button>
         <button
-          onClick={() => { setAdminTab("termines"); setSelectedMonth("all"); setExpanded(null); }}
+          onClick={() => { setAdminTab("termines"); setYearFilter("all"); clearMonthRange(); setExpanded(null); }}
           className={`flex-1 text-sm font-medium py-2 rounded-lg transition-all duration-200 ${
             adminTab === "termines"
               ? "glass-tab-active text-[#1e3a5f]"
@@ -278,31 +331,94 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* Filtre par mois */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
-        <button
-          onClick={() => setSelectedMonth("all")}
-          className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
-            selectedMonth === "all"
-              ? "glass-btn text-white"
-              : "glass-card text-gray-600 hover:text-gray-800"
-          }`}
-        >
-          Tous les mois
-        </button>
-        {availableMonths.map((m) => (
+      {/* Filtre temps — 2 niveaux (année + mois/plage) */}
+      <div className="space-y-2 mb-4">
+        {/* Ligne 1 : année */}
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide items-center">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">Année</span>
           <button
-            key={m}
-            onClick={() => setSelectedMonth(selectedMonth === m ? "all" : m)}
+            onClick={() => { setYearFilter("all"); clearMonthRange(); }}
             className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
-              selectedMonth === m
+              yearFilter === "all"
                 ? "glass-btn text-white"
-                : "glass-card text-gray-600 hover:text-gray-800"
+                : "glass-card text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
             }`}
           >
-            {monthLabel(m)}
+            Toutes
           </button>
-        ))}
+          {availableYears.map((y) => (
+            <button
+              key={y}
+              onClick={() => { setYearFilter(yearFilter === y ? "all" : y); clearMonthRange(); }}
+              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                yearFilter === y
+                  ? "glass-btn text-white"
+                  : "glass-card text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+              }`}
+            >
+              {y}
+            </button>
+          ))}
+        </div>
+
+        {/* Ligne 2 : mois (visible uniquement quand une année est sélectionnée) */}
+        {yearFilter !== "all" && (
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide items-center">
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">Mois</span>
+            <button
+              onClick={clearMonthRange}
+              className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                !monthRangeStart
+                  ? "glass-btn text-white"
+                  : "glass-card text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+              }`}
+            >
+              Toute l'année
+            </button>
+            {monthsForYear.map((m, idx) => {
+              const isBoundary = m === monthRangeStart || m === monthRangeEnd;
+              const inRange = monthRangeStart && monthRangeEnd && m >= monthRangeStart && m <= monthRangeEnd;
+              return (
+                <button
+                  key={m}
+                  onClick={() => handleMonthClick(m)}
+                  className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                    isBoundary
+                      ? "glass-btn text-white"
+                      : inRange
+                        ? "bg-blue-500/25 dark:bg-blue-400/20 text-blue-700 dark:text-blue-200 ring-1 ring-inset ring-blue-400/40"
+                        : "glass-card text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                  }`}
+                >
+                  {MONTH_SHORT[idx]}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Indicateur de plage + bouton d'effacement */}
+        {monthRangeStart && (
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 pl-1">
+            <span>
+              {monthRangeEnd && monthRangeEnd !== monthRangeStart
+                ? <>Du <strong className="text-gray-700 dark:text-gray-100">{monthLabel(monthRangeStart)}</strong> au <strong className="text-gray-700 dark:text-gray-100">{monthLabel(monthRangeEnd)}</strong></>
+                : <>Mois : <strong className="text-gray-700 dark:text-gray-100">{monthLabel(monthRangeStart)}</strong></>
+              }
+            </span>
+            <button
+              onClick={clearMonthRange}
+              className="text-blue-600 dark:text-blue-300 hover:underline"
+            >
+              effacer
+            </button>
+            {!monthRangeEnd && (
+              <span className="text-[10px] text-gray-400 dark:text-gray-500 italic">
+                (touchez un 2ᵉ mois pour créer une plage)
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* KPIs */}
