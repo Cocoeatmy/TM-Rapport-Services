@@ -32,13 +32,21 @@ export function UserMenu() {
     }
   }, []);
 
-  useEffect(() => {
-    fetch("/api/auth")
+  const loadUser = () => {
+    return fetch("/api/auth", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
-        if (data.user) setUser(data.user);
+        if (data && data.user) {
+          setUser(data.user);
+          return true;
+        }
+        return false;
       })
-      .catch(() => {});
+      .catch(() => false);
+  };
+
+  useEffect(() => {
+    loadUser();
   }, []);
 
   const handleLogout = async () => {
@@ -47,11 +55,26 @@ export function UserMenu() {
     router.refresh();
   };
 
+  // État chargement / session invalide : on garde un VRAI bouton cliquable.
+  // Un tap retente l'auth ; si l'échec persiste, on redirige vers /login
+  // (sinon l'icône « fantôme » donnait l'impression que le bouton était mort).
   if (!user) {
+    const handleFallbackClick = async () => {
+      const ok = await loadUser();
+      if (!ok) {
+        router.push("/login");
+        router.refresh();
+      }
+    };
     return (
-      <div className="w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center">
-        <User className="w-4 h-4 text-white/50" />
-      </div>
+      <button
+        type="button"
+        onClick={handleFallbackClick}
+        aria-label="Se reconnecter"
+        className="w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center hover:bg-white/25 transition-colors"
+      >
+        <User className="w-4 h-4 text-white/60" />
+      </button>
     );
   }
 
