@@ -958,8 +958,167 @@ html[data-ui="ocean"].dark .dark\:border-slate-800 {
   border-color: rgba(56, 189, 248, 0.18) !important;
 }
 
-/* Fonds colorés du dark mode (success, warning, etc.) restent intacts —
-   on ne touche que les gris / slate qui servent de surfaces neutres. */
+/* ---------- Pastels Tailwind en Ocean + dark ----------
+   La plupart des badges de statut et boutons de filtre utilisent des
+   utilitaires Tailwind `bg-*-50` / `bg-*-100` + `text-*-800` + `border-*-200`
+   qui restent en mode clair (pastels vifs). Sur le fond Ocean sombre ces
+   pastels "jurent" visuellement. On les repeint ici en versions foncées
+   saturées : même hue sémantique (rouge = danger, vert = ok, etc.) mais
+   fond teinté à faible opacité + texte clair pour ressortir sans agresser.
+   !important pour battre la spécificité Tailwind.
+   ⚠ Les variantes "dark:bg-*" (quand elles existent sur le JSX) ne sont
+   PAS overridées ici — elles auraient déjà un look sombre correct. */
+
+/* --- Jaune / ambre / orange (warnings, en attente, livraison partielle) --- */
+html[data-ui="ocean"].dark .bg-yellow-50,
+html[data-ui="ocean"].dark .bg-yellow-100,
+html[data-ui="ocean"].dark .bg-amber-50,
+html[data-ui="ocean"].dark .bg-amber-100 {
+  background-color: rgba(234, 179, 8, 0.18) !important;
+}
+html[data-ui="ocean"].dark .text-yellow-700,
+html[data-ui="ocean"].dark .text-yellow-800,
+html[data-ui="ocean"].dark .text-amber-700,
+html[data-ui="ocean"].dark .text-amber-800 {
+  color: #fde68a !important;
+}
+html[data-ui="ocean"].dark .border-yellow-200,
+html[data-ui="ocean"].dark .border-amber-200 {
+  border-color: rgba(234, 179, 8, 0.35) !important;
+}
+
+html[data-ui="ocean"].dark .bg-orange-50,
+html[data-ui="ocean"].dark .bg-orange-100 {
+  background-color: rgba(249, 115, 22, 0.18) !important;
+}
+html[data-ui="ocean"].dark .text-orange-700,
+html[data-ui="ocean"].dark .text-orange-800 {
+  color: #fed7aa !important;
+}
+html[data-ui="ocean"].dark .border-orange-200 {
+  border-color: rgba(249, 115, 22, 0.35) !important;
+}
+
+/* --- Rouge (soucis, danger, conflits) --- */
+html[data-ui="ocean"].dark .bg-red-50,
+html[data-ui="ocean"].dark .bg-red-100 {
+  background-color: rgba(239, 68, 68, 0.20) !important;
+}
+html[data-ui="ocean"].dark .text-red-600,
+html[data-ui="ocean"].dark .text-red-700,
+html[data-ui="ocean"].dark .text-red-800 {
+  color: #fecaca !important;
+}
+html[data-ui="ocean"].dark .border-red-200 {
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}
+
+/* --- Vert (OK, RDV fixé, terminé) --- */
+html[data-ui="ocean"].dark .bg-green-50,
+html[data-ui="ocean"].dark .bg-green-100 {
+  background-color: rgba(34, 197, 94, 0.20) !important;
+}
+html[data-ui="ocean"].dark .text-green-600,
+html[data-ui="ocean"].dark .text-green-700,
+html[data-ui="ocean"].dark .text-green-800 {
+  color: #bbf7d0 !important;
+}
+html[data-ui="ocean"].dark .border-green-200 {
+  border-color: rgba(34, 197, 94, 0.35) !important;
+}
+
+/* --- Bleu (info, à faire) --- */
+html[data-ui="ocean"].dark .bg-blue-50,
+html[data-ui="ocean"].dark .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.22) !important;
+}
+html[data-ui="ocean"].dark .text-blue-600,
+html[data-ui="ocean"].dark .text-blue-700,
+html[data-ui="ocean"].dark .text-blue-800 {
+  color: #bfdbfe !important;
+}
+html[data-ui="ocean"].dark .border-blue-200 {
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+
+/* --- Cyan (OFR, mesures) --- */
+html[data-ui="ocean"].dark .bg-cyan-50,
+html[data-ui="ocean"].dark .bg-cyan-100 {
+  background-color: rgba(6, 182, 212, 0.22) !important;
+}
+html[data-ui="ocean"].dark .text-cyan-700,
+html[data-ui="ocean"].dark .text-cyan-800 {
+  color: #a5f3fc !important;
+}
+html[data-ui="ocean"].dark .border-cyan-200 {
+  border-color: rgba(6, 182, 212, 0.35) !important;
+}
+
+/* --- Violet / purple (attendre news) --- */
+html[data-ui="ocean"].dark .bg-purple-50,
+html[data-ui="ocean"].dark .bg-purple-100,
+html[data-ui="ocean"].dark .bg-violet-50,
+html[data-ui="ocean"].dark .bg-violet-100 {
+  background-color: rgba(168, 85, 247, 0.20) !important;
+}
+html[data-ui="ocean"].dark .text-purple-700,
+html[data-ui="ocean"].dark .text-purple-800,
+html[data-ui="ocean"].dark .text-violet-700,
+html[data-ui="ocean"].dark .text-violet-800 {
+  color: #e9d5ff !important;
+}
+html[data-ui="ocean"].dark .border-purple-200,
+html[data-ui="ocean"].dark .border-violet-200 {
+  border-color: rgba(168, 85, 247, 0.35) !important;
+}
+
+/* --- Gris / neutre (Tous les statuts, Cabines en CMD) --- */
+html[data-ui="ocean"].dark .bg-gray-100 {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+}
+html[data-ui="ocean"].dark .text-gray-600,
+html[data-ui="ocean"].dark .text-gray-700 {
+  color: #cbd5e1 !important;
+}
+
+/* ---------- Boutons collaborateurs (inline style) ----------
+   Dans le panneau de filtres latéral, les boutons COLLABORATEURS reçoivent
+   leur couleur via `style={{ backgroundColor: ..., color: ... }}` (palette
+   pastel définie dans lib/collaborators.ts). Sur Ocean dark ces pastels
+   sautent aux yeux. On les unifie en bleu marine Ocean : le puck coloré
+   (dot) à gauche conserve l'identité de chaque monteur, le fond du
+   bouton reste sobre et cohérent avec le thème.
+   !important nécessaire car on surcharge du inline style. */
+html[data-ui="ocean"].dark .glass-panel button.flex.items-center.gap-2 {
+  background-color: rgba(20, 45, 90, 0.55) !important;
+  color: #e0f2fe !important;
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+
+html[data-ui="ocean"].dark .glass-panel button.flex.items-center.gap-2:hover {
+  background-color: rgba(30, 60, 110, 0.75) !important;
+  border-color: rgba(56, 189, 248, 0.30);
+}
+
+/* Bouton actif (collaborateur sélectionné) : inline style #1e3a5f + white.
+   On re-teinte en gradient Ocean pour qu'il ressorte vraiment. */
+html[data-ui="ocean"].dark .glass-panel button.flex.items-center.gap-2[style*="rgb(30, 58, 95)"],
+html[data-ui="ocean"].dark .glass-panel button.flex.items-center.gap-2[style*="#1e3a5f"] {
+  background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%) !important;
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  border-color: rgba(56, 189, 248, 0.40) !important;
+  box-shadow: 0 4px 12px -2px rgba(14, 165, 233, 0.40);
+}
+
+/* ---------- Boutons de statuts actifs (filtre sidebar) ---------- */
+html[data-ui="ocean"].dark .glass-panel .bg-\[\#1e3a5f\] {
+  background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%) !important;
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -2px rgba(14, 165, 233, 0.40);
+}
 
 /* ---------- Chiffres KPI : texte en gradient bleu + azure ---------- */
 html[data-ui="ocean"] .glass-card p.text-lg,

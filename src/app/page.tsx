@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
-import { formatDateFR, formatDateLong, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST } from "@/lib/constants";
+import { formatDateFR, formatDateLong, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST, getISOWeek } from "@/lib/constants";
 import { getFavorites } from "@/lib/favorites";
 import { fetchWithRetry } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
@@ -2277,7 +2277,11 @@ function HomePage() {
           >
             <div className="text-left">
               <span className="text-xs font-semibold text-[#1e3a5f] dark:text-white">Semaine</span>
-              <p className="text-[10px] text-gray-400">{new Date().toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}</p>
+              <p className="text-[10px] text-gray-400">
+                {new Date().toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
+                {" · "}
+                <span className="font-semibold">S.{getISOWeek()}</span>
+              </p>
             </div>
             <Calendar className="w-5 h-5 text-green-500" />
           </button>
