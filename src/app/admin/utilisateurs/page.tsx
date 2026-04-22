@@ -217,11 +217,11 @@ export default function UtilisateursPage() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <Users className="w-5 h-5 text-blue-600" />
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             Gestion des utilisateurs
           </h1>
-          <p className="text-sm text-gray-500">{users.length} utilisateurs enregistrés</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{users.length} utilisateurs enregistrés</p>
         </div>
       </div>
 
@@ -249,21 +249,21 @@ export default function UtilisateursPage() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-gray-900">{u.name}</p>
+                      <p className="font-semibold text-gray-900 dark:text-gray-100">{u.name}</p>
                       {/* Toggle Admin */}
                       <button
                         onClick={() => handleToggleAdmin(u.email, u.role)}
                         className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors ${
                           u.role === "admin"
-                            ? "text-blue-700 bg-blue-100 hover:bg-blue-200"
-                            : "text-gray-500 bg-gray-100 hover:bg-gray-200"
+                            ? "text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60"
+                            : "text-gray-500 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600"
                         }`}
                       >
                         <Shield className="w-3 h-3" />
                         {u.role === "admin" ? "Admin" : "Monteur"}
                       </button>
                     </div>
-                    <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
                       <Mail className="w-3 h-3" />
                       {u.email}
                     </p>
@@ -308,14 +308,14 @@ export default function UtilisateursPage() {
                       <div className="flex items-center gap-3 mt-2">
                         <button
                           onClick={() => { setEditingEmail(u.email); setNewPassword(""); }}
-                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                          className="text-xs text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 flex items-center gap-1"
                         >
                           <Lock className="w-3 h-3" />
                           Mot de passe
                         </button>
                         <button
                           onClick={() => setExpandedUser(isExpanded ? null : u.email)}
-                          className="text-xs text-gray-600 hover:text-gray-800 flex items-center gap-1"
+                          className="text-xs text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 flex items-center gap-1"
                         >
                           <Box className="w-3 h-3" />
                           Statistiques
@@ -354,17 +354,17 @@ export default function UtilisateursPage() {
                     {/* Par série */}
                     {stats.seriesStats.length > 0 && (
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 mb-2">Cabines par série</p>
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Cabines par série</p>
                         <div className="space-y-1.5">
                           {stats.seriesStats.map(([serie, count]) => {
                             const max = Math.max(...stats.seriesStats.map(([, c]) => c), 1);
                             return (
                               <div key={serie} className="space-y-0.5">
                                 <div className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-700">{serie}</span>
-                                  <span className="font-semibold">{count}</span>
+                                  <span className="text-gray-700 dark:text-gray-200">{serie}</span>
+                                  <span className="font-semibold dark:text-gray-100">{count}</span>
                                 </div>
-                                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                   <div
                                     className="h-full rounded-full transition-all duration-500"
                                     style={{
@@ -451,7 +451,7 @@ export default function UtilisateursPage() {
         ) : (
           <button
             onClick={() => setShowAdd(true)}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-sm text-gray-500 dark:text-gray-300 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 dark:active:bg-blue-900/30 transition-colors"
           >
             <UserPlus className="w-4 h-4" />
             Ajouter un utilisateur
