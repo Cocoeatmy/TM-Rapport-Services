@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette } from "lucide-react";
 import { getCollaboratorInitials } from "@/lib/collaborators";
 
 interface UserData {
@@ -11,12 +11,14 @@ interface UserData {
   role: "admin" | "monteur";
 }
 
+type UiMode = "classic" | "aurora" | "ocean";
+
 export function UserMenu() {
   const router = useRouter();
   const [user, setUser] = useState<UserData | null>(null);
   const [open, setOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const [auroraMode, setAuroraMode] = useState(false);
+  const [uiMode, setUiMode] = useState<UiMode>("classic");
 
   const toggleDark = () => {
     const newMode = !darkMode;
@@ -25,19 +27,17 @@ export function UserMenu() {
     localStorage.setItem("tm-dark-mode", newMode ? "true" : "false");
   };
 
-  // Bascule entre le thème "classique" (Liquid Glass actuel) et "Aurora" :
-  // seul l'attribut data-ui change sur <html>, toutes les règles sont dans
-  // globals.css sous `html[data-ui="aurora"]`. Aucun JSX n'est modifié.
-  const toggleAurora = () => {
-    const next = !auroraMode;
-    setAuroraMode(next);
-    if (next) {
-      document.documentElement.setAttribute("data-ui", "aurora");
-      localStorage.setItem("tm-ui-mode", "aurora");
-    } else {
+  // Sélectionne l'un des 3 thèmes. La classe data-ui sur <html> est lue par
+  // globals.css (règles `html[data-ui="..."]`). Aucun JSX n'est modifié —
+  // toute la refonte esthétique passe par ce seul attribut.
+  const selectUiMode = (mode: UiMode) => {
+    setUiMode(mode);
+    if (mode === "classic") {
       document.documentElement.removeAttribute("data-ui");
-      localStorage.setItem("tm-ui-mode", "classic");
+    } else {
+      document.documentElement.setAttribute("data-ui", mode);
     }
+    localStorage.setItem("tm-ui-mode", mode);
   };
 
   useEffect(() => {
@@ -49,8 +49,8 @@ export function UserMenu() {
     // Le script pré-hydration (dans layout) a déjà posé l'attribut si besoin.
     // On synchronise juste le state React avec ce qui est déjà sur le DOM.
     const savedUi = localStorage.getItem("tm-ui-mode");
-    if (savedUi === "aurora") {
-      setAuroraMode(true);
+    if (savedUi === "aurora" || savedUi === "ocean") {
+      setUiMode(savedUi);
     }
   }, []);
 
@@ -166,18 +166,59 @@ export function UserMenu() {
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               {darkMode ? "Mode clair" : "Mode sombre"}
             </button>
+            {/* Sélecteur de thème : 3 options exclusives.
+                Même état = état actif (coché + surlignage gradient). */}
+            <div className="px-3 pt-2 pb-1">
+              <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Palette className="w-3 h-3" />
+                Thème
+              </p>
+            </div>
             <button
-              onClick={toggleAurora}
-              className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              onClick={() => selectUiMode("classic")}
+              className={`w-full text-left text-sm px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                uiMode === "classic"
+                  ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium"
+                  : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              }`}
             >
-              <Sparkles className={`w-4 h-4 ${auroraMode ? "text-violet-500" : ""}`} />
-              <span className="flex-1">{auroraMode ? "Thème classique" : "Thème Aurora"}</span>
-              {auroraMode && (
+              <span className="w-4 h-4 rounded-full bg-gradient-to-br from-slate-200 to-slate-400 border border-slate-300" />
+              <span className="flex-1">Classique</span>
+              {uiMode === "classic" && <span className="text-xs text-gray-500">●</span>}
+            </button>
+            <button
+              onClick={() => selectUiMode("aurora")}
+              className={`w-full text-left text-sm px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                uiMode === "aurora"
+                  ? "bg-gradient-to-r from-indigo-50 to-fuchsia-50 dark:from-indigo-900/30 dark:to-fuchsia-900/30 text-gray-900 dark:text-gray-100 font-medium"
+                  : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              }`}
+            >
+              <Sparkles className={`w-4 h-4 ${uiMode === "aurora" ? "text-violet-500" : ""}`} />
+              <span className="flex-1">Aurora</span>
+              {uiMode === "aurora" && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white">
                   ON
                 </span>
               )}
             </button>
+            <button
+              onClick={() => selectUiMode("ocean")}
+              className={`w-full text-left text-sm px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                uiMode === "ocean"
+                  ? "bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 text-gray-900 dark:text-gray-100 font-medium"
+                  : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              }`}
+            >
+              <Waves className={`w-4 h-4 ${uiMode === "ocean" ? "text-cyan-500" : ""}`} />
+              <span className="flex-1">Océan</span>
+              {uiMode === "ocean" && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-blue-500 to-cyan-400 text-white">
+                  ON
+                </span>
+              )}
+            </button>
+            <div className="h-px bg-gray-100 dark:bg-gray-700 my-1" />
             <button
               onClick={handleLogout}
               className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-red-50 flex items-center gap-2 text-red-600"

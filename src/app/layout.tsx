@@ -54,10 +54,10 @@ export default function RootLayout({
         {/* Précharge le logo (sera repeint dans le header sans attendre le CSS). */}
         <link rel="preload" as="image" href="/icons/logo-app.png?v=5" />
         {/* Applique le thème UI avant l'hydration React pour éviter un flash
-            de style au chargement. Lit `tm-ui-mode` (classic|aurora). */}
+            de style au chargement. Lit `tm-ui-mode` (classic|aurora|ocean). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='aurora'){document.documentElement.setAttribute('data-ui','aurora');}}catch(e){}})();`,
+            __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='aurora'||m==='ocean'){document.documentElement.setAttribute('data-ui',m);}}catch(e){}})();`,
           }}
         />
       </head>
