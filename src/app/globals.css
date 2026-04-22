@@ -590,13 +590,18 @@ html[data-ui="ocean"] .lg-bg {
   position: relative;
 }
 
+/* Ocean + dark : fond bleu marine profond (pas noir) avec un halo central
+   en plus des 4 coins, pour que la zone de lecture au milieu de l'écran
+   ne soit jamais dans une zone "vide" fatigante quand on scrolle un long
+   projet. Les tons restent dans la famille bleu/cyan utilisée partout. */
 html[data-ui="ocean"].dark .lg-bg {
   background:
-    radial-gradient(ellipse 80% 55% at 10% 10%, rgba(14, 165, 233, 0.50) 0%, transparent 55%),
-    radial-gradient(ellipse 70% 50% at 90% 15%, rgba(37, 99, 235, 0.55) 0%, transparent 60%),
-    radial-gradient(ellipse 90% 65% at 85% 100%, rgba(6, 182, 212, 0.40) 0%, transparent 60%),
-    radial-gradient(ellipse 90% 60% at 15% 90%, rgba(29, 78, 216, 0.60) 0%, transparent 60%),
-    linear-gradient(135deg, #020617 0%, #0a1028 30%, #050d20 60%, #020617 100%);
+    radial-gradient(ellipse 80% 55% at 10% 10%, rgba(14, 165, 233, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 15%, rgba(37, 99, 235, 0.50) 0%, transparent 60%),
+    radial-gradient(ellipse 110% 85% at 50% 50%, rgba(30, 64, 175, 0.30) 0%, transparent 58%),
+    radial-gradient(ellipse 90% 65% at 85% 100%, rgba(6, 182, 212, 0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 60% at 15% 90%, rgba(29, 78, 216, 0.55) 0%, transparent 60%),
+    linear-gradient(135deg, #0a1a3e 0%, #15295a 30%, #0f2148 60%, #0a1a3e 100%);
   background-attachment: fixed;
   animation: oceanFlow 24s ease-in-out infinite;
 }
