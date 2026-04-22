@@ -1157,9 +1157,13 @@ function HomePage() {
               placeholder="Rechercher dans tous les projets..."
               className="pl-9 h-11 rounded-xl glass-input"
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                if (e.target.value.trim()) setMode("cmd");
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                // Ne bascule vers la vue liste qu'à Entrée : éviter de
+                // démonter l'input à la 1ère lettre (bug perte de focus).
+                if (e.key === "Enter" && e.currentTarget.value.trim()) {
+                  setMode("cmd");
+                }
               }}
             />
           </div>
