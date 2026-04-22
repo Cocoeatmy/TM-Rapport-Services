@@ -25,9 +25,9 @@ export function WidgetSettings({ config, onChange }: WidgetSettingsProps) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95"
+        className="shrink-0 whitespace-nowrap flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95"
       >
-        <Settings className="w-4 h-4 text-gray-600" />
+        <Settings className="w-4 h-4 shrink-0 text-gray-600 dark:text-gray-300" />
         Widgets
       </button>
     );

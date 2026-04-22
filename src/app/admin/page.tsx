@@ -251,9 +251,7 @@ export default function AdminPage() {
           <Package className="w-4 h-4 text-amber-600" />
           Stocks
         </button>
-        <div className="shrink-0">
-          <WidgetSettings config={widgets} onChange={setWidgets} />
-        </div>
+        <WidgetSettings config={widgets} onChange={setWidgets} />
       </div>
 
       {/* Onglets En cours / Terminés */}
