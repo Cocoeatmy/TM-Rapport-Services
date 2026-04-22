@@ -681,23 +681,6 @@ html[data-ui="ocean"] .glass-card {
   isolation: isolate;
 }
 
-/* Shimmer sweep — sur hover un rayon blanc traverse la carte. */
-html[data-ui="ocean"] .glass-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    115deg,
-    transparent 35%,
-    rgba(255, 255, 255, 0.4) 50%,
-    transparent 65%
-  );
-  transform: translateX(-120%);
-  transition: transform 0.9s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 1;
-}
-
 html[data-ui="ocean"] .glass-card:hover {
   transform: translateY(-3px);
   border-color: rgba(59, 130, 246, 0.22);
@@ -707,10 +690,6 @@ html[data-ui="ocean"] .glass-card:hover {
     0 22px 48px -18px rgba(37, 99, 235, 0.40),
     0 8px 16px -6px rgba(14, 165, 233, 0.25),
     0 0 40px -10px rgba(56, 189, 248, 0.30);
-}
-
-html[data-ui="ocean"] .glass-card:hover::after {
-  transform: translateX(120%);
 }
 
 html[data-ui="ocean"] .glass-card:active {
@@ -871,31 +850,12 @@ html[data-ui="ocean"] .glass-btn {
   overflow: hidden;
 }
 
-html[data-ui="ocean"] .glass-btn::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    115deg,
-    transparent 35%,
-    rgba(255, 255, 255, 0.35) 50%,
-    transparent 65%
-  );
-  transform: translateX(-120%);
-  transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
-}
-
 html[data-ui="ocean"] .glass-btn:hover {
   transform: translateY(-2px);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.40) inset,
     0 12px 32px -4px rgba(14, 165, 233, 0.75),
     0 0 40px -6px rgba(56, 189, 248, 0.70);
-}
-
-html[data-ui="ocean"] .glass-btn:hover::before {
-  transform: translateX(120%);
 }
 
 html[data-ui="ocean"] .glass-btn:active {
@@ -1227,8 +1187,6 @@ html[data-ui="ocean"] #main-header a.flex:hover {
   html[data-ui="ocean"] .glass-header::before { animation: none; }
   html[data-ui="ocean"] main > *,
   html[data-ui="ocean"] #main-header img[alt="TM"] { animation: none; }
-  html[data-ui="ocean"] .glass-card::after,
-  html[data-ui="ocean"] .glass-btn::before { display: none; }
   html[data-ui="ocean"] .glass-card,
   html[data-ui="ocean"] .glass-btn,
   html[data-ui="ocean"] #main-header button,
