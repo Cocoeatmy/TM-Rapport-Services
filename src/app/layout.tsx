@@ -53,6 +53,13 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://res.cloudinary.com" />
         {/* Précharge le logo (sera repeint dans le header sans attendre le CSS). */}
         <link rel="preload" as="image" href="/icons/logo-app.png?v=5" />
+        {/* Applique le thème UI avant l'hydration React pour éviter un flash
+            de style au chargement. Lit `tm-ui-mode` (classic|aurora). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='aurora'){document.documentElement.setAttribute('data-ui','aurora');}}catch(e){}})();`,
+          }}
+        />
       </head>
       <body className="min-h-full flex flex-col lg-bg">
         <header id="main-header" className="sticky top-0 z-50 glass-header text-white">

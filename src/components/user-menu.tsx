@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles } from "lucide-react";
 import { getCollaboratorInitials } from "@/lib/collaborators";
 
 interface UserData {
@@ -16,6 +16,7 @@ export function UserMenu() {
   const [user, setUser] = useState<UserData | null>(null);
   const [open, setOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [auroraMode, setAuroraMode] = useState(false);
 
   const toggleDark = () => {
     const newMode = !darkMode;
@@ -24,11 +25,32 @@ export function UserMenu() {
     localStorage.setItem("tm-dark-mode", newMode ? "true" : "false");
   };
 
+  // Bascule entre le thème "classique" (Liquid Glass actuel) et "Aurora" :
+  // seul l'attribut data-ui change sur <html>, toutes les règles sont dans
+  // globals.css sous `html[data-ui="aurora"]`. Aucun JSX n'est modifié.
+  const toggleAurora = () => {
+    const next = !auroraMode;
+    setAuroraMode(next);
+    if (next) {
+      document.documentElement.setAttribute("data-ui", "aurora");
+      localStorage.setItem("tm-ui-mode", "aurora");
+    } else {
+      document.documentElement.removeAttribute("data-ui");
+      localStorage.setItem("tm-ui-mode", "classic");
+    }
+  };
+
   useEffect(() => {
-    const saved = localStorage.getItem("tm-dark-mode");
-    if (saved === "true") {
+    const savedDark = localStorage.getItem("tm-dark-mode");
+    if (savedDark === "true") {
       setDarkMode(true);
       document.documentElement.classList.add("dark");
+    }
+    // Le script pré-hydration (dans layout) a déjà posé l'attribut si besoin.
+    // On synchronise juste le state React avec ce qui est déjà sur le DOM.
+    const savedUi = localStorage.getItem("tm-ui-mode");
+    if (savedUi === "aurora") {
+      setAuroraMode(true);
     }
   }, []);
 
@@ -143,6 +165,18 @@ export function UserMenu() {
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               {darkMode ? "Mode clair" : "Mode sombre"}
+            </button>
+            <button
+              onClick={toggleAurora}
+              className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+            >
+              <Sparkles className={`w-4 h-4 ${auroraMode ? "text-violet-500" : ""}`} />
+              <span className="flex-1">{auroraMode ? "Thème classique" : "Thème Aurora"}</span>
+              {auroraMode && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white">
+                  ON
+                </span>
+              )}
             </button>
             <button
               onClick={handleLogout}

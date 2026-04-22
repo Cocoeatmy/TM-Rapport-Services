@@ -310,3 +310,260 @@
 /* Scrollbar hide */
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ============================================================ */
+/*                        AURORA THEME                           */
+/* ============================================================ */
+/* Activé par html[data-ui="aurora"]. Réécrit les classes        */
+/* glass-* du Liquid Glass existant sans toucher au JSX.         */
+/* Pensé pour apporter un look "spatial / iOS 18 / Vision Pro" : */
+/*   - fond aurore multi-hues en animation lente                 */
+/*   - cartes à rayon plus généreux et ombres teintées indigo    */
+/*   - header violet profond avec halo supérieur                 */
+/*   - boutons et status en gradient vif                         */
+/*   - typographie légèrement plus serrée sur les chiffres clés  */
+/*                                                               */
+/* Supporte light ET dark. La détection dark reste `.dark` sur   */
+/* la même racine <html>, donc dark+aurora = palette "midnight". */
+
+/* ---------- Background : aurore douce (light) ---------- */
+html[data-ui="aurora"] .lg-bg {
+  background:
+    radial-gradient(ellipse 90% 60% at 15% 0%,  rgba(186, 130, 255, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 55% at 85% 15%, rgba(255, 155, 200, 0.28) 0%, transparent 60%),
+    radial-gradient(ellipse 85% 70% at 50% 100%, rgba(110, 160, 255, 0.30) 0%, transparent 60%),
+    linear-gradient(135deg, #f6f2ff 0%, #eef2ff 30%, #f0f4ff 60%, #fff0f6 100%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 200% 200%;
+  animation: auroraFlow 28s ease-in-out infinite;
+}
+
+html[data-ui="aurora"].dark .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 55% at 20% 0%,  rgba(130, 80, 220, 0.50) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 80% 10%, rgba(220, 80, 170, 0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(50, 100, 220, 0.45) 0%, transparent 60%),
+    linear-gradient(135deg, #0a0820 0%, #120a2e 30%, #0d0a26 60%, #180a20 100%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 200% 200%;
+  animation: auroraFlow 28s ease-in-out infinite;
+}
+
+@keyframes auroraFlow {
+  0%, 100% { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 50%; }
+  50%      { background-position: 0% 0%, 0% 0%, 0% 0%, 100% 50%; }
+}
+
+/* ---------- Cartes ---------- */
+html[data-ui="aurora"] .glass-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.72) 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 10px 30px -12px rgba(99, 73, 220, 0.18),
+    0 4px 12px -6px rgba(0, 0, 0, 0.06);
+  transition:
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.25s ease;
+}
+
+html[data-ui="aurora"] .glass-card:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.82) 100%);
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 18px 40px -14px rgba(99, 73, 220, 0.30),
+    0 6px 16px -6px rgba(236, 72, 153, 0.12);
+}
+
+html[data-ui="aurora"] .glass-card:active {
+  transform: translateY(0) scale(0.985);
+  transition-duration: 0.12s;
+}
+
+html[data-ui="aurora"].dark .glass-card {
+  background:
+    linear-gradient(180deg, rgba(40, 28, 80, 0.55) 0%, rgba(28, 18, 60, 0.45) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 14px 36px -16px rgba(130, 80, 220, 0.55),
+    0 4px 14px -6px rgba(0, 0, 0, 0.5);
+}
+
+html[data-ui="aurora"].dark .glass-card:hover {
+  background:
+    linear-gradient(180deg, rgba(55, 38, 105, 0.70) 0%, rgba(40, 28, 80, 0.60) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.1) inset,
+    0 22px 50px -18px rgba(160, 100, 255, 0.65),
+    0 6px 18px -6px rgba(236, 72, 153, 0.25);
+}
+
+/* ---------- Header ---------- */
+html[data-ui="aurora"] .glass-header {
+  background:
+    linear-gradient(180deg, rgba(45, 20, 105, 0.85) 0%, rgba(30, 30, 120, 0.82) 100%);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    0 8px 32px rgba(45, 20, 105, 0.35);
+}
+
+html[data-ui="aurora"].dark .glass-header {
+  background:
+    linear-gradient(180deg, rgba(20, 10, 50, 0.92) 0%, rgba(15, 15, 55, 0.88) 100%);
+  border-bottom-color: rgba(255, 255, 255, 0.10);
+}
+
+/* ---------- Tabs ---------- */
+html[data-ui="aurora"] .glass-tabs {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 4px 14px -6px rgba(99, 73, 220, 0.15);
+}
+
+html[data-ui="aurora"] .glass-tab-active {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  color: #ffffff !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 4px 12px -3px rgba(99, 102, 241, 0.5);
+}
+
+html[data-ui="aurora"] .glass-tab-active,
+html[data-ui="aurora"] .glass-tab-active * {
+  color: #ffffff !important;
+}
+
+html[data-ui="aurora"].dark .glass-tabs {
+  background: rgba(30, 20, 60, 0.55);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- Input ---------- */
+html[data-ui="aurora"] .glass-input {
+  background: rgba(255, 255, 255, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  border-radius: 1rem !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 2px 8px -2px rgba(99, 73, 220, 0.08);
+}
+
+html[data-ui="aurora"] .glass-input:focus {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(139, 92, 246, 0.5) !important;
+  box-shadow:
+    0 0 0 4px rgba(139, 92, 246, 0.18),
+    0 2px 12px -2px rgba(139, 92, 246, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+}
+
+html[data-ui="aurora"].dark .glass-input {
+  background: rgba(40, 28, 80, 0.55) !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+  color: #e9e6f5 !important;
+}
+
+/* ---------- Boutons ---------- */
+html[data-ui="aurora"] .glass-btn {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 60%, #ec4899 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 6px 18px -4px rgba(99, 102, 241, 0.45);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html[data-ui="aurora"] .glass-btn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 10px 28px -4px rgba(139, 92, 246, 0.6),
+    0 4px 12px -2px rgba(236, 72, 153, 0.3);
+}
+
+html[data-ui="aurora"] .glass-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ---------- Panel ---------- */
+html[data-ui="aurora"] .glass-panel {
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 10px 30px -12px rgba(99, 73, 220, 0.15);
+}
+
+html[data-ui="aurora"].dark .glass-panel {
+  background: rgba(30, 20, 60, 0.50);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- Status badge ---------- */
+html[data-ui="aurora"] .glass-status {
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0.75rem;
+  box-shadow:
+    0 1px 2px rgba(255, 255, 255, 0.4) inset,
+    0 2px 6px -2px rgba(99, 73, 220, 0.15);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* ---------- Typographie : chiffres KPI plus élégants ---------- */
+html[data-ui="aurora"] .glass-card p.text-lg,
+html[data-ui="aurora"] .glass-card p.text-2xl {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+/* ---------- Badges lucide/shadcn ---------- */
+html[data-ui="aurora"] [data-slot="badge"] {
+  border-radius: 0.625rem;
+  font-weight: 600;
+}
+
+/* ---------- Liens / cartes cliquables : micro-lift ---------- */
+html[data-ui="aurora"] a.glass-card:hover,
+html[data-ui="aurora"] button.glass-card:hover {
+  transform: translateY(-2px) scale(1.005);
+}
+
+/* ---------- Entrée en scène (opt-in, non agressif) ---------- */
+@keyframes auroraFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+html[data-ui="aurora"] main > * {
+  animation: auroraFadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Respecte la préférence "motion réduit" (accessibilité). */
+@media (prefers-reduced-motion: reduce) {
+  html[data-ui="aurora"] .lg-bg { animation: none; }
+  html[data-ui="aurora"] main > * { animation: none; }
+  html[data-ui="aurora"] .glass-card,
+  html[data-ui="aurora"] .glass-btn { transition: none; }
+}
