@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Camera, X, Loader2, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { thumbnailUrl, previewUrl } from "@/lib/image-url";
 
 interface BeforeAfterPhoto {
   name: string;
@@ -156,8 +157,10 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
             {before.map((photo, i) => (
               <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
                 <img
-                  src={photo.url}
+                  src={thumbnailUrl(photo.url, 400)}
                   alt={`Avant ${i + 1}`}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
                 <button
@@ -193,8 +196,10 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
             {after.map((photo, i) => (
               <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
                 <img
-                  src={photo.url}
+                  src={thumbnailUrl(photo.url, 400)}
                   alt={`Apres ${i + 1}`}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
                 <button
@@ -266,8 +271,10 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
                 <div className="relative aspect-square bg-gray-100 dark:bg-slate-800">
                   {before[i] ? (
                     <img
-                      src={before[i].url}
+                      src={previewUrl(before[i].url, 600)}
                       alt={`Avant ${i + 1}`}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -284,8 +291,10 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
                 <div className="relative aspect-square bg-gray-100 dark:bg-slate-800 border-l border-gray-200 dark:border-gray-700">
                   {after[i] ? (
                     <img
-                      src={after[i].url}
+                      src={previewUrl(after[i].url, 600)}
                       alt={`Apres ${i + 1}`}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                   ) : (

@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { thumbnailUrl } from "@/lib/image-url";
 
 interface PublicProject {
   projet: string;
@@ -277,8 +278,10 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                     className="block rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow"
                   >
                     <img
-                      src={photo.url}
+                      src={thumbnailUrl(photo.url, 400)}
                       alt={photo.name || `Photo ${idx + 1}`}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-32 object-cover"
                     />
                   </a>

@@ -1,18 +1,12 @@
 import { NextResponse } from "next/server";
 import { getProjectsSAV } from "@/lib/notion";
-import { getCached, setCache } from "@/lib/server-cache";
+import { cachedOrFetch } from "@/lib/server-cache";
 
 export const revalidate = 120;
 
 export async function GET() {
   try {
-    const cached = getCached("projects-sav");
-    if (cached) {
-      return NextResponse.json(cached);
-    }
-
-    const projects = await getProjectsSAV();
-    setCache("projects-sav", projects);
+    const projects = await cachedOrFetch("projects-sav", getProjectsSAV);
     return NextResponse.json(projects);
   } catch (error: any) {
     console.error("Error fetching SAV projects:", error);

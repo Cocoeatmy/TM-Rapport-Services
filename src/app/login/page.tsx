@@ -26,6 +26,21 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (res.ok) {
+        // Préchauffe le cache API pendant que Next.js hydrate la home :
+        // ces fetchs partent en parallèle du render, donc quand le composant
+        // dashboard monte, les données sont déjà dans le cache navigateur / SW.
+        const prefetchUrls = [
+          "/api/projects",
+          "/api/projects/mesures",
+          "/api/projects/services",
+          "/api/projects/sav",
+          "/api/projects/all-active",
+        ];
+        prefetchUrls.forEach((url) => {
+          fetch(url, { credentials: "include" }).catch(() => {
+            /* silencieux : le dashboard retentera */
+          });
+        });
         router.push("/");
         router.refresh();
       } else {

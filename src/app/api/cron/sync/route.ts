@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProjects, getProjectsMesures, getProjectsServices, getProjectsSAV, getAllActiveProjects } from "@/lib/notion";
+import { setCache } from "@/lib/server-cache";
 import { setData } from "@/lib/kv-store";
 
 export const dynamic = "force-dynamic";
@@ -17,21 +18,22 @@ export async function GET(request: NextRequest) {
   const results: Record<string, { count: number; ms: number }> = {};
 
   try {
-    // Pre-fetch all data sources to warm up the server cache
+    // Pré-fetch parallèle + injection directe dans le cache serveur (server-cache),
+    // qui est la source de vérité des routes API depuis la bascule SWR.
     const tasks = [
-      { name: "cmd", fn: getProjects },
-      { name: "mesures", fn: getProjectsMesures },
-      { name: "services", fn: getProjectsServices },
-      { name: "sav", fn: getProjectsSAV },
-      { name: "all-active", fn: getAllActiveProjects },
+      { name: "cmd", cacheKey: "projects", fn: getProjects },
+      { name: "mesures", cacheKey: "projects-mesures", fn: getProjectsMesures },
+      { name: "services", cacheKey: "projects-services", fn: getProjectsServices },
+      { name: "sav", cacheKey: "projects-sav", fn: getProjectsSAV },
+      { name: "all-active", cacheKey: "projects-all-active", fn: getAllActiveProjects },
     ];
 
-    // Run all fetches in parallel
     await Promise.all(
       tasks.map(async (task) => {
         const t0 = Date.now();
         try {
           const data = await task.fn();
+          setCache(task.cacheKey, data);
           results[task.name] = { count: data.length, ms: Date.now() - t0 };
         } catch (err: any) {
           results[task.name] = { count: -1, ms: Date.now() - t0 };

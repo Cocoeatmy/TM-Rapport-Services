@@ -1,18 +1,12 @@
 import { NextResponse } from "next/server";
 import { getProjectsServices } from "@/lib/notion";
-import { getCached, setCache } from "@/lib/server-cache";
+import { cachedOrFetch } from "@/lib/server-cache";
 
 export const revalidate = 120;
 
 export async function GET() {
   try {
-    const cached = getCached("projects-services");
-    if (cached) {
-      return NextResponse.json(cached);
-    }
-
-    const projects = await getProjectsServices();
-    setCache("projects-services", projects);
+    const projects = await cachedOrFetch("projects-services", getProjectsServices);
     return NextResponse.json(projects);
   } catch (error: any) {
     console.error("Error fetching services projects:", error);

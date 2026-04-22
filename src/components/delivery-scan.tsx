@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Camera, X, Loader2, FileCheck } from "lucide-react";
 import { toast } from "sonner";
+import { thumbnailUrl } from "@/lib/image-url";
 
 interface DeliveryScanProps {
   projectId: string;
@@ -82,8 +83,10 @@ export function DeliveryScan({ projectId, bonLivraison }: DeliveryScanProps) {
         <div className="relative inline-block">
           <a href={url} target="_blank" rel="noopener noreferrer">
             <img
-              src={url}
+              src={thumbnailUrl(url, 256)}
               alt="Bon de livraison"
+              loading="lazy"
+              decoding="async"
               className="w-32 h-24 object-cover rounded-xl border border-gray-200"
             />
           </a>

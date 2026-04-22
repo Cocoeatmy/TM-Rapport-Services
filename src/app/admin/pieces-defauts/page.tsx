@@ -14,6 +14,7 @@ import {
   Send,
   MessageCircle,
 } from "lucide-react";
+import { thumbnailUrl, fullUrl } from "@/lib/image-url";
 
 interface CommentItem {
   user: string;
@@ -510,8 +511,10 @@ export default function PiecesDefautsPage() {
                         className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:opacity-80 transition-opacity"
                       >
                         <img
-                          src={url}
+                          src={thumbnailUrl(url, 128)}
                           alt={`Défaut photo ${i + 1}`}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover"
                         />
                       </button>
@@ -573,8 +576,10 @@ export default function PiecesDefautsPage() {
             <X className="w-6 h-6" />
           </button>
           <img
-            src={lightboxUrl}
+            src={fullUrl(lightboxUrl, 1600)}
             alt="Photo agrandie"
+            loading="eager"
+            decoding="async"
             className="max-w-full max-h-[85vh] rounded-xl object-contain"
             onClick={(e) => e.stopPropagation()}
           />

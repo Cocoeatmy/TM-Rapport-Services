@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Camera, ImagePlus, X, Loader2, Download } from "lucide-react";
+import { thumbnailUrl } from "@/lib/image-url";
 
 interface PhotoUploadProps {
   category: string;
@@ -86,8 +87,10 @@ export function PhotoUpload({
         {allImages.map((url, i) => (
           <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
             <img
-              src={url}
+              src={url.startsWith("blob:") ? url : thumbnailUrl(url, 300)}
               alt={`${label} ${i + 1}`}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 p-1 bg-gradient-to-t from-black/50 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
