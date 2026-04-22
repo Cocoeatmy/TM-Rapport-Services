@@ -590,18 +590,17 @@ html[data-ui="ocean"] .lg-bg {
   position: relative;
 }
 
-/* Ocean + dark : fond bleu marine profond (pas noir) avec un halo central
-   en plus des 4 coins, pour que la zone de lecture au milieu de l'écran
-   ne soit jamais dans une zone "vide" fatigante quand on scrolle un long
-   projet. Les tons restent dans la famille bleu/cyan utilisée partout. */
+/* Ocean + dark : fond sombre profond (préférence utilisateur). Les halos
+   bleus/cyan aux 4 coins apportent la couleur. Les cartes, elles,
+   utilisent une teinte plus claire (plus bas dans ce fichier) pour rester
+   lisibles sans fatigue sur les pages de détail projet. */
 html[data-ui="ocean"].dark .lg-bg {
   background:
-    radial-gradient(ellipse 80% 55% at 10% 10%, rgba(14, 165, 233, 0.45) 0%, transparent 55%),
-    radial-gradient(ellipse 70% 50% at 90% 15%, rgba(37, 99, 235, 0.50) 0%, transparent 60%),
-    radial-gradient(ellipse 110% 85% at 50% 50%, rgba(30, 64, 175, 0.30) 0%, transparent 58%),
-    radial-gradient(ellipse 90% 65% at 85% 100%, rgba(6, 182, 212, 0.35) 0%, transparent 60%),
-    radial-gradient(ellipse 90% 60% at 15% 90%, rgba(29, 78, 216, 0.55) 0%, transparent 60%),
-    linear-gradient(135deg, #0a1a3e 0%, #15295a 30%, #0f2148 60%, #0a1a3e 100%);
+    radial-gradient(ellipse 80% 55% at 10% 10%, rgba(14, 165, 233, 0.50) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 15%, rgba(37, 99, 235, 0.55) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 65% at 85% 100%, rgba(6, 182, 212, 0.40) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 60% at 15% 90%, rgba(29, 78, 216, 0.60) 0%, transparent 60%),
+    linear-gradient(135deg, #020617 0%, #0a1028 30%, #050d20 60%, #020617 100%);
   background-attachment: fixed;
   animation: oceanFlow 24s ease-in-out infinite;
 }
@@ -688,27 +687,34 @@ html[data-ui="ocean"] .glass-card:active {
   transition-duration: 0.12s;
 }
 
+/* Cartes Ocean + dark : bleu marine médium (pas noir !) pour que le texte
+   blanc dedans soit confortable à lire, surtout sur les pages de détail
+   projet qui enchaînent plusieurs blocs.
+   - Base : #2e4a7f à 75% → se compose en ~#1d3058 sur fond sombre,
+     un vrai bleu nuit visible, pas une surface presque noire.
+   - Hover : #3a5a95 à 85% → un cran plus clair, ressenti "s'éclaire".
+   - La bordure cyan et le glow sont conservés pour garder l'identité. */
 html[data-ui="ocean"].dark .glass-card {
   background:
-    linear-gradient(180deg, rgba(15, 30, 70, 0.70) 0%, rgba(10, 20, 55, 0.60) 100%);
-  border-color: rgba(56, 189, 248, 0.12);
+    linear-gradient(180deg, rgba(46, 74, 127, 0.75) 0%, rgba(38, 62, 108, 0.70) 100%);
+  border-color: rgba(56, 189, 248, 0.18);
   box-shadow:
-    0 1px 0 rgba(56, 189, 248, 0.08) inset,
-    0 0 0 1px rgba(56, 189, 248, 0.08),
-    0 14px 36px -16px rgba(14, 165, 233, 0.55),
-    0 4px 14px -4px rgba(0, 0, 0, 0.4);
+    0 1px 0 rgba(56, 189, 248, 0.12) inset,
+    0 0 0 1px rgba(56, 189, 248, 0.10),
+    0 14px 36px -16px rgba(14, 165, 233, 0.45),
+    0 4px 14px -4px rgba(0, 0, 0, 0.35);
 }
 
 html[data-ui="ocean"].dark .glass-card:hover {
   background:
-    linear-gradient(180deg, rgba(25, 45, 95, 0.80) 0%, rgba(15, 30, 70, 0.70) 100%);
-  border-color: rgba(56, 189, 248, 0.30);
+    linear-gradient(180deg, rgba(58, 90, 149, 0.85) 0%, rgba(46, 74, 127, 0.80) 100%);
+  border-color: rgba(56, 189, 248, 0.35);
   box-shadow:
-    0 1px 0 rgba(56, 189, 248, 0.12) inset,
-    0 0 0 1px rgba(56, 189, 248, 0.30),
-    0 22px 50px -18px rgba(14, 165, 233, 0.75),
-    0 8px 20px -6px rgba(0, 0, 0, 0.5),
-    0 0 50px -12px rgba(56, 189, 248, 0.5);
+    0 1px 0 rgba(56, 189, 248, 0.18) inset,
+    0 0 0 1px rgba(56, 189, 248, 0.35),
+    0 22px 50px -18px rgba(14, 165, 233, 0.70),
+    0 8px 20px -6px rgba(0, 0, 0, 0.45),
+    0 0 50px -12px rgba(56, 189, 248, 0.50);
 }
 
 /* Contenu au-dessus du shimmer. */
@@ -896,6 +902,34 @@ html[data-ui="ocean"] .glass-status {
   letter-spacing: 0.01em;
   position: relative;
 }
+
+/* ---------- Overrides Tailwind `dark:bg-gray-*` / `dark:bg-slate-*` ---------- */
+/* La page de détail projet (et quelques autres) utilisent des utilitaires
+   Tailwind `dark:bg-gray-800` / `dark:bg-slate-800` pour leurs panneaux.
+   Sur fond Ocean sombre, ces gris neutres paraissent presque noirs — ce
+   qui fatigue les yeux lors de la lecture. On les repeint dans le même
+   bleu marine que les `.glass-card` pour une unité visuelle.
+   !important nécessaire pour battre Tailwind. */
+html[data-ui="ocean"].dark .dark\:bg-gray-800,
+html[data-ui="ocean"].dark .dark\:bg-slate-800 {
+  background-color: rgba(46, 74, 127, 0.75) !important;
+}
+
+html[data-ui="ocean"].dark .dark\:bg-gray-700,
+html[data-ui="ocean"].dark .dark\:bg-slate-700 {
+  background-color: rgba(58, 90, 149, 0.75) !important;
+}
+
+/* Séparations internes et bordures en cohérence. */
+html[data-ui="ocean"].dark .dark\:border-gray-700,
+html[data-ui="ocean"].dark .dark\:border-gray-800,
+html[data-ui="ocean"].dark .dark\:border-slate-700,
+html[data-ui="ocean"].dark .dark\:border-slate-800 {
+  border-color: rgba(56, 189, 248, 0.18) !important;
+}
+
+/* Fonds colorés du dark mode (success, warning, etc.) restent intacts —
+   on ne touche que les gris / slate qui servent de surfaces neutres. */
 
 /* ---------- Chiffres KPI : texte en gradient bleu + azure ---------- */
 html[data-ui="ocean"] .glass-card p.text-lg,
