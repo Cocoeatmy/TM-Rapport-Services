@@ -576,6 +576,27 @@ html[data-ui="aurora"] main > * {
 /* glow cyan, texte KPI en gradient, entrée en cascade.          */
 /* Pensé pour un effet "WOUAOU" à l'ouverture de l'app.          */
 
+/* ---------- Variables de thème (shadcn) en mode Ocean + dark ----------
+   Les composants shadcn (Card, Popover, etc.) utilisent les variables
+   CSS --card, --popover, --border... Par défaut en dark, --card vaut
+   un gris-noir neutre (oklch(0.205 0 0)), ce qui donne des cartes
+   quasi-noires sur le fond Ocean — fatigant à lire. On les redéfinit
+   ici dans la famille bleu marine pour cohérence visuelle et confort. */
+html[data-ui="ocean"].dark {
+  --card: #1f3457;              /* bleu marine médium, visible mais sobre */
+  --card-foreground: #f0f9ff;   /* blanc-cyan légèrement teinté */
+  --popover: #1f3457;
+  --popover-foreground: #f0f9ff;
+  --muted: #24395e;
+  --muted-foreground: #9ec3e8;  /* texte secondaire bleu clair */
+  --border: rgba(56, 189, 248, 0.18);
+  --input: rgba(56, 189, 248, 0.22);
+  --primary: oklch(0.72 0.16 235);
+}
+
+/* En Ocean + light, garder la carte blanche de base — pas besoin de
+   surcharger, les halos bleus du fond font déjà le boulot visuel. */
+
 /* ---------- Background : mesh gradient animé ---------- */
 html[data-ui="ocean"] .lg-bg {
   background:
