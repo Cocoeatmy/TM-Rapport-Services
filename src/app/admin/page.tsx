@@ -202,11 +202,11 @@ export default function AdminPage() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-600 shrink-0" />
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
             Tableau de bord
           </h1>
-          <p className="text-sm text-gray-500">Administration TM Rapport Services</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Administration TM Rapport Services</p>
         </div>
       </div>
       <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
@@ -311,26 +311,26 @@ export default function AdminPage() {
       <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 ${!isWidgetVisible(widgets, "kpis") ? "hidden" : ""}`}>
         <Card className="glass-card">
           <CardContent className="pt-4 text-center">
-            <p className="text-3xl font-bold text-[#1e3a5f]">{totalProjets}</p>
-            <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
+            <p className="text-3xl font-bold text-[#1e3a5f] dark:text-cyan-300">{totalProjets}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">Projets en cours</p>
           </CardContent>
         </Card>
         <Card className="glass-card">
           <CardContent className="pt-4 text-center">
-            <p className="text-3xl font-bold text-[#1e3a5f]">{totalCabines}</p>
-            <p className="text-xs text-gray-500 mt-1">Cabines totales</p>
+            <p className="text-3xl font-bold text-[#1e3a5f] dark:text-blue-300">{totalCabines}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">Cabines totales</p>
           </CardContent>
         </Card>
         <Card className="glass-card">
           <CardContent className="pt-4 text-center">
-            <p className="text-3xl font-bold text-[#1e3a5f]">{equipeStats.length}</p>
-            <p className="text-xs text-gray-500 mt-1">Équipes</p>
+            <p className="text-3xl font-bold text-[#1e3a5f] dark:text-emerald-300">{equipeStats.length}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">Équipes</p>
           </CardContent>
         </Card>
         <Card className="glass-card">
           <CardContent className="pt-4 text-center">
-            <p className="text-3xl font-bold text-[#1e3a5f]">{seriesStats.length}</p>
-            <p className="text-xs text-gray-500 mt-1">Séries de cabines</p>
+            <p className="text-3xl font-bold text-[#1e3a5f] dark:text-amber-300">{seriesStats.length}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">Séries de cabines</p>
           </CardContent>
         </Card>
       </div>
