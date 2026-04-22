@@ -317,6 +317,36 @@
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ============================================================ */
+/* Sticky glass cards : plus opaques que les cartes flottantes   */
+/* ============================================================ */
+/* Une carte en position sticky (ex: header du détail projet)   */
+/* se superpose au contenu qui défile derrière elle. Si elle     */
+/* hérite de la transparence standard des .glass-card (≈65-70%), */
+/* le texte derrière bleed à travers et rend le titre illisible. */
+/* On bump l'opacité à ~95% tout en gardant un léger effet verre. */
+
+.sticky.glass-card {
+  background: rgba(255, 255, 255, 0.94);
+}
+.dark .sticky.glass-card {
+  background: rgba(30, 41, 59, 0.94);
+}
+
+html[data-ui="aurora"] .sticky.glass-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 245, 255, 0.92) 100%);
+}
+html[data-ui="aurora"].dark .sticky.glass-card {
+  background: linear-gradient(180deg, rgba(40, 28, 80, 0.94) 0%, rgba(28, 18, 60, 0.90) 100%);
+}
+
+html[data-ui="ocean"] .sticky.glass-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(240, 249, 255, 0.93) 100%);
+}
+html[data-ui="ocean"].dark .sticky.glass-card {
+  background: linear-gradient(180deg, rgba(8, 25, 60, 0.95) 0%, rgba(5, 18, 50, 0.92) 100%);
+}
+
+/* ============================================================ */
 /*                        AURORA THEME                           */
 /* ============================================================ */
 /* Activé par html[data-ui="aurora"]. Réécrit les classes        */
