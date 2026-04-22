@@ -135,3 +135,13 @@ export function formatDateLong(dateStr: string | null): string {
   const d = new Date(dateStr);
   return d.toLocaleDateString("fr-CH", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
 }
+
+/** Numéro de semaine ISO 8601 (1 à 53). Les semaines commencent le lundi,
+ *  la semaine 1 est celle qui contient le 1er jeudi de l'année. */
+export function getISOWeek(d: Date = new Date()): number {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  // Aligne sur le jeudi le plus proche (jour médian de la semaine ISO).
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+}

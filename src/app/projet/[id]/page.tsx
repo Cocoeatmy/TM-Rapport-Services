@@ -2043,13 +2043,13 @@ function ProjectPageContent({ id }: { id: string }) {
                               }}
                               className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${
                                 isSelected
-                                  ? "border-[#1e3a5f] bg-blue-50 text-[#1e3a5f] font-medium"
-                                  : "border-gray-200 bg-white text-gray-700 active:bg-gray-50"
+                                  ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200 font-medium"
+                                  : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 active:bg-gray-50 dark:active:bg-slate-700"
                               }`}
                             >
                               <span className="flex items-center gap-2">
                                 <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${
-                                  isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300"
+                                  isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"
                                 }`}>
                                   {isSelected && <span className="text-white text-xs">✓</span>}
                                 </span>
@@ -2196,13 +2196,13 @@ function ProjectPageContent({ id }: { id: string }) {
                                     }}
                                     className={`w-full text-left text-xs px-2.5 py-2 rounded-lg border-2 transition-colors ${
                                       isSelected
-                                        ? "border-[#1e3a5f] bg-blue-50 text-[#1e3a5f] font-medium"
-                                        : "border-gray-200 bg-white text-gray-700 active:bg-gray-50"
+                                        ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200 font-medium"
+                                        : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 active:bg-gray-50 dark:active:bg-slate-700"
                                     }`}
                                   >
                                     <span className="flex items-center gap-2">
                                       <span className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 ${
-                                        isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300"
+                                        isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"
                                       }`}>
                                         {isSelected && <span className="text-white text-[10px]">✓</span>}
                                       </span>

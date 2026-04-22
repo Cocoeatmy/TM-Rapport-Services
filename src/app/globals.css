@@ -160,6 +160,11 @@
   background: rgba(30, 41, 59, 0.6) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
   color: #e2e8f0 !important;
+  /* Override du inset blanc hérité de .glass-input : sur fond sombre
+     il apparaissait comme un trait blanc au-dessus de l'input. */
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 1px 4px rgba(0, 0, 0, 0.15) !important;
 }
 .dark .glass-panel {
   background: rgba(30, 41, 59, 0.5);
@@ -310,3 +315,929 @@
 /* Scrollbar hide */
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ============================================================ */
+/* Sticky glass cards : plus opaques que les cartes flottantes   */
+/* ============================================================ */
+/* Une carte en position sticky (ex: header du détail projet)   */
+/* se superpose au contenu qui défile derrière elle. Si elle     */
+/* hérite de la transparence standard des .glass-card (≈65-70%), */
+/* le texte derrière bleed à travers et rend le titre illisible. */
+/* On bump l'opacité à ~95% tout en gardant un léger effet verre. */
+
+.sticky.glass-card {
+  background: rgba(255, 255, 255, 0.94);
+}
+.dark .sticky.glass-card {
+  background: rgba(30, 41, 59, 0.94);
+}
+
+html[data-ui="aurora"] .sticky.glass-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 245, 255, 0.92) 100%);
+}
+html[data-ui="aurora"].dark .sticky.glass-card {
+  background: linear-gradient(180deg, rgba(40, 28, 80, 0.94) 0%, rgba(28, 18, 60, 0.90) 100%);
+}
+
+/* Ocean : le fond navy du header sticky est trop proche du fond Ocean lui-
+   même → la carte se fond dedans et paraît edge-to-edge. On la détache
+   visuellement comme une vraie carte flottante (rounded corners, marge
+   haute, ombre bleue, bordure cyan) à l'identique d'Aurora. */
+html[data-ui="ocean"] .sticky.glass-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(240, 249, 255, 0.93) 100%);
+  border-radius: 1.25rem !important;
+  border-bottom-width: 1px !important;
+  margin-top: 0.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 0 0 1px rgba(59, 130, 246, 0.18),
+    0 14px 36px -14px rgba(37, 99, 235, 0.30);
+}
+html[data-ui="ocean"].dark .sticky.glass-card {
+  background: linear-gradient(180deg, rgba(32, 58, 110, 0.95) 0%, rgba(22, 42, 85, 0.93) 100%);
+  border-radius: 1.25rem !important;
+  border-bottom-width: 1px !important;
+  margin-top: 0.5rem;
+  box-shadow:
+    0 1px 0 rgba(56, 189, 248, 0.18) inset,
+    0 0 0 1px rgba(56, 189, 248, 0.25),
+    0 14px 36px -14px rgba(14, 165, 233, 0.50),
+    0 0 40px -8px rgba(56, 189, 248, 0.30);
+}
+
+/* ============================================================ */
+/*                        AURORA THEME                           */
+/* ============================================================ */
+/* Activé par html[data-ui="aurora"]. Réécrit les classes        */
+/* glass-* du Liquid Glass existant sans toucher au JSX.         */
+/* Pensé pour apporter un look "spatial / iOS 18 / Vision Pro" : */
+/*   - fond aurore multi-hues en animation lente                 */
+/*   - cartes à rayon plus généreux et ombres teintées indigo    */
+/*   - header violet profond avec halo supérieur                 */
+/*   - boutons et status en gradient vif                         */
+/*   - typographie légèrement plus serrée sur les chiffres clés  */
+/*                                                               */
+/* Supporte light ET dark. La détection dark reste `.dark` sur   */
+/* la même racine <html>, donc dark+aurora = palette "midnight". */
+
+/* ---------- Background : aurore douce (light) ---------- */
+html[data-ui="aurora"] .lg-bg {
+  background:
+    radial-gradient(ellipse 90% 60% at 15% 0%,  rgba(186, 130, 255, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 55% at 85% 15%, rgba(255, 155, 200, 0.28) 0%, transparent 60%),
+    radial-gradient(ellipse 85% 70% at 50% 100%, rgba(110, 160, 255, 0.30) 0%, transparent 60%),
+    linear-gradient(135deg, #f6f2ff 0%, #eef2ff 30%, #f0f4ff 60%, #fff0f6 100%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 200% 200%;
+  animation: auroraFlow 28s ease-in-out infinite;
+}
+
+html[data-ui="aurora"].dark .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 55% at 20% 0%,  rgba(130, 80, 220, 0.50) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 80% 10%, rgba(220, 80, 170, 0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(50, 100, 220, 0.45) 0%, transparent 60%),
+    linear-gradient(135deg, #0a0820 0%, #120a2e 30%, #0d0a26 60%, #180a20 100%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 200% 200%;
+  animation: auroraFlow 28s ease-in-out infinite;
+}
+
+@keyframes auroraFlow {
+  0%, 100% { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 50%; }
+  50%      { background-position: 0% 0%, 0% 0%, 0% 0%, 100% 50%; }
+}
+
+/* ---------- Cartes ---------- */
+html[data-ui="aurora"] .glass-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.72) 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 10px 30px -12px rgba(99, 73, 220, 0.18),
+    0 4px 12px -6px rgba(0, 0, 0, 0.06);
+  transition:
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.25s ease;
+}
+
+html[data-ui="aurora"] .glass-card:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.82) 100%);
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 18px 40px -14px rgba(99, 73, 220, 0.30),
+    0 6px 16px -6px rgba(236, 72, 153, 0.12);
+}
+
+html[data-ui="aurora"] .glass-card:active {
+  transform: translateY(0) scale(0.985);
+  transition-duration: 0.12s;
+}
+
+html[data-ui="aurora"].dark .glass-card {
+  background:
+    linear-gradient(180deg, rgba(40, 28, 80, 0.55) 0%, rgba(28, 18, 60, 0.45) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 14px 36px -16px rgba(130, 80, 220, 0.55),
+    0 4px 14px -6px rgba(0, 0, 0, 0.5);
+}
+
+html[data-ui="aurora"].dark .glass-card:hover {
+  background:
+    linear-gradient(180deg, rgba(55, 38, 105, 0.70) 0%, rgba(40, 28, 80, 0.60) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.1) inset,
+    0 22px 50px -18px rgba(160, 100, 255, 0.65),
+    0 6px 18px -6px rgba(236, 72, 153, 0.25);
+}
+
+/* ---------- Header ---------- */
+html[data-ui="aurora"] .glass-header {
+  background:
+    linear-gradient(180deg, rgba(45, 20, 105, 0.85) 0%, rgba(30, 30, 120, 0.82) 100%);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    0 8px 32px rgba(45, 20, 105, 0.35);
+}
+
+html[data-ui="aurora"].dark .glass-header {
+  background:
+    linear-gradient(180deg, rgba(20, 10, 50, 0.92) 0%, rgba(15, 15, 55, 0.88) 100%);
+  border-bottom-color: rgba(255, 255, 255, 0.10);
+}
+
+/* ---------- Tabs ---------- */
+html[data-ui="aurora"] .glass-tabs {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 4px 14px -6px rgba(99, 73, 220, 0.15);
+}
+
+html[data-ui="aurora"] .glass-tab-active {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  color: #ffffff !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 4px 12px -3px rgba(99, 102, 241, 0.5);
+}
+
+html[data-ui="aurora"] .glass-tab-active,
+html[data-ui="aurora"] .glass-tab-active * {
+  color: #ffffff !important;
+}
+
+html[data-ui="aurora"].dark .glass-tabs {
+  background: rgba(30, 20, 60, 0.55);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- Input ---------- */
+html[data-ui="aurora"] .glass-input {
+  background: rgba(255, 255, 255, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  border-radius: 1rem !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 2px 8px -2px rgba(99, 73, 220, 0.08);
+}
+
+html[data-ui="aurora"] .glass-input:focus {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(139, 92, 246, 0.5) !important;
+  box-shadow:
+    0 0 0 4px rgba(139, 92, 246, 0.18),
+    0 2px 12px -2px rgba(139, 92, 246, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+}
+
+html[data-ui="aurora"].dark .glass-input {
+  background: rgba(40, 28, 80, 0.55) !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+  color: #e9e6f5 !important;
+  /* Même correction qu'Ocean dark : on neutralise l'inset blanc
+     hérité pour ne pas avoir de trait clair au-dessus de l'input. */
+  box-shadow:
+    0 1px 0 rgba(168, 85, 247, 0.15) inset,
+    0 2px 8px -2px rgba(139, 92, 246, 0.15) !important;
+}
+
+/* ---------- Boutons ---------- */
+html[data-ui="aurora"] .glass-btn {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 60%, #ec4899 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 6px 18px -4px rgba(99, 102, 241, 0.45);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html[data-ui="aurora"] .glass-btn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 10px 28px -4px rgba(139, 92, 246, 0.6),
+    0 4px 12px -2px rgba(236, 72, 153, 0.3);
+}
+
+html[data-ui="aurora"] .glass-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ---------- Panel ---------- */
+html[data-ui="aurora"] .glass-panel {
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 10px 30px -12px rgba(99, 73, 220, 0.15);
+}
+
+html[data-ui="aurora"].dark .glass-panel {
+  background: rgba(30, 20, 60, 0.50);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- Status badge ---------- */
+html[data-ui="aurora"] .glass-status {
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0.75rem;
+  box-shadow:
+    0 1px 2px rgba(255, 255, 255, 0.4) inset,
+    0 2px 6px -2px rgba(99, 73, 220, 0.15);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* ---------- Typographie : chiffres KPI plus élégants ---------- */
+html[data-ui="aurora"] .glass-card p.text-lg,
+html[data-ui="aurora"] .glass-card p.text-2xl {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+/* ---------- Badges lucide/shadcn ---------- */
+html[data-ui="aurora"] [data-slot="badge"] {
+  border-radius: 0.625rem;
+  font-weight: 600;
+}
+
+/* ---------- Liens / cartes cliquables : micro-lift ---------- */
+html[data-ui="aurora"] a.glass-card:hover,
+html[data-ui="aurora"] button.glass-card:hover {
+  transform: translateY(-2px) scale(1.005);
+}
+
+/* ---------- Entrée en scène (opt-in, non agressif) ---------- */
+@keyframes auroraFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+html[data-ui="aurora"] main > * {
+  animation: auroraFadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Respecte la préférence "motion réduit" (accessibilité). */
+@media (prefers-reduced-motion: reduce) {
+  html[data-ui="aurora"] .lg-bg { animation: none; }
+  html[data-ui="aurora"] main > * { animation: none; }
+  html[data-ui="aurora"] .glass-card,
+  html[data-ui="aurora"] .glass-btn { transition: none; }
+}
+
+/* ============================================================ */
+/*                        OCÉAN THEME                            */
+/* ============================================================ */
+/* Activé par html[data-ui="ocean"]. Bleu électrique, mesh       */
+/* gradient animé façon Stripe/Linear, shimmer sur les cartes,   */
+/* glow cyan, texte KPI en gradient, entrée en cascade.          */
+/* Pensé pour un effet "WOUAOU" à l'ouverture de l'app.          */
+
+/* ---------- Variables de thème (shadcn) en mode Ocean + dark ----------
+   Les composants shadcn (Card, Popover, etc.) utilisent les variables
+   CSS --card, --popover, --border... Par défaut en dark, --card vaut
+   un gris-noir neutre (oklch(0.205 0 0)), ce qui donne des cartes
+   quasi-noires sur le fond Ocean — fatigant à lire. On les redéfinit
+   ici dans la famille bleu marine pour cohérence visuelle et confort. */
+html[data-ui="ocean"].dark {
+  --card: #1f3457;              /* bleu marine médium, visible mais sobre */
+  --card-foreground: #f0f9ff;   /* blanc-cyan légèrement teinté */
+  --popover: #1f3457;
+  --popover-foreground: #f0f9ff;
+  --muted: #24395e;
+  --muted-foreground: #9ec3e8;  /* texte secondaire bleu clair */
+  --border: rgba(56, 189, 248, 0.18);
+  --input: rgba(56, 189, 248, 0.22);
+  --primary: oklch(0.72 0.16 235);
+}
+
+/* En Ocean + light, garder la carte blanche de base — pas besoin de
+   surcharger, les halos bleus du fond font déjà le boulot visuel. */
+
+/* ---------- Background : mesh gradient animé ---------- */
+html[data-ui="ocean"] .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 10%, rgba(56, 189, 248, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 55% at 90% 20%, rgba(59, 130, 246, 0.42) 0%, transparent 60%),
+    radial-gradient(ellipse 85% 70% at 80% 95%, rgba(14, 165, 233, 0.45) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 60% at 15% 85%, rgba(37, 99, 235, 0.38) 0%, transparent 60%),
+    linear-gradient(135deg, #ecfeff 0%, #dbeafe 30%, #e0f2fe 60%, #f0f9ff 100%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+  background-attachment: fixed;
+  animation: oceanFlow 24s ease-in-out infinite;
+  position: relative;
+}
+
+/* Ocean + dark : fond sombre profond (préférence utilisateur). Les halos
+   bleus/cyan aux 4 coins apportent la couleur. Les cartes, elles,
+   utilisent une teinte plus claire (plus bas dans ce fichier) pour rester
+   lisibles sans fatigue sur les pages de détail projet. */
+html[data-ui="ocean"].dark .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 55% at 10% 10%, rgba(14, 165, 233, 0.50) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 15%, rgba(37, 99, 235, 0.55) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 65% at 85% 100%, rgba(6, 182, 212, 0.40) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 60% at 15% 90%, rgba(29, 78, 216, 0.60) 0%, transparent 60%),
+    linear-gradient(135deg, #020617 0%, #0a1028 30%, #050d20 60%, #020617 100%);
+  background-attachment: fixed;
+  animation: oceanFlow 24s ease-in-out infinite;
+}
+
+/* Couche décorative "grain" pour texture profonde (non bloquant UI). */
+html[data-ui="ocean"] .lg-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    radial-gradient(circle at 70% 70%, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 60px 60px, 90px 90px;
+  opacity: 0.6;
+  mix-blend-mode: overlay;
+}
+
+@keyframes oceanFlow {
+  0%   { background-position: 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%; }
+  25%  { background-position: 20% 10%, 80% 10%, 90% 80%, 10% 90%, 0% 0%; }
+  50%  { background-position: 10% 30%, 90% 30%, 80% 70%, 20% 70%, 0% 0%; }
+  75%  { background-position: 30% 20%, 70% 20%, 70% 90%, 30% 80%, 0% 0%; }
+  100% { background-position: 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%; }
+}
+
+/* ---------- Cartes : glass + shimmer + lift ---------- */
+html[data-ui="ocean"] .glass-card {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(240, 249, 255, 0.75) 100%);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 0 0 1px rgba(59, 130, 246, 0.06),
+    0 12px 32px -14px rgba(37, 99, 235, 0.22),
+    0 4px 12px -4px rgba(14, 165, 233, 0.10);
+  transition:
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s ease;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+html[data-ui="ocean"] .glass-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(59, 130, 246, 0.22);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 0 0 1px rgba(59, 130, 246, 0.18),
+    0 22px 48px -18px rgba(37, 99, 235, 0.40),
+    0 8px 16px -6px rgba(14, 165, 233, 0.25),
+    0 0 40px -10px rgba(56, 189, 248, 0.30);
+}
+
+html[data-ui="ocean"] .glass-card:active {
+  transform: translateY(0) scale(0.985);
+  transition-duration: 0.12s;
+}
+
+html[data-ui="ocean"].dark .glass-card {
+  background:
+    linear-gradient(180deg, rgba(15, 30, 70, 0.70) 0%, rgba(10, 20, 55, 0.60) 100%);
+  border-color: rgba(56, 189, 248, 0.12);
+  box-shadow:
+    0 1px 0 rgba(56, 189, 248, 0.08) inset,
+    0 0 0 1px rgba(56, 189, 248, 0.08),
+    0 14px 36px -16px rgba(14, 165, 233, 0.55),
+    0 4px 14px -4px rgba(0, 0, 0, 0.4);
+}
+
+html[data-ui="ocean"].dark .glass-card:hover {
+  background:
+    linear-gradient(180deg, rgba(25, 45, 95, 0.80) 0%, rgba(15, 30, 70, 0.70) 100%);
+  border-color: rgba(56, 189, 248, 0.30);
+  box-shadow:
+    0 1px 0 rgba(56, 189, 248, 0.12) inset,
+    0 0 0 1px rgba(56, 189, 248, 0.30),
+    0 22px 50px -18px rgba(14, 165, 233, 0.75),
+    0 8px 20px -6px rgba(0, 0, 0, 0.5),
+    0 0 50px -12px rgba(56, 189, 248, 0.5);
+}
+
+/* Contenu au-dessus du shimmer. */
+html[data-ui="ocean"] .glass-card > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* ---------- Header : marine deep ---------- */
+/* IMPORTANT : pas de `overflow: hidden` ici, sinon les menus en dropdown
+   (user-menu, notifications) sont clippés quand ils descendent sous le
+   header. Le halo lumineux est confiné au header via `inset: 0` sur le
+   pseudo-élément ::before, pas via overflow. */
+html[data-ui="ocean"] .glass-header {
+  background:
+    linear-gradient(180deg, rgba(8, 47, 115, 0.92) 0%, rgba(13, 71, 161, 0.88) 50%, rgba(6, 95, 160, 0.86) 100%);
+  backdrop-filter: blur(48px) saturate(220%);
+  -webkit-backdrop-filter: blur(48px) saturate(220%);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.25);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 0 0 1px rgba(56, 189, 248, 0.08) inset,
+    0 10px 40px rgba(8, 47, 115, 0.45),
+    0 0 60px -10px rgba(56, 189, 248, 0.35);
+  position: relative;
+}
+
+/* Halo lumineux pulsant. Reste dans le header grâce à `inset: 0`. */
+html[data-ui="ocean"] .glass-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 35% 110% at 25% 50%, rgba(56, 189, 248, 0.28) 0%, transparent 55%),
+    radial-gradient(ellipse 35% 110% at 75% 50%, rgba(56, 189, 248, 0.22) 0%, transparent 55%);
+  animation: oceanHeaderGlow 6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Le contenu du header passe au-dessus du halo pseudo-élément. */
+html[data-ui="ocean"] .glass-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes oceanHeaderGlow {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1; }
+}
+
+html[data-ui="ocean"].dark .glass-header {
+  background:
+    linear-gradient(180deg, rgba(2, 6, 23, 0.95) 0%, rgba(8, 20, 55, 0.92) 50%, rgba(3, 15, 42, 0.90) 100%);
+  border-bottom-color: rgba(56, 189, 248, 0.20);
+}
+
+/* ---------- Tabs : actif en gradient cyan/bleu ---------- */
+html[data-ui="ocean"] .glass-tabs {
+  background: rgba(255, 255, 255, 0.60);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 4px 16px -6px rgba(37, 99, 235, 0.15);
+}
+
+html[data-ui="ocean"] .glass-tab-active {
+  background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 60%, #06b6d4 100%);
+  color: #ffffff !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 6px 18px -3px rgba(14, 165, 233, 0.55),
+    0 0 20px -4px rgba(56, 189, 248, 0.5);
+}
+
+html[data-ui="ocean"] .glass-tab-active,
+html[data-ui="ocean"] .glass-tab-active * {
+  color: #ffffff !important;
+}
+
+html[data-ui="ocean"].dark .glass-tabs {
+  background: rgba(15, 30, 70, 0.55);
+  border-color: rgba(56, 189, 248, 0.12);
+}
+
+/* ---------- Input : bleu focus glow ---------- */
+html[data-ui="ocean"] .glass-input {
+  background: rgba(255, 255, 255, 0.80) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  border-radius: 1rem !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 2px 8px -2px rgba(37, 99, 235, 0.10);
+}
+
+html[data-ui="ocean"] .glass-input:focus {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(14, 165, 233, 0.55) !important;
+  box-shadow:
+    0 0 0 4px rgba(56, 189, 248, 0.22),
+    0 2px 14px -2px rgba(14, 165, 233, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+}
+
+html[data-ui="ocean"].dark .glass-input {
+  background: rgba(15, 30, 70, 0.65) !important;
+  border-color: rgba(56, 189, 248, 0.15) !important;
+  color: #e0f2fe !important;
+  /* Override explicite du box-shadow : en mode clair un inset blanc
+     donne l'effet "verre" mais sur fond sombre il apparaît comme un
+     trait blanc moche au-dessus de l'input. On le teinte cyan discret. */
+  box-shadow:
+    0 1px 0 rgba(56, 189, 248, 0.15) inset,
+    0 2px 8px -2px rgba(14, 165, 233, 0.15) !important;
+}
+
+/* ---------- Boutons : gradient royal + glow ---------- */
+html[data-ui="ocean"] .glass-btn {
+  background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 50%, #06b6d4 100%);
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.30) inset,
+    0 6px 20px -4px rgba(14, 165, 233, 0.55),
+    0 0 25px -6px rgba(56, 189, 248, 0.50);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+html[data-ui="ocean"] .glass-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.40) inset,
+    0 12px 32px -4px rgba(14, 165, 233, 0.75),
+    0 0 40px -6px rgba(56, 189, 248, 0.70);
+}
+
+html[data-ui="ocean"] .glass-btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+/* ---------- Panel ---------- */
+html[data-ui="ocean"] .glass-panel {
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 12px 32px -14px rgba(37, 99, 235, 0.18);
+}
+
+html[data-ui="ocean"].dark .glass-panel {
+  background: rgba(10, 20, 55, 0.60);
+  border-color: rgba(56, 189, 248, 0.12);
+}
+
+/* ---------- Status badge : glow pulsant ---------- */
+html[data-ui="ocean"] .glass-status {
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 0.75rem;
+  box-shadow:
+    0 1px 2px rgba(255, 255, 255, 0.5) inset,
+    0 3px 10px -3px rgba(37, 99, 235, 0.20);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  position: relative;
+}
+
+/* ---------- Overrides Tailwind `dark:bg-gray-*` / `dark:bg-slate-*` ---------- */
+/* La page de détail projet (et quelques autres) utilisent des utilitaires
+   Tailwind `dark:bg-gray-800` / `dark:bg-slate-800` pour leurs panneaux.
+   Sur fond Ocean sombre, ces gris neutres paraissent presque noirs — ce
+   qui fatigue les yeux lors de la lecture. On les repeint dans le même
+   bleu marine que les `.glass-card` pour une unité visuelle.
+   !important nécessaire pour battre Tailwind. */
+html[data-ui="ocean"].dark .dark\:bg-gray-800,
+html[data-ui="ocean"].dark .dark\:bg-slate-800 {
+  background-color: rgba(46, 74, 127, 0.75) !important;
+}
+
+html[data-ui="ocean"].dark .dark\:bg-gray-700,
+html[data-ui="ocean"].dark .dark\:bg-slate-700 {
+  background-color: rgba(58, 90, 149, 0.75) !important;
+}
+
+/* Séparations internes et bordures en cohérence. */
+html[data-ui="ocean"].dark .dark\:border-gray-700,
+html[data-ui="ocean"].dark .dark\:border-gray-800,
+html[data-ui="ocean"].dark .dark\:border-slate-700,
+html[data-ui="ocean"].dark .dark\:border-slate-800 {
+  border-color: rgba(56, 189, 248, 0.18) !important;
+}
+
+/* ---------- Pastels Tailwind en Ocean + dark ----------
+   La plupart des badges de statut et boutons de filtre utilisent des
+   utilitaires Tailwind `bg-*-50` / `bg-*-100` + `text-*-800` + `border-*-200`
+   qui restent en mode clair (pastels vifs). Sur le fond Ocean sombre ces
+   pastels "jurent" visuellement. On les repeint ici en versions foncées
+   saturées : même hue sémantique (rouge = danger, vert = ok, etc.) mais
+   fond teinté à faible opacité + texte clair pour ressortir sans agresser.
+   !important pour battre la spécificité Tailwind.
+   ⚠ Les variantes "dark:bg-*" (quand elles existent sur le JSX) ne sont
+   PAS overridées ici — elles auraient déjà un look sombre correct. */
+
+/* --- Jaune / ambre / orange (warnings, en attente, livraison partielle) --- */
+html[data-ui="ocean"].dark .bg-yellow-50,
+html[data-ui="ocean"].dark .bg-yellow-100,
+html[data-ui="ocean"].dark .bg-amber-50,
+html[data-ui="ocean"].dark .bg-amber-100 {
+  background-color: rgba(234, 179, 8, 0.18) !important;
+}
+html[data-ui="ocean"].dark .text-yellow-700,
+html[data-ui="ocean"].dark .text-yellow-800,
+html[data-ui="ocean"].dark .text-amber-700,
+html[data-ui="ocean"].dark .text-amber-800 {
+  color: #fde68a !important;
+}
+html[data-ui="ocean"].dark .border-yellow-200,
+html[data-ui="ocean"].dark .border-amber-200 {
+  border-color: rgba(234, 179, 8, 0.35) !important;
+}
+
+html[data-ui="ocean"].dark .bg-orange-50,
+html[data-ui="ocean"].dark .bg-orange-100 {
+  background-color: rgba(249, 115, 22, 0.18) !important;
+}
+html[data-ui="ocean"].dark .text-orange-700,
+html[data-ui="ocean"].dark .text-orange-800 {
+  color: #fed7aa !important;
+}
+html[data-ui="ocean"].dark .border-orange-200 {
+  border-color: rgba(249, 115, 22, 0.35) !important;
+}
+
+/* --- Rouge (soucis, danger, conflits) --- */
+html[data-ui="ocean"].dark .bg-red-50,
+html[data-ui="ocean"].dark .bg-red-100 {
+  background-color: rgba(239, 68, 68, 0.20) !important;
+}
+html[data-ui="ocean"].dark .text-red-600,
+html[data-ui="ocean"].dark .text-red-700,
+html[data-ui="ocean"].dark .text-red-800 {
+  color: #fecaca !important;
+}
+html[data-ui="ocean"].dark .border-red-200 {
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}
+
+/* --- Vert (OK, RDV fixé, terminé) --- */
+html[data-ui="ocean"].dark .bg-green-50,
+html[data-ui="ocean"].dark .bg-green-100 {
+  background-color: rgba(34, 197, 94, 0.20) !important;
+}
+html[data-ui="ocean"].dark .text-green-600,
+html[data-ui="ocean"].dark .text-green-700,
+html[data-ui="ocean"].dark .text-green-800 {
+  color: #bbf7d0 !important;
+}
+html[data-ui="ocean"].dark .border-green-200 {
+  border-color: rgba(34, 197, 94, 0.35) !important;
+}
+
+/* --- Bleu (info, à faire) --- */
+html[data-ui="ocean"].dark .bg-blue-50,
+html[data-ui="ocean"].dark .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.22) !important;
+}
+html[data-ui="ocean"].dark .text-blue-600,
+html[data-ui="ocean"].dark .text-blue-700,
+html[data-ui="ocean"].dark .text-blue-800 {
+  color: #bfdbfe !important;
+}
+html[data-ui="ocean"].dark .border-blue-200 {
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+
+/* --- Cyan (OFR, mesures) --- */
+html[data-ui="ocean"].dark .bg-cyan-50,
+html[data-ui="ocean"].dark .bg-cyan-100 {
+  background-color: rgba(6, 182, 212, 0.22) !important;
+}
+html[data-ui="ocean"].dark .text-cyan-700,
+html[data-ui="ocean"].dark .text-cyan-800 {
+  color: #a5f3fc !important;
+}
+html[data-ui="ocean"].dark .border-cyan-200 {
+  border-color: rgba(6, 182, 212, 0.35) !important;
+}
+
+/* --- Violet / purple (attendre news) --- */
+html[data-ui="ocean"].dark .bg-purple-50,
+html[data-ui="ocean"].dark .bg-purple-100,
+html[data-ui="ocean"].dark .bg-violet-50,
+html[data-ui="ocean"].dark .bg-violet-100 {
+  background-color: rgba(168, 85, 247, 0.20) !important;
+}
+html[data-ui="ocean"].dark .text-purple-700,
+html[data-ui="ocean"].dark .text-purple-800,
+html[data-ui="ocean"].dark .text-violet-700,
+html[data-ui="ocean"].dark .text-violet-800 {
+  color: #e9d5ff !important;
+}
+html[data-ui="ocean"].dark .border-purple-200,
+html[data-ui="ocean"].dark .border-violet-200 {
+  border-color: rgba(168, 85, 247, 0.35) !important;
+}
+
+/* --- Gris / neutre (Tous les statuts, Cabines en CMD) --- */
+html[data-ui="ocean"].dark .bg-gray-100 {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+}
+html[data-ui="ocean"].dark .text-gray-600,
+html[data-ui="ocean"].dark .text-gray-700 {
+  color: #cbd5e1 !important;
+}
+
+/* ---------- Boutons collaborateurs (inline style) ----------
+   Dans le panneau de filtres latéral, les boutons COLLABORATEURS reçoivent
+   leur couleur via `style={{ backgroundColor: ..., color: ... }}` (palette
+   pastel définie dans lib/collaborators.ts). Sur Ocean dark ces pastels
+   sautent aux yeux. On les unifie en bleu marine Ocean : le puck coloré
+   (dot) à gauche conserve l'identité de chaque monteur, le fond du
+   bouton reste sobre et cohérent avec le thème.
+   !important nécessaire car on surcharge du inline style. */
+html[data-ui="ocean"].dark .glass-panel button.flex.items-center.gap-2 {
+  background-color: rgba(20, 45, 90, 0.55) !important;
+  color: #e0f2fe !important;
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+
+html[data-ui="ocean"].dark .glass-panel button.flex.items-center.gap-2:hover {
+  background-color: rgba(30, 60, 110, 0.75) !important;
+  border-color: rgba(56, 189, 248, 0.30);
+}
+
+/* Bouton actif (collaborateur sélectionné) : inline style #1e3a5f + white.
+   On re-teinte en gradient Ocean pour qu'il ressorte vraiment. */
+html[data-ui="ocean"].dark .glass-panel button.flex.items-center.gap-2[style*="rgb(30, 58, 95)"],
+html[data-ui="ocean"].dark .glass-panel button.flex.items-center.gap-2[style*="#1e3a5f"] {
+  background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%) !important;
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  border-color: rgba(56, 189, 248, 0.40) !important;
+  box-shadow: 0 4px 12px -2px rgba(14, 165, 233, 0.40);
+}
+
+/* ---------- Boutons de statuts actifs (filtre sidebar) ---------- */
+html[data-ui="ocean"].dark .glass-panel .bg-\[\#1e3a5f\] {
+  background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%) !important;
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -2px rgba(14, 165, 233, 0.40);
+}
+
+/* ---------- Chiffres KPI : texte en gradient bleu + azure ---------- */
+html[data-ui="ocean"] .glass-card p.text-lg,
+html[data-ui="ocean"] .glass-card p.text-2xl {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  background: linear-gradient(135deg, #1e40af 0%, #0284c7 50%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 2px rgba(14, 165, 233, 0.15));
+}
+
+html[data-ui="ocean"].dark .glass-card p.text-lg,
+html[data-ui="ocean"].dark .glass-card p.text-2xl {
+  background: linear-gradient(135deg, #60a5fa 0%, #38bdf8 50%, #67e8f9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Les chiffres déjà colorés (text-cyan-600, etc.) doivent conserver leur
+   teinte spécifique — on réactive `text-fill-color` pour elles. */
+html[data-ui="ocean"] .glass-card p.text-lg.text-cyan-600,
+html[data-ui="ocean"] .glass-card p.text-2xl.text-cyan-600,
+html[data-ui="ocean"] .glass-card p.text-lg.text-blue-600,
+html[data-ui="ocean"] .glass-card p.text-2xl.text-blue-600,
+html[data-ui="ocean"] .glass-card p.text-lg.text-violet-600,
+html[data-ui="ocean"] .glass-card p.text-2xl.text-violet-600,
+html[data-ui="ocean"] .glass-card p.text-lg.text-emerald-600,
+html[data-ui="ocean"] .glass-card p.text-2xl.text-emerald-600,
+html[data-ui="ocean"] .glass-card p.text-lg.text-amber-600,
+html[data-ui="ocean"] .glass-card p.text-2xl.text-amber-600 {
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+  filter: drop-shadow(0 1px 4px rgba(14, 165, 233, 0.25));
+}
+
+/* ---------- Badges lucide/shadcn ---------- */
+html[data-ui="ocean"] [data-slot="badge"] {
+  border-radius: 0.625rem;
+  font-weight: 600;
+}
+
+/* ---------- Liens / cartes cliquables : micro-lift + scale ---------- */
+html[data-ui="ocean"] a.glass-card:hover,
+html[data-ui="ocean"] button.glass-card:hover {
+  transform: translateY(-3px) scale(1.008);
+}
+
+/* ---------- Entrée en cascade (stagger) ---------- */
+/* Les enfants directs du <main> apparaissent l'un après l'autre au chargement,
+   créant un effet "rideau" moderne façon apple.com. */
+@keyframes oceanFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+html[data-ui="ocean"] main > * {
+  animation: oceanFadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+html[data-ui="ocean"] main > *:nth-child(1) { animation-delay: 0.00s; }
+html[data-ui="ocean"] main > *:nth-child(2) { animation-delay: 0.08s; }
+html[data-ui="ocean"] main > *:nth-child(3) { animation-delay: 0.16s; }
+html[data-ui="ocean"] main > *:nth-child(4) { animation-delay: 0.24s; }
+html[data-ui="ocean"] main > *:nth-child(5) { animation-delay: 0.32s; }
+html[data-ui="ocean"] main > *:nth-child(6) { animation-delay: 0.40s; }
+
+/* Logo dans le header : petit rebond subtil à l'ouverture. */
+@keyframes oceanLogoPop {
+  0%   { transform: scale(0.6) rotate(-8deg); opacity: 0; }
+  60%  { transform: scale(1.12) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+html[data-ui="ocean"] #main-header img[alt="TM"] {
+  animation: oceanLogoPop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ---------- Boutons du header : hover glow ---------- */
+html[data-ui="ocean"] #main-header button,
+html[data-ui="ocean"] #main-header a.flex {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+}
+
+html[data-ui="ocean"] #main-header button:hover,
+html[data-ui="ocean"] #main-header a.flex:hover {
+  transform: translateY(-1px);
+  filter: drop-shadow(0 2px 8px rgba(56, 189, 248, 0.6));
+}
+
+/* ---------- Respecte prefers-reduced-motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html[data-ui="ocean"] .lg-bg,
+  html[data-ui="ocean"] .lg-bg::before,
+  html[data-ui="ocean"] .glass-header::before { animation: none; }
+  html[data-ui="ocean"] main > *,
+  html[data-ui="ocean"] #main-header img[alt="TM"] { animation: none; }
+  html[data-ui="ocean"] .glass-card,
+  html[data-ui="ocean"] .glass-btn,
+  html[data-ui="ocean"] #main-header button,
+  html[data-ui="ocean"] #main-header a.flex { transition: none; }
+}

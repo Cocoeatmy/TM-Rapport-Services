@@ -52,12 +52,12 @@ export function ExportExcel({ projects, label = "Exporter Excel" }: { projects: 
     <button
       onClick={handleExport}
       disabled={exporting || projects.length === 0}
-      className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95 disabled:opacity-50"
+      className="shrink-0 whitespace-nowrap flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95 disabled:opacity-50"
     >
       {exporting ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
+        <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
       ) : (
-        <FileSpreadsheet className="w-4 h-4 text-green-600" />
+        <FileSpreadsheet className="w-4 h-4 shrink-0 text-green-600" />
       )}
       {label}
     </button>
