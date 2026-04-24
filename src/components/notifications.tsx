@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Bell, MessageCircle, Package, Calendar, AlertTriangle } from "lucide-react";
 
 interface Notification {
@@ -11,6 +12,7 @@ interface Notification {
   message: string;
   timestamp: number;
   read: boolean;
+  projectId?: string;
 }
 
 async function fetchNotifications(): Promise<Notification[]> {
@@ -41,12 +43,13 @@ export async function addNotification(
   title: string,
   message: string,
   userId?: string,
+  projectId?: string,
 ) {
   try {
     await fetch("/api/notifications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: userId || "", type, title, message }),
+      body: JSON.stringify({ userId: userId || "", type, title, message, projectId }),
     });
   } catch {
     /* silent */
@@ -143,6 +146,7 @@ export function PushNotificationSetup() {
 }
 
 export function NotificationBell() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notifs, setNotifs] = useState<Notification[]>([]);
 
@@ -167,6 +171,17 @@ export function NotificationBell() {
   const clearAll = async () => {
     setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
     await patchNotifications({ markAllRead: true });
+  };
+
+  /** Click sur une notif : marque-la lue, ferme le panneau, et navigue
+   *  vers la page du projet concerné si projectId est présent. */
+  const handleNotifClick = (notif: Notification) => {
+    setNotifs((prev) => prev.map((n) => n.id === notif.id ? { ...n, read: true } : n));
+    patchNotifications({ id: notif.id }).catch(() => {});
+    setOpen(false);
+    if (notif.projectId) {
+      router.push(`/projet/${notif.projectId}`);
+    }
   };
 
   const iconMap = {
@@ -223,15 +238,22 @@ export function NotificationBell() {
               ) : (
                 notifs.slice(0, 20).map((n) => {
                   const Icon = iconMap[n.type];
+                  const clickable = !!n.projectId;
                   return (
-                    <div key={n.id} className={`flex gap-2 px-3 py-2 border-b border-gray-50 dark:border-gray-700 last:border-0 ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/20" : ""}`}>
+                    <button
+                      key={n.id}
+                      type="button"
+                      onClick={() => handleNotifClick(n)}
+                      disabled={!clickable}
+                      className={`w-full text-left flex gap-2 px-3 py-2 border-b border-gray-50 dark:border-gray-700 last:border-0 ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/20" : ""} ${clickable ? "hover:bg-gray-50 dark:hover:bg-slate-700/60 cursor-pointer" : "cursor-default"}`}
+                    >
                       <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${colorMap[n.type]}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-gray-900 dark:text-gray-100">{n.title}</p>
                         <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{n.message}</p>
                       </div>
                       <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">{formatTime(n.timestamp)}</span>
-                    </div>
+                    </button>
                   );
                 })
               )}

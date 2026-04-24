@@ -6,6 +6,7 @@ import { SyncButton } from "@/components/sync-button";
 import { QRButton } from "@/components/qr-button";
 import { AIChatbot } from "@/components/ai-chatbot";
 import { NotificationBell } from "@/components/notifications";
+import { RefreshButton } from "@/components/refresh-button";
 import { ErrorBoundary } from "@/components/error-boundary";
 import "./globals.css";
 
@@ -70,6 +71,7 @@ export default function RootLayout({
             </a>
             <div className="flex items-center gap-2">
               <NotificationBell />
+              <RefreshButton />
               <QRButton />
               <SyncButton />
               <UserMenu />

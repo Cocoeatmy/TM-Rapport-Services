@@ -10,6 +10,9 @@ export interface AppNotification {
   message: string;
   timestamp: number;
   read: boolean;
+  /** ID du projet Notion concerné — permet au client d'ouvrir la page
+   *  du projet quand l'utilisateur clique sur la notification. */
+  projectId?: string;
 }
 
 const KEY = "notifications";
@@ -20,6 +23,7 @@ export async function createNotification(
   type: AppNotification["type"],
   title: string,
   message: string,
+  projectId?: string,
 ): Promise<AppNotification> {
   const all = await getData<AppNotification>(KEY);
   const notif: AppNotification = {
@@ -30,6 +34,7 @@ export async function createNotification(
     message,
     timestamp: Date.now(),
     read: false,
+    ...(projectId ? { projectId } : {}),
   };
   all.unshift(notif);
 
@@ -61,12 +66,12 @@ export async function POST(request: NextRequest) {
   const user = await verifyToken(token);
   if (!user) return NextResponse.json({ error: "Non autorise" }, { status: 401 });
 
-  const { userId, type, title, message } = await request.json();
+  const { userId, type, title, message, projectId } = await request.json();
   if (!userId || !type || !title) {
     return NextResponse.json({ error: "Champs requis: userId, type, title" }, { status: 400 });
   }
 
-  const notif = await createNotification(userId, type, title, message || "");
+  const notif = await createNotification(userId, type, title, message || "", projectId);
   return NextResponse.json(notif);
 }
 

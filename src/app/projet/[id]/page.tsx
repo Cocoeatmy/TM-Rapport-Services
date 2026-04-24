@@ -350,7 +350,7 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
           fetch("/api/notify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ projectName: project.projet, action: `Modification ${label}`, details: logDetails }),
+            body: JSON.stringify({ projectName: project.projet, projectId: project.id, action: `Modification ${label}`, details: logDetails }),
           }),
         ]).catch(() => {});
         setEditing(false);
@@ -722,7 +722,7 @@ function EditableCollaborateur({ project, mode, onUpdate }: { project: Project; 
           fetch("/api/notify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ projectName: project.projet, action: "Modification collaborateur", details: logDetails }),
+            body: JSON.stringify({ projectName: project.projet, projectId: project.id, action: "Modification collaborateur", details: logDetails }),
           }),
         ]).catch(() => {});
         setEditing(false);
@@ -1382,6 +1382,7 @@ function ProjectPageContent({ id }: { id: string }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             projectName: project.projet,
+            projectId: project.id,
             action: "Rapport envoye",
             details: `PDF genere et email envoye. Lien client: ${clientPortalUrl}`,
           }),

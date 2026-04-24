@@ -64,9 +64,10 @@ export async function POST(_request: NextRequest) {
         const email = COLLABORATOR_EMAILS[name];
         if (!email) continue;
 
-        // Create in-app notification
+        // Create in-app notification — projectId inclus pour que le
+        // click sur la notif ouvre directement le projet.
         try {
-          await createNotification(email, "rdv", "RDV demain", message);
+          await createNotification(email, "rdv", "RDV demain", message, project.id);
           notificationCount++;
         } catch (err: any) {
           errors.push(`Notification error for ${name}: ${err.message}`);

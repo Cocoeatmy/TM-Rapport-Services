@@ -413,9 +413,12 @@ function NewProjectModal({ open, onClose, onCreated, currentMode }: { open: bool
       }
       const res = await fetch("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) { const data = await res.json(); setError(data.error || "Erreur"); return; }
-      // Notify admin if non-admin creates
+      // Notify admin if non-admin creates — on récupère le pageId
+      // retourné par POST pour que la notif soit cliquable.
+      let newProjectId: string | undefined;
+      try { const created = await res.clone().json(); newProjectId = created?.pageId; } catch {}
       fetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectName: form.projet, action: "Nouveau projet créé", details: `Par un collaborateur — ${form.nomChantier || form.projet}` })
+        body: JSON.stringify({ projectName: form.projet, action: "Nouveau projet créé", details: `Par un collaborateur — ${form.nomChantier || form.projet}`, projectId: newProjectId })
       }).catch(() => {});
       setForm(emptyForm);
       onCreated();
@@ -991,6 +994,7 @@ function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectName: project.projet,
+          projectId: project.id,
           action: "D\u00e9placement RDV",
           details: `${formatDateFR(oldDate)} \u2192 ${formatDateFR(newDate)}`,
         }),
@@ -1051,6 +1055,7 @@ function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectName: project.projet,
+          projectId: project.id,
           action: "Changement statut (Kanban)",
           details: `${oldStatus} → ${newStatus}`,
         }),

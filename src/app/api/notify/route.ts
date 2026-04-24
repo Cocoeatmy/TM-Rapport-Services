@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, skipped: true });
   }
 
-  const { projectName, action, details } = await request.json();
+  const { projectName, action, details, projectId } = await request.json();
 
   try {
     // Create in-app notification for admin
@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       "piece",
       `${action} - ${projectName}`,
       `${details} (par ${user.name})`,
+      projectId,
     );
 
     await resend.emails.send({
