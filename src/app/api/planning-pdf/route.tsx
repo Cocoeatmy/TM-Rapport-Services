@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getProjects } from "@/lib/notion";
 import type { Project } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
+import { dateInRange, formatLocalDate } from "@/lib/time-utils";
 import ReactPDF, {
   Document,
   Page,
@@ -430,30 +431,39 @@ export async function GET(request: NextRequest) {
     // Fetch all projects
     const projects = await getProjects();
 
-    // Filter projects that have a dateMontage or dateMesures in this month
-    const monthProjects = projects.filter((p) => {
-      const date = p.dateMontage || p.dateMesures;
-      if (!date) return false;
-      const d = new Date(date);
-      return d.getFullYear() === year && d.getMonth() === month;
-    });
-
-    // Build projectsByDay
-    const projectsByDay: Record<number, Project[]> = {};
-    monthProjects.forEach((p) => {
-      const date = p.dateMontage || p.dateMesures;
-      if (!date) return;
-      const d = new Date(date);
-      const day = d.getDate();
-      if (!projectsByDay[day]) projectsByDay[day] = [];
-      projectsByDay[day].push(p);
-    });
-
     // Build weeks grid
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const startDow = (firstDay.getDay() + 6) % 7; // Monday = 0
     const daysInMonth = lastDay.getDate();
+
+    // Filter projects whose [dateMontage, dateMontageEnd] range (or
+    // dateMesures alone) overlaps with this month. A multi-day project
+    // spanning two months will appear on both, on the correct days.
+    const monthProjects = projects.filter((p) => {
+      const startDate = p.dateMontage || p.dateMesures;
+      if (!startDate) return false;
+      const endDate = p.dateMontageEnd || startDate;
+      const monthStart = formatLocalDate(firstDay);
+      const monthEnd = formatLocalDate(lastDay);
+      return (startDate.split("T")[0] <= monthEnd) && (endDate.split("T")[0] >= monthStart);
+    });
+
+    // Build projectsByDay — a multi-day project is duplicated on each
+    // working day of its range.
+    const projectsByDay: Record<number, Project[]> = {};
+    monthProjects.forEach((p) => {
+      const startDate = p.dateMontage || p.dateMesures;
+      const endDate = p.dateMontageEnd || null;
+      if (!startDate) return;
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = formatLocalDate(new Date(year, month, day));
+        if (dateInRange(dateStr, startDate, endDate)) {
+          if (!projectsByDay[day]) projectsByDay[day] = [];
+          projectsByDay[day].push(p);
+        }
+      }
+    });
 
     const weeks: DayData[][] = [];
     let currentWeek: DayData[] = [];

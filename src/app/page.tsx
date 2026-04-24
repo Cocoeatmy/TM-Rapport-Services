@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { formatDateFR, formatDateLong, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST, getISOWeek } from "@/lib/constants";
+import { dateInRange, formatLocalDate } from "@/lib/time-utils";
 import { getFavorites } from "@/lib/favorites";
 import { fetchWithRetry } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
@@ -2336,15 +2337,22 @@ function HomePage() {
         const daysInMonth = lastDay.getDate();
         const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
+        // Un projet multi-jours (ex. 28-30 avril) apparaît sur CHAQUE
+        // jour ouvrable de sa plage. En "mesures", dateMesures est une
+        // date unique donc on ne parcourt qu'un seul jour.
         const projectsByDay: Record<number, Project[]> = {};
         rdvProjects.forEach((p) => {
-          const date = mode.startsWith("mesures") ? p.dateMesures : p.dateMontage;
-          if (!date) return;
-          const d = new Date(date);
-          if (d.getFullYear() === year && d.getMonth() === month) {
-            const day = d.getDate();
-            if (!projectsByDay[day]) projectsByDay[day] = [];
-            projectsByDay[day].push(p);
+          const startDate = mode.startsWith("mesures") ? p.dateMesures : p.dateMontage;
+          const endDate = mode.startsWith("mesures") ? null : p.dateMontageEnd;
+          if (!startDate) return;
+          // On itère sur tous les jours du mois affiché et on demande à
+          // `dateInRange` si le projet y est actif.
+          for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = formatLocalDate(new Date(year, month, day));
+            if (dateInRange(dateStr, startDate, endDate)) {
+              if (!projectsByDay[day]) projectsByDay[day] = [];
+              projectsByDay[day].push(p);
+            }
           }
         });
 

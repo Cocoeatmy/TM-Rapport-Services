@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor } from "@/lib/collaborators";
+import { dateInRange, formatLocalDate } from "@/lib/time-utils";
 import type { Project } from "@/lib/notion";
 
 interface WeekPlanningProps {
@@ -30,13 +31,19 @@ export function WeekPlanning({ projects, mode, onDrop }: WeekPlanningProps) {
   const dayNames = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
   const monthNames = ["janv.", "fév.", "mars", "avril", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
-  const todayStr = today.toISOString().split("T")[0];
+  const todayStr = formatLocalDate(today);
 
+  // On filtre un projet pour un jour donné en tenant compte de la plage
+  // dateMontage → dateMontageEnd : un projet du 28 au 30 avril apparaît
+  // bien les trois jours (mardi/mercredi/jeudi), plus seulement le mardi.
+  // En mode "mesures", pas de dateMesuresEnd → match exact sur dateMesures.
   const getProjectsForDay = (date: Date) => {
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = formatLocalDate(date);
     return projects.filter((p) => {
-      const pDate = mode.startsWith("mesures") ? p.dateMesures : p.dateMontage;
-      return pDate === dateStr;
+      if (mode.startsWith("mesures")) {
+        return dateInRange(dateStr, p.dateMesures);
+      }
+      return dateInRange(dateStr, p.dateMontage, p.dateMontageEnd);
     });
   };
 

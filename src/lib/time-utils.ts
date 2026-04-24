@@ -180,3 +180,58 @@ export function getISOWeekNumber(date: Date): number {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
+
+/**
+ * Format a JavaScript Date into "YYYY-MM-DD" in local timezone.
+ * Needed because toISOString() uses UTC and can shift the day at midnight.
+ */
+export function formatLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Liste des jours ouvrables (lundi à vendredi) entre deux dates inclusives.
+ * `startStr` et `endStr` acceptent "YYYY-MM-DD" ou "YYYY-MM-DDTHH:MM..."
+ * (la partie horaire est ignorée).
+ * Retourne une liste de chaînes "YYYY-MM-DD".
+ */
+export function getWorkingDays(startStr: string, endStr: string): string[] {
+  if (!startStr || !endStr) return [];
+  const days: string[] = [];
+  const start = new Date(startStr.split("T")[0] + "T12:00:00");
+  const end = new Date(endStr.split("T")[0] + "T12:00:00");
+  const current = new Date(start);
+  while (current <= end) {
+    const dow = current.getDay();
+    if (dow !== 0 && dow !== 6) {
+      days.push(formatLocalDate(current));
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return days;
+}
+
+/**
+ * Teste si un jour donné (YYYY-MM-DD) appartient à la plage [start, end]
+ * d'un projet. Si le projet n'a pas de date de fin, on fait un match exact
+ * sur la date de début. Si une plage est présente, on utilise les jours
+ * ouvrables (week-ends exclus) — c'est la logique appliquée sur le
+ * planning et le dashboard monteur. Typiquement :
+ *   dateInRange("2026-04-29", "2026-04-28", "2026-04-30") → true
+ *   dateInRange("2026-04-29", "2026-04-28", null)        → false
+ */
+export function dateInRange(
+  dateStr: string,
+  startRaw: string | null | undefined,
+  endRaw?: string | null | undefined,
+): boolean {
+  if (!startRaw) return false;
+  const start = startRaw.split("T")[0];
+  if (!endRaw) return start === dateStr;
+  const end = endRaw.split("T")[0];
+  if (start === end) return start === dateStr;
+  return getWorkingDays(start, end).includes(dateStr);
+}
