@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Camera, X, Package, Loader2, Download } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
+import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
 
 interface CartonPhotosProps {
   projectId: string;
@@ -59,10 +60,15 @@ export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    // Conserve les File originaux pour pouvoir proposer la sauvegarde
+    // dans Photos après l'upload (ces images viennent directement de
+    // la caméra native via capture="environment").
+    const originals: File[] = Array.from(files);
+
     setUploading(true);
     const newUrls: string[] = [];
     try {
-      for (const file of Array.from(files)) {
+      for (const file of originals) {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "tm_rapport");
@@ -84,6 +90,9 @@ export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
           syncToNotion(updated);
           return updated;
         });
+        // Propose à l'OS d'ajouter les photos dans Photos
+        // (iOS/Android via Web Share). Silencieux sinon.
+        saveFilesToDeviceGallery(originals).catch(() => {});
       }
     } catch (err) {
       console.error("Upload error:", err);

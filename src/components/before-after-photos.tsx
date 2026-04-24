@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Camera, X, Loader2, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { thumbnailUrl, previewUrl } from "@/lib/image-url";
+import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
 
 interface BeforeAfterPhoto {
   name: string;
@@ -99,8 +100,12 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
     const setUploading = side === "before" ? setUploadingBefore : setUploadingAfter;
     setUploading(true);
 
+    // Conserve les File originaux (caméra capture) pour proposer la
+    // sauvegarde dans Photos après l'upload.
+    const originals: File[] = Array.from(files);
+
     const formData = new FormData();
-    for (const file of Array.from(files)) {
+    for (const file of originals) {
       formData.append("files", file);
     }
     formData.append("category", "before-after");
@@ -119,6 +124,9 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
           setAfter(updated);
           syncToNotion(before, updated);
         }
+        // Propose à l'OS d'ajouter les photos dans Photos après le
+        // succès de l'upload. Silencieux si non supporté.
+        saveFilesToDeviceGallery(originals).catch(() => {});
       }
     } catch (err) {
       console.error("Upload error:", err);

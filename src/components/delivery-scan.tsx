@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { Camera, X, Loader2, FileCheck } from "lucide-react";
 import { toast } from "sonner";
 import { thumbnailUrl } from "@/lib/image-url";
+import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
 
 interface DeliveryScanProps {
   projectId: string;
@@ -48,6 +49,8 @@ export function DeliveryScan({ projectId, bonLivraison }: DeliveryScanProps) {
       if (patchRes.ok) {
         setUrl(imageUrl);
         toast.success("Bon de livraison enregistré");
+        // Propose d'ajouter la photo du bon dans Photos.
+        saveFilesToDeviceGallery([file]).catch(() => {});
       } else {
         toast.error("Erreur lors de la sauvegarde");
       }

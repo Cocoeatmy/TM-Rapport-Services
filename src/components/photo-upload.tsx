@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { Camera, ImagePlus, X, Loader2, Download } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
+import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
 
 interface PhotoUploadProps {
   category: string;
@@ -30,12 +31,25 @@ export function PhotoUpload({
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
-  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // `source` indique d'où vient le fichier :
+  //   - "camera"  : photo prise via l'appareil photo → on propose aussi
+  //                 à l'OS de la sauvegarder dans Photos (sinon elle
+  //                 ne reste que dans l'app / Notion / Cloudinary)
+  //   - "gallery" : photo déjà dans la galerie → rien à sauvegarder
+  const handleFiles = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    source: "camera" | "gallery" = "gallery",
+  ) => {
     const files = e.target.files;
     if (!files?.length) return;
 
+    // On garde les File originaux pour éventuellement les partager
+    // vers Photos après l'upload — les blobs renommés ci-dessous sont
+    // différents (nouveaux File) donc on conserve cette liste ici.
+    const originals: File[] = Array.from(files);
+
     const newPreviews: string[] = [];
-    for (const file of Array.from(files)) {
+    for (const file of originals) {
       newPreviews.push(URL.createObjectURL(file));
     }
     setPreviews((prev) => [...prev, ...newPreviews]);
@@ -43,7 +57,7 @@ export function PhotoUpload({
     setUploading(true);
     const formData = new FormData();
     const currentCount = photos.length + existingPhotos.length;
-    Array.from(files).forEach((file, i) => {
+    originals.forEach((file, i) => {
       const idx = currentCount + i + 1;
       const ext = file.name.split(".").pop() || "jpg";
       const newName = filePrefix ? `${filePrefix}.${idx}.${ext}` : file.name;
@@ -65,6 +79,16 @@ export function PhotoUpload({
         // photos au lieu d'une version pré-upload.
         invalidateApiCache();
         onUpload?.(newPhotos);
+
+        // Photos prises avec la caméra : on propose à l'OS de les
+        // sauvegarder dans Photos via la Web Share API (iOS 15+,
+        // Android). Sur desktop c'est un fallback vers Downloads.
+        // Silencieux : pas d'alerte si l'utilisateur annule ou si
+        // le support n'est pas là. Pour les photos venues de la
+        // galerie, rien à faire — elles y sont déjà.
+        if (source === "camera") {
+          saveFilesToDeviceGallery(originals).catch(() => {});
+        }
       } else if (data.error) {
         console.error("Upload rejected:", data.error);
       }
@@ -153,7 +177,7 @@ export function PhotoUpload({
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={handleFiles}
+        onChange={(e) => handleFiles(e, "camera")}
       />
       {/* Input galerie */}
       <input
@@ -162,7 +186,7 @@ export function PhotoUpload({
         accept="image/*"
         multiple
         className="hidden"
-        onChange={handleFiles}
+        onChange={(e) => handleFiles(e, "gallery")}
       />
     </div>
   );
