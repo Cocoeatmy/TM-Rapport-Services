@@ -238,21 +238,32 @@ export function NotificationBell() {
               ) : (
                 notifs.slice(0, 20).map((n) => {
                   const Icon = iconMap[n.type];
-                  const clickable = !!n.projectId;
+                  const hasProject = !!n.projectId;
                   return (
+                    // Toujours cliquable — si un projet est lié, le clic
+                    // navigue dessus ; sinon il referme simplement le
+                    // panneau et marque la notification comme lue. Le
+                    // disabled d'avant empêchait les vieilles
+                    // notifications sans projectId d'être touchées, ce
+                    // qui donnait l'impression que le clic "ne marchait
+                    // pas" sur toutes les notifs.
                     <button
                       key={n.id}
                       type="button"
                       onClick={() => handleNotifClick(n)}
-                      disabled={!clickable}
-                      className={`w-full text-left flex gap-2 px-3 py-2 border-b border-gray-50 dark:border-gray-700 last:border-0 ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/20" : ""} ${clickable ? "hover:bg-gray-50 dark:hover:bg-slate-700/60 cursor-pointer" : "cursor-default"}`}
+                      className={`w-full text-left flex gap-2 px-3 py-2 border-b border-gray-50 dark:border-gray-700 last:border-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/60 transition-colors ${!n.read ? "bg-blue-50/50 dark:bg-blue-900/20" : ""}`}
                     >
                       <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${colorMap[n.type]}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-gray-900 dark:text-gray-100">{n.title}</p>
                         <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{n.message}</p>
                       </div>
-                      <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">{formatTime(n.timestamp)}</span>
+                      <div className="flex flex-col items-end gap-0.5 shrink-0">
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500">{formatTime(n.timestamp)}</span>
+                        {hasProject && (
+                          <span className="text-[9px] text-blue-500 dark:text-cyan-400 font-medium">Voir →</span>
+                        )}
+                      </div>
                     </button>
                   );
                 })

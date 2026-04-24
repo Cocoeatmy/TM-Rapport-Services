@@ -175,8 +175,30 @@ function formatDay(dateStr: string) {
   return d.toLocaleDateString("fr-CH", { weekday: "short", day: "2-digit", month: "short" });
 }
 
+/**
+ * Affichage de la date d'un projet en tenant compte des projets multi-jours.
+ * - Projet mono-jour : "Mar. 26 avr."
+ * - Projet multi-jours (ex. 28-30 avril) : "Mar. 28 → Jeu. 30 avr."
+ * Le badge "3j" affiché à côté complète l'info, mais le texte lui-même doit
+ * déjà montrer la plage — sinon on pense que c'est un rendez-vous d'un jour.
+ */
+function formatProjectDate(project: Project): string {
+  const startRaw = project.dateMontage || project.dateMesures || "";
+  if (!startRaw) return "---";
+  const endRaw = project.dateMontageEnd || "";
+  const startDay = startRaw.split("T")[0];
+  const endDay = endRaw.split("T")[0];
+  if (!endDay || endDay === startDay) return formatDay(startRaw);
+  return `${formatDay(startRaw)} → ${formatDay(endRaw)}`;
+}
+
 function matchesCollaborator(fieldValue: string, name: string): boolean {
   if (!fieldValue) return false;
+  // Les projets attribués à une "Team …" (ex: "Team TM") sont considérés
+  // comme assignés à TOUS les monteurs individuels : ils doivent
+  // apparaître dans chaque dashboard personnel, pas seulement dans la
+  // section "Binômes & Teams".
+  if (fieldValue.toLowerCase().includes("team")) return true;
   const n = name.toLowerCase();
   return fieldValue.split("&").some((part) => {
     const trimmed = part.trim().toLowerCase();
@@ -381,14 +403,17 @@ function WeekProjectRow({ project }: { project: Project }) {
   const isTeam = collabNames.length >= 5 || collabField.toLowerCase().includes("team");
   const teamLabel = isTeam ? "Team" : collabNames.length === 2 ? "Binôme" : collabNames.length === 3 ? "Trio" : collabNames.length === 4 ? "Quatuor" : "";
   const logo = getClientLogo(project.projet);
+  // Largeur plus grande quand on affiche une plage de dates, pour ne pas
+  // tronquer le "Mar. 28 → Jeu. 30 avr.".
+  const isMultiDay = !!project.dateMontageEnd && project.dateMontageEnd.split("T")[0] !== (project.dateMontage || "").split("T")[0];
 
   return (
     <Link
       href={`/projet/${project.id}?mode=dashboard`}
       className="flex items-center gap-2 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
     >
-      <div className="text-[10px] font-mono text-gray-500 dark:text-gray-400 w-16 shrink-0">
-        <div>{formatDay(date)}</div>
+      <div className={`text-[10px] font-mono text-gray-500 dark:text-gray-400 shrink-0 ${isMultiDay ? "w-32" : "w-16"}`}>
+        <div>{formatProjectDate(project)}</div>
         {date.includes("T") && (
           <div className="text-[9px] text-blue-500 font-semibold">
             {new Date(date).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}
@@ -514,15 +539,27 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
     })
     .filter((b) => b.todayProjects.length > 0 || b.thisWeekProjects.length > 0 || b.nextWeekProjects.length > 0);
 
-  // Summary stats
+  // Summary stats — depuis que les projets Team apparaissent aussi dans
+  // la section de chaque monteur individuel (pour qu'ils les voient tous),
+  // on doit dédupliquer par project.id pour ne pas compter N fois les
+  // cabines d'une Team dans les totaux globaux.
+  const seenWeekIds = new Set<string>();
+  const uniqueWeekProjects: Project[] = [];
+  collabData.forEach((c) => {
+    [...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects].forEach((p) => {
+      if (!seenWeekIds.has(p.id)) { seenWeekIds.add(p.id); uniqueWeekProjects.push(p); }
+    });
+  });
   const totalProjectsToday = new Set(
     collabData.flatMap((c) => c.todayProjects.map((p) => p.id))
   ).size;
-  const totalCabinesWeek = collabData.reduce((sum, c) => sum + c.totalCabines, 0);
+  const totalCabinesWeek = uniqueWeekProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+  // Agrégation par source de projet (montage/mesures/services/sav)
+  // depuis la liste dédupliquée — évite de compter une Team N fois.
   const allWeekCabinesBySource: Record<string, number> = {};
-  collabData.forEach((c) => {
-    const counts = countCabinesBySource([...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects], c.name);
-    Object.entries(counts).forEach(([k, v]) => { allWeekCabinesBySource[k] = (allWeekCabinesBySource[k] || 0) + v; });
+  uniqueWeekProjects.forEach((p) => {
+    const src = getProjectSource(p);
+    allWeekCabinesBySource[src] = (allWeekCabinesBySource[src] || 0) + (p.nbCabines || 0);
   });
   const weekSummary = formatCabinesSummary(allWeekCabinesBySource);
   const busyToday = collabData.filter((c) => c.todayProjects.length > 0).length;
