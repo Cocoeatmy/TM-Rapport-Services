@@ -481,11 +481,18 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
     return { name, colors, myProjects, todayProjects, thisWeekProjects, nextWeekProjects, totalCabines, cabinesSummary };
   });
 
-  // Build per-binôme/team data (projects with 2+ collaborateurs)
+  // Build per-binôme/team data.
+  // On inclut ici :
+  //   - les binômes/trios/quatuors écrits avec "&" (ex: "Claudio & Loïc")
+  //   - les équipes nommées via un label contenant "team"
+  //     (ex: "Team TM") même s'il n'y a pas de "&" — sinon ces
+  //     projets ne remontaient jamais dans la section BINÔMES & TEAMS.
   const binomeMap: Record<string, Project[]> = {};
   projects.forEach((p) => {
     const collab = p.collaborateurs || "";
-    if (!collab.includes("&")) return;
+    const isAmpCollab = collab.includes("&");
+    const isTeamLabel = collab.toLowerCase().includes("team");
+    if (!isAmpCollab && !isTeamLabel) return;
     // Check if project is active within next 2 weeks
     if (!projectActiveDuringRange(p, todayStr, weekEndStr)) return;
     if (!binomeMap[collab]) binomeMap[collab] = [];
