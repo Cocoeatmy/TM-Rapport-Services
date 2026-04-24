@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Camera, ImagePlus, X, Loader2, Download } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
+import { invalidateApiCache } from "@/lib/api-helpers";
 
 interface PhotoUploadProps {
   category: string;
@@ -59,7 +60,13 @@ export function PhotoUpload({
       if (data.files) {
         const newPhotos = [...photos, ...data.files];
         setPhotos(newPhotos);
+        // Purge le cache du service worker pour que le prochain
+        // fetch `/api/projects/[id]` retourne bien les nouvelles
+        // photos au lieu d'une version pré-upload.
+        invalidateApiCache();
         onUpload?.(newPhotos);
+      } else if (data.error) {
+        console.error("Upload rejected:", data.error);
       }
     } catch (err) {
       console.error("Upload error:", err);

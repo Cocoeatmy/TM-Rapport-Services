@@ -2086,10 +2086,10 @@ function ProjectPageContent({ id }: { id: string }) {
                       </div>
                     </div>
                     <Separator />
-                    <PhotoUpload category="avant" label="Photos avant montage" projectId={id} notionField="Photos avant montage" filePrefix="Etat avant intervention" existingPhotos={project.photosAvant} />
-                    <PhotoUpload category="montage" label="Photos montage terminé" projectId={id} notionField="Photos montage terminé" filePrefix="Photos - Montage termine" existingPhotos={project.photosMontage} />
-                    <PhotoUpload category="qrcode" label="Photos QR Code" projectId={id} notionField="Photos QR Code" filePrefix="Photos - QR Code" existingPhotos={project.photosQRCode} />
-                    <PhotoUpload category="garanties" label="Photos garanties" projectId={id} notionField="Photos garanties" filePrefix="Photos - Garantie" existingPhotos={project.photosGaranties} />
+                    <PhotoUpload category="avant" label="Photos avant montage" projectId={id} notionField="Photos avant montage" filePrefix="Etat avant intervention" existingPhotos={project.photosAvant} onUpload={(files) => setProject((prev) => prev ? { ...prev, photosAvant: files } : prev)} />
+                    <PhotoUpload category="montage" label="Photos montage terminé" projectId={id} notionField="Photos montage terminé" filePrefix="Photos - Montage termine" existingPhotos={project.photosMontage} onUpload={(files) => setProject((prev) => prev ? { ...prev, photosMontage: files } : prev)} />
+                    <PhotoUpload category="qrcode" label="Photos QR Code" projectId={id} notionField="Photos QR Code" filePrefix="Photos - QR Code" existingPhotos={project.photosQRCode} onUpload={(files) => setProject((prev) => prev ? { ...prev, photosQRCode: files } : prev)} />
+                    <PhotoUpload category="garanties" label="Photos garanties" projectId={id} notionField="Photos garanties" filePrefix="Photos - Garantie" existingPhotos={project.photosGaranties} onUpload={(files) => setProject((prev) => prev ? { ...prev, photosGaranties: files } : prev)} />
                     <Separator />
                     <BeforeAfterPhotos projectId={id} projectName={project.projet} initialBefore={project.photosAvant} initialAfter={project.photosMontage} />
                   </CardContent>
@@ -2486,6 +2486,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   notionField="Photos situations"
                   filePrefix="Photos - Situations"
                   existingPhotos={project.photosSituations}
+                  onUpload={(files) => setProject((prev) => prev ? { ...prev, photosSituations: files } : prev)}
                 />
                 <PhotoUpload
                   category="mesures"
@@ -2494,6 +2495,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   notionField="Photos mesures"
                   filePrefix="Photos - Mesures"
                   existingPhotos={project.photosMesures}
+                  onUpload={(files) => setProject((prev) => prev ? { ...prev, photosMesures: files } : prev)}
                 />
                 <PhotoUpload
                   category="localite"
@@ -2502,6 +2504,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   notionField="Photos localité"
                   filePrefix="Photos - Localite"
                   existingPhotos={project.photosLocalite}
+                  onUpload={(files) => setProject((prev) => prev ? { ...prev, photosLocalite: files } : prev)}
                 />
               </CardContent>
             </Card>
