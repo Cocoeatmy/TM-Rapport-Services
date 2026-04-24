@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, use } from "react";
+import { Suspense, useEffect, useRef, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -1078,6 +1078,20 @@ function ProjectPageContent({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [reformulating, setReformulating] = useState(false);
+  // Dernière version connue côté serveur des champs éditables texte.
+  // Sert au merge intelligent du polling : si le serveur a changé ET
+  // que la valeur locale correspond encore à la snapshot (= l'utilisateur
+  // n'a pas modifié), on met à jour local pour voir les ajouts d'un autre
+  // collaborateur. Sinon on préserve la saisie en cours et on met juste
+  // à jour la snapshot pour détecter les changements suivants.
+  const serverSnapshotRef = useRef<{
+    rapport: string;
+    commentaires: string;
+    heureArrivee: string;
+    heureDepart: string;
+  }>({ rapport: "", commentaires: "", heureArrivee: "", heureDepart: "" });
+  // Notif discret si on n'a pas pu fusionner automatiquement (conflit).
+  const [collabUpdateToast, setCollabUpdateToast] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   const [showAllDates, setShowAllDates] = useState(false);
   const [showRapport, setShowRapport] = useState(false);
@@ -1164,6 +1178,14 @@ function ProjectPageContent({ id }: { id: string }) {
     setHeureDepart(data.heureDepart || "");
     setCommentaires(data.commentairesMontages || "");
     setRapport(data.rapportMonteur || "");
+    // Initialise la snapshot : le local est synchrone avec le serveur
+    // juste après le mount.
+    serverSnapshotRef.current = {
+      rapport: data.rapportMonteur || "",
+      commentaires: data.commentairesMontages || "",
+      heureArrivee: data.heureArrivee || "",
+      heureDepart: data.heureDepart || "",
+    };
     const nb = data.nbCabines || 1;
     if (nb > 1) {
       setIsCabineMode(true);
@@ -1226,13 +1248,53 @@ function ProjectPageContent({ id }: { id: string }) {
     if (!project?.id) return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/projects/${project.id}`);
+        const res = await fetch(`/api/projects/${project.id}`, { cache: "no-store" });
         const data = await res.json();
-        if (data?.id) {
-          setProject(data);
-          if (data.heureArrivee) setHeureArrivee(data.heureArrivee);
-          if (data.heureDepart) setHeureDepart(data.heureDepart);
+        if (!data?.id) return;
+
+        // setProject met à jour les photos, relations, dates... (tout ce
+        // qui n'est pas une zone de saisie active).
+        setProject(data);
+
+        // Merge intelligent des champs texte éditables : on ne pousse la
+        // valeur serveur que si la valeur locale n'a pas été modifiée
+        // depuis la dernière snapshot. Ça permet à B de voir les ajouts
+        // de A en temps quasi-réel, sans effacer ce que B est en train
+        // de taper. Si un conflit est détecté (A a modifié ET B est en
+        // train de saisir), on garde le local et on affiche un toast
+        // discret pour inviter à recharger après avoir sauvé.
+        let conflict = false;
+        const snap = serverSnapshotRef.current;
+        const sRapport = data.rapportMonteur || "";
+        const sCommentaires = data.commentairesMontages || "";
+        const sHA = data.heureArrivee || "";
+        const sHD = data.heureDepart || "";
+
+        if (sRapport !== snap.rapport) {
+          setRapport((cur) => {
+            if (cur === snap.rapport) { snap.rapport = sRapport; return sRapport; }
+            snap.rapport = sRapport; conflict = true; return cur;
+          });
         }
+        if (sCommentaires !== snap.commentaires) {
+          setCommentaires((cur) => {
+            if (cur === snap.commentaires) { snap.commentaires = sCommentaires; return sCommentaires; }
+            snap.commentaires = sCommentaires; conflict = true; return cur;
+          });
+        }
+        if (sHA !== snap.heureArrivee) {
+          setHeureArrivee((cur) => {
+            if (cur === snap.heureArrivee) { snap.heureArrivee = sHA; return sHA; }
+            snap.heureArrivee = sHA; conflict = true; return cur;
+          });
+        }
+        if (sHD !== snap.heureDepart) {
+          setHeureDepart((cur) => {
+            if (cur === snap.heureDepart) { snap.heureDepart = sHD; return sHD; }
+            snap.heureDepart = sHD; conflict = true; return cur;
+          });
+        }
+        if (conflict) setCollabUpdateToast(true);
       } catch {}
     }, 15000);
     return () => clearInterval(interval);
@@ -1284,6 +1346,15 @@ function ProjectPageContent({ id }: { id: string }) {
           heureArrivee: arriveeToSave,
           heureDepart: departToSave,
         } : prev);
+        // La snapshot serveur est maintenant ce qu'on vient d'envoyer :
+        // comme ça le prochain polling ne détectera pas un "faux conflit"
+        // sur notre propre écriture.
+        serverSnapshotRef.current = {
+          rapport: reportToSave,
+          commentaires: commentaires,
+          heureArrivee: arriveeToSave,
+          heureDepart: departToSave,
+        };
         toast.success("Rapport enregistré avec succès");
       } else {
         // Message d'erreur explicite (long toast) pour que l'utilisateur
@@ -1416,6 +1487,31 @@ function ProjectPageContent({ id }: { id: string }) {
 
   return (
     <div className="max-w-4xl mx-auto w-full pb-8 px-4">
+      {/* Banner de conflit de collaboration : un autre utilisateur a
+          modifié un champ pendant qu'on était en train de saisir. On
+          le signale discrètement pour inviter à sauvegarder puis
+          recharger plutôt que d'écraser son travail. */}
+      {collabUpdateToast && (
+        <div className="mt-2 mb-2 flex items-center gap-3 rounded-xl px-3 py-2 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 text-xs text-amber-800 dark:text-amber-200">
+          <span className="flex-1">
+            Un collègue a modifié ce rapport pendant que vous éditiez.
+            Enregistrez votre saisie, puis rechargez pour voir ses ajouts.
+          </span>
+          <button
+            onClick={() => { setCollabUpdateToast(false); window.location.reload(); }}
+            className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+          >
+            Recharger
+          </button>
+          <button
+            onClick={() => setCollabUpdateToast(false)}
+            aria-label="Fermer"
+            className="shrink-0 text-amber-600 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-100"
+          >
+            ×
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="sticky z-40 glass-card border-b px-4 py-3" style={{ borderRadius: 0, top: headerHeight }}>
         <div className="flex items-center gap-3">
