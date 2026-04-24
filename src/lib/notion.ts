@@ -419,6 +419,15 @@ export async function getAllActiveProjects(): Promise<Project[]> {
   );
 }
 
+// Vraiment tous les projets, sans filtre d'état (admin uniquement).
+// Inclut donc aussi les Terminé, Annulé et tous les autres statuts.
+export async function getAllProjectsRaw(): Promise<Project[]> {
+  return queryAll(
+    undefined,
+    [{ property: "Date Montage", direction: "descending" }]
+  );
+}
+
 export async function getProject(pageId: string): Promise<Project> {
   const page = await notion.pages.retrieve({ page_id: pageId });
   const project = mapPageToProject(page);

@@ -6,7 +6,7 @@ import { Onboarding } from "@/components/onboarding";
 import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2 } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
@@ -38,6 +38,11 @@ const KanbanBoard = dynamic(() => import("@/components/kanban-board").then(m => 
 });
 
 const CRMClients = dynamic(() => import("@/components/crm-clients").then(m => ({ default: m.CRMClients })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const DestockageView = dynamic(() => import("@/components/destockage-view").then(m => ({ default: m.DestockageView })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
@@ -122,6 +127,20 @@ function ProjectCard({ project, mode, isAdmin, onDelete }: { project: Project; m
           </div>
         </div>
       </Link>
+      {/* Bouton "Ouvrir dans un nouvel onglet" — utile pour comparer
+          deux projets côte à côte sans perdre la liste courante.
+          Placé en bas à gauche pour ne pas entrer en conflit avec le
+          bouton d'archivage admin (top right). */}
+      <a
+        href={`/projet/${project.id}?mode=${mode}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="absolute bottom-3 right-10 w-7 h-7 rounded-full bg-white/80 dark:bg-slate-700/80 text-gray-500 dark:text-gray-300 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-white dark:hover:bg-slate-600 hover:text-blue-600 dark:hover:text-cyan-300 transition-all z-10"
+        title="Ouvrir dans un nouvel onglet"
+      >
+        <ExternalLink className="w-3.5 h-3.5" />
+      </a>
       {isAdmin && onDelete && (
         <button
           onClick={(e) => {
@@ -232,6 +251,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
           }`}>
             Rapport
           </button>
+          <button onClick={() => { handleSelect("destockage"); setOpen(null); }} className={tabCls(mode === "destockage")}>
+            Déstockage
+          </button>
           {isAdmin && (
             <button onClick={() => { handleSelect("stats"); setOpen(null); }} className={tabCls(mode === "stats")}>
               Stats
@@ -240,6 +262,11 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
           {isAdmin && (
             <button onClick={() => { handleSelect("archives"); setOpen(null); }} className={tabCls(mode === "archives")}>
               Archives
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={() => { handleSelect("projets-tous"); setOpen(null); }} className={tabCls(mode === "projets-tous")}>
+              Projets
             </button>
           )}
         </div>
@@ -645,8 +672,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "stats" | "archives";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "stats", "archives"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "stats" | "archives" | "projets-tous" | "destockage";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "stats", "archives", "projets-tous", "destockage"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -762,6 +789,7 @@ function HomePage() {
     "fournisseurs-samo": "/api/projects/all-active",
     stats: "/api/projects/all-active",
     archives: "/api/projects/cmd-termine",
+    "projets-tous": "/api/projects/all",
   };
 
   const [rapportSearch, setRapportSearch] = useState("");
@@ -1133,7 +1161,7 @@ function HomePage() {
         <div className="flex-1 min-w-0">
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }} />
         </div>
-        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && !mode.startsWith("clients-") && (
+        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && !mode.startsWith("clients-") && (
           <button
             onClick={() => setShowNewProject(true)}
             className="shrink-0 mt-1.5 w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
@@ -2254,7 +2282,7 @@ function HomePage() {
       })()}
 
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && viewMode === "list" && (
         <div className="flex gap-3 mb-4">
           <button
             onClick={() => setViewMode("calendar")}
@@ -2661,7 +2689,122 @@ function HomePage() {
         );
       })()}
 
-      {mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && !mode.startsWith("clients-") && (<>
+      {/* VUE PROJETS (admin) — absolument tous les projets, statut inclus */}
+      {mode === "projets-tous" && (() => {
+        const allProjects = (projectsData["projets-tous"] || [])
+          .slice()
+          .sort((a: any, b: any) => ((b.dateMontage || "").localeCompare(a.dateMontage || "")));
+
+        const q = search.toLowerCase();
+        const allFiltered = q
+          ? allProjects.filter((p: any) =>
+              p.projet.toLowerCase().includes(q) ||
+              p.ofrTM.toLowerCase().includes(q) ||
+              p.nomChantier.toLowerCase().includes(q) ||
+              p.collaborateurs.toLowerCase().includes(q) ||
+              p.fournisseurs.some((f: string) => f.toLowerCase().includes(q))
+            )
+          : allProjects;
+
+        const grouped: Record<string, any[]> = {};
+        allFiltered.forEach((p: any) => {
+          const date = p.dateMontage || "";
+          const monthKey = date ? date.substring(0, 7) : "Sans date";
+          if (!grouped[monthKey]) grouped[monthKey] = [];
+          grouped[monthKey].push(p);
+        });
+
+        const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+        const formatMonth = (key: string) => {
+          if (key === "Sans date") return key;
+          const [y, m] = key.split("-");
+          return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
+        };
+
+        const statusBadgeColor = (status: string) => {
+          if (!status) return "bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300";
+          if (STATUS_CMD_COLORS[status]) return STATUS_CMD_COLORS[status];
+          if (status === "Terminé") return "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300";
+          if (status === "Annulé") return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300";
+          return "bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300";
+        };
+
+        return (
+          <div>
+            <div className="relative mb-4 max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Rechercher dans tous les projets..."
+                className="pl-9 h-11 rounded-xl glass-input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {allFiltered.length} projet{allFiltered.length !== 1 ? "s" : ""} au total (toutes statuts confondus)
+            </p>
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            )}
+            {Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([monthKey, projs]) => (
+              <div key={monthKey} className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4" />
+                  {formatMonth(monthKey)} ({projs.length})
+                </h3>
+                <div className="space-y-3">
+                  {projs.map((p: any) => (
+                    <Link key={p.id} href={`/projet/${p.id}?mode=projets-tous`}
+                      className="block glass-card rounded-2xl p-4 hover:bg-white/80 dark:hover:bg-white/10 transition-all">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{p.projet || "Sans nom"}</h4>
+                          {p.ofrTM && <p className="text-xs text-gray-500 mt-0.5">OFR {p.ofrTM}</p>}
+                          <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            <Calendar className="w-3.5 h-3.5 shrink-0" />
+                            <span>{p.dateMontage ? formatDateFR(p.dateMontage) : "---"}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {(p.collaborateurs || "").split(" & ").filter(Boolean).map((name: string) => (
+                              <span key={name} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full"
+                                style={{ backgroundColor: getCollaboratorColor(name.trim()).bg, color: getCollaboratorColor(name.trim()).text }}>
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getCollaboratorColor(name.trim()).dot }} />
+                                {name.trim()}
+                              </span>
+                            ))}
+                            {p.fournisseurs?.slice(0, 2).map((f: string) => (
+                              <Badge key={f} variant="secondary" className="text-xs">{f}</Badge>
+                            ))}
+                            <Badge variant="outline" className="text-xs">{p.nbCabines || 0} cab.</Badge>
+                          </div>
+                        </div>
+                        <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${statusBadgeColor(p.etatCMD)}`}>
+                          {p.etatCMD || "---"}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {allFiltered.length === 0 && !loading && (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-lg">Aucun projet trouvé</p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* VUE DÉSTOCKAGE — inventaire des cabines en stock + action déstocker */}
+      {mode === "destockage" && (
+        <DestockageView isAdmin={currentUser?.role === "admin"} />
+      )}
+
+
+      {mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && !mode.startsWith("clients-") && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {
         const favIds = typeof window !== "undefined" ? getFavorites() : [];
