@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
             </tr>
             <tr>
               <td style="padding: 8px; color: #666;">Date</td>
-              <td style="padding: 8px;">${new Date().toLocaleString("fr-CH", { dateStyle: "long", timeStyle: "short" })}</td>
+              <td style="padding: 8px;">${new Date().toLocaleString("fr-CH", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Zurich" })}</td>
             </tr>
           </table>
           <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />

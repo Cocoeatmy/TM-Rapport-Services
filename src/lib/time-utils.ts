@@ -193,6 +193,47 @@ export function formatLocalDate(d: Date): string {
 }
 
 /**
+ * Formatage d'une date en heure suisse (Europe/Zurich) côté serveur.
+ *
+ * Vercel exécute en UTC ; sans option `timeZone`, `toLocaleString` et
+ * `toLocaleDateString` rendent donc l'heure UTC, pas l'heure locale du
+ * client. Sur un PDF « Généré le HH:MM » on se retrouvait avec 05h30
+ * au lieu de 07h30 en été.
+ *
+ * Ce helper garantit toujours l'heure suisse. Utiliser pour tout ce
+ * qui s'affiche dans un PDF / email / export généré côté serveur.
+ */
+export function formatSwissDateTime(
+  date: Date | string | number,
+  options: Intl.DateTimeFormatOptions = {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  },
+): string {
+  const d = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
+  return d.toLocaleString("fr-CH", { timeZone: "Europe/Zurich", ...options });
+}
+
+/**
+ * Variante "date seule" (pas d'heure), toujours en heure suisse.
+ * Évite les off-by-one au voisinage de minuit UTC.
+ */
+export function formatSwissDate(
+  date: Date | string | number,
+  options: Intl.DateTimeFormatOptions = {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  },
+): string {
+  const d = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
+  return d.toLocaleDateString("fr-CH", { timeZone: "Europe/Zurich", ...options });
+}
+
+/**
  * Liste des jours ouvrables (lundi à vendredi) entre deux dates inclusives.
  * `startStr` et `endStr` acceptent "YYYY-MM-DD" ou "YYYY-MM-DDTHH:MM..."
  * (la partie horaire est ignorée).

@@ -14,6 +14,7 @@ import ReactPDF, {
 } from "@react-pdf/renderer";
 import React from "react";
 import { getData } from "@/lib/kv-store";
+import { formatSwissDate, formatSwissDateTime } from "@/lib/time-utils";
 
 interface PieceRequest {
   id: string;
@@ -392,12 +393,10 @@ const styles = StyleSheet.create({
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "Non défini";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("fr-CH", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+  // Force Europe/Zurich pour éviter les off-by-one au voisinage de
+  // minuit UTC (un montage stocké "2026-04-28T00:30:00+02:00" =
+  // "2026-04-27T22:30:00Z" s'afficherait "27 avril" sans timezone).
+  return formatSwissDate(dateStr);
 }
 
 function optimizeImageUrl(url: string): string {
@@ -447,13 +446,11 @@ function getDefautStatusStyle(status: string) {
 }
 
 function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceRequest[]; defauts: DefautRequest[] }) {
-  const now = new Date(project.dateMontage || Date.now()).toLocaleDateString("fr-CH", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  // "Généré le" = instant de génération du PDF (et PAS la date de
+  // montage qui serait trompeuse — le label dit bien "Généré"). Le
+  // serveur Vercel tourne en UTC, il faut forcer Europe/Zurich pour
+  // que l'heure affichée corresponde à l'heure locale en Suisse.
+  const now = formatSwissDateTime(Date.now());
 
   return (
     <Document>

@@ -57,7 +57,7 @@ export async function POST(
             <div style="background: #f0fdf4; padding: 20px; border: 1px solid #bbf7d0; border-top: none; border-radius: 0 0 10px 10px;">
               <p style="margin: 0 0 8px 0; color: #166534; font-size: 14px;">Le client <strong>${actionLabel}</strong> pour :</p>
               <p style="margin: 0; font-size: 18px; font-weight: 700; color: #14532d;">${project.projet}</p>
-              <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 12px;">${new Date().toLocaleString("fr-CH", { dateStyle: "full", timeStyle: "short" })}</p>
+              <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 12px;">${new Date().toLocaleString("fr-CH", { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Zurich" })}</p>
             </div>
           </div>
         `,

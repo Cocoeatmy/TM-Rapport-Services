@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getProjects } from "@/lib/notion";
+import { formatSwissDate } from "@/lib/time-utils";
 import { Resend } from "resend";
 import ReactPDF, {
   Document,
@@ -224,11 +225,7 @@ function RapportMensuelPDF({
   nbPieces: number;
   nbDefauts: number;
 }) {
-  const now = new Date().toLocaleDateString("fr-CH", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+  const now = formatSwissDate(Date.now());
 
   return (
     <Document>
@@ -380,7 +377,7 @@ export async function POST(request: NextRequest) {
   try {
     const projects = await getProjects();
     const now = new Date();
-    const monthName = now.toLocaleDateString("fr-CH", { month: "long", year: "numeric" });
+    const monthName = formatSwissDate(now, { month: "long", year: "numeric" });
 
     // Stats
     const totalProjets = projects.length;

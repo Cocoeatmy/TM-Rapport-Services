@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getProjects } from "@/lib/notion";
 import type { Project } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
-import { dateInRange, formatLocalDate } from "@/lib/time-utils";
+import { dateInRange, formatLocalDate, formatSwissDate } from "@/lib/time-utils";
 import ReactPDF, {
   Document,
   Page,
@@ -224,11 +224,7 @@ function PlanningPDF({
           <View>
             <Text style={{ fontSize: 7, color: "#666" }}>
               Genere le{" "}
-              {new Date().toLocaleDateString("fr-CH", {
-                day: "2-digit",
-                month: "long",
-                year: "numeric",
-              })}
+              {formatSwissDate(Date.now())}
             </Text>
           </View>
         </View>
