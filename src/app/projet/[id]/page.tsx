@@ -79,7 +79,7 @@ import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { addToQueue, isOnline } from "@/lib/offline";
-import { fetchWithRetry } from "@/lib/api-helpers";
+import { fetchWithRetry, invalidateApiCache } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import { thumbnailUrl } from "@/lib/image-url";
@@ -1240,21 +1240,28 @@ function ProjectPageContent({ id }: { id: string }) {
 
   const handleSave = async () => {
     setSaving(true);
+    // On pré-calcule le rapport qui sera envoyé à Notion (peut contenir du
+    // vocal + texte, et on en aura besoin pour mettre à jour le state local
+    // quand le save réussit — sinon un polling 15 s plus tard risque
+    // d'écraser la saisie courante avec une réponse Notion vide).
+    const reportToSave = isCabineMode
+      ? rapport + "\n\n" + cabines.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
+      : rapport;
+    const arriveeToSave = isMultiDay
+      ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
+      : heureArrivee;
+    const departToSave = isMultiDay
+      ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
+      : heureDepart;
     try {
       const res = await fetch(`/api/projects/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          heureArrivee: isMultiDay
-            ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
-            : heureArrivee,
-          heureDepart: isMultiDay
-            ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
-            : heureDepart,
+          heureArrivee: arriveeToSave,
+          heureDepart: departToSave,
           commentairesMontages: commentaires,
-          rapportMonteur: isCabineMode
-            ? rapport + "\n\n" + cabines.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
-            : rapport,
+          rapportMonteur: reportToSave,
         }),
       });
       // Save cabine attribution if in multi-cabin mode
@@ -1266,12 +1273,35 @@ function ProjectPageContent({ id }: { id: string }) {
         });
       }
       if (res.ok) {
+        // Purge le cache SW + aligne l'état React sur ce qu'on vient
+        // d'écrire, sinon le polling 15 s plus tard peut réécraser
+        // rapport/commentaires avec une réponse antérieure.
+        invalidateApiCache();
+        setProject((prev) => prev ? {
+          ...prev,
+          rapportMonteur: reportToSave,
+          commentairesMontages: commentaires,
+          heureArrivee: arriveeToSave,
+          heureDepart: departToSave,
+        } : prev);
         toast.success("Rapport enregistré avec succès");
       } else {
-        toast.error("Erreur lors de l'enregistrement");
+        // Message d'erreur explicite (long toast) pour que l'utilisateur
+        // comprenne que la sauvegarde a échoué et n'abandonne pas sa saisie.
+        let detail = "";
+        try { const j = await res.json(); detail = j?.error || ""; } catch {}
+        toast.error(
+          detail
+            ? `Sauvegarde échouée : ${detail}. Votre texte reste dans le champ, retentez.`
+            : "Sauvegarde échouée. Votre texte reste dans le champ, retentez.",
+          { duration: 8000 }
+        );
       }
     } catch {
-      toast.error("Erreur réseau");
+      toast.error(
+        "Erreur réseau pendant la sauvegarde. Votre texte reste dans le champ, retentez.",
+        { duration: 8000 }
+      );
     } finally {
       setSaving(false);
     }

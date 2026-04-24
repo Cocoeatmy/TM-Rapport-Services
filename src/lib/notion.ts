@@ -434,6 +434,33 @@ export async function getProject(pageId: string): Promise<Project> {
   return project;
 }
 
+/**
+ * Découpe une chaîne en blocs de `rich_text` compatibles Notion.
+ *
+ * Notion impose une limite de 2000 caractères par bloc `text.content`.
+ * Un rapport rempli à la main + plusieurs dictées vocales dépasse
+ * facilement cette limite, et dans ce cas la requête PATCH est rejetée
+ * en entier par l'API Notion (Error 400 "body.properties...text.content
+ * should be ≤ 2000 characters"). Résultat : la sauvegarde échoue, la
+ * personne voit peut-être passer le toast d'erreur et en tout cas tout
+ * est perdu au prochain fetch.
+ *
+ * Ce helper renvoie un tableau de blocs `rich_text` qui ensemble
+ * contiennent tout le texte, découpé tous les 1900 caractères pour se
+ * laisser une marge. Quand on lit la page depuis Notion, les blocs
+ * sont concaténés naturellement (plain_text.join("")).
+ */
+function toRichText(content: string | null | undefined): { text: { content: string } }[] {
+  if (!content) return [{ text: { content: "" } }];
+  const CHUNK = 1900;
+  if (content.length <= CHUNK) return [{ text: { content } }];
+  const parts: { text: { content: string } }[] = [];
+  for (let i = 0; i < content.length; i += CHUNK) {
+    parts.push({ text: { content: content.slice(i, i + CHUNK) } });
+  }
+  return parts;
+}
+
 export async function updateProject(
   pageId: string,
   data: {
@@ -464,22 +491,22 @@ export async function updateProject(
 
   if (data.heureArrivee !== undefined) {
     properties["Heure arrivée"] = {
-      rich_text: [{ text: { content: data.heureArrivee } }],
+      rich_text: toRichText(data.heureArrivee),
     };
   }
   if (data.heureDepart !== undefined) {
     properties["Heure départ"] = {
-      rich_text: [{ text: { content: data.heureDepart } }],
+      rich_text: toRichText(data.heureDepart),
     };
   }
   if (data.commentairesMontages !== undefined) {
     properties["Commentaires Montages"] = {
-      rich_text: [{ text: { content: data.commentairesMontages } }],
+      rich_text: toRichText(data.commentairesMontages),
     };
   }
   if (data.rapportMonteur !== undefined) {
     properties["Rapport monteur"] = {
-      rich_text: [{ text: { content: data.rapportMonteur } }],
+      rich_text: toRichText(data.rapportMonteur),
     };
   }
   if (data.dateMontage !== undefined) {
@@ -554,32 +581,32 @@ export async function updateProject(
   }
   if (data.contacts !== undefined) {
     properties["Contacts projet"] = {
-      rich_text: [{ text: { content: data.contacts } }],
+      rich_text: toRichText(data.contacts),
     };
   }
   if (data.contactsRDV !== undefined) {
     properties["Contacts pour RDV"] = {
-      rich_text: [{ text: { content: data.contactsRDV } }],
+      rich_text: toRichText(data.contactsRDV),
     };
   }
   if (data.commentairesMesures !== undefined) {
     properties["Commentaires Mesures"] = {
-      rich_text: [{ text: { content: data.commentairesMesures } }],
+      rich_text: toRichText(data.commentairesMesures),
     };
   }
   if ((data as any).infoPiecesManquantes !== undefined) {
     properties["Infos - Pièces manquantes"] = {
-      rich_text: [{ text: { content: ((data as any).infoPiecesManquantes || "").slice(0, 2000) } }],
+      rich_text: toRichText((data as any).infoPiecesManquantes),
     };
   }
   if ((data as any).infoDefautsSignale !== undefined) {
     properties["Infos - Défauts signalé"] = {
-      rich_text: [{ text: { content: ((data as any).infoDefautsSignale || "").slice(0, 2000) } }],
+      rich_text: toRichText((data as any).infoDefautsSignale),
     };
   }
   if (data.nomChantier !== undefined) {
     properties["Nom chantier"] = {
-      rich_text: [{ text: { content: data.nomChantier } }],
+      rich_text: toRichText(data.nomChantier),
     };
   }
   if (data.nbCabines !== undefined) {
@@ -655,17 +682,17 @@ export async function createProject(data: {
 
   if (data.ofrTM) {
     properties["N° OFR TM"] = {
-      rich_text: [{ text: { content: data.ofrTM } }],
+      rich_text: toRichText(data.ofrTM),
     };
   }
   if (data.nomChantier) {
     properties["Nom chantier"] = {
-      rich_text: [{ text: { content: data.nomChantier } }],
+      rich_text: toRichText(data.nomChantier),
     };
   }
   if (data.adresseChantier) {
     properties["Adresse chantier"] = {
-      rich_text: [{ text: { content: data.adresseChantier } }],
+      rich_text: toRichText(data.adresseChantier),
     };
   }
   if (data.nbCabines !== undefined && data.nbCabines !== null) {
@@ -705,17 +732,17 @@ export async function createProject(data: {
   }
   if (data.contacts) {
     properties["Contacts projet"] = {
-      rich_text: [{ text: { content: data.contacts } }],
+      rich_text: toRichText(data.contacts),
     };
   }
   if (data.commentairesMesures) {
     properties["Commentaires Mesures"] = {
-      rich_text: [{ text: { content: data.commentairesMesures } }],
+      rich_text: toRichText(data.commentairesMesures),
     };
   }
   if (data.nomChantier) {
     properties["Nom chantier"] = {
-      rich_text: [{ text: { content: data.nomChantier } }],
+      rich_text: toRichText(data.nomChantier),
     };
   }
   if (data.nbCabines !== undefined) {
