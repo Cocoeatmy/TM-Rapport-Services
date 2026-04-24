@@ -1128,7 +1128,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [heureDepart, setHeureDepart] = useState("");
   const [commentaires, setCommentaires] = useState("");
   const [rapport, setRapport] = useState("");
-  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string }[]>([]);
+  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [signature, setSignature] = useState("");
 
@@ -1190,12 +1190,29 @@ function ProjectPageContent({ id }: { id: string }) {
     if (nb > 1) {
       setIsCabineMode(true);
       setIsMultiDay(true);
+      // Parse les heures stockées au format "Cab1:08:00 | Cab2:09:30..." si
+      // la valeur Notion est sous cette forme (multi-cabine). Sinon laisse
+      // les heures par cabine vides et la valeur brute ira côté multi-day.
+      const parseCabineTimes = (raw: string): Record<number, string> => {
+        const map: Record<number, string> = {};
+        if (!raw) return map;
+        const re = /Cab(\d+)\s*:\s*(\d{1,2}:\d{2})/g;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(raw))) {
+          map[parseInt(m[1], 10) - 1] = m[2];
+        }
+        return map;
+      };
+      const arriveeMap = parseCabineTimes(data.heureArrivee || "");
+      const departMap = parseCabineTimes(data.heureDepart || "");
       setCabines(
         Array.from({ length: nb }, (_, i) => ({
           nom: `Cabine ${i + 1}`,
           rapport: "",
           open: i === 0,
           monteur: "",
+          arrivee: arriveeMap[i] || "",
+          depart: departMap[i] || "",
         }))
       );
       // Load existing attribution
@@ -1207,7 +1224,10 @@ function ProjectPageContent({ id }: { id: string }) {
           }
         })
         .catch(() => {});
-      if (data.heureArrivee || data.heureDepart) {
+      // Si les heures Notion ne sont PAS au format multi-cabine (projet
+      // saisi avant cette feature), on les charge dans la ligne pointages
+      // par défaut — retrocompat.
+      if ((data.heureArrivee || data.heureDepart) && Object.keys(arriveeMap).length === 0) {
         setPointages([{ date: today, collaborateur: "", arrivee: data.heureArrivee || "", depart: data.heureDepart || "" }]);
       }
     }
@@ -1309,12 +1329,20 @@ function ProjectPageContent({ id }: { id: string }) {
     const reportToSave = isCabineMode
       ? rapport + "\n\n" + cabines.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
       : rapport;
-    const arriveeToSave = isMultiDay
-      ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
-      : heureArrivee;
-    const departToSave = isMultiDay
-      ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
-      : heureDepart;
+    // Priorité 1 : mode multi-cabine → heures par cabine
+    // ("Cab1:08:00 | Cab2:09:30")
+    // Priorité 2 : mode multi-jour → pointages par date
+    // Priorité 3 : cas simple → valeur unique
+    const arriveeToSave = isCabineMode
+      ? cabines.map((c, i) => c.arrivee ? `Cab${i + 1}:${c.arrivee}` : "").filter(Boolean).join(" | ")
+      : isMultiDay
+        ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
+        : heureArrivee;
+    const departToSave = isCabineMode
+      ? cabines.map((c, i) => c.depart ? `Cab${i + 1}:${c.depart}` : "").filter(Boolean).join(" | ")
+      : isMultiDay
+        ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
+        : heureDepart;
     try {
       const res = await fetch(`/api/projects/${id}`, {
         method: "PATCH",
@@ -1387,12 +1415,16 @@ function ProjectPageContent({ id }: { id: string }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          heureArrivee: isMultiDay
-            ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
-            : heureArrivee,
-          heureDepart: isMultiDay
-            ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
-            : heureDepart,
+          heureArrivee: isCabineMode
+            ? cabines.map((c, i) => c.arrivee ? `Cab${i + 1}:${c.arrivee}` : "").filter(Boolean).join(" | ")
+            : isMultiDay
+              ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
+              : heureArrivee,
+          heureDepart: isCabineMode
+            ? cabines.map((c, i) => c.depart ? `Cab${i + 1}:${c.depart}` : "").filter(Boolean).join(" | ")
+            : isMultiDay
+              ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
+              : heureDepart,
           commentairesMontages: commentaires,
           rapportMonteur: isCabineMode
             ? rapport + "\n\n" + cabines.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
@@ -2278,7 +2310,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
                           {/* Monteur responsable de cette cabine */}
                           <div>
-                            <Label className="text-xs text-gray-600">Monteur responsable</Label>
+                            <Label className="text-xs text-gray-600 dark:text-gray-300">Monteur responsable</Label>
                             <div className="flex flex-wrap gap-2 mt-2">
                               {COLLABORATEURS_LIST.map((name) => (
                                 <button
@@ -2288,12 +2320,42 @@ function ProjectPageContent({ id }: { id: string }) {
                                   className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
                                     cabine.monteur === name
                                       ? "border-blue-600 bg-blue-600 text-white"
-                                      : "border-gray-200 text-gray-600 hover:border-blue-300"
+                                      : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
                                   }`}
                                 >
                                   {name}
                                 </button>
                               ))}
+                            </div>
+                          </div>
+
+                          {/* Heures arrivée / départ pour cette cabine */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-xs text-gray-600 dark:text-gray-300">Heure d&apos;arrivée</Label>
+                              <Input
+                                type="time"
+                                value={cabine.arrivee}
+                                onChange={(e) =>
+                                  setCabines((prev) =>
+                                    prev.map((c, i) => (i === idx ? { ...c, arrivee: e.target.value } : c))
+                                  )
+                                }
+                                className="mt-1 h-11 glass-input"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-gray-600 dark:text-gray-300">Heure de départ</Label>
+                              <Input
+                                type="time"
+                                value={cabine.depart}
+                                onChange={(e) =>
+                                  setCabines((prev) =>
+                                    prev.map((c, i) => (i === idx ? { ...c, depart: e.target.value } : c))
+                                  )
+                                }
+                                className="mt-1 h-11 glass-input"
+                              />
                             </div>
                           </div>
 

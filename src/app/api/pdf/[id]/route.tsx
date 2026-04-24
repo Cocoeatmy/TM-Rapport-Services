@@ -540,16 +540,58 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
         {/* Horaires */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Horaires</Text>
-          <View style={styles.timeRow}>
-            <View style={styles.timeBox}>
-              <Text style={styles.timeLabel}>Arrivée</Text>
-              <Text style={styles.timeValue}>{project.heureArrivee || "--:--"}</Text>
-            </View>
-            <View style={styles.timeBox}>
-              <Text style={styles.timeLabel}>Départ</Text>
-              <Text style={styles.timeValue}>{project.heureDepart || "--:--"}</Text>
-            </View>
-          </View>
+          {(() => {
+            // Détection du format multi-cabine "Cab1:08:00 | Cab2:09:30 | ..."
+            // Si trouvé, on affiche une ligne par cabine au lieu d'une paire
+            // globale — demande utilisateur pour les chantiers multi-cabine.
+            const parseCab = (raw: string): Record<number, string> => {
+              const map: Record<number, string> = {};
+              if (!raw) return map;
+              const re = /Cab(\d+)\s*:\s*(\d{1,2}:\d{2})/g;
+              let m: RegExpExecArray | null;
+              while ((m = re.exec(raw))) map[parseInt(m[1], 10) - 1] = m[2];
+              return map;
+            };
+            const arriveeMap = parseCab(project.heureArrivee || "");
+            const departMap = parseCab(project.heureDepart || "");
+            const nb = project.nbCabines || 0;
+            const isMultiCabineTimes = nb > 1 && (Object.keys(arriveeMap).length > 0 || Object.keys(departMap).length > 0);
+
+            if (isMultiCabineTimes) {
+              return (
+                <View>
+                  {Array.from({ length: nb }, (_, i) => (
+                    <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
+                      <Text style={{ width: 70, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>
+                        Cabine {i + 1}
+                      </Text>
+                      <View style={{ ...styles.timeBox, flex: 1, marginRight: 4 }}>
+                        <Text style={styles.timeLabel}>Arrivée</Text>
+                        <Text style={styles.timeValue}>{arriveeMap[i] || "--:--"}</Text>
+                      </View>
+                      <View style={{ ...styles.timeBox, flex: 1 }}>
+                        <Text style={styles.timeLabel}>Départ</Text>
+                        <Text style={styles.timeValue}>{departMap[i] || "--:--"}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              );
+            }
+
+            return (
+              <View style={styles.timeRow}>
+                <View style={styles.timeBox}>
+                  <Text style={styles.timeLabel}>Arrivée</Text>
+                  <Text style={styles.timeValue}>{project.heureArrivee || "--:--"}</Text>
+                </View>
+                <View style={styles.timeBox}>
+                  <Text style={styles.timeLabel}>Départ</Text>
+                  <Text style={styles.timeValue}>{project.heureDepart || "--:--"}</Text>
+                </View>
+              </View>
+            );
+          })()}
         </View>
 
         {/* Rapport */}
@@ -619,74 +661,143 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
       {(project.photosAvant?.length > 0 ||
         project.photosMontage?.length > 0 ||
         project.photosQRCode?.length > 0 ||
-        project.photosGaranties?.length > 0) && (
-        <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
-          <Text style={styles.sectionTitle} fixed>Photos du chantier</Text>
+        project.photosGaranties?.length > 0) && (() => {
+        // Groupement par cabine pour les projets multi-cabine.
+        // Les fichiers uploadés depuis une cabine portent un préfixe
+        // ".CabN." dans leur nom (ex: "Photos - Montage termine.Cab1.1.jpg").
+        // Les photos uploadées depuis la section globale n'ont pas ce
+        // préfixe et sont groupées sous "Général".
+        const nbCab = project.nbCabines || 0;
+        const isMultiCabine = nbCab > 1;
 
-          {/* Avant / Après côte à côte */}
-          {(project.photosAvant?.length > 0 || project.photosMontage?.length > 0) && (() => {
-            const maxLen = Math.max(project.photosAvant?.length || 0, project.photosMontage?.length || 0);
-            return (
-              <View style={styles.section}>
-                {/* En-têtes colonnes */}
-                <View style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
-                  <Text style={{ ...styles.label, width: "48%" }}>Avant montage</Text>
-                  <Text style={{ ...styles.label, width: "48%" }}>Montage terminé</Text>
+        type Photo = { name: string; url: string };
+        const extractCab = (name: string): number | null => {
+          const m = /\.Cab(\d+)\./.exec(name || "");
+          return m ? parseInt(m[1], 10) : null;
+        };
+
+        const photosAvant: Photo[] = project.photosAvant || [];
+        const photosMontage: Photo[] = project.photosMontage || [];
+        const photosQR: Photo[] = project.photosQRCode || [];
+        const photosGar: Photo[] = project.photosGaranties || [];
+
+        // Groups : clé = numéro de cabine (1..N) ou 0 = "Général"
+        const groups: Record<number, {
+          avant: Photo[]; montage: Photo[]; qr: Photo[]; gar: Photo[];
+        }> = {};
+        const ensure = (k: number) => {
+          if (!groups[k]) groups[k] = { avant: [], montage: [], qr: [], gar: [] };
+          return groups[k];
+        };
+        const dispatch = (list: Photo[], key: "avant" | "montage" | "qr" | "gar") => {
+          for (const p of list) {
+            const cab = extractCab(p.name || "");
+            ensure(cab ?? 0)[key].push(p);
+          }
+        };
+        dispatch(photosAvant, "avant");
+        dispatch(photosMontage, "montage");
+        dispatch(photosQR, "qr");
+        dispatch(photosGar, "gar");
+
+        // Ordre d'affichage : Cabines 1..N, puis Général à la fin.
+        const orderedKeys: number[] = [];
+        for (let i = 1; i <= nbCab; i++) {
+          if (groups[i]) orderedKeys.push(i);
+        }
+        if (groups[0]) orderedKeys.push(0);
+        // Ajoute les clés "orphelines" (ex: Cab5 dans un projet à 2 cabines).
+        Object.keys(groups)
+          .map(Number)
+          .filter((k) => k !== 0 && k > nbCab)
+          .sort((a, b) => a - b)
+          .forEach((k) => orderedKeys.push(k));
+
+        const renderGroup = (
+          label: string,
+          g: { avant: Photo[]; montage: Photo[]; qr: Photo[]; gar: Photo[] },
+          keySuffix: string,
+        ) => (
+          <View key={`grp-${keySuffix}`}>
+            {isMultiCabine && (
+              <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 8, marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 3 }}>
+                {label}
+              </Text>
+            )}
+
+            {/* Avant / Après côte à côte dans cette cabine */}
+            {(g.avant.length > 0 || g.montage.length > 0) && (() => {
+              const maxLen = Math.max(g.avant.length, g.montage.length);
+              return (
+                <View style={styles.section}>
+                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
+                    <Text style={{ ...styles.label, width: "48%" }}>Avant montage</Text>
+                    <Text style={{ ...styles.label, width: "48%" }}>Montage terminé</Text>
+                  </View>
+                  {Array.from({ length: maxLen }, (_, i) => (
+                    <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 10 }} wrap={false}>
+                      <View style={{ width: "48%" }}>
+                        {g.avant[i] ? (
+                          <Image src={optimizeImageUrl(g.avant[i].url)} style={styles.photo} />
+                        ) : (
+                          <View style={{ ...styles.photo, backgroundColor: "#f3f4f6" }} />
+                        )}
+                      </View>
+                      <View style={{ width: "48%" }}>
+                        {g.montage[i] ? (
+                          <Image src={optimizeImageUrl(g.montage[i].url)} style={styles.photo} />
+                        ) : (
+                          <View style={{ ...styles.photo, backgroundColor: "#f3f4f6" }} />
+                        )}
+                      </View>
+                    </View>
+                  ))}
                 </View>
-                {Array.from({ length: maxLen }, (_, i) => (
-                  <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 10 }} wrap={false}>
-                    <View style={{ width: "48%" }}>
-                      {project.photosAvant?.[i] ? (
-                        <Image src={optimizeImageUrl(project.photosAvant[i].url)} style={styles.photo} />
-                      ) : (
-                        <View style={{ ...styles.photo, backgroundColor: "#f3f4f6" }} />
-                      )}
+              );
+            })()}
+
+            {g.qr.length > 0 && (
+              <View style={styles.section} wrap={false}>
+                <Text style={{ ...styles.label, marginBottom: 6 }}>QR Code</Text>
+                <View style={styles.photosGrid}>
+                  {g.qr.map((p, i) => (
+                    <View key={i} style={styles.photoContainer}>
+                      <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
                     </View>
-                    <View style={{ width: "48%" }}>
-                      {project.photosMontage?.[i] ? (
-                        <Image src={optimizeImageUrl(project.photosMontage[i].url)} style={styles.photo} />
-                      ) : (
-                        <View style={{ ...styles.photo, backgroundColor: "#f3f4f6" }} />
-                      )}
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {g.gar.length > 0 && (
+              <View style={styles.section} wrap={false}>
+                <Text style={{ ...styles.label, marginBottom: 6 }}>Garanties</Text>
+                <View style={styles.photosGrid}>
+                  {g.gar.map((p, i) => (
+                    <View key={i} style={styles.photoContainer}>
+                      <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
                     </View>
-                  </View>
-                ))}
+                  ))}
+                </View>
               </View>
-            );
-          })()}
-
-          {project.photosQRCode?.length > 0 && (
-            <View style={styles.section} wrap={false}>
-              <Text style={{ ...styles.label, marginBottom: 6 }}>QR Code</Text>
-              <View style={styles.photosGrid}>
-                {project.photosQRCode.map((p: any, i: number) => (
-                  <View key={i} style={styles.photoContainer}>
-                    <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {project.photosGaranties?.length > 0 && (
-            <View style={styles.section} wrap={false}>
-              <Text style={{ ...styles.label, marginBottom: 6 }}>Garanties</Text>
-              <View style={styles.photosGrid}>
-                {project.photosGaranties.map((p: any, i: number) => (
-                  <View key={i} style={styles.photoContainer}>
-                    <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          <View style={styles.footer} fixed>
-            <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
-            <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+            )}
           </View>
-        </Page>
-      )}
+        );
+
+        return (
+          <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
+            <Text style={styles.sectionTitle} fixed>Photos du chantier</Text>
+            {orderedKeys.map((k) => {
+              const label = k === 0 ? "Général" : `Cabine ${k}`;
+              return renderGroup(label, groups[k], String(k));
+            })}
+            <View style={styles.footer} fixed>
+              <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
+              <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+            </View>
+          </Page>
+        );
+      })()}
 
       {/* Pièces manquantes */}
       {pieces.length > 0 && (
