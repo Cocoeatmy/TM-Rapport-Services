@@ -1981,6 +1981,69 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
         {/* Colonne droite - Rapport (visible uniquement quand showRapport) */}
         <div className={`space-y-4 ${!showRapport ? "hidden" : ""}`}>
+        {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (() => {
+          // Barre de progression du montage — 5 critères par cabine.
+          // Mise à jour en direct : au fur et à mesure que le monteur
+          // remplit arrivée/départ/rapport/photos, la barre avance.
+          const countPhotosForCab = (photos: { name: string; url: string }[] | undefined, cab: number | null): number => {
+            if (!photos) return 0;
+            if (cab === null) return photos.length;
+            return photos.filter((p) => new RegExp(`\\.Cab${cab}\\.`).test(p.name || "")).length;
+          };
+          const checklist: { label: string; done: boolean }[] = [];
+          if (isCabineMode) {
+            cabines.forEach((c, i) => {
+              const cabNum = i + 1;
+              const prefix = `Cabine ${cabNum}`;
+              checklist.push({ label: `${prefix} · arrivée`, done: !!c.arrivee });
+              checklist.push({ label: `${prefix} · départ`, done: !!c.depart });
+              checklist.push({ label: `${prefix} · rapport`, done: c.rapport.trim().length > 0 });
+              checklist.push({ label: `${prefix} · photos avant`, done: countPhotosForCab(project?.photosAvant, cabNum) > 0 });
+              checklist.push({ label: `${prefix} · photos montage`, done: countPhotosForCab(project?.photosMontage, cabNum) > 0 });
+            });
+          } else {
+            checklist.push({ label: "Heure d'arrivée", done: !!heureArrivee });
+            checklist.push({ label: "Heure de départ", done: !!heureDepart });
+            checklist.push({ label: "Rapport rempli", done: rapport.trim().length > 0 });
+            checklist.push({ label: "Photos avant montage", done: (project?.photosAvant?.length || 0) > 0 });
+            checklist.push({ label: "Photos montage terminé", done: (project?.photosMontage?.length || 0) > 0 });
+          }
+          const done = checklist.filter((c) => c.done).length;
+          const total = checklist.length;
+          const percent = total === 0 ? 0 : Math.round((done / total) * 100);
+          return (
+            <div className="glass-card rounded-2xl p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Progression du montage</span>
+                  {percent === 100 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                      Terminé
+                    </span>
+                  )}
+                </div>
+                <span className={`text-sm font-bold ${percent === 100 ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-cyan-300"}`}>
+                  {percent}%
+                </span>
+              </div>
+              <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${percent}%`,
+                    background: percent === 100
+                      ? "linear-gradient(to right, #10b981, #22c55e)"
+                      : "linear-gradient(to right, #2563eb, #06b6d4)",
+                  }}
+                />
+              </div>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
+                {done}/{total} étapes validées
+                {isCabineMode && ` · ${cabines.length} cabines`}
+              </p>
+            </div>
+          );
+        })()}
         {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
           <>
             {/* Horaires */}
