@@ -479,6 +479,18 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
             <Text style={styles.label}>N° OFR TM</Text>
             <Text style={styles.value}>{project.ofrTM || "---"}</Text>
           </View>
+          {/* N° CMD Services — uniquement pour les clients Grossistes
+              et Fournisseurs (ils nous envoient leur propre numéro de
+              commande qui doit apparaître sur le rapport de montage).
+              Le champ s'appelle "N° Serv. CMD Fournisseurs" dans Notion
+              mais on le présente comme "N° CMD Services" ici. */}
+          {(project.typeClient === "Grossistes" || project.typeClient === "Grossiste"
+            || project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur") && (
+            <View style={styles.row}>
+              <Text style={styles.label}>N° CMD Services</Text>
+              <Text style={styles.value}>{project.servCmdFournisseurs || "---"}</Text>
+            </View>
+          )}
           <View style={styles.row}>
             <Text style={styles.label}>Chantier</Text>
             <Text style={styles.value}>{project.nomChantier || "---"}</Text>

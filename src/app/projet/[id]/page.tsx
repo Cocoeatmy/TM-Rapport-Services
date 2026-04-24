@@ -1511,12 +1511,12 @@ function ProjectPageContent({ id }: { id: string }) {
               </div>
             )}
 
-            {/* Ligne 3 : N° CMD Fournisseurs | N° Serv. Mesures Fournisseurs | N° Serv. CMD Fournisseurs */}
+            {/* Ligne 3 : N° CMD Fournisseurs | N° Serv. Mesures Fournisseurs | N° CMD Services */}
             {(project.cmdFournisseurs || project.servMesuresFournisseurs || project.servCmdFournisseurs) && (
               <div className="grid grid-cols-3 gap-3 py-2">
                 <InfoRow icon={Hash} label="N° CMD Fournisseurs" value={project.cmdFournisseurs} />
                 <InfoRow icon={Hash} label="N° Serv. Mesures Fourn." value={project.servMesuresFournisseurs} />
-                <InfoRow icon={Hash} label="N° Serv. CMD Fourn." value={project.servCmdFournisseurs} />
+                <InfoRow icon={Hash} label="N° CMD Services" value={project.servCmdFournisseurs} />
               </div>
             )}
 

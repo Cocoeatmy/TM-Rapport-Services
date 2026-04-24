@@ -461,7 +461,7 @@ function NewProjectModal({ open, onClose, onCreated, currentMode }: { open: bool
               <div className="grid grid-cols-3 gap-2">
                 <div><label className={labelCls}>N° CMD Fournisseurs</label><input value={form.cmdFournisseurs} onChange={(e) => set("cmdFournisseurs", e.target.value)} className={inputCls} /></div>
                 <div><label className={labelCls}>N° Serv. Mesures Fourn.</label><input value={form.servMesuresFournisseurs} onChange={(e) => set("servMesuresFournisseurs", e.target.value)} className={inputCls} /></div>
-                <div><label className={labelCls}>N° Serv. CMD Fourn.</label><input value={form.servCmdFournisseurs} onChange={(e) => set("servCmdFournisseurs", e.target.value)} className={inputCls} /></div>
+                <div><label className={labelCls}>N° CMD Services</label><input value={form.servCmdFournisseurs} onChange={(e) => set("servCmdFournisseurs", e.target.value)} className={inputCls} /></div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div><label className={labelCls}>Nom chantier</label><input value={form.nomChantier} onChange={(e) => set("nomChantier", e.target.value)} className={inputCls} /></div>
