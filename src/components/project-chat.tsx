@@ -110,6 +110,24 @@ export function ProjectChat({ projectId }: { projectId: string }) {
   // atteindre. En portail au niveau body, le containing block est
   // toujours le viewport, donc fixed fonctionne dans tous les
   // contextes.
+  // Style en dur (et pas via Tailwind) pour le positionnement fixed.
+  // Raisons :
+  //   - garantit que la valeur est appliquée même si une règle CSS
+  //     d'un thème (ou un override Ocean) écrase position/bottom/left.
+  //   - max(...) avec env(safe-area-inset-bottom) pousse le bouton
+  //     au-dessus de l'indicateur home iOS quand l'app tourne en PWA.
+  //   - translateZ(0) crée un compositing layer GPU : sur iOS Safari
+  //     ça stabilise le rendu de position:fixed pendant le scroll
+  //     (sans, le bouton peut "trembler" ou disparaître brièvement).
+  const fixedStyle = {
+    position: "fixed" as const,
+    bottom: "max(1.5rem, env(safe-area-inset-bottom, 1.5rem))",
+    left: "max(1.5rem, env(safe-area-inset-left, 1.5rem))",
+    zIndex: 60,
+    transform: "translateZ(0)",
+    WebkitTransform: "translateZ(0)",
+  };
+
   if (!open) {
     const hasMessages = messages.length > 0;
     const dotClass = unreadCount > 0
@@ -120,7 +138,8 @@ export function ProjectChat({ projectId }: { projectId: string }) {
     return createPortal(
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 left-6 w-14 h-14 rounded-full glass-btn text-white flex items-center justify-center shadow-xl z-50"
+        style={fixedStyle}
+        className="w-14 h-14 rounded-full glass-btn text-white flex items-center justify-center shadow-xl"
         aria-label={unreadCount > 0 ? `Discussion : ${unreadCount} message(s) non lu(s)` : "Discussion"}
       >
         <MessageCircle className="w-6 h-6" />
@@ -140,7 +159,7 @@ export function ProjectChat({ projectId }: { projectId: string }) {
   }
 
   return createPortal(
-    <div className="fixed bottom-6 left-6 w-80 sm:w-96 glass-card rounded-2xl shadow-2xl z-50 flex flex-col" style={{ maxHeight: "60vh" }}>
+    <div style={{ ...fixedStyle, maxHeight: "60vh" }} className="w-80 sm:w-96 glass-card rounded-2xl shadow-2xl flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-2">
