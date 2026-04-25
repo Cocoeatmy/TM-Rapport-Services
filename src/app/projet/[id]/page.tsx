@@ -34,6 +34,7 @@ import {
 import { MontageChecklist } from "@/components/checklist";
 import { ProjectChat } from "@/components/project-chat";
 import { GPSTracker } from "@/components/gps-tracker";
+import { AdminGpsTimer } from "@/components/admin-gps-timer";
 import { SiteTimer } from "@/components/site-timer";
 import { StockUsage } from "@/components/stock-usage";
 import { SAVForm } from "@/components/sav-form";
@@ -2422,18 +2423,20 @@ function ProjectPageContent({ id }: { id: string }) {
                       fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
                     }}
                   />
+                  {/* GPS tracker : tourne pour TOUS les utilisateurs (les
+                      monteurs sont ceux qui se déplacent), mais en mode
+                      silencieux sans UI pour eux. L'admin a l'UI complète
+                      pour pointer manuellement si besoin. Le pointage va
+                      vers /api/gps-pointage et N'ÉCRIT PAS dans
+                      heureArrivee/heureDepart du rapport — c'est un canal
+                      séparé pour le contrôle des heures. */}
+                  <GPSTracker
+                    chantierAddress={project.adresseChantier}
+                    projectId={id}
+                    silent={currentUser?.role !== "admin"}
+                  />
                   {currentUser?.role === "admin" && (
-                    <GPSTracker
-                      chantierAddress={project.adresseChantier}
-                      onArrival={(time) => {
-                        setHeureArrivee(time);
-                        fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArrivee: time }) }).catch(console.error);
-                      }}
-                      onDeparture={(time) => {
-                        setHeureDepart(time);
-                        fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
-                      }}
-                    />
+                    <AdminGpsTimer projectId={id} />
                   )}
                   {/* Heures arrivée/départ intégrées dans le SiteTimer ci-dessus */}
                   {heureArrivee && heureDepart && (() => {

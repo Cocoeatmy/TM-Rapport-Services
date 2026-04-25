@@ -1,16 +1,21 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MapPin, Navigation, Clock, CheckCircle, Radio } from "lucide-react";
+import { MapPin, Navigation, Clock, CheckCircle } from "lucide-react";
 
 interface GPSTrackerProps {
+  /** Adresse complète du chantier — sert au géocodage Nominatim. */
   chantierAddress: string;
-  onArrival?: (time: string) => void;
-  onDeparture?: (time: string) => void;
+  /** ID Notion du projet — sert à POSTer l'événement GPS. */
+  projectId: string;
+  /** Si true, le composant ne rend AUCUNE UI : il tracke en silence
+   *  et POST les événements arrivée/départ. Utilisé pour les monteurs,
+   *  qui ne doivent pas voir le timer. L'admin garde l'UI complète. */
+  silent?: boolean;
 }
 
 const GEOFENCE_RADIUS_METERS = 150; // Rayon de détection en mètres
-const WATCH_INTERVAL = 15000; // Vérifier toutes les 15 secondes
+const POSITION_TIMEOUT_MS = 30000;
 
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -26,7 +31,7 @@ function getCurrentTime() {
   return new Date().toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrackerProps) {
+export function GPSTracker({ chantierAddress, projectId, silent = false }: GPSTrackerProps) {
   const [status, setStatus] = useState<"idle" | "watching" | "arrived" | "departed">("idle");
   const [arrivalTime, setArrivalTime] = useState<string | null>(null);
   const [departureTime, setDepartureTime] = useState<string | null>(null);
@@ -36,22 +41,30 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
   const watchId = useRef<number | null>(null);
   const wasInside = useRef(false);
 
-  // Refs to avoid stale closures in geolocation callbacks
+  // Refs pour éviter les stale closures dans les callbacks geolocation.
   const statusRef = useRef(status);
   const chantierCoordsRef = useRef(chantierCoords);
-  const onArrivalRef = useRef(onArrival);
-  const onDepartureRef = useRef(onDeparture);
-
-  // Keep refs in sync
   useEffect(() => { statusRef.current = status; }, [status]);
   useEffect(() => { chantierCoordsRef.current = chantierCoords; }, [chantierCoords]);
-  useEffect(() => { onArrivalRef.current = onArrival; }, [onArrival]);
-  useEffect(() => { onDepartureRef.current = onDeparture; }, [onDeparture]);
+
+  // POST asynchrone vers l'endpoint pointage GPS. Silencieux : on ne
+  // ré-affiche pas d'erreur si l'utilisateur est offline, on retentera
+  // au prochain mouvement.
+  const postGpsEvent = useCallback(async (type: "arrival" | "departure", time: string, dist: number | null) => {
+    try {
+      await fetch(`/api/gps-pointage/${projectId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, time, distance: dist }),
+      });
+    } catch {
+      /* silent — on ne dérange pas l'utilisateur */
+    }
+  }, [projectId]);
 
   // Geocode the chantier address to get coordinates
   useEffect(() => {
     if (!chantierAddress) return;
-    // Check localStorage cache first
     const cacheKey = `geo-${chantierAddress}`;
     try {
       const cached = localStorage.getItem(cacheKey);
@@ -61,7 +74,6 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
       }
     } catch {}
 
-    // Geocode via Nominatim
     fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(chantierAddress)}&limit=1`)
       .then((r) => r.json())
       .then((data) => {
@@ -74,14 +86,19 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
       .catch(() => {});
   }, [chantierAddress]);
 
-  // Stable position callback that reads from refs (no stale closures)
+  // Callback position : lit les refs pour éviter les stale closures.
+  // ⚠️ Important : on EFFACE l'erreur dès qu'une position arrive.
+  // L'ancien code laissait "Position indisponible" à l'écran même
+  // quand le watchPosition réussissait à délivrer des coordonnées
+  // après un timeout transitoire — d'où le bug visuel.
   const checkPosition = useCallback((position: GeolocationPosition) => {
+    setError("");
     const coords = chantierCoordsRef.current;
     if (!coords) return;
 
     const dist = haversineDistance(
       position.coords.latitude, position.coords.longitude,
-      coords.lat, coords.lng
+      coords.lat, coords.lng,
     );
     setDistance(Math.round(dist));
 
@@ -89,26 +106,23 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
     const currentStatus = statusRef.current;
 
     if (isInside && !wasInside.current && currentStatus === "watching") {
-      // Entré dans la zone -> arrivée
       wasInside.current = true;
       const time = getCurrentTime();
       setArrivalTime(time);
       setStatus("arrived");
-      onArrivalRef.current?.(time);
+      postGpsEvent("arrival", time, Math.round(dist));
     } else if (!isInside && wasInside.current && currentStatus === "arrived") {
-      // Sorti de la zone -> départ
       wasInside.current = false;
       const time = getCurrentTime();
       setDepartureTime(time);
       setStatus("departed");
-      onDepartureRef.current?.(time);
-      // Stop watching
+      postGpsEvent("departure", time, Math.round(dist));
       if (watchId.current !== null) {
         navigator.geolocation.clearWatch(watchId.current);
         watchId.current = null;
       }
     }
-  }, []); // No deps needed - reads from refs
+  }, [postGpsEvent]);
 
   const startWatching = useCallback(() => {
     if (!navigator.geolocation) {
@@ -121,10 +135,20 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
     watchId.current = navigator.geolocation.watchPosition(
       checkPosition,
       (err) => {
-        if (err.code === 1) setError("Permission GPS refusée");
-        else setError("Position indisponible");
+        // Permission refusée : pas la peine de retenter, on laisse le message.
+        if (err.code === 1) {
+          setError("Permission GPS refusée");
+          return;
+        }
+        // Pour POSITION_UNAVAILABLE / TIMEOUT on n'écrase pas un
+        // distance déjà connu — la position reviendra. On affiche
+        // l'erreur uniquement si on n'a JAMAIS reçu de position.
+        setDistance((current) => {
+          if (current === null) setError("Position indisponible");
+          return current;
+        });
       },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: POSITION_TIMEOUT_MS },
     );
   }, [checkPosition]);
 
@@ -133,7 +157,6 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
     if (chantierCoords && status === "idle" && navigator.geolocation) {
       startWatching();
     }
-    // Only run when chantierCoords becomes available
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierCoords]);
 
@@ -151,7 +174,7 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
     setArrivalTime(time);
     setStatus("arrived");
     wasInside.current = true;
-    onArrival?.(time);
+    postGpsEvent("arrival", time, distance);
   };
 
   const markDepartureManual = () => {
@@ -159,21 +182,24 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
     setDepartureTime(time);
     setStatus("departed");
     wasInside.current = false;
-    onDeparture?.(time);
+    postGpsEvent("departure", time, distance);
     if (watchId.current !== null) {
       navigator.geolocation.clearWatch(watchId.current);
       watchId.current = null;
     }
   };
 
+  // En mode silencieux (monteur), on ne rend rien. Le tracking continue
+  // côté navigateur en arrière-plan via watchPosition.
+  if (silent) return null;
+
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
         <Navigation className="w-4 h-4" />
-        Pointage GPS
+        Pointage GPS <span className="text-[10px] text-gray-400 font-normal">(contrôle admin)</span>
       </label>
 
-      {/* Statut en attente de coordonnées */}
       {status === "idle" && (
         <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
           <span className="w-2.5 h-2.5 rounded-full bg-gray-400 animate-pulse" />
@@ -185,7 +211,7 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
         <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
           <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
           <span className="text-xs text-green-700 dark:text-green-300 flex-1">
-            Suivi GPS actif — en attente d'arrivée sur site
+            Suivi GPS actif — en attente d&apos;arrivée sur site
             {distance !== null && ` (${distance > 1000 ? `${(distance / 1000).toFixed(1)} km` : `${distance} m`})`}
           </span>
         </div>
@@ -202,7 +228,6 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
       )}
 
       <div className="grid grid-cols-2 gap-2">
-        {/* Arrivée */}
         <button
           type="button"
           onClick={(!arrivalTime && status !== "watching") ? markArrivalManual : undefined}
@@ -227,7 +252,6 @@ export function GPSTracker({ chantierAddress, onArrival, onDeparture }: GPSTrack
           )}
         </button>
 
-        {/* Départ */}
         <button
           type="button"
           onClick={(arrivalTime && !departureTime) ? markDepartureManual : undefined}
