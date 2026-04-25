@@ -16,14 +16,15 @@ interface ChecklistProps {
   items?: { id: string; label: string }[];
   fournisseur?: string;
   onChange?: (checked: Record<string, boolean>) => void;
-  /** État ouvert par défaut. true = checklist déployée au mount. */
+  /** État ouvert par défaut. false = checklist repliée au mount,
+   *  l'utilisateur clique sur le chevron pour déplier. */
   defaultOpen?: boolean;
 }
 
 /** @deprecated Use getChecklistForSupplier() from constants instead */
 const DEFAULT_CHECKLIST = [...BASE_CHECKLIST_ITEMS];
 
-export function MontageChecklist({ title = "Checklist de montage", items, fournisseur, onChange, defaultOpen = true }: ChecklistProps) {
+export function MontageChecklist({ title = "Checklist de montage", items, fournisseur, onChange, defaultOpen = false }: ChecklistProps) {
   // Si l'appelant fournit une liste plate, on la transforme en une seule
   // section "implicite" (sans titre) pour mutualiser le rendu.
   const sections: ChecklistSection[] = useMemo(() => {
