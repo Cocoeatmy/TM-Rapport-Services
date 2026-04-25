@@ -1202,10 +1202,36 @@ function ProjectPageContent({ id }: { id: string }) {
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [signature, setSignature] = useState("");
 
-  // Load signature from Notion
+  // Restaure la signature depuis le localStorage tant que le projet n'a
+  // pas encore été chargé. Filet de sécurité au cas où Notion / cache
+  // serveur tarderaient à propager une signature fraîchement enregistrée.
   useEffect(() => {
-    if (project?.signatureUrl && !signature) {
-      setSignature(project.signatureUrl);
+    try {
+      const stored = localStorage.getItem(`tm-sig-${id}`);
+      if (stored) setSignature((cur) => cur || stored);
+    } catch {}
+  }, [id]);
+
+  // Sauvegarde locale dès qu'on a une signature non-vide. La signature
+  // est une preuve légale d'acceptation des travaux : on la persiste
+  // localement en plus de Notion pour qu'elle survive à un rechargement
+  // ou un cache serveur incohérent.
+  useEffect(() => {
+    if (signature) {
+      try { localStorage.setItem(`tm-sig-${id}`, signature); } catch {}
+    }
+  }, [signature, id]);
+
+  // Synchronisation depuis project.signatureUrl :
+  //   - Si le serveur a une URL non-vide → on adopte cette URL
+  //     (canonique, lisible par le PDF). Replace la valeur locale,
+  //     même si elle était un data-URL temporaire.
+  //   - Si le serveur renvoie une chaîne vide alors qu'on a déjà une
+  //     signature locale → on NE TOUCHE PAS au state local (Notion
+  //     peut avoir un délai de propagation, ne pas effacer la preuve).
+  useEffect(() => {
+    if (project?.signatureUrl) {
+      setSignature((cur) => (cur === project.signatureUrl ? cur : project.signatureUrl));
     }
   }, [project?.signatureUrl]);
   const [fav, setFav] = useState(false);
@@ -1344,7 +1370,21 @@ function ProjectPageContent({ id }: { id: string }) {
 
         // setProject met à jour les photos, relations, dates... (tout ce
         // qui n'est pas une zone de saisie active).
-        setProject(data);
+        // Garde-fou critique : si la réponse serveur a un signatureUrl
+        // vide alors qu'on en a un localement (state ou prev project),
+        // on PRÉSERVE la valeur locale. La signature est la preuve
+        // légale d'acceptation des travaux par le client : elle ne
+        // doit jamais disparaître à cause d'un cache serveur incohérent
+        // ou d'un délai de propagation Notion.
+        setProject((prev) => {
+          if (!data.signatureUrl) {
+            const localSig = prev?.signatureUrl || signature;
+            if (localSig) {
+              return { ...data, signatureUrl: localSig };
+            }
+          }
+          return data;
+        });
 
         // Merge intelligent des champs texte éditables : on ne pousse la
         // valeur serveur que si la valeur locale n'a pas été modifiée
@@ -2728,8 +2768,10 @@ function ProjectPageContent({ id }: { id: string }) {
                   label="Signature du client"
                   existingSignature={signature}
                   onSave={async (dataUrl) => {
+                    // Affichage immédiat : le data-URL local rend la
+                    // signature visible avant même le retour Cloudinary.
                     setSignature(dataUrl);
-                    // Upload signature to Cloudinary and save URL in Notion
+                    try { localStorage.setItem(`tm-sig-${id}`, dataUrl); } catch {}
                     try {
                       const blob = await fetch(dataUrl).then(r => r.blob());
                       const formData = new FormData();
@@ -2738,12 +2780,20 @@ function ProjectPageContent({ id }: { id: string }) {
                       formData.append("projectId", id);
                       const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
                       const uploadData = await uploadRes.json();
-                      if (uploadData.files?.[0]?.url) {
+                      const cloudinaryUrl = uploadData.files?.[0]?.url;
+                      if (cloudinaryUrl) {
+                        // Bascule vers l'URL canonique : elle est lisible
+                        // par le PDF et plus stable que le data-URL en
+                        // localStorage (taille).
+                        setSignature(cloudinaryUrl);
+                        try { localStorage.setItem(`tm-sig-${id}`, cloudinaryUrl); } catch {}
+                        setProject((prev) => prev ? { ...prev, signatureUrl: cloudinaryUrl } : prev);
                         await fetch(`/api/projects/${id}`, {
                           method: "PATCH",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ signatureUrl: uploadData.files[0].url }),
+                          body: JSON.stringify({ signatureUrl: cloudinaryUrl }),
                         });
+                        invalidateApiCache();
                       }
                     } catch (err) { console.error("Signature upload error:", err); }
                   }}

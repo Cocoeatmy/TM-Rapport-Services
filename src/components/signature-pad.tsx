@@ -17,6 +17,18 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
   const [saved, setSaved] = useState(!!existingSignature);
   const [ready, setReady] = useState(false);
 
+  // Si la signature change après le mount (chargement asynchrone depuis
+  // Notion ou polling collaboratif), on aligne les états internes pour
+  // que l'UI reflète qu'une signature existe (pas de placeholder, pas
+  // de bouton "Valider"). Indispensable : sans ça, après navigation le
+  // canvas affiche bien la signature mais l'overlay "Signez ici" reste.
+  useEffect(() => {
+    if (existingSignature) {
+      setHasSignature(true);
+      setSaved(true);
+    }
+  }, [existingSignature]);
+
   // Initialize canvas with correct dimensions
   const initCanvas = useCallback(() => {
     const canvas = canvasRef.current;
