@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Camera, Loader2, Send, ShieldAlert, X, Check, Sparkles } from "lucide-react";
+import { Camera, ImagePlus, Loader2, Send, ShieldAlert, X, Check, Sparkles } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -31,7 +31,8 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   const handleAI = async () => {
     if (!description.trim() || description.trim().length < 10) return;
@@ -49,12 +50,13 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
     );
   };
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-    setPhotos((prev) => [...prev, ...files]);
-    setPhotoPreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const handlePhotoFiles = (files: FileList | null) => {
+    if (!files?.length) return;
+    const newFiles = Array.from(files);
+    setPhotos((prev) => [...prev, ...newFiles]);
+    setPhotoPreviews((prev) => [...prev, ...newFiles.map((f) => URL.createObjectURL(f))]);
+    if (cameraRef.current) cameraRef.current.value = "";
+    if (galleryRef.current) galleryRef.current.value = "";
   };
 
   const removePhoto = (index: number) => {
@@ -69,7 +71,8 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
     photoPreviews.forEach((p) => URL.revokeObjectURL(p));
     setPhotos([]);
     setPhotoPreviews([]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraRef.current) cameraRef.current.value = "";
+    if (galleryRef.current) galleryRef.current.value = "";
   };
 
   const handleSubmit = async () => {
@@ -189,16 +192,8 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
       {/* Photos */}
       <div>
         <Label className="text-xs">Photos du défaut</Label>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handlePhotoChange}
-          className="hidden"
-        />
         {photoPreviews.length > 0 && (
-          <div className="grid grid-cols-3 gap-2 mt-1">
+          <div className="grid grid-cols-3 gap-2 mt-1 mb-2">
             {photoPreviews.map((preview, i) => (
               <div key={i} className="relative rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
                 <img src={preview} alt={`Défaut ${i + 1}`} className="w-full h-24 object-cover bg-gray-50 dark:bg-gray-900" />
@@ -212,13 +207,24 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
             ))}
           </div>
         )}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="mt-1.5 w-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400 hover:border-red-400 hover:text-red-500 active:bg-red-50 transition-colors"
-        >
-          <Camera className="w-5 h-5" />
-          {photoPreviews.length > 0 ? "Ajouter une photo" : "Prendre une photo"}
-        </button>
+        <div className="flex gap-2 mt-1">
+          <button
+            onClick={() => cameraRef.current?.click()}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400 hover:border-red-400 hover:text-red-500 active:bg-red-50 transition-colors"
+          >
+            <Camera className="w-4 h-4" />
+            Photo
+          </button>
+          <button
+            onClick={() => galleryRef.current?.click()}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400 hover:border-red-400 hover:text-red-500 active:bg-red-50 transition-colors"
+          >
+            <ImagePlus className="w-4 h-4" />
+            Galerie
+          </button>
+        </div>
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
+        <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
       </div>
 
       <div className="flex gap-2">
