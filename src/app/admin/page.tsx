@@ -1105,10 +1105,17 @@ export default function AdminPage() {
         <Card className="glass-card">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-green-500" />
-                Chantiers en cours
-              </CardTitle>
+              <div className="flex flex-col gap-0.5">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-green-500" />
+                  Chantiers en cours
+                </CardTitle>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 ml-6">
+                  <span className="font-semibold text-gray-600 dark:text-gray-300">{totalProjets}</span> projet{totalProjets > 1 ? "s" : ""}
+                  <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
+                  <span className="font-semibold text-gray-600 dark:text-gray-300">{totalCabines}</span> cabine{totalCabines > 1 ? "s" : ""}
+                </p>
+              </div>
               <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg">
                 <button
                   onClick={() => setChantierView("liste")}
