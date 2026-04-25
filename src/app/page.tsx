@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Onboarding } from "@/components/onboarding";
 import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
+import Image from "next/image";
 import dynamic from "next/dynamic";
 import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -321,6 +322,14 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
               "grossistes-bringhen": 1,
             };
             const scale = logoScale[m] || 1;
+            // On utilise Next.js Image avec une taille intrinsèque
+            // post-scale (largeur/hauteur réellement affichées) pour
+            // que le pipeline d'optimisation génère un srcset Retina.
+            // Le transform: scale() précédent rasterisait le logo à
+            // 104×36 puis l'agrandissait — d'où l'aspect pixelisé sur
+            // macOS Retina. Ici l'image est rendue à sa taille finale.
+            const w = Math.round(104 * scale);
+            const h = Math.round(36 * scale);
             return (
               <button key={m} onClick={() => handleSelect(m)}
                 className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center overflow-hidden ${
@@ -329,7 +338,16 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
                 }`}>
                 {logo ? (
-                  <img src={logo} alt={grossistesLabels[m]} className="max-w-[104px] max-h-[36px] object-contain" style={{transform:`scale(${scale})`}} />
+                  <Image
+                    src={logo}
+                    alt={grossistesLabels[m]}
+                    width={w}
+                    height={h}
+                    quality={100}
+                    unoptimized={logo.endsWith(".svg")}
+                    className="object-contain"
+                    style={{ width: `${w}px`, height: `${h}px` }}
+                  />
                 ) : (
                   <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
                     {grossistesLabels[m]}
@@ -356,6 +374,8 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
               "fournisseurs-samo": 2.2,
             };
             const scale = logoScale[m] || 1;
+            const w = Math.round(104 * scale);
+            const h = Math.round(36 * scale);
             return (
               <button key={m} onClick={() => handleSelect(m)}
                 className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center overflow-hidden ${
@@ -364,7 +384,16 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
                 }`}>
                 {logo ? (
-                  <img src={logo} alt={fournisseursLabels[m]} className="max-w-[104px] max-h-[36px] object-contain" style={{transform:`scale(${scale})`}} />
+                  <Image
+                    src={logo}
+                    alt={fournisseursLabels[m]}
+                    width={w}
+                    height={h}
+                    quality={100}
+                    unoptimized={logo.endsWith(".svg")}
+                    className="object-contain"
+                    style={{ width: `${w}px`, height: `${h}px` }}
+                  />
                 ) : (
                   <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
                     {fournisseursLabels[m]}
