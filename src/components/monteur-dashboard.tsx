@@ -1125,8 +1125,19 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                 const diff = now - d.getTime();
                 const isRecent = diff < 3600000; // < 1h
                 const isToday = d.toDateString() === new Date().toDateString();
+                // Vert : connecté il y a moins d'1 h (toujours en ligne).
+                // Bleu : connecté aujourd'hui.
+                // Gris discret : connexions plus anciennes — auparavant
+                // bg-gray-50/text-gray-400 ressortait blanc et brillant
+                // sur les thèmes Océan/Aurora en sombre. On passe sur des
+                // tons sourds qui se fondent bien sur tous les fonds.
+                const palette = isRecent
+                  ? "bg-emerald-100/70 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                  : isToday
+                    ? "bg-blue-100/70 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                    : "bg-gray-100 text-gray-500 dark:bg-slate-700/40 dark:text-slate-400";
                 return (
-                  <div className={`text-[9px] shrink-0 text-right px-1.5 py-1 rounded-lg mr-2 ${isRecent ? "bg-green-50 text-green-600" : isToday ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-400"}`}>
+                  <div className={`text-[9px] shrink-0 text-right px-1.5 py-1 rounded-lg mr-2 ${palette}`} title={`Dernière connexion : ${d.toLocaleString("fr-CH")}`}>
                     <p className="font-medium">{d.toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}</p>
                     <p>{d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
