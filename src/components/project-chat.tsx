@@ -125,12 +125,12 @@ export function ProjectChat({ projectId }: { projectId: string }) {
   return (
     <div className="fixed bottom-6 left-6 w-80 sm:w-96 glass-card rounded-2xl shadow-2xl z-40 flex flex-col" style={{ maxHeight: "60vh" }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-2">
-          <MessageCircle className="w-4 h-4 text-[#1e3a5f]" />
-          <span className="text-sm font-semibold">Discussion</span>
+          <MessageCircle className="w-4 h-4 text-[#1e3a5f] dark:text-cyan-400" />
+          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Discussion</span>
         </div>
-        <button onClick={() => setOpen(false)} className="text-xs text-gray-400 hover:text-gray-600">
+        <button onClick={() => setOpen(false)} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
           Fermer
         </button>
       </div>
@@ -138,7 +138,7 @@ export function ProjectChat({ projectId }: { projectId: string }) {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2" style={{ minHeight: 200 }}>
         {messages.length === 0 && (
-          <p className="text-center text-xs text-gray-400 py-8">Aucun message</p>
+          <p className="text-center text-xs text-gray-400 dark:text-gray-500 py-8">Aucun message</p>
         )}
         {messages.map((msg) => {
           const firstName = msg.user.split(" ")[0];
@@ -154,9 +154,12 @@ export function ProjectChat({ projectId }: { projectId: string }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-xs font-semibold" style={{ color: colors.text }}>{firstName}</span>
-                  <span className="text-[10px] text-gray-400">{formatTime(msg.timestamp)}</span>
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500">{formatTime(msg.timestamp)}</span>
                 </div>
-                <p className="text-sm text-gray-700 mt-0.5">{msg.message}</p>
+                {/* Texte du message : foncé en clair, clair en sombre.
+                    Avant, text-gray-700 sans variante dark rendait le
+                    texte quasi invisible sur le fond navy du chat. */}
+                <p className="text-sm text-gray-800 dark:text-gray-100 mt-0.5 break-words">{msg.message}</p>
               </div>
             </div>
           );
@@ -165,7 +168,7 @@ export function ProjectChat({ projectId }: { projectId: string }) {
       </div>
 
       {/* Input */}
-      <div className="flex gap-2 p-3 border-t border-gray-100">
+      <div className="flex gap-2 p-3 border-t border-gray-100 dark:border-gray-700">
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
