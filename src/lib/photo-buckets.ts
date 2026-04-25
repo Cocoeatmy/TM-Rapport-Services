@@ -136,3 +136,62 @@ export function filterByBucket<T extends { name: string }>(
     return true;
   });
 }
+
+/** Photos sources d'un projet, regroupées par champ Notion. */
+export interface ProjectPhotoSources {
+  photosAvant?: { name: string }[];
+  photosMontage?: { name: string }[];
+  photosQRCode?: { name: string }[];
+  photosGaranties?: { name: string }[];
+}
+
+/** Buckets effectivement présents dans un projet (option : pour une cabine donnée). */
+export function bucketsPresent(
+  project: ProjectPhotoSources,
+  cabineIdx?: number,
+): Set<PhotoBucketKey> {
+  const present = new Set<PhotoBucketKey>();
+  const check = (
+    list: { name: string }[] | undefined,
+    field: "photosAvant" | "photosMontage" | "photosQRCode" | "photosGaranties",
+  ) => {
+    if (!list) return;
+    const fallback = defaultBucketForField(field);
+    for (const f of list) {
+      if (cabineIdx !== undefined) {
+        const cab = extractCabine(f.name);
+        if (cabineIdx >= 1) {
+          if (cab !== cabineIdx) continue;
+        } else if (cab !== null) {
+          continue;
+        }
+      }
+      present.add(detectBucket(f.name, fallback));
+    }
+  };
+  check(project.photosAvant, "photosAvant");
+  check(project.photosMontage, "photosMontage");
+  check(project.photosQRCode, "photosQRCode");
+  check(project.photosGaranties, "photosGaranties");
+  return present;
+}
+
+/** Liste les buckets manquants au format texte, pour un projet mono ou multi-cabine. */
+export function missingBucketLabels(
+  project: ProjectPhotoSources,
+  options: { multiCabine: boolean; nbCabines: number },
+): string[] {
+  if (!options.multiCabine || options.nbCabines <= 1) {
+    const present = bucketsPresent(project);
+    return BUCKET_ORDER.filter((b) => !present.has(b)).map((b) => BUCKET_LABEL[b]);
+  }
+  const out: string[] = [];
+  for (let i = 1; i <= options.nbCabines; i++) {
+    const present = bucketsPresent(project, i);
+    const missing = BUCKET_ORDER.filter((b) => !present.has(b));
+    for (const b of missing) {
+      out.push(`Cabine ${i} — ${BUCKET_LABEL[b]}`);
+    }
+  }
+  return out;
+}

@@ -26,6 +26,7 @@ import {
   Tag,
   Building2,
   History,
+  AlertTriangle,
 } from "lucide-react";
 import { MontageChecklist } from "@/components/checklist";
 import { ProjectChat } from "@/components/project-chat";
@@ -89,6 +90,7 @@ import {
   defaultBucketForField,
   detectBucket,
   filterByBucket,
+  missingBucketLabels,
 } from "@/lib/photo-buckets";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import { thumbnailUrl } from "@/lib/image-url";
@@ -1142,6 +1144,10 @@ function ProjectPageContent({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [reformulating, setReformulating] = useState(false);
+  const [missingPhotosPrompt, setMissingPhotosPrompt] = useState<{
+    kind: "save" | "send";
+    missing: string[];
+  } | null>(null);
   // Dernière version connue côté serveur des champs éditables texte.
   // Sert au merge intelligent du polling : si le serveur a changé ET
   // que la valeur locale correspond encore à la snapshot (= l'utilisateur
@@ -1384,7 +1390,21 @@ function ProjectPageContent({ id }: { id: string }) {
     return () => clearInterval(interval);
   }, [project?.id]);
 
-  const handleSave = async () => {
+  const handleSave = async (opts: { force?: boolean } = {}) => {
+    // La vérification "photos manquantes" ne s'applique qu'au rapport
+    // (mode cmd / rapport / dashboard) — pas aux mesures qui ont leurs
+    // propres champs photo.
+    const checkPhotos = mode !== "mesures";
+    if (!opts.force && checkPhotos && project) {
+      const missing = missingBucketLabels(project, {
+        multiCabine: isCabineMode,
+        nbCabines: isCabineMode ? cabines.length : (project.nbCabines || 0),
+      });
+      if (missing.length > 0) {
+        setMissingPhotosPrompt({ kind: "save", missing });
+        return;
+      }
+    }
     setSaving(true);
     // On pré-calcule le rapport qui sera envoyé à Notion (peut contenir du
     // vocal + texte, et on en aura besoin pour mettre à jour le state local
@@ -1470,8 +1490,18 @@ function ProjectPageContent({ id }: { id: string }) {
     }
   };
 
-  const handleSendReport = async () => {
+  const handleSendReport = async (opts: { force?: boolean } = {}) => {
     if (!project) return;
+    if (!opts.force) {
+      const missing = missingBucketLabels(project, {
+        multiCabine: isCabineMode,
+        nbCabines: isCabineMode ? cabines.length : (project.nbCabines || 0),
+      });
+      if (missing.length > 0) {
+        setMissingPhotosPrompt({ kind: "send", missing });
+        return;
+      }
+    }
     setSending(true);
     try {
       // 1. Save the report data first
@@ -2724,7 +2754,7 @@ function ProjectPageContent({ id }: { id: string }) {
             {/* Actions CMD */}
             <div className="space-y-3 pt-2">
               <Button
-                onClick={handleSave}
+                onClick={() => handleSave()}
                 disabled={saving}
                 className="w-full h-12 rounded-xl text-base font-medium glass-btn text-white"
               >
@@ -2739,7 +2769,7 @@ function ProjectPageContent({ id }: { id: string }) {
               <Button
                 variant="outline"
                 className="w-full h-12 rounded-xl text-base font-medium glass-btn text-white"
-                onClick={handleSendReport}
+                onClick={() => handleSendReport()}
                 disabled={sending}
               >
                 {sending ? (
@@ -2812,7 +2842,7 @@ function ProjectPageContent({ id }: { id: string }) {
             {/* Actions Mesures */}
             <div className="space-y-3 pt-2">
               <Button
-                onClick={handleSave}
+                onClick={() => handleSave()}
                 disabled={saving}
                 className="w-full h-12 rounded-xl text-base font-medium glass-btn text-white"
               >
@@ -2838,6 +2868,61 @@ function ProjectPageContent({ id }: { id: string }) {
 
       {/* Chat flottant */}
       <ProjectChat projectId={id} />
+
+      {/* Confirmation : photos manquantes avant enregistrement / envoi */}
+      {missingPhotosPrompt && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setMissingPhotosPrompt(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-amber-500 text-white px-5 py-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" />
+              <h3 className="text-base font-semibold">Photos manquantes</h3>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-gray-700 dark:text-gray-200">
+                {missingPhotosPrompt.kind === "send"
+                  ? "Vous êtes sur le point d'envoyer le rapport, mais certaines photos n'ont pas encore été ajoutées :"
+                  : "Vous êtes sur le point d'enregistrer le rapport, mais certaines photos n'ont pas encore été ajoutées :"}
+              </p>
+              <ul className="text-sm space-y-1 max-h-60 overflow-y-auto bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+                {missingPhotosPrompt.missing.map((label) => (
+                  <li key={label} className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
+                    <span className="mt-0.5 text-amber-500">•</span>
+                    <span>{label}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Êtes-vous sûr de vouloir continuer sans ces photos ?
+              </p>
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button
+                onClick={() => setMissingPhotosPrompt(null)}
+                className="flex-1 h-10 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700"
+              >
+                Ajouter les photos
+              </button>
+              <button
+                onClick={() => {
+                  const kind = missingPhotosPrompt.kind;
+                  setMissingPhotosPrompt(null);
+                  if (kind === "send") handleSendReport({ force: true });
+                  else handleSave({ force: true });
+                }}
+                className="flex-1 h-10 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium"
+              >
+                Continuer quand même
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
