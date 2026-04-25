@@ -1,9 +1,18 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
-import { parseTime, computeTimeDifference, formatMinutes } from "@/lib/time-utils";
+import { computeTimeDifference, formatMinutes } from "@/lib/time-utils";
+import {
+  StatsDateFilter,
+  type StatsDateMode,
+  type StatsDateState,
+  filterByStatsDate,
+  getDateRangeFromState,
+  getPreviousRange,
+  describeStatsRange,
+} from "@/components/stats-date-filter";
 
 interface PersonalStatsProps {
   userName: string;
@@ -12,20 +21,8 @@ interface PersonalStatsProps {
 
 // --- Helpers ---
 
-function getMonthRange(offset: number): { start: string; end: string } {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + offset;
-  const d = new Date(year, month, 1);
-  const dEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return {
-    start: d.toISOString().split("T")[0],
-    end: dEnd.toISOString().split("T")[0],
-  };
-}
-
-function isInMonth(dateStr: string | null, range: { start: string; end: string }): boolean {
-  if (!dateStr) return false;
+function isInRange(dateStr: string | null, range: { start: string; end: string } | null): boolean {
+  if (!dateStr || !range) return false;
   const d = dateStr.split("T")[0];
   return d >= range.start && d <= range.end;
 }
@@ -66,25 +63,35 @@ function getDateStr(dateStr: string | null): string {
 
 export function PersonalStats({ userName, projects }: PersonalStatsProps) {
   const color = getCollaboratorColor(userName);
-  const thisMonth = getMonthRange(0);
-  const lastMonth = getMonthRange(-1);
+
+  // Filtre par période — par défaut "Mois courant" pour préserver
+  // l'expérience initiale ; l'utilisateur peut basculer sur Année,
+  // une plage personnalisée, ou Tout.
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [dateMode, setDateMode] = useState<StatsDateMode>("month");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [dateMonth, setDateMonth] = useState(currentMonth);
+  const [dateYear, setDateYear] = useState(String(now.getFullYear()));
+
+  const filterState: StatsDateState = { mode: dateMode, from: dateFrom, to: dateTo, month: dateMonth, year: dateYear };
+  const periodLabel = describeStatsRange(filterState);
 
   const stats = useMemo(() => {
     const myProjects = projects.filter((p) => userInProject(p, userName));
 
-    // --- This month ---
-    const thisMonthProjects = myProjects.filter((p) => isInMonth(p.dateMontage, thisMonth));
-    const cabinesThisMonth = thisMonthProjects.reduce((sum, p) => sum + getEffectiveCabines(p), 0);
-    const projetsTermines = thisMonthProjects.filter(
+    // --- Période active (selon filtre) ---
+    const periodProjects = filterByStatsDate(myProjects, dateMode, dateFrom, dateTo, dateMonth, dateYear);
+    const cabinesPeriod = periodProjects.reduce((sum, p) => sum + getEffectiveCabines(p), 0);
+    const projetsTermines = periodProjects.filter(
       (p) => p.heureDepart && p.heureDepart.trim() !== ""
     ).length;
 
     // Solo vs team breakdown
-    const soloProjects = thisMonthProjects.filter((p) => getCollabCount(p) === 1);
-    const teamProjects = thisMonthProjects.filter((p) => getCollabCount(p) > 1);
+    const soloProjects = periodProjects.filter((p) => getCollabCount(p) === 1);
+    const teamProjects = periodProjects.filter((p) => getCollabCount(p) > 1);
     const cabinesSolo = soloProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
-    const cabinesTeam = teamProjects.reduce((sum, p) => sum + getEffectiveCabines(p), 0);
-    const cabinesTeamTotal = teamProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
 
     // Team composition breakdown
     const teamBreakdown: Record<string, { projects: number; cabines: number }> = {};
@@ -95,7 +102,7 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
       teamBreakdown[label].cabines += p.nbCabines || 0;
     });
 
-    const timesThisMonth = thisMonthProjects
+    const timesPeriod = periodProjects
       .map((p) => {
         const mins = getProjectMinutes(p);
         const cab = p.nbCabines || 1;
@@ -103,16 +110,13 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
       })
       .filter((t) => t > 0);
     const avgTimePerCabine =
-      timesThisMonth.length > 0
-        ? Math.round(timesThisMonth.reduce((a, b) => a + b, 0) / timesThisMonth.length)
+      timesPeriod.length > 0
+        ? Math.round(timesPeriod.reduce((a, b) => a + b, 0) / timesPeriod.length)
         : 0;
 
-    const totalMinutesThisMonth = thisMonthProjects.reduce(
-      (sum, p) => sum + getProjectMinutes(p),
-      0
-    );
+    const totalMinutesPeriod = periodProjects.reduce((sum, p) => sum + getProjectMinutes(p), 0);
 
-    // --- Streak ---
+    // --- Streak (toujours depuis aujourd'hui, indépendant du filtre) ---
     const today = new Date();
     let streak = 0;
     const projectsByDate = new Map<string, Project[]>();
@@ -128,8 +132,6 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
       const ds = checkDate.toISOString().split("T")[0];
       const dayProjects = projectsByDate.get(ds);
       if (!dayProjects || dayProjects.length === 0) {
-        // No projects this day - skip (weekends, off days)
-        // But only skip if there were no projects; break if there were projects with soucis
         checkDate.setDate(checkDate.getDate() - 1);
         continue;
       }
@@ -139,22 +141,20 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
       checkDate.setDate(checkDate.getDate() - 1);
     }
 
-    // --- Last month comparison ---
-    const lastMonthProjects = myProjects.filter((p) => isInMonth(p.dateMontage, lastMonth));
-    const cabinesLastMonth = lastMonthProjects.reduce((sum, p) => sum + getEffectiveCabines(p), 0);
-    const totalMinutesLastMonth = lastMonthProjects.reduce(
-      (sum, p) => sum + getProjectMinutes(p),
-      0
-    );
-    const soucisThisMonth = thisMonthProjects.filter((p) => p.soucisMontage).length;
-    const soucisLastMonth = lastMonthProjects.filter((p) => p.soucisMontage).length;
+    // --- Comparaison vs période précédente (ex. mois -1, année -1,
+    //     plage de même durée juste avant). ---
+    const prevRange = getPreviousRange(filterState);
+    const prevProjects = prevRange
+      ? myProjects.filter((p) => isInRange(p.dateMontage, prevRange))
+      : [];
+    const cabinesPrev = prevProjects.reduce((sum, p) => sum + getEffectiveCabines(p), 0);
+    const totalMinutesPrev = prevProjects.reduce((sum, p) => sum + getProjectMinutes(p), 0);
+    const soucisPeriod = periodProjects.filter((p) => p.soucisMontage).length;
+    const soucisPrev = prevProjects.filter((p) => p.soucisMontage).length;
+    const soucisRateThis = periodProjects.length > 0 ? soucisPeriod / periodProjects.length : 0;
+    const soucisRateLast = prevProjects.length > 0 ? soucisPrev / prevProjects.length : 0;
 
-    const soucisRateThis =
-      thisMonthProjects.length > 0 ? soucisThisMonth / thisMonthProjects.length : 0;
-    const soucisRateLast =
-      lastMonthProjects.length > 0 ? soucisLastMonth / lastMonthProjects.length : 0;
-
-    // --- Top stats ---
+    // --- Top stats (toute la carrière, pas filtré) ---
     const projectsWithTimePerCab = myProjects
       .filter((p) => getProjectMinutes(p) > 0 && (p.nbCabines || 0) > 0)
       .map((p) => ({
@@ -165,7 +165,6 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
       ? projectsWithTimePerCab.reduce((min, c) => (c.timePerCab < min.timePerCab ? c : min))
       : null;
 
-    // Most cabines in one day
     const cabinesByDay = new Map<string, number>();
     for (const p of myProjects) {
       const ds = getDateStr(p.dateMontage);
@@ -180,26 +179,25 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
     const careerTotal = myProjects.reduce((sum, p) => sum + getEffectiveCabines(p), 0);
 
     return {
-      cabinesThisMonth,
+      cabinesPeriod,
       cabinesSolo,
-      cabinesTeam,
-      cabinesTeamTotal,
       teamBreakdown,
       soloCount: soloProjects.length,
       teamCount: teamProjects.length,
       projetsTermines,
       avgTimePerCabine,
-      totalMinutesThisMonth,
+      totalMinutesPeriod,
       streak,
-      cabinesLastMonth,
-      totalMinutesLastMonth,
+      cabinesPrev,
+      totalMinutesPrev,
       soucisRateThis,
       soucisRateLast,
+      hasPrev: prevRange !== null,
       fastest,
       mostCabinesDay,
       careerTotal,
     };
-  }, [projects, userName, thisMonth.start, thisMonth.end, lastMonth.start, lastMonth.end]);
+  }, [projects, userName, dateMode, dateFrom, dateTo, dateMonth, dateYear, filterState]);
 
   function pctChange(current: number, previous: number): { pct: number; up: boolean } {
     if (previous === 0) return { pct: current > 0 ? 100 : 0, up: current > 0 };
@@ -207,9 +205,8 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
     return { pct: Math.abs(pct), up: pct >= 0 };
   }
 
-  const cabTrend = pctChange(stats.cabinesThisMonth, stats.cabinesLastMonth);
-  const hoursTrend = pctChange(stats.totalMinutesThisMonth, stats.totalMinutesLastMonth);
-  // For soucis rate, DOWN is good (improvement)
+  const cabTrend = pctChange(stats.cabinesPeriod, stats.cabinesPrev);
+  const hoursTrend = pctChange(stats.totalMinutesPeriod, stats.totalMinutesPrev);
   const soucisImproved = stats.soucisRateThis <= stats.soucisRateLast;
   const soucisChange = pctChange(stats.soucisRateThis * 100, stats.soucisRateLast * 100);
 
@@ -229,15 +226,29 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
         </h2>
       </div>
 
-      {/* Section 1: Ce mois */}
+      {/* Filtre période */}
+      <StatsDateFilter
+        mode={dateMode}
+        from={dateFrom}
+        to={dateTo}
+        month={dateMonth}
+        year={dateYear}
+        onModeChange={setDateMode}
+        onFromChange={setDateFrom}
+        onToChange={setDateTo}
+        onMonthChange={setDateMonth}
+        onYearChange={setDateYear}
+      />
+
+      {/* Section 1: Période active */}
       <div className="glass-card rounded-2xl p-4">
         <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">
-          Ce mois
+          {periodLabel || "Période"}
         </h3>
         <div className="grid grid-cols-2 gap-3">
           <StatCard
             label="Cabines (part effective)"
-            value={stats.cabinesThisMonth}
+            value={stats.cabinesPeriod}
             color={color.dot}
           />
           <StatCard
@@ -252,7 +263,7 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
           />
           <StatCard
             label="Heures totales"
-            value={formatMinutes(stats.totalMinutesThisMonth)}
+            value={formatMinutes(stats.totalMinutesPeriod)}
             color={color.dot}
           />
         </div>
@@ -288,7 +299,6 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
             <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
               {stats.streak} jour{stats.streak !== 1 ? "s" : ""} sans soucis
             </p>
-            {/* Progress bar */}
             <div className="mt-2 h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
@@ -312,37 +322,25 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
         </div>
       </div>
 
-      {/* Section 3: Evolution */}
-      <div className="glass-card rounded-2xl p-4">
-        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">
-          {"\u00C9"}volution (vs mois dernier)
-        </h3>
-        <div className="grid grid-cols-3 gap-3">
-          <TrendItem
-            label="Cabines"
-            up={cabTrend.up}
-            pct={cabTrend.pct}
-            good={cabTrend.up}
-          />
-          <TrendItem
-            label="Heures"
-            up={hoursTrend.up}
-            pct={hoursTrend.pct}
-            good={hoursTrend.up}
-          />
-          <TrendItem
-            label="Soucis"
-            up={!soucisImproved}
-            pct={soucisChange.pct}
-            good={soucisImproved}
-          />
+      {/* Section 3: Évolution vs période précédente — masquée si le filtre
+          est "Tout", car on n'a pas de période antérieure naturelle. */}
+      {stats.hasPrev && (
+        <div className="glass-card rounded-2xl p-4">
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">
+            {"É"}volution (vs p{"é"}riode pr{"é"}c{"é"}dente)
+          </h3>
+          <div className="grid grid-cols-3 gap-3">
+            <TrendItem label="Cabines" up={cabTrend.up} pct={cabTrend.pct} good={cabTrend.up} />
+            <TrendItem label="Heures" up={hoursTrend.up} pct={hoursTrend.pct} good={hoursTrend.up} />
+            <TrendItem label="Soucis" up={!soucisImproved} pct={soucisChange.pct} good={soucisImproved} />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Section 4: Top stats */}
       <div className="glass-card rounded-2xl p-4">
         <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">
-          Top stats
+          Top stats <span className="text-[10px] font-normal text-gray-400">· toute la carri{"è"}re</span>
         </h3>
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
@@ -360,7 +358,7 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
             </span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600 dark:text-gray-400">Total cabines (carri{"\u00E8"}re)</span>
+            <span className="text-gray-600 dark:text-gray-400">Total cabines (carri{"è"}re)</span>
             <span className="font-bold text-lg" style={{ color: color.dot }}>
               {stats.careerTotal}
             </span>
@@ -412,7 +410,7 @@ function TrendItem({
         <span
           className={`text-lg font-bold ${good ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}
         >
-          {up ? "\u2191" : "\u2193"}
+          {up ? "↑" : "↓"}
         </span>
         <span
           className={`text-sm font-semibold ${good ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}

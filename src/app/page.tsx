@@ -17,6 +17,7 @@ import { dateInRange, formatLocalDate } from "@/lib/time-utils";
 import { getFavorites } from "@/lib/favorites";
 import { fetchWithRetry } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
+import { StatsDateFilter, filterByStatsDate, type StatsDateMode } from "@/components/stats-date-filter";
 
 const MonteurDashboard = dynamic(() => import("@/components/monteur-dashboard").then(m => ({ default: m.MonteurDashboard })), {
   ssr: false,
@@ -605,88 +606,6 @@ function NewProjectModal({ open, onClose, onCreated, currentMode }: { open: bool
   );
 }
 
-function StatsDateFilter({ mode, from, to, month, year, onModeChange, onFromChange, onToChange, onMonthChange, onYearChange }: {
-  mode: "all"|"range"|"month"|"year"; from: string; to: string; month: string; year: string;
-  onModeChange: (m: "all"|"range"|"month"|"year") => void; onFromChange: (v: string) => void; onToChange: (v: string) => void; onMonthChange: (v: string) => void; onYearChange: (v: string) => void;
-}) {
-  const modes = [
-    { key: "all" as const, label: "Tout" },
-    { key: "month" as const, label: "Mois" },
-    { key: "year" as const, label: "Année" },
-    { key: "range" as const, label: "Période" },
-  ];
-  return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-gray-100 dark:border-gray-700 mb-4">
-      <div className="flex gap-1.5 mb-2">
-        {modes.map(m => (
-          <button key={m.key} onClick={() => onModeChange(m.key)}
-            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${mode === m.key ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"}`}>
-            {m.label}
-          </button>
-        ))}
-      </div>
-      {mode === "range" && (
-        <div className="flex gap-2 items-center">
-          <input type="date" value={from} onChange={e => onFromChange(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200" />
-          <span className="text-xs text-gray-400">→</span>
-          <input type="date" value={to} onChange={e => onToChange(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200" />
-        </div>
-      )}
-      {mode === "month" && (() => {
-        const moisNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
-        const selectedYear = month ? month.split("-")[0] : String(new Date().getFullYear());
-        const selectedMonth = month ? Number(month.split("-")[1]) : null;
-        return (
-          <div className="flex flex-wrap gap-1.5">
-            {moisNames.map((m, i) => {
-              const val = `${selectedYear}-${String(i + 1).padStart(2, "0")}`;
-              const isActive = selectedMonth === i + 1;
-              return (
-                <button key={m} onClick={() => onMonthChange(val)}
-                  className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg transition-colors ${isActive ? "bg-[#1e3a5f] text-white" : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"}`}>
-                  {m}
-                </button>
-              );
-            })}
-          </div>
-        );
-      })()}
-      {mode === "year" && (() => {
-        const currentYear = new Date().getFullYear();
-        const startYear = 2024;
-        const years: number[] = [];
-        for (let y = startYear; y <= currentYear; y++) years.push(y);
-        return (
-          <div className="flex flex-wrap gap-1.5">
-            {years.map((y) => (
-              <button key={y} onClick={() => onYearChange(String(y))}
-                className={`text-[11px] font-medium px-3 py-1.5 rounded-lg transition-colors ${String(y) === year ? "bg-[#1e3a5f] text-white" : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"}`}>
-                {y}
-              </button>
-            ))}
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
-
-function filterByStatsDate(projects: any[], dateMode: "all"|"range"|"month"|"year", from: string, to: string, month: string, year: string) {
-  if (dateMode === "all") return projects;
-  return projects.filter(p => {
-    const d = (p.dateMontage || "").split("T")[0];
-    if (!d) return false;
-    if (dateMode === "range") {
-      if (from && d < from) return false;
-      if (to && d > to) return false;
-      return true;
-    }
-    if (dateMode === "month") return d.startsWith(month);
-    if (dateMode === "year") return d.startsWith(year);
-    return true;
-  });
-}
-
 export default function Page() {
   return (
     <Suspense fallback={<div className="px-4 py-8 text-center text-gray-400">Chargement...</div>}>
@@ -714,7 +633,7 @@ function HomePage() {
   const [collabFilter, setCollabFilter] = useState<string | null>(collabParam || collaborateurParam);
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
   const [subView, setSubView] = useState<"projets" | "stats">("projets");
-  const [statsDateMode, setStatsDateMode] = useState<"all" | "range" | "month" | "year">("all");
+  const [statsDateMode, setStatsDateMode] = useState<StatsDateMode>("all");
   const [statsDateFrom, setStatsDateFrom] = useState("");
   const [statsDateTo, setStatsDateTo] = useState("");
   const [statsMonth, setStatsMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; });
