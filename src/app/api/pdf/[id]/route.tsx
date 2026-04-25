@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 20,
-    paddingBottom: 15,
+    paddingBottom: 4,
     borderBottomWidth: 2,
     borderBottomColor: "#1e3a5f",
   },
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 10,
     color: "#666",
-    marginTop: 2,
+    marginTop: 10,
   },
   dateBox: {
     backgroundColor: "#f0f4f8",
