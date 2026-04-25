@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Package, Camera, Loader2, Send, AlertTriangle, X, ImagePlus, Sparkles } from "lucide-react";
+import { offlineFetch } from "@/lib/offline";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -81,7 +82,7 @@ export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormPr
         }
       }
 
-      const res = await fetch("/api/pieces", {
+      const res = await offlineFetch("/api/pieces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId, projectName, description, reference, photoUrls }),

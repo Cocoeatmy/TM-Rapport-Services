@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Send, MessageCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { offlineFetch } from "@/lib/offline";
 import { getCollaboratorColor } from "@/lib/collaborators";
 
 interface ChatMessage {
@@ -78,7 +79,10 @@ export function ProjectChat({ projectId }: { projectId: string }) {
     if (!input.trim()) return;
     setSending(true);
     try {
-      await fetch("/api/chat", {
+      // offlineFetch : si le réseau est coupé, le message est mis
+      // en queue et rejoué dès que la connexion revient. Le user
+      // voit son message disparaître du champ comme d'habitude.
+      await offlineFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId, message: input }),

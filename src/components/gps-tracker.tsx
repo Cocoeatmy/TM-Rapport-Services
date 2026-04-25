@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { MapPin, Navigation, Clock, CheckCircle } from "lucide-react";
+import { offlineFetch } from "@/lib/offline";
 
 interface GPSTrackerProps {
   /** Adresse complète du chantier — sert au géocodage Nominatim. */
@@ -52,7 +53,9 @@ export function GPSTracker({ chantierAddress, projectId, silent = false }: GPSTr
   // au prochain mouvement.
   const postGpsEvent = useCallback(async (type: "arrival" | "departure", time: string, dist: number | null) => {
     try {
-      await fetch(`/api/gps-pointage/${projectId}`, {
+      // offlineFetch : si le monteur est sur un chantier sans réseau,
+      // l'arrivée/départ est mis en queue et envoyé dès retour réseau.
+      await offlineFetch(`/api/gps-pointage/${projectId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, time, distance: dist }),

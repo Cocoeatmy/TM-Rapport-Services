@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Camera, ImagePlus, Loader2, Send, ShieldAlert, X, Check, Sparkles } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { offlineFetch } from "@/lib/offline";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
@@ -99,7 +100,11 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
         .filter(Boolean)
         .join(", ");
 
-      const res = await fetch("/api/defauts", {
+      // offlineFetch : le défaut est mis en queue si offline ; les
+      // photoUrls (Cloudinary) ne marchent que si l'upload est passé
+      // — l'upload binaire reste online-only, mais les défauts SANS
+      // photo (ou avec photos déjà uploadées) sont rejouables.
+      const res = await offlineFetch("/api/defauts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

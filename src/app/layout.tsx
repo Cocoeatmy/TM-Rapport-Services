@@ -8,6 +8,7 @@ import { AIChatbot } from "@/components/ai-chatbot";
 import { NotificationBell } from "@/components/notifications";
 import { RefreshButton } from "@/components/refresh-button";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { OfflineBanner } from "@/components/offline-banner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -92,6 +93,7 @@ export default function RootLayout({
             </div>
           </div>
         </header>
+        <OfflineBanner />
         <main className="flex-1">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>

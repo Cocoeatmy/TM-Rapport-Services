@@ -84,7 +84,7 @@ const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m
 import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
-import { addToQueue, isOnline } from "@/lib/offline";
+import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
 import { fetchWithRetry, invalidateApiCache } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import {
@@ -149,7 +149,7 @@ function BucketPhotoUpload({
     // sans risque (idempotent — même URL réécrite). Ça simplifie
     // la logique et garantit que l'état Notion reflète toujours
     // l'écran.
-    fetch(`/api/projects/${projectId}`, {
+    offlineFetch(`/api/projects/${projectId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [notionFieldKey]: nextFullList }),
@@ -542,7 +542,7 @@ function ExtraDateField({ label, value, projectId, fieldName, onUpdate }: {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`/api/projects/${projectId}`, {
+      await offlineFetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [fieldName]: draft || null }),
@@ -709,7 +709,7 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`/api/projects/${projectId}`, {
+      await offlineFetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [isPieces ? "infoPiecesManquantes" : "infoDefautsSignale"]: draft }),
@@ -725,7 +725,7 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
     setPhotos(next);
     onPhotosUpdate?.(next);
     try {
-      await fetch(`/api/projects/${projectId}`, {
+      await offlineFetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [photosFieldKey]: next }),
@@ -895,7 +895,7 @@ function EditableTextField({ label, value, projectId, fieldName, notionField, mu
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`/api/projects/${projectId}`, {
+      await offlineFetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [fieldName]: draft }),
@@ -1698,7 +1698,7 @@ function ProjectPageContent({ id }: { id: string }) {
         ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
         : heureDepart;
     try {
-      const res = await fetch(`/api/projects/${id}`, {
+      const res = await offlineFetch(`/api/projects/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1710,7 +1710,7 @@ function ProjectPageContent({ id }: { id: string }) {
       });
       // Save cabine attribution if in multi-cabin mode
       if (isCabineMode && cabines.some((c) => c.monteur)) {
-        await fetch("/api/cabine-attribution", {
+        await offlineFetch("/api/cabine-attribution", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ projectId: id, attribution: cabines.map((c) => c.monteur) }),
@@ -1775,7 +1775,7 @@ function ProjectPageContent({ id }: { id: string }) {
     setSending(true);
     try {
       // 1. Save the report data first
-      const saveRes = await fetch(`/api/projects/${id}`, {
+      const saveRes = await offlineFetch(`/api/projects/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2425,19 +2425,19 @@ function ProjectPageContent({ id }: { id: string }) {
                     heureDepart={heureDepart}
                     onArrival={(time) => {
                       setHeureArrivee(time);
-                      fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArrivee: time }) }).catch(console.error);
+                      offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArrivee: time }) }).catch(console.error);
                     }}
                     onDeparture={(time) => {
                       setHeureDepart(time);
-                      fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
+                      offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
                     }}
                     onArriveeChange={(time) => {
                       setHeureArrivee(time);
-                      fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArrivee: time }) }).catch(console.error);
+                      offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArrivee: time }) }).catch(console.error);
                     }}
                     onDepartChange={(time) => {
                       setHeureDepart(time);
-                      fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
+                      offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
                     }}
                   />
                   {/* GPS tracker : tourne pour TOUS les utilisateurs (les
@@ -3021,7 +3021,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         setSignature(cloudinaryUrl);
                         try { localStorage.setItem(`tm-sig-${id}`, cloudinaryUrl); } catch {}
                         setProject((prev) => prev ? { ...prev, signatureUrl: cloudinaryUrl } : prev);
-                        await fetch(`/api/projects/${id}`, {
+                        await offlineFetch(`/api/projects/${id}`, {
                           method: "PATCH",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ signatureUrl: cloudinaryUrl }),
