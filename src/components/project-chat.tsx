@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Send, MessageCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { getCollaboratorColor } from "@/lib/collaborators";
@@ -14,6 +15,11 @@ interface ChatMessage {
 }
 
 export function ProjectChat({ projectId }: { projectId: string }) {
+  // Monté côté client uniquement pour permettre createPortal vers
+  // document.body (sinon SSR plante avec "document is not defined").
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -92,19 +98,29 @@ export function ProjectChat({ projectId }: { projectId: string }) {
     return d.toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) + " " + d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
   };
 
+  // Tant que le composant n'est pas monté côté client, on ne rend rien
+  // (createPortal a besoin de document.body, qui n'existe pas en SSR).
+  if (!mounted) return null;
+
+  // ⚠️ On rend TOUJOURS via un Portal vers document.body. Sinon, en
+  // thème Ocean (et plus généralement dès qu'un ancêtre crée un
+  // containing block via transform/filter/contain), `position: fixed`
+  // est cassé et la bulle / le panneau se retrouvent en flow normal
+  // au bas de la page — l'utilisateur doit alors scroller pour les
+  // atteindre. En portail au niveau body, le containing block est
+  // toujours le viewport, donc fixed fonctionne dans tous les
+  // contextes.
   if (!open) {
-    // Bulle de notification : rouge si messages non lus (avec compteur),
-    // verte si tous les messages ont été lus, rien si aucun message.
     const hasMessages = messages.length > 0;
     const dotClass = unreadCount > 0
       ? "bg-red-500 animate-pulse"
       : hasMessages
         ? "bg-green-500"
         : "";
-    return (
+    return createPortal(
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 left-6 w-14 h-14 rounded-full glass-btn text-white flex items-center justify-center shadow-xl z-40"
+        className="fixed bottom-6 left-6 w-14 h-14 rounded-full glass-btn text-white flex items-center justify-center shadow-xl z-50"
         aria-label={unreadCount > 0 ? `Discussion : ${unreadCount} message(s) non lu(s)` : "Discussion"}
       >
         <MessageCircle className="w-6 h-6" />
@@ -118,12 +134,13 @@ export function ProjectChat({ projectId }: { projectId: string }) {
             title="Tous les messages ont été lus"
           />
         ) : null}
-      </button>
+      </button>,
+      document.body,
     );
   }
 
-  return (
-    <div className="fixed bottom-6 left-6 w-80 sm:w-96 glass-card rounded-2xl shadow-2xl z-40 flex flex-col" style={{ maxHeight: "60vh" }}>
+  return createPortal(
+    <div className="fixed bottom-6 left-6 w-80 sm:w-96 glass-card rounded-2xl shadow-2xl z-50 flex flex-col" style={{ maxHeight: "60vh" }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-2">
@@ -184,6 +201,7 @@ export function ProjectChat({ projectId }: { projectId: string }) {
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
