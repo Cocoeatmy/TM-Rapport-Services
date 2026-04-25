@@ -2985,12 +2985,10 @@ function ProjectPageContent({ id }: { id: string }) {
             {/* Consommables utilisés */}
             <StockUsage projectId={id} />
 
-            {/* Checklist de montage */}
+            {/* Checklist de montage : titre retiré, en-tête intégré au
+                composant (badge X/N + chevron pour plier/déplier). */}
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Vérifications</CardTitle>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="pt-4">
                 <MontageChecklist fournisseur={project.fournisseurs?.[0]} />
               </CardContent>
             </Card>

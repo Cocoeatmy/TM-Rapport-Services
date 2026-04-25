@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, Circle } from "lucide-react";
+import { CheckCircle2, Circle, ChevronDown, ChevronUp, ListChecks } from "lucide-react";
 import {
   getChecklistForSupplier,
   getChecklistSectionsForSupplier,
@@ -16,12 +16,14 @@ interface ChecklistProps {
   items?: { id: string; label: string }[];
   fournisseur?: string;
   onChange?: (checked: Record<string, boolean>) => void;
+  /** État ouvert par défaut. true = checklist déployée au mount. */
+  defaultOpen?: boolean;
 }
 
 /** @deprecated Use getChecklistForSupplier() from constants instead */
 const DEFAULT_CHECKLIST = [...BASE_CHECKLIST_ITEMS];
 
-export function MontageChecklist({ title = "Checklist de montage", items, fournisseur, onChange }: ChecklistProps) {
+export function MontageChecklist({ title = "Checklist de montage", items, fournisseur, onChange, defaultOpen = true }: ChecklistProps) {
   // Si l'appelant fournit une liste plate, on la transforme en une seule
   // section "implicite" (sans titre) pour mutualiser le rendu.
   const sections: ChecklistSection[] = useMemo(() => {
@@ -38,6 +40,7 @@ export function MontageChecklist({ title = "Checklist de montage", items, fourni
   void getChecklistForSupplier; // évite un warning d'import inutilisé si jamais
 
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  const [open, setOpen] = useState(defaultOpen);
 
   const toggle = (id: string) => {
     setCheckedItems((prev) => {
@@ -50,19 +53,47 @@ export function MontageChecklist({ title = "Checklist de montage", items, fourni
   const checkedCount = allItems.filter((it) => checkedItems[it.id]).length;
   const totalCount = allItems.length;
   const progress = totalCount > 0 ? (checkedCount / totalCount) * 100 : 0;
+  const allChecked = totalCount > 0 && checkedCount === totalCount;
+
+  // Bascule "tout cocher" / "tout décocher" : un seul bouton qui
+  // alterne, plus pratique que deux boutons séparés.
+  const toggleAll = () => {
+    const next = allChecked
+      ? {}
+      : Object.fromEntries(allItems.map((it) => [it.id, true]));
+    setCheckedItems(next);
+    onChange?.(next);
+  };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-200">{title}</label>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-          progress === 100 ? "bg-green-100 text-green-700" :
-          progress > 50 ? "bg-blue-100 text-blue-700" :
-          "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300"
-        }`}>
-          {checkedCount}/{totalCount}
+      {/* En-tête cliquable : badge X/N + chevron pour plier/déplier.
+          Le titre "Vérifications" / "Checklist de montage" a été
+          retiré pour laisser plus d'espace, l'icône ListChecks
+          suffit visuellement. */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between mb-3 group"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2">
+          <ListChecks className="w-4 h-4 text-gray-500 dark:text-gray-400" aria-hidden />
+          <span className="sr-only">{title}</span>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+            progress === 100 ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" :
+            progress > 50 ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" :
+            "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300"
+          }`}>
+            {checkedCount}/{totalCount}
+          </span>
         </span>
-      </div>
+        {open ? (
+          <ChevronUp className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200 transition-colors" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200 transition-colors" />
+        )}
+      </button>
 
       <div className="h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden mb-4">
         <div
@@ -74,6 +105,8 @@ export function MontageChecklist({ title = "Checklist de montage", items, fourni
         />
       </div>
 
+      {open && (
+        <>
       <div className="space-y-4">
         {sections.map((section) => {
           const sectionDone = section.items.length > 0 && section.items.every((it) => checkedItems[it.id]);
@@ -121,6 +154,24 @@ export function MontageChecklist({ title = "Checklist de montage", items, fourni
           );
         })}
       </div>
+
+      {/* Bouton "Tout cocher" / "Tout décocher" en bas de la liste,
+          pour valider la checklist d'un coup quand le monteur a
+          réellement passé en revue toutes les étapes. */}
+      <button
+        type="button"
+        onClick={toggleAll}
+        className={`mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+          allChecked
+            ? "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
+            : "bg-green-500 text-white hover:bg-green-600 active:bg-green-700"
+        }`}
+      >
+        <CheckCircle2 className="w-4 h-4" />
+        {allChecked ? "Tout décocher" : "Tout cocher"}
+      </button>
+        </>
+      )}
     </div>
   );
 }
