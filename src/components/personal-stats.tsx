@@ -93,7 +93,50 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
     const teamProjects = periodProjects.filter((p) => getCollabCount(p) > 1);
     const cabinesSolo = soloProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
 
-    // Team composition breakdown
+    // Ventilation détaillée par configuration d'équipe : pour chaque
+    // taille d'équipe (solo, binôme, trio, …) on calcule
+    // projets / cabines totales / part personnelle / heures /
+    // soucis. L'idée : voir si un monteur est plus productif seul
+    // ou en équipe, et comparer la qualité de son travail (taux de
+    // soucis) selon la configuration.
+    interface TeamConfigStat {
+      key: string;
+      label: string;
+      teamSize: number;
+      projects: number;
+      cabinesTotal: number;
+      cabinesEffective: number;
+      minutes: number;
+      soucis: number;
+    }
+    const teamConfigsMap = new Map<string, TeamConfigStat>();
+    periodProjects.forEach((p) => {
+      const teamSize = getCollabCount(p);
+      const label = getTeamLabel(p);
+      const existing = teamConfigsMap.get(label) || {
+        key: label,
+        label,
+        teamSize,
+        projects: 0,
+        cabinesTotal: 0,
+        cabinesEffective: 0,
+        minutes: 0,
+        soucis: 0,
+      };
+      existing.projects++;
+      existing.cabinesTotal += p.nbCabines || 0;
+      existing.cabinesEffective += getEffectiveCabines(p);
+      existing.minutes += getProjectMinutes(p);
+      if (p.soucisMontage) existing.soucis++;
+      teamConfigsMap.set(label, existing);
+    });
+    const teamConfigOrder = ["solo", "binôme", "trio", "quatuor", "team"];
+    const teamConfigs: TeamConfigStat[] = teamConfigOrder
+      .map((k) => teamConfigsMap.get(k))
+      .filter((x): x is TeamConfigStat => x !== undefined);
+
+    // Team composition breakdown (legacy — gardé pour la ligne de
+    // synthèse sous la 1re carte, à voir si on la supprime).
     const teamBreakdown: Record<string, { projects: number; cabines: number }> = {};
     teamProjects.forEach((p) => {
       const label = getTeamLabel(p);
@@ -182,6 +225,7 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
       cabinesPeriod,
       cabinesSolo,
       teamBreakdown,
+      teamConfigs,
       soloCount: soloProjects.length,
       teamCount: teamProjects.length,
       projetsTermines,
@@ -287,6 +331,91 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
           ))}
         </div>
       </div>
+
+      {/* Section : ventilation par configuration d'équipe.
+          Pour chaque taille (solo, binôme, trio…), on montre projets,
+          cabines totales (équipe complète) ET part personnelle, heures
+          travaillées, et taux de soucis. Permet de voir d'un coup
+          d'œil si le monteur est plus productif seul ou en équipe. */}
+      {stats.teamConfigs.length > 0 && (
+        <div className="glass-card rounded-2xl p-4">
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">
+            Par configuration d&apos;équipe
+          </h3>
+          <div className="space-y-3">
+            {stats.teamConfigs.map((cfg) => {
+              const soucisRate = cfg.projects > 0 ? Math.round((cfg.soucis / cfg.projects) * 100) : 0;
+              const avgPerCab =
+                cfg.cabinesTotal > 0 ? Math.round(cfg.minutes / cfg.cabinesTotal) : 0;
+              const isSolo = cfg.key === "solo";
+              return (
+                <div
+                  key={cfg.key}
+                  className="rounded-xl border border-gray-100 dark:border-gray-800 bg-white/60 dark:bg-white/5 p-3"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span
+                      className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                        isSolo
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                          : cfg.key === "binôme"
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                            : cfg.key === "team"
+                              ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                              : "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300"
+                      }`}
+                    >
+                      {cfg.label}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {cfg.projects} projet{cfg.projects > 1 ? "s" : ""}
+                      {!isSolo && ` · équipe de ${cfg.teamSize}`}
+                    </span>
+                    {cfg.projects > 0 && (
+                      <span
+                        className={`ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                          soucisRate > 20
+                            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                            : soucisRate > 10
+                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300"
+                              : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                        }`}
+                      >
+                        {soucisRate}% soucis
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div>
+                      <p className="text-base font-bold text-gray-900 dark:text-gray-100">{cfg.cabinesTotal}</p>
+                      <p className="text-[9px] text-gray-500 dark:text-gray-400 leading-tight">Cabines totales</p>
+                    </div>
+                    <div>
+                      <p className="text-base font-bold text-gray-900 dark:text-gray-100">{cfg.cabinesEffective}</p>
+                      <p className="text-[9px] text-gray-500 dark:text-gray-400 leading-tight">{isSolo ? "Cabines" : "Ta part"}</p>
+                    </div>
+                    <div>
+                      <p className="text-base font-bold text-gray-900 dark:text-gray-100">
+                        {cfg.minutes > 0 ? formatMinutes(cfg.minutes) : "--"}
+                      </p>
+                      <p className="text-[9px] text-gray-500 dark:text-gray-400 leading-tight">Heures équipe</p>
+                    </div>
+                    <div>
+                      <p className="text-base font-bold text-gray-900 dark:text-gray-100">
+                        {avgPerCab > 0 ? formatMinutes(avgPerCab) : "--"}
+                      </p>
+                      <p className="text-[9px] text-gray-500 dark:text-gray-400 leading-tight">Temps/cabine</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-gray-400 mt-2">
+            « Cabines totales » = équipe complète. « Ta part » = cabines totales ÷ taille de l&apos;équipe.
+          </p>
+        </div>
+      )}
 
       {/* Section 2: Streak */}
       <div className="glass-card rounded-2xl p-4">
