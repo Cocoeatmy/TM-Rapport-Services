@@ -717,6 +717,25 @@ export async function updateProject(
       })),
     };
   }
+  // Photos pièces manquantes / défauts signalés : on accepte aussi
+  // bien un tableau de FileItem ({name,url}) que de simples URL.
+  // Nécessaire pour pouvoir SUPPRIMER ou réordonner les photos
+  // déjà attachées à un signalement, pas seulement en ajouter.
+  const writeFilesField = (key: string, propName: string, defaultName: string) => {
+    if ((data as any)[key] === undefined) return;
+    const list: any[] = (data as any)[key] || [];
+    const files = list
+      .map((item, i) => {
+        const url = typeof item === "string" ? item : item?.url;
+        if (!url) return null;
+        const name = (typeof item === "object" && item?.name) || url.split("/").pop()?.slice(0, 100) || `${defaultName}-${i + 1}.jpg`;
+        return { type: "external" as const, name: String(name).slice(0, 100), external: { url } };
+      })
+      .filter(Boolean);
+    properties[propName] = { files };
+  };
+  writeFilesField("photosPiecesManquantes", "Photos - Pièces manquante", "piece");
+  writeFilesField("photosDefautsSignale", "Photos - Défauts signalé", "defaut");
 
   await notion.pages.update({
     page_id: pageId,

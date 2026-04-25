@@ -31,6 +31,7 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [displayInRapport, setDisplayInRapport] = useState(true);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
@@ -108,6 +109,7 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
           typesLabel,
           description,
           photoUrls,
+          displayInRapport,
         }),
       });
       if (res.ok) {
@@ -226,6 +228,19 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
         <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
       </div>
+
+      {/* Affichage sur rapport client : par défaut oui, mais on peut
+          décocher pour les défauts internes qui ne doivent pas
+          apparaître sur le rapport envoyé au client. */}
+      <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={displayInRapport}
+          onChange={(e) => setDisplayInRapport(e.target.checked)}
+          className="w-4 h-4 accent-red-500 rounded"
+        />
+        Afficher ce défaut sur le rapport client
+      </label>
 
       <div className="flex gap-2">
         <button

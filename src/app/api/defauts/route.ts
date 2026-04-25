@@ -22,6 +22,10 @@ interface DefautRequest {
   status: "signale" | "en-cours" | "resolu";
   timestamp: number;
   comments: DefautComment[];
+  // Indique si le défaut doit apparaître dans le rapport PDF envoyé
+  // au client. Par défaut true (rétro-compat : les anciens défauts
+  // sans ce champ sont traités comme "à afficher").
+  displayInRapport?: boolean;
 }
 
 const KEY = "defauts";
@@ -50,6 +54,9 @@ export async function POST(request: NextRequest) {
     status: "signale",
     timestamp: Date.now(),
     comments: [],
+    // Si le client n'a pas envoyé le flag, on considère que oui (par défaut
+    // on affiche dans le rapport, c'est le comportement attendu).
+    displayInRapport: body.displayInRapport !== false,
   });
   await setData(KEY, defauts);
 
@@ -110,7 +117,7 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const { id, status, comment } = body;
+  const { id, status, comment, displayInRapport } = body;
   const defauts = await getData<DefautRequest>(KEY);
   const idx = defauts.findIndex((d) => d.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
@@ -126,6 +133,10 @@ export async function PATCH(request: NextRequest) {
 
   if (status) {
     defauts[idx].status = status;
+  }
+
+  if (typeof displayInRapport === "boolean") {
+    defauts[idx].displayInRapport = displayInRapport;
   }
 
   await setData(KEY, defauts);

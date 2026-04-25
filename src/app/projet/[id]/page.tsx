@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState, use } from "react";
+import { Suspense, useEffect, useRef, useState, use, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -27,6 +27,9 @@ import {
   Building2,
   History,
   AlertTriangle,
+  Camera,
+  ImagePlus,
+  X,
 } from "lucide-react";
 import { MontageChecklist } from "@/components/checklist";
 import { ProjectChat } from "@/components/project-chat";
@@ -565,13 +568,121 @@ function ExtraDateField({ label, value, projectId, fieldName, onUpdate }: {
   );
 }
 
-function EditableSignalement({ label, color, text, photos, projectId, notionTextField, onUpdate }: {
+/** Liste les défauts du projet (depuis /api/defauts) avec un toggle
+ *  per-défaut pour décider s'il apparaît dans le rapport client. */
+function DefautsList({ projectId }: { projectId: string }) {
+  type Defaut = {
+    id: string;
+    typesLabel?: string;
+    types?: string[];
+    description?: string;
+    user?: string;
+    timestamp?: number;
+    photoUrls?: string[];
+    status?: string;
+    displayInRapport?: boolean;
+  };
+  const [defauts, setDefauts] = useState<Defaut[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/defauts?projectId=${projectId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setDefauts(data);
+      }
+    } catch {} finally { setLoaded(true); }
+  }, [projectId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggleDisplay = async (id: string, current: boolean) => {
+    const next = !current;
+    setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, displayInRapport: next } : d));
+    try {
+      await fetch("/api/defauts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, displayInRapport: next }),
+      });
+    } catch {
+      // Revert on error
+      setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, displayInRapport: current } : d));
+      toast.error("Erreur de mise à jour");
+    }
+  };
+
+  if (!loaded || defauts.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-red-600 dark:text-red-400">Défauts ({defauts.length})</p>
+      {defauts.map((d) => {
+        const visible = d.displayInRapport !== false;
+        return (
+          <div key={d.id} className="border-l-2 border-red-300 pl-2 py-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
+                  {d.typesLabel || (d.types || []).join(", ") || "Sans type"}
+                </p>
+                {d.description && (
+                  <p className="text-xs text-muted-foreground">{d.description}</p>
+                )}
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  {d.user || "—"}{d.timestamp ? ` · ${new Date(d.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}` : ""}
+                </p>
+              </div>
+              <button
+                onClick={() => toggleDisplay(d.id, visible)}
+                className={`shrink-0 text-[10px] px-2 py-1 rounded-full border transition-colors ${
+                  visible
+                    ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300"
+                    : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"
+                }`}
+                title={visible ? "Affiché sur le rapport client — cliquer pour masquer" : "Masqué du rapport client — cliquer pour afficher"}
+              >
+                {visible ? "Sur rapport ✓" : "Masqué"}
+              </button>
+            </div>
+            {d.photoUrls && d.photoUrls.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {d.photoUrls.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                    <img src={thumbnailUrl(url, 96)} alt="" loading="lazy" decoding="async" className="w-12 h-12 object-cover rounded border" />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EditableSignalement({ label, color, text, photos: initialPhotos, projectId, notionTextField, onUpdate, onPhotosUpdate }: {
   label: string; color: "orange" | "red"; text: string; photos: { name: string; url: string }[];
   projectId: string; notionTextField: string; onUpdate: (newText: string) => void;
+  onPhotosUpdate?: (photos: { name: string; url: string }[]) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
   const [saving, setSaving] = useState(false);
+  const [photos, setPhotos] = useState(initialPhotos);
+  const [uploading, setUploading] = useState(false);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+
+  // Garde le state local en phase quand le parent re-render avec
+  // une nouvelle liste (ex : polling collaboratif, refetch).
+  useEffect(() => { setPhotos(initialPhotos); }, [initialPhotos]);
+
+  const isPieces = notionTextField.includes("Pièces");
+  const photosFieldKey = isPieces ? "photosPiecesManquantes" : "photosDefautsSignale";
+  const uploadCategory = isPieces ? "pieces" : "defauts";
+  const uploadNotionField = isPieces ? "Photos - Pièces manquante" : "Photos - Défauts signalé";
 
   const borderColor = color === "orange" ? "border-orange-300" : "border-red-300";
   const textColor = color === "orange" ? "text-orange-600 dark:text-orange-400" : "text-red-600 dark:text-red-400";
@@ -582,11 +693,60 @@ function EditableSignalement({ label, color, text, photos, projectId, notionText
       await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [notionTextField.includes("Pièces") ? "infoPiecesManquantes" : "infoDefautsSignale"]: draft }),
+        body: JSON.stringify({ [isPieces ? "infoPiecesManquantes" : "infoDefautsSignale"]: draft }),
       });
       onUpdate(draft);
       setEditing(false);
     } catch {} finally { setSaving(false); }
+  };
+
+  const handleRemovePhoto = async (idx: number) => {
+    if (!confirm("Supprimer cette photo ?")) return;
+    const next = photos.filter((_, i) => i !== idx);
+    setPhotos(next);
+    onPhotosUpdate?.(next);
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [photosFieldKey]: next }),
+      });
+      invalidateApiCache();
+    } catch {
+      // Restaure en cas d'échec
+      setPhotos(photos);
+      onPhotosUpdate?.(photos);
+      toast.error("Erreur lors de la suppression");
+    }
+  };
+
+  const handleAddPhotos = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach((f) => formData.append("files", f));
+      formData.append("projectId", projectId);
+      formData.append("category", uploadCategory);
+      formData.append("notionField", uploadNotionField);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        toast.error("Échec de l'upload");
+        return;
+      }
+      const data = await res.json();
+      const newPhotos: { name: string; url: string }[] = (data.files || []).map((f: any) => ({ name: f.name || "photo.jpg", url: f.url }));
+      const merged = [...photos, ...newPhotos];
+      setPhotos(merged);
+      onPhotosUpdate?.(merged);
+      invalidateApiCache();
+    } catch {
+      toast.error("Erreur réseau");
+    } finally {
+      setUploading(false);
+      if (cameraRef.current) cameraRef.current.value = "";
+      if (galleryRef.current) galleryRef.current.value = "";
+    }
   };
 
   return (
@@ -621,15 +781,51 @@ function EditableSignalement({ label, color, text, photos, projectId, notionText
           ))}
         </>
       )}
-      {photos.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-2">
-          {photos.map((f, i) => (
-            <a key={i} href={f.url} target="_blank" rel="noopener noreferrer">
+      <div className="flex flex-wrap gap-2 mt-2 items-start">
+        {photos.map((f, i) => (
+          <div key={i} className="relative group">
+            <a href={f.url} target="_blank" rel="noopener noreferrer">
               <img src={thumbnailUrl(f.url, 128)} alt={f.name} loading="lazy" decoding="async" className="w-16 h-16 object-cover rounded border" />
             </a>
-          ))}
+            <button
+              type="button"
+              onClick={() => handleRemovePhoto(i)}
+              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 sm:opacity-100 hover:bg-red-500 transition-opacity"
+              title="Supprimer cette photo"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            onClick={() => cameraRef.current?.click()}
+            disabled={uploading}
+            className={`w-16 h-7 rounded border-2 border-dashed flex items-center justify-center gap-1 text-[10px] transition-colors ${
+              color === "orange"
+                ? "border-orange-300 text-orange-500 hover:bg-orange-50"
+                : "border-red-300 text-red-500 hover:bg-red-50"
+            } disabled:opacity-50`}
+          >
+            {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Camera className="w-3 h-3" /> Photo</>}
+          </button>
+          <button
+            type="button"
+            onClick={() => galleryRef.current?.click()}
+            disabled={uploading}
+            className={`w-16 h-7 rounded border-2 border-dashed flex items-center justify-center gap-1 text-[10px] transition-colors ${
+              color === "orange"
+                ? "border-orange-300 text-orange-500 hover:bg-orange-50"
+                : "border-red-300 text-red-500 hover:bg-red-50"
+            } disabled:opacity-50`}
+          >
+            {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <><ImagePlus className="w-3 h-3" /> Galerie</>}
+          </button>
         </div>
-      )}
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleAddPhotos(e.target.files)} />
+        <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleAddPhotos(e.target.files)} />
+      </div>
     </div>
   );
 }
@@ -2712,6 +2908,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       projectId={id}
                       notionTextField="Infos - Pièces manquantes"
                       onUpdate={(newText) => setProject((prev) => prev ? { ...prev, infoPiecesManquantes: newText } : prev)}
+                      onPhotosUpdate={(newPhotos) => setProject((prev) => prev ? { ...prev, photosPiecesManquantes: newPhotos } : prev)}
                     />
                   )}
                   {project.infoDefautsSignale && (
@@ -2723,8 +2920,10 @@ function ProjectPageContent({ id }: { id: string }) {
                       projectId={id}
                       notionTextField="Infos - Défauts signalé"
                       onUpdate={(newText) => setProject((prev) => prev ? { ...prev, infoDefautsSignale: newText } : prev)}
+                      onPhotosUpdate={(newPhotos) => setProject((prev) => prev ? { ...prev, photosDefautsSignale: newPhotos } : prev)}
                     />
                   )}
+                  <DefautsList projectId={id} />
                 </CardContent>
               </Card>
             )}

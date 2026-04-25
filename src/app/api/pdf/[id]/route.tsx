@@ -48,6 +48,7 @@ interface DefautRequest {
   photoUrls: string[];
   status: "signale" | "en-cours" | "resolu";
   timestamp: number;
+  displayInRapport?: boolean;
 }
 
 function parsePiecesFromNotion(text: string): PieceRequest[] {
@@ -119,24 +120,30 @@ async function loadPiecesForProject(projectId: string, project?: Project): Promi
 }
 
 async function loadDefautsForProject(projectId: string, project?: Project): Promise<DefautRequest[]> {
-  // Try Notion fields first
+  // KV-store en priorité : c'est la seule source qui contient les
+  // métadonnées per-défaut (status, displayInRapport, comments). On
+  // filtre côté serveur les défauts marqués "ne pas afficher" pour
+  // qu'ils n'apparaissent jamais dans le rapport client.
+  const kv = await getData<DefautRequest>("defauts");
+  const fromKv = kv.filter((d) => d.projectId === projectId && d.displayInRapport !== false);
+  if (fromKv.length > 0) return fromKv;
+  // Fallback : si rien en KV (p.ex. défauts saisis directement dans
+  // Notion), on parse le texte concaténé de la colonne "Infos -
+  // Défauts signalé". Ces entrées-là sont toujours affichées (pas de
+  // métadonnée displayInRapport disponible).
   if (project?.infoDefautsSignale) {
     const parsed = parseDefautsFromNotion(project.infoDefautsSignale);
-    // Attach photo URLs from Notion files
     if (project.photosDefautsSignale.length > 0 && parsed.length > 0) {
-      // Distribute photos across defauts
       const photosPerDefaut = Math.ceil(project.photosDefautsSignale.length / Math.max(parsed.length, 1));
       parsed.forEach((d, i) => {
         const start = i * photosPerDefaut;
         const end = Math.min(start + photosPerDefaut, project.photosDefautsSignale.length);
-        d.photoUrls = project.photosDefautsSignale.slice(start, end).map(f => f.url);
+        d.photoUrls = project.photosDefautsSignale.slice(start, end).map((f) => f.url);
       });
     }
-    if (parsed.length > 0) return parsed;
+    return parsed;
   }
-  // Fallback to kv-store
-  const all = await getData<DefautRequest>("defauts");
-  return all.filter((d) => d.projectId === projectId);
+  return [];
 }
 
 export const dynamic = "force-dynamic";
