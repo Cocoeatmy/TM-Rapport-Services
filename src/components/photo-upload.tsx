@@ -30,6 +30,10 @@ export function PhotoUpload({
   const [previews, setPreviews] = useState<string[]>([]);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+  // Garde synchrone : empêche un 2e onChange de relancer un upload
+  // pendant que le 1er est en cours. setUploading() est trop lent à
+  // s'appliquer pour bloquer un double-fire iOS.
+  const uploadingRef = useRef(false);
 
   // `source` indique d'où vient le fichier :
   //   - "camera"  : photo prise via l'appareil photo → on propose aussi
@@ -42,10 +46,15 @@ export function PhotoUpload({
   ) => {
     const files = e.target.files;
     if (!files?.length) return;
+    // Si un upload est déjà en cours, on ignore — sinon iOS peut
+    // re-déclencher le change avec les mêmes fichiers et créer des
+    // doublons (Cloudinary génère un nouveau public_id à chaque post).
+    if (uploadingRef.current) {
+      e.target.value = "";
+      return;
+    }
+    uploadingRef.current = true;
 
-    // On garde les File originaux pour éventuellement les partager
-    // vers Photos après l'upload — les blobs renommés ci-dessous sont
-    // différents (nouveaux File) donc on conserve cette liste ici.
     const originals: File[] = Array.from(files);
 
     const newPreviews: string[] = [];
@@ -72,7 +81,14 @@ export function PhotoUpload({
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       const data = await res.json();
       if (data.files) {
-        const newPhotos = [...photos, ...data.files];
+        // Dédup par URL au cas où l'utilisateur (ou un double-fire
+        // iOS qui aurait passé la garde) envoie deux fois la même URL.
+        const seen = new Set<string>();
+        const newPhotos = [...photos, ...data.files].filter((p: { url: string }) => {
+          if (!p?.url || seen.has(p.url)) return false;
+          seen.add(p.url);
+          return true;
+        });
         setPhotos(newPhotos);
         // Purge le cache du service worker pour que le prochain
         // fetch `/api/projects/[id]` retourne bien les nouvelles
@@ -95,6 +111,7 @@ export function PhotoUpload({
     } catch (err) {
       console.error("Upload error:", err);
     } finally {
+      uploadingRef.current = false;
       setUploading(false);
       if (cameraRef.current) cameraRef.current.value = "";
       if (galleryRef.current) galleryRef.current.value = "";

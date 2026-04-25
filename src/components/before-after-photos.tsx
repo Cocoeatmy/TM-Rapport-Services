@@ -36,6 +36,18 @@ function saveToStorage(projectId: string, data: { before: BeforeAfterPhoto[]; af
   } catch {}
 }
 
+/** Déduplique par URL en préservant l'ordre. */
+function dedupByUrl(list: BeforeAfterPhoto[]): BeforeAfterPhoto[] {
+  const seen = new Set<string>();
+  const out: BeforeAfterPhoto[] = [];
+  for (const p of list) {
+    if (!p?.url || seen.has(p.url)) continue;
+    seen.add(p.url);
+    out.push(p);
+  }
+  return out;
+}
+
 export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initialAfter }: BeforeAfterPhotosProps) {
   const [before, setBefore] = useState<BeforeAfterPhoto[]>([]);
   const [after, setAfter] = useState<BeforeAfterPhoto[]>([]);
@@ -45,6 +57,10 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
   const [loaded, setLoaded] = useState(false);
   const beforeRef = useRef<HTMLInputElement>(null);
   const afterRef = useRef<HTMLInputElement>(null);
+  // Garde synchrone : empêche un 2e onChange de relancer un upload
+  // pendant que le 1er est en cours (cf. bug iOS capture + multiple).
+  const uploadingBeforeRef = useRef(false);
+  const uploadingAfterRef = useRef(false);
 
   // Load photos: Notion (initialBefore/initialAfter) + localStorage (local additions)
   useEffect(() => {
@@ -55,7 +71,6 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
 
     const stored = loadFromStorage(projectId);
     if (stored) {
-      // Merge: Notion photos + local photos not already in Notion
       const mergedBefore = [...notionBefore];
       (stored.before || []).forEach((p) => {
         if (!notionBeforeUrls.includes(p.url)) mergedBefore.push(p);
@@ -64,11 +79,11 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
       (stored.after || []).forEach((p) => {
         if (!notionAfterUrls.includes(p.url)) mergedAfter.push(p);
       });
-      setBefore(mergedBefore);
-      setAfter(mergedAfter);
+      setBefore(dedupByUrl(mergedBefore));
+      setAfter(dedupByUrl(mergedAfter));
     } else {
-      setBefore(notionBefore);
-      setAfter(notionAfter);
+      setBefore(dedupByUrl(notionBefore));
+      setAfter(dedupByUrl(notionAfter));
     }
     setLoaded(true);
   }, [projectId, initialBefore, initialAfter]);
@@ -97,11 +112,19 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
     files: FileList,
     side: "before" | "after",
   ) => {
+    const guard = side === "before" ? uploadingBeforeRef : uploadingAfterRef;
+    if (guard.current) {
+      // Double-déclenchement : on ignore et on remet l'input à zéro
+      // pour qu'un futur tap fonctionne normalement.
+      if (beforeRef.current) beforeRef.current.value = "";
+      if (afterRef.current) afterRef.current.value = "";
+      return;
+    }
+    guard.current = true;
+
     const setUploading = side === "before" ? setUploadingBefore : setUploadingAfter;
     setUploading(true);
 
-    // Conserve les File originaux (caméra capture) pour proposer la
-    // sauvegarde dans Photos après l'upload.
     const originals: File[] = Array.from(files);
 
     const formData = new FormData();
@@ -116,21 +139,20 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
       const data = await res.json();
       if (data.files) {
         if (side === "before") {
-          const updated = [...before, ...data.files];
+          const updated = dedupByUrl([...before, ...data.files]);
           setBefore(updated);
           syncToNotion(updated, after);
         } else {
-          const updated = [...after, ...data.files];
+          const updated = dedupByUrl([...after, ...data.files]);
           setAfter(updated);
           syncToNotion(before, updated);
         }
-        // Propose à l'OS d'ajouter les photos dans Photos après le
-        // succès de l'upload. Silencieux si non supporté.
         saveFilesToDeviceGallery(originals).catch(() => {});
       }
     } catch (err) {
       console.error("Upload error:", err);
     } finally {
+      guard.current = false;
       setUploading(false);
       if (beforeRef.current) beforeRef.current.value = "";
       if (afterRef.current) afterRef.current.value = "";

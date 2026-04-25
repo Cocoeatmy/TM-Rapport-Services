@@ -91,18 +91,24 @@ export async function POST(request: NextRequest) {
         const page = await notion.pages.retrieve({ page_id: projectId }) as any;
         const existingFiles = page.properties[notionField]?.files || [];
 
-        const allFiles = [
-          ...existingFiles.map((f: any) => ({
-            type: "external" as const,
-            name: f.name || "photo",
-            external: { url: f.type === "external" ? f.external?.url : f.file?.url },
-          })),
-          ...uploaded.map((f) => ({
-            type: "external" as const,
-            name: f.name,
-            external: { url: f.url },
-          })),
-        ];
+        // Dédup par URL : si Notion contenait déjà des doublons
+        // (bug historique), la liste finale est nettoyée. Aucun
+        // upload légitime ne perd de photo car les nouveaux fichiers
+        // ont des URL Cloudinary uniques.
+        const seenUrls = new Set<string>();
+        const allFiles: { type: "external"; name: string; external: { url: string } }[] = [];
+        const pushUnique = (name: string, url: string | undefined | null) => {
+          if (!url || seenUrls.has(url)) return;
+          seenUrls.add(url);
+          allFiles.push({ type: "external", name: name || "photo", external: { url } });
+        };
+        for (const f of existingFiles) {
+          const url = f.type === "external" ? f.external?.url : f.file?.url;
+          pushUnique(f.name, url);
+        }
+        for (const f of uploaded) {
+          pushUnique(f.name, f.url);
+        }
 
         await notion.pages.update({
           page_id: projectId,

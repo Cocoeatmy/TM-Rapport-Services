@@ -674,6 +674,7 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
   const [uploading, setUploading] = useState(false);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+  const uploadingRef = useRef(false);
 
   // Garde le state local en phase quand le parent re-render avec
   // une nouvelle liste (ex : polling collaboratif, refetch).
@@ -722,6 +723,14 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
 
   const handleAddPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
+    // Garde synchrone : empêche un 2e onChange de relancer un upload
+    // pendant que le 1er est en cours (cf. bug iOS capture + multiple).
+    if (uploadingRef.current) {
+      if (cameraRef.current) cameraRef.current.value = "";
+      if (galleryRef.current) galleryRef.current.value = "";
+      return;
+    }
+    uploadingRef.current = true;
     setUploading(true);
     try {
       const formData = new FormData();
@@ -736,13 +745,20 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
       }
       const data = await res.json();
       const newPhotos: { name: string; url: string }[] = (data.files || []).map((f: any) => ({ name: f.name || "photo.jpg", url: f.url }));
-      const merged = [...photos, ...newPhotos];
+      // Dédup par URL au cas où le serveur renverrait des doublons.
+      const seen = new Set<string>();
+      const merged = [...photos, ...newPhotos].filter((p) => {
+        if (!p.url || seen.has(p.url)) return false;
+        seen.add(p.url);
+        return true;
+      });
       setPhotos(merged);
       onPhotosUpdate?.(merged);
       invalidateApiCache();
     } catch {
       toast.error("Erreur réseau");
     } finally {
+      uploadingRef.current = false;
       setUploading(false);
       if (cameraRef.current) cameraRef.current.value = "";
       if (galleryRef.current) galleryRef.current.value = "";
