@@ -412,10 +412,26 @@ function WeekProjectRow({ project }: { project: Project }) {
       href={`/projet/${project.id}?mode=dashboard`}
       className="flex items-center gap-2 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
     >
-      <div className={`text-[10px] font-mono text-gray-500 dark:text-gray-400 shrink-0 ${isMultiDay ? "w-32" : "w-16"}`}>
-        <div>{formatProjectDate(project)}</div>
+      {/* Plage de dates : empilées verticalement quand le projet est
+          sur plusieurs jours, pour éviter d'occuper trop de largeur. */}
+      <div className="text-[10px] font-mono text-gray-500 dark:text-gray-400 shrink-0 w-16 leading-tight">
+        {(() => {
+          const startRaw = project.dateMontage || project.dateMesures || "";
+          const endRaw = project.dateMontageEnd || "";
+          const startDay = startRaw.split("T")[0];
+          const endDay = endRaw.split("T")[0];
+          if (!startRaw) return <div>---</div>;
+          if (!endDay || endDay === startDay) return <div>{formatDay(startRaw)}</div>;
+          return (
+            <div className="flex flex-col">
+              <span>{formatDay(startRaw)}</span>
+              <span className="text-gray-400 dark:text-gray-500">↓</span>
+              <span>{formatDay(endRaw)}</span>
+            </div>
+          );
+        })()}
         {date.includes("T") && (
-          <div className="text-[9px] text-blue-500 font-semibold">
+          <div className="text-[9px] text-blue-500 font-semibold mt-0.5">
             {new Date(date).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}
           </div>
         )}
