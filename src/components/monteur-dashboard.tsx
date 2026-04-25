@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
@@ -351,6 +352,8 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
     <Link
       key={project.id}
       href={`/projet/${project.id}?mode=dashboard`}
+      onMouseEnter={() => prefetchProject(project.id)}
+      onTouchStart={() => prefetchProject(project.id)}
       className="flex items-center gap-2 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
     >
       <div className="flex-1 min-w-0">
@@ -410,6 +413,8 @@ function WeekProjectRow({ project }: { project: Project }) {
   return (
     <Link
       href={`/projet/${project.id}?mode=dashboard`}
+      onMouseEnter={() => prefetchProject(project.id)}
+      onTouchStart={() => prefetchProject(project.id)}
       className="flex items-center gap-2 glass-card rounded-xl px-3 py-2 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
     >
       {/* Plage de dates : empilées verticalement quand le projet est

@@ -74,3 +74,28 @@ export function invalidateApiCache(): void {
       /* pas de SW actif : rien à purger */
     });
 }
+
+/**
+ * Pré-télécharge un projet en arrière-plan pour que la page détail
+ * soit "instantanée" au tap. Le SW met la réponse en cache, donc le
+ * prochain `fetch(/api/projects/[id])` la sert immédiatement.
+ *
+ * Dédup : on ne préfetch un même id qu'une seule fois par minute,
+ * pour ne pas spammer le serveur si l'utilisateur survole 50 cartes
+ * en scrollant.
+ */
+const prefetchedProjects: Map<string, number> = new Map();
+const PREFETCH_COOLDOWN_MS = 60_000;
+
+export function prefetchProject(id: string): void {
+  if (typeof window === "undefined" || !id) return;
+  const last = prefetchedProjects.get(id) || 0;
+  const now = Date.now();
+  if (now - last < PREFETCH_COOLDOWN_MS) return;
+  prefetchedProjects.set(id, now);
+  // priority "low" pour ne pas voler de la bande passante au fetch
+  // principal en cours. Cast pour compat TS (priority est encore
+  // récent dans la spec fetch, pas tous les types l'ont).
+  fetch(`/api/projects/${id}`, { priority: "low" } as RequestInit & { priority: string })
+    .catch(() => {});
+}

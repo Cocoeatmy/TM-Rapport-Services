@@ -283,10 +283,69 @@ export function mapPageToProject(page: any): Project {
   };
 }
 
-// Cache for relation page titles (noms de pages liées)
+// Cache des titres de pages liées (grossistes, fournisseurs, etc.).
+//
+// Stratégie de cache à 2 niveaux :
+//   1. In-memory (relationNameCache) : ultra-rapide tant que le worker
+//      Vercel est chaud (~5 min d'idle). Sur cold start, vide.
+//   2. Persistant via kv-store (clé "relation-names-cache") : survit
+//      aux cold starts. Lu paresseusement au 1er besoin, écrit en
+//      arrière-plan dès qu'un nouvel id est résolu.
+//
+// Avantage : avant ce fix, chaque cold start déclenchait jusqu'à 200
+// `notion.pages.retrieve()` parallèles pour résoudre les noms — coût
+// 400-800 ms même en burst rate-limité par Notion. Maintenant, le
+// premier projet qui a besoin de relations charge la totale du KV
+// en une lecture (~30 ms), et tout est instantané.
 const relationNameCache: Record<string, string> = {};
-// In-flight dedup: si plusieurs appels demandent le même id en parallèle, on ne tire qu'une seule requête.
 const relationInflight: Record<string, Promise<string>> = {};
+
+let kvHydrated = false;
+let kvHydrationPromise: Promise<void> | null = null;
+
+async function hydrateRelationCacheFromKV(): Promise<void> {
+  if (kvHydrated) return;
+  if (kvHydrationPromise) return kvHydrationPromise;
+  kvHydrationPromise = (async () => {
+    try {
+      // Import dynamique pour éviter la dépendance circulaire entre
+      // notion.ts et kv-store.ts (qui dépend lui-même de notion.ts).
+      const { getData } = await import("@/lib/kv-store");
+      const stored = await getData<{ id: string; name: string }>("relation-names-cache");
+      for (const entry of stored || []) {
+        if (entry?.id && entry?.name && !relationNameCache[entry.id]) {
+          relationNameCache[entry.id] = entry.name;
+        }
+      }
+    } catch {
+      /* non-bloquant : si KV est down, le cache reste vide et on
+         retombe sur l'ancien comportement (résolution per-id). */
+    } finally {
+      kvHydrated = true;
+    }
+  })();
+  return kvHydrationPromise;
+}
+
+let kvWriteScheduled = false;
+function scheduleKVWrite() {
+  if (kvWriteScheduled) return;
+  kvWriteScheduled = true;
+  // Debounce : on attend 2 s qu'un éventuel batch de résolutions
+  // s'accumule avant d'écrire le snapshot complet du cache. Évite
+  // un write KV par id résolu, qui exploserait les coûts et la
+  // latence.
+  setTimeout(async () => {
+    kvWriteScheduled = false;
+    try {
+      const { setData } = await import("@/lib/kv-store");
+      const snapshot = Object.entries(relationNameCache).map(([id, name]) => ({ id, name }));
+      await setData("relation-names-cache", snapshot);
+    } catch {
+      /* silencieux : la prochaine résolution réessaiera */
+    }
+  }, 2000);
+}
 
 async function fetchRelationName(id: string): Promise<string> {
   const cached = relationNameCache[id];
@@ -301,6 +360,7 @@ async function fetchRelationName(id: string): Promise<string> {
         if (val?.type === "title") {
           const name = val.title?.map((t: any) => t.plain_text).join("") || id;
           relationNameCache[id] = name;
+          scheduleKVWrite();
           return name;
         }
       }
@@ -318,12 +378,9 @@ async function fetchRelationName(id: string): Promise<string> {
 }
 
 async function resolveRelationNames(ids: string[]): Promise<Record<string, string>> {
-  // Dédup + cache lookup en un seul passage
+  await hydrateRelationCacheFromKV();
   const uniqueIds = [...new Set(ids)];
   const uncached = uniqueIds.filter((id) => !relationNameCache[id]);
-  // Toutes les requêtes sont lancées en parallèle (Notion tolère 3 req/s en moyenne
-  // mais accepte des bursts — la dédup via `relationInflight` évite les doublons,
-  // et le cache persistant côté module fait que les appels suivants sont instantanés).
   if (uncached.length > 0) {
     await Promise.all(uncached.map((id) => fetchRelationName(id)));
   }

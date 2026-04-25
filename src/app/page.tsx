@@ -15,7 +15,7 @@ import { getCollaboratorColor } from "@/lib/collaborators";
 import { formatDateFR, formatDateLong, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST, getISOWeek } from "@/lib/constants";
 import { dateInRange, formatLocalDate } from "@/lib/time-utils";
 import { getFavorites } from "@/lib/favorites";
-import { fetchWithRetry } from "@/lib/api-helpers";
+import { fetchWithRetry, prefetchProject } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import { StatsDateFilter, filterByStatsDate, type StatsDateMode } from "@/components/stats-date-filter";
 
@@ -59,6 +59,9 @@ function ProjectCard({ project, mode, isAdmin, onDelete }: { project: Project; m
       <Link
         href={`/projet/${project.id}?mode=${mode}`}
         prefetch={true}
+        onMouseEnter={() => prefetchProject(project.id)}
+        onTouchStart={() => prefetchProject(project.id)}
+        onFocus={() => prefetchProject(project.id)}
         className="block glass-card rounded-2xl p-4"
       >
         <div className="flex items-start justify-between gap-3">
@@ -1325,7 +1328,12 @@ function HomePage() {
                     return (
                       <div key={p.id} className="glass-card rounded-2xl p-4 hover:bg-white/80 transition-all">
                         <div className="flex items-start justify-between gap-3">
-                          <Link href={`/projet/${p.id}?mode=rapport`} className="flex-1 min-w-0">
+                          <Link
+                            href={`/projet/${p.id}?mode=rapport`}
+                            onMouseEnter={() => prefetchProject(p.id)}
+                            onTouchStart={() => prefetchProject(p.id)}
+                            className="flex-1 min-w-0"
+                          >
                             <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words text-base leading-tight">
                               {p.projet || "Sans nom"}
                             </h4>
@@ -3468,8 +3476,13 @@ function HomePage() {
                 </h3>
                 <div className="space-y-3">
                   {projs.map((p: any) => (
-                    <Link key={p.id} href={`/projet/${p.id}?mode=archives`}
-                      className="block glass-card rounded-2xl p-4 hover:bg-white/80 dark:hover:bg-white/10 transition-all">
+                    <Link
+                      key={p.id}
+                      href={`/projet/${p.id}?mode=archives`}
+                      onMouseEnter={() => prefetchProject(p.id)}
+                      onTouchStart={() => prefetchProject(p.id)}
+                      className="block glass-card rounded-2xl p-4 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words leading-tight">{p.projet || "Sans nom"}</h4>
@@ -3816,8 +3829,13 @@ function HomePage() {
                 </h3>
                 <div className="space-y-3">
                   {projs.map((p: any) => (
-                    <Link key={p.id} href={`/projet/${p.id}?mode=projets-tous`}
-                      className="block glass-card rounded-2xl p-4 hover:bg-white/80 dark:hover:bg-white/10 transition-all">
+                    <Link
+                      key={p.id}
+                      href={`/projet/${p.id}?mode=projets-tous`}
+                      onMouseEnter={() => prefetchProject(p.id)}
+                      onTouchStart={() => prefetchProject(p.id)}
+                      className="block glass-card rounded-2xl p-4 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words leading-tight">{p.projet || "Sans nom"}</h4>
