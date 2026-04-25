@@ -2804,11 +2804,15 @@ function HomePage() {
                               <div key={b.label} className="flex items-center gap-2">
                                 <span className="text-[9px] text-gray-400 w-14 shrink-0">{b.label}</span>
                                 <div className="flex-1 h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                                  <div className={`h-full ${b.color} rounded-full transition-all flex items-center justify-end pr-1`}
-                                    style={{ width: `${Math.max((b.val / maxVal) * 100, 3)}%` }}>
-                                    <span className="text-[8px] font-bold text-white">{b.val}</span>
-                                  </div>
+                                  <div className={`h-full ${b.color} rounded-full transition-all`}
+                                    style={{ width: `${Math.max((b.val / maxVal) * 100, 3)}%` }} />
                                 </div>
+                                {/* Valeur affichée À DROITE de la barre — toujours
+                                    lisible, même si la barre est minuscule (1, 5,
+                                    9 démontages etc. qui passaient avant invisibles
+                                    dans la barre car le texte blanc était clippé
+                                    par le overflow-hidden de la mini-barre). */}
+                                <span className="text-[10px] font-bold text-gray-700 dark:text-gray-200 tabular-nums w-9 shrink-0 text-right">{b.val}</span>
                               </div>
                             ))}
                           </div>
