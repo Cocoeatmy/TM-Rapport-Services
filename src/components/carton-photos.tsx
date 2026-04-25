@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Camera, X, Package, Loader2, Download } from "lucide-react";
+import { Camera, X, Package, Loader2, Download, CloudUpload } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
+import { addPendingUpload, removePendingUpload } from "@/lib/idb-uploads";
+import { usePendingUploads } from "@/lib/use-pending-uploads";
+import { isOnline, offlineFetch } from "@/lib/offline";
+import { toast } from "sonner";
 
 interface CartonPhotosProps {
   projectId: string;
@@ -26,6 +30,10 @@ function dedupOrdered(urls: string[]): string[] {
 export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  // Uploads de cartons en attente dans l'IDB (offline ou échec).
+  const pendingCartons = usePendingUploads(projectId).filter(
+    (p) => p.category === "cartons",
+  );
   const [loaded, setLoaded] = useState(false);
   // Garde synchrone contre les multi-déclenchements de onChange (bug
   // iOS connu avec capture="environment" + multiple, ou double-tap).
@@ -68,10 +76,10 @@ export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
     } catch {}
   }, [photos, projectId, loaded]);
 
-  // Sync a photo URL to Notion via PATCH
+  // Sync a photo URL list to Notion via PATCH (queue-aware).
   const syncToNotion = async (allUrls: string[]) => {
     try {
-      await fetch(`/api/projects/${projectId}`, {
+      await offlineFetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ photosCartons: allUrls }),
@@ -93,33 +101,65 @@ export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
     const originals: File[] = Array.from(files);
 
     setUploading(true);
-    const newUrls: string[] = [];
-    try {
-      for (const file of originals) {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "tm_rapport");
-        formData.append("folder", `tm-rapport/${projectId}/cartons`);
 
-        const res = await fetch(
-          `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "demo"}/image/upload`,
-          { method: "POST", body: formData }
-        );
-        const data = await res.json();
-        if (data.secure_url) {
-          newUrls.push(data.secure_url);
-        }
+    // Renomme les fichiers pour Cloudinary (préfixe "carton" + index).
+    const baseCount = photos.length;
+    const renamed: File[] = originals.map((file, i) => {
+      const ext = file.name.split(".").pop() || "jpg";
+      return new File([file], `carton-${baseCount + i + 1}.${ext}`, { type: file.type });
+    });
+
+    // Helper : queue dans IDB pour upload différé. Le notionField
+    // "État des cartons réceptionnés" fait que /api/upload écrira
+    // directement dans la bonne propriété Notion à la synchro.
+    const queueOffline = async () => {
+      try {
+        await addPendingUpload({
+          projectId,
+          category: "cartons",
+          notionField: "État des cartons réceptionnés",
+          files: renamed.map((f) => ({ name: f.name, type: f.type, blob: f })),
+        });
+        toast.info("Photos en attente — envoi auto au retour du réseau", { duration: 3500 });
+      } catch (idbErr) {
+        console.error("[carton-photos] IDB queue error:", idbErr);
+        toast.error("Impossible de mettre en file les photos");
       }
+    };
+
+    try {
+      if (!isOnline()) {
+        await queueOffline();
+        return;
+      }
+      // Passe par /api/upload : il gère Cloudinary + l'écriture
+      // Notion (write-lock + dédup côté serveur). En cas d'échec,
+      // on retombe sur l'IDB pour rejouer plus tard.
+      const formData = new FormData();
+      for (const f of renamed) formData.append("files", f);
+      formData.append("category", "cartons");
+      formData.append("projectId", projectId);
+      formData.append("notionField", "État des cartons réceptionnés");
+
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        await queueOffline();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      const newUrls: string[] = (data.files || []).map((f: { url: string }) => f.url).filter(Boolean);
       if (newUrls.length > 0) {
         setPhotos((prev) => {
           const updated = dedupOrdered([...prev, ...newUrls]);
-          syncToNotion(updated);
+          // /api/upload a déjà écrit côté Notion ; pas besoin de
+          // rejouer syncToNotion ici (idempotent mais inutile).
           return updated;
         });
         saveFilesToDeviceGallery(originals).catch(() => {});
       }
     } catch (err) {
       console.error("Upload error:", err);
+      await queueOffline();
     } finally {
       uploadingRef.current = false;
       setUploading(false);
@@ -142,11 +182,13 @@ export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
         État des cartons réceptionnés
       </label>
 
-      {/* Photos grid — on déduplique au rendu pour qu'un état déjà
-          corrompu (avant ce fix) n'affiche pas de doublons à l'écran. */}
+      {/* Photos grid — on déduplique au rendu et on affiche les
+          uploads pendants (IDB) en plus des photos déjà sauvegardées
+          dans Notion, pour que l'utilisateur garde un retour visuel
+          même après un reload offline. */}
       {(() => {
         const display = dedupOrdered(photos);
-        if (display.length === 0) return null;
+        if (display.length === 0 && pendingCartons.length === 0) return null;
         return (
           <div className="grid grid-cols-3 gap-2 mb-2">
             {display.map((url, i) => (
@@ -155,9 +197,6 @@ export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    // On retire toutes les occurrences de cette URL,
-                    // pas seulement l'index — si l'état contient encore
-                    // des doublons résiduels, un seul clic les nettoie.
                     setPhotos((prev) => {
                       const cleaned = prev.filter((p) => p !== url);
                       syncToNotion(dedupOrdered(cleaned));
@@ -176,6 +215,27 @@ export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
                 >
                   <Download className="w-3 h-3" />
                 </a>
+              </div>
+            ))}
+            {/* Uploads en attente (IDB) — affichés avec un badge orange. */}
+            {pendingCartons.map((p, i) => (
+              <div key={`pending-${p.id}-${i}`} className="relative group rounded-lg overflow-hidden border-2 border-orange-300 dark:border-orange-700">
+                <img src={p.objectUrl} alt={`Carton en attente ${i + 1}`} loading="lazy" decoding="async" className="w-full h-24 object-cover" />
+                <button
+                  type="button"
+                  onClick={async () => { try { await removePendingUpload(p.id); } catch {} }}
+                  className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-80 hover:opacity-100"
+                  title="Annuler cet upload en attente"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+                <div
+                  className="absolute bottom-0 inset-x-0 flex items-center justify-center gap-1 bg-orange-500/90 text-white text-[9px] font-semibold py-0.5"
+                  title="En attente de synchronisation"
+                >
+                  <CloudUpload className="w-2.5 h-2.5" />
+                  <span>Sync en attente</span>
+                </div>
               </div>
             ))}
           </div>

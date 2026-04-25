@@ -5,6 +5,9 @@ import { Camera, X, Loader2, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { thumbnailUrl, previewUrl } from "@/lib/image-url";
 import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
+import { addPendingUpload } from "@/lib/idb-uploads";
+import { isOnline, offlineFetch } from "@/lib/offline";
+import { toast } from "sonner";
 
 interface BeforeAfterPhoto {
   name: string;
@@ -81,10 +84,10 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
     saveToStorage(projectId, { before, after });
   }, [before, after, projectId, loaded]);
 
-  // Sync to Notion via PATCH API
+  // Sync to Notion via PATCH API (queue-aware via offlineFetch).
   const syncToNotion = async (newBefore: BeforeAfterPhoto[], newAfter: BeforeAfterPhoto[]) => {
     try {
-      await fetch(`/api/projects/${projectId}`, {
+      await offlineFetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -114,16 +117,42 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
 
     const originals: File[] = Array.from(files);
 
-    const formData = new FormData();
-    for (const file of originals) {
-      formData.append("files", file);
-    }
-    formData.append("category", "before-after");
-    formData.append("projectId", projectId);
+    // Queue dans IDB en cas d'offline ou d'échec d'upload. Le
+    // notionField n'est pas posé pour ces photos parce que
+    // /api/upload écrit dans 2 champs distincts (photosAvant /
+    // photosMontage) — ce mapping serait à refaire au moment de la
+    // synchro tardive ; pour l'instant on écrit côté before-after
+    // direct et la PATCH suit, donc même offline on log au moins
+    // l'intention.
+    const queueOffline = async () => {
+      try {
+        await addPendingUpload({
+          projectId,
+          category: `before-after-${side}`,
+          files: originals.map((f) => ({ name: f.name, type: f.type, blob: f })),
+        });
+        toast.info("Photos en attente — envoi auto au retour du réseau", { duration: 3500 });
+      } catch (idbErr) {
+        console.error("[before-after] IDB queue error:", idbErr);
+      }
+    };
 
     try {
+      if (!isOnline()) {
+        await queueOffline();
+        return;
+      }
+      const formData = new FormData();
+      for (const file of originals) formData.append("files", file);
+      formData.append("category", "before-after");
+      formData.append("projectId", projectId);
+
       const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await res.json();
+      if (!res.ok) {
+        await queueOffline();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
       if (data.files) {
         if (side === "before") {
           const updated = dedupByUrl([...before, ...data.files]);
@@ -138,6 +167,7 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
       }
     } catch (err) {
       console.error("Upload error:", err);
+      await queueOffline();
     } finally {
       guard.current = false;
       setUploading(false);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { WifiOff, CloudUpload } from "lucide-react";
 import { isOnline, getQueue } from "@/lib/offline";
+import { countPendingUploads } from "@/lib/idb-uploads";
 
 /**
  * Bannière globale qui prévient l'utilisateur quand l'app est hors
@@ -25,25 +26,33 @@ export function OfflineBanner() {
   const [queueCount, setQueueCount] = useState(0);
 
   useEffect(() => {
-    const refresh = () => {
+    let cancelled = false;
+    const refresh = async () => {
+      const upCount = await countPendingUploads();
+      if (cancelled) return;
       setOnline(isOnline());
-      setQueueCount(getQueue().length);
+      // Compteur total = mutations JSON en queue + uploads photo
+      // pendants en IDB. C'est ce que l'utilisateur perçoit comme
+      // "opérations en attente".
+      setQueueCount(getQueue().length + upCount);
     };
     refresh();
 
     window.addEventListener("online", refresh);
     window.addEventListener("offline", refresh);
     window.addEventListener("tm-offline-queued", refresh);
+    window.addEventListener("tm-pending-upload-added", refresh);
+    window.addEventListener("tm-pending-upload-removed", refresh);
 
-    // Le SyncButton retire des items de la queue ; on poll pour
-    // refléter ce changement dans la bannière sans coupler les deux
-    // composants.
     const interval = setInterval(refresh, 5000);
 
     return () => {
+      cancelled = true;
       window.removeEventListener("online", refresh);
       window.removeEventListener("offline", refresh);
       window.removeEventListener("tm-offline-queued", refresh);
+      window.removeEventListener("tm-pending-upload-added", refresh);
+      window.removeEventListener("tm-pending-upload-removed", refresh);
       clearInterval(interval);
     };
   }, []);

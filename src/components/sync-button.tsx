@@ -12,6 +12,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { saveToCache, getCacheTimestamp, getQueue, processQueue, isOnline } from "@/lib/offline";
+import { processPendingUploads, countPendingUploads } from "@/lib/idb-uploads";
 import { toast } from "sonner";
 
 export function SyncButton() {
@@ -22,11 +23,16 @@ export function SyncButton() {
   const [queueCount, setQueueCount] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     setOnline(isOnline());
     setLastSync(getCacheTimestamp());
-    setQueueCount(getQueue().length);
 
-    // Fetch last server sync time
+    const refreshCount = async () => {
+      const upCount = await countPendingUploads();
+      if (!cancelled) setQueueCount(getQueue().length + upCount);
+    };
+    refreshCount();
+
     fetch("/api/sync-status")
       .then((r) => r.json())
       .then((data) => {
@@ -36,36 +42,55 @@ export function SyncButton() {
 
     const handleOnline = () => {
       setOnline(true);
-      // Auto-process queue quand le réseau revient
       autoSync();
     };
     const handleOffline = () => setOnline(false);
+    const onPendingChange = () => refreshCount();
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
+    window.addEventListener("tm-pending-upload-added", onPendingChange);
+    window.addEventListener("tm-pending-upload-removed", onPendingChange);
+    window.addEventListener("tm-offline-queued", onPendingChange);
 
-    // Vérifier la queue toutes les 30s
-    const interval = setInterval(() => {
-      setQueueCount(getQueue().length);
-      if (isOnline() && getQueue().length > 0) {
+    const interval = setInterval(async () => {
+      await refreshCount();
+      const upCount = await countPendingUploads();
+      const totalQueued = getQueue().length + upCount;
+      if (isOnline() && totalQueued > 0) {
         autoSync();
       }
     }, 30000);
 
     return () => {
+      cancelled = true;
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("tm-pending-upload-added", onPendingChange);
+      window.removeEventListener("tm-pending-upload-removed", onPendingChange);
+      window.removeEventListener("tm-offline-queued", onPendingChange);
       clearInterval(interval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const autoSync = async () => {
-    const queue = getQueue();
-    if (queue.length === 0) return;
-    const result = await processQueue();
-    if (result.success > 0) {
-      toast.success(`${result.success} opération(s) synchronisée(s)`);
-      setQueueCount(getQueue().length);
+    const jsonQueue = getQueue();
+    const uploadCount = await countPendingUploads();
+    if (jsonQueue.length === 0 && uploadCount === 0) return;
+
+    let totalSuccess = 0;
+    if (jsonQueue.length > 0) {
+      const result = await processQueue();
+      totalSuccess += result.success;
+    }
+    if (uploadCount > 0) {
+      const upRes = await processPendingUploads();
+      totalSuccess += upRes.success;
+    }
+    if (totalSuccess > 0) {
+      toast.success(`${totalSuccess} opération(s) synchronisée(s)`);
+      setQueueCount(getQueue().length + (await countPendingUploads()));
     }
   };
 

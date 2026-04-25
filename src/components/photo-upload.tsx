@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Camera, ImagePlus, X, Loader2, Download } from "lucide-react";
+import { Camera, ImagePlus, X, Loader2, Download, CloudUpload } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
 import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
+import { addPendingUpload, removePendingUpload } from "@/lib/idb-uploads";
+import { usePendingUploads } from "@/lib/use-pending-uploads";
+import { isOnline } from "@/lib/offline";
+import { toast } from "sonner";
 
 interface PhotoUploadProps {
   category: string;
@@ -74,23 +78,58 @@ export function PhotoUpload({
     setPreviews((prev) => [...prev, ...newPreviews]);
 
     setUploading(true);
-    const formData = new FormData();
+    // Pré-renomme les fichiers (préfixe de bucket pour photos rapport)
+    // — ce nom est aussi celui qu'on stockera en IDB si on tombe en
+    // mode offline, pour que la détection de bucket (CartonPhotos
+    // → Avant intervention.Cab1, etc.) reste cohérente après la
+    // synchro tardive.
     const currentCount = existingPhotos.length;
-    originals.forEach((file, i) => {
+    const renamed: File[] = originals.map((file, i) => {
       const idx = currentCount + i + 1;
       const ext = file.name.split(".").pop() || "jpg";
       const newName = filePrefix ? `${filePrefix}.${idx}.${ext}` : file.name;
-      const renamedFile = new File([file], newName, { type: file.type });
-      formData.append("files", renamedFile);
+      return new File([file], newName, { type: file.type });
     });
-    formData.append("category", category);
-    formData.append("projectId", projectId);
-    if (notionField) formData.append("notionField", notionField);
+
+    // Helper : enregistre les fichiers en IDB pour upload différé
+    // dès le retour réseau. Les blobs survivent au reload, et le
+    // hook usePendingUploads les redessine en attendant la synchro.
+    const queueOffline = async (reason: "offline" | "error") => {
+      try {
+        await addPendingUpload({
+          projectId,
+          category,
+          notionField,
+          files: renamed.map((f) => ({ name: f.name, type: f.type, blob: f })),
+        });
+        toast.info(
+          reason === "offline"
+            ? "Photo enregistrée — sera envoyée au retour du réseau"
+            : "Upload en attente — nouvelle tentative auto",
+          { duration: 3500 },
+        );
+      } catch (idbErr) {
+        console.error("[photo-upload] IDB queue error:", idbErr);
+        toast.error("Impossible de mettre en file la photo");
+      }
+    };
 
     try {
+      // Court-circuit si déjà offline : pas la peine de tenter le
+      // fetch (ça consomme une seconde + un timeout). On queue direct.
+      if (!isOnline()) {
+        await queueOffline("offline");
+        return;
+      }
+      const formData = new FormData();
+      for (const f of renamed) formData.append("files", f);
+      formData.append("category", category);
+      formData.append("projectId", projectId);
+      if (notionField) formData.append("notionField", notionField);
+
       const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.files) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.files) {
         // Dédup par URL : si l'utilisateur (ou un double-fire iOS qui
         // aurait passé la garde) envoie deux fois la même URL.
         const seen = new Set<string>();
@@ -99,41 +138,29 @@ export function PhotoUpload({
           seen.add(p.url);
           return true;
         });
-        // Purge le cache du service worker pour que le prochain
-        // fetch `/api/projects/[id]` retourne bien les nouvelles
-        // photos au lieu d'une version pré-upload.
         invalidateApiCache();
         onUpload?.(newPhotos);
 
-        // ⚠️ Important : on nettoie immédiatement les previews. Le
-        // parent vient de mettre à jour son state, on va re-render
-        // avec les vraies URL Cloudinary dans existingPhotos. Garder
-        // les blobs en doublon créerait des thumbnails fantômes (et
-        // pire, après un cycle de re-render le blob peut être perdu
-        // → image cassée "?" qui s'affichait à côté du vrai upload).
+        // Nettoyage des previews locaux (les vraies URL Cloudinary
+        // arrivent via existingPhotos au prochain render).
         setPreviews((prev) => {
-          // Révoque seulement les blobs qu'on vient de créer pour
-          // ce batch. Si d'autres uploads sont en parallèle, leurs
-          // blobs propres restent — mais avec uploadingRef.current
-          // c'est en pratique impossible.
           prev.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
           return [];
         });
 
-        // Photos prises avec la caméra : on propose à l'OS de les
-        // sauvegarder dans Photos via la Web Share API (iOS 15+,
-        // Android). Sur desktop c'est un fallback vers Downloads.
-        // Silencieux : pas d'alerte si l'utilisateur annule ou si
-        // le support n'est pas là. Pour les photos venues de la
-        // galerie, rien à faire — elles y sont déjà.
         if (source === "camera") {
           saveFilesToDeviceGallery(originals).catch(() => {});
         }
+      } else if (res.status >= 500 || !res.ok) {
+        // Erreur serveur : on queue pour rejouer.
+        await queueOffline("error");
       } else if (data.error) {
         console.error("Upload rejected:", data.error);
       }
     } catch (err) {
       console.error("Upload error:", err);
+      // Erreur réseau (TypeError fetch) : queue dans IDB.
+      await queueOffline("error");
     } finally {
       uploadingRef.current = false;
       setUploading(false);
@@ -157,8 +184,20 @@ export function PhotoUpload({
   // Filtre des URL valides uniquement (string non vide, prêt à charger).
   // Évite que des entrées corrompues affichent un placeholder cassé.
   const validExisting = existingPhotos.filter((p) => p && p.url && p.url.length > 0);
-  const allImages: { src: string; isPreview: boolean }[] = [
+
+  // Uploads pendants dans IDB qui correspondent à CE composant
+  // (même projet, même catégorie + notionField). On les affiche
+  // comme des vignettes en attente de synchro pour que l'utilisateur
+  // garde un retour visuel après reload.
+  const pending = usePendingUploads(projectId).filter(
+    (p) =>
+      p.category === category &&
+      (notionField ? p.notionField === notionField : !p.notionField),
+  );
+
+  const allImages: { src: string; isPreview: boolean; pendingId?: string; isPending?: boolean }[] = [
     ...validExisting.map((p) => ({ src: p.url, isPreview: false })),
+    ...pending.map((p) => ({ src: p.objectUrl, isPreview: false, pendingId: p.id, isPending: true })),
     ...previews.map((u) => ({ src: u, isPreview: true })),
   ];
 
@@ -203,16 +242,40 @@ export function PhotoUpload({
                 pour qu'on puisse toujours retirer une photo erronée. */}
             <button
               type="button"
-              onClick={() =>
-                img.isPreview
-                  ? removePreview(i - validExisting.length)
-                  : removeExisting(img.src)
-              }
+              onClick={async () => {
+                if (img.isPending && img.pendingId) {
+                  // Photo en attente de synchro : on retire de l'IDB.
+                  try { await removePendingUpload(img.pendingId); } catch {}
+                  return;
+                }
+                if (img.isPreview) {
+                  removePreview(i - validExisting.length - pending.length);
+                } else {
+                  removeExisting(img.src);
+                }
+              }}
               className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center hover:bg-red-500 transition-colors"
-              title={img.isPreview ? "Annuler cet ajout" : "Supprimer cette photo du rapport"}
+              title={
+                img.isPending
+                  ? "Annuler cet upload en attente"
+                  : img.isPreview
+                    ? "Annuler cet ajout"
+                    : "Supprimer cette photo du rapport"
+              }
             >
               <X className="w-3.5 h-3.5 text-white" />
             </button>
+            {/* Badge "en attente de synchro" pour les photos qui
+                attendent en IDB (offline ou échec d'upload). */}
+            {img.isPending && (
+              <div
+                className="absolute top-1 left-1 flex items-center gap-1 bg-orange-500/90 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full shadow"
+                title="En attente de synchronisation"
+              >
+                <CloudUpload className="w-2.5 h-2.5" />
+                <span>Sync</span>
+              </div>
+            )}
           </div>
         ))}
 
