@@ -687,6 +687,17 @@ function HomePage() {
   const [statsDateTo, setStatsDateTo] = useState("");
   const [statsMonth, setStatsMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; });
   const [statsYear, setStatsYear] = useState(() => String(new Date().getFullYear()));
+  // Filtres dédiés à la vue "Projets" (admin) — distincts des filtres
+  // Stats pour ne pas qu'ils s'écrasent quand on bascule entre les
+  // sections.
+  const [pAllYearFilter, setPAllYearFilter] = useState<string>("all");
+  const [pAllMonthRangeStart, setPAllMonthRangeStart] = useState<string | null>(null);
+  const [pAllMonthRangeEnd, setPAllMonthRangeEnd] = useState<string | null>(null);
+  const [pAllStatusCMD, setPAllStatusCMD] = useState<string[]>([]);
+  const [pAllStatusMesures, setPAllStatusMesures] = useState<string[]>([]);
+  const [pAllSAV, setPAllSAV] = useState(false);
+  const [pAllSoucis, setPAllSoucis] = useState(false);
+  const [pAllShowFilters, setPAllShowFilters] = useState(false);
   const isInitialMount = useRef(true);
 
   // Sync filters to URL search params
@@ -2695,16 +2706,88 @@ function HomePage() {
           .slice()
           .sort((a: any, b: any) => ((b.dateMontage || "").localeCompare(a.dateMontage || "")));
 
+        // Étape 1 — filtre période (année + plage de mois)
+        const inPeriod = (p: any) => {
+          const month = (p.dateMontage || "").slice(0, 7); // YYYY-MM
+          if (pAllYearFilter !== "all") {
+            if (!p.dateMontage?.startsWith(pAllYearFilter)) return false;
+          }
+          if (pAllMonthRangeStart) {
+            if (!month) return false;
+            const end = pAllMonthRangeEnd || pAllMonthRangeStart;
+            if (month < pAllMonthRangeStart || month > end) return false;
+          }
+          return true;
+        };
+        // Étape 2 — filtre par statut CMD / Mesures (multi-select OR)
+        const inStatus = (p: any) => {
+          if (pAllStatusCMD.length > 0 && !pAllStatusCMD.includes(p.etatCMD)) return false;
+          if (pAllStatusMesures.length > 0 && !pAllStatusMesures.includes(p.etatMesures)) return false;
+          return true;
+        };
+        // Étape 3 — toggles SAV / Soucis
+        const inFlags = (p: any) => {
+          if (pAllSAV && !p.sav) return false;
+          if (pAllSoucis && !p.soucisMontage) return false;
+          return true;
+        };
+
         const q = search.toLowerCase();
-        const allFiltered = q
-          ? allProjects.filter((p: any) =>
-              p.projet.toLowerCase().includes(q) ||
-              p.ofrTM.toLowerCase().includes(q) ||
-              p.nomChantier.toLowerCase().includes(q) ||
-              p.collaborateurs.toLowerCase().includes(q) ||
-              p.fournisseurs.some((f: string) => f.toLowerCase().includes(q))
-            )
-          : allProjects;
+        const matchesQuery = (p: any) =>
+          !q ||
+          p.projet.toLowerCase().includes(q) ||
+          p.ofrTM.toLowerCase().includes(q) ||
+          p.nomChantier.toLowerCase().includes(q) ||
+          p.collaborateurs.toLowerCase().includes(q) ||
+          p.fournisseurs.some((f: string) => f.toLowerCase().includes(q));
+
+        const allFiltered = allProjects.filter((p: any) =>
+          inPeriod(p) && inStatus(p) && inFlags(p) && matchesQuery(p),
+        );
+
+        // Années disponibles depuis les données (décroissant + année courante en tête).
+        const availableYears = Array.from(
+          new Set(allProjects.map((p: any) => p.dateMontage?.slice(0, 4)).filter(Boolean) as string[]),
+        ).sort().reverse();
+
+        const monthShort = ["Janv.", "Fév.", "Mars", "Avril", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];
+        const monthsForYear = pAllYearFilter !== "all"
+          ? Array.from({ length: 12 }, (_, i) => `${pAllYearFilter}-${String(i + 1).padStart(2, "0")}`)
+          : [];
+
+        const monthLabel = (m: string) => {
+          const [y, mo] = m.split("-");
+          return `${monthShort[parseInt(mo, 10) - 1]} ${y}`;
+        };
+
+        const clearMonthRange = () => { setPAllMonthRangeStart(null); setPAllMonthRangeEnd(null); };
+        const handleMonthClick = (month: string) => {
+          const rangeActive = !!(pAllMonthRangeStart && pAllMonthRangeEnd);
+          if (!pAllMonthRangeStart || rangeActive) { setPAllMonthRangeStart(month); setPAllMonthRangeEnd(null); return; }
+          if (month === pAllMonthRangeStart) { clearMonthRange(); return; }
+          if (month < pAllMonthRangeStart) { setPAllMonthRangeEnd(pAllMonthRangeStart); setPAllMonthRangeStart(month); }
+          else { setPAllMonthRangeEnd(month); }
+        };
+
+        const toggleStatusCMD = (s: string) => setPAllStatusCMD((cur) => cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]);
+        const toggleStatusMesures = (s: string) => setPAllStatusMesures((cur) => cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]);
+
+        const resetAllFilters = () => {
+          setPAllYearFilter("all");
+          clearMonthRange();
+          setPAllStatusCMD([]);
+          setPAllStatusMesures([]);
+          setPAllSAV(false);
+          setPAllSoucis(false);
+        };
+
+        const activeFilterCount =
+          (pAllYearFilter !== "all" ? 1 : 0) +
+          (pAllMonthRangeStart ? 1 : 0) +
+          pAllStatusCMD.length +
+          pAllStatusMesures.length +
+          (pAllSAV ? 1 : 0) +
+          (pAllSoucis ? 1 : 0);
 
         const grouped: Record<string, any[]> = {};
         allFiltered.forEach((p: any) => {
@@ -2731,17 +2814,184 @@ function HomePage() {
 
         return (
           <div>
-            <div className="relative mb-4 max-w-lg">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Rechercher dans tous les projets..."
-                className="pl-9 h-11 rounded-xl glass-input"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <div className="relative max-w-md flex-1 min-w-[180px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Rechercher dans tous les projets..."
+                  className="pl-9 h-11 rounded-xl glass-input"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={() => setPAllShowFilters((v) => !v)}
+                className={`shrink-0 h-11 px-3 rounded-xl border-2 text-xs font-medium flex items-center gap-2 transition-colors ${
+                  activeFilterCount > 0
+                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                    : "border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+                }`}
+              >
+                Filtres {activeFilterCount > 0 && `(${activeFilterCount})`}
+                {pAllShowFilters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={resetAllFilters}
+                  className="shrink-0 h-11 px-3 rounded-xl text-xs font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800"
+                >
+                  Réinitialiser
+                </button>
+              )}
             </div>
+
+            {pAllShowFilters && (
+              <div className="glass-card rounded-2xl p-3 mb-4 space-y-3">
+                {/* Année */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">Année</span>
+                  <button
+                    onClick={() => { setPAllYearFilter("all"); clearMonthRange(); }}
+                    className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                      pAllYearFilter === "all" ? "glass-btn text-white" : "glass-card text-gray-600 dark:text-gray-300"
+                    }`}
+                  >
+                    Toutes
+                  </button>
+                  {availableYears.map((y) => (
+                    <button
+                      key={y}
+                      onClick={() => { setPAllYearFilter(pAllYearFilter === y ? "all" : y); clearMonthRange(); }}
+                      className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                        pAllYearFilter === y ? "glass-btn text-white" : "glass-card text-gray-600 dark:text-gray-300"
+                      }`}
+                    >
+                      {y}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Mois (visible quand une année est choisie) */}
+                {pAllYearFilter !== "all" && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">Mois</span>
+                    <button
+                      onClick={clearMonthRange}
+                      className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                        !pAllMonthRangeStart ? "glass-btn text-white" : "glass-card text-gray-600 dark:text-gray-300"
+                      }`}
+                    >
+                      Toute l&apos;année
+                    </button>
+                    {monthsForYear.map((m, idx) => {
+                      const isBoundary = m === pAllMonthRangeStart || m === pAllMonthRangeEnd;
+                      const inRange = pAllMonthRangeStart && pAllMonthRangeEnd && m >= pAllMonthRangeStart && m <= pAllMonthRangeEnd;
+                      return (
+                        <button
+                          key={m}
+                          onClick={() => handleMonthClick(m)}
+                          className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                            isBoundary
+                              ? "glass-btn text-white"
+                              : inRange
+                                ? "bg-blue-500/25 dark:bg-blue-400/20 text-blue-700 dark:text-blue-200 ring-1 ring-inset ring-blue-400/40"
+                                : "glass-card text-gray-600 dark:text-gray-300"
+                          }`}
+                        >
+                          {monthShort[idx]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Indicateur plage */}
+                {pAllMonthRangeStart && (
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 px-1">
+                    {pAllMonthRangeEnd && pAllMonthRangeEnd !== pAllMonthRangeStart
+                      ? <>Du <strong className="text-gray-700 dark:text-gray-100">{monthLabel(pAllMonthRangeStart)}</strong> au <strong className="text-gray-700 dark:text-gray-100">{monthLabel(pAllMonthRangeEnd)}</strong></>
+                      : <>Mois : <strong className="text-gray-700 dark:text-gray-100">{monthLabel(pAllMonthRangeStart)}</strong></>
+                    }
+                  </p>
+                )}
+
+                {/* État CMD */}
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1.5">État CMD</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.keys(STATUS_CMD_COLORS).concat(["Terminé", "Annulé"]).map((s) => {
+                      const active = pAllStatusCMD.includes(s);
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => toggleStatusCMD(s)}
+                          className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                            active
+                              ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-400"
+                              : "border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* État Mesures */}
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1.5">État Mesures</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.keys(STATUS_MESURES_COLORS).map((s) => {
+                      const active = pAllStatusMesures.includes(s);
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => toggleStatusMesures(s)}
+                          className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                            active
+                              ? "border-cyan-500 bg-cyan-50 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 dark:border-cyan-400"
+                              : "border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700/50"
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* SAV / Soucis montage */}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setPAllSAV((v) => !v)}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-full border-2 transition-colors flex items-center gap-1.5 ${
+                      pAllSAV
+                        ? "border-red-500 bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300 dark:border-red-400"
+                        : "border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300"
+                    }`}
+                  >
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Avec SAV
+                  </button>
+                  <button
+                    onClick={() => setPAllSoucis((v) => !v)}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-full border-2 transition-colors flex items-center gap-1.5 ${
+                      pAllSoucis
+                        ? "border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-400"
+                        : "border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300"
+                    }`}
+                  >
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Soucis montage
+                  </button>
+                </div>
+              </div>
+            )}
+
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              {allFiltered.length} projet{allFiltered.length !== 1 ? "s" : ""} au total (toutes statuts confondus)
+              {allFiltered.length} projet{allFiltered.length !== 1 ? "s" : ""} trouvé{allFiltered.length !== 1 ? "s" : ""}
+              {activeFilterCount > 0 && allFiltered.length !== allProjects.length && ` sur ${allProjects.length}`}
             </p>
             {loading && (
               <div className="flex items-center justify-center py-12">
@@ -2778,11 +3028,28 @@ function HomePage() {
                               <Badge key={f} variant="secondary" className="text-xs">{f}</Badge>
                             ))}
                             <Badge variant="outline" className="text-xs">{p.nbCabines || 0} cab.</Badge>
+                            {p.sav && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
+                                SAV
+                              </span>
+                            )}
+                            {p.soucisMontage && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+                                Soucis
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${statusBadgeColor(p.etatCMD)}`}>
-                          {p.etatCMD || "---"}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${statusBadgeColor(p.etatCMD)}`}>
+                            {p.etatCMD || "---"}
+                          </span>
+                          {p.etatMesures && p.etatMesures !== p.etatCMD && (
+                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_MESURES_COLORS[p.etatMesures] || "bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300"}`}>
+                              Mes : {p.etatMesures}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </Link>
                   ))}
