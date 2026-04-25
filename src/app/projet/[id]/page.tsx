@@ -1589,10 +1589,15 @@ function ProjectPageContent({ id }: { id: string }) {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Polling: re-fetch project data every 15s for real-time collaboration
+  // Polling: re-fetch project data toutes les 15 s pour la collaboration
+  // temps réel. Visibility-aware : si l'onglet n'est pas visible, on
+  // saute le tick — pas la peine de saturer le réseau pour un projet
+  // que personne ne regarde. Au retour de visibilité, on déclenche
+  // immédiatement un fetch (instant fresh data).
   useEffect(() => {
     if (!project?.id) return;
-    const interval = setInterval(async () => {
+    const refetch = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       try {
         const res = await fetch(`/api/projects/${project.id}`, { cache: "no-store" });
         const data = await res.json();
@@ -1656,8 +1661,22 @@ function ProjectPageContent({ id }: { id: string }) {
         }
         if (conflict) setCollabUpdateToast(true);
       } catch {}
-    }, 15000);
-    return () => clearInterval(interval);
+    };
+    const interval = setInterval(refetch, 15000);
+    // Refetch immédiat quand l'onglet redevient visible : "instant
+    // fresh" au retour sur l'app sans attendre le prochain tick.
+    const onVisible = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        refetch();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
   }, [project?.id]);
 
   const handleSave = async (opts: { force?: boolean } = {}) => {

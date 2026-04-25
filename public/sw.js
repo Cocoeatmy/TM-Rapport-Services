@@ -1,19 +1,21 @@
-// Service worker TM Rapport — v4
+// Service worker TM Rapport — v5
 // Stratégies :
 //   - Statique (_next/static, icons, logos, manifest) : cache-first (permanent).
-//   - API GET : network-first avec timeout 2s → on privilégie toujours la
-//     donnée fraîche, mais si le réseau tarde (> 2s) ou échoue, on sert le
+//   - API GET : network-first avec timeout 800 ms → on privilégie toujours la
+//     donnée fraîche, mais si le réseau tarde (> 800 ms) ou échoue, on sert le
 //     cache pour ne pas bloquer l'UI. Le cache API est mis à jour en
 //     silence à chaque fois que le réseau répond.
-//     → Contrainte métier : les modifs Notion doivent être visibles
-//       immédiatement. C'est pourquoi on n'adopte PAS de SWR agressif ici.
+//     → Bump v5 : 2 s → 800 ms pour "instant feel" sur réseau dégradé.
+//       Le cron de sync /api/cron/sync tournant maintenant toutes les
+//       10 min, le cache serveur est toujours frais → on a moins besoin
+//       de la course au réseau.
 //   - Pages HTML : network-first avec fallback cache + page offline.
 //   - Pré-cache de la racine (`/`) à l'install pour que la 1ère ouverture
 //     offline ne casse pas.
 //
 // Les noms de cache sont versionnés : un bump de version purge tout l'ancien.
 
-const VERSION = "v4";
+const VERSION = "v5";
 const CACHE_NAME = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE = `tm-api-${VERSION}`;
@@ -28,7 +30,7 @@ const STATIC_ASSETS = [
 
 // Au-delà de ce délai, on considère que le réseau est trop lent et on sert
 // le cache (s'il existe) pour ne pas faire attendre l'utilisateur.
-const NETWORK_TIMEOUT_MS = 2000;
+const NETWORK_TIMEOUT_MS = 800;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

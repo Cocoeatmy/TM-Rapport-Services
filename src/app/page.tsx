@@ -830,6 +830,28 @@ function HomePage() {
     });
   }, []);
 
+  // Refetch automatique quand l'utilisateur revient sur l'app/onglet.
+  // Effet "instant on app open" : à chaque retour de visibilité, on
+  // déclenche un refetch en arrière-plan. Le cache local s'affiche
+  // toujours immédiatement pendant ce temps. Throttle 20 s pour éviter
+  // de spammer le serveur si l'utilisateur fait des aller-retour rapides.
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    const onVisible = () => {
+      if (typeof document === "undefined" || document.hidden) return;
+      const now = Date.now();
+      if (now - lastRefresh < 20000) return;
+      lastRefresh = now;
+      refreshAllProjects();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [refreshAllProjects]);
+
   const handleDeleteProject = useCallback(async (projectId: string) => {
     // Optimistic removal
     setProjectsData((prev) => {
