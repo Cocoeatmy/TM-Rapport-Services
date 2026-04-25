@@ -4,6 +4,7 @@ import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
 import { cachedJson } from "@/lib/edge-cache";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 10;
 
 export async function GET(
   _request: NextRequest,
@@ -29,8 +30,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let id = "unknown";
   try {
-    const { id } = await params;
+    id = (await params).id;
     const body = await request.json();
     await updateProject(id, body);
     // Invalider le cache après mise à jour
@@ -39,10 +41,11 @@ export async function PATCH(
     invalidateCache("projects-mesures");
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Error updating project:", error);
+    const status = error?.status === 429 ? 429 : error?.code === "notionhq_client_request_timeout" ? 504 : 500;
+    console.error(`[PATCH /api/projects/${id}] ${status}:`, error?.message || error);
     return NextResponse.json(
       { error: error.message || "Erreur lors de la mise à jour" },
-      { status: 500 }
+      { status }
     );
   }
 }
