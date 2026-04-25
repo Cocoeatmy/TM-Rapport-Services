@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState, use, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -3152,9 +3153,22 @@ function ProjectPageContent({ id }: { id: string }) {
       <ProjectChat projectId={id} />
 
       {/* Confirmation : photos manquantes avant enregistrement / envoi */}
-      {missingPhotosPrompt && (
+      {missingPhotosPrompt && typeof document !== "undefined" && createPortal(
+        // Rendu via Portal vers document.body : sinon un ancêtre
+        // transformé/filtré (typique du thème Ocean) casse
+        // `position: fixed` et la modale tombe en flow normal au
+        // bas de la page — l'utilisateur devait alors scroller pour
+        // la trouver. En portail au niveau body le containing block
+        // est garanti = viewport, donc la modale se centre vraiment
+        // au milieu de l'écran.
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 70,
+            transform: "translateZ(0)",
+          }}
+          className="flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => setMissingPhotosPrompt(null)}
         >
           <div
@@ -3203,7 +3217,8 @@ function ProjectPageContent({ id }: { id: string }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
