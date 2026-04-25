@@ -15,6 +15,14 @@ import ReactPDF, {
 import React from "react";
 import { getData } from "@/lib/kv-store";
 import { formatSwissDate, formatSwissDateTime } from "@/lib/time-utils";
+import {
+  type PhotoBucketKey,
+  BUCKET_LABEL,
+  BUCKET_ORDER,
+  defaultBucketForField,
+  detectBucket,
+  extractCabine,
+} from "@/lib/photo-buckets";
 
 interface PieceRequest {
   id: string;
@@ -662,135 +670,83 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
         project.photosMontage?.length > 0 ||
         project.photosQRCode?.length > 0 ||
         project.photosGaranties?.length > 0) && (() => {
-        // Groupement par cabine pour les projets multi-cabine.
-        // Les fichiers uploadés depuis une cabine portent un préfixe
-        // ".CabN." dans leur nom (ex: "Photos - Montage termine.Cab1.1.jpg").
-        // Les photos uploadées depuis la section globale n'ont pas ce
-        // préfixe et sont groupées sous "Général".
+        // Sous-bucket de chaque photo basé sur le préfixe du fichier,
+        // puis groupement par cabine. Ordre d'affichage des sous-buckets
+        // imposé par la spec client (avant intervention → avant montage →
+        // montage gauche/centre/droite → après intervention → QR Code →
+        // Garantie).
         const nbCab = project.nbCabines || 0;
         const isMultiCabine = nbCab > 1;
 
         type Photo = { name: string; url: string };
-        const extractCab = (name: string): number | null => {
-          const m = /\.Cab(\d+)\./.exec(name || "");
-          return m ? parseInt(m[1], 10) : null;
-        };
 
-        const photosAvant: Photo[] = project.photosAvant || [];
-        const photosMontage: Photo[] = project.photosMontage || [];
-        const photosQR: Photo[] = project.photosQRCode || [];
-        const photosGar: Photo[] = project.photosGaranties || [];
-
-        // Groups : clé = numéro de cabine (1..N) ou 0 = "Général"
-        const groups: Record<number, {
-          avant: Photo[]; montage: Photo[]; qr: Photo[]; gar: Photo[];
-        }> = {};
-        const ensure = (k: number) => {
-          if (!groups[k]) groups[k] = { avant: [], montage: [], qr: [], gar: [] };
-          return groups[k];
-        };
-        const dispatch = (list: Photo[], key: "avant" | "montage" | "qr" | "gar") => {
+        // groups[cabine][bucket] = liste de photos
+        const groups: Record<number, Partial<Record<PhotoBucketKey, Photo[]>>> = {};
+        const dispatchList = (list: Photo[], notionFieldKey: "photosAvant" | "photosMontage" | "photosQRCode" | "photosGaranties") => {
+          const fallback = defaultBucketForField(notionFieldKey);
           for (const p of list) {
-            const cab = extractCab(p.name || "");
-            ensure(cab ?? 0)[key].push(p);
+            const bucket = detectBucket(p.name, fallback);
+            const cab = extractCabine(p.name) ?? 0;
+            if (!groups[cab]) groups[cab] = {};
+            if (!groups[cab][bucket]) groups[cab][bucket] = [];
+            groups[cab][bucket]!.push(p);
           }
         };
-        dispatch(photosAvant, "avant");
-        dispatch(photosMontage, "montage");
-        dispatch(photosQR, "qr");
-        dispatch(photosGar, "gar");
+        dispatchList(project.photosAvant || [], "photosAvant");
+        dispatchList(project.photosMontage || [], "photosMontage");
+        dispatchList(project.photosQRCode || [], "photosQRCode");
+        dispatchList(project.photosGaranties || [], "photosGaranties");
 
-        // Ordre d'affichage : Cabines 1..N, puis Général à la fin.
-        const orderedKeys: number[] = [];
+        // Ordre des cabines : 1..N, puis Général (clé 0), puis orphelines.
+        const orderedCabKeys: number[] = [];
         for (let i = 1; i <= nbCab; i++) {
-          if (groups[i]) orderedKeys.push(i);
+          if (groups[i]) orderedCabKeys.push(i);
         }
-        if (groups[0]) orderedKeys.push(0);
-        // Ajoute les clés "orphelines" (ex: Cab5 dans un projet à 2 cabines).
+        if (groups[0]) orderedCabKeys.push(0);
         Object.keys(groups)
           .map(Number)
           .filter((k) => k !== 0 && k > nbCab)
           .sort((a, b) => a - b)
-          .forEach((k) => orderedKeys.push(k));
+          .forEach((k) => orderedCabKeys.push(k));
 
-        const renderGroup = (
-          label: string,
-          g: { avant: Photo[]; montage: Photo[]; qr: Photo[]; gar: Photo[] },
-          keySuffix: string,
-        ) => (
-          <View key={`grp-${keySuffix}`}>
-            {isMultiCabine && (
-              <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 8, marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 3 }}>
-                {label}
-              </Text>
-            )}
-
-            {/* Avant / Après côte à côte dans cette cabine */}
-            {(g.avant.length > 0 || g.montage.length > 0) && (() => {
-              const maxLen = Math.max(g.avant.length, g.montage.length);
-              return (
-                <View style={styles.section}>
-                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
-                    <Text style={{ ...styles.label, width: "48%" }}>Avant montage</Text>
-                    <Text style={{ ...styles.label, width: "48%" }}>Montage terminé</Text>
-                  </View>
-                  {Array.from({ length: maxLen }, (_, i) => (
-                    <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 10 }} wrap={false}>
-                      <View style={{ width: "48%" }}>
-                        {g.avant[i] ? (
-                          <Image src={optimizeImageUrl(g.avant[i].url)} style={styles.photo} />
-                        ) : (
-                          <View style={{ ...styles.photo, backgroundColor: "#f3f4f6" }} />
-                        )}
-                      </View>
-                      <View style={{ width: "48%" }}>
-                        {g.montage[i] ? (
-                          <Image src={optimizeImageUrl(g.montage[i].url)} style={styles.photo} />
-                        ) : (
-                          <View style={{ ...styles.photo, backgroundColor: "#f3f4f6" }} />
-                        )}
-                      </View>
-                    </View>
-                  ))}
+        const renderBucketGrid = (label: string, photos: Photo[], keyPrefix: string) => (
+          <View key={keyPrefix} style={styles.section} wrap={false}>
+            <Text style={{ ...styles.label, marginBottom: 6 }}>{label}</Text>
+            <View style={styles.photosGrid}>
+              {photos.map((p, i) => (
+                <View key={i} style={styles.photoContainer}>
+                  <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
                 </View>
-              );
-            })()}
-
-            {g.qr.length > 0 && (
-              <View style={styles.section} wrap={false}>
-                <Text style={{ ...styles.label, marginBottom: 6 }}>QR Code</Text>
-                <View style={styles.photosGrid}>
-                  {g.qr.map((p, i) => (
-                    <View key={i} style={styles.photoContainer}>
-                      <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {g.gar.length > 0 && (
-              <View style={styles.section} wrap={false}>
-                <Text style={{ ...styles.label, marginBottom: 6 }}>Garanties</Text>
-                <View style={styles.photosGrid}>
-                  {g.gar.map((p, i) => (
-                    <View key={i} style={styles.photoContainer}>
-                      <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
+              ))}
+            </View>
           </View>
         );
+
+        const renderCabine = (cabKey: number) => {
+          const buckets = groups[cabKey] || {};
+          const cabineLabel = cabKey === 0 ? "Général" : `Cabine ${cabKey}`;
+          const renderedSections = BUCKET_ORDER
+            .map((b) => ({ b, photos: buckets[b] || [] }))
+            .filter((x) => x.photos.length > 0);
+          if (renderedSections.length === 0) return null;
+          return (
+            <View key={`cab-${cabKey}`}>
+              {isMultiCabine && (
+                <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 8, marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 3 }}>
+                  {cabineLabel}
+                </Text>
+              )}
+              {renderedSections.map(({ b, photos }) =>
+                renderBucketGrid(BUCKET_LABEL[b], photos, `cab-${cabKey}-${b}`),
+              )}
+            </View>
+          );
+        };
 
         return (
           <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
             <Text style={styles.sectionTitle} fixed>Photos du chantier</Text>
-            {orderedKeys.map((k) => {
-              const label = k === 0 ? "Général" : `Cabine ${k}`;
-              return renderGroup(label, groups[k], String(k));
-            })}
+            {orderedCabKeys.map(renderCabine)}
             <View style={styles.footer} fixed>
               <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
               <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />

@@ -81,8 +81,72 @@ import { getCollaboratorColor } from "@/lib/collaborators";
 import { addToQueue, isOnline } from "@/lib/offline";
 import { fetchWithRetry, invalidateApiCache } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
+import {
+  type PhotoBucketKey,
+  BUCKET_LABEL,
+  BUCKET_NOTION_FIELD,
+  bucketFilePrefix,
+  defaultBucketForField,
+  detectBucket,
+  filterByBucket,
+} from "@/lib/photo-buckets";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import { thumbnailUrl } from "@/lib/image-url";
+
+/** Photo upload tied to a logical bucket (sub-section dans une colonne Notion). */
+function BucketPhotoUpload({
+  bucket,
+  cabineIdx,
+  projectId,
+  project,
+  setProject,
+}: {
+  bucket: PhotoBucketKey;
+  cabineIdx?: number;
+  projectId: string;
+  project: Project | null;
+  setProject: React.Dispatch<React.SetStateAction<Project | null>>;
+}) {
+  if (!project) return null;
+  const notionFieldKey = BUCKET_NOTION_FIELD[bucket];
+  const notionFieldName: Record<typeof notionFieldKey, string> = {
+    photosAvant: "Photos avant montage",
+    photosMontage: "Photos montage terminé",
+    photosQRCode: "Photos QR Code",
+    photosGaranties: "Photos garanties",
+  };
+  const fieldDefault = defaultBucketForField(notionFieldKey);
+  const allInField = project[notionFieldKey] || [];
+  const existingPhotos = filterByBucket(allInField, bucket, cabineIdx, fieldDefault);
+
+  const handleUpload = (newBucketFiles: { name: string; url: string }[]) => {
+    setProject((prev) => {
+      if (!prev) return prev;
+      const current = prev[notionFieldKey] || [];
+      const kept = current.filter((f) => {
+        const sameBucket = detectBucket(f.name, fieldDefault) === bucket;
+        if (!sameBucket) return true;
+        if (cabineIdx === undefined) return false;
+        const cab = /\.Cab(\d+)\./.exec(f.name);
+        const cabNum = cab ? parseInt(cab[1], 10) : null;
+        return cabineIdx >= 1 ? cabNum !== cabineIdx : cabNum !== null;
+      });
+      return { ...prev, [notionFieldKey]: [...kept, ...newBucketFiles] };
+    });
+  };
+
+  return (
+    <PhotoUpload
+      category={`${bucket.toLowerCase()}${cabineIdx ? `-cab${cabineIdx}` : ""}`}
+      label={BUCKET_LABEL[bucket]}
+      projectId={projectId}
+      notionField={notionFieldName[notionFieldKey]}
+      filePrefix={bucketFilePrefix(bucket, cabineIdx)}
+      existingPhotos={existingPhotos}
+      onUpload={handleUpload}
+    />
+  );
+}
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "Non planifié";
@@ -2308,10 +2372,14 @@ function ProjectPageContent({ id }: { id: string }) {
                       </div>
                     </div>
                     <Separator />
-                    <PhotoUpload category="avant" label="Photos avant montage" projectId={id} notionField="Photos avant montage" filePrefix="Etat avant intervention" existingPhotos={project.photosAvant} onUpload={(files) => setProject((prev) => prev ? { ...prev, photosAvant: files } : prev)} />
-                    <PhotoUpload category="montage" label="Photos montage terminé" projectId={id} notionField="Photos montage terminé" filePrefix="Photos - Montage termine" existingPhotos={project.photosMontage} onUpload={(files) => setProject((prev) => prev ? { ...prev, photosMontage: files } : prev)} />
-                    <PhotoUpload category="qrcode" label="Photos QR Code" projectId={id} notionField="Photos QR Code" filePrefix="Photos - QR Code" existingPhotos={project.photosQRCode} onUpload={(files) => setProject((prev) => prev ? { ...prev, photosQRCode: files } : prev)} />
-                    <PhotoUpload category="garanties" label="Photos garanties" projectId={id} notionField="Photos garanties" filePrefix="Photos - Garantie" existingPhotos={project.photosGaranties} onUpload={(files) => setProject((prev) => prev ? { ...prev, photosGaranties: files } : prev)} />
+                    <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} />
+                    <BucketPhotoUpload bucket="AVANT_MONTAGE" projectId={id} project={project} setProject={setProject} />
+                    <BucketPhotoUpload bucket="MONTAGE_GAUCHE" projectId={id} project={project} setProject={setProject} />
+                    <BucketPhotoUpload bucket="MONTAGE_CENTRE" projectId={id} project={project} setProject={setProject} />
+                    <BucketPhotoUpload bucket="MONTAGE_DROITE" projectId={id} project={project} setProject={setProject} />
+                    <BucketPhotoUpload bucket="APRES_INTERVENTION" projectId={id} project={project} setProject={setProject} />
+                    <BucketPhotoUpload bucket="QR_CODE" projectId={id} project={project} setProject={setProject} />
+                    <BucketPhotoUpload bucket="GARANTIE" projectId={id} project={project} setProject={setProject} />
                     <Separator />
                     <BeforeAfterPhotos projectId={id} projectName={project.projet} initialBefore={project.photosAvant} initialAfter={project.photosMontage} />
                   </CardContent>
@@ -2478,34 +2546,14 @@ function ProjectPageContent({ id }: { id: string }) {
                           </div>
 
                           {/* Photos cabine */}
-                          <PhotoUpload
-                            category={`cabine-${idx + 1}-avant`}
-                            label="Photos avant montage"
-                            projectId={id}
-                            notionField="Photos avant montage"
-                            filePrefix={`Etat avant intervention.Cab${idx + 1}`}
-                          />
-                          <PhotoUpload
-                            category={`cabine-${idx + 1}-montage`}
-                            label="Photos montage terminé"
-                            projectId={id}
-                            notionField="Photos montage terminé"
-                            filePrefix={`Photos - Montage termine.Cab${idx + 1}`}
-                          />
-                          <PhotoUpload
-                            category={`cabine-${idx + 1}-qrcode`}
-                            label="Photos QR Code"
-                            projectId={id}
-                            notionField="Photos QR Code"
-                            filePrefix={`Photos - QR Code.Cab${idx + 1}`}
-                          />
-                          <PhotoUpload
-                            category={`cabine-${idx + 1}-garanties`}
-                            label="Photos garanties"
-                            projectId={id}
-                            notionField="Photos garanties"
-                            filePrefix={`Photos - Garantie.Cab${idx + 1}`}
-                          />
+                          <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <BucketPhotoUpload bucket="AVANT_MONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <BucketPhotoUpload bucket="MONTAGE_GAUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <BucketPhotoUpload bucket="MONTAGE_CENTRE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <BucketPhotoUpload bucket="MONTAGE_DROITE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <BucketPhotoUpload bucket="QR_CODE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <BucketPhotoUpload bucket="GARANTIE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                         </CardContent>
                       )}
                     </Card>
