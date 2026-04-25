@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette, Image as ImageIcon } from "lucide-react";
 import { getCollaboratorInitials } from "@/lib/collaborators";
+import { isSaveToGalleryEnabled, setSaveToGalleryEnabled } from "@/lib/save-to-gallery";
+import { toast } from "sonner";
 
 interface UserData {
   email: string;
@@ -19,6 +21,7 @@ export function UserMenu() {
   const [open, setOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [uiMode, setUiMode] = useState<UiMode>("classic");
+  const [saveToPhotos, setSaveToPhotos] = useState(false);
 
   const toggleDark = () => {
     const newMode = !darkMode;
@@ -56,7 +59,26 @@ export function UserMenu() {
     if (savedUi === "aurora" || savedUi === "ocean") {
       setUiMode(savedUi);
     }
+    setSaveToPhotos(isSaveToGalleryEnabled());
   }, []);
+
+  const toggleSaveToPhotos = () => {
+    const next = !saveToPhotos;
+    setSaveToPhotos(next);
+    setSaveToGalleryEnabled(next);
+    if (next) {
+      // À l'activation, on explique le compromis : iOS web ne permet
+      // pas un enregistrement totalement automatique, on tape une
+      // fois sur "Enregistrer l'image" depuis le sheet natif.
+      toast.info(
+        "Activé. À chaque photo, le menu de partage iOS proposera « Enregistrer l'image ».",
+        { duration: 5000 },
+      );
+    } else {
+      toast.success("Sauvegarde dans Photos désactivée.", { duration: 2500 });
+    }
+    setOpen(false);
+  };
 
   const loadUser = () => {
     return fetch("/api/auth", { cache: "no-store" })
@@ -169,6 +191,25 @@ export function UserMenu() {
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               {darkMode ? "Mode clair" : "Mode sombre"}
+            </button>
+            <button
+              onClick={toggleSaveToPhotos}
+              className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              title="Permet d'envoyer chaque photo prise dans la pellicule du téléphone"
+            >
+              <ImageIcon className="w-4 h-4" />
+              <span className="flex-1">Sauver photos sur l&apos;appareil</span>
+              <span
+                className={`relative inline-flex w-8 h-4 rounded-full transition-colors ${
+                  saveToPhotos ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${
+                    saveToPhotos ? "left-4" : "left-0.5"
+                  }`}
+                />
+              </span>
             </button>
             {/* Sélecteur de thème : 3 options exclusives.
                 Même état = état actif (coché + surlignage gradient). */}
