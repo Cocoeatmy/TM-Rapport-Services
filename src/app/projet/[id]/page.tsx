@@ -1900,7 +1900,7 @@ function ProjectPageContent({ id }: { id: string }) {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
+            <h1 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words leading-tight">
               {project.projet}
             </h1>
             {project.ofrTM && (

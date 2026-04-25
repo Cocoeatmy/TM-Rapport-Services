@@ -62,7 +62,7 @@ function ProjectCard({ project, mode, isAdmin, onDelete }: { project: Project; m
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words text-base leading-tight">
               {project.projet || "Sans nom"}
             </h3>
             {project.ofrTM && (
@@ -1385,7 +1385,7 @@ function HomePage() {
                       <div key={p.id} className="glass-card rounded-2xl p-4 hover:bg-white/80 transition-all">
                         <div className="flex items-start justify-between gap-3">
                           <Link href={`/projet/${p.id}?mode=rapport`} className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
+                            <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words text-base leading-tight">
                               {p.projet || "Sans nom"}
                             </h4>
                             {p.ofrTM && (
@@ -3527,7 +3527,7 @@ function HomePage() {
                       className="block glass-card rounded-2xl p-4 hover:bg-white/80 dark:hover:bg-white/10 transition-all">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{p.projet || "Sans nom"}</h4>
+                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words leading-tight">{p.projet || "Sans nom"}</h4>
                           {p.ofrTM && <p className="text-xs text-gray-500 mt-0.5">OFR {p.ofrTM}</p>}
                           <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
                             <Calendar className="w-3.5 h-3.5 shrink-0" />
@@ -3875,7 +3875,7 @@ function HomePage() {
                       className="block glass-card rounded-2xl p-4 hover:bg-white/80 dark:hover:bg-white/10 transition-all">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{p.projet || "Sans nom"}</h4>
+                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words leading-tight">{p.projet || "Sans nom"}</h4>
                           {p.ofrTM && <p className="text-xs text-gray-500 mt-0.5">OFR {p.ofrTM}</p>}
                           <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
                             <Calendar className="w-3.5 h-3.5 shrink-0" />
