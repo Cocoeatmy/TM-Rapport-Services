@@ -396,15 +396,38 @@ html[data-ui="aurora"].dark .sticky.glass-card {
   background: linear-gradient(180deg, rgba(40, 28, 80, 0.94) 0%, rgba(28, 18, 60, 0.90) 100%);
 }
 
-/* Ocean : on garde une teinte cyan/bleue pour différencier du fond,
-   mais on reste edge-to-edge comme Aurora et Classique — pas de
-   carte flottante détachée (margin-top + grosse ombre + radius
-   créaient un effet d'îlot que l'utilisateur ne souhaitait pas). */
-html[data-ui="ocean"] .sticky.glass-card {
+/* Ocean : la barre de titre sticky doit ressembler à celle des autres
+   thèmes — pas de carte flottante détachée. Le sélecteur générique
+   `html[data-ui="ocean"] .glass-card` plus bas applique un border-radius
+   1.5rem, une bordure blanche, une grosse ombre bleue et un effet de
+   lift/hover qui transforment la sticky bar en îlot flottant.
+   On neutralise tout ça spécifiquement pour `.sticky.glass-card` :
+   teinte de fond conservée pour différencier du fond Ocean, mais
+   coins droits, bordure discrète, ombre douce, pas de translation
+   au hover. */
+html[data-ui="ocean"] .sticky.glass-card,
+html[data-ui="ocean"] .sticky.glass-card:hover,
+html[data-ui="ocean"] .sticky.glass-card:active {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(240, 249, 255, 0.93) 100%);
+  border-radius: 0 !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.18) !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06) !important;
+  transform: none !important;
 }
-html[data-ui="ocean"].dark .sticky.glass-card {
+html[data-ui="ocean"].dark .sticky.glass-card,
+html[data-ui="ocean"].dark .sticky.glass-card:hover,
+html[data-ui="ocean"].dark .sticky.glass-card:active {
   background: linear-gradient(180deg, rgba(32, 58, 110, 0.95) 0%, rgba(22, 42, 85, 0.93) 100%);
+  border-radius: 0 !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-top: 0 !important;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.20) !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25) !important;
+  transform: none !important;
 }
 
 /* ============================================================ */
