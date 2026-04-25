@@ -25,6 +25,9 @@ export function UserMenu() {
     setDarkMode(newMode);
     document.documentElement.classList.toggle("dark", newMode);
     localStorage.setItem("tm-dark-mode", newMode ? "true" : "false");
+    // Comme tous les autres items du menu, on ferme après l'action :
+    // l'utilisateur n'a plus à cliquer une deuxième fois sur l'avatar.
+    setOpen(false);
   };
 
   // Sélectionne l'un des 3 thèmes. La classe data-ui sur <html> est lue par
@@ -38,6 +41,7 @@ export function UserMenu() {
       document.documentElement.setAttribute("data-ui", mode);
     }
     localStorage.setItem("tm-ui-mode", mode);
+    setOpen(false);
   };
 
   useEffect(() => {
