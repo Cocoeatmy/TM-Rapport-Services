@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Camera, ImagePlus, X, Loader2, Download } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
@@ -25,7 +25,6 @@ export function PhotoUpload({
   existingPhotos = [],
   onUpload,
 }: PhotoUploadProps) {
-  const [photos, setPhotos] = useState<{ name: string; url: string }[]>(existingPhotos);
   const [uploading, setUploading] = useState(false);
   const [previews, setPreviews] = useState<string[]>([]);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -34,6 +33,17 @@ export function PhotoUpload({
   // pendant que le 1er est en cours. setUploading() est trop lent à
   // s'appliquer pour bloquer un double-fire iOS.
   const uploadingRef = useRef(false);
+
+  // Nettoyage : révoque tous les blob URLs encore en mémoire au démontage
+  // (sinon le navigateur les garde indéfiniment et on a des fuites).
+  useEffect(() => {
+    return () => {
+      previews.forEach((u) => {
+        try { URL.revokeObjectURL(u); } catch {}
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // `source` indique d'où vient le fichier :
   //   - "camera"  : photo prise via l'appareil photo → on propose aussi
@@ -65,7 +75,7 @@ export function PhotoUpload({
 
     setUploading(true);
     const formData = new FormData();
-    const currentCount = photos.length + existingPhotos.length;
+    const currentCount = existingPhotos.length;
     originals.forEach((file, i) => {
       const idx = currentCount + i + 1;
       const ext = file.name.split(".").pop() || "jpg";
@@ -81,20 +91,34 @@ export function PhotoUpload({
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       const data = await res.json();
       if (data.files) {
-        // Dédup par URL au cas où l'utilisateur (ou un double-fire
-        // iOS qui aurait passé la garde) envoie deux fois la même URL.
+        // Dédup par URL : si l'utilisateur (ou un double-fire iOS qui
+        // aurait passé la garde) envoie deux fois la même URL.
         const seen = new Set<string>();
-        const newPhotos = [...photos, ...data.files].filter((p: { url: string }) => {
+        const newPhotos = [...existingPhotos, ...data.files].filter((p: { url: string }) => {
           if (!p?.url || seen.has(p.url)) return false;
           seen.add(p.url);
           return true;
         });
-        setPhotos(newPhotos);
         // Purge le cache du service worker pour que le prochain
         // fetch `/api/projects/[id]` retourne bien les nouvelles
         // photos au lieu d'une version pré-upload.
         invalidateApiCache();
         onUpload?.(newPhotos);
+
+        // ⚠️ Important : on nettoie immédiatement les previews. Le
+        // parent vient de mettre à jour son state, on va re-render
+        // avec les vraies URL Cloudinary dans existingPhotos. Garder
+        // les blobs en doublon créerait des thumbnails fantômes (et
+        // pire, après un cycle de re-render le blob peut être perdu
+        // → image cassée "?" qui s'affichait à côté du vrai upload).
+        setPreviews((prev) => {
+          // Révoque seulement les blobs qu'on vient de créer pour
+          // ce batch. Si d'autres uploads sont en parallèle, leurs
+          // blobs propres restent — mais avec uploadingRef.current
+          // c'est en pratique impossible.
+          prev.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
+          return [];
+        });
 
         // Photos prises avec la caméra : on propose à l'OS de les
         // sauvegarder dans Photos via la Web Share API (iOS 15+,
@@ -118,24 +142,34 @@ export function PhotoUpload({
     }
   };
 
+  // En cas d'échec d'upload (catch ci-dessus), les blobs restent dans
+  // previews — on les nettoie quand le bouton X (preview transitoire)
+  // est appuyé. Pour les vraies photos déjà uploadées, la suppression
+  // passe par le parent (PATCH Notion).
   const removePreview = (index: number) => {
-    setPreviews((prev) => prev.filter((_, i) => i !== index));
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => {
+      const url = prev[index];
+      if (url) { try { URL.revokeObjectURL(url); } catch {} }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
-  const allImages = [
-    ...existingPhotos.map((p) => p.url),
-    ...previews,
+  // Filtre des URL valides uniquement (string non vide, prêt à charger).
+  // Évite que des entrées corrompues affichent un placeholder cassé.
+  const validExisting = existingPhotos.filter((p) => p && p.url && p.url.length > 0);
+  const allImages: { src: string; isPreview: boolean }[] = [
+    ...validExisting.map((p) => ({ src: p.url, isPreview: false })),
+    ...previews.map((u) => ({ src: u, isPreview: true })),
   ];
 
   return (
     <div>
       <label className="text-sm font-medium text-gray-700 mb-2 block">{label}</label>
       <div className="grid grid-cols-3 gap-2">
-        {allImages.map((url, i) => (
-          <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
+        {allImages.map((img, i) => (
+          <div key={`${img.isPreview ? "p" : "e"}-${i}-${img.src}`} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
             <img
-              src={url.startsWith("blob:") ? url : thumbnailUrl(url, 300)}
+              src={img.isPreview ? img.src : thumbnailUrl(img.src, 300)}
               alt={`${label} ${i + 1}`}
               loading="lazy"
               decoding="async"
@@ -143,7 +177,7 @@ export function PhotoUpload({
             />
             <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 p-1 bg-gradient-to-t from-black/50 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
               <a
-                href={url}
+                href={img.src}
                 download={`photo-${i + 1}.jpg`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -152,9 +186,9 @@ export function PhotoUpload({
                 <Download className="w-3.5 h-3.5 text-gray-700" />
               </a>
             </div>
-            {i >= existingPhotos.length && (
+            {img.isPreview && (
               <button
-                onClick={() => removePreview(i - existingPhotos.length)}
+                onClick={() => removePreview(i - validExisting.length)}
                 className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center"
               >
                 <X className="w-3.5 h-3.5 text-white" />
