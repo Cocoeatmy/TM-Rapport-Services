@@ -1207,8 +1207,10 @@ function HomePage() {
           {toast}
         </div>
       )}
-      {/* Onglets navigation + Nouveau projet — fixé en haut */}
-      <div className="sticky z-40 -mx-4 px-4 pb-2 pt-1" style={{top: `var(--header-h, 60px)`}}>
+      {/* Onglets navigation + Nouveau projet — fixé en haut.
+          glass-navbar : fond translucide flouté pour que les libellés
+          restent lisibles quand on scrolle la page derrière. */}
+      <div className="sticky z-40 -mx-4 px-4 pb-2 pt-1 glass-navbar" style={{top: `var(--header-h, 60px)`}}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }} />

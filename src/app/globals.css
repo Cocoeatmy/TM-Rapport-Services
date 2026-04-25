@@ -223,6 +223,39 @@
     inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 }
 
+/* Barre d'onglets de navigation collée sous le header. Fond
+   translucide + flou pour que les onglets restent lisibles quand on
+   scrolle un contenu coloré derrière. Une fine bordure inférieure
+   marque la séparation avec le contenu. */
+.glass-navbar {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+}
+.dark .glass-navbar {
+  background: rgba(15, 23, 42, 0.7);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+}
+html[data-ui="aurora"] .glass-navbar {
+  background: rgba(245, 240, 255, 0.6);
+  border-bottom-color: rgba(99, 102, 241, 0.12);
+}
+html[data-ui="aurora"].dark .glass-navbar {
+  background: rgba(25, 18, 60, 0.72);
+  border-bottom-color: rgba(167, 139, 250, 0.18);
+}
+html[data-ui="ocean"] .glass-navbar {
+  background: rgba(236, 248, 255, 0.6);
+  border-bottom-color: rgba(14, 165, 233, 0.15);
+}
+html[data-ui="ocean"].dark .glass-navbar {
+  background: rgba(8, 25, 48, 0.72);
+  border-bottom-color: rgba(34, 211, 238, 0.18);
+}
+
 /* Badge accueil dans le header — couleurs reprises du thème actif.
    Texte (icône) toujours blanc pour rester lisible sur le header
    sombre, mais le fond suit la palette du thème courant. */
