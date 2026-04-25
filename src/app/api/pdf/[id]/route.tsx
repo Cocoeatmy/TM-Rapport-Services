@@ -729,13 +729,71 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
           </View>
         );
 
+        // Affiche QR Code et Garanties côte à côte sur une seule ligne :
+        // chaque colonne occupe ~48% de la largeur, et les photos à
+        // l'intérieur se rétrécissent pour tenir sur une seule rangée.
+        // Si une seule des deux a des photos, elle prend toute la largeur.
+        const renderQrGarantieRow = (qrPhotos: Photo[], garPhotos: Photo[], keyPrefix: string) => {
+          const hasQr = qrPhotos.length > 0;
+          const hasGar = garPhotos.length > 0;
+          if (!hasQr && !hasGar) return null;
+          const both = hasQr && hasGar;
+
+          const renderColumn = (label: string, photos: Photo[]) => {
+            const n = photos.length;
+            // Hauteur cible pour la rangée (compacte, on tient à 2
+            // sections sur la même ligne). Le navigateur calculera
+            // la largeur de chaque vignette en fonction du nombre.
+            const rowHeight = 120;
+            return (
+              <View style={{ flex: 1 }}>
+                <Text style={{ ...styles.label, marginBottom: 6 }}>{label}</Text>
+                <View style={{ flexDirection: "row", gap: 4, flexWrap: "nowrap" }}>
+                  {photos.map((p, i) => (
+                    <View
+                      key={i}
+                      style={{
+                        flex: 1,
+                        height: rowHeight,
+                        // On rétrécit à mesure qu'on ajoute des photos
+                        // (flex:1 + nowrap fait le boulot), mais on
+                        // borne la largeur min pour rester lisible.
+                        minWidth: Math.max(40, Math.floor(220 / Math.max(n, 1))),
+                      }}
+                    >
+                      <Image
+                        src={optimizeImageUrl(p.url)}
+                        style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 4 }}
+                      />
+                    </View>
+                  ))}
+                </View>
+              </View>
+            );
+          };
+
+          return (
+            <View key={keyPrefix} style={styles.section} wrap={false}>
+              <View style={{ flexDirection: "row", gap: both ? 12 : 0 }}>
+                {hasQr && renderColumn("QR Code", qrPhotos)}
+                {hasGar && renderColumn("Garanties", garPhotos)}
+              </View>
+            </View>
+          );
+        };
+
         const renderCabine = (cabKey: number) => {
           const buckets = groups[cabKey] || {};
           const cabineLabel = cabKey === 0 ? "Général" : `Cabine ${cabKey}`;
-          const renderedSections = BUCKET_ORDER
+          // Sépare les buckets "principaux" du couple final QR + Garantie
+          // qui partage une seule ligne en bas de la cabine.
+          const mainBuckets = BUCKET_ORDER
+            .filter((b) => b !== "QR_CODE" && b !== "GARANTIE")
             .map((b) => ({ b, photos: buckets[b] || [] }))
             .filter((x) => x.photos.length > 0);
-          if (renderedSections.length === 0) return null;
+          const qrPhotos = buckets.QR_CODE || [];
+          const garPhotos = buckets.GARANTIE || [];
+          if (mainBuckets.length === 0 && qrPhotos.length === 0 && garPhotos.length === 0) return null;
           return (
             <View key={`cab-${cabKey}`}>
               {isMultiCabine && (
@@ -743,9 +801,10 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
                   {cabineLabel}
                 </Text>
               )}
-              {renderedSections.map(({ b, photos }) =>
+              {mainBuckets.map(({ b, photos }) =>
                 renderBucketGrid(BUCKET_LABEL[b], photos, `cab-${cabKey}-${b}`),
               )}
+              {renderQrGarantieRow(qrPhotos, garPhotos, `cab-${cabKey}-qrgar`)}
             </View>
           );
         };
