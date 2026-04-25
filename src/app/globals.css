@@ -408,6 +408,14 @@ html[data-ui="aurora"].dark .sticky.glass-card {
 html[data-ui="ocean"] .sticky.glass-card,
 html[data-ui="ocean"] .sticky.glass-card:hover,
 html[data-ui="ocean"] .sticky.glass-card:active {
+  /* ⚠️ CRITIQUE : on force `position: sticky` ici. La règle générique
+     `html[data-ui="ocean"] .glass-card` plus bas pose `position: relative`
+     (avec une spécificité 0,2,1) qui écrase la classe Tailwind `.sticky`
+     (0,1,0). Sans ce !important, la barre titre devient relative, et
+     l'inline `top: headerHeight` la décale alors de 60 px vers le bas
+     dans son flow normal — d'où le gros vide au-dessus et le fait
+     qu'elle scrolle avec la page. */
+  position: sticky !important;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(240, 249, 255, 0.93) 100%);
   border-radius: 0 !important;
   border-left: 0 !important;
@@ -420,6 +428,7 @@ html[data-ui="ocean"] .sticky.glass-card:active {
 html[data-ui="ocean"].dark .sticky.glass-card,
 html[data-ui="ocean"].dark .sticky.glass-card:hover,
 html[data-ui="ocean"].dark .sticky.glass-card:active {
+  position: sticky !important;
   background: linear-gradient(180deg, rgba(32, 58, 110, 0.95) 0%, rgba(22, 42, 85, 0.93) 100%);
   border-radius: 0 !important;
   border-left: 0 !important;
