@@ -824,17 +824,29 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
       {/* Pièces manquantes */}
       {pieces.length > 0 && (
         <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
-          <Text style={styles.sectionTitle} fixed>Pièces manquantes</Text>
+          <Text style={{ ...styles.sectionTitle, color: "#991b1b", borderBottomColor: "#fecaca" }} fixed>
+            Pièces manquantes
+          </Text>
 
-          {pieces.map((piece, i) => (
-            <View key={piece.id} style={styles.defautCard} wrap={false}>
+          {pieces.map((piece) => (
+            <View
+              key={piece.id}
+              style={{
+                ...styles.defautCard,
+                backgroundColor: "#fef2f2",
+                borderColor: "#fecaca",
+                borderWidth: 1,
+                borderRadius: 6,
+              }}
+              wrap={false}
+            >
               <View style={styles.defautHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>
+                  <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#991b1b" }}>
                     {piece.description || "Pièce manquante"}
                   </Text>
                   {piece.reference && piece.reference !== "---" && (
-                    <Text style={{ fontSize: 8, color: "#555", marginTop: 2 }}>Réf. : {piece.reference}</Text>
+                    <Text style={{ fontSize: 8, color: "#7f1d1d", marginTop: 2 }}>Réf. : {piece.reference}</Text>
                   )}
                 </View>
                 <Text style={{ ...styles.statusBadge, ...getPieceStatusStyle(piece.status) }}>
@@ -842,7 +854,10 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
                 </Text>
               </View>
               <View style={{ flexDirection: "row", marginBottom: 6 }}>
-                <Text style={{ fontSize: 7, color: "#888" }}>Demandé par : {piece.user || "---"}</Text>
+                <Text style={{ fontSize: 7, color: "#888" }}>
+                  Demandé par : {piece.user || "---"}
+                  {piece.timestamp ? ` · le ${formatSwissDateTime(piece.timestamp)}` : ""}
+                </Text>
               </View>
               {/* Photos */}
               {piece.photoUrls && piece.photoUrls.length > 0 ? (
