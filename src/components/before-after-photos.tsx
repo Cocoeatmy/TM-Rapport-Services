@@ -62,33 +62,20 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
   const uploadingBeforeRef = useRef(false);
   const uploadingAfterRef = useRef(false);
 
-  // Load photos: Notion (initialBefore/initialAfter) + localStorage (local additions)
+  // Notion = seule source de vérité (idem CartonPhotos).
+  //
+  // Avant, on mergeait initialBefore/After (Notion) avec localStorage,
+  // ce qui re-contaminait Notion lorsqu'un appareil avait une liste
+  // stale (cf. bug TM-2600218). On aligne le state local sur Notion ;
+  // localStorage devient un simple miroir pour un mount instantané.
   useEffect(() => {
-    const notionBefore = (initialBefore || []);
-    const notionAfter = (initialAfter || []);
-    const notionBeforeUrls = notionBefore.map((p) => p.url);
-    const notionAfterUrls = notionAfter.map((p) => p.url);
-
-    const stored = loadFromStorage(projectId);
-    if (stored) {
-      const mergedBefore = [...notionBefore];
-      (stored.before || []).forEach((p) => {
-        if (!notionBeforeUrls.includes(p.url)) mergedBefore.push(p);
-      });
-      const mergedAfter = [...notionAfter];
-      (stored.after || []).forEach((p) => {
-        if (!notionAfterUrls.includes(p.url)) mergedAfter.push(p);
-      });
-      setBefore(dedupByUrl(mergedBefore));
-      setAfter(dedupByUrl(mergedAfter));
-    } else {
-      setBefore(dedupByUrl(notionBefore));
-      setAfter(dedupByUrl(notionAfter));
-    }
+    const notionBefore = dedupByUrl(initialBefore || []);
+    const notionAfter = dedupByUrl(initialAfter || []);
+    setBefore(notionBefore);
+    setAfter(notionAfter);
     setLoaded(true);
   }, [projectId, initialBefore, initialAfter]);
 
-  // Save to localStorage when photos change
   useEffect(() => {
     if (!loaded) return;
     saveToStorage(projectId, { before, after });

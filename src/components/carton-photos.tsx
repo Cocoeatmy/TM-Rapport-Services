@@ -33,39 +33,34 @@ export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
   // le re-render n'applique disabled={uploading} sur l'input.
   const uploadingRef = useRef(false);
 
-  // Load photos: from Notion (initialPhotos) + localStorage (local additions)
+  // Notion = seule source de vérité.
+  //
+  // Avant, on mergait initialPhotos (Notion) avec localStorage. C'était
+  // censé permettre les uploads offline, mais le revers : si un device
+  // gardait une liste stale (par exemple 100 URLs dupliquées d'un bug
+  // antérieur) et que l'autre device la nettoyait, le device stale
+  // re-contaminait Notion à la moindre action — la "réparation" ne
+  // tenait jamais. On supprime le merge et on aligne le state local
+  // sur la liste Notion. Le localStorage devient un simple miroir
+  // (utile uniquement pour un affichage instantané au prochain mount
+  // si Notion tarde à répondre, mais sans plus jamais ajouter d'URL
+  // inconnue).
   useEffect(() => {
     const rawNotion = (initialPhotos || []).map((p) => p.url);
     const notionUrls = dedupOrdered(rawNotion);
-    let nextState: string[];
-    try {
-      const saved = localStorage.getItem(`carton-photos-${projectId}`);
-      if (saved) {
-        const localUrls = JSON.parse(saved) as string[];
-        const merged = [...notionUrls];
-        localUrls.forEach((url) => {
-          if (!merged.includes(url)) merged.push(url);
-        });
-        nextState = dedupOrdered(merged);
-      } else {
-        nextState = notionUrls;
-      }
-    } catch {
-      nextState = notionUrls;
-    }
-    setPhotos(nextState);
+    setPhotos(notionUrls);
     setLoaded(true);
 
-    // Auto-héal : si Notion contenait des doublons (bug historique
-    // d'avant ce fix), on PATCH la liste nettoyée pour réparer la
-    // base. Côté utilisateur c'est transparent — le rendu était déjà
-    // dédoublonné, mais on fait aussi le ménage côté serveur.
+    // Auto-héal : si Notion lui-même contenait des doublons (corruption
+    // d'avant les fixes), on PATCH la liste nettoyée pour réparer la base.
     if (rawNotion.length > notionUrls.length) {
       syncToNotion(notionUrls);
     }
   }, [projectId, initialPhotos]);
 
-  // Save to localStorage when photos change
+  // Miroir localStorage simple : on persiste juste pour un mount
+  // instantané futur. La donnée vient toujours de Notion ; ce miroir
+  // n'est plus utilisé pour reconstruire le state.
   useEffect(() => {
     if (!loaded) return;
     try {
