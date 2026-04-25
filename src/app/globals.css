@@ -1245,23 +1245,19 @@ html[data-ui="ocean"] button.glass-card:hover {
 }
 
 /* ---------- Entrée en cascade (stagger) ---------- */
-/* Les enfants directs du <main> apparaissent l'un après l'autre au chargement,
-   créant un effet "rideau" moderne façon apple.com. */
+/* Les enfants directs du <main> apparaissent l'un après l'autre au
+   chargement. ⚠️ NE PAS utiliser transform/filter ici : un ancêtre
+   transformé casse position: sticky pour ses descendants (la sticky
+   se colle à l'ancêtre, pas au viewport). C'était la cause du titre
+   projet qui empiétait sur les cartes en thème Ocean — la barre se
+   décollait du header global et descendait à mi-hauteur. */
 @keyframes oceanFadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(14px) scale(0.98);
-    filter: blur(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0);
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 html[data-ui="ocean"] main > * {
-  animation: oceanFadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: oceanFadeUp 0.45s ease-out both;
 }
 
 html[data-ui="ocean"] main > *:nth-child(1) { animation-delay: 0.00s; }
