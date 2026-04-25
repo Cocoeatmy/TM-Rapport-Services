@@ -6,6 +6,37 @@ export const notion = new Client({
 
 export const databaseId = process.env.NOTION_DATABASE_ID!;
 
+/**
+ * Cache du schéma de la base Notion (types des propriétés). Permet
+ * d'écrire dans le bon format pour des champs dont la configuration
+ * varie selon les bases (URL vs Files & media vs Text).
+ *
+ * Notion impose strictement le format à l'écriture : si le champ est
+ * "URL" et qu'on envoie `{ files: [...] }`, l'API rejette toute la
+ * requête PATCH.
+ *
+ * Le cache est mémoire-only et survit le temps de vie du process
+ * serverless. Si une nouvelle propriété est ajoutée côté Notion, on
+ * peut l'invalider via `invalidateSchemaCache()`.
+ */
+let schemaCache: Record<string, string> | null = null;
+async function getPropertyType(propName: string): Promise<string | null> {
+  if (!schemaCache) {
+    try {
+      const db: any = await notion.databases.retrieve({ database_id: databaseId });
+      schemaCache = {};
+      for (const [key, val] of Object.entries(db.properties || {})) {
+        schemaCache[key] = (val as any).type;
+      }
+    } catch (err) {
+      console.error("[notion] Failed to retrieve database schema:", err);
+      schemaCache = {}; // empty cache, will fall back to default
+    }
+  }
+  return schemaCache[propName] ?? null;
+}
+export function invalidateSchemaCache() { schemaCache = null; }
+
 // Plus de cache interne ici : la mise en cache (avec stale-while-revalidate)
 // est gérée au niveau des routes API via `@/lib/server-cache`. Cela garantit
 // une seule source de vérité et une invalidation cohérente après PATCH/POST.
@@ -222,13 +253,18 @@ export function mapPageToProject(page: any): Project {
       return "";
     })(),
     signatureUrl: (() => {
+      // Lecture tolérante : on accepte le champ Notion qu'il soit
+      // configuré en "Files & media", "URL", ou "Text" — en pratique
+      // les rapports peuvent avoir été créés avec n'importe lequel.
       const sig = p["Signature client"];
       if (!sig) return "";
       if (sig.type === "files" && sig.files?.length > 0) {
         const f = sig.files[0];
         return f.type === "external" ? f.external?.url || "" : f.file?.url || "";
       }
+      if (sig.type === "url") return sig.url || "";
       if (sig.type === "rich_text") return sig.rich_text?.map((t: any) => t.plain_text).join("") || "";
+      if (sig.type === "title") return sig.title?.map((t: any) => t.plain_text).join("") || "";
       return "";
     })(),
     typeClient: extractSelect(p["Type de client"]) || extractStatus(p["Type de client"]) || extractText(p["Type de client"]),
@@ -626,9 +662,29 @@ export async function updateProject(
   if ((data as any).signatureUrl !== undefined) {
     const sigUrl = (data as any).signatureUrl;
     if (sigUrl) {
-      properties["Signature client"] = {
-        files: [{ type: "external" as const, name: "signature.png", external: { url: sigUrl } }],
-      };
+      // Détection dynamique du type du champ "Signature client" dans
+      // Notion : la base d'un client peut avoir Files, URL ou Text.
+      // On adapte le payload sinon Notion rejette la requête entière.
+      const sigType = await getPropertyType("Signature client");
+      if (sigType === "url") {
+        properties["Signature client"] = { url: sigUrl };
+      } else if (sigType === "rich_text") {
+        properties["Signature client"] = { rich_text: toRichText(sigUrl) };
+      } else if (sigType === null) {
+        // Champ pas trouvé dans le schéma — on log côté serveur pour
+        // que l'admin sache qu'il faut le créer dans Notion. On écrit
+        // tout de même en files (comportement historique) au cas où
+        // la propriété aurait été ajoutée juste après le 1er fetch.
+        console.warn("[notion] Champ 'Signature client' introuvable dans la base — créez-le (type Files & media ou URL).");
+        properties["Signature client"] = {
+          files: [{ type: "external" as const, name: "signature.png", external: { url: sigUrl } }],
+        };
+      } else {
+        // Type "files" ou autre → format Files par défaut.
+        properties["Signature client"] = {
+          files: [{ type: "external" as const, name: "signature.png", external: { url: sigUrl } }],
+        };
+      }
     }
   }
   if ((data as any).photosCartons !== undefined) {
