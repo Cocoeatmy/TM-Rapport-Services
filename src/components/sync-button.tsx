@@ -128,21 +128,30 @@ export function SyncButton() {
       // Sauvegarder le cache combiné pour la page d'accueil
       try { localStorage.setItem("tm-projects-cache", JSON.stringify(cacheData)); } catch {}
 
-      // 2. Cacher chaque projet individuellement
+      // 2. Cacher chaque projet individuellement EN PARALLÈLE.
+      // Avant : boucle séquentielle → 50 projets × ~100 ms = 5 s.
+      // Maintenant : Promise.all par lots de 10 (pour ne pas saturer
+      // le serveur et respecter les rate limits Notion en aval).
       const uniqueIds = [...new Set(allProjects.map((p: any) => p.id))];
-
       let cached = 0;
-      for (const id of uniqueIds) {
-        try {
-          const res = await fetch(`/api/projects/${id}`);
-          const data = await res.json();
-          if (data.id) {
-            saveToCache(`project-${id}`, data);
-            cached++;
-          }
-        } catch {
-          // skip
-        }
+      const BATCH_SIZE = 10;
+      for (let i = 0; i < uniqueIds.length; i += BATCH_SIZE) {
+        const batch = uniqueIds.slice(i, i + BATCH_SIZE);
+        const results = await Promise.all(
+          batch.map((id) =>
+            fetch(`/api/projects/${id}`)
+              .then((r) => r.json())
+              .then((data) => {
+                if (data?.id) {
+                  saveToCache(`project-${id}`, data);
+                  return 1;
+                }
+                return 0;
+              })
+              .catch(() => 0),
+          ),
+        );
+        cached += results.reduce((s: number, n: number) => s + n, 0);
       }
 
       // 3. Traiter la file d'attente

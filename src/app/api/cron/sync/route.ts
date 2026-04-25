@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProjects, getProjectsMesures, getProjectsServices, getProjectsSAV, getAllActiveProjects } from "@/lib/notion";
+import { getProjects, getProjectsMesures, getProjectsServices, getProjectsSAV, getAllActiveProjects, flushRelationCacheToKV } from "@/lib/notion";
 import { setCache } from "@/lib/server-cache";
 import { setData } from "@/lib/kv-store";
 
@@ -41,6 +41,13 @@ export async function GET(request: NextRequest) {
         }
       })
     );
+
+    // Persiste le cache des noms de relations vers KV — pendant le
+    // run on a parcouru tous les projets et résolu toutes les
+    // relations, on en profite pour flusher le snapshot complet.
+    // Ainsi le prochain cold start des fonctions /api/projects/*
+    // n'aura PLUS À résoudre per-id : le KV est déjà populé.
+    await flushRelationCacheToKV();
 
     const totalMs = Date.now() - startTime;
     console.log(`[CRON SYNC] Completed in ${totalMs}ms`, results);

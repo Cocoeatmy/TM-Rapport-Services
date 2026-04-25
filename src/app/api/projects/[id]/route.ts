@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProject, updateProject } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
+import { cachedJson } from "@/lib/edge-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,10 @@ export async function GET(
   try {
     const { id } = await params;
     const project = await cachedOrFetch(`project-${id}`, () => getProject(id));
-    return NextResponse.json(project);
+    // Edge cache court (15 s) car les pages projet sont éditées
+    // souvent — mais swr 60 s permet de servir instantanément
+    // pendant qu'on rafraîchit en arrière-plan.
+    return cachedJson(project, { sMaxAge: 15, swr: 60 });
   } catch (error: any) {
     console.error("Error fetching project:", error);
     return NextResponse.json(

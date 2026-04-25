@@ -2,15 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProjects, createProject, deleteProject } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
 import { verifyToken } from "@/lib/auth";
+import { cachedJson } from "@/lib/edge-cache";
 
 export const revalidate = 120;
 
 export async function GET() {
   try {
-    // Stale-while-revalidate : réponse instantanée depuis le cache,
-    // rafraîchissement en arrière-plan si la donnée dépasse 30 s.
+    // 2 niveaux de cache :
+    //   - cachedOrFetch : SWR côté serveur (frais 30 s, stale 5 min)
+    //   - cachedJson : Cache-Control CDN (fresh 10 s, stale-while-revalidate 60 s)
+    // Premier visiteur après une invalidation paye le compute Notion ;
+    // tous les suivants dans les 70 s sont servis par le edge Vercel
+    // en ~10 ms, peu importe le nombre de devices.
     const projects = await cachedOrFetch("projects", getProjects);
-    return NextResponse.json(projects);
+    return cachedJson(projects);
   } catch (error: any) {
     console.error("Error fetching projects:", error);
     return NextResponse.json(
