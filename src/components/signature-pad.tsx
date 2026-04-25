@@ -52,11 +52,36 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
     ctx.lineWidth = 2.5;
     ctx.strokeStyle = "#1e3a5f";
 
-    // Restore existing signature
+    // Restore existing signature.
+    //
+    // ⚠️ Important : on charge l'image avec crossOrigin="anonymous"
+    // AVANT de poser src. Sans ça, dessiner une image cross-origin
+    // (URL Cloudinary) dans le canvas le marque comme "tainted" :
+    // toute tentative ultérieure de canvas.toDataURL() échoue avec
+    // une SecurityError silencieuse → après "Effacer" + re-signature,
+    // l'appui sur "Valider" ne déclenchait plus rien (onSave jamais
+    // appelé) et la signature ne se sauvegardait pas.
+    // Cloudinary sert correctement les en-têtes CORS, donc l'image
+    // se charge sans souci en mode anonymous.
     if (existingSignature) {
       const img = new Image();
+      // Pour les data: URLs (signature fraîchement validée pas encore
+      // uploadée), pas besoin de CORS. Pour les URLs http(s), oui.
+      if (!existingSignature.startsWith("data:")) {
+        img.crossOrigin = "anonymous";
+      }
       img.onload = () => {
-        ctx.drawImage(img, 0, 0, rect.width, 160);
+        try {
+          ctx.drawImage(img, 0, 0, rect.width, 160);
+        } catch {
+          // Si jamais l'image n'est pas chargeable en CORS, on tombe
+          // dans ce catch — on ne dessine rien plutôt que de tainter
+          // le canvas. L'utilisateur peut quand même re-signer.
+        }
+      };
+      img.onerror = () => {
+        // Image distante inaccessible (réseau / CORS) — on ne fait
+        // rien. Le canvas reste vide mais reste utilisable.
       };
       img.src = existingSignature;
     }
@@ -162,9 +187,25 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
   const save = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dataUrl = canvas.toDataURL("image/png");
-    onSave(dataUrl);
-    setSaved(true);
+    try {
+      const dataUrl = canvas.toDataURL("image/png");
+      onSave(dataUrl);
+      setSaved(true);
+    } catch (err) {
+      // Si toDataURL throw (canvas tainted par une image cross-origin
+      // ancienne, par exemple), on log et on remet hasSignature/saved
+      // à false pour que l'utilisateur puisse re-effacer et re-signer
+      // proprement avec un canvas propre.
+      console.error("[signature] toDataURL error:", err);
+      setSaved(false);
+      setHasSignature(false);
+      // Force un reset visuel du canvas
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        const dpr = window.devicePixelRatio || 1;
+        ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+      }
+    }
   };
 
   return (
