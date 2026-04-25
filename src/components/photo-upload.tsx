@@ -162,6 +162,18 @@ export function PhotoUpload({
     ...previews.map((u) => ({ src: u, isPreview: true })),
   ];
 
+  // Suppression d'une photo déjà sauvegardée : on retire l'entrée
+  // de la liste et on remonte au parent via onUpload, qui PATCH
+  // la nouvelle liste vers Notion. Confirmation avant pour éviter
+  // les suppressions accidentelles (la photo est définitivement
+  // retirée du rapport, on ne peut pas la "rétablir").
+  const removeExisting = (url: string) => {
+    if (!confirm("Supprimer cette photo du rapport ?")) return;
+    const updated = validExisting.filter((p) => p.url !== url);
+    onUpload?.(updated);
+    invalidateApiCache();
+  };
+
   return (
     <div>
       <label className="text-sm font-medium text-gray-700 mb-2 block">{label}</label>
@@ -186,14 +198,21 @@ export function PhotoUpload({
                 <Download className="w-3.5 h-3.5 text-gray-700" />
               </a>
             </div>
-            {img.isPreview && (
-              <button
-                onClick={() => removePreview(i - validExisting.length)}
-                className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center"
-              >
-                <X className="w-3.5 h-3.5 text-white" />
-              </button>
-            )}
+            {/* Bouton X de suppression : présent sur TOUTES les photos
+                (preview en cours d'upload comme photos déjà sauvegardées),
+                pour qu'on puisse toujours retirer une photo erronée. */}
+            <button
+              type="button"
+              onClick={() =>
+                img.isPreview
+                  ? removePreview(i - validExisting.length)
+                  : removeExisting(img.src)
+              }
+              className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center hover:bg-red-500 transition-colors"
+              title={img.isPreview ? "Annuler cet ajout" : "Supprimer cette photo du rapport"}
+            >
+              <X className="w-3.5 h-3.5 text-white" />
+            </button>
           </div>
         ))}
 

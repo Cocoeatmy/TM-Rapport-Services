@@ -687,40 +687,12 @@ export async function updateProject(
       }
     }
   }
-  if ((data as any).photosCartons !== undefined) {
-    const urls: string[] = (data as any).photosCartons;
-    properties["État des cartons réceptionnés"] = {
-      files: urls.map((url) => ({
-        type: "external" as const,
-        name: url.split("/").pop()?.slice(0, 100) || "carton.jpg",
-        external: { url },
-      })),
-    };
-  }
-  if ((data as any).photosAvant !== undefined) {
-    const urls: string[] = (data as any).photosAvant;
-    properties["Photos avant montage"] = {
-      files: urls.map((url) => ({
-        type: "external" as const,
-        name: url.split("/").pop()?.slice(0, 100) || "avant.jpg",
-        external: { url },
-      })),
-    };
-  }
-  if ((data as any).photosMontage !== undefined) {
-    const urls: string[] = (data as any).photosMontage;
-    properties["Photos montage terminé"] = {
-      files: urls.map((url) => ({
-        type: "external" as const,
-        name: url.split("/").pop()?.slice(0, 100) || "montage.jpg",
-        external: { url },
-      })),
-    };
-  }
-  // Photos pièces manquantes / défauts signalés : on accepte aussi
-  // bien un tableau de FileItem ({name,url}) que de simples URL.
-  // Nécessaire pour pouvoir SUPPRIMER ou réordonner les photos
-  // déjà attachées à un signalement, pas seulement en ajouter.
+  // Helper unifié pour écrire un champ Notion de type Files. Accepte
+  // un tableau de FileItem ({name, url}) ou de simples URLs string.
+  // PRÉSERVATION DES NOMS : critique pour les photos rapport, parce
+  // que le bucket (avant intervention / montage gauche / etc.) est
+  // encodé dans le préfixe du nom de fichier. Si on régénère un nom
+  // générique, la détection de bucket est perdue au prochain read.
   const writeFilesField = (key: string, propName: string, defaultName: string) => {
     if ((data as any)[key] === undefined) return;
     const list: any[] = (data as any)[key] || [];
@@ -728,12 +700,20 @@ export async function updateProject(
       .map((item, i) => {
         const url = typeof item === "string" ? item : item?.url;
         if (!url) return null;
-        const name = (typeof item === "object" && item?.name) || url.split("/").pop()?.slice(0, 100) || `${defaultName}-${i + 1}.jpg`;
+        const name =
+          (typeof item === "object" && item?.name) ||
+          url.split("/").pop()?.slice(0, 100) ||
+          `${defaultName}-${i + 1}.jpg`;
         return { type: "external" as const, name: String(name).slice(0, 100), external: { url } };
       })
       .filter(Boolean);
     properties[propName] = { files };
   };
+  writeFilesField("photosCartons", "État des cartons réceptionnés", "carton");
+  writeFilesField("photosAvant", "Photos avant montage", "avant");
+  writeFilesField("photosMontage", "Photos montage terminé", "montage");
+  writeFilesField("photosQRCode", "Photos QR Code", "qrcode");
+  writeFilesField("photosGaranties", "Photos garanties", "garantie");
   writeFilesField("photosPiecesManquantes", "Photos - Pièces manquante", "piece");
   writeFilesField("photosDefautsSignale", "Photos - Défauts signalé", "defaut");
 

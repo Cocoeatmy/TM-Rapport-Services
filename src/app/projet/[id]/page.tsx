@@ -126,6 +126,7 @@ function BucketPhotoUpload({
   const existingPhotos = filterByBucket(allInField, bucket, cabineIdx, fieldDefault);
 
   const handleUpload = (newBucketFiles: { name: string; url: string }[]) => {
+    let nextFullList: { name: string; url: string }[] = [];
     setProject((prev) => {
       if (!prev) return prev;
       const current = prev[notionFieldKey] || [];
@@ -137,7 +138,22 @@ function BucketPhotoUpload({
         const cabNum = cab ? parseInt(cab[1], 10) : null;
         return cabineIdx >= 1 ? cabNum !== cabineIdx : cabNum !== null;
       });
-      return { ...prev, [notionFieldKey]: [...kept, ...newBucketFiles] };
+      nextFullList = [...kept, ...newBucketFiles];
+      return { ...prev, [notionFieldKey]: nextFullList };
+    });
+    // Synchronise Notion : si l'utilisateur vient de SUPPRIMER une
+    // photo (newBucketFiles plus court qu'avant), il faut PATCH la
+    // nouvelle liste vers Notion. Pour les uploads, /api/upload a
+    // déjà écrit côté serveur ; ce PATCH est alors redondant mais
+    // sans risque (idempotent — même URL réécrite). Ça simplifie
+    // la logique et garantit que l'état Notion reflète toujours
+    // l'écran.
+    fetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [notionFieldKey]: nextFullList }),
+    }).catch(() => {
+      /* erreur réseau silencieuse — la prochaine action retentera */
     });
   };
 
