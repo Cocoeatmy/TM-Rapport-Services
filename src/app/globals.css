@@ -856,7 +856,13 @@ html[data-ui="ocean"] .glass-header {
     0 0 0 1px rgba(56, 189, 248, 0.08) inset,
     0 10px 40px rgba(8, 47, 115, 0.45),
     0 0 60px -10px rgba(56, 189, 248, 0.35);
-  position: relative;
+  /* ⚠️ NE PAS mettre `position: relative` ici. Le header utilise
+     `position: sticky top:0` (via Tailwind) ; un override en relative
+     casse le sticky → le header scrollerait avec la page et la barre
+     de titre projet (sticky à top: headerHeight) se retrouverait
+     décollée avec un gros vide au-dessus. Le pseudo-élément ::before
+     ci-dessous s'ancre déjà correctement sur la sticky (qui établit
+     un containing block pour les absolus). */
 }
 
 /* Halo lumineux pulsant. Reste dans le header grâce à `inset: 0`. */
