@@ -246,6 +246,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
             {isFournisseursActive && fournisseurActiveLabel && fournisseurActiveLabel !== "Tous" ? `Fournisseurs · ${fournisseurActiveLabel}` : "Fournisseurs"}
             <ChevronDown className={`w-3 h-3 transition-transform ${open === "fournisseurs-menu" ? "rotate-180" : ""}`} />
           </button>
+          <button onClick={() => { handleSelect("sanitaires"); setOpen(null); }} className={tabCls(mode === "sanitaires")}>
+            Sanitaires
+          </button>
           <button onClick={() => { handleSelect("rapport"); setOpen(null); }} className={`shrink-0 text-xs font-medium py-2 px-3 rounded-lg transition-all duration-200 inline-flex items-center gap-1 ${
             mode === "rapport" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-white/30"
           }`}>
@@ -672,8 +675,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "stats" | "archives" | "projets-tous" | "destockage";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "stats", "archives", "projets-tous", "destockage"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "stats", "archives", "projets-tous", "destockage", "sanitaires"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -801,6 +804,7 @@ function HomePage() {
     stats: "/api/projects/all-active",
     archives: "/api/projects/cmd-termine",
     "projets-tous": "/api/projects/all",
+    sanitaires: "/api/projects/all-active",
   };
 
   const [rapportSearch, setRapportSearch] = useState("");
@@ -1172,7 +1176,7 @@ function HomePage() {
         <div className="flex-1 min-w-0">
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }} />
         </div>
-        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && !mode.startsWith("clients-") && (
+        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
           <button
             onClick={() => setShowNewProject(true)}
             className="shrink-0 mt-1.5 w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
@@ -1583,6 +1587,174 @@ function HomePage() {
                     })()}
                   </div>
                 </div>
+                {/* === ACTIVITÉ PAR TYPE === Mesures / Montages / Services / SAV
+                    Mêmes blocs que la vue Fournisseurs — voir commit
+                    "Stats fournisseurs : activité par type, ..." pour la
+                    logique. Sources : gStatsFiltered (en cours) et
+                    gArchivesFiltered (terminés). */}
+                {(() => {
+                  const hasType = (p: any, kw: string) =>
+                    Array.isArray(p.typeServices) && p.typeServices.some((t: string) => (t || "").toLowerCase().includes(kw));
+                  const stats = [
+                    { label: "Mesures", color: "text-cyan-600 dark:text-cyan-300", pred: (p: any) => hasType(p, "mesure") || !!p.dateMesures || !!p.etatMesures },
+                    { label: "Montages", color: "text-orange-600 dark:text-orange-300", pred: (p: any) => hasType(p, "montage") },
+                    { label: "Services", color: "text-emerald-600 dark:text-emerald-300", pred: (p: any) => hasType(p, "service") },
+                    { label: "SAV", color: "text-red-600 dark:text-red-300", pred: (p: any) => p.sav === true || (p.etatSAV && p.etatSAV !== "Aucun SAV") },
+                  ];
+                  return (
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Activité par type</h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {stats.map((s) => {
+                          const enCours = gStatsFiltered.filter(s.pred).length;
+                          const enCoursCab = gStatsFiltered.filter(s.pred).reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0);
+                          const termine = gArchivesFiltered.filter(s.pred).length;
+                          const termineCab = gArchivesFiltered.filter(s.pred).reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0);
+                          return (
+                            <div key={s.label} className="rounded-lg border border-gray-100 dark:border-gray-700 p-3">
+                              <p className={`text-xs font-semibold uppercase tracking-wider ${s.color}`}>{s.label}</p>
+                              <div className="grid grid-cols-2 gap-2 mt-2">
+                                <div>
+                                  <p className="text-[10px] text-gray-400 dark:text-gray-500">En cours</p>
+                                  <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{enCours}</p>
+                                  {enCoursCab > 0 && <p className="text-[10px] text-gray-400">{enCoursCab} cab.</p>}
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-gray-400 dark:text-gray-500">Terminés</p>
+                                  <p className="text-xl font-bold text-gray-700 dark:text-gray-300">{termine}</p>
+                                  {termineCab > 0 && <p className="text-[10px] text-gray-400">{termineCab} cab.</p>}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* === STATS PRODUITS — cabines par série === */}
+                {(() => {
+                  const aggBySerie = (list: any[]) => {
+                    const m: Record<string, number> = {};
+                    list.forEach((p: any) => {
+                      (p.seriesCabines || []).forEach((s: string) => {
+                        m[s] = (m[s] || 0) + (p.nbCabines || 0);
+                      });
+                    });
+                    return m;
+                  };
+                  const enCours = aggBySerie(gStatsFiltered);
+                  const termine = aggBySerie(gArchivesFiltered);
+                  const allSeries = Array.from(new Set([...Object.keys(enCours), ...Object.keys(termine)]));
+                  if (allSeries.length === 0) return null;
+                  const totalEnCours = Object.values(enCours).reduce((a, b) => a + b, 0);
+                  const totalTermine = Object.values(termine).reduce((a, b) => a + b, 0);
+                  const sorted = allSeries
+                    .map((s) => ({ s, ec: enCours[s] || 0, t: termine[s] || 0, total: (enCours[s] || 0) + (termine[s] || 0) }))
+                    .sort((a, b) => b.total - a.total);
+                  const max = Math.max(1, ...sorted.map((x) => x.total));
+                  return (
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Stats produits — cabines par série</h3>
+                      <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400 mb-3">
+                        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-500" />En cours ({totalEnCours})</span>
+                        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500" />Terminés ({totalTermine})</span>
+                      </div>
+                      <div className="space-y-2">
+                        {sorted.map(({ s, ec, t, total }) => {
+                          const ecPct = (ec / max) * 100;
+                          const tPct = (t / max) * 100;
+                          return (
+                            <div key={s}>
+                              <div className="flex items-center justify-between text-xs mb-1">
+                                <span className="text-gray-700 dark:text-gray-200 truncate">{s}</span>
+                                <span className="font-mono text-gray-500 dark:text-gray-400">
+                                  {ec > 0 && <span className="text-blue-600 dark:text-blue-300">{ec}</span>}
+                                  {ec > 0 && t > 0 && <span> · </span>}
+                                  {t > 0 && <span className="text-emerald-600 dark:text-emerald-400">{t}</span>}
+                                  <span className="ml-1 text-gray-400">({total})</span>
+                                </span>
+                              </div>
+                              <div className="flex h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                {ec > 0 && <div className="bg-blue-500" style={{ width: `${ecPct}%` }} />}
+                                {t > 0 && <div className="bg-emerald-500" style={{ width: `${tPct}%` }} />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* === TAUX D'ERREUR === en cours + déjà exécuté */}
+                {(() => {
+                  type Bucket = { soucis: number; pieces: number; defauts: number; total: number };
+                  const compute = (list: any[]): Bucket => ({
+                    soucis: list.filter((p) => p.soucisMontage === true).length,
+                    pieces: list.filter((p) => (p.infoPiecesManquantes || "").trim().length > 0).length,
+                    defauts: list.filter((p) => (p.infoDefautsSignale || "").trim().length > 0).length,
+                    total: list.length,
+                  });
+                  const enCoursB = compute(gStatsFiltered);
+                  const termineB = compute(gArchivesFiltered);
+                  if (enCoursB.total === 0 && termineB.total === 0) return null;
+                  const pct = (n: number, d: number) => d === 0 ? 0 : Math.round((n / d) * 100);
+                  const rows: { label: string; key: keyof Bucket; color: string }[] = [
+                    { label: "Soucis montage", key: "soucis", color: "bg-orange-500" },
+                    { label: "Pièces manquantes", key: "pieces", color: "bg-amber-500" },
+                    { label: "Défauts signalés", key: "defauts", color: "bg-red-500" },
+                  ];
+                  return (
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Taux d&apos;erreur</h3>
+                      <div className="grid grid-cols-2 gap-3 mb-3 text-[11px] text-gray-500 dark:text-gray-400">
+                        <div>Sur <strong className="text-gray-800 dark:text-gray-200">{enCoursB.total}</strong> projets en cours</div>
+                        <div>Sur <strong className="text-gray-800 dark:text-gray-200">{termineB.total}</strong> projets terminés</div>
+                      </div>
+                      <div className="space-y-3">
+                        {rows.map(({ label, key, color }) => {
+                          const ec = enCoursB[key] as number;
+                          const t = termineB[key] as number;
+                          const ecPct = pct(ec, enCoursB.total);
+                          const tPct = pct(t, termineB.total);
+                          return (
+                            <div key={label}>
+                              <div className="flex items-center justify-between text-xs mb-1">
+                                <span className="text-gray-700 dark:text-gray-200">{label}</span>
+                                <span className="font-mono text-gray-500 dark:text-gray-400">
+                                  <span className="text-blue-600 dark:text-blue-300">{ec}</span> / <span className="text-emerald-600 dark:text-emerald-400">{t}</span>
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="flex-1 h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                      <div className={color} style={{ width: `${ecPct}%`, height: "100%" }} />
+                                    </div>
+                                    <span className="text-[10px] font-mono text-gray-500 w-9 text-right">{ecPct}%</span>
+                                  </div>
+                                  <p className="text-[9px] text-gray-400 mt-0.5">en cours</p>
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="flex-1 h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                      <div className={color} style={{ width: `${tPct}%`, height: "100%", opacity: 0.6 }} />
+                                    </div>
+                                    <span className="text-[10px] font-mono text-gray-500 w-9 text-right">{tPct}%</span>
+                                  </div>
+                                  <p className="text-[9px] text-gray-400 mt-0.5">déjà exécutés</p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Prochains RDV */}
                 {rdvFixe.length > 0 && (
                   <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
@@ -1970,6 +2142,351 @@ function HomePage() {
                     <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Prochains RDV fixés</h3>
                     <div className="space-y-2">
                       {fRdvFixe.sort((a,b) => (a.dateMontage||"").localeCompare(b.dateMontage||"")).slice(0, 8).map(p => (
+                        <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[60%]">{p.projet}</span>
+                          <span className="text-xs text-gray-500">{p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", {day:"numeric",month:"short"}) : "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* VUE SANITAIRES — projets dont typeClient == "Sanitaire(s)".
+          Même UX que la vue Fournisseurs / Grossistes : sous-onglets
+          Projets / Stats avec filtres et stats enrichies. */}
+      {mode === "sanitaires" && (() => {
+        const allCmd = projectsData["sanitaires"] || projectsData["all-active"] || [];
+        const sanitairesProjects = allCmd.filter((p) => {
+          if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
+          return p.typeClient === "Sanitaire" || p.typeClient === "Sanitaires";
+        });
+
+        const q = search.toLowerCase();
+        const sanitairesFiltered = sanitairesProjects.filter((p) => {
+          if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
+          if (statusFilter && p.etatCMD !== statusFilter) return false;
+          return (
+            p.projet.toLowerCase().includes(q) ||
+            p.ofrTM.toLowerCase().includes(q) ||
+            p.nomChantier.toLowerCase().includes(q) ||
+            p.fournisseurs.some((f) => f.toLowerCase().includes(q)) ||
+            (p.sanitaireNames || []).some((s: string) => s.toLowerCase().includes(q))
+          );
+        }).sort((a, b) => {
+          const dateA = a.dateMontage;
+          const dateB = b.dateMontage;
+          if (dateA && dateB) return dateA.localeCompare(dateB);
+          if (dateA && !dateB) return -1;
+          if (!dateA && dateB) return 1;
+          return (STATUS_SORT_ORDER[a.etatCMD] ?? 5) - (STATUS_SORT_ORDER[b.etatCMD] ?? 5);
+        });
+
+        const sStatusCounts = sanitairesProjects.reduce<Record<string, number>>((acc, p) => {
+          if (p.etatCMD) acc[p.etatCMD] = (acc[p.etatCMD] || 0) + 1;
+          return acc;
+        }, {});
+
+        const sStatsFiltered = filterByStatsDate(sanitairesProjects, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+        const sArchivesAll = (projectsData["archives"] || []).filter((p: any) =>
+          p.typeClient === "Sanitaire" || p.typeClient === "Sanitaires",
+        );
+        const sArchivesFiltered = filterByStatsDate(sArchivesAll, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+        const sTotalCab = sStatsFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
+        const sRdvFixe = sStatsFiltered.filter((p: any) => p.etatCMD === "RDV - fixé");
+        const sTermineCount = sArchivesFiltered.length;
+
+        return (
+          <div>
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setSubView("projets")}
+                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "projets" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
+                Projets ({sanitairesProjects.length})
+              </button>
+              <button onClick={() => setSubView("stats")}
+                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "stats" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
+                Stats
+              </button>
+            </div>
+
+            {subView === "projets" ? (
+              <>
+                <div className="relative mb-4 max-w-lg">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input placeholder="Rechercher (nom, sanitaire, OFR...)" className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
+                  <button onClick={() => setStatusFilter(null)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${!statusFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"}`}>
+                    Tous ({sanitairesProjects.length})
+                  </button>
+                  {Object.entries(sStatusCounts).map(([status, count]) => (
+                    <button key={status} onClick={() => setStatusFilter(statusFilter === status ? null : status)}
+                      className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${statusFilter === status ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : `${STATUS_CMD_COLORS[status] || "bg-gray-100 text-gray-700"} border-transparent`}`}>
+                      {status} ({count})
+                    </button>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-500 mb-3">
+                  {sanitairesFiltered.length} projet{sanitairesFiltered.length !== 1 ? "s" : ""}{" · "}{sanitairesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cabine{sanitairesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
+                </p>
+                {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
+                <div className="space-y-3">
+                  {sanitairesFiltered.map((project) => (
+                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
+                  ))}
+                  {sanitairesFiltered.length === 0 && !loading && (
+                    <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet sanitaire</p></div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
+                  onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
+
+                {/* KPIs */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{sStatsFiltered.length}</p>
+                    <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-green-600">{sTotalCab}</p>
+                    <p className="text-xs text-gray-500 mt-1">Cabines</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-blue-600">{sRdvFixe.length}</p>
+                    <p className="text-xs text-gray-500 mt-1">RDV fixés</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
+                    <p className="text-2xl font-bold text-purple-600">{sTermineCount}</p>
+                    <p className="text-xs text-gray-500 mt-1">Terminés</p>
+                  </div>
+                </div>
+
+                {/* === RÉPARTITION PAR SANITAIRE (entreprise) === */}
+                {(() => {
+                  const aggBySanitaire = (list: any[]) => {
+                    const m: Record<string, { projets: number; cabines: number }> = {};
+                    list.forEach((p: any) => {
+                      const names: string[] = (p.sanitaireNames && p.sanitaireNames.length > 0) ? p.sanitaireNames : ["Non assigné"];
+                      names.forEach((n) => {
+                        if (!m[n]) m[n] = { projets: 0, cabines: 0 };
+                        m[n].projets++;
+                        m[n].cabines += (p.nbCabines || 0);
+                      });
+                    });
+                    return m;
+                  };
+                  const enCours = aggBySanitaire(sStatsFiltered);
+                  const termine = aggBySanitaire(sArchivesFiltered);
+                  const allNames = Array.from(new Set([...Object.keys(enCours), ...Object.keys(termine)]));
+                  if (allNames.length === 0) return null;
+                  const sorted = allNames
+                    .map((n) => ({
+                      n,
+                      ec: enCours[n]?.projets || 0,
+                      ecCab: enCours[n]?.cabines || 0,
+                      t: termine[n]?.projets || 0,
+                      tCab: termine[n]?.cabines || 0,
+                    }))
+                    .sort((a, b) => (b.ec + b.t) - (a.ec + a.t));
+                  return (
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Par entreprise sanitaire</h3>
+                      <div className="space-y-2">
+                        {sorted.map(({ n, ec, ecCab, t, tCab }) => (
+                          <div key={n} className="flex items-center justify-between py-1.5 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                            <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1 mr-3">{n}</span>
+                            <span className="text-xs text-gray-500 whitespace-nowrap">
+                              <span className="text-blue-600 dark:text-blue-300">{ec}p · {ecCab}c</span>
+                              {" / "}
+                              <span className="text-emerald-600 dark:text-emerald-400">{t}p · {tCab}c</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-3">
+                        <span className="text-blue-600 dark:text-blue-300">●</span> en cours / <span className="text-emerald-600 dark:text-emerald-400">●</span> terminés (p = projets, c = cabines)
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                {/* === ACTIVITÉ PAR TYPE === */}
+                {(() => {
+                  const hasType = (p: any, kw: string) =>
+                    Array.isArray(p.typeServices) && p.typeServices.some((t: string) => (t || "").toLowerCase().includes(kw));
+                  const stats = [
+                    { label: "Mesures", color: "text-cyan-600 dark:text-cyan-300", pred: (p: any) => hasType(p, "mesure") || !!p.dateMesures || !!p.etatMesures },
+                    { label: "Montages", color: "text-orange-600 dark:text-orange-300", pred: (p: any) => hasType(p, "montage") },
+                    { label: "Services", color: "text-emerald-600 dark:text-emerald-300", pred: (p: any) => hasType(p, "service") },
+                    { label: "SAV", color: "text-red-600 dark:text-red-300", pred: (p: any) => p.sav === true || (p.etatSAV && p.etatSAV !== "Aucun SAV") },
+                  ];
+                  return (
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Activité par type</h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {stats.map((s) => {
+                          const enCours = sStatsFiltered.filter(s.pred).length;
+                          const enCoursCab = sStatsFiltered.filter(s.pred).reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0);
+                          const termine = sArchivesFiltered.filter(s.pred).length;
+                          const termineCab = sArchivesFiltered.filter(s.pred).reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0);
+                          return (
+                            <div key={s.label} className="rounded-lg border border-gray-100 dark:border-gray-700 p-3">
+                              <p className={`text-xs font-semibold uppercase tracking-wider ${s.color}`}>{s.label}</p>
+                              <div className="grid grid-cols-2 gap-2 mt-2">
+                                <div>
+                                  <p className="text-[10px] text-gray-400 dark:text-gray-500">En cours</p>
+                                  <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{enCours}</p>
+                                  {enCoursCab > 0 && <p className="text-[10px] text-gray-400">{enCoursCab} cab.</p>}
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-gray-400 dark:text-gray-500">Terminés</p>
+                                  <p className="text-xl font-bold text-gray-700 dark:text-gray-300">{termine}</p>
+                                  {termineCab > 0 && <p className="text-[10px] text-gray-400">{termineCab} cab.</p>}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* === STATS PRODUITS — cabines par série === */}
+                {(() => {
+                  const aggBySerie = (list: any[]) => {
+                    const m: Record<string, number> = {};
+                    list.forEach((p: any) => {
+                      (p.seriesCabines || []).forEach((s: string) => {
+                        m[s] = (m[s] || 0) + (p.nbCabines || 0);
+                      });
+                    });
+                    return m;
+                  };
+                  const enCours = aggBySerie(sStatsFiltered);
+                  const termine = aggBySerie(sArchivesFiltered);
+                  const allSeries = Array.from(new Set([...Object.keys(enCours), ...Object.keys(termine)]));
+                  if (allSeries.length === 0) return null;
+                  const totalEnCours = Object.values(enCours).reduce((a, b) => a + b, 0);
+                  const totalTermine = Object.values(termine).reduce((a, b) => a + b, 0);
+                  const sorted = allSeries
+                    .map((s) => ({ s, ec: enCours[s] || 0, t: termine[s] || 0, total: (enCours[s] || 0) + (termine[s] || 0) }))
+                    .sort((a, b) => b.total - a.total);
+                  const max = Math.max(1, ...sorted.map((x) => x.total));
+                  return (
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Stats produits — cabines par série</h3>
+                      <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400 mb-3">
+                        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-500" />En cours ({totalEnCours})</span>
+                        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500" />Terminés ({totalTermine})</span>
+                      </div>
+                      <div className="space-y-2">
+                        {sorted.map(({ s, ec, t, total }) => {
+                          const ecPct = (ec / max) * 100;
+                          const tPct = (t / max) * 100;
+                          return (
+                            <div key={s}>
+                              <div className="flex items-center justify-between text-xs mb-1">
+                                <span className="text-gray-700 dark:text-gray-200 truncate">{s}</span>
+                                <span className="font-mono text-gray-500 dark:text-gray-400">
+                                  {ec > 0 && <span className="text-blue-600 dark:text-blue-300">{ec}</span>}
+                                  {ec > 0 && t > 0 && <span> · </span>}
+                                  {t > 0 && <span className="text-emerald-600 dark:text-emerald-400">{t}</span>}
+                                  <span className="ml-1 text-gray-400">({total})</span>
+                                </span>
+                              </div>
+                              <div className="flex h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                {ec > 0 && <div className="bg-blue-500" style={{ width: `${ecPct}%` }} />}
+                                {t > 0 && <div className="bg-emerald-500" style={{ width: `${tPct}%` }} />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* === TAUX D'ERREUR === */}
+                {(() => {
+                  type Bucket = { soucis: number; pieces: number; defauts: number; total: number };
+                  const compute = (list: any[]): Bucket => ({
+                    soucis: list.filter((p) => p.soucisMontage === true).length,
+                    pieces: list.filter((p) => (p.infoPiecesManquantes || "").trim().length > 0).length,
+                    defauts: list.filter((p) => (p.infoDefautsSignale || "").trim().length > 0).length,
+                    total: list.length,
+                  });
+                  const enCoursB = compute(sStatsFiltered);
+                  const termineB = compute(sArchivesFiltered);
+                  if (enCoursB.total === 0 && termineB.total === 0) return null;
+                  const pct = (n: number, d: number) => d === 0 ? 0 : Math.round((n / d) * 100);
+                  const rows: { label: string; key: keyof Bucket; color: string }[] = [
+                    { label: "Soucis montage", key: "soucis", color: "bg-orange-500" },
+                    { label: "Pièces manquantes", key: "pieces", color: "bg-amber-500" },
+                    { label: "Défauts signalés", key: "defauts", color: "bg-red-500" },
+                  ];
+                  return (
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Taux d&apos;erreur</h3>
+                      <div className="grid grid-cols-2 gap-3 mb-3 text-[11px] text-gray-500 dark:text-gray-400">
+                        <div>Sur <strong className="text-gray-800 dark:text-gray-200">{enCoursB.total}</strong> projets en cours</div>
+                        <div>Sur <strong className="text-gray-800 dark:text-gray-200">{termineB.total}</strong> projets terminés</div>
+                      </div>
+                      <div className="space-y-3">
+                        {rows.map(({ label, key, color }) => {
+                          const ec = enCoursB[key] as number;
+                          const t = termineB[key] as number;
+                          const ecPct = pct(ec, enCoursB.total);
+                          const tPct = pct(t, termineB.total);
+                          return (
+                            <div key={label}>
+                              <div className="flex items-center justify-between text-xs mb-1">
+                                <span className="text-gray-700 dark:text-gray-200">{label}</span>
+                                <span className="font-mono text-gray-500 dark:text-gray-400">
+                                  <span className="text-blue-600 dark:text-blue-300">{ec}</span> / <span className="text-emerald-600 dark:text-emerald-400">{t}</span>
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="flex-1 h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                      <div className={color} style={{ width: `${ecPct}%`, height: "100%" }} />
+                                    </div>
+                                    <span className="text-[10px] font-mono text-gray-500 w-9 text-right">{ecPct}%</span>
+                                  </div>
+                                  <p className="text-[9px] text-gray-400 mt-0.5">en cours</p>
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="flex-1 h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                      <div className={color} style={{ width: `${tPct}%`, height: "100%", opacity: 0.6 }} />
+                                    </div>
+                                    <span className="text-[10px] font-mono text-gray-500 w-9 text-right">{tPct}%</span>
+                                  </div>
+                                  <p className="text-[9px] text-gray-400 mt-0.5">déjà exécutés</p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Prochains RDV */}
+                {sRdvFixe.length > 0 && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                    <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Prochains RDV fixés</h3>
+                    <div className="space-y-2">
+                      {sRdvFixe.sort((a,b) => (a.dateMontage||"").localeCompare(b.dateMontage||"")).slice(0, 8).map(p => (
                         <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
                           <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[60%]">{p.projet}</span>
                           <span className="text-xs text-gray-500">{p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", {day:"numeric",month:"short"}) : "—"}</span>
@@ -2487,7 +3004,7 @@ function HomePage() {
       })()}
 
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && viewMode === "list" && (
         <div className="flex gap-3 mb-4">
           <button
             onClick={() => setViewMode("calendar")}
@@ -3265,7 +3782,7 @@ function HomePage() {
       )}
 
 
-      {mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && !mode.startsWith("clients-") && (<>
+      {mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {
         const favIds = typeof window !== "undefined" ? getFavorites() : [];
