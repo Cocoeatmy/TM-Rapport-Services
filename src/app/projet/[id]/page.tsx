@@ -144,27 +144,30 @@ function BucketPhotoUpload({
     return [...kept, ...newBucketFiles];
   };
 
-  // Upload : /api/upload a déjà écrit dans Notion — on met à jour
-  // uniquement le state React pour que l'UI reflète la nouvelle photo.
-  // PAS de PATCH ici : envoyer un PATCH concurrent provoque une race
-  // condition où deux uploads rapides s'écrasent mutuellement.
-  const handleUpload = (newBucketFiles: { name: string; url: string }[]) => {
+  // Upload : /api/upload a déjà écrit dans Notion — on AJOUTE les
+  // nouveaux fichiers à l'état courant (prev) sans jamais lire une
+  // closure périmée. Pas de PATCH : zéro race condition possible.
+  const handleUpload = (newFiles: { name: string; url: string }[]) => {
     setProject((prev) => {
       if (!prev) return prev;
-      const nextFullList = buildNextFullList(prev, newBucketFiles);
-      return { ...prev, [notionFieldKey]: nextFullList };
+      const current: { name: string; url: string }[] = prev[notionFieldKey] || [];
+      const existingUrls = new Set(current.map((f) => f.url));
+      const toAdd = newFiles.filter((f) => f.url && !existingUrls.has(f.url));
+      if (toAdd.length === 0) return prev;
+      return { ...prev, [notionFieldKey]: [...current, ...toAdd] };
     });
   };
 
-  // Suppression : l'API upload n'est pas appelée, donc il faut PATCH
-  // Notion manuellement avec la liste mise à jour.
+  // Suppression : mise à jour immédiate et définitive de l'état React.
+  // On calcule nextFullList depuis project (closure fraîche au moment du
+  // clic) plutôt qu'à l'intérieur de setProject pour éviter tout edge-case
+  // React 18 Concurrent Mode où l'updater peut être appelé plusieurs fois.
   const handleDelete = (newBucketFiles: { name: string; url: string }[]) => {
-    let nextFullList: { name: string; url: string }[] = [];
-    setProject((prev) => {
-      if (!prev) return prev;
-      nextFullList = buildNextFullList(prev, newBucketFiles);
-      return { ...prev, [notionFieldKey]: nextFullList };
-    });
+    if (!project) return;
+    const nextFullList = buildNextFullList(project, newBucketFiles);
+    // Mise à jour UI immédiate — la photo disparaît définitivement du rendu.
+    setProject((prev) => prev ? { ...prev, [notionFieldKey]: nextFullList } : prev);
+    // PATCH Notion en arrière-plan (état déjà correct côté UI).
     offlineFetch(`/api/projects/${projectId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -3138,7 +3141,13 @@ function ProjectPageContent({ id }: { id: string }) {
                   notionField="Photos situations"
                   filePrefix="Photos - Situations"
                   existingPhotos={project.photosSituations}
-                  onUpload={(files) => setProject((prev) => prev ? { ...prev, photosSituations: files } : prev)}
+                  onUpload={(newFiles) => setProject((prev) => {
+                    if (!prev) return prev;
+                    const cur = prev.photosSituations || [];
+                    const seen = new Set(cur.map((f) => f.url));
+                    const toAdd = newFiles.filter((f) => f.url && !seen.has(f.url));
+                    return toAdd.length ? { ...prev, photosSituations: [...cur, ...toAdd] } : prev;
+                  })}
                   onDelete={(files) => {
                     setProject((prev) => prev ? { ...prev, photosSituations: files } : prev);
                     offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photosSituations: files }) }).catch(() => {});
@@ -3151,7 +3160,13 @@ function ProjectPageContent({ id }: { id: string }) {
                   notionField="Photos mesures"
                   filePrefix="Photos - Mesures"
                   existingPhotos={project.photosMesures}
-                  onUpload={(files) => setProject((prev) => prev ? { ...prev, photosMesures: files } : prev)}
+                  onUpload={(newFiles) => setProject((prev) => {
+                    if (!prev) return prev;
+                    const cur = prev.photosMesures || [];
+                    const seen = new Set(cur.map((f) => f.url));
+                    const toAdd = newFiles.filter((f) => f.url && !seen.has(f.url));
+                    return toAdd.length ? { ...prev, photosMesures: [...cur, ...toAdd] } : prev;
+                  })}
                   onDelete={(files) => {
                     setProject((prev) => prev ? { ...prev, photosMesures: files } : prev);
                     offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photosMesures: files }) }).catch(() => {});
@@ -3164,7 +3179,13 @@ function ProjectPageContent({ id }: { id: string }) {
                   notionField="Photos localité"
                   filePrefix="Photos - Localite"
                   existingPhotos={project.photosLocalite}
-                  onUpload={(files) => setProject((prev) => prev ? { ...prev, photosLocalite: files } : prev)}
+                  onUpload={(newFiles) => setProject((prev) => {
+                    if (!prev) return prev;
+                    const cur = prev.photosLocalite || [];
+                    const seen = new Set(cur.map((f) => f.url));
+                    const toAdd = newFiles.filter((f) => f.url && !seen.has(f.url));
+                    return toAdd.length ? { ...prev, photosLocalite: [...cur, ...toAdd] } : prev;
+                  })}
                   onDelete={(files) => {
                     setProject((prev) => prev ? { ...prev, photosLocalite: files } : prev);
                     offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photosLocalite: files }) }).catch(() => {});

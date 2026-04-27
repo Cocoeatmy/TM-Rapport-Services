@@ -785,15 +785,27 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
         const renderCabine = (cabKey: number) => {
           const buckets = groups[cabKey] || {};
           const cabineLabel = cabKey === 0 ? "Général" : `Cabine ${cabKey}`;
-          // Sépare les buckets "principaux" du couple final QR + Garantie
-          // qui partage une seule ligne en bas de la cabine.
-          const mainBuckets = BUCKET_ORDER
-            .filter((b) => b !== "QR_CODE" && b !== "GARANTIE")
-            .map((b) => ({ b, photos: buckets[b] || [] }))
-            .filter((x) => x.photos.length > 0);
+
+          // AVANT / APRES : sections séparées avec leur propre titre
+          const avantPhotos = [
+            ...(buckets.AVANT_INTERVENTION || []),
+            ...(buckets.AVANT_MONTAGE || []),
+          ];
+          const apresPhotos = buckets.APRES_INTERVENTION || [];
+
+          // MONTAGE : gauche + centre + droite regroupés sous un seul titre
+          const montagePhotos = [
+            ...(buckets.MONTAGE_GAUCHE || []),
+            ...(buckets.MONTAGE_CENTRE || []),
+            ...(buckets.MONTAGE_DROITE || []),
+          ];
+
           const qrPhotos = buckets.QR_CODE || [];
           const garPhotos = buckets.GARANTIE || [];
-          if (mainBuckets.length === 0 && qrPhotos.length === 0 && garPhotos.length === 0) return null;
+
+          const hasAny = avantPhotos.length > 0 || montagePhotos.length > 0 || apresPhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0;
+          if (!hasAny) return null;
+
           return (
             <View key={`cab-${cabKey}`}>
               {isMultiCabine && (
@@ -801,9 +813,9 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
                   {cabineLabel}
                 </Text>
               )}
-              {mainBuckets.map(({ b, photos }) =>
-                renderBucketGrid(BUCKET_LABEL[b], photos, `cab-${cabKey}-${b}`),
-              )}
+              {avantPhotos.length > 0 && renderBucketGrid("Photos avant intervention", avantPhotos, `cab-${cabKey}-avant`)}
+              {montagePhotos.length > 0 && renderBucketGrid("Photos montage", montagePhotos, `cab-${cabKey}-montage`)}
+              {apresPhotos.length > 0 && renderBucketGrid("Photos après intervention", apresPhotos, `cab-${cabKey}-apres`)}
               {renderQrGarantieRow(qrPhotos, garPhotos, `cab-${cabKey}-qrgar`)}
             </View>
           );

@@ -134,19 +134,22 @@ export function PhotoUpload({
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.files) {
-        // Dédup par URL : si l'utilisateur (ou un double-fire iOS qui
-        // aurait passé la garde) envoie deux fois la même URL.
-        const seen = new Set<string>();
-        const newPhotos = [...existingPhotos, ...data.files].filter((p: { url: string }) => {
-          if (!p?.url || seen.has(p.url)) return false;
-          seen.add(p.url);
-          return true;
-        });
+        // On passe UNIQUEMENT les nouveaux fichiers au parent — pas
+        // [...existingPhotos, ...data.files]. La raison : existingPhotos
+        // est capturé dans la closure au moment du render, pas au moment
+        // où le callback s'exécute. En cas de re-render entre-temps, la
+        // valeur serait périmée et l'ancienne photo disparaîtrait de l'UI.
+        // Le parent (handleUpload) fait un append dans setProject(prev =>
+        // ...) ce qui lit toujours l'état le plus récent.
+        const newFiles = (data.files as { name: string; url: string }[]).filter(
+          (p) => p?.url,
+        );
         invalidateApiCache();
-        onUpload?.(newPhotos);
+        onUpload?.(newFiles);
 
-        // Nettoyage des previews locaux (les vraies URL Cloudinary
-        // arrivent via existingPhotos au prochain render).
+        // Nettoyage des previews locaux APRÈS que le parent a mis à jour
+        // son état — les vraies URL Cloudinary sont maintenant dans
+        // existingPhotos, donc la photo reste visible.
         setPreviews((prev) => {
           prev.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
           return [];
