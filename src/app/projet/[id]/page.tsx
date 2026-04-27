@@ -2765,10 +2765,11 @@ function ProjectPageContent({ id }: { id: string }) {
                     </div>
                     <Separator />
                     <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} />
-                    <BucketPhotoUpload bucket="AVANT_MONTAGE" projectId={id} project={project} setProject={setProject} />
-                    <BucketPhotoUpload bucket="MONTAGE_GAUCHE" projectId={id} project={project} setProject={setProject} />
-                    <BucketPhotoUpload bucket="MONTAGE_CENTRE" projectId={id} project={project} setProject={setProject} />
-                    <BucketPhotoUpload bucket="MONTAGE_DROITE" projectId={id} project={project} setProject={setProject} />
+                    <div className="grid grid-cols-3 gap-3">
+                      <BucketPhotoUpload bucket="MONTAGE_GAUCHE" projectId={id} project={project} setProject={setProject} />
+                      <BucketPhotoUpload bucket="MONTAGE_CENTRE" projectId={id} project={project} setProject={setProject} />
+                      <BucketPhotoUpload bucket="MONTAGE_DROITE" projectId={id} project={project} setProject={setProject} />
+                    </div>
                     <BucketPhotoUpload bucket="APRES_INTERVENTION" projectId={id} project={project} setProject={setProject} />
                     <BucketPhotoUpload bucket="QR_CODE" projectId={id} project={project} setProject={setProject} />
                     <BucketPhotoUpload bucket="GARANTIE" projectId={id} project={project} setProject={setProject} />
@@ -2959,10 +2960,11 @@ function ProjectPageContent({ id }: { id: string }) {
 
                           {/* Photos cabine */}
                           <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                          <BucketPhotoUpload bucket="AVANT_MONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                          <BucketPhotoUpload bucket="MONTAGE_GAUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                          <BucketPhotoUpload bucket="MONTAGE_CENTRE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                          <BucketPhotoUpload bucket="MONTAGE_DROITE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <div className="grid grid-cols-3 gap-3">
+                            <BucketPhotoUpload bucket="MONTAGE_GAUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                            <BucketPhotoUpload bucket="MONTAGE_CENTRE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                            <BucketPhotoUpload bucket="MONTAGE_DROITE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          </div>
                           <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                           <BucketPhotoUpload bucket="QR_CODE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                           <BucketPhotoUpload bucket="GARANTIE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
