@@ -1630,13 +1630,32 @@ function ProjectPageContent({ id }: { id: string }) {
         // doit jamais disparaître à cause d'un cache serveur incohérent
         // ou d'un délai de propagation Notion.
         setProject((prev) => {
-          if (!data.signatureUrl) {
+          const incoming = { ...data } as typeof data;
+
+          // Garde signature locale si le serveur n'en a pas.
+          if (!incoming.signatureUrl) {
             const localSig = prev?.signatureUrl || signature;
-            if (localSig) {
-              return { ...data, signatureUrl: localSig };
+            if (localSig) incoming.signatureUrl = localSig;
+          }
+
+          // Les champs photos ne sont JAMAIS écrasés par le polling.
+          // Raison : le cache edge (sMaxAge 15s / swr 60s) peut renvoyer
+          // des données périmées juste après une suppression, ce qui fait
+          // "revenir" la photo dans l'UI. Les photos sont toujours
+          // autoritatives côté local (upload/delete gèrent l'état direct).
+          // Le polling sert uniquement à la collaboration sur les textes.
+          if (prev) {
+            const photoFields = [
+              "photosAvant", "photosMontage", "photosQRCode", "photosGaranties",
+              "photosCartons", "photosSituations", "photosMesures", "photosLocalite",
+              "photosPiecesManquantes", "photosDefautsSignale",
+            ] as const;
+            for (const field of photoFields) {
+              (incoming as Record<string, unknown>)[field] = prev[field];
             }
           }
-          return data;
+
+          return incoming;
         });
 
         // Merge intelligent des champs texte éditables : on ne pousse la
