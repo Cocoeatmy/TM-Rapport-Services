@@ -89,21 +89,15 @@ function parseTimeToMinutes(raw: string): number {
   return parseInt(match[1]) * 60 + parseInt(match[2]);
 }
 
-function getWeeklyHoursForCollab(projects: Project[], collabName: string): number {
-  const today = new Date();
-  const dayOfWeek = today.getDay();
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + mondayOffset);
-  monday.setHours(0, 0, 0, 0);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
-  const monStr = monday.toISOString().split("T")[0];
-  const sunStr = sunday.toISOString().split("T")[0];
-
+/** Calcule les minutes travaillées par un collaborateur sur une plage de dates.
+ *  fromStr / toStr sont au format "YYYY-MM-DD". Si vides, pas de filtre date. */
+function getHoursForCollabInRange(
+  projects: Project[],
+  collabName: string,
+  fromStr: string,
+  toStr: string,
+): number {
   let totalMinutes = 0;
-
   for (const p of projects) {
     const ha = p.heureArrivee || "";
     const hd = p.heureDepart || "";
@@ -121,7 +115,8 @@ function getWeeklyHoursForCollab(projects: Project[], collabName: string): numbe
         const entryDate = aDate || dDate || p.dateMontage?.split("T")[0] || "";
         const entryCollab = aTokens.slice(1, -1).join(" ") || dTokens.slice(1, -1).join(" ") || "";
         if (!entryCollab.toLowerCase().includes(collabName.toLowerCase())) continue;
-        if (entryDate < monStr || entryDate > sunStr) continue;
+        if (fromStr && entryDate < fromStr) continue;
+        if (toStr && entryDate > toStr) continue;
         const arrTime = aTokens[aTokens.length - 1] || "";
         const depTime = dTokens[dTokens.length - 1] || "";
         const arrMin = parseTimeToMinutes(arrTime);
@@ -133,7 +128,8 @@ function getWeeklyHoursForCollab(projects: Project[], collabName: string): numbe
     } else {
       if (!p.collaborateurs?.toLowerCase().includes(collabName.toLowerCase())) continue;
       const dateStr = p.dateMontage?.split("T")[0] || "";
-      if (dateStr < monStr || dateStr > sunStr) continue;
+      if (fromStr && dateStr < fromStr) continue;
+      if (toStr && dateStr > toStr) continue;
       const arrMin = parseTimeToMinutes(ha);
       const depMin = parseTimeToMinutes(hd);
       if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) {
@@ -142,6 +138,70 @@ function getWeeklyHoursForCollab(projects: Project[], collabName: string): numbe
     }
   }
   return totalMinutes;
+}
+
+// Garde la compatibilité avec les anciens appels (semaine courante).
+function getWeeklyHoursForCollab(projects: Project[], collabName: string): number {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + mondayOffset);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return getHoursForCollabInRange(
+    projects, collabName,
+    monday.toISOString().split("T")[0],
+    sunday.toISOString().split("T")[0],
+  );
+}
+
+function getDateRangeForFilter(
+  filter: "semaine" | "mois" | "annee" | "custom",
+  customFrom?: string,
+  customTo?: string,
+  customMonth?: string, // "YYYY-MM"
+  customYear?: string,  // "YYYY"
+): { fromStr: string; toStr: string; label: string } {
+  const today = new Date();
+  if (filter === "semaine") {
+    const dayOfWeek = today.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return {
+      fromStr: monday.toISOString().split("T")[0],
+      toStr: sunday.toISOString().split("T")[0],
+      label: "Cette semaine",
+    };
+  }
+  if (filter === "mois") {
+    const [y, m] = customMonth ? customMonth.split("-").map(Number) : [today.getFullYear(), today.getMonth() + 1];
+    const firstDay = new Date(y, m - 1, 1);
+    const lastDay = new Date(y, m, 0);
+    const monthName = firstDay.toLocaleDateString("fr-CH", { month: "long", year: "numeric" });
+    return {
+      fromStr: firstDay.toISOString().split("T")[0],
+      toStr: lastDay.toISOString().split("T")[0],
+      label: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+    };
+  }
+  if (filter === "annee") {
+    const y = customYear ? parseInt(customYear) : today.getFullYear();
+    return {
+      fromStr: `${y}-01-01`,
+      toStr: `${y}-12-31`,
+      label: `Année ${y}`,
+    };
+  }
+  // custom
+  return {
+    fromStr: customFrom || "",
+    toStr: customTo || "",
+    label: customFrom && customTo ? `${customFrom} → ${customTo}` : "Plage personnalisée",
+  };
 }
 
 function fmtMin(min: number): string {
@@ -485,6 +545,42 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const [showWeekProjects, setShowWeekProjects] = useState(false);
   const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
+
+  // Heures de travail — filtre et projets terminés
+  const [workFilter, setWorkFilter] = useState<"semaine" | "mois" | "annee" | "custom">("semaine");
+  const [workMonth, setWorkMonth] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [workYear, setWorkYear] = useState<string>(() => String(new Date().getFullYear()));
+  const [workFrom, setWorkFrom] = useState("");
+  const [workTo, setWorkTo] = useState("");
+  const [terminatedProjects, setTerminatedProjects] = useState<Project[]>([]);
+  const [terminatedLoading, setTerminatedLoading] = useState(false);
+
+  // Charge les projets terminés dès que le filtre sort de "semaine en cours"
+  // (semaine courante = seulement des projets actifs suffisent).
+  useEffect(() => {
+    if (terminatedProjects.length > 0 || terminatedLoading) return;
+    setTerminatedLoading(true);
+    Promise.all([
+      fetch("/api/projects/cmd-termine").then(r => r.json()).catch(() => []),
+      fetch("/api/projects/mesures-termine").then(r => r.json()).catch(() => []),
+      fetch("/api/projects/services-termine").then(r => r.json()).catch(() => []),
+      fetch("/api/projects/sav-termine").then(r => r.json()).catch(() => []),
+    ]).then(([cmd, mes, svc, sav]) => {
+      const all = [
+        ...(Array.isArray(cmd) ? cmd : []),
+        ...(Array.isArray(mes) ? mes : []),
+        ...(Array.isArray(svc) ? svc : []),
+        ...(Array.isArray(sav) ? sav : []),
+      ];
+      // Déduplique par id
+      const seen = new Set<string>();
+      setTerminatedProjects(all.filter(p => p?.id && !seen.has(p.id) && seen.add(p.id)));
+    }).finally(() => setTerminatedLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     fetch("/api/user-activity")
@@ -1066,39 +1162,120 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         );
       })()}
 
-      {/* Weekly hours summary */}
+      {/* Heures de travail — section filtrable (actifs + terminés) */}
       {(() => {
-        const weeklyData = COLLABORATEURS_LIST.map((name) => ({
+        const allProjects = [...projects, ...terminatedProjects];
+        const { fromStr, toStr, label } = getDateRangeForFilter(workFilter, workFrom, workTo, workMonth, workYear);
+        const hoursData = COLLABORATEURS_LIST.map((name) => ({
           name,
           colors: getCollaboratorColor(name),
-          minutes: getWeeklyHoursForCollab(projects, name),
+          minutes: getHoursForCollabInRange(allProjects, name, fromStr, toStr),
         })).filter((c) => c.minutes > 0);
-        if (weeklyData.length === 0) return null;
-        const totalWeekMin = weeklyData.reduce((s, c) => s + c.minutes, 0);
+        const totalMin = hoursData.reduce((s, c) => s + c.minutes, 0);
+        const currentYear = new Date().getFullYear();
+        const years = Array.from({ length: 4 }, (_, i) => currentYear - i);
         return (
-          <div className="glass-card rounded-2xl p-4 space-y-2">
-            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              Heures cette semaine
-            </p>
-            {weeklyData.map((c) => (
-              <div key={c.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                    style={{ backgroundColor: c.colors.bg, color: c.colors.text }}
-                  >
-                    {getCollaboratorInitials(c.name)}
-                  </div>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
-                </div>
-                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span>
-              </div>
-            ))}
-            <div className="flex items-center justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
-              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Total</span>
-              <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{fmtMin(totalWeekMin)}</span>
+          <div className="glass-card rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                Heures de travail
+              </p>
+              {terminatedLoading && <span className="text-[10px] text-gray-400 animate-pulse">Chargement...</span>}
             </div>
+
+            {/* Filtres */}
+            <div className="flex flex-wrap gap-1.5">
+              {(["semaine", "mois", "annee", "custom"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setWorkFilter(f)}
+                  className={`text-[10px] font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                    workFilter === f
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
+                  }`}
+                >
+                  {f === "semaine" ? "Semaine" : f === "mois" ? "Mois" : f === "annee" ? "Année" : "Plage"}
+                </button>
+              ))}
+            </div>
+
+            {/* Contrôles selon le filtre */}
+            {workFilter === "mois" && (
+              <input
+                type="month"
+                value={workMonth}
+                onChange={(e) => setWorkMonth(e.target.value)}
+                className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2.5 py-1.5"
+              />
+            )}
+            {workFilter === "annee" && (
+              <div className="flex flex-wrap gap-1.5">
+                {years.map((y) => (
+                  <button
+                    key={y}
+                    onClick={() => setWorkYear(String(y))}
+                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                      workYear === String(y)
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
+                    }`}
+                  >
+                    {y}
+                  </button>
+                ))}
+              </div>
+            )}
+            {workFilter === "custom" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[10px] text-gray-400 mb-0.5">Du</p>
+                  <input
+                    type="date"
+                    value={workFrom}
+                    onChange={(e) => setWorkFrom(e.target.value)}
+                    className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2 py-1.5"
+                  />
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 mb-0.5">Au</p>
+                  <input
+                    type="date"
+                    value={workTo}
+                    onChange={(e) => setWorkTo(e.target.value)}
+                    className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2 py-1.5"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Résultats */}
+            <p className="text-[10px] text-gray-400 -mb-1">{label}</p>
+            {hoursData.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-2">Aucune heure enregistrée sur cette période</p>
+            ) : (
+              <>
+                {hoursData.map((c) => (
+                  <div key={c.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                        style={{ backgroundColor: c.colors.bg, color: c.colors.text }}
+                      >
+                        {getCollaboratorInitials(c.name)}
+                      </div>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Total équipe</span>
+                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{fmtMin(totalMin)}</span>
+                </div>
+              </>
+            )}
           </div>
         );
       })()}
