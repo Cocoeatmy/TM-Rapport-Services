@@ -698,12 +698,14 @@ function DefautsList({ projectId }: { projectId: string }) {
   );
 }
 
-function EditableSignalement({ label, color, text, photos: initialPhotos, projectId, notionTextField, onUpdate, onPhotosUpdate }: {
+function EditableSignalement({ label, color, text, photos: initialPhotos, projectId, notionTextField, onUpdate, onPhotosUpdate, onDelete }: {
   label: string; color: "orange" | "red"; text: string; photos: { name: string; url: string }[];
   projectId: string; notionTextField: string; onUpdate: (newText: string) => void;
   onPhotosUpdate?: (photos: { name: string; url: string }[]) => void;
+  onDelete?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [draft, setDraft] = useState(text);
   const [saving, setSaving] = useState(false);
   const [photos, setPhotos] = useState(initialPhotos);
@@ -735,6 +737,26 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
       onUpdate(draft);
       setEditing(false);
     } catch {} finally { setSaving(false); }
+  };
+
+  const handleDeleteSignalement = async () => {
+    if (!confirm(`Supprimer ce signalement "${label}" ? Cette action est irréversible.`)) return;
+    setDeleting(true);
+    try {
+      const textField = isPieces ? "infoPiecesManquantes" : "infoDefautsSignale";
+      const photoField = isPieces ? "photosPiecesManquantes" : "photosDefautsSignale";
+      await offlineFetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [textField]: "", [photoField]: [] }),
+      });
+      invalidateApiCache();
+      onDelete?.();
+    } catch {
+      toast.error("Erreur lors de la suppression");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleRemovePhoto = async (idx: number) => {
@@ -805,10 +827,20 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
     <div>
       <div className="flex items-center justify-between mb-1">
         <p className={`text-sm font-medium ${textColor}`}>{label}</p>
-        <button onClick={() => { setDraft(text); setEditing(!editing); }}
-          className="text-gray-400 hover:text-blue-500 p-1">
-          <Pencil className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button onClick={() => { setDraft(text); setEditing(!editing); }}
+            className="text-gray-400 hover:text-blue-500 p-1">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleDeleteSignalement}
+            disabled={deleting}
+            className="text-gray-400 hover:text-red-500 p-1 disabled:opacity-50"
+            title="Supprimer ce signalement"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
       {editing ? (
         <div className="space-y-2">
@@ -3011,6 +3043,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       notionTextField="Infos - Pièces manquantes"
                       onUpdate={(newText) => setProject((prev) => prev ? { ...prev, infoPiecesManquantes: newText } : prev)}
                       onPhotosUpdate={(newPhotos) => setProject((prev) => prev ? { ...prev, photosPiecesManquantes: newPhotos } : prev)}
+                      onDelete={() => setProject((prev) => prev ? { ...prev, infoPiecesManquantes: "", photosPiecesManquantes: [] } : prev)}
                     />
                   )}
                   {project.infoDefautsSignale && (
@@ -3023,6 +3056,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       notionTextField="Infos - Défauts signalé"
                       onUpdate={(newText) => setProject((prev) => prev ? { ...prev, infoDefautsSignale: newText } : prev)}
                       onPhotosUpdate={(newPhotos) => setProject((prev) => prev ? { ...prev, photosDefautsSignale: newPhotos } : prev)}
+                      onDelete={() => setProject((prev) => prev ? { ...prev, infoDefautsSignale: "", photosDefautsSignale: [] } : prev)}
                     />
                   )}
                   <DefautsList projectId={id} />
