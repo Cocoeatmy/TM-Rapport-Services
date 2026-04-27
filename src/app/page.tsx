@@ -617,6 +617,36 @@ export default function Page() {
   );
 }
 
+// Recherche multi-champs : retourne true si le projet correspond à la
+// requête q (déjà en minuscules). Couvre tous les identifiants et
+// informations pertinents pour retrouver un projet rapidement.
+function matchesSearch(p: import("@/lib/notion").Project, q: string): boolean {
+  if (!q) return true;
+  const check = (v: string | null | undefined) => (v || "").toLowerCase().includes(q);
+  return (
+    check(p.projet) ||
+    check(p.ofrTM) ||
+    check(p.ofrGrossiste) ||
+    check(p.nomChantier) ||
+    check(p.adresseChantier) ||
+    check(p.cmdTM) ||
+    check(p.cmdTMUsine) ||
+    check(p.cmdGrossiste) ||
+    check(p.cmdFournisseurs) ||
+    check(p.servCmdFournisseurs) ||
+    check(p.servMesuresFournisseurs) ||
+    check(p.bonLivraison) ||
+    check(p.collaborateurs) ||
+    check(p.contacts) ||
+    check(p.emplacementCabine) ||
+    (p.fournisseurs || []).some((f) => check(f)) ||
+    (p.fournisseursNames || []).some((f) => check(f)) ||
+    (p.grossistesNames || []).some((f) => check(f)) ||
+    (p.sanitaireNames || []).some((f) => check(f)) ||
+    (p.seriesCabines || []).some((f) => check(f))
+  );
+}
+
 function HomePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -936,13 +966,7 @@ function HomePage() {
     if (quickFilter === "rdv-a-fixer" && p.etatCMD !== "Cabine à aller chercher" && p.etatCMD !== "Récéptionné - RDV à fixer") {
       return false;
     }
-    const q = search.toLowerCase();
-    return (
-      p.projet.toLowerCase().includes(q) ||
-      p.ofrTM.toLowerCase().includes(q) ||
-      p.nomChantier.toLowerCase().includes(q) ||
-      p.fournisseurs.some((f) => f.toLowerCase().includes(q))
-    );
+    return matchesSearch(p, search.toLowerCase());
   }).sort((a, b) => {
     if (mode.startsWith("mesures")) {
       // Mesures : trier par statut prioritaire
@@ -1429,16 +1453,10 @@ function HomePage() {
           return true;
         });
 
-        const q = search.toLowerCase();
         const grossistesFiltered = grossistesProjects.filter((p) => {
           if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
           if (statusFilter && p.etatCMD !== statusFilter) return false;
-          return (
-            p.projet.toLowerCase().includes(q) ||
-            p.ofrTM.toLowerCase().includes(q) ||
-            p.nomChantier.toLowerCase().includes(q) ||
-            p.fournisseurs.some((f) => f.toLowerCase().includes(q))
-          );
+          return matchesSearch(p, search.toLowerCase());
         }).sort((a, b) => {
           const dateA = a.dateMontage;
           const dateB = b.dateMontage;
@@ -1786,16 +1804,10 @@ function HomePage() {
           return true;
         });
 
-        const q = search.toLowerCase();
         const fournisseursFiltered = fournisseursProjects.filter((p) => {
           if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
           if (statusFilter && p.etatCMD !== statusFilter) return false;
-          return (
-            p.projet.toLowerCase().includes(q) ||
-            p.ofrTM.toLowerCase().includes(q) ||
-            p.nomChantier.toLowerCase().includes(q) ||
-            p.fournisseurs.some((f) => f.toLowerCase().includes(q))
-          );
+          return matchesSearch(p, search.toLowerCase());
         }).sort((a, b) => {
           const dateA = a.dateMontage;
           const dateB = b.dateMontage;
