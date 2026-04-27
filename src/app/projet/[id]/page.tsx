@@ -2588,7 +2588,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               type="date"
                               value={entry.date}
                               onChange={(e) => updatePointage(idx, "date", e.target.value)}
-                              className="mt-0.5 h-10 text-sm max-w-[200px]"
+                              className="mt-0.5 h-10 text-sm max-w-[200px] bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100"
                             />
                           </div>
                           <div>
@@ -2628,7 +2628,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               type="time"
                               value={entry.arrivee}
                               onChange={(e) => updatePointage(idx, "arrivee", e.target.value)}
-                              className="mt-0.5 h-10 text-sm"
+                              className="mt-0.5 h-10 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100"
                             />
                           </div>
                           <div>
@@ -2637,7 +2637,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               type="time"
                               value={entry.depart}
                               onChange={(e) => updatePointage(idx, "depart", e.target.value)}
-                              className="mt-0.5 h-10 text-sm"
+                              className="mt-0.5 h-10 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100"
                             />
                           </div>
                         </div>
