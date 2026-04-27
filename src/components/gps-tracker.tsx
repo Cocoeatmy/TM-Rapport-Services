@@ -13,6 +13,12 @@ interface GPSTrackerProps {
    *  et POST les événements arrivée/départ. Utilisé pour les monteurs,
    *  qui ne doivent pas voir le timer. L'admin garde l'UI complète. */
   silent?: boolean;
+  /** Heure de départ saisie manuellement par le monteur (heureDepart Notion).
+   *  Dès qu'elle est non-vide, le GPS s'arrête : le monteur est parti. */
+  heureDepart?: string;
+  /** Heure d'arrivée saisie manuellement — permet de pré-remplir l'arrivée
+   *  si le GPS n'a pas détecté l'entrée dans la zone. */
+  heureArrivee?: string;
 }
 
 const GEOFENCE_RADIUS_METERS = 150; // Rayon de détection en mètres
@@ -32,7 +38,7 @@ function getCurrentTime() {
   return new Date().toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function GPSTracker({ chantierAddress, projectId, silent = false }: GPSTrackerProps) {
+export function GPSTracker({ chantierAddress, projectId, silent = false, heureDepart, heureArrivee }: GPSTrackerProps) {
   const [status, setStatus] = useState<"idle" | "watching" | "arrived" | "departed">("idle");
   const [arrivalTime, setArrivalTime] = useState<string | null>(null);
   const [departureTime, setDepartureTime] = useState<string | null>(null);
@@ -162,6 +168,34 @@ export function GPSTracker({ chantierAddress, projectId, silent = false }: GPSTr
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierCoords]);
+
+  // Si le monteur a saisi une heure de départ manuellement, on arrête
+  // immédiatement le suivi GPS — il est parti, le watcher ne sert plus à rien.
+  useEffect(() => {
+    if (!heureDepart) return;
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+    // Extrait la première heure du champ (format "HH:MM" ou "date | nom | HH:MM | …")
+    const timeMatch = heureDepart.match(/\d{1,2}:\d{2}/);
+    const depTime = timeMatch ? timeMatch[0] : heureDepart;
+    setDepartureTime(depTime);
+    setStatus("departed");
+    wasInside.current = false;
+  }, [heureDepart]);
+
+  // Si une heure d'arrivée manuelle est connue et que le GPS n'a pas encore
+  // détecté l'entrée dans la zone, on la reflète dans l'état local.
+  useEffect(() => {
+    if (!heureArrivee || status !== "idle") return;
+    const timeMatch = heureArrivee.match(/\d{1,2}:\d{2}/);
+    if (timeMatch) {
+      setArrivalTime(timeMatch[0]);
+      setStatus("arrived");
+      wasInside.current = true;
+    }
+  }, [heureArrivee, status]);
 
   // Cleanup on unmount
   useEffect(() => {

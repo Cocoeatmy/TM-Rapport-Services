@@ -2539,6 +2539,8 @@ function ProjectPageContent({ id }: { id: string }) {
                     chantierAddress={project.adresseChantier}
                     projectId={id}
                     silent={currentUser?.role !== "admin"}
+                    heureArrivee={project.heureArrivee}
+                    heureDepart={project.heureDepart}
                   />
                   {currentUser?.role === "admin" && (
                     <AdminGpsTimer projectId={id} />
