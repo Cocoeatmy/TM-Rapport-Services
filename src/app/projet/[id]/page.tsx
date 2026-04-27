@@ -126,36 +126,50 @@ function BucketPhotoUpload({
   const allInField = project[notionFieldKey] || [];
   const existingPhotos = filterByBucket(allInField, bucket, cabineIdx, fieldDefault);
 
+  // Helper : recalcule la liste complète du champ Notion en remplaçant
+  // les photos de ce bucket+cabine par newBucketFiles.
+  const buildNextFullList = (
+    prev: Project,
+    newBucketFiles: { name: string; url: string }[],
+  ): { name: string; url: string }[] => {
+    const current = prev[notionFieldKey] || [];
+    const kept = current.filter((f) => {
+      const sameBucket = detectBucket(f.name, fieldDefault) === bucket;
+      if (!sameBucket) return true;
+      if (cabineIdx === undefined) return false;
+      const cab = /\.Cab(\d+)\./.exec(f.name);
+      const cabNum = cab ? parseInt(cab[1], 10) : null;
+      return cabineIdx >= 1 ? cabNum !== cabineIdx : cabNum !== null;
+    });
+    return [...kept, ...newBucketFiles];
+  };
+
+  // Upload : /api/upload a déjà écrit dans Notion — on met à jour
+  // uniquement le state React pour que l'UI reflète la nouvelle photo.
+  // PAS de PATCH ici : envoyer un PATCH concurrent provoque une race
+  // condition où deux uploads rapides s'écrasent mutuellement.
   const handleUpload = (newBucketFiles: { name: string; url: string }[]) => {
+    setProject((prev) => {
+      if (!prev) return prev;
+      const nextFullList = buildNextFullList(prev, newBucketFiles);
+      return { ...prev, [notionFieldKey]: nextFullList };
+    });
+  };
+
+  // Suppression : l'API upload n'est pas appelée, donc il faut PATCH
+  // Notion manuellement avec la liste mise à jour.
+  const handleDelete = (newBucketFiles: { name: string; url: string }[]) => {
     let nextFullList: { name: string; url: string }[] = [];
     setProject((prev) => {
       if (!prev) return prev;
-      const current = prev[notionFieldKey] || [];
-      const kept = current.filter((f) => {
-        const sameBucket = detectBucket(f.name, fieldDefault) === bucket;
-        if (!sameBucket) return true;
-        if (cabineIdx === undefined) return false;
-        const cab = /\.Cab(\d+)\./.exec(f.name);
-        const cabNum = cab ? parseInt(cab[1], 10) : null;
-        return cabineIdx >= 1 ? cabNum !== cabineIdx : cabNum !== null;
-      });
-      nextFullList = [...kept, ...newBucketFiles];
+      nextFullList = buildNextFullList(prev, newBucketFiles);
       return { ...prev, [notionFieldKey]: nextFullList };
     });
-    // Synchronise Notion : si l'utilisateur vient de SUPPRIMER une
-    // photo (newBucketFiles plus court qu'avant), il faut PATCH la
-    // nouvelle liste vers Notion. Pour les uploads, /api/upload a
-    // déjà écrit côté serveur ; ce PATCH est alors redondant mais
-    // sans risque (idempotent — même URL réécrite). Ça simplifie
-    // la logique et garantit que l'état Notion reflète toujours
-    // l'écran.
     offlineFetch(`/api/projects/${projectId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [notionFieldKey]: nextFullList }),
-    }).catch(() => {
-      /* erreur réseau silencieuse — la prochaine action retentera */
-    });
+    }).catch(() => {});
   };
 
   return (
@@ -167,6 +181,7 @@ function BucketPhotoUpload({
       filePrefix={bucketFilePrefix(bucket, cabineIdx)}
       existingPhotos={existingPhotos}
       onUpload={handleUpload}
+      onDelete={handleDelete}
     />
   );
 }
@@ -3124,6 +3139,10 @@ function ProjectPageContent({ id }: { id: string }) {
                   filePrefix="Photos - Situations"
                   existingPhotos={project.photosSituations}
                   onUpload={(files) => setProject((prev) => prev ? { ...prev, photosSituations: files } : prev)}
+                  onDelete={(files) => {
+                    setProject((prev) => prev ? { ...prev, photosSituations: files } : prev);
+                    offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photosSituations: files }) }).catch(() => {});
+                  }}
                 />
                 <PhotoUpload
                   category="mesures"
@@ -3133,6 +3152,10 @@ function ProjectPageContent({ id }: { id: string }) {
                   filePrefix="Photos - Mesures"
                   existingPhotos={project.photosMesures}
                   onUpload={(files) => setProject((prev) => prev ? { ...prev, photosMesures: files } : prev)}
+                  onDelete={(files) => {
+                    setProject((prev) => prev ? { ...prev, photosMesures: files } : prev);
+                    offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photosMesures: files }) }).catch(() => {});
+                  }}
                 />
                 <PhotoUpload
                   category="localite"
@@ -3142,6 +3165,10 @@ function ProjectPageContent({ id }: { id: string }) {
                   filePrefix="Photos - Localite"
                   existingPhotos={project.photosLocalite}
                   onUpload={(files) => setProject((prev) => prev ? { ...prev, photosLocalite: files } : prev)}
+                  onDelete={(files) => {
+                    setProject((prev) => prev ? { ...prev, photosLocalite: files } : prev);
+                    offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photosLocalite: files }) }).catch(() => {});
+                  }}
                 />
               </CardContent>
             </Card>

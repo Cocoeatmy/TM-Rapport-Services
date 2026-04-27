@@ -17,7 +17,10 @@ interface PhotoUploadProps {
   notionField?: string;
   filePrefix?: string;
   existingPhotos?: { name: string; url: string }[];
+  /** Appelé après un upload réussi (la photo est déjà dans Notion via /api/upload) */
   onUpload?: (files: { name: string; url: string }[]) => void;
+  /** Appelé après une suppression (le parent doit PATCH Notion avec la liste mise à jour) */
+  onDelete?: (files: { name: string; url: string }[]) => void;
 }
 
 export function PhotoUpload({
@@ -28,6 +31,7 @@ export function PhotoUpload({
   filePrefix,
   existingPhotos = [],
   onUpload,
+  onDelete,
 }: PhotoUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -209,7 +213,7 @@ export function PhotoUpload({
   const removeExisting = (url: string) => {
     if (!confirm("Supprimer cette photo du rapport ?")) return;
     const updated = validExisting.filter((p) => p.url !== url);
-    onUpload?.(updated);
+    onDelete?.(updated);
     invalidateApiCache();
   };
 
