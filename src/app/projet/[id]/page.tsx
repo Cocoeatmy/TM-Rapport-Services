@@ -2743,7 +2743,12 @@ function ProjectPageContent({ id }: { id: string }) {
                       projectId={id}
                       projectName={project.projet}
                       initialBefore={filterByBucket(project.photosAvant, "AVANT_INTERVENTION")}
-                      initialAfter={filterByBucket(project.photosMontage, "APRES_INTERVENTION")}
+                      initialAfter={[
+                        ...filterByBucket(project.photosMontage, "MONTAGE_GAUCHE"),
+                        ...filterByBucket(project.photosMontage, "MONTAGE_CENTRE"),
+                        ...filterByBucket(project.photosMontage, "MONTAGE_DROITE"),
+                        ...filterByBucket(project.photosMontage, "APRES_INTERVENTION"),
+                      ]}
                     />
                   </CardContent>
                 </Card>
