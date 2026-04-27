@@ -89,8 +89,24 @@ function parseTimeToMinutes(raw: string): number {
   return parseInt(match[1]) * 60 + parseInt(match[2]);
 }
 
+/** Extrait HH:MM depuis n'importe quel format :
+ *  "08:30" → "08:30"
+ *  "Cab1:08:30" → "08:30"
+ *  "2026-04-27 Jean-Marc 08:30" → "08:30" (via dernier token)
+ */
+function extractHHMM(s: string): string {
+  const m = s.trim().match(/(\d{1,2}:\d{2})$/);
+  return m ? m[1] : "";
+}
+
 /** Calcule les minutes travaillées par un collaborateur sur une plage de dates.
- *  fromStr / toStr sont au format "YYYY-MM-DD". Si vides, pas de filtre date. */
+ *  fromStr / toStr sont au format "YYYY-MM-DD". Si vides, pas de filtre date.
+ *
+ *  Gère 3 formats de heureArrivee/heureDepart :
+ *  1. Simple      "08:30"                               (mono-jour, mono-cabine)
+ *  2. Cabine      "Cab1:08:30 | Cab2:13:55"             (multi-cabine)
+ *  3. Multi-jour  "2026-04-27 Jean-Marc 08:30 | ..."    (multi-jour avec nom)
+ */
 function getHoursForCollabInRange(
   projects: Project[],
   collabName: string,
@@ -98,6 +114,8 @@ function getHoursForCollabInRange(
   toStr: string,
 ): number {
   let totalMinutes = 0;
+  const lc = collabName.toLowerCase();
+
   for (const p of projects) {
     const ha = p.heureArrivee || "";
     const hd = p.heureDepart || "";
@@ -107,31 +125,54 @@ function getHoursForCollabInRange(
       const arrParts = ha.split("|").map((s) => s.trim()).filter(Boolean);
       const depParts = hd.split("|").map((s) => s.trim()).filter(Boolean);
       const maxLen = Math.max(arrParts.length, depParts.length);
+
       for (let i = 0; i < maxLen; i++) {
-        const aTokens = (arrParts[i] || "").split(/\s+/);
-        const dTokens = (depParts[i] || "").split(/\s+/);
+        const aPart = arrParts[i] || "";
+        const dPart = depParts[i] || "";
+
+        // --- Format cabine : "Cab1:08:30" ---
+        if (/^Cab\d+:/i.test(aPart) || /^Cab\d+:/i.test(dPart)) {
+          // Pas de nom embarqué : on vérifie sur project.collaborateurs
+          if (!p.collaborateurs?.toLowerCase().includes(lc)) continue;
+          const dateStr = p.dateMontage?.split("T")[0] || "";
+          if (fromStr && dateStr < fromStr) continue;
+          if (toStr && dateStr > toStr) continue;
+          const arrMin = parseTimeToMinutes(extractHHMM(aPart));
+          const depMin = parseTimeToMinutes(extractHHMM(dPart));
+          if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) {
+            totalMinutes += depMin - arrMin;
+          }
+          continue;
+        }
+
+        // --- Format multi-jour : "YYYY-MM-DD Prénom HH:MM" ---
+        const aTokens = aPart.split(/\s+/);
+        const dTokens = dPart.split(/\s+/);
         const aDate = aTokens[0]?.match(/^\d{4}-\d{2}-\d{2}$/) ? aTokens[0] : "";
         const dDate = dTokens[0]?.match(/^\d{4}-\d{2}-\d{2}$/) ? dTokens[0] : "";
         const entryDate = aDate || dDate || p.dateMontage?.split("T")[0] || "";
+        // Nom = tokens entre la date et l'heure finale
         const entryCollab = aTokens.slice(1, -1).join(" ") || dTokens.slice(1, -1).join(" ") || "";
-        if (!entryCollab.toLowerCase().includes(collabName.toLowerCase())) continue;
+        // Si pas de nom embarqué → utiliser project.collaborateurs
+        const collabSrc = entryCollab || p.collaborateurs || "";
+        if (!collabSrc.toLowerCase().includes(lc)) continue;
         if (fromStr && entryDate < fromStr) continue;
         if (toStr && entryDate > toStr) continue;
-        const arrTime = aTokens[aTokens.length - 1] || "";
-        const depTime = dTokens[dTokens.length - 1] || "";
-        const arrMin = parseTimeToMinutes(arrTime);
-        const depMin = parseTimeToMinutes(depTime);
+        const arrMin = parseTimeToMinutes(aTokens[aTokens.length - 1] || "");
+        const depMin = parseTimeToMinutes(dTokens[dTokens.length - 1] || "");
         if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) {
           totalMinutes += depMin - arrMin;
         }
       }
     } else {
-      if (!p.collaborateurs?.toLowerCase().includes(collabName.toLowerCase())) continue;
+      // --- Format simple : "08:30" ou "Cab1:08:30" ---
+      if (!p.collaborateurs?.toLowerCase().includes(lc)) continue;
       const dateStr = p.dateMontage?.split("T")[0] || "";
       if (fromStr && dateStr < fromStr) continue;
       if (toStr && dateStr > toStr) continue;
-      const arrMin = parseTimeToMinutes(ha);
-      const depMin = parseTimeToMinutes(hd);
+      // extractHHMM gère aussi "Cab1:08:30"
+      const arrMin = parseTimeToMinutes(extractHHMM(ha) || ha);
+      const depMin = parseTimeToMinutes(extractHHMM(hd) || hd);
       if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) {
         totalMinutes += depMin - arrMin;
       }
