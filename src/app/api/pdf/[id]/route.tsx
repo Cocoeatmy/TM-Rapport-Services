@@ -729,21 +729,24 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
           </View>
         );
 
-        // Affiche QR Code et Garanties côte à côte sur une seule ligne :
-        // chaque colonne occupe ~48% de la largeur, et les photos à
-        // l'intérieur se rétrécissent pour tenir sur une seule rangée.
-        // Si une seule des deux a des photos, elle prend toute la largeur.
+        // QR Code et Garanties :
+        // - Les deux présents → layout compact côte à côte sur une ligne
+        // - Un seul présent  → layout normal identique aux autres sections
         const renderQrGarantieRow = (qrPhotos: Photo[], garPhotos: Photo[], keyPrefix: string) => {
           const hasQr = qrPhotos.length > 0;
           const hasGar = garPhotos.length > 0;
           if (!hasQr && !hasGar) return null;
           const both = hasQr && hasGar;
 
+          // Un seul côté : layout normal (taille pleine, aligné à gauche)
+          if (!both) {
+            if (hasQr) return renderBucketGrid("QR Code", qrPhotos, `${keyPrefix}-qr`);
+            return renderBucketGrid("Garanties", garPhotos, `${keyPrefix}-gar`);
+          }
+
+          // Les deux présents : colonnes compactes côte à côte
           const renderColumn = (label: string, photos: Photo[]) => {
             const n = photos.length;
-            // Hauteur cible pour la rangée (compacte, on tient à 2
-            // sections sur la même ligne). Le navigateur calculera
-            // la largeur de chaque vignette en fonction du nombre.
             const rowHeight = 120;
             return (
               <View style={{ flex: 1 }}>
@@ -755,9 +758,6 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
                       style={{
                         flex: 1,
                         height: rowHeight,
-                        // On rétrécit à mesure qu'on ajoute des photos
-                        // (flex:1 + nowrap fait le boulot), mais on
-                        // borne la largeur min pour rester lisible.
                         minWidth: Math.max(40, Math.floor(220 / Math.max(n, 1))),
                       }}
                     >
@@ -774,9 +774,9 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
 
           return (
             <View key={keyPrefix} style={styles.section} wrap={false}>
-              <View style={{ flexDirection: "row", gap: both ? 12 : 0 }}>
-                {hasQr && renderColumn("QR Code", qrPhotos)}
-                {hasGar && renderColumn("Garanties", garPhotos)}
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                {renderColumn("QR Code", qrPhotos)}
+                {renderColumn("Garanties", garPhotos)}
               </View>
             </View>
           );
