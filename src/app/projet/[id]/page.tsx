@@ -2702,7 +2702,12 @@ function ProjectPageContent({ id }: { id: string }) {
                     <BucketPhotoUpload bucket="QR_CODE" projectId={id} project={project} setProject={setProject} />
                     <BucketPhotoUpload bucket="GARANTIE" projectId={id} project={project} setProject={setProject} />
                     <Separator />
-                    <BeforeAfterPhotos projectId={id} projectName={project.projet} initialBefore={project.photosAvant} initialAfter={project.photosMontage} />
+                    <BeforeAfterPhotos
+                      projectId={id}
+                      projectName={project.projet}
+                      initialBefore={filterByBucket(project.photosAvant, "AVANT_INTERVENTION")}
+                      initialAfter={filterByBucket(project.photosMontage, "APRES_INTERVENTION")}
+                    />
                   </CardContent>
                 </Card>
               </>
