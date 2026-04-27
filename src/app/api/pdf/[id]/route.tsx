@@ -460,7 +460,28 @@ function getDefautStatusStyle(status: string) {
   }
 }
 
-function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceRequest[]; defauts: DefautRequest[] }) {
+interface CabineAttribution {
+  projectId: string;
+  attribution: string[]; // monteur names per cabin (index = cabin - 1)
+  noms: string[];        // custom cabin labels (index = cabin - 1)
+  updatedAt: number;
+}
+
+async function loadCabineAttribution(projectId: string): Promise<CabineAttribution | null> {
+  try {
+    const all = await getData<CabineAttribution>("cabine-attributions");
+    return all.find((a) => a.projectId === projectId) || null;
+  } catch {
+    return null;
+  }
+}
+
+function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
+  project: any;
+  pieces: PieceRequest[];
+  defauts: DefautRequest[];
+  cabineAttribution?: CabineAttribution | null;
+}) {
   // "Généré le" = instant de génération du PDF (et PAS la date de
   // montage qui serait trompeuse — le label dit bien "Généré"). Le
   // serveur Vercel tourne en UTC, il faut forcer Europe/Zurich pour
@@ -784,7 +805,16 @@ function RapportPDF({ project, pieces, defauts }: { project: any; pieces: PieceR
 
         const renderCabine = (cabKey: number) => {
           const buckets = groups[cabKey] || {};
-          const cabineLabel = cabKey === 0 ? "Général" : `Cabine ${cabKey}`;
+          // Nom personnalisé : si cabineAttribution contient un nom pour cette cabine, on l'utilise.
+          // Sinon on tombe sur "Cabine N" par défaut.
+          const cabIdx = cabKey - 1; // attribution/noms sont 0-indexés
+          const customNom = cabKey > 0 ? cabineAttribution?.noms?.[cabIdx] : null;
+          const monteurNom = cabKey > 0 ? cabineAttribution?.attribution?.[cabIdx] : null;
+          const defaultLabel = cabKey === 0 ? "Général" : `Cabine ${cabKey}`;
+          const nomPart = (customNom && customNom !== `Cabine ${cabKey}`) ? customNom : defaultLabel;
+          const cabineLabel = monteurNom
+            ? `${nomPart} — ${monteurNom}`
+            : nomPart;
 
           // AVANT / APRES : sections séparées avec leur propre titre
           const avantPhotos = [
@@ -951,9 +981,10 @@ export async function GET(
 
     const pieces = await loadPiecesForProject(id, project);
     const defauts = await loadDefautsForProject(id, project);
+    const cabineAttribution = await loadCabineAttribution(id);
 
     const pdfStream = await ReactPDF.renderToStream(
-      <RapportPDF project={project} pieces={pieces} defauts={defauts} />
+      <RapportPDF project={project} pieces={pieces} defauts={defauts} cabineAttribution={cabineAttribution} />
     );
 
     const chunks: Buffer[] = [];

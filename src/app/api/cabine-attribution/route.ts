@@ -4,7 +4,8 @@ import { getData, setData } from "@/lib/kv-store";
 
 interface CabineAttribution {
   projectId: string;
-  attribution: string[]; // index = cabin number - 1, value = monteur name
+  attribution: string[]; // index = cabin number - 1, value = monteur name(s)
+  noms: string[];        // index = cabin number - 1, value = custom cabin label
   updatedAt: number;
 }
 
@@ -29,14 +30,19 @@ export async function POST(request: NextRequest) {
   const user = await verifyToken(token);
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
-  const { projectId, attribution } = await request.json();
+  const { projectId, attribution, noms } = await request.json();
   if (!projectId || !Array.isArray(attribution)) {
     return NextResponse.json({ error: "Paramètres invalides" }, { status: 400 });
   }
 
   const all = await getData<CabineAttribution>(KEY);
   const idx = all.findIndex((a) => a.projectId === projectId);
-  const entry: CabineAttribution = { projectId, attribution, updatedAt: Date.now() };
+  const entry: CabineAttribution = {
+    projectId,
+    attribution,
+    noms: Array.isArray(noms) ? noms : attribution.map((_, i) => `Cabine ${i + 1}`),
+    updatedAt: Date.now(),
+  };
   if (idx >= 0) all[idx] = entry; else all.push(entry);
   await setData(KEY, all);
 

@@ -1797,11 +1797,15 @@ function ProjectPageContent({ id }: { id: string }) {
         }),
       });
       // Save cabine attribution if in multi-cabin mode
-      if (isCabineMode && cabines.some((c) => c.monteur)) {
+      if (isCabineMode && (cabines.some((c) => c.monteur) || cabines.some((c) => c.nom))) {
         await offlineFetch("/api/cabine-attribution", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ projectId: id, attribution: cabines.map((c) => c.monteur) }),
+          body: JSON.stringify({
+            projectId: id,
+            attribution: cabines.map((c) => c.monteur),
+            noms: cabines.map((c, i) => c.nom || `Cabine ${i + 1}`),
+          }),
         });
       }
       if (res.ok) {
