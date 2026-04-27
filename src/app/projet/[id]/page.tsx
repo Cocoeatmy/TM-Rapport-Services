@@ -2845,20 +2845,30 @@ function ProjectPageContent({ id }: { id: string }) {
                           <div>
                             <Label className="text-xs text-gray-600 dark:text-gray-300">Monteur responsable</Label>
                             <div className="flex flex-wrap gap-2 mt-2">
-                              {COLLABORATEURS_LIST.map((name) => (
-                                <button
-                                  key={name}
-                                  type="button"
-                                  onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, monteur: c.monteur === name ? "" : name } : c))}
-                                  className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
-                                    cabine.monteur === name
-                                      ? "border-blue-600 bg-blue-600 text-white"
-                                      : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
-                                  }`}
-                                >
-                                  {name}
-                                </button>
-                              ))}
+                              {COLLABORATEURS_LIST.map((name) => {
+                                const selected = (cabine.monteur || "").split(" & ").map((s) => s.trim()).includes(name);
+                                return (
+                                  <button
+                                    key={name}
+                                    type="button"
+                                    onClick={() => setCabines((prev) => prev.map((c, i) => {
+                                      if (i !== idx) return c;
+                                      const current = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
+                                      const next = selected
+                                        ? current.filter((n) => n !== name)
+                                        : [...current, name];
+                                      return { ...c, monteur: next.join(" & ") };
+                                    }))}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
+                                      selected
+                                        ? "border-blue-600 bg-blue-600 text-white"
+                                        : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
+                                    }`}
+                                  >
+                                    {name}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
 
