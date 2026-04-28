@@ -1018,9 +1018,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                       <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
                         {parseTMNumbers(p.ofrTM || "").length > 0
                           ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
-                              <span key={i} className="font-mono text-[10px] leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                              <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
                             ))
-                          : <span className="font-mono text-[10px] text-gray-400">---</span>
+                          : <span className="font-mono text-xs text-gray-400">---</span>
                         }
                       </span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
@@ -1068,16 +1068,6 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                         {(() => { const logo = getClientLogo(p.projet); return logo ? (
                           <img src={logo} alt="" className="w-7 h-5 object-contain rounded" />
                         ) : null; })()}
-                      </span>
-
-                      {/* COL avatars — w-16, toujours présente */}
-                      <span className="w-16 shrink-0 flex justify-end">
-                        <span className="flex -space-x-1">
-                          {names.slice(0, 3).map((n) => (
-                            <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
-                              style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
-                          ))}
-                        </span>
                       </span>
 
                       {/* COL cabines — w-12 */}
@@ -1163,12 +1153,6 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                   {(() => { const logo = getClientLogo(p.projet); return logo ? (
                     <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
                   ) : null; })()}
-                  <div className="flex -space-x-1 shrink-0">
-                    {names.slice(0, 3).map((n) => (
-                      <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
-                        style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
-                    ))}
-                  </div>
                   {p.dateMontageEnd && (() => { const days = getWorkingDays(p.dateMontage || "", p.dateMontageEnd); return days.length > 1 ? (
                     <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{days.length}j</span>
                   ) : null; })()}
@@ -1252,9 +1236,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                         <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
                         {parseTMNumbers(p.ofrTM || "").length > 0
                           ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
-                              <span key={i} className="font-mono text-[10px] leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                              <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
                             ))
-                          : <span className="font-mono text-[10px] text-gray-400">---</span>
+                          : <span className="font-mono text-xs text-gray-400">---</span>
                         }
                       </span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
@@ -1287,12 +1271,6 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                         {(() => { const logo = getClientLogo(p.projet); return logo ? (
                           <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
                         ) : null; })()}
-                        <div className="flex -space-x-1 shrink-0">
-                          {names.slice(0, 3).map((n) => (
-                            <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
-                              style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
-                          ))}
-                        </div>
                         {p.dateMontageEnd && (() => { const days = getWorkingDays(p.dateMontage || "", p.dateMontageEnd); return days.length > 1 ? (
                           <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{days.length}j</span>
                         ) : null; })()}
