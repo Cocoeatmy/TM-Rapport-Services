@@ -994,7 +994,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                   </span>
                 </div>
                 {dateLabel && (
-                  <div className="flex items-center gap-2 px-2 py-0.5 mb-1 text-[9px] font-semibold text-gray-400 uppercase tracking-wider">
+                  <div className="hidden sm:flex items-center gap-2 px-2 py-0.5 mb-1 text-[9px] font-semibold text-gray-400 uppercase tracking-wider">
                     <span className="w-16 shrink-0">{dateLabel}</span>
                   </div>
                 )}
@@ -1012,7 +1012,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                   return (
                     <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
-                      <span className="text-gray-400 font-mono w-16 shrink-0">
+                      <span className="hidden sm:inline-block text-gray-400 font-mono w-16 shrink-0">
                         {date ? new Date(date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
                       </span>
                       <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
@@ -1027,8 +1027,8 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                       <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 truncate">{p.projet}</span>
 
-                      {/* COL arrivage — w-28, toujours présente */}
-                      <span className="w-28 shrink-0 flex justify-end">
+                      {/* COL arrivage — masquée sur iOS portrait, visible sm+ */}
+                      <span className="hidden sm:flex w-28 shrink-0 justify-end">
                         {arrivage ? (
                           <span
                             title={`Arrivage ${arrivage.label} : ${new Date(arrivage.date! + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}${arrivage.days !== null && arrivage.days >= 0 ? ` (J+${arrivage.days})` : ""}`}
@@ -1070,8 +1070,8 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                         ) : null; })()}
                       </span>
 
-                      {/* COL cabines — w-12 */}
-                      <Badge variant="outline" className="text-[10px] shrink-0 w-12 justify-center">{p.nbCabines || 0} cab.</Badge>
+                      {/* COL cabines — masquée sur iOS portrait, visible sm+ */}
+                      <Badge variant="outline" className="hidden sm:flex text-[10px] shrink-0 w-12 justify-center">{p.nbCabines || 0} cab.</Badge>
                     </Link>
                   );
                 })}
