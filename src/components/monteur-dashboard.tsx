@@ -94,6 +94,19 @@ function parseTimeToMinutes(raw: string): number {
  *  "Cab1:08:30" → "08:30"
  *  "2026-04-27 Jean-Marc 08:30" → "08:30" (via dernier token)
  */
+/** Parse un champ ofrTM qui peut contenir plusieurs numéros TM (séparés par \n, virgule ou ;).
+ *  Retourne les numéros triés par ordre croissant (le plus petit d'abord = en haut). */
+function parseTMNumbers(raw: string): string[] {
+  if (!raw) return [];
+  const parts = raw.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+  // Trie numériquement sur les chiffres du numéro (ex. TM-2600135 → 2600135)
+  return parts.sort((a, b) => {
+    const numA = parseInt(a.replace(/\D/g, ""), 10) || 0;
+    const numB = parseInt(b.replace(/\D/g, ""), 10) || 0;
+    return numA - numB;
+  });
+}
+
 /** Retourne l'info arrivage (TM en priorité, sinon Grossiste) + la couleur d'urgence.
  *  Vert = 0-6 j · Orange = 7-9 j · Rouge ≥ 10 j depuis la date d'arrivage. */
 function getArrivageInfo(p: { arrivageTM?: string | null; arrivageGrossiste?: string | null }): {
@@ -998,7 +1011,14 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                       <span className="text-gray-400 font-mono w-16 shrink-0">
                         {date ? new Date(date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
                       </span>
-                      <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
+                      <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
+                        {parseTMNumbers(p.ofrTM || "").length > 0
+                          ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
+                              <span key={i} className="font-mono text-[10px] leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                            ))
+                          : <span className="font-mono text-[10px] text-gray-400">---</span>
+                        }
+                      </span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                       <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 truncate">{p.projet}</span>
@@ -1225,7 +1245,14 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                     return (
                       <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                         className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
-                        <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
+                        <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
+                        {parseTMNumbers(p.ofrTM || "").length > 0
+                          ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
+                              <span key={i} className="font-mono text-[10px] leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                            ))
+                          : <span className="font-mono text-[10px] text-gray-400">---</span>
+                        }
+                      </span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                         <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
