@@ -1001,8 +1001,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                       <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                      <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
-                      {/* Colonne arrivage — largeur fixe pour aligner toutes les lignes */}
+                      <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 truncate">{p.projet}</span>
+
+                      {/* COL arrivage — w-28, toujours présente */}
                       <span className="w-28 shrink-0 flex justify-end">
                         {arrivage ? (
                           <span
@@ -1011,15 +1012,14 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                           >
                             <span>{arrivage.label}</span>
                             <span>{new Date(arrivage.date! + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}</span>
-                            {arrivage.days !== null && arrivage.days >= 0 && (
-                              <span className="opacity-75">J+{arrivage.days}</span>
-                            )}
+                            {arrivage.days !== null && arrivage.days >= 0 && <span className="opacity-75">J+{arrivage.days}</span>}
                           </span>
                         ) : null}
                       </span>
-                      {p.typeServices && p.typeServices.length > 0 && p.typeServices.flatMap((ts) => {
-                        const parts = ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts];
-                        return parts.map((part) => {
+
+                      {/* COL type service — w-20, 1 badge max */}
+                      <span className="w-20 shrink-0 flex justify-end">
+                        {(() => {
                           const tsColors: Record<string, string> = {
                             "Montages": "bg-orange-100 text-orange-700", "Montage": "bg-orange-100 text-orange-700",
                             "Mesures": "bg-cyan-100 text-cyan-700", "Services": "bg-emerald-100 text-emerald-700",
@@ -1027,19 +1027,37 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                             "Dépannage": "bg-pink-100 text-pink-700", "Démontage": "bg-rose-100 text-rose-700",
                             "Remplacement": "bg-indigo-100 text-indigo-700",
                           };
-                          return <span key={part} className={`shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${tsColors[part] || "bg-gray-100 text-gray-600"}`}>{part}</span>;
-                        });
-                      })}
-                      {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                        <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
-                      ) : null; })()}
-                      <div className="flex -space-x-1 shrink-0">
-                        {names.slice(0, 3).map((n) => (
-                          <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
-                            style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
-                        ))}
-                      </div>
-                      <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                          const parts = (p.typeServices || []).flatMap((ts) =>
+                            ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts]
+                          ).filter(Boolean);
+                          if (parts.length === 0) return null;
+                          return (
+                            <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full truncate max-w-full ${tsColors[parts[0]] || "bg-gray-100 text-gray-600"}`}>
+                              {parts[0]}
+                            </span>
+                          );
+                        })()}
+                      </span>
+
+                      {/* COL logo — w-8, toujours présente */}
+                      <span className="w-8 shrink-0 flex justify-center">
+                        {(() => { const logo = getClientLogo(p.projet); return logo ? (
+                          <img src={logo} alt="" className="w-7 h-5 object-contain rounded" />
+                        ) : null; })()}
+                      </span>
+
+                      {/* COL avatars — w-16, toujours présente */}
+                      <span className="w-16 shrink-0 flex justify-end">
+                        <span className="flex -space-x-1">
+                          {names.slice(0, 3).map((n) => (
+                            <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                              style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
+                          ))}
+                        </span>
+                      </span>
+
+                      {/* COL cabines — w-12 */}
+                      <Badge variant="outline" className="text-[10px] shrink-0 w-12 justify-center">{p.nbCabines || 0} cab.</Badge>
                     </Link>
                   );
                 })}
