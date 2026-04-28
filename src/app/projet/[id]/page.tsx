@@ -40,7 +40,7 @@ import { SiteTimer } from "@/components/site-timer";
 import { StockUsage } from "@/components/stock-usage";
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
-import { Star, Share2, RefreshCw } from "lucide-react";
+import { Star, Share2, RefreshCw, PenLine } from "lucide-react";
 import { toggleFavorite, isFavorite } from "@/lib/favorites";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeliveryScan } from "@/components/delivery-scan";
 import { CartonPhotos } from "@/components/carton-photos";
+import { AdminEditModal } from "@/components/admin-edit-modal";
 
 const SignaturePad = dynamic(() => import("@/components/signature-pad").then(m => ({ default: m.SignaturePad })), {
   ssr: false,
@@ -1445,6 +1446,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   const [showAllDates, setShowAllDates] = useState(false);
   const [showRapport, setShowRapport] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth").then((r) => r.json()).then((d) => {
@@ -1975,6 +1977,16 @@ function ProjectPageContent({ id }: { id: string }) {
 
   return (
     <div className="max-w-4xl mx-auto w-full pb-8 px-4">
+      {/* Modal d'édition admin */}
+      {currentUser?.role === "admin" && project && (
+        <AdminEditModal
+          project={project}
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          onSave={(updated) => setProject(updated)}
+        />
+      )}
+
       {/* Banner de conflit de collaboration : un autre utilisateur a
           modifié un champ pendant qu'on était en train de saisir. On
           le signale discrètement pour inviter à sauvegarder puis
@@ -2028,6 +2040,15 @@ function ProjectPageContent({ id }: { id: string }) {
               </div>
             )}
           </div>
+          {currentUser?.role === "admin" && (
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
+              title="Modifier le projet"
+            >
+              <PenLine className="w-5 h-5 text-gray-500" />
+            </button>
+          )}
           <button
             onClick={() => {
               const token = btoa(id);

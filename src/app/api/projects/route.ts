@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
     const pageId = await createProject({
       projet: body.projet.trim(),
       ofrTM: body.ofrTM,
+      cmdTM: body.cmdTM,
+      cmdTMUsine: body.cmdTMUsine,
       nomChantier: body.nomChantier,
       adresseChantier: body.adresseChantier,
       nbCabines: body.nbCabines ? Number(body.nbCabines) : undefined,
@@ -50,6 +52,8 @@ export async function POST(request: NextRequest) {
       etatCMD: body.etatCMD,
       etatMesures: body.etatMesures,
       contacts: body.contacts,
+      contactsRDV: body.contactsRDV,
+      typeClient: body.typeClient,
     });
 
     // Invalider tous les caches projets

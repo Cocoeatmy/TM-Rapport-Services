@@ -748,6 +748,56 @@ export async function updateProject(
       number: data.nbCabines,
     };
   }
+  // === Champs éditables par l'admin depuis l'app ===
+  if ((data as any).projet !== undefined) {
+    properties["Projet"] = {
+      title: [{ text: { content: (data as any).projet || "" } }],
+    };
+  }
+  if ((data as any).ofrTM !== undefined) {
+    properties["N° OFR TM"] = { rich_text: toRichText((data as any).ofrTM) };
+  }
+  if ((data as any).cmdTM !== undefined) {
+    properties["N° CMD TM"] = { rich_text: toRichText((data as any).cmdTM) };
+  }
+  if ((data as any).cmdTMUsine !== undefined) {
+    properties["N° CMD TM - Usine"] = { rich_text: toRichText((data as any).cmdTMUsine) };
+  }
+  if ((data as any).ofrGrossiste !== undefined) {
+    properties["N° OFR Grossiste"] = { rich_text: toRichText((data as any).ofrGrossiste) };
+  }
+  if ((data as any).cmdGrossiste !== undefined) {
+    properties["N° CMD Grossiste"] = { rich_text: toRichText((data as any).cmdGrossiste) };
+  }
+  if ((data as any).cmdFournisseurs !== undefined) {
+    properties["n° CMD Fournisseurs"] = { rich_text: toRichText((data as any).cmdFournisseurs) };
+  }
+  if ((data as any).servMesuresFournisseurs !== undefined) {
+    properties["N° Serv. Mesures Fournisseurs"] = { rich_text: toRichText((data as any).servMesuresFournisseurs) };
+  }
+  if ((data as any).servCmdFournisseurs !== undefined) {
+    properties["N° Serv. CMD Fournisseurs"] = { rich_text: toRichText((data as any).servCmdFournisseurs) };
+  }
+  if ((data as any).typeClient !== undefined) {
+    // Le champ "Type de client" peut être un select, un status ou un rich_text
+    // selon la configuration de la base Notion.
+    const tcType = await getPropertyType("Type de client");
+    if (tcType === "status") {
+      properties["Type de client"] = { status: { name: (data as any).typeClient } };
+    } else if (tcType === "rich_text") {
+      properties["Type de client"] = { rich_text: toRichText((data as any).typeClient) };
+    } else {
+      // Par défaut : select
+      properties["Type de client"] = {
+        select: (data as any).typeClient ? { name: (data as any).typeClient } : null,
+      };
+    }
+  }
+  if ((data as any).emplacementCabine !== undefined) {
+    properties["Emplacement de cabine"] = {
+      select: (data as any).emplacementCabine ? { name: (data as any).emplacementCabine } : null,
+    };
+  }
   if ((data as any).signatureUrl !== undefined) {
     const sigUrl = (data as any).signatureUrl;
     if (sigUrl) {
@@ -815,6 +865,8 @@ export async function updateProject(
 export async function createProject(data: {
   projet: string;
   ofrTM?: string;
+  cmdTM?: string;
+  cmdTMUsine?: string;
   nomChantier?: string;
   adresseChantier?: string;
   nbCabines?: number;
@@ -825,6 +877,8 @@ export async function createProject(data: {
   etatCMD?: string;
   etatMesures?: string;
   contacts?: string;
+  contactsRDV?: string;
+  typeClient?: string;
   commentairesMesures?: string;
 }): Promise<string> {
   const properties: any = {
@@ -834,14 +888,23 @@ export async function createProject(data: {
   };
 
   if (data.ofrTM) {
-    properties["N° OFR TM"] = {
-      rich_text: toRichText(data.ofrTM),
-    };
+    properties["N° OFR TM"] = { rich_text: toRichText(data.ofrTM) };
+  }
+  if (data.cmdTM) {
+    properties["N° CMD TM"] = { rich_text: toRichText(data.cmdTM) };
+  }
+  if (data.cmdTMUsine) {
+    properties["N° CMD TM - Usine"] = { rich_text: toRichText(data.cmdTMUsine) };
   }
   if (data.nomChantier) {
-    properties["Nom chantier"] = {
-      rich_text: toRichText(data.nomChantier),
-    };
+    properties["Nom chantier"] = { rich_text: toRichText(data.nomChantier) };
+  }
+  if (data.contactsRDV) {
+    properties["Contacts pour RDV"] = { rich_text: toRichText(data.contactsRDV) };
+  }
+  if (data.typeClient) {
+    // Essaie select par défaut — adapté dynamiquement si nécessaire
+    properties["Type de client"] = { select: { name: data.typeClient } };
   }
   if (data.adresseChantier) {
     properties["Adresse chantier"] = {
