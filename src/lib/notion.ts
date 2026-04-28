@@ -110,6 +110,8 @@ export interface Project {
   infoDefautsSignale: string;
   photosPiecesManquantes: FileItem[];
   photosDefautsSignale: FileItem[];
+  arrivageTM: string | null;
+  arrivageGrossiste: string | null;
 }
 
 export interface FileItem {
@@ -281,6 +283,8 @@ export function mapPageToProject(page: any): Project {
     infoDefautsSignale: extractText(p["Infos - Défauts signalé"]),
     photosPiecesManquantes: extractFiles(p["Photos - Pièces manquante"]),
     photosDefautsSignale: extractFiles(p["Photos - Défauts signalé"]),
+    arrivageTM: extractDate(p["Arrivage TM"]),
+    arrivageGrossiste: extractDate(p["Arrivage Grossiste"]),
   };
 }
 

@@ -94,6 +94,42 @@ function parseTimeToMinutes(raw: string): number {
  *  "Cab1:08:30" → "08:30"
  *  "2026-04-27 Jean-Marc 08:30" → "08:30" (via dernier token)
  */
+/** Retourne l'info arrivage (TM en priorité, sinon Grossiste) + la couleur d'urgence.
+ *  Vert = 0-6 j · Orange = 7-9 j · Rouge ≥ 10 j depuis la date d'arrivage. */
+function getArrivageInfo(p: { arrivageTM?: string | null; arrivageGrossiste?: string | null }): {
+  date: string | null;
+  label: string;
+  colorClass: string;
+  bgClass: string;
+  days: number | null;
+} | null {
+  const raw = p.arrivageTM || p.arrivageGrossiste || null;
+  if (!raw) return null;
+  const label = p.arrivageTM ? "TM" : "Gross.";
+  const date = raw.split("T")[0];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const arrival = new Date(date + "T00:00:00");
+  const days = Math.floor((today.getTime() - arrival.getTime()) / 86400000);
+  let colorClass: string;
+  let bgClass: string;
+  if (days < 0) {
+    // Pas encore arrivé
+    colorClass = "text-gray-500 dark:text-gray-400";
+    bgClass = "bg-gray-100 dark:bg-gray-800";
+  } else if (days <= 6) {
+    colorClass = "text-green-700 dark:text-green-400";
+    bgClass = "bg-green-100 dark:bg-green-900/30";
+  } else if (days <= 9) {
+    colorClass = "text-orange-700 dark:text-orange-400";
+    bgClass = "bg-orange-100 dark:bg-orange-900/30";
+  } else {
+    colorClass = "text-red-700 dark:text-red-400";
+    bgClass = "bg-red-100 dark:bg-red-900/30";
+  }
+  return { date, label, colorClass, bgClass, days };
+}
+
 function extractHHMM(s: string): string {
   const m = s.trim().match(/(\d{1,2}:\d{2})$/);
   return m ? m[1] : "";
@@ -955,6 +991,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                     ? (p.dateDemandeProjet || p.dateMontage || "").split("T")[0]
                     : (p.dateMesures || p.dateMontage || "").split("T")[0];
                   const rowBg = idx % 2 === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "bg-blue-100/60 dark:bg-blue-900/20";
+                  const arrivage = getArrivageInfo(p);
                   return (
                     <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
@@ -965,6 +1002,15 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                       <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                      {arrivage && (
+                        <span
+                          title={`Arrivage ${arrivage.label} : ${new Date(arrivage.date! + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}${arrivage.days !== null && arrivage.days >= 0 ? ` (J+${arrivage.days})` : ""}`}
+                          className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${arrivage.bgClass} ${arrivage.colorClass}`}
+                        >
+                          {arrivage.label} {new Date(arrivage.date! + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
+                          {arrivage.days !== null && arrivage.days >= 0 && <span className="ml-0.5 opacity-75">J+{arrivage.days}</span>}
+                        </span>
+                      )}
                       {p.typeServices && p.typeServices.length > 0 && p.typeServices.flatMap((ts) => {
                         const parts = ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts];
                         return parts.map((part) => {
