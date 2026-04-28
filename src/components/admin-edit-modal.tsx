@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
@@ -71,6 +71,19 @@ const inputCls =
 export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
   const [form, setForm] = useState<Project>({ ...project });
   const [saving, setSaving] = useState(false);
+  const [emplacementOptions, setEmplacementOptions] = useState<string[]>([]);
+
+  // Charge les options depuis Notion au premier affichage
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch("/api/projects/field-options?fields=Emplacement+de+cabine")
+      .then((r) => r.json())
+      .then((data) => {
+        const opts: string[] = data["Emplacement de cabine"] ?? [];
+        if (opts.length > 0) setEmplacementOptions(opts);
+      })
+      .catch(() => {});
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -219,7 +232,25 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
                   />
                 </Field>
                 <Field label="Emplacement cabine">
-                  <input className={inputCls} value={form.emplacementCabine || ""} onChange={(e) => set("emplacementCabine", e.target.value)} placeholder="Salle de bain, etc." />
+                  {emplacementOptions.length > 0 ? (
+                    <select
+                      className={inputCls}
+                      value={form.emplacementCabine || ""}
+                      onChange={(e) => set("emplacementCabine", e.target.value)}
+                    >
+                      <option value="">— Choisir —</option>
+                      {emplacementOptions.map((o) => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      className={inputCls}
+                      value={form.emplacementCabine || ""}
+                      onChange={(e) => set("emplacementCabine", e.target.value)}
+                      placeholder="Salle de bain, etc."
+                    />
+                  )}
                 </Field>
               </div>
             </div>

@@ -1419,8 +1419,10 @@ interface NotionComment {
 function NotionComments({ projectId }: { projectId: string }) {
   const [comments, setComments] = useState<NotionComment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [newComment, setNewComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
+  const loadComments = useCallback(() => {
     fetch(`/api/projects/${projectId}/comments`)
       .then((r) => r.json())
       .then((data) => {
@@ -1430,57 +1432,99 @@ function NotionComments({ projectId }: { projectId: string }) {
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Commentaires</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-2">
-            <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-3/4" />
-            <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-1/2" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  useEffect(() => {
+    loadComments();
+  }, [loadComments]);
 
-  if (comments.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Commentaires</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-gray-400 italic">Aucun commentaire dans Notion.</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  const handleSubmit = async () => {
+    const text = newComment.trim();
+    if (!text || submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Erreur serveur");
+      }
+      const created: NotionComment = await res.json();
+      setComments((prev) => [...prev, created]);
+      setNewComment("");
+    } catch (e: any) {
+      alert(e.message || "Erreur lors de l'envoi");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Commentaires</CardTitle>
+        <CardTitle className="text-base">Commentaires Notion</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {comments.map((c) => (
-          <div key={c.id} className="rounded-xl bg-gray-50 dark:bg-gray-800/60 px-3 py-2.5">
-            <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
-              {c.text}
-            </p>
-            <p className="text-[10px] text-gray-400 mt-1.5">
-              {new Date(c.createdTime).toLocaleDateString("fr-CH", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
+        {loading ? (
+          <div className="animate-pulse space-y-2">
+            <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-3/4" />
+            <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-1/2" />
           </div>
-        ))}
+        ) : comments.length === 0 ? (
+          <p className="text-xs text-gray-400 italic">Aucun commentaire dans Notion.</p>
+        ) : (
+          comments.map((c) => (
+            <div key={c.id} className="rounded-xl bg-gray-50 dark:bg-gray-800/60 px-3 py-2.5">
+              <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
+                {c.text}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-1.5">
+                {new Date(c.createdTime).toLocaleDateString("fr-CH", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+          ))
+        )}
+
+        {/* Formulaire d'écriture */}
+        <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+          <textarea
+            rows={3}
+            className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none transition-colors"
+            placeholder="Ajouter un commentaire… (⌘+Entrée pour envoyer)"
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={submitting}
+          />
+          <div className="flex justify-end mt-2">
+            <button
+              onClick={handleSubmit}
+              disabled={!newComment.trim() || submitting}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold transition-colors"
+            >
+              {submitting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
+              Envoyer
+            </button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

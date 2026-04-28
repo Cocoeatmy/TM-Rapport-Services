@@ -21,22 +21,51 @@ export const databaseId = process.env.NOTION_DATABASE_ID!;
  * peut l'invalider via `invalidateSchemaCache()`.
  */
 let schemaCache: Record<string, string> | null = null;
+let rawPropsCache: Record<string, any> | null = null;
+
+async function fetchAndCacheSchema() {
+  const db: any = await notion.databases.retrieve({ database_id: databaseId });
+  schemaCache = {};
+  rawPropsCache = {};
+  for (const [key, val] of Object.entries(db.properties || {})) {
+    schemaCache[key] = (val as any).type;
+    rawPropsCache[key] = val;
+  }
+}
+
 async function getPropertyType(propName: string): Promise<string | null> {
   if (!schemaCache) {
     try {
-      const db: any = await notion.databases.retrieve({ database_id: databaseId });
-      schemaCache = {};
-      for (const [key, val] of Object.entries(db.properties || {})) {
-        schemaCache[key] = (val as any).type;
-      }
+      await fetchAndCacheSchema();
     } catch (err) {
       console.error("[notion] Failed to retrieve database schema:", err);
-      schemaCache = {}; // empty cache, will fall back to default
+      schemaCache = {};
+      rawPropsCache = {};
     }
   }
-  return schemaCache[propName] ?? null;
+  return schemaCache![propName] ?? null;
 }
-export function invalidateSchemaCache() { schemaCache = null; }
+
+/** Retourne la liste des options d'un champ select / multi_select / status. */
+export async function getSelectOptions(propName: string): Promise<string[]> {
+  if (!rawPropsCache) {
+    try {
+      await fetchAndCacheSchema();
+    } catch (err) {
+      console.error("[notion] Failed to retrieve database schema:", err);
+      schemaCache = {};
+      rawPropsCache = {};
+    }
+  }
+  const prop = rawPropsCache![propName];
+  if (!prop) return [];
+  if (prop.type === "select") return (prop.select?.options ?? []).map((o: any) => o.name as string);
+  if (prop.type === "multi_select") return (prop.multi_select?.options ?? []).map((o: any) => o.name as string);
+  if (prop.type === "status") return (prop.status?.options ?? []).map((o: any) => o.name as string);
+  return [];
+}
+
+export function invalidateSchemaCache() { schemaCache = null; rawPropsCache = null; }
 
 // Plus de cache interne ici : la mise en cache (avec stale-while-revalidate)
 // est gérée au niveau des routes API via `@/lib/server-cache`. Cela garantit
