@@ -1002,15 +1002,21 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                       <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
-                      {arrivage && (
-                        <span
-                          title={`Arrivage ${arrivage.label} : ${new Date(arrivage.date! + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}${arrivage.days !== null && arrivage.days >= 0 ? ` (J+${arrivage.days})` : ""}`}
-                          className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${arrivage.bgClass} ${arrivage.colorClass}`}
-                        >
-                          {arrivage.label} {new Date(arrivage.date! + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
-                          {arrivage.days !== null && arrivage.days >= 0 && <span className="ml-0.5 opacity-75">J+{arrivage.days}</span>}
-                        </span>
-                      )}
+                      {/* Colonne arrivage — largeur fixe pour aligner toutes les lignes */}
+                      <span className="w-28 shrink-0 flex justify-end">
+                        {arrivage ? (
+                          <span
+                            title={`Arrivage ${arrivage.label} : ${new Date(arrivage.date! + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}${arrivage.days !== null && arrivage.days >= 0 ? ` (J+${arrivage.days})` : ""}`}
+                            className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${arrivage.bgClass} ${arrivage.colorClass}`}
+                          >
+                            <span>{arrivage.label}</span>
+                            <span>{new Date(arrivage.date! + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}</span>
+                            {arrivage.days !== null && arrivage.days >= 0 && (
+                              <span className="opacity-75">J+{arrivage.days}</span>
+                            )}
+                          </span>
+                        ) : null}
+                      </span>
                       {p.typeServices && p.typeServices.length > 0 && p.typeServices.flatMap((ts) => {
                         const parts = ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts];
                         return parts.map((part) => {
