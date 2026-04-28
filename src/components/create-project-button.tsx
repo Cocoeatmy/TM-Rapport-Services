@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Plus, X, Loader2, FolderPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -163,9 +164,9 @@ export function CreateProjectButton() {
         <Plus className="w-4 h-4" />
       </button>
 
-      {/* Modal / slide-over */}
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Modal / slide-over — rendu via Portal hors du header pour éviter le clipping */}
+      {isOpen && createPortal(
+        <div className="fixed inset-0 z-[200] flex justify-end">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -368,7 +369,8 @@ export function CreateProjectButton() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
