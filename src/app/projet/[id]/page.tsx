@@ -2071,9 +2071,15 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
 
-      <div className={`px-4 mt-4 ${showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "max-w-2xl mx-auto"}`}>
+      <div className={`px-4 mt-4 ${showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "max-w-5xl mx-auto"}`}>
         {/* Colonne gauche - Informations (masquée sur mobile quand rapport ouvert) */}
         <div className={`space-y-4 ${showRapport ? "hidden lg:block" : ""}`}>
+        {/* === Grille 2 colonnes sur md+ : gauche = projet+dates, droite = client+cabines === */}
+        <div className={`grid grid-cols-1 gap-4 ${!showRapport ? "md:grid-cols-2" : ""}`}>
+
+        {/* --- Colonne gauche : Informations projet + Dates --- */}
+        <div className="space-y-4">
+
         {/* === SECTION 1 : Informations projet === */}
         <Card>
           <CardHeader className="pb-2">
@@ -2118,101 +2124,6 @@ function ProjectPageContent({ id }: { id: string }) {
                 <MapAddressLink address={project.adresseChantier} />
               )}
             </div>
-          </CardContent>
-        </Card>
-
-        {/* === SECTION 2 : Informations client === */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Informations client</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {/* Ligne 1 : Type de client | Grossistes/Fournisseurs */}
-            <div className="grid grid-cols-2 gap-3">
-              {project.typeClient && (
-                <div className="flex items-start gap-2">
-                  <Tag className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Type de client</p>
-                    <Badge variant="secondary" className="text-xs mt-0.5">{project.typeClient}</Badge>
-                  </div>
-                </div>
-              )}
-              {/* Grossistes OU Fournisseurs selon Type de client */}
-              {project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur" ? (
-                project.fournisseursNames && project.fournisseursNames.length > 0 ? (
-                  <div className="flex items-start gap-2">
-                    <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-500">Fournisseurs</p>
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {project.fournisseursNames.map((f) => (
-                          <Badge key={f} variant="outline" className="text-xs">{f}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : <div />
-              ) : (
-                project.grossistesNames && project.grossistesNames.length > 0 ? (
-                  <div className="flex items-start gap-2">
-                    <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-500">Grossistes</p>
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {project.grossistesNames.map((g) => (
-                          <Badge key={g} variant="outline" className="text-xs">{g}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : <div />
-              )}
-            </div>
-            {/* Ligne 2 : Sanitaire | Contact Projet */}
-            <div className="grid grid-cols-2 gap-3">
-              {project.sanitaireNames && project.sanitaireNames.length > 0 && (
-                <div className="flex items-start gap-2">
-                  <Building2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Sanitaire (Entreprise)</p>
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {project.sanitaireNames.map((s) => (
-                        <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {project.contactsProjetNames && project.contactsProjetNames.length > 0 && (
-                <div className="flex items-start gap-2">
-                  <Users className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Contact Projet</p>
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {project.contactsProjetNames.map((c) => (
-                        <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* Contacts pour RDV + Appeler/WhatsApp */}
-            {project.contactsRDV && (
-              <div className="pt-1">
-                <div className="flex items-start gap-2">
-                  <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Contacts pour RDV</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.contactsRDV}</p>
-                  </div>
-                </div>
-                <div className="ml-6 mt-1">
-                  <ContactButtons contactName={project.contactsRDV} />
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -2312,6 +2223,106 @@ function ProjectPageContent({ id }: { id: string }) {
           </CardContent>
         </Card>
 
+        </div>{/* fin colonne gauche */}
+
+        {/* --- Colonne droite : Informations client + Cabines --- */}
+        <div className="space-y-4">
+
+        {/* === SECTION 2 : Informations client === */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Informations client</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {/* Ligne 1 : Type de client | Grossistes/Fournisseurs */}
+            <div className="grid grid-cols-2 gap-3">
+              {project.typeClient && (
+                <div className="flex items-start gap-2">
+                  <Tag className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Type de client</p>
+                    <Badge variant="secondary" className="text-xs mt-0.5">{project.typeClient}</Badge>
+                  </div>
+                </div>
+              )}
+              {/* Grossistes OU Fournisseurs selon Type de client */}
+              {project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur" ? (
+                project.fournisseursNames && project.fournisseursNames.length > 0 ? (
+                  <div className="flex items-start gap-2">
+                    <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">Fournisseurs</p>
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {project.fournisseursNames.map((f) => (
+                          <Badge key={f} variant="outline" className="text-xs">{f}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : <div />
+              ) : (
+                project.grossistesNames && project.grossistesNames.length > 0 ? (
+                  <div className="flex items-start gap-2">
+                    <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">Grossistes</p>
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {project.grossistesNames.map((g) => (
+                          <Badge key={g} variant="outline" className="text-xs">{g}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : <div />
+              )}
+            </div>
+            {/* Ligne 2 : Sanitaire | Contact Projet */}
+            <div className="grid grid-cols-2 gap-3">
+              {project.sanitaireNames && project.sanitaireNames.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <Building2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Sanitaire (Entreprise)</p>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {project.sanitaireNames.map((s) => (
+                        <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {project.contactsProjetNames && project.contactsProjetNames.length > 0 && (
+                <div className="flex items-start gap-2">
+                  <Users className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Contact Projet</p>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {project.contactsProjetNames.map((c) => (
+                        <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Contacts pour RDV + Appeler/WhatsApp */}
+            {project.contactsRDV && (
+              <div className="pt-1">
+                <div className="flex items-start gap-2">
+                  <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-500">Contacts pour RDV</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.contactsRDV}</p>
+                  </div>
+                </div>
+                <div className="ml-6 mt-1">
+                  <ContactButtons contactName={project.contactsRDV} />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* === SECTION 4 : Informations cabines === */}
         <Card>
           <CardHeader className="pb-2">
@@ -2366,6 +2377,9 @@ function ProjectPageContent({ id }: { id: string }) {
             )}
           </CardContent>
         </Card>
+
+        </div>{/* fin colonne droite */}
+        </div>{/* fin grille 2 colonnes */}
 
         {/* === Documents === */}
         <Card>
