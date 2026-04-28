@@ -1407,6 +1407,87 @@ function DocumentLinks({ files, label, projectId, notionField }: { files: { name
   );
 }
 
+// ─── Commentaires Notion natifs ──────────────────────────────────────────────
+
+interface NotionComment {
+  id: string;
+  text: string;
+  createdTime: string;
+  discussionId: string;
+}
+
+function NotionComments({ projectId }: { projectId: string }) {
+  const [comments, setComments] = useState<NotionComment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}/comments`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setComments(data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [projectId]);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Commentaires</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-2">
+            <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-3/4" />
+            <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-1/2" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (comments.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Commentaires</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-gray-400 italic">Aucun commentaire dans Notion.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Commentaires</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {comments.map((c) => (
+          <div key={c.id} className="rounded-xl bg-gray-50 dark:bg-gray-800/60 px-3 py-2.5">
+            <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
+              {c.text}
+            </p>
+            <p className="text-[10px] text-gray-400 mt-1.5">
+              {new Date(c.createdTime).toLocaleDateString("fr-CH", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   return (
@@ -2416,6 +2497,9 @@ function ProjectPageContent({ id }: { id: string }) {
             )}
           </CardContent>
         </Card>
+
+        {/* === Commentaires Notion natifs === */}
+        <NotionComments projectId={id} />
 
         </div>{/* fin colonne droite */}
         </div>{/* fin grille 2 colonnes */}
