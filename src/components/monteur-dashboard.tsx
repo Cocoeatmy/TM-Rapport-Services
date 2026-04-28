@@ -1411,12 +1411,54 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
       {(() => {
         const allProjects = [...projects, ...terminatedProjects];
         const { fromStr, toStr, label } = getDateRangeForFilter(workFilter, workFrom, workTo, workMonth, workYear);
-        const hoursData = COLLABORATEURS_LIST.map((name) => ({
+
+        // --- Individuel : uniquement les projets SOLO ---
+        const soloData = COLLABORATEURS_LIST.map((name) => ({
           name,
           colors: getCollaboratorColor(name),
           minutes: getHoursForCollabInRange(allProjects, name, fromStr, toStr, true),
         })).filter((c) => c.minutes > 0);
-        const totalMin = hoursData.reduce((s, c) => s + c.minutes, 0);
+
+        // --- Binômes / Équipes : projets multi-personnes groupés par label exact ---
+        const groupMap = new Map<string, number>();
+        for (const p of allProjects) {
+          const collab = (p.collaborateurs || "").trim();
+          // Ne traiter que les projets avec plusieurs personnes
+          if (!collab || (!collab.includes("&") && !collab.toLowerCase().includes("team"))) continue;
+          const ha = p.heureArrivee || "";
+          const hd = p.heureDepart || "";
+          if (!ha && !hd) continue;
+          let mins = 0;
+          if (ha.includes("|") || hd.includes("|")) {
+            const arrParts = ha.split("|").map(s => s.trim()).filter(Boolean);
+            const depParts = hd.split("|").map(s => s.trim()).filter(Boolean);
+            for (let i = 0; i < Math.max(arrParts.length, depParts.length); i++) {
+              const aPart = arrParts[i] || "";
+              const dPart = depParts[i] || "";
+              const aTime = extractHHMM(aPart) || aPart.split(/\s+/).at(-1) || "";
+              const dTime = extractHHMM(dPart) || dPart.split(/\s+/).at(-1) || "";
+              const entryDate = (/^\d{4}-\d{2}-\d{2}$/.test(aPart.split(/\s+/)[0] || "") ? aPart.split(/\s+/)[0] : "") ||
+                p.dateMontage?.split("T")[0] || "";
+              if (fromStr && entryDate < fromStr) continue;
+              if (toStr && entryDate > toStr) continue;
+              const a = parseTimeToMinutes(aTime);
+              const d = parseTimeToMinutes(dTime);
+              if (a >= 0 && d >= 0 && d > a) mins += d - a;
+            }
+          } else {
+            const dateStr = p.dateMontage?.split("T")[0] || "";
+            if (fromStr && dateStr < fromStr) continue;
+            if (toStr && dateStr > toStr) continue;
+            const a = parseTimeToMinutes(extractHHMM(ha) || ha);
+            const d = parseTimeToMinutes(extractHHMM(hd) || hd);
+            if (a >= 0 && d >= 0 && d > a) mins += d - a;
+          }
+          if (mins > 0) groupMap.set(collab, (groupMap.get(collab) || 0) + mins);
+        }
+        const groupData = Array.from(groupMap.entries()).sort((a, b) => b[1] - a[1]);
+
+        const hasData = soloData.length > 0 || groupData.length > 0;
+
         const currentYear = new Date().getFullYear();
         const years = Array.from({ length: 4 }, (_, i) => currentYear - i);
         return (
@@ -1497,100 +1539,60 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
 
             {/* Résultats */}
             <p className="text-[10px] text-gray-400 -mb-1">{label}</p>
-            {hoursData.length === 0 ? (
+
+            {!hasData ? (
               <p className="text-xs text-gray-400 text-center py-2">Aucune heure enregistrée sur cette période</p>
             ) : (
               <>
-                {/* Individuels */}
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Individuel</p>
-                {hoursData.map((c) => (
-                  <div key={c.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                        style={{ backgroundColor: c.colors.bg, color: c.colors.text }}
-                      >
-                        {getCollaboratorInitials(c.name)}
-                      </div>
-                      <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span>
-                  </div>
-                ))}
-
-                {/* Binômes / Trios / Teams */}
-                {(() => {
-                  // Regroupe par valeur unique de collaborateurs (ceux qui ont 2+ personnes)
-                  const groupMap = new Map<string, number>();
-                  for (const p of allProjects) {
-                    const collab = (p.collaborateurs || "").trim();
-                    if (!collab || !collab.includes("&") && !collab.toLowerCase().includes("team")) continue;
-                    const ha = p.heureArrivee || "";
-                    const hd = p.heureDepart || "";
-                    if (!ha && !hd) continue;
-                    // Calcule les heures de ce projet (toutes cabines/jours confondus)
-                    let mins = 0;
-                    if (ha.includes("|") || hd.includes("|")) {
-                      const arrParts = ha.split("|").map(s => s.trim()).filter(Boolean);
-                      const depParts = hd.split("|").map(s => s.trim()).filter(Boolean);
-                      for (let i = 0; i < Math.max(arrParts.length, depParts.length); i++) {
-                        const aPart = arrParts[i] || "";
-                        const dPart = depParts[i] || "";
-                        const aTime = extractHHMM(aPart) || aPart.split(/\s+/).at(-1) || "";
-                        const dTime = extractHHMM(dPart) || dPart.split(/\s+/).at(-1) || "";
-                        const entryDate = (/^\d{4}-\d{2}-\d{2}$/.test(aPart.split(/\s+/)[0] || "") ? aPart.split(/\s+/)[0] : "") ||
-                          p.dateMontage?.split("T")[0] || "";
-                        if (fromStr && entryDate < fromStr) continue;
-                        if (toStr && entryDate > toStr) continue;
-                        const a = parseTimeToMinutes(aTime);
-                        const d = parseTimeToMinutes(dTime);
-                        if (a >= 0 && d >= 0 && d > a) mins += d - a;
-                      }
-                    } else {
-                      const dateStr = p.dateMontage?.split("T")[0] || "";
-                      if (fromStr && dateStr < fromStr) continue;
-                      if (toStr && dateStr > toStr) continue;
-                      const a = parseTimeToMinutes(extractHHMM(ha) || ha);
-                      const d = parseTimeToMinutes(extractHHMM(hd) || hd);
-                      if (a >= 0 && d >= 0 && d > a) mins += d - a;
-                    }
-                    if (mins > 0) groupMap.set(collab, (groupMap.get(collab) || 0) + mins);
-                  }
-                  if (groupMap.size === 0) return null;
-                  const groups = Array.from(groupMap.entries()).sort((a, b) => b[1] - a[1]);
-                  return (
-                    <>
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1">Binômes & Équipes</p>
-                      {groups.map(([name, mins]) => {
-                        const names = name.split("&").map(n => n.trim());
-                        return (
-                          <div key={name} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="flex -space-x-1.5">
-                                {names.slice(0, 4).map((n) => {
-                                  const c = getCollaboratorColor(n);
-                                  return (
-                                    <div key={n} className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 border border-white dark:border-slate-800"
-                                      style={{ backgroundColor: c.dot, color: "#fff" }}>
-                                      {getCollaboratorInitials(n)}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <span className="text-sm text-gray-700 dark:text-gray-300">{name}</span>
-                            </div>
-                            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(mins)}</span>
+                {/* --- Section Individuel (travail solo uniquement) --- */}
+                {soloData.length > 0 && (
+                  <>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Individuel</p>
+                    {soloData.map((c) => (
+                      <div key={c.name} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                            style={{ backgroundColor: c.colors.bg, color: c.colors.text }}
+                          >
+                            {getCollaboratorInitials(c.name)}
                           </div>
-                        );
-                      })}
-                    </>
-                  );
-                })()}
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
 
-                <div className="flex items-center justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
-                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Total équipe</span>
-                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{fmtMin(totalMin)}</span>
-                </div>
+                {/* --- Section Binômes & Équipes (travail en groupe uniquement) --- */}
+                {groupData.length > 0 && (
+                  <>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1">Binômes & Équipes</p>
+                    {groupData.map(([name, mins]) => {
+                      const names = name.split("&").map(n => n.trim());
+                      return (
+                        <div key={name} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="flex -space-x-1.5">
+                              {names.slice(0, 4).map((n) => {
+                                const c = getCollaboratorColor(n);
+                                return (
+                                  <div key={n} className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 border border-white dark:border-slate-800"
+                                    style={{ backgroundColor: c.dot, color: "#fff" }}>
+                                    {getCollaboratorInitials(n)}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <span className="text-sm text-gray-700 dark:text-gray-300">{name}</span>
+                          </div>
+                          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(mins)}</span>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
               </>
             )}
           </div>
