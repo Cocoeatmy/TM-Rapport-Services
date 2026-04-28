@@ -970,8 +970,12 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           const mesuresProjects = projects.filter((p) => p.etatCMD === "En attente de mesures" && mesuresStatuses.includes(p.etatMesures))
             .sort((a, b) => ((a.dateMesuresRecue || a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMesuresRecue || b.dateMesures || "z").split("T")[0]));
 
+          // "Services à planifier" = uniquement les projets dont au moins un typeService
+          // est "Services" ou commence par "Service" (ex. "Services + Démontage").
           const servicesProjects = projects.filter((p) =>
-            montageStatuses.includes(p.etatCMD) && p.typeServices && p.typeServices.some((t) => t !== "Montages" && t !== "Montage")
+            montageStatuses.includes(p.etatCMD) &&
+            p.typeServices &&
+            p.typeServices.some((t) => t.toLowerCase().startsWith("service"))
           ).sort((a, b) => ((a.dateDemandeProjet || a.dateMontage || "z").split("T")[0]).localeCompare((b.dateDemandeProjet || b.dateMontage || "z").split("T")[0]));
 
           // Remove services from montage list to avoid duplicates
