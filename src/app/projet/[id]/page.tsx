@@ -2107,32 +2107,8 @@ function ProjectPageContent({ id }: { id: string }) {
             <CardTitle className="text-base">Informations projet</CardTitle>
           </CardHeader>
           <CardContent className="space-y-0">
-            {/* Ligne 1 : N° OFR TM | N° CMD TM | N° CMD TM - Usine */}
-            <div className="grid grid-cols-3 gap-3 py-2">
-              <InfoRow icon={Hash} label="N° OFR TM" value={project.ofrTM} />
-              <InfoRow icon={Hash} label="N° CMD TM" value={project.cmdTM} />
-              <InfoRow icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} />
-            </div>
 
-            {/* Ligne 2 : N° OFR Grossiste | N° CMD Grossiste | (vide) */}
-            {(project.ofrGrossiste || project.cmdGrossiste) && (
-              <div className="grid grid-cols-3 gap-3 py-2">
-                <InfoRow icon={Hash} label="N° OFR Grossiste" value={project.ofrGrossiste} />
-                <InfoRow icon={Hash} label="N° CMD Grossiste" value={project.cmdGrossiste} />
-                <div />
-              </div>
-            )}
-
-            {/* Ligne 3 : N° CMD Fournisseurs | N° Serv. Mesures Fournisseurs | N° CMD Services */}
-            {(project.cmdFournisseurs || project.servMesuresFournisseurs || project.servCmdFournisseurs) && (
-              <div className="grid grid-cols-3 gap-3 py-2">
-                <InfoRow icon={Hash} label="N° CMD Fournisseurs" value={project.cmdFournisseurs} />
-                <InfoRow icon={Hash} label="N° Serv. Mesures Fourn." value={project.servMesuresFournisseurs} />
-                <InfoRow icon={Hash} label="N° CMD Services" value={project.servCmdFournisseurs} />
-              </div>
-            )}
-
-            {/* Ligne 4 : Nom projet | Adresse chantier */}
+            {/* Nom projet | Adresse chantier */}
             <div className="grid grid-cols-2 gap-3 py-2">
               <div className="flex items-start gap-2">
                 <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
@@ -2145,6 +2121,48 @@ function ProjectPageContent({ id }: { id: string }) {
                 <MapAddressLink address={project.adresseChantier} />
               )}
             </div>
+
+            {/* Sous-titre N° TM */}
+            <div className="flex items-center gap-2 pt-3 pb-1">
+              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">N° TM</span>
+              <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
+            </div>
+            <div className="grid grid-cols-3 gap-3 py-1">
+              <InfoRow icon={Hash} label="N° OFR TM" value={project.ofrTM} />
+              <InfoRow icon={Hash} label="N° CMD TM" value={project.cmdTM} />
+              <InfoRow icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} />
+            </div>
+
+            {/* Sous-titre N° Grossistes (conditionnel) */}
+            {(project.ofrGrossiste || project.cmdGrossiste) && (
+              <>
+                <div className="flex items-center gap-2 pt-3 pb-1">
+                  <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">N° Grossistes</span>
+                  <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
+                </div>
+                <div className="grid grid-cols-3 gap-3 py-1">
+                  <InfoRow icon={Hash} label="N° OFR Grossiste" value={project.ofrGrossiste} />
+                  <InfoRow icon={Hash} label="N° CMD Grossiste" value={project.cmdGrossiste} />
+                  <div />
+                </div>
+              </>
+            )}
+
+            {/* Sous-titre N° Fournisseurs (conditionnel) */}
+            {(project.cmdFournisseurs || project.servMesuresFournisseurs || project.servCmdFournisseurs) && (
+              <>
+                <div className="flex items-center gap-2 pt-3 pb-1">
+                  <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">N° Fournisseurs</span>
+                  <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
+                </div>
+                <div className="grid grid-cols-3 gap-3 py-1">
+                  <InfoRow icon={Hash} label="N° CMD Fournisseurs" value={project.cmdFournisseurs} />
+                  <InfoRow icon={Hash} label="N° Serv. Mesures Fourn." value={project.servMesuresFournisseurs} />
+                  <InfoRow icon={Hash} label="N° CMD Services" value={project.servCmdFournisseurs} />
+                </div>
+              </>
+            )}
+
           </CardContent>
         </Card>
 
