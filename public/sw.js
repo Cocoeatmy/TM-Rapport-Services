@@ -1,32 +1,31 @@
-// Service worker TM Rapport — v5
+// Service worker TM Rapport — v6
 // Stratégies :
 //   - Statique (_next/static, icons, logos, manifest) : cache-first (permanent).
 //   - API GET : network-first avec timeout 800 ms → on privilégie toujours la
 //     donnée fraîche, mais si le réseau tarde (> 800 ms) ou échoue, on sert le
 //     cache pour ne pas bloquer l'UI. Le cache API est mis à jour en
 //     silence à chaque fois que le réseau répond.
-//     → Bump v5 : 2 s → 800 ms pour "instant feel" sur réseau dégradé.
-//       Le cron de sync /api/cron/sync tournant maintenant toutes les
-//       10 min, le cache serveur est toujours frais → on a moins besoin
-//       de la course au réseau.
 //   - Pages HTML : network-first avec fallback cache + page offline.
-//   - Pré-cache de la racine (`/`) à l'install pour que la 1ère ouverture
-//     offline ne casse pas.
+//     IMPORTANT v6 : le fallback ne sert PLUS le HTML de "/" pour d'autres
+//     routes. Servir "/" pour "/projet/123" confondait le routeur Next.js
+//     (payload RSC disant "route: /") qui naviguait vers le dashboard.
 //
 // Les noms de cache sont versionnés : un bump de version purge tout l'ancien.
 
-const VERSION = "v5";
+const VERSION = "v6";
 const CACHE_NAME = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE = `tm-api-${VERSION}`;
 
 const STATIC_ASSETS = [
-  "/",
   "/manifest.json",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/logo-app.png",
 ];
+// On ne pré-cache plus "/" : servir le HTML du dashboard comme fallback
+// pour d'autres routes (/projet/[id], /admin/…) causait une confusion
+// du routeur Next.js qui naviguait vers "/" au lieu de la page demandée.
 
 // Au-delà de ce délai, on considère que le réseau est trop lent et on sert
 // le cache (s'il existe) pour ne pas faire attendre l'utilisateur.
@@ -168,20 +167,23 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(async () => {
+        // 1. Si cette URL exacte est en cache, on la sert.
         const cached = await caches.match(request);
         if (cached) return cached;
 
+        // 2. Pour les navigations HTML, on affiche la page offline dédiée.
+        //    On ne retombe PLUS sur le HTML "/" — cela confondait le routeur
+        //    Next.js (payload RSC "route: /") et renvoyait l'utilisateur sur
+        //    le dashboard au lieu de rester sur la page demandée.
         if (request.mode === "navigate" || (request.headers.get("accept") || "").includes("text/html")) {
-          const rootCached = await caches.match("/");
-          if (rootCached) return rootCached;
           return new Response(OFFLINE_HTML, {
             headers: { "Content-Type": "text/html; charset=utf-8" },
             status: 200,
           });
         }
 
-        // Chunk JS/CSS introuvable : on tente une recherche approximative dans
-        // tous les caches (utile après un déploiement où le hash a changé).
+        // 3. Chunk JS/CSS introuvable : on tente une recherche approximative
+        //    dans tous les caches (utile après un déploiement où le hash a changé).
         if (url.pathname.startsWith("/_next/")) {
           const allCaches = await caches.keys();
           for (const cacheName of allCaches) {
