@@ -99,8 +99,17 @@ function extractHHMM(s: string): string {
   return m ? m[1] : "";
 }
 
+/** Retourne true si le projet est un travail solo pour cette personne
+ *  (pas de & ni de "team" dans le champ collaborateurs). */
+function isSoloProject(p: Project, collabName: string): boolean {
+  const c = (p.collaborateurs || "").trim();
+  if (c.includes("&") || c.toLowerCase().includes("team")) return false;
+  return c.toLowerCase().includes(collabName.toLowerCase());
+}
+
 /** Calcule les minutes travaillées par un collaborateur sur une plage de dates.
  *  fromStr / toStr sont au format "YYYY-MM-DD". Si vides, pas de filtre date.
+ *  soloOnly = true → compte uniquement les projets où la personne était seule.
  *
  *  Gère 3 formats de heureArrivee/heureDepart :
  *  1. Simple      "08:30"                               (mono-jour, mono-cabine)
@@ -112,11 +121,15 @@ function getHoursForCollabInRange(
   collabName: string,
   fromStr: string,
   toStr: string,
+  soloOnly = false,
 ): number {
   let totalMinutes = 0;
   const lc = collabName.toLowerCase();
 
   for (const p of projects) {
+    // soloOnly: ignorer les projets avec plusieurs collaborateurs
+    if (soloOnly && !isSoloProject(p, collabName)) continue;
+
     const ha = p.heureArrivee || "";
     const hd = p.heureDepart || "";
     if (!ha && !hd) continue;
@@ -132,16 +145,13 @@ function getHoursForCollabInRange(
 
         // --- Format cabine : "Cab1:08:30" ---
         if (/^Cab\d+:/i.test(aPart) || /^Cab\d+:/i.test(dPart)) {
-          // Pas de nom embarqué : on vérifie sur project.collaborateurs
           if (!p.collaborateurs?.toLowerCase().includes(lc)) continue;
           const dateStr = p.dateMontage?.split("T")[0] || "";
           if (fromStr && dateStr < fromStr) continue;
           if (toStr && dateStr > toStr) continue;
           const arrMin = parseTimeToMinutes(extractHHMM(aPart));
           const depMin = parseTimeToMinutes(extractHHMM(dPart));
-          if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) {
-            totalMinutes += depMin - arrMin;
-          }
+          if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) totalMinutes += depMin - arrMin;
           continue;
         }
 
@@ -151,18 +161,14 @@ function getHoursForCollabInRange(
         const aDate = aTokens[0]?.match(/^\d{4}-\d{2}-\d{2}$/) ? aTokens[0] : "";
         const dDate = dTokens[0]?.match(/^\d{4}-\d{2}-\d{2}$/) ? dTokens[0] : "";
         const entryDate = aDate || dDate || p.dateMontage?.split("T")[0] || "";
-        // Nom = tokens entre la date et l'heure finale
         const entryCollab = aTokens.slice(1, -1).join(" ") || dTokens.slice(1, -1).join(" ") || "";
-        // Si pas de nom embarqué → utiliser project.collaborateurs
         const collabSrc = entryCollab || p.collaborateurs || "";
         if (!collabSrc.toLowerCase().includes(lc)) continue;
         if (fromStr && entryDate < fromStr) continue;
         if (toStr && entryDate > toStr) continue;
         const arrMin = parseTimeToMinutes(aTokens[aTokens.length - 1] || "");
         const depMin = parseTimeToMinutes(dTokens[dTokens.length - 1] || "");
-        if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) {
-          totalMinutes += depMin - arrMin;
-        }
+        if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) totalMinutes += depMin - arrMin;
       }
     } else {
       // --- Format simple : "08:30" ou "Cab1:08:30" ---
@@ -170,12 +176,9 @@ function getHoursForCollabInRange(
       const dateStr = p.dateMontage?.split("T")[0] || "";
       if (fromStr && dateStr < fromStr) continue;
       if (toStr && dateStr > toStr) continue;
-      // extractHHMM gère aussi "Cab1:08:30"
       const arrMin = parseTimeToMinutes(extractHHMM(ha) || ha);
       const depMin = parseTimeToMinutes(extractHHMM(hd) || hd);
-      if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) {
-        totalMinutes += depMin - arrMin;
-      }
+      if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) totalMinutes += depMin - arrMin;
     }
   }
   return totalMinutes;
@@ -1203,196 +1206,6 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         );
       })()}
 
-      {/* Heures de travail — section filtrable (actifs + terminés) */}
-      {(() => {
-        const allProjects = [...projects, ...terminatedProjects];
-        const { fromStr, toStr, label } = getDateRangeForFilter(workFilter, workFrom, workTo, workMonth, workYear);
-        const hoursData = COLLABORATEURS_LIST.map((name) => ({
-          name,
-          colors: getCollaboratorColor(name),
-          minutes: getHoursForCollabInRange(allProjects, name, fromStr, toStr),
-        })).filter((c) => c.minutes > 0);
-        const totalMin = hoursData.reduce((s, c) => s + c.minutes, 0);
-        const currentYear = new Date().getFullYear();
-        const years = Array.from({ length: 4 }, (_, i) => currentYear - i);
-        return (
-          <div className="glass-card rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                Heures de travail
-              </p>
-              {terminatedLoading && <span className="text-[10px] text-gray-400 animate-pulse">Chargement...</span>}
-            </div>
-
-            {/* Filtres */}
-            <div className="flex flex-wrap gap-1.5">
-              {(["semaine", "mois", "annee", "custom"] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setWorkFilter(f)}
-                  className={`text-[10px] font-medium px-2.5 py-1 rounded-full border transition-colors ${
-                    workFilter === f
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
-                  }`}
-                >
-                  {f === "semaine" ? "Semaine" : f === "mois" ? "Mois" : f === "annee" ? "Année" : "Plage"}
-                </button>
-              ))}
-            </div>
-
-            {/* Contrôles selon le filtre */}
-            {workFilter === "mois" && (
-              <input
-                type="month"
-                value={workMonth}
-                onChange={(e) => setWorkMonth(e.target.value)}
-                className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2.5 py-1.5"
-              />
-            )}
-            {workFilter === "annee" && (
-              <div className="flex flex-wrap gap-1.5">
-                {years.map((y) => (
-                  <button
-                    key={y}
-                    onClick={() => setWorkYear(String(y))}
-                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                      workYear === String(y)
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
-                    }`}
-                  >
-                    {y}
-                  </button>
-                ))}
-              </div>
-            )}
-            {workFilter === "custom" && (
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="text-[10px] text-gray-400 mb-0.5">Du</p>
-                  <input
-                    type="date"
-                    value={workFrom}
-                    onChange={(e) => setWorkFrom(e.target.value)}
-                    className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2 py-1.5"
-                  />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 mb-0.5">Au</p>
-                  <input
-                    type="date"
-                    value={workTo}
-                    onChange={(e) => setWorkTo(e.target.value)}
-                    className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2 py-1.5"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Résultats */}
-            <p className="text-[10px] text-gray-400 -mb-1">{label}</p>
-            {hoursData.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-2">Aucune heure enregistrée sur cette période</p>
-            ) : (
-              <>
-                {/* Individuels */}
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Individuel</p>
-                {hoursData.map((c) => (
-                  <div key={c.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                        style={{ backgroundColor: c.colors.bg, color: c.colors.text }}
-                      >
-                        {getCollaboratorInitials(c.name)}
-                      </div>
-                      <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span>
-                  </div>
-                ))}
-
-                {/* Binômes / Trios / Teams */}
-                {(() => {
-                  // Regroupe par valeur unique de collaborateurs (ceux qui ont 2+ personnes)
-                  const groupMap = new Map<string, number>();
-                  for (const p of allProjects) {
-                    const collab = (p.collaborateurs || "").trim();
-                    if (!collab || !collab.includes("&") && !collab.toLowerCase().includes("team")) continue;
-                    const ha = p.heureArrivee || "";
-                    const hd = p.heureDepart || "";
-                    if (!ha && !hd) continue;
-                    // Calcule les heures de ce projet (toutes cabines/jours confondus)
-                    let mins = 0;
-                    if (ha.includes("|") || hd.includes("|")) {
-                      const arrParts = ha.split("|").map(s => s.trim()).filter(Boolean);
-                      const depParts = hd.split("|").map(s => s.trim()).filter(Boolean);
-                      for (let i = 0; i < Math.max(arrParts.length, depParts.length); i++) {
-                        const aPart = arrParts[i] || "";
-                        const dPart = depParts[i] || "";
-                        const aTime = extractHHMM(aPart) || aPart.split(/\s+/).at(-1) || "";
-                        const dTime = extractHHMM(dPart) || dPart.split(/\s+/).at(-1) || "";
-                        const entryDate = (/^\d{4}-\d{2}-\d{2}$/.test(aPart.split(/\s+/)[0] || "") ? aPart.split(/\s+/)[0] : "") ||
-                          p.dateMontage?.split("T")[0] || "";
-                        if (fromStr && entryDate < fromStr) continue;
-                        if (toStr && entryDate > toStr) continue;
-                        const a = parseTimeToMinutes(aTime);
-                        const d = parseTimeToMinutes(dTime);
-                        if (a >= 0 && d >= 0 && d > a) mins += d - a;
-                      }
-                    } else {
-                      const dateStr = p.dateMontage?.split("T")[0] || "";
-                      if (fromStr && dateStr < fromStr) continue;
-                      if (toStr && dateStr > toStr) continue;
-                      const a = parseTimeToMinutes(extractHHMM(ha) || ha);
-                      const d = parseTimeToMinutes(extractHHMM(hd) || hd);
-                      if (a >= 0 && d >= 0 && d > a) mins += d - a;
-                    }
-                    if (mins > 0) groupMap.set(collab, (groupMap.get(collab) || 0) + mins);
-                  }
-                  if (groupMap.size === 0) return null;
-                  const groups = Array.from(groupMap.entries()).sort((a, b) => b[1] - a[1]);
-                  return (
-                    <>
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1">Binômes & Équipes</p>
-                      {groups.map(([name, mins]) => {
-                        const names = name.split("&").map(n => n.trim());
-                        return (
-                          <div key={name} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="flex -space-x-1.5">
-                                {names.slice(0, 4).map((n) => {
-                                  const c = getCollaboratorColor(n);
-                                  return (
-                                    <div key={n} className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 border border-white dark:border-slate-800"
-                                      style={{ backgroundColor: c.dot, color: "#fff" }}>
-                                      {getCollaboratorInitials(n)}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <span className="text-sm text-gray-700 dark:text-gray-300">{name}</span>
-                            </div>
-                            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(mins)}</span>
-                          </div>
-                        );
-                      })}
-                    </>
-                  );
-                })()}
-
-                <div className="flex items-center justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
-                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Total équipe</span>
-                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{fmtMin(totalMin)}</span>
-                </div>
-              </>
-            )}
-          </div>
-        );
-      })()}
-
       {/* Per-collaborator sections */}
       {collabData.map((collab) => {
         if (collab.myProjects.length === 0) return null;
@@ -1593,6 +1406,196 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           })}
         </>
       )}
+
+      {/* Heures de travail — section filtrable (actifs + terminés) */}
+      {(() => {
+        const allProjects = [...projects, ...terminatedProjects];
+        const { fromStr, toStr, label } = getDateRangeForFilter(workFilter, workFrom, workTo, workMonth, workYear);
+        const hoursData = COLLABORATEURS_LIST.map((name) => ({
+          name,
+          colors: getCollaboratorColor(name),
+          minutes: getHoursForCollabInRange(allProjects, name, fromStr, toStr, true),
+        })).filter((c) => c.minutes > 0);
+        const totalMin = hoursData.reduce((s, c) => s + c.minutes, 0);
+        const currentYear = new Date().getFullYear();
+        const years = Array.from({ length: 4 }, (_, i) => currentYear - i);
+        return (
+          <div className="glass-card rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                Heures de travail
+              </p>
+              {terminatedLoading && <span className="text-[10px] text-gray-400 animate-pulse">Chargement...</span>}
+            </div>
+
+            {/* Filtres */}
+            <div className="flex flex-wrap gap-1.5">
+              {(["semaine", "mois", "annee", "custom"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setWorkFilter(f)}
+                  className={`text-[10px] font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                    workFilter === f
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
+                  }`}
+                >
+                  {f === "semaine" ? "Semaine" : f === "mois" ? "Mois" : f === "annee" ? "Année" : "Plage"}
+                </button>
+              ))}
+            </div>
+
+            {/* Contrôles selon le filtre */}
+            {workFilter === "mois" && (
+              <input
+                type="month"
+                value={workMonth}
+                onChange={(e) => setWorkMonth(e.target.value)}
+                className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2.5 py-1.5"
+              />
+            )}
+            {workFilter === "annee" && (
+              <div className="flex flex-wrap gap-1.5">
+                {years.map((y) => (
+                  <button
+                    key={y}
+                    onClick={() => setWorkYear(String(y))}
+                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                      workYear === String(y)
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
+                    }`}
+                  >
+                    {y}
+                  </button>
+                ))}
+              </div>
+            )}
+            {workFilter === "custom" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[10px] text-gray-400 mb-0.5">Du</p>
+                  <input
+                    type="date"
+                    value={workFrom}
+                    onChange={(e) => setWorkFrom(e.target.value)}
+                    className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2 py-1.5"
+                  />
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 mb-0.5">Au</p>
+                  <input
+                    type="date"
+                    value={workTo}
+                    onChange={(e) => setWorkTo(e.target.value)}
+                    className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2 py-1.5"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Résultats */}
+            <p className="text-[10px] text-gray-400 -mb-1">{label}</p>
+            {hoursData.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-2">Aucune heure enregistrée sur cette période</p>
+            ) : (
+              <>
+                {/* Individuels */}
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Individuel</p>
+                {hoursData.map((c) => (
+                  <div key={c.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                        style={{ backgroundColor: c.colors.bg, color: c.colors.text }}
+                      >
+                        {getCollaboratorInitials(c.name)}
+                      </div>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span>
+                  </div>
+                ))}
+
+                {/* Binômes / Trios / Teams */}
+                {(() => {
+                  // Regroupe par valeur unique de collaborateurs (ceux qui ont 2+ personnes)
+                  const groupMap = new Map<string, number>();
+                  for (const p of allProjects) {
+                    const collab = (p.collaborateurs || "").trim();
+                    if (!collab || !collab.includes("&") && !collab.toLowerCase().includes("team")) continue;
+                    const ha = p.heureArrivee || "";
+                    const hd = p.heureDepart || "";
+                    if (!ha && !hd) continue;
+                    // Calcule les heures de ce projet (toutes cabines/jours confondus)
+                    let mins = 0;
+                    if (ha.includes("|") || hd.includes("|")) {
+                      const arrParts = ha.split("|").map(s => s.trim()).filter(Boolean);
+                      const depParts = hd.split("|").map(s => s.trim()).filter(Boolean);
+                      for (let i = 0; i < Math.max(arrParts.length, depParts.length); i++) {
+                        const aPart = arrParts[i] || "";
+                        const dPart = depParts[i] || "";
+                        const aTime = extractHHMM(aPart) || aPart.split(/\s+/).at(-1) || "";
+                        const dTime = extractHHMM(dPart) || dPart.split(/\s+/).at(-1) || "";
+                        const entryDate = (/^\d{4}-\d{2}-\d{2}$/.test(aPart.split(/\s+/)[0] || "") ? aPart.split(/\s+/)[0] : "") ||
+                          p.dateMontage?.split("T")[0] || "";
+                        if (fromStr && entryDate < fromStr) continue;
+                        if (toStr && entryDate > toStr) continue;
+                        const a = parseTimeToMinutes(aTime);
+                        const d = parseTimeToMinutes(dTime);
+                        if (a >= 0 && d >= 0 && d > a) mins += d - a;
+                      }
+                    } else {
+                      const dateStr = p.dateMontage?.split("T")[0] || "";
+                      if (fromStr && dateStr < fromStr) continue;
+                      if (toStr && dateStr > toStr) continue;
+                      const a = parseTimeToMinutes(extractHHMM(ha) || ha);
+                      const d = parseTimeToMinutes(extractHHMM(hd) || hd);
+                      if (a >= 0 && d >= 0 && d > a) mins += d - a;
+                    }
+                    if (mins > 0) groupMap.set(collab, (groupMap.get(collab) || 0) + mins);
+                  }
+                  if (groupMap.size === 0) return null;
+                  const groups = Array.from(groupMap.entries()).sort((a, b) => b[1] - a[1]);
+                  return (
+                    <>
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1">Binômes & Équipes</p>
+                      {groups.map(([name, mins]) => {
+                        const names = name.split("&").map(n => n.trim());
+                        return (
+                          <div key={name} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="flex -space-x-1.5">
+                                {names.slice(0, 4).map((n) => {
+                                  const c = getCollaboratorColor(n);
+                                  return (
+                                    <div key={n} className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 border border-white dark:border-slate-800"
+                                      style={{ backgroundColor: c.dot, color: "#fff" }}>
+                                      {getCollaboratorInitials(n)}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <span className="text-sm text-gray-700 dark:text-gray-300">{name}</span>
+                            </div>
+                            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(mins)}</span>
+                          </div>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
+
+                <div className="flex items-center justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Total équipe</span>
+                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{fmtMin(totalMin)}</span>
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
