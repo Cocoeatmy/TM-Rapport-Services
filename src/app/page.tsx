@@ -671,6 +671,13 @@ function HomePage() {
   const [statsDateTo, setStatsDateTo] = useState("");
   const [statsMonth, setStatsMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; });
   const [statsYear, setStatsYear] = useState(() => String(new Date().getFullYear()));
+  // Mode comparaison VS — période B
+  const [statsCompare, setStatsCompare] = useState(false);
+  const [statsBMode, setStatsBMode] = useState<StatsDateMode>("month");
+  const [statsBFrom, setStatsBFrom] = useState("");
+  const [statsBTo, setStatsBTo] = useState("");
+  const [statsBMonth, setStatsBMonth] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; });
+  const [statsBYear, setStatsBYear] = useState(() => String(new Date().getFullYear()));
   // Filtres dédiés à la vue "Projets" (admin) — distincts des filtres
   // Stats pour ne pas qu'ils s'écrasent quand on bascule entre les
   // sections.
@@ -2562,6 +2569,38 @@ function HomePage() {
         const totalSAV = svcFiltered.reduce((s: number, r: any) => s + r.sav, 0);
         const totalOFR = svcFiltered.reduce((s: number, r: any) => s + r.ofr, 0);
 
+        // ── Période B (mode comparaison) ──────────────────────────────────
+        const filterBYear = statsBMode === "year" ? Number(statsBYear) : null;
+        const filterBMonth = statsBMode === "month" ? statsBMonth : null;
+        const svcFilteredB = statsCompare ? statsServices.filter((r: any) => {
+          if (statsBMode === "year" && filterBYear && r.annee !== filterBYear) return false;
+          if (statsBMode === "month" && filterBMonth && r.mois !== filterBMonth) return false;
+          if (statsBMode === "range" && (statsBFrom || statsBTo)) {
+            const jourNum = r.jour ? parseInt(r.jour, 10) : 1;
+            const jour = isNaN(jourNum) ? "01" : String(jourNum).padStart(2, "0");
+            const rowDate = r.mois ? `${r.mois}-${jour}` : null;
+            if (!rowDate) return true;
+            if (statsBFrom && rowDate < statsBFrom) return false;
+            if (statsBTo && rowDate > statsBTo) return false;
+          }
+          return true;
+        }) : [];
+        const bMontages  = svcFilteredB.reduce((s: number, r: any) => s + r.montages, 0);
+        const bCabines   = svcFilteredB.reduce((s: number, r: any) => s + r.cabines, 0);
+        const bMesures   = svcFilteredB.reduce((s: number, r: any) => s + r.mesures, 0);
+        const bCA        = svcFilteredB.reduce((s: number, r: any) => s + r.ca, 0);
+        const bServices  = svcFilteredB.reduce((s: number, r: any) => s + r.services, 0);
+        const bSAV       = svcFilteredB.reduce((s: number, r: any) => s + r.sav, 0);
+        const bOFR       = svcFilteredB.reduce((s: number, r: any) => s + r.ofr, 0);
+
+        /** Delta formaté : "+12%" / "-5%" / "=" */
+        const delta = (a: number, b: number) => {
+          if (b === 0 && a === 0) return null;
+          if (b === 0) return { pct: null, up: true, label: "Nouveau" };
+          const pct = Math.round(((a - b) / b) * 100);
+          return { pct, up: pct >= 0, label: pct === 0 ? "=" : `${pct > 0 ? "+" : ""}${pct}%` };
+        };
+
         // DB2: clients by type
         const cliByYear = statsClients.filter((r: any) => {
           if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
@@ -2647,20 +2686,22 @@ function HomePage() {
         // Collaborator stats (only completed/archived projects)
         const allProjectsRaw = projectsData["cmd-termine"] || projectsData["archives"] || [];
         const allProjects: Project[] = filterByStatsDate(allProjectsRaw, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
-        const collabStats = COLLABORATEURS_LIST.map((name) => {
-          const collabProjects = allProjects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase()));
-          // Count cabines: use per-cabin attribution if available, otherwise count project cabines
+        const buildCollabStats = (projects: Project[]) => COLLABORATEURS_LIST.map((name) => {
+          const collabProjects = projects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase()));
           const cabines = collabProjects.reduce((s, p) => {
             const attr = cabineAttributions[p.id];
-            if (attr?.length) {
-              return s + attr.filter((m) => m.toLowerCase() === name.toLowerCase()).length;
-            }
+            if (attr?.length) return s + attr.filter((m) => m.toLowerCase() === name.toLowerCase()).length;
             return s + (p.nbCabines || 0);
           }, 0);
           const soucisCount = collabProjects.filter((p) => p.soucisMontage).length;
           const soucisRate = collabProjects.length > 0 ? Math.round((soucisCount / collabProjects.length) * 100) : 0;
           return { name, projects: collabProjects.length, cabines, soucisCount, soucisRate };
         }).sort((a, b) => b.cabines - a.cabines);
+        const collabStats = buildCollabStats(allProjects);
+        const allProjectsB: Project[] = statsCompare
+          ? filterByStatsDate(allProjectsRaw, statsBMode, statsBFrom, statsBTo, statsBMonth, statsBYear)
+          : [];
+        const collabStatsB = statsCompare ? buildCollabStats(allProjectsB) : [];
 
         const expandedSections = statsExpandedSections;
         const toggleSection = (s: string) => {
@@ -2679,9 +2720,34 @@ function HomePage() {
               </div>
             )}
 
-            {/* Filtre de dates */}
-            <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
-              onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
+            {/* Filtre de dates + bouton VS */}
+            <div>
+              {/* Période A */}
+              <div className="flex items-center gap-2 mb-1">
+                {statsCompare && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">A</span>}
+                <span className="text-[10px] text-gray-400 flex-1">{statsCompare ? "Période de référence" : ""}</span>
+                <button
+                  onClick={() => setStatsCompare((v) => !v)}
+                  className={`text-[10px] font-bold px-3 py-1.5 rounded-full border transition-colors ${statsCompare ? "bg-orange-500 text-white border-orange-500" : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-400 hover:text-orange-500"}`}
+                >
+                  ⚡ VS
+                </button>
+              </div>
+              <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
+                onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
+
+              {/* Période B */}
+              {statsCompare && (
+                <>
+                  <div className="flex items-center gap-2 mb-1 mt-2">
+                    <span className="text-[10px] font-bold text-orange-500 bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded-full">B</span>
+                    <span className="text-[10px] text-gray-400">Période comparée</span>
+                  </div>
+                  <StatsDateFilter mode={statsBMode} from={statsBFrom} to={statsBTo} month={statsBMonth} year={statsBYear}
+                    onModeChange={setStatsBMode} onFromChange={setStatsBFrom} onToChange={setStatsBTo} onMonthChange={setStatsBMonth} onYearChange={setStatsBYear} />
+                </>
+              )}
+            </div>
 
             {/* KPIs */}
             <div>
@@ -2689,46 +2755,55 @@ function HomePage() {
                 {expandedSections.has("kpis") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 Indicateurs cles
               </button>
-              {expandedSections.has("kpis") && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-3xl font-bold text-[#1e3a5f] dark:text-white">{totalMontages}</p>
-                    <p className="text-xs text-gray-500 mt-1">Montages</p>
+              {expandedSections.has("kpis") && (() => {
+                const totalDemontages = svcFiltered.reduce((s: number, r: any) => s + r.demontages, 0);
+                const bDemontages = svcFilteredB.reduce((s: number, r: any) => s + r.demontages, 0);
+                const kpis = [
+                  { label: "Montages",       valA: totalMontages, valB: bMontages,  color: "text-[#1e3a5f] dark:text-white",  size: "text-3xl" },
+                  { label: "Cabines mesurées",valA: totalCabines,  valB: bCabines,   color: "text-[#1e3a5f] dark:text-white",  size: "text-3xl" },
+                  { label: "Mesures",        valA: totalMesures,  valB: bMesures,   color: "text-green-600",                   size: "text-3xl" },
+                  { label: "CA (CHF)",       valA: totalCA,       valB: bCA,        color: "text-blue-600",                    size: "text-3xl", fmt: (v: number) => v > 0 ? `${(v / 1000).toFixed(0)}k` : "0" },
+                  { label: "Services",       valA: totalServices, valB: bServices,  color: "text-purple-600",                  size: "text-2xl" },
+                  { label: "SAV",            valA: totalSAV,      valB: bSAV,       color: "text-red-500",                     size: "text-2xl" },
+                  { label: "Offres",         valA: totalOFR,      valB: bOFR,       color: "text-amber-600",                   size: "text-2xl" },
+                  { label: "Demontages",     valA: totalDemontages,valB: bDemontages,color: "text-teal-600",                   size: "text-2xl" },
+                ];
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {kpis.map(({ label, valA, valB, color, size, fmt }) => {
+                      const display = fmt ? fmt : (v: number) => String(v);
+                      const d = statsCompare ? delta(valA, valB) : null;
+                      return (
+                        <div key={label} className="glass-card rounded-2xl p-4 text-center">
+                          {statsCompare ? (
+                            <>
+                              <div className="flex items-end justify-center gap-3">
+                                <div>
+                                  <p className={`${size} font-bold ${color}`}>{display(valA)}</p>
+                                  <p className="text-[9px] font-semibold text-blue-500 mt-0.5">A</p>
+                                </div>
+                                <div className="pb-4 text-gray-300 dark:text-gray-600 font-light text-lg">|</div>
+                                <div>
+                                  <p className="text-xl font-semibold text-orange-400">{display(valB)}</p>
+                                  <p className="text-[9px] font-semibold text-orange-400 mt-0.5">B</p>
+                                </div>
+                              </div>
+                              {d && (
+                                <p className={`text-[11px] font-bold mt-1 ${d.pct === 0 ? "text-gray-400" : d.up ? "text-green-500" : "text-red-500"}`}>
+                                  {d.label}
+                                </p>
+                              )}
+                            </>
+                          ) : (
+                            <p className={`${size} font-bold ${color}`}>{display(valA)}</p>
+                          )}
+                          <p className="text-xs text-gray-500 mt-1">{label}</p>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-3xl font-bold text-[#1e3a5f] dark:text-white">{totalCabines}</p>
-                    <p className="text-xs text-gray-500 mt-1">Cabines mesurées</p>
-                  </div>
-                  <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-3xl font-bold text-green-600">{totalMesures}</p>
-                    <p className="text-xs text-gray-500 mt-1">Mesures</p>
-                  </div>
-                  <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-3xl font-bold text-blue-600">{totalCA > 0 ? `${(totalCA / 1000).toFixed(0)}k` : "0"}</p>
-                    <p className="text-xs text-gray-500 mt-1">CA (CHF)</p>
-                  </div>
-                </div>
-              )}
-              {expandedSections.has("kpis") && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-                  <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-2xl font-bold text-purple-600">{totalServices}</p>
-                    <p className="text-xs text-gray-500 mt-1">Services</p>
-                  </div>
-                  <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-2xl font-bold text-red-500">{totalSAV}</p>
-                    <p className="text-xs text-gray-500 mt-1">SAV</p>
-                  </div>
-                  <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-2xl font-bold text-amber-600">{totalOFR}</p>
-                    <p className="text-xs text-gray-500 mt-1">Offres</p>
-                  </div>
-                  <div className="glass-card rounded-2xl p-4 text-center">
-                    <p className="text-2xl font-bold text-teal-600">{svcFiltered.reduce((s: number, r: any) => s + r.demontages, 0)}</p>
-                    <p className="text-xs text-gray-500 mt-1">Demontages</p>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Tendance mensuelle (12 mois) from DB1 */}
@@ -2786,7 +2861,7 @@ function HomePage() {
               )}
             </div>
 
-            {/* Collaborators breakdown (from project data, kept as-is) */}
+            {/* Collaborators breakdown */}
             <div>
               <button onClick={() => toggleSection("collabs")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                 {expandedSections.has("collabs") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -2794,27 +2869,53 @@ function HomePage() {
               </button>
               {expandedSections.has("collabs") && (
                 <div className="space-y-2">
-                  {collabStats.map((cs) => {
+                  {collabStats.filter((cs) => cs.projects > 0 || (statsCompare && collabStatsB.find(b => b.name === cs.name && b.projects > 0))).map((cs) => {
                     const colors = getCollaboratorColor(cs.name);
                     const maxCollabProjects = Math.max(...collabStats.map((c) => c.projects), 1);
+                    const csB = statsCompare ? (collabStatsB.find((b) => b.name === cs.name) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
                     return (
                       <div key={cs.name} className="glass-card rounded-2xl p-4">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="w-3 h-3 rounded-full" style={{ backgroundColor: colors.dot }} />
                           <span className="text-sm font-semibold">{cs.name}</span>
-                          <span className="ml-auto text-xs text-gray-500">{cs.projects} projets</span>
+                          <span className="ml-auto text-xs text-gray-500">
+                            {statsCompare
+                              ? <><span className="text-blue-500 font-bold">{cs.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{csB!.projects}B</span> projets</>
+                              : <>{cs.projects} projets</>}
+                          </span>
                         </div>
                         <div className="grid grid-cols-3 gap-3 text-center mb-2">
                           <div>
-                            <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.cabines}</p>
+                            {statsCompare ? (
+                              <div className="flex items-end justify-center gap-1">
+                                <p className="text-lg font-bold text-blue-600">{cs.cabines}</p>
+                                <p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.cabines}</p>
+                              </div>
+                            ) : (
+                              <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.cabines}</p>
+                            )}
                             <p className="text-[10px] text-gray-400">cabines</p>
                           </div>
                           <div>
-                            <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.soucisCount}</p>
+                            {statsCompare ? (
+                              <div className="flex items-end justify-center gap-1">
+                                <p className="text-lg font-bold text-blue-600">{cs.soucisCount}</p>
+                                <p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisCount}</p>
+                              </div>
+                            ) : (
+                              <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.soucisCount}</p>
+                            )}
                             <p className="text-[10px] text-gray-400">soucis</p>
                           </div>
                           <div>
-                            <p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p>
+                            {statsCompare ? (
+                              <div className="flex items-end justify-center gap-1">
+                                <p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p>
+                                <p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisRate}%</p>
+                              </div>
+                            ) : (
+                              <p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p>
+                            )}
                             <p className="text-[10px] text-gray-400">taux soucis</p>
                           </div>
                         </div>
