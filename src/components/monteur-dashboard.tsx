@@ -148,37 +148,52 @@ function extractHHMM(s: string): string {
   return m ? m[1] : "";
 }
 
-/** Retourne true si le projet est un travail solo pour cette personne
- *  (pas de & ni de "team" dans le champ collaborateurs). */
+/** Retourne true si le projet est un travail solo (pas de & ni "team"). */
 function isSoloProject(p: Project, collabName: string): boolean {
   const c = (p.collaborateurs || "").trim();
   if (c.includes("&") || c.toLowerCase().includes("team")) return false;
   return c.toLowerCase().includes(collabName.toLowerCase());
 }
 
-/** Calcule les minutes travaillées par un collaborateur sur une plage de dates.
- *  fromStr / toStr sont au format "YYYY-MM-DD". Si vides, pas de filtre date.
- *  soloOnly = true → compte uniquement les projets où la personne était seule.
- *
- *  Gère 3 formats de heureArrivee/heureDepart :
- *  1. Simple      "08:30"                               (mono-jour, mono-cabine)
- *  2. Cabine      "Cab1:08:30 | Cab2:13:55"             (multi-cabine)
- *  3. Multi-jour  "2026-04-27 Jean-Marc 08:30 | ..."    (multi-jour avec nom)
+/**
+ * Retourne true si un fragment (après split "|") est au format nommé multi-jour :
+ * "YYYY-MM-DD Prénom HH:MM" — 1er token = date ISO, dernier = HH:MM
+ * Ces entrées représentent du travail INDIVIDUEL même sur un projet multi-personne.
  */
-function getHoursForCollabInRange(
+function isNamedEntry(part: string): boolean {
+  const tokens = part.trim().split(/\s+/);
+  return tokens.length >= 3 && /^\d{4}-\d{2}-\d{2}$/.test(tokens[0] || "");
+}
+
+/**
+ * Calcule les minutes INDIVIDUELLES d'un collaborateur sur une plage de dates.
+ *
+ * Règles métier :
+ *  - Projet solo → toutes les entrées comptent en individuel
+ *  - Projet binôme/équipe + entrées nommées ("YYYY-MM-DD Prénom HH:MM") →
+ *    chaque entrée compte pour la personne nommée (cabines séparées)
+ *  - Projet binôme/équipe + entrée simple ou "Cab1:HH:MM" →
+ *    entrée partagée = va dans Binômes, PAS en individuel
+ *
+ * Formats gérés :
+ *  1. Simple      "08:30"
+ *  2. Cabine      "Cab1:08:30 | Cab2:13:55"
+ *  3. Multi-nommé "2026-04-27 Jean-Marc 08:30 | 2026-04-27 Miguel 09:00"
+ */
+function getIndividualHoursForCollab(
   projects: Project[],
   collabName: string,
   fromStr: string,
   toStr: string,
-  soloOnly = false,
 ): number {
   let totalMinutes = 0;
   const lc = collabName.toLowerCase();
 
   for (const p of projects) {
-    // soloOnly: ignorer les projets avec plusieurs collaborateurs
-    if (soloOnly && !isSoloProject(p, collabName)) continue;
+    const collab = (p.collaborateurs || "").trim();
+    if (!collab.toLowerCase().includes(lc)) continue;
 
+    const isMulti = collab.includes("&") || collab.toLowerCase().includes("team");
     const ha = p.heureArrivee || "";
     const hd = p.heureDepart || "";
     if (!ha && !hd) continue;
@@ -192,9 +207,9 @@ function getHoursForCollabInRange(
         const aPart = arrParts[i] || "";
         const dPart = depParts[i] || "";
 
-        // --- Format cabine : "Cab1:08:30" ---
+        // Format Cabine "Cab1:08:30" → entrée partagée si multi-personne
         if (/^Cab\d+:/i.test(aPart) || /^Cab\d+:/i.test(dPart)) {
-          if (!p.collaborateurs?.toLowerCase().includes(lc)) continue;
+          if (isMulti) continue; // partagé → Binômes
           const dateStr = p.dateMontage?.split("T")[0] || "";
           if (fromStr && dateStr < fromStr) continue;
           if (toStr && dateStr > toStr) continue;
@@ -204,15 +219,29 @@ function getHoursForCollabInRange(
           continue;
         }
 
-        // --- Format multi-jour : "YYYY-MM-DD Prénom HH:MM" ---
+        // Format nommé "YYYY-MM-DD Prénom HH:MM" → individuel
+        if (isNamedEntry(aPart) || isNamedEntry(dPart)) {
+          const aTokens = aPart.split(/\s+/);
+          const dTokens = dPart.split(/\s+/);
+          const aDate = isNamedEntry(aPart) ? aTokens[0] : "";
+          const dDate = isNamedEntry(dPart) ? dTokens[0] : "";
+          const entryDate = aDate || dDate || p.dateMontage?.split("T")[0] || "";
+          const entryCollab = aTokens.slice(1, -1).join(" ") || dTokens.slice(1, -1).join(" ") || "";
+          // Si l'entrée a un nom explicite, vérifier que c'est bien ce collaborateur
+          if (entryCollab && !entryCollab.toLowerCase().includes(lc)) continue;
+          if (fromStr && entryDate < fromStr) continue;
+          if (toStr && entryDate > toStr) continue;
+          const arrMin = parseTimeToMinutes(aTokens[aTokens.length - 1] || "");
+          const depMin = parseTimeToMinutes(dTokens[dTokens.length - 1] || "");
+          if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) totalMinutes += depMin - arrMin;
+          continue;
+        }
+
+        // Entrée simple sans nom au sein d'un multi-jour → partagé si multi-personne
+        if (isMulti) continue; // partagé → Binômes
         const aTokens = aPart.split(/\s+/);
         const dTokens = dPart.split(/\s+/);
-        const aDate = aTokens[0]?.match(/^\d{4}-\d{2}-\d{2}$/) ? aTokens[0] : "";
-        const dDate = dTokens[0]?.match(/^\d{4}-\d{2}-\d{2}$/) ? dTokens[0] : "";
-        const entryDate = aDate || dDate || p.dateMontage?.split("T")[0] || "";
-        const entryCollab = aTokens.slice(1, -1).join(" ") || dTokens.slice(1, -1).join(" ") || "";
-        const collabSrc = entryCollab || p.collaborateurs || "";
-        if (!collabSrc.toLowerCase().includes(lc)) continue;
+        const entryDate = p.dateMontage?.split("T")[0] || "";
         if (fromStr && entryDate < fromStr) continue;
         if (toStr && entryDate > toStr) continue;
         const arrMin = parseTimeToMinutes(aTokens[aTokens.length - 1] || "");
@@ -220,8 +249,8 @@ function getHoursForCollabInRange(
         if (arrMin >= 0 && depMin >= 0 && depMin > arrMin) totalMinutes += depMin - arrMin;
       }
     } else {
-      // --- Format simple : "08:30" ou "Cab1:08:30" ---
-      if (!p.collaborateurs?.toLowerCase().includes(lc)) continue;
+      // Format simple (une seule entrée)
+      if (isMulti) continue; // binôme sur cabine commune → Binômes
       const dateStr = p.dateMontage?.split("T")[0] || "";
       if (fromStr && dateStr < fromStr) continue;
       if (toStr && dateStr > toStr) continue;
@@ -231,6 +260,19 @@ function getHoursForCollabInRange(
     }
   }
   return totalMinutes;
+}
+
+/** Garde la même signature pour la compatibilité avec les anciens appels. */
+function getHoursForCollabInRange(
+  projects: Project[],
+  collabName: string,
+  fromStr: string,
+  toStr: string,
+  soloOnly = false,
+): number {
+  if (soloOnly) return getIndividualHoursForCollab(projects, collabName, fromStr, toStr);
+  // mode "all" : heures individuelles + binômes (utilisé pour les stats globales)
+  return getIndividualHoursForCollab(projects, collabName, fromStr, toStr);
 }
 
 // Garde la compatibilité avec les anciens appels (semaine courante).
@@ -1491,19 +1533,18 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         const allProjects = [...projects, ...terminatedProjects];
         const { fromStr, toStr, label } = getDateRangeForFilter(workFilter, workFrom, workTo, workMonth, workYear);
 
-        // --- Individuel : heures totales (solo + binômes) pour chaque collaborateur ---
+        // --- Individuel : heures perso (solo + cabines nommées sur projets multi) ---
         const soloData = COLLABORATEURS_LIST.map((name) => ({
           name,
           colors: getCollaboratorColor(name),
-          soloMinutes: getHoursForCollabInRange(allProjects, name, fromStr, toStr, true),
-          minutes: getHoursForCollabInRange(allProjects, name, fromStr, toStr, false),
+          minutes: getIndividualHoursForCollab(allProjects, name, fromStr, toStr),
         })).filter((c) => c.minutes > 0);
 
-        // --- Binômes / Équipes : projets multi-personnes groupés par label exact ---
+        // --- Binômes / Équipes : uniquement les entrées partagées (non nommées) ---
+        // Entrées nommées ("YYYY-MM-DD Prénom HH:MM") → déjà comptées en Individuel
         const groupMap = new Map<string, number>();
         for (const p of allProjects) {
           const collab = (p.collaborateurs || "").trim();
-          // Ne traiter que les projets avec plusieurs personnes
           if (!collab || (!collab.includes("&") && !collab.toLowerCase().includes("team"))) continue;
           const ha = p.heureArrivee || "";
           const hd = p.heureDepart || "";
@@ -1515,10 +1556,11 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             for (let i = 0; i < Math.max(arrParts.length, depParts.length); i++) {
               const aPart = arrParts[i] || "";
               const dPart = depParts[i] || "";
+              // Entrée nommée → va en Individuel, pas ici
+              if (isNamedEntry(aPart) || isNamedEntry(dPart)) continue;
               const aTime = extractHHMM(aPart) || aPart.split(/\s+/).at(-1) || "";
               const dTime = extractHHMM(dPart) || dPart.split(/\s+/).at(-1) || "";
-              const entryDate = (/^\d{4}-\d{2}-\d{2}$/.test(aPart.split(/\s+/)[0] || "") ? aPart.split(/\s+/)[0] : "") ||
-                p.dateMontage?.split("T")[0] || "";
+              const entryDate = p.dateMontage?.split("T")[0] || "";
               if (fromStr && entryDate < fromStr) continue;
               if (toStr && entryDate > toStr) continue;
               const a = parseTimeToMinutes(aTime);
@@ -1526,6 +1568,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               if (a >= 0 && d >= 0 && d > a) mins += d - a;
             }
           } else {
+            // Entrée simple (une seule heure pour tout le binôme) → Binômes
             const dateStr = p.dateMontage?.split("T")[0] || "";
             if (fromStr && dateStr < fromStr) continue;
             if (toStr && dateStr > toStr) continue;
@@ -1624,34 +1667,24 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               <p className="text-xs text-gray-400 text-center py-2">Aucune heure enregistrée sur cette période</p>
             ) : (
               <>
-                {/* --- Section Individuel (heures totales : solo + binômes) --- */}
+                {/* --- Section Individuel --- */}
                 {soloData.length > 0 && (
                   <>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Individuel</p>
-                    {soloData.map((c) => {
-                      const teamMins = c.minutes - c.soloMinutes;
-                      return (
-                        <div key={c.name} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                              style={{ backgroundColor: c.colors.bg, color: c.colors.text }}
-                            >
-                              {getCollaboratorInitials(c.name)}
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
-                              {teamMins > 0 && (
-                                <span className="text-[10px] text-gray-400">
-                                  {fmtMin(c.soloMinutes)} solo · {fmtMin(teamMins)} équipe
-                                </span>
-                              )}
-                            </div>
+                    {soloData.map((c) => (
+                      <div key={c.name} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                            style={{ backgroundColor: c.colors.bg, color: c.colors.text }}
+                          >
+                            {getCollaboratorInitials(c.name)}
                           </div>
-                          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
                         </div>
-                      );
-                    })}
+                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span>
+                      </div>
+                    ))}
                   </>
                 )}
 
