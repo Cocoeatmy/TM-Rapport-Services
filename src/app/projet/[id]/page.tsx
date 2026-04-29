@@ -2552,6 +2552,20 @@ function ProjectPageContent({ id }: { id: string }) {
         <Card>
           <CardContent className="pt-4">
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" projectId={id} notionField="Documents pour prise de mesures" />
+
+            {/* Commentaires Mesures — sous Documents Mesures, tous modes */}
+            <div className="mt-2">
+              <EditableTextField
+                label="Commentaires Mesures"
+                value={project.commentairesMesures}
+                projectId={id}
+                fieldName="commentairesMesures"
+                notionField="Commentaires Mesures"
+                multiline
+                onUpdate={(v) => setProject({ ...project, commentairesMesures: v })}
+              />
+            </div>
+
             <DocumentLinks files={project.documentsMontagee} label="Documents Montage" projectId={id} notionField="Documents pour Montage" />
 
             {/* Commentaires Montages — sous Documents Montage */}
@@ -2565,21 +2579,6 @@ function ProjectPageContent({ id }: { id: string }) {
                   notionField="Commentaires Montages"
                   multiline
                   onUpdate={(v) => setProject({ ...project, commentairesMontages: v })}
-                />
-              </div>
-            )}
-
-            {/* Commentaires Mesures — sous Documents Montage */}
-            {mode === "mesures" && (
-              <div className="mt-3">
-                <EditableTextField
-                  label="Commentaires Mesures"
-                  value={project.commentairesMesures}
-                  projectId={id}
-                  fieldName="commentairesMesures"
-                  notionField="Commentaires Mesures"
-                  multiline
-                  onUpdate={(v) => setProject({ ...project, commentairesMesures: v })}
                 />
               </div>
             )}
