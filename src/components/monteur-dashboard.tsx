@@ -1491,11 +1491,12 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         const allProjects = [...projects, ...terminatedProjects];
         const { fromStr, toStr, label } = getDateRangeForFilter(workFilter, workFrom, workTo, workMonth, workYear);
 
-        // --- Individuel : uniquement les projets SOLO ---
+        // --- Individuel : heures totales (solo + binômes) pour chaque collaborateur ---
         const soloData = COLLABORATEURS_LIST.map((name) => ({
           name,
           colors: getCollaboratorColor(name),
-          minutes: getHoursForCollabInRange(allProjects, name, fromStr, toStr, true),
+          soloMinutes: getHoursForCollabInRange(allProjects, name, fromStr, toStr, true),
+          minutes: getHoursForCollabInRange(allProjects, name, fromStr, toStr, false),
         })).filter((c) => c.minutes > 0);
 
         // --- Binômes / Équipes : projets multi-personnes groupés par label exact ---
@@ -1623,24 +1624,34 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               <p className="text-xs text-gray-400 text-center py-2">Aucune heure enregistrée sur cette période</p>
             ) : (
               <>
-                {/* --- Section Individuel (travail solo uniquement) --- */}
+                {/* --- Section Individuel (heures totales : solo + binômes) --- */}
                 {soloData.length > 0 && (
                   <>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Individuel</p>
-                    {soloData.map((c) => (
-                      <div key={c.name} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                            style={{ backgroundColor: c.colors.bg, color: c.colors.text }}
-                          >
-                            {getCollaboratorInitials(c.name)}
+                    {soloData.map((c) => {
+                      const teamMins = c.minutes - c.soloMinutes;
+                      return (
+                        <div key={c.name} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                              style={{ backgroundColor: c.colors.bg, color: c.colors.text }}
+                            >
+                              {getCollaboratorInitials(c.name)}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
+                              {teamMins > 0 && (
+                                <span className="text-[10px] text-gray-400">
+                                  {fmtMin(c.soloMinutes)} solo · {fmtMin(teamMins)} équipe
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
+                          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span>
                         </div>
-                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </>
                 )}
 
