@@ -388,6 +388,11 @@ function formatProjectDate(project: Project): string {
   return `${formatDay(startRaw)} → ${formatDay(endRaw)}`;
 }
 
+/** Supprime les diacritiques : "Loïc" → "loic", insensible à la casse. */
+function norm(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
 function matchesCollaborator(fieldValue: string, name: string): boolean {
   if (!fieldValue) return false;
   // Les projets attribués à une "Team …" (ex: "Team TM") sont considérés
@@ -395,9 +400,9 @@ function matchesCollaborator(fieldValue: string, name: string): boolean {
   // apparaître dans chaque dashboard personnel, pas seulement dans la
   // section "Binômes & Teams".
   if (fieldValue.toLowerCase().includes("team")) return true;
-  const n = name.toLowerCase();
+  const n = norm(name);
   return fieldValue.split("&").some((part) => {
-    const trimmed = part.trim().toLowerCase();
+    const trimmed = norm(part.trim());
     // Exact match on the part or the part contains the name as a distinct word
     return trimmed === n || trimmed.split(/\s+/).some((word) => word === n);
   });

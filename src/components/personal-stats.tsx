@@ -27,9 +27,14 @@ function isInRange(dateStr: string | null, range: { start: string; end: string }
   return d >= range.start && d <= range.end;
 }
 
+/** Supprime les diacritiques : "Loïc" → "loic", insensible à la casse. */
+function norm(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
 function userInProject(project: Project, userName: string): boolean {
-  const collabs = (project.collaborateurs || "").split("&").map((s) => s.trim().toLowerCase());
-  const n = userName.toLowerCase();
+  const collabs = (project.collaborateurs || "").split("&").map((s) => norm(s.trim()));
+  const n = norm(userName);
   return collabs.some((c) => c === n || c.split(/\s+/).some((w) => w === n));
 }
 
