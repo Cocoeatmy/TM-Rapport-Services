@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { notion } from "@/lib/notion";
 import { verifyToken } from "@/lib/auth";
 
+// Note: notion est gardé pour le POST (création de commentaire)
+
 export const dynamic = "force-dynamic";
 export const maxDuration = 10;
 
@@ -23,12 +25,35 @@ function toNotionComment(c: any): NotionComment {
   };
 }
 
+// Appel REST direct à l'API Notion (évite les quirks du SDK sur comments.list)
+async function notionCommentsGet(queryParams: Record<string, string>): Promise<any> {
+  const url = new URL("https://api.notion.com/v1/comments");
+  for (const [k, v] of Object.entries(queryParams)) url.searchParams.set(k, v);
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${process.env.NOTION_TOKEN}`,
+      "Notion-Version": "2022-06-28",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Notion ${res.status}: ${body}`);
+  }
+  return res.json();
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+
+    if (!id || id === "undefined") {
+      return NextResponse.json({ error: "ID de projet manquant" }, { status: 400 });
+    }
+
     const seen = new Set<string>();
     const comments: NotionComment[] = [];
     const discussionIds = new Set<string>();
@@ -36,39 +61,35 @@ export async function GET(
     // ── Étape 1 : commentaires racines de la page (paginés) ──────────────
     let cursor: string | undefined;
     do {
-      const res = await notion.comments.list({
-        block_id: id,
-        page_size: 100,
-        ...(cursor ? { start_cursor: cursor } : {}),
-      } as any);
+      const qp: Record<string, string> = { block_id: id, page_size: "100" };
+      if (cursor) qp.start_cursor = cursor;
+      const res = await notionCommentsGet(qp);
 
-      for (const c of res.results as any[]) {
+      for (const c of res.results ?? []) {
         if (!seen.has(c.id)) {
           seen.add(c.id);
           comments.push(toNotionComment(c));
         }
         if (c.discussion_id) discussionIds.add(c.discussion_id);
       }
-      cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+      cursor = res.has_more ? res.next_cursor : undefined;
     } while (cursor);
 
-    // ── Étape 2 : réponses dans chaque fil de discussion (paginées) ───────
+    // ── Étape 2 : réponses dans chaque fil de discussion ─────────────────
     for (const discussionId of discussionIds) {
       let dCursor: string | undefined;
       do {
-        const dRes = await notion.comments.list({
-          discussion_id: discussionId,
-          page_size: 100,
-          ...(dCursor ? { start_cursor: dCursor } : {}),
-        } as any);
+        const qp: Record<string, string> = { discussion_id: discussionId, page_size: "100" };
+        if (dCursor) qp.start_cursor = dCursor;
+        const dRes = await notionCommentsGet(qp);
 
-        for (const c of dRes.results as any[]) {
+        for (const c of dRes.results ?? []) {
           if (!seen.has(c.id)) {
             seen.add(c.id);
             comments.push(toNotionComment(c));
           }
         }
-        dCursor = dRes.has_more ? (dRes.next_cursor ?? undefined) : undefined;
+        dCursor = dRes.has_more ? dRes.next_cursor : undefined;
       } while (dCursor);
     }
 
@@ -81,7 +102,6 @@ export async function GET(
   } catch (error: any) {
     const msg = error?.message || String(error);
     console.error("[comments] Error fetching Notion comments:", msg);
-    // Retourne l'erreur pour permettre le diagnostic côté client
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
