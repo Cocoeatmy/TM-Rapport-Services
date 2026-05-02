@@ -15,13 +15,26 @@ export interface NotionComment {
   author?: string;
 }
 
+// Regex UUID Notion (mentions non résolues retournent leur ID brut)
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function toNotionComment(c: any): NotionComment {
+  // Pour chaque segment rich_text : utilise plain_text sauf si c'est un UUID brut
+  // (mention non résolue → on retourne "@Mention" comme fallback lisible)
+  const text = (c.rich_text as any[])
+    .map((t: any) => {
+      const pt: string = t.plain_text || "";
+      if (UUID_RE.test(pt.trim()) && t.type === "mention") return "@Mention";
+      return pt;
+    })
+    .join("");
+
   return {
     id: c.id,
-    text: (c.rich_text as any[]).map((t: any) => t.plain_text || "").join(""),
+    text,
     createdTime: c.created_time,
     discussionId: c.discussion_id,
-    author: c.created_by?.name || c.created_by?.id || undefined,
+    author: c.created_by?.name || undefined,
   };
 }
 
@@ -77,12 +90,18 @@ export async function GET(
       cursor = res.has_more ? res.next_cursor : undefined;
     } while (cursor);
 
+    // Filtre : exclut les commentaires vides ou dont le texte est uniquement un UUID
+    // (mentions non résolues, ancres internes Notion, etc.)
+    const visible = comments.filter(
+      (c) => c.text.trim() && !UUID_RE.test(c.text.trim())
+    );
+
     // Tri chronologique croissant
-    comments.sort(
+    visible.sort(
       (a, b) => new Date(a.createdTime).getTime() - new Date(b.createdTime).getTime()
     );
 
-    return NextResponse.json(comments);
+    return NextResponse.json(visible);
   } catch (error: any) {
     const msg = error?.message || String(error);
     console.error("[comments] Error fetching Notion comments:", msg);
