@@ -58,9 +58,10 @@ export async function GET(
 
     const seen = new Set<string>();
     const comments: NotionComment[] = [];
-    const discussionIds = new Set<string>();
 
-    // ── Étape 1 : commentaires racines de la page (paginés) ──────────────
+    // Récupère tous les commentaires de la page via block_id (paginé).
+    // Note: l'API REST Notion n'accepte pas discussion_id seul — block_id est
+    // toujours requis. On se limite donc aux commentaires de page (étape 1).
     let cursor: string | undefined;
     do {
       const qp: Record<string, string> = { block_id: id, page_size: "100" };
@@ -72,28 +73,9 @@ export async function GET(
           seen.add(c.id);
           comments.push(toNotionComment(c));
         }
-        if (c.discussion_id) discussionIds.add(c.discussion_id);
       }
       cursor = res.has_more ? res.next_cursor : undefined;
     } while (cursor);
-
-    // ── Étape 2 : réponses dans chaque fil de discussion ─────────────────
-    for (const discussionId of discussionIds) {
-      let dCursor: string | undefined;
-      do {
-        const qp: Record<string, string> = { discussion_id: discussionId, page_size: "100" };
-        if (dCursor) qp.start_cursor = dCursor;
-        const dRes = await notionCommentsGet(qp);
-
-        for (const c of dRes.results ?? []) {
-          if (!seen.has(c.id)) {
-            seen.add(c.id);
-            comments.push(toNotionComment(c));
-          }
-        }
-        dCursor = dRes.has_more ? dRes.next_cursor : undefined;
-      } while (dCursor);
-    }
 
     // Tri chronologique croissant
     comments.sort(
