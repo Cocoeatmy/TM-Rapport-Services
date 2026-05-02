@@ -605,6 +605,148 @@ function ExtraDateField({ label, value, projectId, fieldName, onUpdate }: {
   );
 }
 
+/** Liste les pièces manquantes (depuis /api/pieces) avec numérotation,
+ *  modification inline et suppression per-pièce. */
+function PiecesList({ projectId, refreshKey }: { projectId: string; refreshKey?: number }) {
+  type Piece = {
+    id: string;
+    description?: string;
+    reference?: string;
+    user?: string;
+    timestamp?: number;
+    photoUrls?: string[];
+    photoUrl?: string;
+    status?: string;
+  };
+  const [pieces, setPieces] = useState<Piece[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{ description: string; reference: string }>({ description: "", reference: "" });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/pieces?projectId=${projectId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setPieces(data);
+      }
+    } catch {} finally { setLoaded(true); }
+  }, [projectId]);
+
+  useEffect(() => { load(); }, [load, refreshKey]);
+
+  const handleDelete = async (id: string, num: number) => {
+    if (!confirm(`Supprimer la Pièce n°${num} ? Cette action est irréversible.`)) return;
+    setDeleting(id);
+    try {
+      const res = await fetch(`/api/pieces?id=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setPieces((prev) => prev.filter((p) => p.id !== id));
+        toast.success(`Pièce n°${num} supprimée`);
+      } else { toast.error("Erreur lors de la suppression"); }
+    } catch { toast.error("Erreur réseau"); }
+    finally { setDeleting(null); }
+  };
+
+  const startEdit = (p: Piece) => {
+    setEditing(p.id);
+    setEditDraft({ description: p.description || "", reference: p.reference || "" });
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/pieces", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, description: editDraft.description, reference: editDraft.reference }),
+      });
+      if (res.ok) {
+        setPieces((prev) => prev.map((p) => p.id === id ? { ...p, ...editDraft } : p));
+        setEditing(null);
+      } else { toast.error("Erreur lors de la modification"); }
+    } catch { toast.error("Erreur réseau"); }
+    finally { setSaving(false); }
+  };
+
+  if (!loaded || pieces.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+        Pièces manquantes ({pieces.length})
+      </p>
+      {pieces.map((p, idx) => {
+        const num = idx + 1;
+        const isDeleting = deleting === p.id;
+        const isEditing = editing === p.id;
+        const photos = p.photoUrls?.length ? p.photoUrls : (p.photoUrl ? [p.photoUrl] : []);
+        return (
+          <div key={p.id} className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/40 dark:bg-orange-900/10 p-3">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-xs font-bold text-orange-700 dark:text-orange-400">Pièce n°{num}</span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => isEditing ? setEditing(null) : startEdit(p)}
+                  className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors" title="Modifier">
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => handleDelete(p.id, num)} disabled={isDeleting}
+                  className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors" title="Supprimer">
+                  {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {isEditing ? (
+              <div className="space-y-2 mb-2">
+                <div>
+                  <label className="text-[10px] text-gray-500">Description</label>
+                  <textarea value={editDraft.description} onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
+                    className="w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none mt-0.5" rows={2} />
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-500">Référence</label>
+                  <input value={editDraft.reference} onChange={(e) => setEditDraft((d) => ({ ...d, reference: e.target.value }))}
+                    className="w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 mt-0.5" />
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => handleSaveEdit(p.id)} disabled={saving}
+                    className="text-xs bg-green-500 text-white px-3 py-1 rounded-lg disabled:opacity-50">
+                    {saving ? "..." : "✓ Enregistrer"}
+                  </button>
+                  <button onClick={() => setEditing(null)} className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">Annuler</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {p.description && <p className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-medium">{p.description}</p>}
+                {p.reference && <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Réf. : {p.reference}</p>}
+              </>
+            )}
+
+            <p className="text-[10px] text-gray-400 mb-1">
+              {p.user || "—"}{p.timestamp ? ` · ${new Date(p.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" })}` : ""}
+            </p>
+
+            {photos.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {photos.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                    <img src={thumbnailUrl(url, 120)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async"
+                      className="w-16 h-16 object-cover rounded-md border border-orange-200 dark:border-orange-700 hover:opacity-90 transition-opacity" />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Liste les défauts du projet (depuis /api/defauts) avec numérotation,
  *  toggle rapport client, et suppression per-défaut. */
 function DefautsList({ projectId, refreshKey }: { projectId: string; refreshKey?: number }) {
@@ -622,6 +764,9 @@ function DefautsList({ projectId, refreshKey }: { projectId: string; refreshKey?
   const [defauts, setDefauts] = useState<Defaut[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -633,18 +778,14 @@ function DefautsList({ projectId, refreshKey }: { projectId: string; refreshKey?
     } catch {} finally { setLoaded(true); }
   }, [projectId]);
 
-  // refreshKey incrémenté par le parent après soumission d'un nouveau défaut
   useEffect(() => { load(); }, [load, refreshKey]);
 
   const toggleDisplay = async (id: string, current: boolean) => {
     const next = !current;
     setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, displayInRapport: next } : d));
     try {
-      await fetch("/api/defauts", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, displayInRapport: next }),
-      });
+      await fetch("/api/defauts", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, displayInRapport: next }) });
     } catch {
       setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, displayInRapport: current } : d));
       toast.error("Erreur de mise à jour");
@@ -656,55 +797,52 @@ function DefautsList({ projectId, refreshKey }: { projectId: string; refreshKey?
     setDeleting(id);
     try {
       const res = await fetch(`/api/defauts?id=${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setDefauts((prev) => prev.filter((d) => d.id !== id));
-        toast.success(`Défaut n°${num} supprimé`);
-      } else {
-        toast.error("Erreur lors de la suppression");
-      }
-    } catch {
-      toast.error("Erreur réseau");
-    } finally {
-      setDeleting(null);
-    }
+      if (res.ok) { setDefauts((prev) => prev.filter((d) => d.id !== id)); toast.success(`Défaut n°${num} supprimé`); }
+      else { toast.error("Erreur lors de la suppression"); }
+    } catch { toast.error("Erreur réseau"); }
+    finally { setDeleting(null); }
+  };
+
+  const startEdit = (d: Defaut) => { setEditing(d.id); setEditDraft(d.description || ""); };
+
+  const handleSaveEdit = async (id: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/defauts", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, description: editDraft }) });
+      if (res.ok) { setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, description: editDraft } : d)); setEditing(null); }
+      else { toast.error("Erreur lors de la modification"); }
+    } catch { toast.error("Erreur réseau"); }
+    finally { setSaving(false); }
   };
 
   if (!loaded || defauts.length === 0) return null;
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-red-600 dark:text-red-400">
-        Défauts signalés ({defauts.length})
-      </p>
+      <p className="text-xs font-semibold text-red-600 dark:text-red-400">Défauts signalés ({defauts.length})</p>
       {defauts.map((d, idx) => {
         const num = idx + 1;
         const visible = d.displayInRapport !== false;
         const isDeleting = deleting === d.id;
+        const isEditing = editing === d.id;
         return (
           <div key={d.id} className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-900/10 p-3">
             {/* En-tête : numéro + actions */}
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-xs font-bold text-red-700 dark:text-red-400">
-                Défaut n°{num}
-              </span>
+              <span className="text-xs font-bold text-red-700 dark:text-red-400">Défaut n°{num}</span>
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => toggleDisplay(d.id, visible)}
-                  className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                    visible
-                      ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300"
-                      : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"
-                  }`}
-                  title={visible ? "Affiché sur le rapport — cliquer pour masquer" : "Masqué du rapport — cliquer pour afficher"}
-                >
+                <button onClick={() => toggleDisplay(d.id, visible)}
+                  className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${visible ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300" : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"}`}
+                  title={visible ? "Affiché sur le rapport — cliquer pour masquer" : "Masqué du rapport — cliquer pour afficher"}>
                   {visible ? "Sur rapport ✓" : "Masqué"}
                 </button>
-                <button
-                  onClick={() => handleDelete(d.id, num)}
-                  disabled={isDeleting}
-                  className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
-                  title="Supprimer ce défaut"
-                >
+                <button onClick={() => isEditing ? setEditing(null) : startEdit(d)}
+                  className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors" title="Modifier">
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => handleDelete(d.id, num)} disabled={isDeleting}
+                  className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors" title="Supprimer ce défaut">
                   {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 </button>
               </div>
@@ -721,17 +859,26 @@ function DefautsList({ projectId, refreshKey }: { projectId: string; refreshKey?
               </div>
             )}
 
-            {/* Description */}
-            {d.description && (
-              <p className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 leading-relaxed">
-                {d.description}
-              </p>
-            )}
+            {/* Description — éditable */}
+            {isEditing ? (
+              <div className="space-y-2 mb-2">
+                <textarea value={editDraft} onChange={(e) => setEditDraft(e.target.value)}
+                  className="w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none" rows={3} />
+                <div className="flex gap-1">
+                  <button onClick={() => handleSaveEdit(d.id)} disabled={saving}
+                    className="text-xs bg-green-500 text-white px-3 py-1 rounded-lg disabled:opacity-50">
+                    {saving ? "..." : "✓ Enregistrer"}
+                  </button>
+                  <button onClick={() => setEditing(null)} className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">Annuler</button>
+                </div>
+              </div>
+            ) : d.description ? (
+              <p className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 leading-relaxed">{d.description}</p>
+            ) : null}
 
             {/* Auteur + date */}
             <p className="text-[10px] text-gray-400 mb-1">
-              {d.user || "—"}
-              {d.timestamp ? ` · ${new Date(d.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" })}` : ""}
+              {d.user || "—"}{d.timestamp ? ` · ${new Date(d.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" })}` : ""}
             </p>
 
             {/* Photos */}
@@ -1627,6 +1774,7 @@ function ProjectPageContent({ id }: { id: string }) {
   // Clé de rafraîchissement pour DefautsList : incrémentée à chaque
   // nouveau défaut soumis pour forcer le rechargement des données KV.
   const [defautRefreshKey, setDefautRefreshKey] = useState(0);
+  const [pieceRefreshKey, setPieceRefreshKey] = useState(0);
   const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
@@ -3280,65 +3428,20 @@ function ProjectPageContent({ id }: { id: string }) {
               </>
             )}
 
-            {/* Historique Notion - Pièces manquantes & Défauts signalés */}
-            {(project.infoPiecesManquantes || project.infoDefautsSignale) && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Signalements enregistrés</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {project.infoPiecesManquantes && (
-                    <EditableSignalement
-                      label="Pièces manquantes"
-                      color="orange"
-                      text={project.infoPiecesManquantes}
-                      photos={project.photosPiecesManquantes}
-                      projectId={id}
-                      notionTextField="Infos - Pièces manquantes"
-                      onUpdate={(newText) => setProject((prev) => prev ? { ...prev, infoPiecesManquantes: newText } : prev)}
-                      onPhotosUpdate={(newPhotos) => setProject((prev) => prev ? { ...prev, photosPiecesManquantes: newPhotos } : prev)}
-                      onDelete={() => setProject((prev) => prev ? { ...prev, infoPiecesManquantes: "", photosPiecesManquantes: [] } : prev)}
-                    />
-                  )}
-                  {/* Les défauts sont affichés exclusivement via DefautsList
-                      (données per-défaut du KV store) pour éviter toute
-                      duplication avec le champ texte agrégat Notion. */}
-                  <DefautsList projectId={id} refreshKey={defautRefreshKey} />
-                </CardContent>
-              </Card>
-            )}
+            {/* Signalements enregistrés — pièces et défauts depuis le KV store */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Signalements enregistrés</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
+                <DefautsList projectId={id} refreshKey={defautRefreshKey} />
+              </CardContent>
+            </Card>
 
             {/* Pièce manquante */}
-            <PiecesForm projectId={id} projectName={project.projet} onSubmitted={(newPhotoUrls) => {
-              // 1. Ajouter immédiatement les nouvelles photos en state local
-              if (newPhotoUrls.length > 0) {
-                setProject((prev) => prev ? {
-                  ...prev,
-                  photosPiecesManquantes: [
-                    ...(prev.photosPiecesManquantes || []),
-                    ...newPhotoUrls.map((url) => ({ name: "piece.jpg", url })),
-                  ],
-                } : prev);
-              }
-              // 2. Rafraîchir les textes du projet en préservant TOUTES les photos locales
-              setTimeout(() => {
-                fetch(`/api/projects/${id}`).then(r => r.json()).then(data => {
-                  if (!data?.id) return;
-                  setProject((prev) => {
-                    if (!prev) return data;
-                    const incoming = { ...data } as typeof data;
-                    const photoFields = [
-                      "photosAvant", "photosMontage", "photosQRCode", "photosGaranties",
-                      "photosCartons", "photosSituations", "photosMesures", "photosLocalite",
-                      "photosPiecesManquantes", "photosDefautsSignale",
-                    ] as const;
-                    for (const field of photoFields) {
-                      (incoming as Record<string, unknown>)[field] = prev[field];
-                    }
-                    return incoming;
-                  });
-                }).catch(() => {});
-              }, 2000);
+            <PiecesForm projectId={id} projectName={project.projet} onSubmitted={() => {
+              setPieceRefreshKey((k) => k + 1);
             }} />
 
             {/* Signaler un défaut */}

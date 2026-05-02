@@ -157,27 +157,18 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const { id, status, comment, displayInRapport } = body;
+  const { id, status, comment, displayInRapport, description } = body;
   const defauts = await getData<DefautRequest>(KEY);
   const idx = defauts.findIndex((d) => d.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
 
   if (comment) {
     if (!defauts[idx].comments) defauts[idx].comments = [];
-    defauts[idx].comments.push({
-      user: user.name,
-      message: comment,
-      timestamp: Date.now(),
-    });
+    defauts[idx].comments.push({ user: user.name, message: comment, timestamp: Date.now() });
   }
-
-  if (status) {
-    defauts[idx].status = status;
-  }
-
-  if (typeof displayInRapport === "boolean") {
-    defauts[idx].displayInRapport = displayInRapport;
-  }
+  if (status) defauts[idx].status = status;
+  if (typeof displayInRapport === "boolean") defauts[idx].displayInRapport = displayInRapport;
+  if (typeof description === "string") defauts[idx].description = description;
 
   await setData(KEY, defauts);
   return NextResponse.json({ success: true });

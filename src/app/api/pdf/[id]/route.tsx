@@ -95,17 +95,18 @@ function parseDefautsFromNotion(text: string): DefautRequest[] {
 }
 
 async function loadPiecesForProject(projectId: string, project?: Project): Promise<PieceRequest[]> {
-  // Try Notion fields first
+  // KV-store en priorité : source de vérité per-pièce avec photos individuelles
+  const all = await getData<PieceRequest>("pieces");
+  const fromKv = all.filter((p) => p.projectId === projectId);
+  if (fromKv.length > 0) return fromKv;
+  // Fallback : pièces saisies directement dans Notion (ancien système)
   if (project?.infoPiecesManquantes) {
     const parsed = parsePiecesFromNotion(project.infoPiecesManquantes);
-    // Distribute all Notion photos evenly across pieces
     if (project.photosPiecesManquantes.length > 0 && parsed.length > 0) {
       const allPhotoUrls = project.photosPiecesManquantes.map((f) => f.url);
       if (parsed.length === 1) {
-        // All photos belong to the single piece
         parsed[0].photoUrls = allPhotoUrls;
       } else {
-        // Distribute photos across pieces (round-robin by index)
         parsed.forEach((p, i) => {
           const piecePhotos = allPhotoUrls.filter((_, pi) => pi % parsed.length === i);
           if (piecePhotos.length > 0) p.photoUrls = piecePhotos;
@@ -114,9 +115,7 @@ async function loadPiecesForProject(projectId: string, project?: Project): Promi
     }
     if (parsed.length > 0) return parsed;
   }
-  // Fallback to kv-store
-  const all = await getData<PieceRequest>("pieces");
-  return all.filter((p) => p.projectId === projectId);
+  return [];
 }
 
 async function loadDefautsForProject(projectId: string, project?: Project): Promise<DefautRequest[]> {
@@ -653,13 +652,15 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               ⚠ Signalements sur ce projet
             </Text>
             {pieces.length > 0 && (
-              <View style={{ flexDirection: "row", marginBottom: 3 }}>
-                <Text style={{ fontSize: 9, color: "#dc2626", fontFamily: "Helvetica-Bold", width: 130 }}>
+              <View style={{ marginBottom: 3 }}>
+                <Text style={{ fontSize: 9, color: "#dc2626", fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
                   Pièces manquantes : {pieces.length}
                 </Text>
-                <Text style={{ fontSize: 9, color: "#7f1d1d", flex: 1 }}>
-                  {pieces.map((p) => p.description || p.reference || "Sans description").join(", ")}
-                </Text>
+                {pieces.map((p, i) => (
+                  <Text key={p.id} style={{ fontSize: 9, color: "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
+                    • Pièce n°{i + 1} — {p.description || p.reference || "Sans description"}
+                  </Text>
+                ))}
               </View>
             )}
             {defauts.length > 0 && (
@@ -872,18 +873,23 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
             Pièces manquantes
           </Text>
 
-          {pieces.map((piece) => (
+          {pieces.map((piece, idx) => (
             <View
               key={piece.id}
               style={{
                 ...styles.defautCard,
-                backgroundColor: "#fef2f2",
-                borderColor: "#fecaca",
+                backgroundColor: "#fff7ed",
+                borderColor: "#fed7aa",
                 borderWidth: 1,
                 borderRadius: 6,
               }}
               wrap={false}
             >
+              {/* Numéro de la pièce */}
+              <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#92400e", marginBottom: 4 }}>
+                Pièce n°{idx + 1}
+              </Text>
+
               <View style={styles.defautHeader}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#991b1b" }}>

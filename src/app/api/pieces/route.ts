@@ -17,7 +17,8 @@ interface PieceRequest {
   user: string;
   description: string;
   reference: string;
-  photoUrl: string;
+  photoUrl?: string;
+  photoUrls?: string[];
   status: "demande" | "commande" | "recu";
   timestamp: number;
   comments: PieceComment[];
@@ -106,6 +107,48 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ success: true });
 }
 
+export async function DELETE(request: NextRequest) {
+  const token = request.cookies.get("auth-token")?.value;
+  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const user = await verifyToken(token);
+  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+
+  const id = request.nextUrl.searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
+
+  const pieces = await getData<PieceRequest>(KEY);
+  const piece = pieces.find((p) => p.id === id);
+  const updated = pieces.filter((p) => p.id !== id);
+  await setData(KEY, updated);
+
+  // Rebuild Notion "Infos - Pièces manquantes" from remaining entries for this project
+  if (piece?.projectId) {
+    try {
+      const remaining = updated.filter((p) => p.projectId === piece.projectId);
+      const newText = remaining.map((p) => {
+        const dateStr = p.timestamp
+          ? new Date(p.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric" })
+          : "";
+        return `Description: ${p.description || "-"} | Référence: ${p.reference || "-"} | Statut: ${p.status || "demande"} | Par: ${p.user} | Date: ${dateStr}`;
+      }).join("\n");
+
+      await notion.pages.update({
+        page_id: piece.projectId,
+        properties: {
+          "Infos - Pièces manquantes": {
+            rich_text: newText ? [{ text: { content: newText.slice(0, 2000) } }] : [],
+          },
+        },
+      });
+      invalidateCache(`project-${piece.projectId}`);
+    } catch (err) {
+      console.error("Notion piece delete sync error:", err);
+    }
+  }
+
+  return NextResponse.json({ success: true });
+}
+
 export async function PATCH(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
   if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -113,23 +156,18 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const { id, status, comment } = body;
+  const { id, status, comment, description, reference } = body;
   const pieces = await getData<PieceRequest>(KEY);
   const idx = pieces.findIndex((p) => p.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
 
   if (comment) {
     if (!pieces[idx].comments) pieces[idx].comments = [];
-    pieces[idx].comments.push({
-      user: user.name,
-      message: comment,
-      timestamp: Date.now(),
-    });
+    pieces[idx].comments.push({ user: user.name, message: comment, timestamp: Date.now() });
   }
-
-  if (status) {
-    pieces[idx].status = status;
-  }
+  if (status) pieces[idx].status = status;
+  if (typeof description === "string") pieces[idx].description = description;
+  if (typeof reference === "string") pieces[idx].reference = reference;
 
   await setData(KEY, pieces);
   return NextResponse.json({ success: true });
