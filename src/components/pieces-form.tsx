@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
+import { compressImage } from "@/lib/compress-image";
 const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m => ({ default: m.VoiceRecorder })), { ssr: false });
 
 interface PiecesFormProps {
@@ -37,9 +38,9 @@ export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormPr
     } catch {} finally { setAiLoading(false); }
   };
 
-  const handlePhotoFiles = (files: FileList | null) => {
+  const handlePhotoFiles = async (files: FileList | null) => {
     if (!files?.length) return;
-    const newFiles = Array.from(files);
+    const newFiles = await Promise.all(Array.from(files).map((f) => compressImage(f)));
     setPhotos((prev) => [...prev, ...newFiles]);
     setPhotoPreviews((prev) => [...prev, ...newFiles.map((f) => URL.createObjectURL(f))]);
   };

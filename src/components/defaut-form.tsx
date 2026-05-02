@@ -7,6 +7,7 @@ import { offlineFetch } from "@/lib/offline";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
+import { compressImage } from "@/lib/compress-image";
 const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m => ({ default: m.VoiceRecorder })), { ssr: false });
 
 const DEFAUT_TYPES = [
@@ -53,9 +54,11 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
     );
   };
 
-  const handlePhotoFiles = (files: FileList | null) => {
+  const handlePhotoFiles = async (files: FileList | null) => {
     if (!files?.length) return;
-    const newFiles = Array.from(files);
+    // Compression avant ajout : réduit les photos > 1.5 Mo à ~200-600 Ko
+    // pour éviter le rejet Vercel (limite 4.5 Mo par requête)
+    const newFiles = await Promise.all(Array.from(files).map((f) => compressImage(f)));
     setPhotos((prev) => [...prev, ...newFiles]);
     setPhotoPreviews((prev) => [...prev, ...newFiles.map((f) => URL.createObjectURL(f))]);
     if (cameraRef.current) cameraRef.current.value = "";
