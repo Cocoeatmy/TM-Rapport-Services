@@ -85,16 +85,35 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
       const photoUrls: string[] = [];
 
       if (photos.length > 0) {
-        const formData = new FormData();
-        photos.forEach((p) => formData.append("files", p));
-        formData.append("projectId", projectId);
-        formData.append("category", "defauts");
-        const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          photoUrls.push(...(uploadData.files?.map((f: { url: string }) => f.url) || []));
-        } else {
-          toast.error("Échec de l'upload des photos — le défaut sera enregistré sans photos");
+        // Retry automatique : on essaie 2 fois avant d'abandonner
+        let uploadOk = false;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const formData = new FormData();
+            photos.forEach((p) => formData.append("files", p));
+            formData.append("projectId", projectId);
+            formData.append("category", "defauts");
+            const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+            if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              const urls = uploadData.files?.map((f: { url: string }) => f.url) || [];
+              photoUrls.push(...urls);
+              uploadOk = urls.length > 0;
+              if (uploadOk) break;
+            }
+          } catch {
+            if (attempt === 2) break;
+            // Petite pause avant le 2e essai
+            await new Promise((r) => setTimeout(r, 1500));
+          }
+          if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+        }
+
+        if (!uploadOk) {
+          // Upload échoué après 2 tentatives → bloquer et avertir
+          toast.error("⚠ Upload des photos échoué. Vérifiez votre connexion et réessayez.", { duration: 6000 });
+          setSending(false);
+          return;
         }
       }
 

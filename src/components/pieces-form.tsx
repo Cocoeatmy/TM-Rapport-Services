@@ -67,18 +67,34 @@ export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormPr
       const photoUrls: string[] = [];
 
       if (photos.length > 0) {
-        const formData = new FormData();
-        photos.forEach((p, i) => {
-          const ext = p.name.split(".").pop() || "jpg";
-          formData.append("files", new File([p], `piece-${i + 1}.${ext}`, { type: p.type }));
-        });
-        formData.append("projectId", projectId);
-        formData.append("category", "pieces");
-        formData.append("notionField", "Photos - Pièces manquante");
-        const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          photoUrls.push(...(uploadData.files?.map((f: { url: string }) => f.url) || []));
+        let uploadOk = false;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const formData = new FormData();
+            photos.forEach((p, i) => {
+              const ext = p.name.split(".").pop() || "jpg";
+              formData.append("files", new File([p], `piece-${i + 1}.${ext}`, { type: p.type }));
+            });
+            formData.append("projectId", projectId);
+            formData.append("category", "pieces");
+            formData.append("notionField", "Photos - Pièces manquante");
+            const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+            if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              const urls = uploadData.files?.map((f: { url: string }) => f.url) || [];
+              photoUrls.push(...urls);
+              uploadOk = urls.length > 0;
+              if (uploadOk) break;
+            }
+          } catch {
+            if (attempt === 2) break;
+          }
+          if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+        }
+        if (!uploadOk) {
+          toast.error("⚠ Upload des photos échoué. Vérifiez votre connexion et réessayez.", { duration: 6000 });
+          setSending(false);
+          return;
         }
       }
 
