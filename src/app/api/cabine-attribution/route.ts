@@ -37,10 +37,25 @@ export async function POST(request: NextRequest) {
 
   const all = await getData<CabineAttribution>(KEY);
   const idx = all.findIndex((a) => a.projectId === projectId);
+  const existing = idx >= 0 ? all[idx] : null;
+
+  // Protection : ne jamais écraser un nom personnalisé par la valeur par défaut
+  // "Cabine N". Si le client envoie un nom par défaut, on conserve l'ancien nom
+  // personnalisé. Cela évite que la race-condition (save avant attribution-fetch)
+  // efface des noms saisis manuellement.
+  const incomingNoms = Array.isArray(noms) ? noms : attribution.map((_, i) => `Cabine ${i + 1}`);
+  const mergedNoms = incomingNoms.map((n: string, i: number) => {
+    const isDefault = !n || n === `Cabine ${i + 1}`;
+    const existingNom = existing?.noms?.[i];
+    const existingIsCustom = existingNom && existingNom !== `Cabine ${i + 1}`;
+    // Si le nom entrant est par défaut et qu'on a un nom personnalisé en base, on garde l'ancien
+    return (isDefault && existingIsCustom) ? existingNom : (n || `Cabine ${i + 1}`);
+  });
+
   const entry: CabineAttribution = {
     projectId,
     attribution,
-    noms: Array.isArray(noms) ? noms : attribution.map((_, i) => `Cabine ${i + 1}`),
+    noms: mergedNoms,
     updatedAt: Date.now(),
   };
   if (idx >= 0) all[idx] = entry; else all.push(entry);

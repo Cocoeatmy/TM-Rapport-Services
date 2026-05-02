@@ -1809,7 +1809,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [heureDepart, setHeureDepart] = useState("");
   const [commentaires, setCommentaires] = useState("");
   const [rapport, setRapport] = useState("");
-  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string }[]>([]);
+  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [signature, setSignature] = useState("");
 
@@ -1903,7 +1903,18 @@ function ProjectPageContent({ id }: { id: string }) {
       const parseCabineTimes = (raw: string): Record<number, string> => {
         const map: Record<number, string> = {};
         if (!raw) return map;
-        const re = /Cab(\d+)\s*:\s*(\d{1,2}:\d{2})/g;
+        // Gère l'ancien format "Cab1:08:00" et le nouveau "Cab1:2026-05-02:08:00"
+        const re = /Cab(\d+)\s*:(?:\d{4}-\d{2}-\d{2}:)?(\d{1,2}:\d{2})/g;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(raw))) {
+          map[parseInt(m[1], 10) - 1] = m[2];
+        }
+        return map;
+      };
+      const parseCabineDates = (raw: string): Record<number, string> => {
+        const map: Record<number, string> = {};
+        if (!raw) return map;
+        const re = /Cab(\d+)\s*:(\d{4}-\d{2}-\d{2}):/g;
         let m: RegExpExecArray | null;
         while ((m = re.exec(raw))) {
           map[parseInt(m[1], 10) - 1] = m[2];
@@ -1912,23 +1923,57 @@ function ProjectPageContent({ id }: { id: string }) {
       };
       const arriveeMap = parseCabineTimes(data.heureArrivee || "");
       const departMap = parseCabineTimes(data.heureDepart || "");
+      const dateMap = parseCabineDates(data.heureArrivee || "");
+
+      // Restauration instantanée depuis localStorage — évite le flash des noms
+      // par défaut pendant que le fetch API d'attribution est en cours.
+      let storedNoms: string[] | null = null;
+      try {
+        const s = localStorage.getItem(`tm-cabin-noms-${data.id}`);
+        if (s) storedNoms = JSON.parse(s);
+      } catch {}
+
       setCabines(
         Array.from({ length: nb }, (_, i) => ({
-          nom: `Cabine ${i + 1}`,
+          // Priorité : localStorage → sinon valeur par défaut
+          nom: storedNoms?.[i] || `Cabine ${i + 1}`,
           rapport: "",
           open: i === 0,
           monteur: "",
           arrivee: arriveeMap[i] || "",
           depart: departMap[i] || "",
+          date: dateMap[i] || "",
         }))
       );
-      // Load existing attribution
+
+      // Load existing attribution depuis l'API (source de vérité serveur)
       fetch(`/api/cabine-attribution?projectId=${data.id}`)
         .then((r) => r.json())
         .then((attr) => {
-          if (attr?.attribution?.length) {
-            setCabines((prev) => prev.map((c, i) => ({ ...c, monteur: attr.attribution[i] || "" })));
-          }
+          if (!attr) return;
+          setCabines((prev) => {
+            const next = prev.map((c, i) => {
+              // Nom : on prend la valeur la plus "custom" disponible :
+              // API > localStorage > état actuel (jamais "Cabine N" par défaut
+              // n'écrase une valeur personnalisée déjà en place).
+              const apiNom = attr.noms?.[i];
+              const isApiDefault = !apiNom || apiNom === `Cabine ${i + 1}`;
+              const nom = isApiDefault ? c.nom : apiNom;
+              return {
+                ...c,
+                monteur: attr.attribution?.[i] ?? c.monteur,
+                nom,
+              };
+            });
+            // Persiste les noms frais dans localStorage pour le prochain chargement
+            try {
+              localStorage.setItem(
+                `tm-cabin-noms-${data.id}`,
+                JSON.stringify(next.map((c) => c.nom))
+              );
+            } catch {}
+            return next;
+          });
         })
         .catch(() => {});
       // Si les heures Notion ne sont PAS au format multi-cabine (projet
@@ -2107,12 +2152,20 @@ function ProjectPageContent({ id }: { id: string }) {
     // Priorité 2 : mode multi-jour → pointages par date
     // Priorité 3 : cas simple → valeur unique
     const arriveeToSave = isCabineMode
-      ? cabines.map((c, i) => c.arrivee ? `Cab${i + 1}:${c.arrivee}` : "").filter(Boolean).join(" | ")
+      ? cabines.map((c, i) => {
+          if (!c.arrivee && !c.date) return "";
+          const dateStr = c.date ? `${c.date}:` : "";
+          return `Cab${i + 1}:${dateStr}${c.arrivee}`;
+        }).filter(Boolean).join(" | ")
       : isMultiDay
         ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
         : heureArrivee;
     const departToSave = isCabineMode
-      ? cabines.map((c, i) => c.depart ? `Cab${i + 1}:${c.depart}` : "").filter(Boolean).join(" | ")
+      ? cabines.map((c, i) => {
+          if (!c.depart && !c.date) return "";
+          const dateStr = c.date ? `${c.date}:` : "";
+          return `Cab${i + 1}:${dateStr}${c.depart}`;
+        }).filter(Boolean).join(" | ")
       : isMultiDay
         ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
         : heureDepart;
@@ -2128,14 +2181,17 @@ function ProjectPageContent({ id }: { id: string }) {
         }),
       });
       // Save cabine attribution if in multi-cabin mode
-      if (isCabineMode && (cabines.some((c) => c.monteur) || cabines.some((c) => c.nom))) {
+      if (isCabineMode) {
+        const nomsToSave = cabines.map((c, i) => c.nom || `Cabine ${i + 1}`);
+        // Persiste toujours dans localStorage (restauration immédiate au prochain chargement)
+        try { localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(nomsToSave)); } catch {}
         await offlineFetch("/api/cabine-attribution", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             projectId: id,
             attribution: cabines.map((c) => c.monteur),
-            noms: cabines.map((c, i) => c.nom || `Cabine ${i + 1}`),
+            noms: nomsToSave,
           }),
         });
       }
@@ -3220,11 +3276,20 @@ function ProjectPageContent({ id }: { id: string }) {
                             <Label>Nom / Emplacement</Label>
                             <Input
                               value={cabine.nom}
-                              onChange={(e) =>
-                                setCabines((prev) =>
-                                  prev.map((c, i) => (i === idx ? { ...c, nom: e.target.value } : c))
-                                )
-                              }
+                              onChange={(e) => {
+                                const newNom = e.target.value;
+                                setCabines((prev) => {
+                                  const next = prev.map((c, i) => (i === idx ? { ...c, nom: newNom } : c));
+                                  // Sauvegarde immédiate dans localStorage à chaque frappe
+                                  try {
+                                    localStorage.setItem(
+                                      `tm-cabin-noms-${id}`,
+                                      JSON.stringify(next.map((c) => c.nom))
+                                    );
+                                  } catch {}
+                                  return next;
+                                });
+                              }}
                               placeholder="Ex: SDD Parental, Lot 3..."
                               className="mt-1 h-11"
                             />
@@ -3259,6 +3324,21 @@ function ProjectPageContent({ id }: { id: string }) {
                                 );
                               })}
                             </div>
+                          </div>
+
+                          {/* Jour de montage pour cette cabine */}
+                          <div>
+                            <Label className="text-xs text-gray-600 dark:text-gray-300">Jour de montage</Label>
+                            <Input
+                              type="date"
+                              value={cabine.date}
+                              onChange={(e) =>
+                                setCabines((prev) =>
+                                  prev.map((c, i) => (i === idx ? { ...c, date: e.target.value } : c))
+                                )
+                              }
+                              className="mt-1 h-11 glass-input"
+                            />
                           </div>
 
                           {/* Heures arrivée / départ pour cette cabine */}

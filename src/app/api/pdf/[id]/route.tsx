@@ -155,9 +155,7 @@ const styles = StyleSheet.create({
     color: "#1a1a1a",
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: "column",
     marginBottom: 20,
     paddingBottom: 4,
     borderBottomWidth: 2,
@@ -495,15 +493,15 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
           <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
         </View>
 
-        {/* Header */}
+        {/* Header — titre pleine largeur, sous-titre + date sur la même ligne */}
         <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{project.projet}</Text>
+          <Text style={styles.title}>{project.projet}</Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
             <Text style={styles.subtitle}>Rapport de montage</Text>
-          </View>
-          <View style={styles.dateBox}>
-            <Text style={{ fontSize: 8, color: "#666" }}>Généré le</Text>
-            <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold" }}>{now}</Text>
+            <View style={styles.dateBox}>
+              <Text style={{ fontSize: 8, color: "#666" }}>Généré le</Text>
+              <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold" }}>{now}</Text>
+            </View>
           </View>
         </View>
 
@@ -582,24 +580,45 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
             const parseCab = (raw: string): Record<number, string> => {
               const map: Record<number, string> = {};
               if (!raw) return map;
-              const re = /Cab(\d+)\s*:\s*(\d{1,2}:\d{2})/g;
+              // Gère "Cab1:08:00" (ancien) et "Cab1:2026-05-02:08:00" (nouveau)
+              const re = /Cab(\d+)\s*:(?:\d{4}-\d{2}-\d{2}:)?(\d{1,2}:\d{2})/g;
               let m: RegExpExecArray | null;
               while ((m = re.exec(raw))) map[parseInt(m[1], 10) - 1] = m[2];
               return map;
             };
+            const parseCabDates = (raw: string): Record<number, string> => {
+              const map: Record<number, string> = {};
+              if (!raw) return map;
+              const re = /Cab(\d+)\s*:(\d{4}-\d{2}-\d{2}):/g;
+              let m: RegExpExecArray | null;
+              while ((m = re.exec(raw))) map[parseInt(m[1], 10) - 1] = m[2];
+              return map;
+            };
+            const fmtDate = (d: string) => {
+              if (!d) return "";
+              const [y, mo, dd] = d.split("-");
+              return `${dd}.${mo}.${y}`;
+            };
             const arriveeMap = parseCab(project.heureArrivee || "");
             const departMap = parseCab(project.heureDepart || "");
+            const dateMap = parseCabDates(project.heureArrivee || "");
             const nb = project.nbCabines || 0;
-            const isMultiCabineTimes = nb > 1 && (Object.keys(arriveeMap).length > 0 || Object.keys(departMap).length > 0);
+            const isMultiCabineTimes = nb > 1 && (Object.keys(arriveeMap).length > 0 || Object.keys(departMap).length > 0 || Object.keys(dateMap).length > 0);
 
             if (isMultiCabineTimes) {
               return (
                 <View>
                   {Array.from({ length: nb }, (_, i) => (
-                    <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
+                    <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                       <Text style={{ width: 70, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>
                         Cabine {i + 1}
                       </Text>
+                      {dateMap[i] ? (
+                        <View style={{ ...styles.timeBox, flex: 1.5, marginRight: 4 }}>
+                          <Text style={styles.timeLabel}>Date</Text>
+                          <Text style={styles.timeValue}>{fmtDate(dateMap[i])}</Text>
+                        </View>
+                      ) : null}
                       <View style={{ ...styles.timeBox, flex: 1, marginRight: 4 }}>
                         <Text style={styles.timeLabel}>Arrivée</Text>
                         <Text style={styles.timeValue}>{arriveeMap[i] || "--:--"}</Text>
@@ -633,16 +652,51 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Commentaires & Rapport</Text>
           {/* Commentaires montages exclus du PDF - informations internes */}
-          {project.rapportMonteur && (
-            <View>
-              <Text style={{ fontSize: 8, color: "#666", marginBottom: 3 }}>
-                Rapport du monteur
-              </Text>
-              <View style={styles.textBlock}>
-                <Text>{project.rapportMonteur}</Text>
+          {project.rapportMonteur && (() => {
+            // Mise en page 2 colonnes : colonne gauche = identifiant (n° lot),
+            // colonne droite = texte. Le retour à la ligne se fait dans la
+            // colonne droite, les identifiants restent tous alignés.
+            const IDENT_WIDTH = 52; // largeur fixe colonne gauche (pt)
+            const lines = project.rapportMonteur.split("\n");
+            return (
+              <View style={{ backgroundColor: "#fafafa", padding: 10, borderRadius: 4 }}>
+                <Text style={{ fontSize: 8, color: "#666", marginBottom: 6 }}>
+                  Rapport du monteur
+                </Text>
+                {lines.map((line: string, i: number) => {
+                  if (!line.trim()) {
+                    // Ligne vide → léger espace vertical
+                    return <View key={i} style={{ height: 4 }} />;
+                  }
+                  // Détecte les lignes avec identifiant numérique : "5.101 : texte"
+                  // Accepte avec ou sans espace autour du ":"
+                  const m = line.match(/^(\d[\d.]*)\s*:?\s+(.*)/);
+                  if (m) {
+                    return (
+                      <View key={i} style={{ flexDirection: "row", marginBottom: 3 }}>
+                        <Text style={{ width: IDENT_WIDTH, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f", flexShrink: 0 }}>
+                          {m[1]}
+                        </Text>
+                        <Text style={{ flex: 1, fontSize: 9, lineHeight: 1.4 }}>
+                          {m[2]}
+                        </Text>
+                      </View>
+                    );
+                  }
+                  // Ligne sans identifiant (note, "DT informée", etc.) → indentée
+                  // dans la colonne de texte, sans rien à gauche
+                  return (
+                    <View key={i} style={{ flexDirection: "row", marginBottom: 3 }}>
+                      <View style={{ width: IDENT_WIDTH, flexShrink: 0 }} />
+                      <Text style={{ flex: 1, fontSize: 9, color: "#555", fontFamily: "Helvetica-Oblique", lineHeight: 1.4 }}>
+                        {line.trim()}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
-            </View>
-          )}
+            );
+          })()}
         </View>
 
         {/* Alertes défauts / pièces manquantes */}
@@ -806,7 +860,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
           );
         };
 
-        const renderCabine = (cabKey: number) => {
+        const renderCabine = (cabKey: number, isFirstCab: boolean) => {
           const buckets = groups[cabKey] || {};
           // Nom personnalisé : si cabineAttribution contient un nom pour cette cabine, on l'utilise.
           // Sinon on tombe sur "Cabine N" par défaut.
@@ -839,10 +893,12 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
           const hasAny = avantPhotos.length > 0 || montagePhotos.length > 0 || apresPhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0;
           if (!hasAny) return null;
 
+          // Chaque cabine démarre sur une nouvelle page (sauf la première qui
+          // suit directement le titre "Photos du chantier").
           return (
-            <View key={`cab-${cabKey}`}>
+            <View key={`cab-${cabKey}`} break={!isFirstCab}>
               {isMultiCabine && (
-                <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 8, marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 3 }}>
+                <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 4, marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 3 }}>
                   {cabineLabel}
                 </Text>
               )}
@@ -857,7 +913,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
         return (
           <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
             <Text style={styles.sectionTitle} fixed>Photos du chantier</Text>
-            {orderedCabKeys.map(renderCabine)}
+            {orderedCabKeys.map((cabKey, cabIdx) => renderCabine(cabKey, cabIdx === 0))}
             <View style={styles.footer} fixed>
               <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
               <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
