@@ -29,7 +29,9 @@ function toNotionComment(c: any): NotionComment {
 async function notionCommentsGet(queryParams: Record<string, string>): Promise<any> {
   const url = new URL("https://api.notion.com/v1/comments");
   for (const [k, v] of Object.entries(queryParams)) url.searchParams.set(k, v);
-  const res = await fetch(url.toString(), {
+  const finalUrl = url.toString();
+  console.log("[comments] GET", finalUrl);
+  const res = await fetch(finalUrl, {
     headers: {
       Authorization: `Bearer ${process.env.NOTION_TOKEN}`,
       "Notion-Version": "2022-06-28",
@@ -38,7 +40,7 @@ async function notionCommentsGet(queryParams: Record<string, string>): Promise<a
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Notion ${res.status}: ${body}`);
+    throw new Error(`Notion ${res.status}: ${body}\n[URL appelée: ${finalUrl}]`);
   }
   return res.json();
 }
