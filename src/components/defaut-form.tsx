@@ -93,6 +93,8 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
         if (uploadRes.ok) {
           const uploadData = await uploadRes.json();
           photoUrls.push(...(uploadData.files?.map((f: { url: string }) => f.url) || []));
+        } else {
+          toast.error("Échec de l'upload des photos — le défaut sera enregistré sans photos");
         }
       }
 

@@ -663,13 +663,15 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               </View>
             )}
             {defauts.length > 0 && (
-              <View style={{ flexDirection: "row", marginBottom: 3 }}>
-                <Text style={{ fontSize: 9, color: "#dc2626", fontFamily: "Helvetica-Bold", width: 130 }}>
+              <View style={{ marginBottom: 3 }}>
+                <Text style={{ fontSize: 9, color: "#dc2626", fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
                   Défauts signalés : {defauts.length}
                 </Text>
-                <Text style={{ fontSize: 9, color: "#7f1d1d", flex: 1 }}>
-                  {defauts.map((d) => (d.types || []).join(", ") || d.description || "Sans description").join(" | ")}
-                </Text>
+                {defauts.map((d, i) => (
+                  <Text key={d.id} style={{ fontSize: 9, color: "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
+                    • Défaut n°{i + 1} — {(d.types || []).join(", ") || d.description || "Sans description"}
+                  </Text>
+                ))}
               </View>
             )}
             <Text style={{ fontSize: 8, color: "#991b1b", marginTop: 4 }}>
@@ -926,8 +928,13 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
         <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
           <Text style={styles.sectionTitle} fixed>Défauts signalés</Text>
 
-          {defauts.map((defaut) => (
+          {defauts.map((defaut, idx) => (
             <View key={defaut.id} style={styles.defautCard} wrap={false}>
+              {/* Numéro du défaut */}
+              <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#b91c1c", marginBottom: 4 }}>
+                Défaut n°{idx + 1}
+              </Text>
+
               <View style={styles.defautHeader}>
                 <View style={styles.defautTypes}>
                   {defaut.types?.map((type, i) => (

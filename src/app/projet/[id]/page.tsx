@@ -605,9 +605,9 @@ function ExtraDateField({ label, value, projectId, fieldName, onUpdate }: {
   );
 }
 
-/** Liste les défauts du projet (depuis /api/defauts) avec un toggle
- *  per-défaut pour décider s'il apparaît dans le rapport client. */
-function DefautsList({ projectId }: { projectId: string }) {
+/** Liste les défauts du projet (depuis /api/defauts) avec numérotation,
+ *  toggle rapport client, et suppression per-défaut. */
+function DefautsList({ projectId, refreshKey }: { projectId: string; refreshKey?: number }) {
   type Defaut = {
     id: string;
     typesLabel?: string;
@@ -621,6 +621,7 @@ function DefautsList({ projectId }: { projectId: string }) {
   };
   const [defauts, setDefauts] = useState<Defaut[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -632,7 +633,8 @@ function DefautsList({ projectId }: { projectId: string }) {
     } catch {} finally { setLoaded(true); }
   }, [projectId]);
 
-  useEffect(() => { load(); }, [load]);
+  // refreshKey incrémenté par le parent après soumission d'un nouveau défaut
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const toggleDisplay = async (id: string, current: boolean) => {
     const next = !current;
@@ -644,50 +646,101 @@ function DefautsList({ projectId }: { projectId: string }) {
         body: JSON.stringify({ id, displayInRapport: next }),
       });
     } catch {
-      // Revert on error
       setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, displayInRapport: current } : d));
       toast.error("Erreur de mise à jour");
+    }
+  };
+
+  const handleDelete = async (id: string, num: number) => {
+    if (!confirm(`Supprimer le Défaut n°${num} ? Cette action est irréversible.`)) return;
+    setDeleting(id);
+    try {
+      const res = await fetch(`/api/defauts?id=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setDefauts((prev) => prev.filter((d) => d.id !== id));
+        toast.success(`Défaut n°${num} supprimé`);
+      } else {
+        toast.error("Erreur lors de la suppression");
+      }
+    } catch {
+      toast.error("Erreur réseau");
+    } finally {
+      setDeleting(null);
     }
   };
 
   if (!loaded || defauts.length === 0) return null;
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs font-medium text-red-600 dark:text-red-400">Défauts ({defauts.length})</p>
-      {defauts.map((d) => {
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-red-600 dark:text-red-400">
+        Défauts signalés ({defauts.length})
+      </p>
+      {defauts.map((d, idx) => {
+        const num = idx + 1;
         const visible = d.displayInRapport !== false;
+        const isDeleting = deleting === d.id;
         return (
-          <div key={d.id} className="border-l-2 border-red-300 pl-2 py-1">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
-                  {d.typesLabel || (d.types || []).join(", ") || "Sans type"}
-                </p>
-                {d.description && (
-                  <p className="text-xs text-muted-foreground">{d.description}</p>
-                )}
-                <p className="text-[10px] text-gray-400 mt-0.5">
-                  {d.user || "—"}{d.timestamp ? ` · ${new Date(d.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}` : ""}
-                </p>
+          <div key={d.id} className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-900/10 p-3">
+            {/* En-tête : numéro + actions */}
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-xs font-bold text-red-700 dark:text-red-400">
+                Défaut n°{num}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => toggleDisplay(d.id, visible)}
+                  className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                    visible
+                      ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300"
+                      : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"
+                  }`}
+                  title={visible ? "Affiché sur le rapport — cliquer pour masquer" : "Masqué du rapport — cliquer pour afficher"}
+                >
+                  {visible ? "Sur rapport ✓" : "Masqué"}
+                </button>
+                <button
+                  onClick={() => handleDelete(d.id, num)}
+                  disabled={isDeleting}
+                  className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  title="Supprimer ce défaut"
+                >
+                  {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                </button>
               </div>
-              <button
-                onClick={() => toggleDisplay(d.id, visible)}
-                className={`shrink-0 text-[10px] px-2 py-1 rounded-full border transition-colors ${
-                  visible
-                    ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300"
-                    : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"
-                }`}
-                title={visible ? "Affiché sur le rapport client — cliquer pour masquer" : "Masqué du rapport client — cliquer pour afficher"}
-              >
-                {visible ? "Sur rapport ✓" : "Masqué"}
-              </button>
             </div>
+
+            {/* Type de défaut */}
+            {(d.typesLabel || (d.types && d.types.length > 0)) && (
+              <div className="flex flex-wrap gap-1 mb-1.5">
+                {(d.types && d.types.length > 0 ? d.types : (d.typesLabel || "").split(",")).map((t, i) => (
+                  <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700">
+                    {typeof t === "string" ? t.trim() : t}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Description */}
+            {d.description && (
+              <p className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 leading-relaxed">
+                {d.description}
+              </p>
+            )}
+
+            {/* Auteur + date */}
+            <p className="text-[10px] text-gray-400 mb-1">
+              {d.user || "—"}
+              {d.timestamp ? ` · ${new Date(d.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" })}` : ""}
+            </p>
+
+            {/* Photos */}
             {d.photoUrls && d.photoUrls.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-1">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {d.photoUrls.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                    <img src={thumbnailUrl(url, 96)} alt="" loading="lazy" decoding="async" className="w-12 h-12 object-cover rounded border" />
+                    <img src={thumbnailUrl(url, 120)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async"
+                      className="w-16 h-16 object-cover rounded-md border border-red-200 dark:border-red-700 hover:opacity-90 transition-opacity" />
                   </a>
                 ))}
               </div>
@@ -1571,6 +1624,9 @@ function ProjectPageContent({ id }: { id: string }) {
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   const [showAllDates, setShowAllDates] = useState(false);
   const [showRapport, setShowRapport] = useState(false);
+  // Clé de rafraîchissement pour DefautsList : incrémentée à chaque
+  // nouveau défaut soumis pour forcer le rechargement des données KV.
+  const [defautRefreshKey, setDefautRefreshKey] = useState(0);
   const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
@@ -3244,20 +3300,10 @@ function ProjectPageContent({ id }: { id: string }) {
                       onDelete={() => setProject((prev) => prev ? { ...prev, infoPiecesManquantes: "", photosPiecesManquantes: [] } : prev)}
                     />
                   )}
-                  {project.infoDefautsSignale && (
-                    <EditableSignalement
-                      label="Défauts signalés"
-                      color="red"
-                      text={project.infoDefautsSignale}
-                      photos={project.photosDefautsSignale}
-                      projectId={id}
-                      notionTextField="Infos - Défauts signalé"
-                      onUpdate={(newText) => setProject((prev) => prev ? { ...prev, infoDefautsSignale: newText } : prev)}
-                      onPhotosUpdate={(newPhotos) => setProject((prev) => prev ? { ...prev, photosDefautsSignale: newPhotos } : prev)}
-                      onDelete={() => setProject((prev) => prev ? { ...prev, infoDefautsSignale: "", photosDefautsSignale: [] } : prev)}
-                    />
-                  )}
-                  <DefautsList projectId={id} />
+                  {/* Les défauts sont affichés exclusivement via DefautsList
+                      (données per-défaut du KV store) pour éviter toute
+                      duplication avec le champ texte agrégat Notion. */}
+                  <DefautsList projectId={id} refreshKey={defautRefreshKey} />
                 </CardContent>
               </Card>
             )}
@@ -3296,18 +3342,12 @@ function ProjectPageContent({ id }: { id: string }) {
             }} />
 
             {/* Signaler un défaut */}
-            <DefautForm projectId={id} projectName={project.projet} onSubmitted={(newPhotoUrls) => {
-              // 1. Ajouter immédiatement les nouvelles photos en state local (fix Bug 2 : 2e défaut)
-              if (newPhotoUrls.length > 0) {
-                setProject((prev) => prev ? {
-                  ...prev,
-                  photosDefautsSignale: [
-                    ...(prev.photosDefautsSignale || []),
-                    ...newPhotoUrls.map((url) => ({ name: "defaut.jpg", url })),
-                  ],
-                } : prev);
-              }
-              // 2. Rafraîchir les textes du projet en préservant TOUTES les photos locales (fix Bug 1)
+            <DefautForm projectId={id} projectName={project.projet} onSubmitted={() => {
+              // Les photos du défaut sont stockées dans le KV store par défaut (per-defaut).
+              // DefautsList les lit directement → on force son rechargement via refreshKey.
+              // On ne touche PAS à photosDefautsSignale (qui est un champ agrégat legacy).
+              setDefautRefreshKey((k) => k + 1);
+              // Rafraîchir les textes du projet (infoDefautsSignale etc.) en préservant les photos locales
               setTimeout(() => {
                 fetch(`/api/projects/${id}`).then(r => r.json()).then(data => {
                   if (!data?.id) return;

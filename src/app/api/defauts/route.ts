@@ -110,6 +110,46 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ success: true });
 }
 
+export async function DELETE(request: NextRequest) {
+  const token = request.cookies.get("auth-token")?.value;
+  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const user = await verifyToken(token);
+  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+
+  const id = request.nextUrl.searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
+
+  const defauts = await getData<DefautRequest>(KEY);
+  const defaut = defauts.find((d) => d.id === id);
+  const updated = defauts.filter((d) => d.id !== id);
+  await setData(KEY, updated);
+
+  // Rebuild the Notion "Infos - Défauts signalé" field from remaining KV entries for this project
+  if (defaut?.projectId) {
+    try {
+      const remaining = updated.filter((d) => d.projectId === defaut.projectId);
+      const newText = remaining.map((d) => {
+        const typesStr = d.types?.join(", ") || d.typesLabel || "-";
+        return `Types: ${typesStr} | Description: ${d.description || "-"} | Par: ${d.user} | Date: ${d.timestamp ? new Date(d.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric" }) : ""}`;
+      }).join("\n");
+
+      await notion.pages.update({
+        page_id: defaut.projectId,
+        properties: {
+          "Infos - Défauts signalé": {
+            rich_text: newText ? [{ text: { content: newText.slice(0, 2000) } }] : [],
+          },
+        },
+      });
+      invalidateCache(`project-${defaut.projectId}`);
+    } catch (err) {
+      console.error("Notion defaut delete sync error:", err);
+    }
+  }
+
+  return NextResponse.json({ success: true });
+}
+
 export async function PATCH(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
   if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
