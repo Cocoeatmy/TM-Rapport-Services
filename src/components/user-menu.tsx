@@ -139,7 +139,7 @@ export function UserMenu() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-12 z-50 w-56 bg-white dark:bg-slate-800 rounded-xl p-2 shadow-xl border border-gray-200 dark:border-gray-700">
             <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 mb-1">
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
