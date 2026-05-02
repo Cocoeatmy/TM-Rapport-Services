@@ -10,6 +10,7 @@ export interface NotionComment {
   text: string;
   createdTime: string;
   discussionId: string;
+  author?: string;
 }
 
 function toNotionComment(c: any): NotionComment {
@@ -18,6 +19,7 @@ function toNotionComment(c: any): NotionComment {
     text: (c.rich_text as any[]).map((t: any) => t.plain_text || "").join(""),
     createdTime: c.created_time,
     discussionId: c.discussion_id,
+    author: c.created_by?.name || c.created_by?.id || undefined,
   };
 }
 
@@ -77,10 +79,10 @@ export async function GET(
 
     return NextResponse.json(comments);
   } catch (error: any) {
-    // Si les commentaires ne sont pas accessibles (permissions), on retourne
-    // un tableau vide plutôt qu'une erreur pour ne pas bloquer le rendu.
-    console.error("[comments] Error fetching Notion comments:", error?.message);
-    return NextResponse.json([]);
+    const msg = error?.message || String(error);
+    console.error("[comments] Error fetching Notion comments:", msg);
+    // Retourne l'erreur pour permettre le diagnostic côté client
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 

@@ -1614,6 +1614,7 @@ interface NotionComment {
   text: string;
   createdTime: string;
   discussionId: string;
+  author?: string;
 }
 
 function NotionComments({ projectId }: { projectId: string }) {
@@ -1622,13 +1623,20 @@ function NotionComments({ projectId }: { projectId: string }) {
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+
   const loadComments = useCallback(() => {
+    setCommentsError(null);
     fetch(`/api/projects/${projectId}/comments`)
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) setComments(data);
+        if (Array.isArray(data)) {
+          setComments(data);
+        } else if (data?.error) {
+          setCommentsError(data.error);
+        }
       })
-      .catch(() => {})
+      .catch(() => setCommentsError("Impossible de charger les commentaires"))
       .finally(() => setLoading(false));
   }, [projectId]);
 
@@ -1678,11 +1686,18 @@ function NotionComments({ projectId }: { projectId: string }) {
             <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-3/4" />
             <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-1/2" />
           </div>
+        ) : commentsError ? (
+          <p className="text-xs text-red-500 italic">Erreur : {commentsError}</p>
         ) : comments.length === 0 ? (
           <p className="text-xs text-gray-400 italic">Aucun commentaire dans Notion.</p>
         ) : (
           comments.map((c) => (
             <div key={c.id} className="rounded-xl bg-gray-50 dark:bg-gray-800/60 px-3 py-2.5">
+              {c.author && (
+                <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                  {c.author}
+                </p>
+              )}
               <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
                 {c.text}
               </p>
