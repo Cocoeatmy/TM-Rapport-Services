@@ -3263,22 +3263,69 @@ function ProjectPageContent({ id }: { id: string }) {
             )}
 
             {/* Pièce manquante */}
-            <PiecesForm projectId={id} projectName={project.projet} onSubmitted={() => {
-              // Re-fetch project to show new signalement
+            <PiecesForm projectId={id} projectName={project.projet} onSubmitted={(newPhotoUrls) => {
+              // 1. Ajouter immédiatement les nouvelles photos en state local
+              if (newPhotoUrls.length > 0) {
+                setProject((prev) => prev ? {
+                  ...prev,
+                  photosPiecesManquantes: [
+                    ...(prev.photosPiecesManquantes || []),
+                    ...newPhotoUrls.map((url) => ({ name: "piece.jpg", url })),
+                  ],
+                } : prev);
+              }
+              // 2. Rafraîchir les textes du projet en préservant TOUTES les photos locales
               setTimeout(() => {
                 fetch(`/api/projects/${id}`).then(r => r.json()).then(data => {
-                  if (data?.id) setProject(data);
+                  if (!data?.id) return;
+                  setProject((prev) => {
+                    if (!prev) return data;
+                    const incoming = { ...data } as typeof data;
+                    const photoFields = [
+                      "photosAvant", "photosMontage", "photosQRCode", "photosGaranties",
+                      "photosCartons", "photosSituations", "photosMesures", "photosLocalite",
+                      "photosPiecesManquantes", "photosDefautsSignale",
+                    ] as const;
+                    for (const field of photoFields) {
+                      (incoming as Record<string, unknown>)[field] = prev[field];
+                    }
+                    return incoming;
+                  });
                 }).catch(() => {});
-              }, 1500);
+              }, 2000);
             }} />
 
             {/* Signaler un défaut */}
-            <DefautForm projectId={id} projectName={project.projet} onSubmitted={() => {
+            <DefautForm projectId={id} projectName={project.projet} onSubmitted={(newPhotoUrls) => {
+              // 1. Ajouter immédiatement les nouvelles photos en state local (fix Bug 2 : 2e défaut)
+              if (newPhotoUrls.length > 0) {
+                setProject((prev) => prev ? {
+                  ...prev,
+                  photosDefautsSignale: [
+                    ...(prev.photosDefautsSignale || []),
+                    ...newPhotoUrls.map((url) => ({ name: "defaut.jpg", url })),
+                  ],
+                } : prev);
+              }
+              // 2. Rafraîchir les textes du projet en préservant TOUTES les photos locales (fix Bug 1)
               setTimeout(() => {
                 fetch(`/api/projects/${id}`).then(r => r.json()).then(data => {
-                  if (data?.id) setProject(data);
+                  if (!data?.id) return;
+                  setProject((prev) => {
+                    if (!prev) return data;
+                    const incoming = { ...data } as typeof data;
+                    const photoFields = [
+                      "photosAvant", "photosMontage", "photosQRCode", "photosGaranties",
+                      "photosCartons", "photosSituations", "photosMesures", "photosLocalite",
+                      "photosPiecesManquantes", "photosDefautsSignale",
+                    ] as const;
+                    for (const field of photoFields) {
+                      (incoming as Record<string, unknown>)[field] = prev[field];
+                    }
+                    return incoming;
+                  });
                 }).catch(() => {});
-              }, 1500);
+              }, 2000);
             }} />
 
             {/* Consommables utilisés */}

@@ -21,7 +21,8 @@ const DEFAUT_TYPES = [
 interface DefautFormProps {
   projectId: string;
   projectName: string;
-  onSubmitted?: () => void;
+  /** Appelé après soumission réussie avec les URLs des photos uploadées. */
+  onSubmitted?: (photoUrls: string[]) => void;
 }
 
 export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormProps) {
@@ -119,7 +120,7 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
       });
       if (res.ok) {
         toast.success("Défaut signalé avec succès");
-        onSubmitted?.();
+        onSubmitted?.(photoUrls);   // ← transmet les URLs au parent
         resetForm();
         setOpen(false);
       } else {

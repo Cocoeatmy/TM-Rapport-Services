@@ -13,7 +13,7 @@ const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m
 interface PiecesFormProps {
   projectId: string;
   projectName: string;
-  onSubmitted?: () => void;
+  onSubmitted?: (photoUrls: string[]) => void;
 }
 
 export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormProps) {
@@ -89,7 +89,7 @@ export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormPr
       });
       if (res.ok) {
         toast.success("Demande de pièce envoyée");
-        onSubmitted?.();
+        onSubmitted?.(photoUrls);   // ← transmet les URLs au parent
         reset();
         setOpen(false);
       } else {
