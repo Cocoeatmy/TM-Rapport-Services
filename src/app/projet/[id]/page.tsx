@@ -2751,7 +2751,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-gray-500">Contacts pour RDV</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.contactsRDV}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{project.contactsRDV}</p>
                   </div>
                 </div>
                 <div className="ml-6 mt-1">
