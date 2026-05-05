@@ -123,6 +123,7 @@ export interface Project {
   soucisMontage: boolean;
   causeSoucis: string;
   etatSAV: string;
+  dateRDVSAV: string | null;
   sav: boolean;
   bonLivraison: string;
   signatureUrl: string;
@@ -272,6 +273,7 @@ export function mapPageToProject(page: any): Project {
     soucisMontage: p["Soucis montage"]?.checkbox || false,
     causeSoucis: extractSelect(p["Cause Soucis montages"]),
     etatSAV: extractStatus(p["État - SAV"]),
+    dateRDVSAV: extractDate(p["Date - RDV SAV"]),
     sav: p["SAV"]?.checkbox || false,
     bonLivraison: (() => {
       const bl = p["Bon de livraison"];

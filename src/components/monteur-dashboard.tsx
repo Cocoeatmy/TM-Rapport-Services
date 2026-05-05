@@ -827,9 +827,15 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const mesuresTodayCabines = mesuresTodayProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
 
   // Services du jour
-  const servicesTodayProjects = projects.filter((p) => ((p as any)._source === "services" || (p as any)._source === "sav") && (p.dateMontage || "").split("T")[0] === todayStr);
+  const servicesTodayProjects = projects.filter((p) => (p as any)._source === "services" && (p.dateMontage || "").split("T")[0] === todayStr);
   const servicesTodayCount = servicesTodayProjects.length;
   const servicesTodayCabines = servicesTodayProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+
+  // SAV aujourd'hui : etatSAV = "RDV fixé" ET dateRDVSAV = aujourd'hui
+  const savTodayProjects = projects.filter(
+    (p) => (p as any)._source === "sav" && p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === todayStr
+  );
+  const savTodayCount = savTodayProjects.length;
 
   return (
     <div className="mb-6 space-y-4">
@@ -899,7 +905,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
 
       {/* Summary cards — hauteur uniformisée via un placeholder invisible
           pour les cartes sans sous-texte "X cab." */}
-      <div className="grid grid-cols-5 gap-1.5 sm:gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-3">
         <div className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center">
           <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresTodayCount}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures aujourd'hui</p>
@@ -914,6 +920,11 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{servicesTodayCount}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Services aujourd'hui</p>
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{servicesTodayCabines} cab.</p>
+        </div>
+        <div className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center">
+          <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{savTodayCount}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV aujourd'hui</p>
+          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
         </div>
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "week" ? null : "week")} className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all">
           <p className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalCabinesWeek}</p>
@@ -930,13 +941,16 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         {(() => {
           const rdvAFixerStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
           const mesuresAFixerStatuses = ["Pas contacté", "Contact sans réponse"];
+          const savAFixerStatuses = ["A contacter", "Contact sans réponse", "Attente news", "En cours de traitement"];
           const rdvAFixerProjects = projects.filter((p) =>
             rdvAFixerStatuses.includes(p.etatCMD) ||
-            (p.etatCMD === "En attente de mesures" && mesuresAFixerStatuses.includes(p.etatMesures))
+            (p.etatCMD === "En attente de mesures" && mesuresAFixerStatuses.includes(p.etatMesures)) ||
+            ((p as any)._source === "sav" && savAFixerStatuses.includes(p.etatSAV))
           );
           const montagesRdvCab = rdvAFixerProjects.filter((p) => { const src = (p as any)._source; return src === "cmd" || src === "montage" || !src; }).reduce((s, p) => s + (p.nbCabines || 0), 0);
           const mesuresRdvCab = rdvAFixerProjects.filter((p) => (p as any)._source === "mesures").reduce((s, p) => s + (p.nbCabines || 0), 0);
-          const servicesRdvCab = rdvAFixerProjects.filter((p) => (p as any)._source === "services" || (p as any)._source === "sav").reduce((s, p) => s + (p.nbCabines || 0), 0);
+          const servicesRdvCab = rdvAFixerProjects.filter((p) => (p as any)._source === "services").reduce((s, p) => s + (p.nbCabines || 0), 0);
+          const savRdvCab = rdvAFixerProjects.filter((p) => (p as any)._source === "sav").reduce((s, p) => s + (p.nbCabines || 0), 0);
           return (
             <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rdv-a-fixer" ? null : "rdv-a-fixer")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
               <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{rdvAFixerProjects.length}</p>
@@ -945,6 +959,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                 {montagesRdvCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Montages: {montagesRdvCab} cab.</p>}
                 {mesuresRdvCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Mesures: {mesuresRdvCab} cab.</p>}
                 {servicesRdvCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Services: {servicesRdvCab} cab.</p>}
+                {savRdvCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">SAV: {savRdvCab} cab.</p>}
               </div>
             </button>
           );
@@ -1028,7 +1043,13 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           // Remove services from montage list to avoid duplicates
           const pureMontageProjets = montageProjects.filter((p) => !servicesProjects.some((s) => s.id === p.id));
 
-          const totalCount = pureMontageProjets.length + mesuresProjects.length + servicesProjects.length;
+          // SAV à contacter
+          const savAFixerStatuses2 = ["A contacter", "Contact sans réponse", "Attente news", "En cours de traitement"];
+          const savAFixerProjects = projects.filter(
+            (p) => (p as any)._source === "sav" && savAFixerStatuses2.includes(p.etatSAV)
+          ).sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+
+          const totalCount = pureMontageProjets.length + mesuresProjects.length + servicesProjects.length + savAFixerProjects.length;
 
           const renderCategory = (title: string, color: string, bgColor: string, categoryProjects: Project[], dateLabel?: string, useDateField?: "dateMesuresRecue" | "dateDemandeProjet") => {
             if (categoryProjects.length === 0) return null;
@@ -1132,6 +1153,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               {renderCategory("Mesures à relever", "text-cyan-700 dark:text-cyan-300", "bg-cyan-50 dark:bg-cyan-900/20", mesuresProjects, "Reçue le", "dateMesuresRecue")}
               {renderCategory("Montages à planifier", "text-orange-700 dark:text-orange-300", "bg-orange-50 dark:bg-orange-900/20", pureMontageProjets)}
               {renderCategory("Services à planifier", "text-emerald-700 dark:text-emerald-300", "bg-emerald-50 dark:bg-emerald-900/20", servicesProjects, "Reçue le", "dateDemandeProjet")}
+              {renderCategory("SAV à contacter", "text-red-700 dark:text-red-300", "bg-red-50 dark:bg-red-900/20", savAFixerProjects)}
               {totalCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
             </div>
           );
