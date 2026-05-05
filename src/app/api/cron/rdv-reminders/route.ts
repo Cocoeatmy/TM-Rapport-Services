@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { notion, databaseId, mapPageToProject, type Project } from "@/lib/notion";
 import { createNotification } from "@/app/api/notifications/route";
 import { getData, setData } from "@/lib/kv-store";
+import { sendPushToUser } from "@/lib/send-push";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -146,13 +147,20 @@ export async function GET(request: NextRequest) {
           if (!sentKeys.has(key)) {
             const startTime = `${String(Math.floor(startMin / 60)).padStart(2, "0")}:${String(startMin % 60).padStart(2, "0")}`;
             const addr = project.adresseChantier ? ` — ${project.adresseChantier}` : "";
-            await createNotification(
-              email,
-              "rdv",
-              `RDV dans 30 min · ${startTime}`,
-              `${project.projet}${addr}`,
-              project.id,
-            );
+            const title = `⏰ RDV dans 30 min · ${startTime}`;
+            const message = `${project.projet}${addr}`;
+
+            // Notif in-app (cloche)
+            await createNotification(email, "rdv", title, message, project.id);
+
+            // Push native (même app fermée)
+            await sendPushToUser(email, {
+              title,
+              message,
+              url: `/projet/${project.id}`,
+              urgent: false,
+            }).catch(() => {});
+
             newSent.push({ key, timestamp: Date.now() });
             sentKeys.add(key);
             reminders30++;
@@ -174,14 +182,23 @@ export async function GET(request: NextRequest) {
               if (!sentKeys.has(key)) {
                 const nextStart = `${String(Math.floor(next.startMin / 60)).padStart(2, "0")}:${String(next.startMin % 60).padStart(2, "0")}`;
                 const nextContact = next.project.contactsRDV || next.project.contacts || "";
-                const tail = nextContact ? ` Contact : ${nextContact}` : "";
+                const tail = nextContact ? ` · ${nextContact}` : "";
+                const lateTitle = `⚠️ Retard — Prévenez le client suivant`;
+                const lateMsg = `RDV à ${nextStart} : ${next.project.projet}${tail}`;
+
+                // Notif in-app
                 await createNotification(
-                  email,
-                  "rdv",
-                  `Retard sur ${project.projet} — appeler le prochain RDV ?`,
-                  `Prochain RDV à ${nextStart} : ${next.project.projet}.${tail}`,
-                  next.project.id,
+                  email, "rdv", lateTitle, lateMsg, next.project.id,
                 );
+
+                // Push native urgente
+                await sendPushToUser(email, {
+                  title: lateTitle,
+                  message: lateMsg,
+                  url: `/projet/${next.project.id}`,
+                  urgent: true,
+                }).catch(() => {});
+
                 newSent.push({ key, timestamp: Date.now() });
                 sentKeys.add(key);
                 lateAlerts++;

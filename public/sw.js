@@ -205,19 +205,40 @@ self.addEventListener("fetch", (event) => {
 // === Push notifications ===
 self.addEventListener("push", function (event) {
   const data = event.data ? event.data.json() : {};
+  const options = {
+    body: data.message || "",
+    icon: data.icon || "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: { url: data.url || "/" },
+    // Garde la notif visible jusqu'au clic si urgente (retard)
+    requireInteraction: !!data.urgent,
+    // Regroupe les notifs du même projet (évite le spam)
+    tag: data.url || "tm-notif",
+    renotify: true,
+  };
   event.waitUntil(
-    self.registration.showNotification(data.title || "TM Rapport", {
-      body: data.message || "",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      data: data,
-    })
+    self.registration.showNotification(data.title || "TM Rapport", options)
   );
 });
 
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
-  event.waitUntil(clients.openWindow("/"));
+  const url = event.notification.data?.url || "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (windowClients) {
+      // Si l'app est déjà ouverte dans un onglet, on navigue dedans
+      for (var i = 0; i < windowClients.length; i++) {
+        var client = windowClients[i];
+        if ("focus" in client) {
+          client.focus();
+          if ("navigate" in client) client.navigate(url);
+          return;
+        }
+      }
+      // Sinon on ouvre une nouvelle fenêtre sur la bonne page
+      return clients.openWindow(url);
+    })
+  );
 });
 
 // === Message handler : permet à l'app de forcer une purge du cache API ===

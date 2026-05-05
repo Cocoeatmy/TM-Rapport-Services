@@ -66,8 +66,7 @@ export function PushNotificationSetup() {
       return;
     }
     setPermission(Notification.permission);
-    // Check if already subscribed
-    const stored = localStorage.getItem("tm-push-subscription");
+    const stored = localStorage.getItem("tm-push-subscribed");
     if (stored) setSubscribed(true);
   }, []);
 
@@ -76,36 +75,52 @@ export function PushNotificationSetup() {
     try {
       const result = await Notification.requestPermission();
       setPermission(result);
-      if (result === "granted") {
-        // Try to subscribe via service worker push manager
-        const registration = await navigator.serviceWorker?.ready;
-        if (registration?.pushManager) {
-          const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-          if (vapidKey) {
-            try {
-              const subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: vapidKey,
-              });
-              localStorage.setItem("tm-push-subscription", JSON.stringify(subscription));
-              setSubscribed(true);
-            } catch {
-              // Push subscription failed, use local notifications as fallback
-              localStorage.setItem("tm-push-subscription", "local-fallback");
-              setSubscribed(true);
-            }
-          } else {
-            // No VAPID key configured, use local notifications as fallback
-            localStorage.setItem("tm-push-subscription", "local-fallback");
-            setSubscribed(true);
-          }
+      if (result !== "granted") return;
+
+      // Abonnement Web Push via le Service Worker
+      const registration = await navigator.serviceWorker?.ready;
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+
+      if (registration?.pushManager && vapidKey) {
+        try {
+          // Convertit la clé VAPID publique (base64url → Uint8Array)
+          const urlB64 = vapidKey.replace(/-/g, "+").replace(/_/g, "/");
+          const raw = atob(urlB64);
+          const key = new Uint8Array(new ArrayBuffer(raw.length));
+          for (let i = 0; i < raw.length; i++) key[i] = raw.charCodeAt(i);
+
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: key,
+          });
+
+          // Envoie la subscription au serveur (liée au cookie auth)
+          await fetch("/api/push/subscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              subscription: subscription.toJSON(),
+              deviceId: navigator.userAgent.slice(0, 50),
+            }),
+          });
+
+          localStorage.setItem("tm-push-subscribed", "1");
+          setSubscribed(true);
+        } catch {
+          // Fallback : juste les notifs locales
+          localStorage.setItem("tm-push-subscribed", "local");
+          setSubscribed(true);
         }
-        // Show a test notification
-        new Notification("TM Rapport", {
-          body: "Les notifications sont activees !",
-          icon: "/icons/icon-192.png",
-        });
+      } else {
+        localStorage.setItem("tm-push-subscribed", "local");
+        setSubscribed(true);
       }
+
+      // Notification de confirmation
+      new Notification("TM Rapport ✓", {
+        body: "Notifications activées — vous serez prévenu 30 min avant chaque RDV.",
+        icon: "/icons/icon-192.png",
+      });
     } catch {
       /* silent */
     }
