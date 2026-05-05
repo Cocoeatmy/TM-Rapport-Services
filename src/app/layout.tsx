@@ -3,7 +3,6 @@ import { Geist } from "next/font/google";
 import { Toaster } from "sonner";
 import { UserMenu } from "@/components/user-menu";
 import { SyncButton } from "@/components/sync-button";
-import { QRButton } from "@/components/qr-button";
 import { AIChatbot } from "@/components/ai-chatbot";
 import { NotificationBell } from "@/components/notifications";
 import { RefreshButton } from "@/components/refresh-button";
@@ -88,7 +87,6 @@ export default function RootLayout({
               <CreateProjectButton />
               <NotificationBell />
               <RefreshButton />
-              <QRButton />
               <SyncButton />
               <UserMenu />
               <AIChatbot />

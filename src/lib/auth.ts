@@ -96,6 +96,24 @@ export function deleteUser(email: string): boolean {
   return true;
 }
 
+/** Met à jour le nom et/ou l'adresse email d'un utilisateur.
+ *  Si newEmail est fourni et différent de currentEmail, la clé du store change.
+ *  Retourne false si l'utilisateur n'existe pas ou si newEmail est déjà pris. */
+export function updateUserInfo(currentEmail: string, newName?: string, newEmail?: string): boolean {
+  const key = currentEmail.toLowerCase();
+  if (!USERS[key]) return false;
+  if (newName) USERS[key].name = newName;
+  if (newEmail) {
+    const newKey = newEmail.toLowerCase();
+    if (newKey !== key) {
+      if (USERS[newKey]) return false; // email déjà utilisé
+      USERS[newKey] = { ...USERS[key] };
+      delete USERS[key];
+    }
+  }
+  return true;
+}
+
 export async function createToken(user: User): Promise<string> {
   return new SignJWT({ email: user.email, name: user.name, role: user.role })
     .setProtectedHeader({ alg: "HS256" })

@@ -2,6 +2,11 @@
 
 export const COLLABORATEURS_LIST = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"] as const;
 
+/** Prénoms exclus des montages "Team" (administrateurs non-monteurs).
+ *  Les nouveaux collaborateurs monteurs ajoutés via l'interface admin
+ *  reçoivent automatiquement les montages Team sans modification ici. */
+export const TEAM_EXCLUDED_COLLABORATORS = ["Micael"] as const;
+
 export const STATUS_CMD_COLORS: Record<string, string> = {
   "Cabines en CMD": "bg-gray-100 text-gray-700",
   "Cabines à recevoir": "bg-yellow-100 text-yellow-800",

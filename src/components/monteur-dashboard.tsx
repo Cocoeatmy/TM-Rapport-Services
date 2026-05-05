@@ -6,7 +6,7 @@ import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
-import { COLLABORATEURS_LIST } from "@/lib/constants";
+import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 
 const CLIENT_LOGOS: { prefix: string; logo: string }[] = [
@@ -350,6 +350,25 @@ function getTodayStr() {
   return new Date().toISOString().split("T")[0];
 }
 
+/** Retourne la couleur du point de statut rapport ou null si rien à afficher.
+ *  - green  : rapport clôturé
+ *  - orange : rapport commencé mais pas clôturé (jour J uniquement)
+ *  - red    : rapport absent (jour J ou jours passés)
+ *  - null   : projet futur → rien */
+function getReportDot(project: Project, projectDateStr: string): "green" | "orange" | "red" | null {
+  const todayStr = getTodayStr();
+  if (!projectDateStr || projectDateStr > todayStr) return null;
+  const cloture =
+    (project.rapportDeMontage || "").toLowerCase().includes("clôt") ||
+    (project.rapportDeMontage || "").toLowerCase().includes("clot");
+  if (cloture) return "green";
+  if (projectDateStr === todayStr) {
+    const started = !!(project.rapportMonteur || project.heureArrivee);
+    return started ? "orange" : "red";
+  }
+  return "red";
+}
+
 function getWeekEndStr() {
   const today = new Date();
   const weekEnd = new Date(today);
@@ -399,7 +418,13 @@ function matchesCollaborator(fieldValue: string, name: string): boolean {
   // comme assignés à TOUS les monteurs individuels : ils doivent
   // apparaître dans chaque dashboard personnel, pas seulement dans la
   // section "Binômes & Teams".
-  if (fieldValue.toLowerCase().includes("team")) return true;
+  // Exception : les collaborateurs de TEAM_EXCLUDED_COLLABORATORS (ex: admin)
+  // ne reçoivent pas les montages Team.
+  if (fieldValue.toLowerCase().includes("team")) {
+    const firstName = norm(name.split(" ")[0]);
+    const excluded = TEAM_EXCLUDED_COLLABORATORS.some((e) => norm(e) === firstName);
+    return !excluded;
+  }
   const n = norm(name);
   return fieldValue.split("&").some((part) => {
     const trimmed = norm(part.trim());
@@ -547,6 +572,8 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
   const isTeam = collabNames.length >= 5 || collabField.toLowerCase().includes("team");
   const teamLabel = isTeam ? "Team" : collabNames.length === 2 ? "Binôme" : collabNames.length === 3 ? "Trio" : collabNames.length === 4 ? "Quatuor" : "";
   const logo = getClientLogo(project.projet);
+  const projectDateStr = (project.dateMontage || project.dateMesures || "").split("T")[0];
+  const reportDot = getReportDot(project, projectDateStr);
 
   return (
     <Link
@@ -558,6 +585,9 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
+          {reportDot && (
+            <span className={`w-2 h-2 rounded-full shrink-0 ${reportDot === "green" ? "bg-green-500" : reportDot === "orange" ? "bg-orange-400" : "bg-red-500"}`} />
+          )}
           {project.ofrTM && (
             <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">{project.ofrTM}</span>
           )}
@@ -588,7 +618,7 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
               ))}
             </div>
           )}
-          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded" />}
+          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
         </div>
       </div>
       <Badge variant="outline" className="text-[10px] shrink-0">{project.nbCabines || 0} cab.</Badge>
@@ -609,6 +639,8 @@ function WeekProjectRow({ project }: { project: Project }) {
   // Largeur plus grande quand on affiche une plage de dates, pour ne pas
   // tronquer le "Mar. 28 → Jeu. 30 avr.".
   const isMultiDay = !!project.dateMontageEnd && project.dateMontageEnd.split("T")[0] !== (project.dateMontage || "").split("T")[0];
+  const projectDateStr = (project.dateMontage || project.dateMesures || "").split("T")[0];
+  const reportDot = getReportDot(project, projectDateStr);
 
   return (
     <Link
@@ -643,6 +675,9 @@ function WeekProjectRow({ project }: { project: Project }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
+          {reportDot && (
+            <span className={`w-2 h-2 rounded-full shrink-0 ${reportDot === "green" ? "bg-green-500" : reportDot === "orange" ? "bg-orange-400" : "bg-red-500"}`} />
+          )}
           {project.ofrTM && (
             <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">{project.ofrTM}</span>
           )}
@@ -667,7 +702,7 @@ function WeekProjectRow({ project }: { project: Project }) {
               ))}
             </div>
           )}
-          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded" />}
+          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
         </div>
       </div>
       <Badge variant="outline" className="text-[10px] shrink-0">{project.nbCabines || 0} cab.</Badge>
@@ -683,7 +718,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
 
   // Heures de travail — filtre et projets terminés
@@ -885,7 +920,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                       </div>
                       <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
                     </div>
-                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded" />}
+                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
                     <div className="flex -space-x-1 shrink-0">
                       {names.slice(0, 3).map((n) => (
                         <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
@@ -906,11 +941,11 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
       {/* Summary cards — hauteur uniformisée via un placeholder invisible
           pour les cartes sans sous-texte "X cab." */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-3">
-        <div className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center">
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "mesures-today" ? null : "mesures-today")} className={`glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "mesures-today" ? "ring-2 ring-cyan-400" : ""}`}>
           <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresTodayCount}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures aujourd'hui</p>
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{mesuresTodayCabines} cab.</p>
-        </div>
+        </button>
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "today" ? null : "today")} className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all">
           <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{totalProjectsToday}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Montages aujourd'hui</p>
@@ -921,11 +956,11 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Services aujourd'hui</p>
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{servicesTodayCabines} cab.</p>
         </div>
-        <div className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center">
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "sav-today" ? null : "sav-today")} className={`glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "sav-today" ? "ring-2 ring-red-400" : ""}`}>
           <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{savTodayCount}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV aujourd'hui</p>
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
-        </div>
+        </button>
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "week" ? null : "week")} className="glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all">
           <p className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalCabinesWeek}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Cabines cette semaine</p>
@@ -1021,6 +1056,14 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               ))}
             </div>
           );
+        } else if (showSummaryPanel === "mesures-today") {
+          panelTitle = "Mesures aujourd'hui";
+          panelProjects = mesuresTodayProjects
+            .sort((a, b) => ((a.dateMesures || "").split("T")[0]).localeCompare((b.dateMesures || "").split("T")[0]));
+        } else if (showSummaryPanel === "sav-today") {
+          panelTitle = "SAV aujourd'hui";
+          panelProjects = savTodayProjects
+            .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
         } else if (showSummaryPanel === "rdv-a-fixer") {
           // Split into 3 categories
           const montageStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
@@ -1093,7 +1136,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                       </span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                      <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 truncate">{p.projet}</span>
+                      <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-2 sm:line-clamp-1">{p.projet}</span>
 
                       {/* COL arrivage — masquée sur iOS portrait, visible sm+ */}
                       <span className="hidden sm:flex w-28 shrink-0 justify-end">
@@ -1859,9 +1902,27 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
             Cette semaine
           </p>
           <div className="space-y-1.5">
-            {thisWeekProjects.map((p) => (
-              <WeekProjectRow key={p.id} project={p} />
-            ))}
+            {(() => {
+              let lastDay = "";
+              return thisWeekProjects.flatMap((p) => {
+                const dayKey = (p.dateMontage || p.dateMesures || "").split("T")[0];
+                const items: React.ReactNode[] = [];
+                if (dayKey !== lastDay && lastDay !== "") {
+                  items.push(
+                    <div key={`sep-${dayKey}`} className="flex items-center gap-2 pt-1">
+                      <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium shrink-0 px-1">
+                        {dayKey ? new Date(dayKey + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" }) : ""}
+                      </span>
+                      <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
+                    </div>
+                  );
+                }
+                lastDay = dayKey;
+                items.push(<WeekProjectRow key={p.id} project={p} />);
+                return items;
+              });
+            })()}
           </div>
         </div>
       )}
@@ -1874,9 +1935,27 @@ export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboa
             Semaine prochaine
           </p>
           <div className="space-y-1.5">
-            {nextWeekProjects.map((p) => (
-              <WeekProjectRow key={p.id} project={p} />
-            ))}
+            {(() => {
+              let lastDay = "";
+              return nextWeekProjects.flatMap((p) => {
+                const dayKey = (p.dateMontage || p.dateMesures || "").split("T")[0];
+                const items: React.ReactNode[] = [];
+                if (dayKey !== lastDay && lastDay !== "") {
+                  items.push(
+                    <div key={`sep-${dayKey}`} className="flex items-center gap-2 pt-1">
+                      <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium shrink-0 px-1">
+                        {dayKey ? new Date(dayKey + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" }) : ""}
+                      </span>
+                      <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
+                    </div>
+                  );
+                }
+                lastDay = dayKey;
+                items.push(<WeekProjectRow key={p.id} project={p} />);
+                return items;
+              });
+            })()}
           </div>
         </div>
       )}

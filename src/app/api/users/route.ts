@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken, getAllUsers, updateUserPassword, updateUserRole, addUser, deleteUser } from "@/lib/auth";
+import { verifyToken, getAllUsers, updateUserPassword, updateUserRole, addUser, deleteUser, updateUserInfo } from "@/lib/auth";
 
 async function checkAdmin(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
@@ -34,16 +34,23 @@ export async function PATCH(request: NextRequest) {
   if (!(await checkAdmin(request))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
-  const { email, password, role } = await request.json();
+  const { email, password, role, name, newEmail } = await request.json();
   if (!email) {
     return NextResponse.json({ error: "Email requis" }, { status: 400 });
   }
+  if (name || newEmail) {
+    const success = updateUserInfo(email, name, newEmail);
+    if (!success) return NextResponse.json({ error: "Email déjà utilisé ou utilisateur introuvable" }, { status: 400 });
+  }
   if (password) {
-    const success = updateUserPassword(email, password);
+    // Si l'email a changé, on utilise le nouvel email pour la mise à jour du mot de passe
+    const targetEmail = newEmail || email;
+    const success = updateUserPassword(targetEmail, password);
     if (!success) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
   }
   if (role) {
-    const success = updateUserRole(email, role);
+    const targetEmail = newEmail || email;
+    const success = updateUserRole(targetEmail, role);
     if (!success) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
   }
   return NextResponse.json({ success: true });

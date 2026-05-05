@@ -17,6 +17,7 @@ import {
   Box,
   ChevronDown,
   ChevronUp,
+  Pencil,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +50,11 @@ export default function UtilisateursPage() {
   const [addEmail, setAddEmail] = useState("");
   const [addName, setAddName] = useState("");
   const [addPassword, setAddPassword] = useState("");
+
+  // Édition nom/email collaborateur
+  const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
 
   useEffect(() => {
     fetch("/api/auth")
@@ -133,6 +139,33 @@ export default function UtilisateursPage() {
         setAddEmail("");
         setAddName("");
         setAddPassword("");
+        loadUsers();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erreur");
+      }
+    } catch {
+      toast.error("Erreur réseau");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateUserInfo = async (currentEmail: string) => {
+    if (!editName.trim() && !editEmail.trim()) return;
+    setSaving(true);
+    try {
+      const body: Record<string, string> = { email: currentEmail };
+      if (editName.trim()) body.name = editName.trim();
+      if (editEmail.trim() && editEmail.trim() !== currentEmail) body.newEmail = editEmail.trim();
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        toast.success("Collaborateur modifié");
+        setEditingUserEmail(null);
         loadUsers();
       } else {
         const data = await res.json();
@@ -231,6 +264,7 @@ export default function UtilisateursPage() {
           const firstName = u.name.split(" ")[0];
           const colors = getCollaboratorColor(firstName);
           const isEditing = editingEmail === u.email;
+          const isEditingInfo = editingUserEmail === u.email;
           const isExpanded = expandedUser === u.email;
           const initials = u.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
           const stats = isExpanded ? getUserStats(u.name) : null;
@@ -269,7 +303,45 @@ export default function UtilisateursPage() {
                     </p>
 
                     {/* Actions */}
-                    {isEditing ? (
+                    {isEditingInfo ? (
+                      <div className="mt-3 space-y-2">
+                        <div>
+                          <Label className="text-xs text-gray-500">Nom complet</Label>
+                          <Input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder={u.name}
+                            className="h-9 text-sm mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-gray-500">Adresse email</Label>
+                          <Input
+                            type="email"
+                            value={editEmail}
+                            onChange={(e) => setEditEmail(e.target.value)}
+                            placeholder={u.email}
+                            className="h-9 text-sm mt-1"
+                          />
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={() => handleUpdateUserInfo(u.email)}
+                            disabled={saving || (!editName.trim() && editEmail.trim() === u.email)}
+                            className="h-9 px-4 rounded-lg bg-[#1e3a5f] text-white text-sm font-medium disabled:opacity-50 flex items-center gap-1.5"
+                          >
+                            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            Enregistrer
+                          </button>
+                          <button
+                            onClick={() => { setEditingUserEmail(null); setEditName(""); setEditEmail(""); }}
+                            className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-600"
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      </div>
+                    ) : isEditing ? (
                       <div className="mt-3 space-y-2">
                         <Label className="text-xs">Nouveau mot de passe</Label>
                         <div className="flex gap-2">
@@ -307,7 +379,14 @@ export default function UtilisateursPage() {
                     ) : (
                       <div className="flex items-center gap-3 mt-2">
                         <button
-                          onClick={() => { setEditingEmail(u.email); setNewPassword(""); }}
+                          onClick={() => { setEditingUserEmail(u.email); setEditName(u.name); setEditEmail(u.email); setEditingEmail(null); setExpandedUser(null); }}
+                          className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-200 flex items-center gap-1"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          Modifier
+                        </button>
+                        <button
+                          onClick={() => { setEditingEmail(u.email); setNewPassword(""); setEditingUserEmail(null); }}
                           className="text-xs text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 flex items-center gap-1"
                         >
                           <Lock className="w-3 h-3" />

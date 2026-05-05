@@ -21,8 +21,14 @@ interface GPSTrackerProps {
   heureArrivee?: string;
 }
 
-const GEOFENCE_RADIUS_METERS = 150; // Rayon de détection en mètres
+/** Rayon de détection en mètres. Augmenté à 200 m pour absorber les
+ *  imprécisions de géocodage Nominatim (adresses suisses parfois décalées). */
+const GEOFENCE_RADIUS_METERS = 200;
 const POSITION_TIMEOUT_MS = 30000;
+/** Timeout de sécurité : si le GPS reste en mode "arrivé" sans détecter
+ *  de départ pendant 4 h (iOS suspend les mises à jour en arrière-plan),
+ *  on arrête automatiquement le suivi. */
+const MAX_ONSITE_DURATION_MS = 4 * 60 * 60 * 1000;
 
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -38,6 +44,11 @@ function getCurrentTime() {
   return new Date().toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
 }
 
+function extractTime(value: string): string | null {
+  const m = value.match(/\d{1,2}:\d{2}/);
+  return m ? m[0] : null;
+}
+
 export function GPSTracker({ chantierAddress, projectId, silent = false, heureDepart, heureArrivee }: GPSTrackerProps) {
   const [status, setStatus] = useState<"idle" | "watching" | "arrived" | "departed">("idle");
   const [arrivalTime, setArrivalTime] = useState<string | null>(null);
@@ -46,7 +57,11 @@ export function GPSTracker({ chantierAddress, projectId, silent = false, heureDe
   const [error, setError] = useState("");
   const [chantierCoords, setChantierCoords] = useState<{ lat: number; lng: number } | null>(null);
   const watchId = useRef<number | null>(null);
-  const wasInside = useRef(false);
+
+  /** Pré-marqué "dans la zone" si heureArrivee est déjà connue au montage.
+   *  Cela empêche checkPosition de re-détecter une arrivée alors qu'on est
+   *  déjà sur site (race condition géocodage vs heure manuelle). */
+  const wasInside = useRef(!!heureArrivee);
 
   // Refs pour éviter les stale closures dans les callbacks geolocation.
   const statusRef = useRef(status);
@@ -54,13 +69,8 @@ export function GPSTracker({ chantierAddress, projectId, silent = false, heureDe
   useEffect(() => { statusRef.current = status; }, [status]);
   useEffect(() => { chantierCoordsRef.current = chantierCoords; }, [chantierCoords]);
 
-  // POST asynchrone vers l'endpoint pointage GPS. Silencieux : on ne
-  // ré-affiche pas d'erreur si l'utilisateur est offline, on retentera
-  // au prochain mouvement.
   const postGpsEvent = useCallback(async (type: "arrival" | "departure", time: string, dist: number | null) => {
     try {
-      // offlineFetch : si le monteur est sur un chantier sans réseau,
-      // l'arrivée/départ est mis en queue et envoyé dès retour réseau.
       await offlineFetch(`/api/gps-pointage/${projectId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -70,6 +80,13 @@ export function GPSTracker({ chantierAddress, projectId, silent = false, heureDe
       /* silent — on ne dérange pas l'utilisateur */
     }
   }, [projectId]);
+
+  const stopWatching = useCallback(() => {
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+  }, []);
 
   // Geocode the chantier address to get coordinates
   useEffect(() => {
@@ -96,10 +113,6 @@ export function GPSTracker({ chantierAddress, projectId, silent = false, heureDe
   }, [chantierAddress]);
 
   // Callback position : lit les refs pour éviter les stale closures.
-  // ⚠️ Important : on EFFACE l'erreur dès qu'une position arrive.
-  // L'ancien code laissait "Position indisponible" à l'écran même
-  // quand le watchPosition réussissait à délivrer des coordonnées
-  // après un timeout transitoire — d'où le bug visuel.
   const checkPosition = useCallback((position: GeolocationPosition) => {
     setError("");
     const coords = chantierCoordsRef.current;
@@ -120,18 +133,15 @@ export function GPSTracker({ chantierAddress, projectId, silent = false, heureDe
       setArrivalTime(time);
       setStatus("arrived");
       postGpsEvent("arrival", time, Math.round(dist));
-    } else if (!isInside && wasInside.current && currentStatus === "arrived") {
+    } else if (!isInside && wasInside.current && (currentStatus === "arrived" || currentStatus === "watching")) {
       wasInside.current = false;
       const time = getCurrentTime();
       setDepartureTime(time);
       setStatus("departed");
       postGpsEvent("departure", time, Math.round(dist));
-      if (watchId.current !== null) {
-        navigator.geolocation.clearWatch(watchId.current);
-        watchId.current = null;
-      }
+      stopWatching();
     }
-  }, [postGpsEvent]);
+  }, [postGpsEvent, stopWatching]);
 
   const startWatching = useCallback(() => {
     if (!navigator.geolocation) {
@@ -144,14 +154,10 @@ export function GPSTracker({ chantierAddress, projectId, silent = false, heureDe
     watchId.current = navigator.geolocation.watchPosition(
       checkPosition,
       (err) => {
-        // Permission refusée : pas la peine de retenter, on laisse le message.
         if (err.code === 1) {
           setError("Permission GPS refusée");
           return;
         }
-        // Pour POSITION_UNAVAILABLE / TIMEOUT on n'écrase pas un
-        // distance déjà connu — la position reviendra. On affiche
-        // l'erreur uniquement si on n'a JAMAIS reçu de position.
         setDistance((current) => {
           if (current === null) setError("Position indisponible");
           return current;
@@ -161,41 +167,103 @@ export function GPSTracker({ chantierAddress, projectId, silent = false, heureDe
     );
   }, [checkPosition]);
 
-  // Auto-start GPS tracking dès que les coordonnées sont prêtes
+  // Auto-start GPS dès que les coordonnées sont prêtes.
+  // Si le départ est déjà enregistré dans Notion, on n'ouvre même pas le watch.
   useEffect(() => {
-    if (chantierCoords && status === "idle" && navigator.geolocation) {
-      startWatching();
+    if (!chantierCoords || status !== "idle" || !navigator.geolocation) return;
+
+    if (heureDepart) {
+      // Déjà parti manuellement — afficher les temps sans tracker
+      const arrTime = heureArrivee ? extractTime(heureArrivee) : null;
+      const depTime = extractTime(heureDepart) ?? heureDepart;
+      if (arrTime) setArrivalTime(arrTime);
+      setDepartureTime(depTime);
+      setStatus("departed");
+      return;
     }
+
+    startWatching();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierCoords]);
 
-  // Si le monteur a saisi une heure de départ manuellement, on arrête
-  // immédiatement le suivi GPS — il est parti, le watcher ne sert plus à rien.
+  // Si le monteur saisit une heure de départ manuellement → stop immédiat.
+  // Gère aussi le cas où heureDepart est déjà non-vide au montage.
   useEffect(() => {
     if (!heureDepart) return;
-    if (watchId.current !== null) {
-      navigator.geolocation.clearWatch(watchId.current);
-      watchId.current = null;
-    }
-    // Extrait la première heure du champ (format "HH:MM" ou "date | nom | HH:MM | …")
-    const timeMatch = heureDepart.match(/\d{1,2}:\d{2}/);
-    const depTime = timeMatch ? timeMatch[0] : heureDepart;
+    stopWatching();
+    const depTime = extractTime(heureDepart) ?? heureDepart;
     setDepartureTime(depTime);
     setStatus("departed");
     wasInside.current = false;
-  }, [heureDepart]);
+  }, [heureDepart, stopWatching]);
 
-  // Si une heure d'arrivée manuelle est connue et que le GPS n'a pas encore
-  // détecté l'entrée dans la zone, on la reflète dans l'état local.
+  // Si une heure d'arrivée manuelle est fournie, on l'utilise IMMÉDIATEMENT
+  // sans attendre status === "idle". Cela corrige la race condition où le
+  // géocodage termine avant que cet effet ne soit traité :
+  //   géocodage → status="watching" → checkPosition détecte arrivée à l'heure actuelle
+  //   au lieu d'utiliser l'heure Notion (ex. 13h45 → 14h52).
+  // wasInside est déjà initialisé à true si heureArrivee était connue au montage.
   useEffect(() => {
-    if (!heureArrivee || status !== "idle") return;
-    const timeMatch = heureArrivee.match(/\d{1,2}:\d{2}/);
-    if (timeMatch) {
-      setArrivalTime(timeMatch[0]);
-      setStatus("arrived");
-      wasInside.current = true;
-    }
-  }, [heureArrivee, status]);
+    if (!heureArrivee) return;
+    const t = extractTime(heureArrivee);
+    if (!t) return;
+    // Utilise une mise à jour fonctionnelle pour ne pas écraser une arrivée GPS
+    // déjà enregistrée si jamais les deux arrivent dans le même tick.
+    setArrivalTime((current) => current ?? t);
+    setStatus((s) => (s === "idle" || s === "watching") ? "arrived" : s);
+    wasInside.current = true;
+  }, [heureArrivee]);
+
+  // Timeout de sécurité : stop automatique après 4h en mode "arrived".
+  // Sur iOS, le navigateur cesse de livrer des mises à jour GPS quand
+  // l'appli passe en arrière-plan — la sortie de zone n'est jamais détectée.
+  useEffect(() => {
+    if (status !== "arrived") return;
+    const timeout = setTimeout(() => {
+      if (statusRef.current === "arrived") {
+        stopWatching();
+        const time = getCurrentTime();
+        setDepartureTime(time);
+        setStatus("departed");
+        wasInside.current = false;
+        postGpsEvent("departure", time, null);
+      }
+    }, MAX_ONSITE_DURATION_MS);
+    return () => clearTimeout(timeout);
+  }, [status, stopWatching, postGpsEvent]);
+
+  // Visibilité de page : quand l'onglet redevient visible après une période
+  // cachée, on requête la position UNE FOIS pour vérifier si toujours sur site.
+  // Cela compense l'arrêt des mises à jour GPS d'iOS en arrière-plan.
+  useEffect(() => {
+    if (status !== "arrived") return;
+    const handleVisibilityChange = () => {
+      if (document.hidden || statusRef.current !== "arrived") return;
+      const coords = chantierCoordsRef.current;
+      if (!coords || !navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const dist = haversineDistance(
+            position.coords.latitude, position.coords.longitude,
+            coords.lat, coords.lng,
+          );
+          setDistance(Math.round(dist));
+          if (dist > GEOFENCE_RADIUS_METERS && wasInside.current) {
+            wasInside.current = false;
+            const time = getCurrentTime();
+            setDepartureTime(time);
+            setStatus("departed");
+            stopWatching();
+            postGpsEvent("departure", time, Math.round(dist));
+          }
+        },
+        () => { /* position non dispo — on attend la prochaine update */ },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      );
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [status, stopWatching, postGpsEvent]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -220,10 +288,7 @@ export function GPSTracker({ chantierAddress, projectId, silent = false, heureDe
     setStatus("departed");
     wasInside.current = false;
     postGpsEvent("departure", time, distance);
-    if (watchId.current !== null) {
-      navigator.geolocation.clearWatch(watchId.current);
-      watchId.current = null;
-    }
+    stopWatching();
   };
 
   // En mode silencieux (monteur), on ne rend rien. Le tracking continue
