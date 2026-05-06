@@ -549,6 +549,19 @@ export async function getProjectsMesuresSansCommande(): Promise<Project[]> {
   );
 }
 
+/** Mesures terminées avec CMD = "Annulé" — pour historique des mesures sur projets annulés */
+export async function getProjectsMesuresAnnulees(): Promise<Project[]> {
+  return queryAll(
+    {
+      and: [
+        { property: "État - Mesures", status: { equals: "Terminé" } },
+        { property: "État - CMD", status: { equals: "Annulé" } },
+      ],
+    },
+    [{ property: "Mesures traitée le", direction: "descending" }]
+  );
+}
+
 export async function getProjectsServices(): Promise<Project[]> {
   return queryAll(
     {

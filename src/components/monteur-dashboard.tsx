@@ -1138,7 +1138,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
       .catch(() => {});
   }, []);
 
-  // Mesures terminées sans commande — route dédiée car ces projets ne sont dans aucun cache existant
+  // Mesures terminées sans commande — route dédiée
   const [mesuresSansCommandeData, setMesuresSansCommandeData] = useState<Project[]>([]);
   const [mesuresSansCommandeLoading, setMesuresSansCommandeLoading] = useState(false);
   useEffect(() => {
@@ -1149,6 +1149,21 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
       .catch(() => {})
       .finally(() => setMesuresSansCommandeLoading(false));
   }, []);
+
+  // Mesures terminées annulées — route dédiée
+  const [mesuresAnnuleesData, setMesuresAnnuleesData] = useState<Project[]>([]);
+  const [mesuresAnnuleesLoading, setMesuresAnnuleesLoading] = useState(false);
+  useEffect(() => {
+    setMesuresAnnuleesLoading(true);
+    fetch("/api/projects/mesures-annulees")
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setMesuresAnnuleesData(data); })
+      .catch(() => {})
+      .finally(() => setMesuresAnnuleesLoading(false));
+  }, []);
+
+  // Sous-vue du panel Mesures : "commande" | "annulees"
+  const [mesuresSubView, setMesuresSubView] = useState<"commande" | "annulees">("commande");
 
   // Charge les projets terminés dès que le filtre sort de "semaine en cours"
   // (semaine courante = seulement des projets actifs suffisent).
@@ -2199,101 +2214,108 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
             .filter((p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé")
             .sort((a, b) => ((a.dateMontage || a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMontage || b.dateMesures || "z").split("T")[0]));
         } else if (showSummaryPanel === "mesures-sans-commande") {
-          /* ── MESURES TERMINÉES SANS COMMANDE ────────────────────── */
-          const ETAT_CMD_COLORS: Record<string, string> = {
-            "En attente de mesures":    "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
-            "RDV - fixé":               "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-            "Récéptionné - RDV à fixer":"bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-            "Livraison partielle":       "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-            "Cabine à aller chercher":   "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
-            "Montage partiel":           "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
-            "Soucis montage":            "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+          /* ── MESURES — vue double (à commander / annulées) ──────── */
+          const isAnnulees = mesuresSubView === "annulees";
+          const displayList   = isAnnulees ? mesuresAnnuleesData   : mesuresSansCommandeProjects;
+          const displayLoading = isAnnulees ? mesuresAnnuleesLoading : mesuresSansCommandeLoading;
+          const hoverClass    = isAnnulees ? "hover:bg-red-50 dark:hover:bg-red-900/10" : "hover:bg-cyan-50 dark:hover:bg-cyan-900/20";
+          const arrowClass    = isAnnulees ? "group-hover:text-red-400" : "group-hover:text-cyan-400";
+          const dateClass     = isAnnulees ? "text-red-600 dark:text-red-400" : "text-cyan-700 dark:text-cyan-300";
+
+          const renderMesureRow = (p: Project) => {
+            const dateStr    = (p.dateMesures || "").split("T")[0];
+            const traitePar  = p.mesuresTraiteePar || "";
+            const traitColors = traitePar ? getCollaboratorColor(traitePar) : null;
+            const logo       = getClientLogo(p.projet);
+            return (
+              <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                className={`flex items-center gap-3 px-2 py-2.5 rounded-xl ${hoverClass} transition-colors group`}>
+                {/* Date mesures */}
+                <div className="w-24 shrink-0">
+                  {dateStr ? (
+                    <span className={`text-[11px] font-semibold tabular-nums ${dateClass}`}>
+                      {new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })}
+                    </span>
+                  ) : <span className="text-[11px] text-gray-300">—</span>}
+                </div>
+                {/* N° OFR TM */}
+                <div className="w-24 shrink-0">
+                  {parseTMNumbers(p.ofrTM || "").length > 0 ? (
+                    <div className="flex flex-col gap-px">
+                      {parseTMNumbers(p.ofrTM || "").slice(0, 2).map((tm, i) => (
+                        <span key={i} className="font-mono text-[10px] text-gray-600 dark:text-gray-300 leading-tight truncate">{tm}</span>
+                      ))}
+                    </div>
+                  ) : <span className="font-mono text-[10px] text-gray-300">—</span>}
+                </div>
+                {/* Projet + logo */}
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                  <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1">{p.projet}</p>
+                </div>
+                {/* Mesures traitée par */}
+                <div className="w-28 shrink-0 flex justify-end">
+                  {traitePar && traitColors && (
+                    <span className="flex items-center gap-1">
+                      <span className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center"
+                        style={{ backgroundColor: traitColors.bg, color: traitColors.text }}>
+                        {getCollaboratorInitials(traitePar)}
+                      </span>
+                      <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate hidden sm:block">{traitePar}</span>
+                    </span>
+                  )}
+                </div>
+                <ChevronRight className={`w-3.5 h-3.5 text-gray-300 ${arrowClass} transition-colors shrink-0`} />
+              </Link>
+            );
           };
 
           return (
             <div className="glass-card rounded-2xl p-4 space-y-3">
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-2">
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Mesures terminées — commande en attente ({mesuresSansCommandeCount})
-                </p>
-                {mesuresSansCommandeLoading && <span className="text-[10px] text-gray-400 animate-pulse">Chargement…</span>}
+              {/* Switcher */}
+              <div className="flex items-center gap-2">
+                <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1 flex-1">
+                  <button
+                    onClick={() => setMesuresSubView("commande")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${!isAnnulees ? "bg-white dark:bg-gray-700 text-cyan-700 dark:text-cyan-300 shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700"}`}>
+                    <Ruler className="w-3 h-3" />
+                    À commander
+                    <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${!isAnnulees ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" : "bg-gray-200 dark:bg-gray-700 text-gray-500"}`}>
+                      {mesuresSansCommandeLoading ? "…" : mesuresSansCommandeCount}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setMesuresSubView("annulees")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${isAnnulees ? "bg-white dark:bg-gray-700 text-red-600 dark:text-red-400 shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700"}`}>
+                    <AlertCircle className="w-3 h-3" />
+                    Annulées
+                    <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${isAnnulees ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" : "bg-gray-200 dark:bg-gray-700 text-gray-500"}`}>
+                      {mesuresAnnuleesLoading ? "…" : mesuresAnnuleesData.length}
+                    </span>
+                  </button>
+                </div>
+                {displayLoading && <span className="text-[10px] text-gray-400 animate-pulse shrink-0">Chargement…</span>}
               </div>
 
               {/* Column headers */}
-              {mesuresSansCommandeProjects.length > 0 && (
-                <div className="hidden sm:flex items-center gap-3 px-2 text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+              {displayList.length > 0 && (
+                <div className="hidden sm:flex items-center gap-3 px-2 text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 pb-1.5">
                   <span className="w-24 shrink-0">Date mesures</span>
                   <span className="w-24 shrink-0">N° OFR TM</span>
                   <span className="flex-1">Projet</span>
                   <span className="w-28 shrink-0 text-right">Traitée par</span>
-                  <span className="w-32 shrink-0 text-right">État CMD</span>
                 </div>
               )}
 
               {/* Rows */}
-              <div className="space-y-1">
-                {mesuresSansCommandeProjects.map((p) => {
-                  const dateStr = (p.dateMesures || "").split("T")[0];
-                  const traitePar = p.mesuresTraiteePar || "";
-                  const traitColors = traitePar ? getCollaboratorColor(traitePar) : null;
-                  const logo = getClientLogo(p.projet);
-                  return (
-                    <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                      className="flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors group">
-                      {/* Date mesures */}
-                      <div className="w-24 shrink-0">
-                        {dateStr ? (
-                          <span className="text-[11px] font-semibold text-cyan-700 dark:text-cyan-300 tabular-nums">
-                            {new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-gray-300">—</span>
-                        )}
-                      </div>
-                      {/* N° OFR TM */}
-                      <div className="w-24 shrink-0">
-                        {parseTMNumbers(p.ofrTM || "").length > 0 ? (
-                          <div className="flex flex-col gap-px">
-                            {parseTMNumbers(p.ofrTM || "").slice(0, 2).map((tm, i) => (
-                              <span key={i} className="font-mono text-[10px] text-gray-600 dark:text-gray-300 leading-tight truncate">{tm}</span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="font-mono text-[10px] text-gray-300">—</span>
-                        )}
-                      </div>
-                      {/* Projet + logo */}
-                      <div className="flex-1 min-w-0 flex items-center gap-2">
-                        {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
-                        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1">{p.projet}</p>
-                      </div>
-                      {/* Mesures traitée par */}
-                      <div className="w-28 shrink-0 flex justify-end">
-                        {traitePar && traitColors && (
-                          <span className="flex items-center gap-1">
-                            <span className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center"
-                              style={{ backgroundColor: traitColors.bg, color: traitColors.text }}>
-                              {getCollaboratorInitials(traitePar)}
-                            </span>
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate hidden sm:block">{traitePar}</span>
-                          </span>
-                        )}
-                      </div>
-                      {/* État CMD */}
-                      <div className="w-32 shrink-0 flex justify-end">
-                        <span className={`text-[9px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${ETAT_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-500 dark:bg-gray-700/40 dark:text-gray-400"}`}>
-                          {p.etatCMD || "—"}
-                        </span>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-cyan-400 transition-colors shrink-0" />
-                    </Link>
-                  );
-                })}
+              <div className="space-y-0.5">
+                {displayList.map(renderMesureRow)}
               </div>
 
-              {mesuresSansCommandeProjects.length === 0 && (
-                <p className="text-sm text-gray-400 py-4 text-center">Toutes les mesures terminées ont une commande associée 🎉</p>
+              {displayList.length === 0 && !displayLoading && (
+                <p className="text-sm text-gray-400 py-4 text-center">
+                  {isAnnulees ? "Aucune mesure terminée sur projet annulé" : "Toutes les mesures ont été commandées 🎉"}
+                </p>
               )}
             </div>
           );
