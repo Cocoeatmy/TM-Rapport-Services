@@ -2768,19 +2768,20 @@ function HomePage() {
               {expandedSections.has("kpis") && (() => {
                 const totalDemontages = svcFiltered.reduce((s: number, r: any) => s + r.demontages, 0);
                 const bDemontages = svcFilteredB.reduce((s: number, r: any) => s + r.demontages, 0);
+                const savPct = totalMontages > 0 ? ((totalSAV / totalMontages) * 100).toFixed(1) : null;
                 const kpis = [
                   { label: "Montages",       valA: totalMontages, valB: bMontages,  color: "text-[#1e3a5f] dark:text-white",  size: "text-3xl" },
                   { label: "Cabines mesurées",valA: totalCabines,  valB: bCabines,   color: "text-[#1e3a5f] dark:text-white",  size: "text-3xl" },
                   { label: "Mesures",        valA: totalMesures,  valB: bMesures,   color: "text-green-600",                   size: "text-3xl" },
                   { label: "CA (CHF)",       valA: totalCA,       valB: bCA,        color: "text-blue-600",                    size: "text-3xl", fmt: (v: number) => v > 0 ? `${(v / 1000).toFixed(0)}k` : "0" },
                   { label: "Services",       valA: totalServices, valB: bServices,  color: "text-purple-600",                  size: "text-2xl" },
-                  { label: "SAV",            valA: totalSAV,      valB: bSAV,       color: "text-red-500",                     size: "text-2xl" },
+                  { label: "SAV",            valA: totalSAV,      valB: bSAV,       color: "text-red-500",                     size: "text-2xl", sub: savPct ? `${savPct}% des montages` : undefined },
                   { label: "Offres",         valA: totalOFR,      valB: bOFR,       color: "text-amber-600",                   size: "text-2xl" },
                   { label: "Demontages",     valA: totalDemontages,valB: bDemontages,color: "text-teal-600",                   size: "text-2xl" },
                 ];
                 return (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {kpis.map(({ label, valA, valB, color, size, fmt }) => {
+                    {kpis.map(({ label, valA, valB, color, size, fmt, sub }: any) => {
                       const display = fmt ? fmt : (v: number) => String(v);
                       const d = statsCompare ? delta(valA, valB) : null;
                       return (
@@ -2808,6 +2809,7 @@ function HomePage() {
                             <p className={`${size} font-bold ${color}`}>{display(valA)}</p>
                           )}
                           <p className="text-xs text-gray-500 mt-1">{label}</p>
+                          {sub && <p className="text-[10px] text-red-400 dark:text-red-500 mt-0.5 font-medium">{sub}</p>}
                         </div>
                       );
                     })}
