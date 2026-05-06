@@ -1630,16 +1630,16 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
               </div>
 
               {/* Day headers */}
-              <div className="grid grid-cols-7 gap-0.5">
+              <div className="grid grid-cols-7 gap-1.5">
                 {DAY_HEADERS.map(d => (
-                  <div key={d} className="text-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase py-1">{d}</div>
+                  <div key={d} className="text-center text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase py-1.5">{d}</div>
                 ))}
               </div>
 
               {/* Calendar grid */}
-              <div className="grid grid-cols-7 gap-0.5">
+              <div className="grid grid-cols-7 gap-1.5">
                 {cells.map((day, idx) => {
-                  if (!day) return <div key={`empty-${idx}`} className="aspect-square" />;
+                  if (!day) return <div key={`empty-${idx}`} className="min-h-[64px]" />;
                   const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                   const dayProjects = dayMap[dateStr] || [];
                   const isToday = dateStr === todayStr2;
@@ -1654,35 +1654,47 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                       const field = src === "mesures" ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
                       return field.split(/[\s&,]+/).map(s => s.trim()).filter(Boolean);
                     })
-                  )).slice(0, 4);
+                  ));
 
                   return (
                     <button
                       key={dateStr}
                       onClick={() => hasProjects ? setCalendarSelectedDay(isSelected ? null : dateStr) : undefined}
                       className={[
-                        "relative flex flex-col items-center justify-start pt-1 pb-1.5 rounded-xl transition-all text-center",
-                        hasProjects ? "cursor-pointer hover:scale-105 active:scale-95" : "cursor-default",
+                        "relative flex flex-col items-start justify-start p-2 min-h-[64px] rounded-2xl transition-all text-left",
+                        hasProjects ? "cursor-pointer hover:scale-[1.03] active:scale-95 shadow-sm" : "cursor-default",
                         isToday ? "bg-violet-100 dark:bg-violet-900/40 ring-2 ring-violet-400" : "",
-                        isSelected ? "bg-violet-200 dark:bg-violet-800/50 ring-2 ring-violet-500 shadow-md" : "",
-                        !isToday && !isSelected && hasProjects ? "bg-white/70 dark:bg-white/5 hover:bg-violet-50 dark:hover:bg-violet-900/20" : "",
+                        isSelected ? "bg-violet-200 dark:bg-violet-800/50 ring-2 ring-violet-500 shadow-lg" : "",
+                        !isToday && !isSelected && hasProjects ? "bg-white/80 dark:bg-white/8 hover:bg-violet-50 dark:hover:bg-violet-900/20" : "",
+                        !isToday && !isSelected && !hasProjects ? "bg-white/30 dark:bg-white/3" : "",
                         isPast && !isToday ? "opacity-50" : "",
                       ].join(" ")}
                     >
-                      <span className={`text-[10px] sm:text-xs font-bold leading-none ${isToday ? "text-violet-700 dark:text-violet-300" : "text-gray-700 dark:text-gray-300"}`}>{day}</span>
+                      {/* Day number */}
+                      <span className={`text-sm font-bold leading-none mb-1.5 ${isToday ? "text-violet-700 dark:text-violet-300" : hasProjects ? "text-gray-800 dark:text-gray-100" : "text-gray-400 dark:text-gray-600"}`}>{day}</span>
+
+                      {/* Collaborator avatars */}
                       {collabsOnDay.length > 0 && (
-                        <div className="flex flex-wrap justify-center gap-px mt-1">
-                          {collabsOnDay.slice(0, 3).map(n => (
-                            <span key={n} className="w-3.5 h-3.5 rounded-full text-[6px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                        <div className="flex flex-wrap gap-1">
+                          {collabsOnDay.slice(0, 4).map(n => (
+                            <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-sm"
                               style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
                               {getCollaboratorInitials(n).charAt(0)}
                             </span>
                           ))}
-                          {collabsOnDay.length > 3 && <span className="text-[7px] text-gray-400 leading-none mt-px">+{collabsOnDay.length - 3}</span>}
+                          {collabsOnDay.length > 4 && (
+                            <span className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 text-[7px] text-gray-500 dark:text-gray-300 font-bold flex items-center justify-center border-2 border-white dark:border-gray-800">
+                              +{collabsOnDay.length - 4}
+                            </span>
+                          )}
                         </div>
                       )}
-                      {hasProjects && dayProjects.length > 1 && (
-                        <span className="absolute bottom-0.5 right-1 text-[7px] text-violet-500 dark:text-violet-400 font-bold">{dayProjects.length}</span>
+
+                      {/* Project count badge */}
+                      {hasProjects && (
+                        <span className={`absolute top-1.5 right-1.5 text-[9px] font-bold px-1 py-0.5 rounded-full leading-none ${isSelected ? "bg-violet-500 text-white" : isToday ? "bg-violet-400 text-white" : "bg-violet-100 text-violet-600 dark:bg-violet-900/50 dark:text-violet-300"}`}>
+                          {dayProjects.length}
+                        </span>
                       )}
                     </button>
                   );
