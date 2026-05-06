@@ -225,7 +225,7 @@ export function mapPageToProject(page: any): Project {
     id: page.id,
     projet: extractText(p["Projet"]),
     ofrTM: extractText(p["N° OFR TM"]),
-    emplacementCabine: extractSelect(p["Emplacement de cabine"]),
+    emplacementCabine: extractMultiSelect(p["Emplacement de cabine"]).join(", "),
     nbCabines: extractNumber(p["Nb. Cabines"]),
     fournisseurs: extractMultiSelect(p["n8n Fournisseurs"]),
     seriesCabines: extractMultiSelect(p["n8n Séries Cabines"]),
