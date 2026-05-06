@@ -718,7 +718,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
 
   // Heures de travail — filtre et projets terminés
@@ -902,6 +902,11 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
     .sort((a, b) => ((a.dateMontage || "").split("T")[0]).localeCompare((b.dateMontage || "").split("T")[0]));
   const soucisEnCoursCount = soucisEnCoursProjects.length;
 
+  // À facturer : projets dont la propriété "Facturations" = "A facturer"
+  const aFacturerProjects = projects.filter((p) => p.facturations === "A facturer")
+    .sort((a, b) => ((a.dateOffre || "") > (b.dateOffre || "") ? -1 : 1));
+  const aFacturerCount = aFacturerProjects.length;
+
   // Dossiers en cours : tous les projets dont État-CMD n'est pas Annulé ou Terminé,
   // triés par Date Offre décroissante (la plus récente en haut)
   const dossiersEnCoursProjects = projects.filter((p) =>
@@ -1035,9 +1040,14 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis en cours</p>
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
         </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "dossiers-en-cours" ? null : "dossiers-en-cours")} className={`col-span-2 sm:col-span-1 glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "dossiers-en-cours" ? "ring-2 ring-indigo-400" : ""}`}>
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "dossiers-en-cours" ? null : "dossiers-en-cours")} className={`glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "dossiers-en-cours" ? "ring-2 ring-indigo-400" : ""}`}>
           <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400">{dossiersEnCoursCount}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Dossiers en cours</p>
+          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+        </button>
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "a-facturer" ? null : "a-facturer")} className={`glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "a-facturer" ? "ring-2 ring-yellow-400" : ""}`}>
+          <p className="text-lg sm:text-2xl font-bold text-yellow-600 dark:text-yellow-400">{aFacturerCount}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">À facturer</p>
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
         </button>
       </div>
@@ -1148,6 +1158,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         } else if (showSummaryPanel === "dossiers-en-cours") {
           panelTitle = "Dossiers en cours";
           panelProjects = dossiersEnCoursProjects;
+        } else if (showSummaryPanel === "a-facturer") {
+          panelTitle = "À facturer";
+          panelProjects = aFacturerProjects;
         } else if (showSummaryPanel === "rdv-a-fixer") {
           // Split into 3 categories
           const montageStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
@@ -1293,6 +1306,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
 
         const isRdvAFixer = false; // rdv-a-fixer has its own return above
         const isDossiersEnCours = showSummaryPanel === "dossiers-en-cours";
+        const isAFacturer = showSummaryPanel === "a-facturer";
         const dateLabel = "Date";
 
         return (
@@ -1311,8 +1325,8 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             )}
             {panelProjects.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
 
-            {/* Dossiers en cours : liste triée par Date Offre décroissante */}
-            {isDossiersEnCours && panelProjects.map((p, idx) => {
+            {/* Dossiers en cours / À facturer : liste triée par Date Offre décroissante */}
+            {(isDossiersEnCours || isAFacturer) && panelProjects.map((p, idx) => {
               const collabField = p.collaborateurs || "";
               const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
               const rowBg = idx % 2 === 0 ? "bg-indigo-50/50 dark:bg-indigo-950/20" : "bg-indigo-100/40 dark:bg-indigo-900/15";
@@ -1397,7 +1411,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             })}
 
             {/* Autres panels : groupé par jour avec séparateurs */}
-            {!isRdvAFixer && !isDossiersEnCours && (() => {
+            {!isRdvAFixer && !isDossiersEnCours && !isAFacturer && (() => {
               const todayStr = new Date().toISOString().split("T")[0];
               const now = new Date();
               const weekEnd = new Date(now);
