@@ -10,6 +10,83 @@ import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS } from "@/lib/constant
 import type { Project } from "@/lib/notion";
 import { PersonalStats } from "@/components/personal-stats";
 
+// ─── Citations motivantes quotidiennes ─────────────────────────────────────
+const DAILY_QUOTES: string[] = [
+  "La qualité n'est jamais un accident, c'est le résultat d'un effort intelligent.",
+  "Un bon artisan ne blâme jamais ses outils.",
+  "Chaque chantier terminé est une fierté bâtie de tes mains.",
+  "Le travail bien fait parle pour lui-même.",
+  "La précision d'aujourd'hui, c'est la satisfaction du client demain.",
+  "Mieux vaut prendre le temps de bien faire que de devoir refaire.",
+  "L'excellence est une habitude, pas un exploit.",
+  "Ce que tu construis aujourd'hui tient debout pour des années.",
+  "Le détail fait toute la différence.",
+  "Un monteur fier de son travail, c'est un client qui revient.",
+  "Le succès, c'est la somme de petits efforts répétés chaque jour.",
+  "Fais-le avec passion ou ne le fais pas du tout.",
+  "Chaque journée est une nouvelle occasion de faire du bon travail.",
+  "La rigueur d'aujourd'hui évite les retours de demain.",
+  "Ton savoir-faire est ta signature.",
+  "L'effort d'aujourd'hui construit le confort de demain.",
+  "Un chantier propre, un esprit clair.",
+  "La confiance se gagne millimètre par millimètre.",
+  "Ce n'est pas le travail qui use, c'est le travail mal fait.",
+  "Travailler vite c'est bien, travailler juste c'est mieux.",
+  "La satisfaction du travail accompli vaut tout.",
+  "Chaque cabine posée est une marque de ton expertise.",
+  "La ponctualité, c'est respecter le temps de tout le monde.",
+  "Un bon monteur anticipe les problèmes avant qu'ils arrivent.",
+  "La sécurité n'est pas une option, c'est une priorité.",
+  "Prends soin de tes outils, ils prendront soin de toi.",
+  "Le professionnalisme se voit dans les finitions.",
+  "Aujourd'hui, donne le meilleur de toi-même.",
+  "La persévérance transforme un chantier difficile en réussite.",
+  "Chaque problème rencontré est une compétence gagnée.",
+  "Le respect du client commence par le respect de son espace.",
+  "Bien commencer la journée, c'est déjà la réussir à moitié.",
+  "L'artisanat est un art qui se vit au quotidien.",
+  "Ta réputation se construit projet après projet.",
+  "Un monteur organisé, c'est un chantier maîtrisé.",
+  "Le travail d'équipe multiplie les résultats.",
+  "La bonne humeur sur le chantier, ça s'installe aussi.",
+  "Chaque défi d'aujourd'hui est une victoire de demain.",
+  "Faire simple, faire bien, faire vite — dans cet ordre.",
+  "Le meilleur investissement reste l'amélioration de soi.",
+  "Ne compte pas les heures, fais que les heures comptent.",
+  "Une belle pose commence par une bonne préparation.",
+  "Le client ne voit pas l'effort, il voit le résultat.",
+  "Confiance en soi, confiance en son équipe.",
+  "Chaque journée sans incident est une journée parfaite.",
+  "La fierté du métier, c'est ce qui nous distingue.",
+  "Un artisan passionné ne travaille jamais vraiment.",
+  "La maîtrise vient de la répétition avec attention.",
+  "Petit à petit, le chantier se fait.",
+  "Soigne tes débuts autant que tes finitions.",
+  "L'attitude détermine l'altitude.",
+  "Construire, c'est laisser une trace durable.",
+  "Ce que tu fais aujourd'hui prépare qui tu seras demain.",
+  "Le respect du travail bien fait est universel.",
+  "Chaque outil a sa place, chaque geste a son sens.",
+  "La régularité bat le génie paresseux.",
+  "Un chantier réussi commence dans la tête.",
+  "Sois le monteur dont tu aurais voulu être le client.",
+  "La discipline est le pont entre les objectifs et les résultats.",
+  "Travaille dur en silence, laisse le résultat faire le bruit.",
+  "L'expérience est une école qui ne ferme jamais.",
+  "Un sourire au client, ça pose mieux qu'un joint parfait.",
+  "La qualité se souvient longtemps après que le prix soit oublié.",
+  "Aujourd'hui est le bon jour pour faire du bon travail.",
+];
+
+/** Retourne une citation différente par jour et par prénom */
+function getDailyQuote(firstName: string): string {
+  const now = new Date();
+  const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000);
+  const nameHash = firstName.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return DAILY_QUOTES[(dayOfYear + nameHash) % DAILY_QUOTES.length];
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 const CLIENT_LOGOS: { prefix: string; logo: string }[] = [
   { prefix: "getaz", logo: "/logos/fournisseurs/BMS-Logo.png" },
   { prefix: "gétaz", logo: "/logos/fournisseurs/BMS-Logo.png" },
@@ -964,6 +1041,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                 ? `${totalProjectsToday} montage${totalProjectsToday > 1 ? "s" : ""} prévu${totalProjectsToday > 1 ? "s" : ""} aujourd'hui · ${busyToday} monteur${busyToday > 1 ? "s" : ""} actif${busyToday > 1 ? "s" : ""}`
                 : "Aucun montage prévu aujourd'hui"}
             </p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 italic mt-0.5 leading-tight">"{getDailyQuote(firstName)}"</p>
           </div>
           <button onClick={() => setShowWeekProjects(!showWeekProjects)} className="text-right hover:opacity-70 transition-opacity">
             <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCabinesWeek}</p>
@@ -2183,6 +2261,7 @@ export function MonteurDashboard({ userName, projects, isAdmin, onNavigate }: Mo
                 ? `${todayProjects.length} intervention${todayProjects.length > 1 ? "s" : ""} aujourd'hui`
                 : "Aucune intervention aujourd'hui"}
             </p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 italic mt-0.5 leading-tight">"{getDailyQuote(firstName)}"</p>
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold" style={{ color: colors.text }}>{totalCabines}</p>
