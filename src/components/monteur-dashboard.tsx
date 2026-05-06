@@ -1200,9 +1200,12 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
         } else if (showSummaryPanel === "emplacement-cabines") {
           panelTitle = "Emplacement cabines";
           panelProjects = emplacementCabinesProjects.sort((a, b) => {
-            // "Cabine à aller chercher" avant "Récéptionné - RDV à fixer"
-            if (a.etatCMD !== b.etatCMD) return a.etatCMD.localeCompare(b.etatCMD);
-            return (a.dateMontage || "").localeCompare(b.dateMontage || "");
+            const ea = a.emplacementCabine || "";
+            const eb = b.emplacementCabine || "";
+            // "Dépôt TM" toujours en dernier
+            if (ea === "Dépôt TM" && eb !== "Dépôt TM") return 1;
+            if (ea !== "Dépôt TM" && eb === "Dépôt TM") return -1;
+            return ea.localeCompare(eb);
           });
         } else if (showSummaryPanel === "rapports-attente") {
           panelTitle = "Rapports en attente";
@@ -1365,6 +1368,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
         const isRdvAFixer = false; // rdv-a-fixer has its own return above
         const isDossiersEnCours = showSummaryPanel === "dossiers-en-cours";
         const isAFacturer = showSummaryPanel === "a-facturer";
+        const isEmplacementCabines = showSummaryPanel === "emplacement-cabines";
         const dateLabel = "Date";
 
         return (
@@ -1373,10 +1377,11 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
             {panelProjects.length > 0 && (
               <div className="flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 mb-1">
                 {isRdvAFixer && <span className="w-16 shrink-0">{dateLabel}</span>}
-                <span className={isDossiersEnCours ? "w-20 shrink-0" : "w-20 shrink-0"}>N° OFR TM</span>
+                <span className="w-20 shrink-0">N° OFR TM</span>
+                {isEmplacementCabines && <span className="w-28 shrink-0">Emplacement</span>}
                 {isDossiersEnCours && <span className="w-24 shrink-0 hidden sm:block">Date offre</span>}
-                <span className="w-20 shrink-0 hidden sm:block">N° Mes. Fourn.</span>
-                <span className="w-20 shrink-0 hidden sm:block">N° CMD Fourn.</span>
+                {!isEmplacementCabines && <span className="w-20 shrink-0 hidden sm:block">N° Mes. Fourn.</span>}
+                {!isEmplacementCabines && <span className="w-20 shrink-0 hidden sm:block">N° CMD Fourn.</span>}
                 <span className="flex-1">Projet</span>
                 <span className="w-14 text-right">Cabines</span>
               </div>
@@ -1490,8 +1495,67 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
               );
             })}
 
+            {/* Emplacement cabines : groupé par emplacement, Dépôt TM en dernier */}
+            {isEmplacementCabines && (() => {
+              const emplacementMap: Record<string, Project[]> = {};
+              panelProjects.forEach((p) => {
+                const key = p.emplacementCabine || "Sans emplacement";
+                if (!emplacementMap[key]) emplacementMap[key] = [];
+                emplacementMap[key].push(p);
+              });
+              const sortedKeys = Object.keys(emplacementMap).sort((a, b) => {
+                if (a === "Dépôt TM") return 1;
+                if (b === "Dépôt TM") return -1;
+                return a.localeCompare(b);
+              });
+              return sortedKeys.map((empl) => {
+                const groupProjects = emplacementMap[empl];
+                const isDepotTM = empl === "Dépôt TM";
+                return (
+                  <div key={empl} className="mb-1">
+                    <div className={`flex items-center gap-2 px-3 py-2 mt-3 mb-1 rounded-lg shadow-sm ${
+                      isDepotTM
+                        ? "bg-amber-600 dark:bg-amber-700"
+                        : "bg-[#1e3a5f] dark:bg-[#1e3a5f]"
+                    }`}>
+                      <span className="text-[12px] font-bold text-white truncate">{empl}</span>
+                      <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-semibold bg-white/20 text-white shrink-0">
+                        {groupProjects.length} projet{groupProjects.length > 1 ? "s" : ""} · {groupProjects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
+                      </span>
+                    </div>
+                    {groupProjects.map((p, idx) => {
+                      const rowBg = idx % 2 === 0
+                        ? "bg-white/60 dark:bg-slate-800/40"
+                        : "bg-blue-50/40 dark:bg-blue-950/15";
+                      return (
+                        <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
+                          <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
+                            {parseTMNumbers(p.ofrTM || "").length > 0
+                              ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
+                                  <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                                ))
+                              : <span className="font-mono text-xs text-gray-400">---</span>
+                            }
+                          </span>
+                          <span className="w-28 shrink-0 truncate text-[10px] font-medium text-cyan-700 dark:text-cyan-400 bg-cyan-50/60 dark:bg-cyan-900/20 px-1.5 py-0.5 rounded">
+                            {p.emplacementCabine || "—"}
+                          </span>
+                          <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                          {(() => { const logo = getClientLogo(p.projet); return logo ? (
+                            <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                          ) : null; })()}
+                          <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                );
+              });
+            })()}
+
             {/* Autres panels : groupé par jour avec séparateurs */}
-            {!isRdvAFixer && !isDossiersEnCours && !isAFacturer && (() => {
+            {!isRdvAFixer && !isDossiersEnCours && !isAFacturer && !isEmplacementCabines && (() => {
               const todayStr = new Date().toISOString().split("T")[0];
               const now = new Date();
               const weekEnd = new Date(now);
