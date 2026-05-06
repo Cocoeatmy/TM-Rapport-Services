@@ -439,6 +439,11 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const [showWeekProjects, setShowWeekProjects] = useState(false);
   const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
+  }, []);
 
   useEffect(() => {
     fetch("/api/user-activity")
@@ -565,16 +570,45 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                 const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
                 const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
                 const logo = getClientLogo(p.projet);
+                const dateStr = (p.dateMontage || p.dateMesures) ? new Date((p.dateMontage || p.dateMesures || "") + (p.dateMontage?.includes("T") ? "" : "T12:00:00")).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---";
+                const typeBadge = <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${isMesure ? "bg-cyan-100 text-cyan-700" : "bg-orange-100 text-orange-700"}`}>{isMesure ? "Mesures" : "Montages"}</span>;
+
+                if (isIOS) {
+                  return (
+                    <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                      className="block px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
+                      <div className="flex items-start gap-2">
+                        <span className="text-gray-400 font-mono w-16 shrink-0 pt-0.5">{dateStr}</span>
+                        <div className="flex-1 min-w-0">
+                          {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
+                          <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            {typeBadge}
+                            {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded" />}
+                            <div className="flex -space-x-1 shrink-0">
+                              {names.slice(0, 3).map((n) => (
+                                <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                                  style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                                  {getCollaboratorInitials(n)}
+                                </span>
+                              ))}
+                            </div>
+                            <Badge variant="outline" className="text-[10px] shrink-0 ml-auto">{p.nbCabines || 0} cab.</Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                }
+
                 return (
                   <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                     className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
-                    <span className="text-gray-400 font-mono w-16 shrink-0">
-                      {(p.dateMontage || p.dateMesures) ? new Date((p.dateMontage || p.dateMesures || "") + (p.dateMontage?.includes("T") ? "" : "T12:00:00")).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
-                    </span>
+                    <span className="text-gray-400 font-mono w-16 shrink-0">{dateStr}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1 flex-wrap">
                         {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
-                        <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${isMesure ? "bg-cyan-100 text-cyan-700" : "bg-orange-100 text-orange-700"}`}>{isMesure ? "Mesures" : "Montages"}</span>
+                        {typeBadge}
                       </div>
                       <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
                     </div>
@@ -746,6 +780,59 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                     ? (p.dateDemandeProjet || p.dateMontage || "").split("T")[0]
                     : (p.dateMesures || p.dateMontage || "").split("T")[0];
                   const rowBg = idx % 2 === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "bg-blue-100/60 dark:bg-blue-900/20";
+                  const servicesBadges = p.typeServices && p.typeServices.length > 0 ? p.typeServices.flatMap((ts) => {
+                    const parts = ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts];
+                    return parts.map((part) => {
+                      const tsColors: Record<string, string> = {
+                        "Montages": "bg-orange-100 text-orange-700", "Montage": "bg-orange-100 text-orange-700",
+                        "Mesures": "bg-cyan-100 text-cyan-700", "Services": "bg-emerald-100 text-emerald-700",
+                        "SAV": "bg-red-100 text-red-700", "Livraison": "bg-amber-100 text-amber-700",
+                        "Dépannage": "bg-pink-100 text-pink-700", "Démontage": "bg-rose-100 text-rose-700",
+                        "Remplacement": "bg-indigo-100 text-indigo-700",
+                      };
+                      return <span key={part} className={`shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${tsColors[part] || "bg-gray-100 text-gray-600"}`}>{part}</span>;
+                    });
+                  }) : [];
+                  const logoEl = (() => { const logo = getClientLogo(p.projet); return logo ? (
+                    <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
+                  ) : null; })();
+                  const collabAvatars = names.length > 0 ? (
+                    <div className="flex -space-x-1 shrink-0">
+                      {names.slice(0, 3).map((n) => (
+                        <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                          style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
+                      ))}
+                    </div>
+                  ) : null;
+
+                  if (isIOS) {
+                    return (
+                      <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                        className={`block px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
+                        <div className="flex items-start gap-2">
+                          <span className="text-gray-400 font-mono w-16 shrink-0 pt-0.5">
+                            {date ? new Date(date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
+                          </span>
+                          <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate pt-0.5">{p.ofrTM || "---"}</span>
+                          <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                        </div>
+                        {(servicesBadges.length > 0 || logoEl || collabAvatars) && (
+                          <div className="flex items-center gap-1.5 mt-1 ml-[calc(4rem+5rem+1rem)]">
+                            {servicesBadges}
+                            {logoEl}
+                            {collabAvatars}
+                            <Badge variant="outline" className="text-[10px] shrink-0 ml-auto">{p.nbCabines || 0} cab.</Badge>
+                          </div>
+                        )}
+                        {servicesBadges.length === 0 && !logoEl && !collabAvatars && (
+                          <div className="flex justify-end mt-1">
+                            <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                          </div>
+                        )}
+                      </Link>
+                    );
+                  }
+
                   return (
                     <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
@@ -756,28 +843,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                       <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
-                      {p.typeServices && p.typeServices.length > 0 && p.typeServices.flatMap((ts) => {
-                        const parts = ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts];
-                        return parts.map((part) => {
-                          const tsColors: Record<string, string> = {
-                            "Montages": "bg-orange-100 text-orange-700", "Montage": "bg-orange-100 text-orange-700",
-                            "Mesures": "bg-cyan-100 text-cyan-700", "Services": "bg-emerald-100 text-emerald-700",
-                            "SAV": "bg-red-100 text-red-700", "Livraison": "bg-amber-100 text-amber-700",
-                            "Dépannage": "bg-pink-100 text-pink-700", "Démontage": "bg-rose-100 text-rose-700",
-                            "Remplacement": "bg-indigo-100 text-indigo-700",
-                          };
-                          return <span key={part} className={`shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${tsColors[part] || "bg-gray-100 text-gray-600"}`}>{part}</span>;
-                        });
-                      })}
-                      {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                        <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
-                      ) : null; })()}
-                      <div className="flex -space-x-1 shrink-0">
-                        {names.slice(0, 3).map((n) => (
-                          <span key={n} className="w-6 h-6 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
-                            style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
-                        ))}
-                      </div>
+                      {servicesBadges}
+                      {logoEl}
+                      {collabAvatars}
                       <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
                     </Link>
                   );
