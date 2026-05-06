@@ -268,17 +268,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
             </button>
           )}
           {isAdmin && (
-            <button
-              onClick={() => { handleSelect("archives"); setOpen(null); }}
-              className={`shrink-0 text-xs font-semibold py-1.5 px-3 rounded-lg transition-all duration-200 inline-flex items-center gap-1.5 border ${
-                mode === "archives"
-                  ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700"
-                  : "bg-white/70 dark:bg-white/5 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/60 hover:bg-amber-50 dark:hover:bg-amber-900/20"
-              }`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
-                <rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>
-              </svg>
+            <button onClick={() => { handleSelect("archives"); setOpen(null); }} className={tabCls(mode === "archives")}>
               Archives
             </button>
           )}

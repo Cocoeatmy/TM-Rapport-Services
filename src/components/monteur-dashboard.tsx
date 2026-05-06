@@ -1068,6 +1068,28 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
         </button>
       </div>
+
+      {/* Raccourci Archives — navigation vers les projets clôturés */}
+      <Link
+        href="/?mode=archives"
+        className="glass-card rounded-2xl p-3 flex items-center justify-between gap-3 hover:shadow-lg active:scale-[0.99] transition-all group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-amber-600 dark:text-amber-400">
+              <rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Archives</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500">Projets clôturés</p>
+          </div>
+        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-amber-400 transition-colors shrink-0">
+          <path d="m9 18 6-6-6-6"/>
+        </svg>
+      </Link>
+
       <div className="grid grid-cols-2 gap-3">
         {(() => {
           const rdvAFixerStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
