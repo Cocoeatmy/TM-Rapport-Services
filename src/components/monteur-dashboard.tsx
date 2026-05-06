@@ -1110,7 +1110,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | null>(null);
   const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
@@ -1314,6 +1314,28 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const soucisEnCoursProjects = projects.filter((p) => p.etatCMD === "Soucis montage")
     .sort((a, b) => ((a.dateMontage || "").split("T")[0]).localeCompare((b.dateMontage || "").split("T")[0]));
   const soucisEnCoursCount = soucisEnCoursProjects.length;
+
+  // SAV historique : tous les SAV (actifs + terminés)
+  const allSavProjects = [...projects, ...terminatedProjects]
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+    .filter((p) => (p as any)._source === "sav")
+    .sort((a, b) => {
+      const da = (a.dateRDVSAV || a.dateMontage || "").split("T")[0];
+      const db = (b.dateRDVSAV || b.dateMontage || "").split("T")[0];
+      return db.localeCompare(da); // plus récent en premier
+    });
+  const allSavCount = allSavProjects.length;
+
+  // Soucis montage historique : tous les projets avec soucisMontage = true (actifs + terminés)
+  const allSoucisProjects = [...projects, ...terminatedProjects]
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+    .filter((p) => p.soucisMontage === true)
+    .sort((a, b) => {
+      const da = (a.dateMontage || "").split("T")[0];
+      const db = (b.dateMontage || "").split("T")[0];
+      return db.localeCompare(da);
+    });
+  const allSoucisCount = allSoucisProjects.length;
 
   // À facturer : projets dont la propriété "Facturations" = "A facturer"
   // Les projets facturables ont souvent etatCMD = "Terminé" → absents de
@@ -1526,6 +1548,20 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           </p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Archives</p>
           <p className="text-[7px] sm:text-[10px] text-amber-400 dark:text-amber-500 mt-0.5">Clôturés</p>
+        </button>
+        {/* SAV historique */}
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "sav-historique" ? null : "sav-historique")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("sav-historique", "ring-red-400")}`}>
+          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-red-500 dark:text-red-400" /></span>
+          <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{terminatedLoading ? <span className="animate-pulse text-base">…</span> : allSavCount}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV</p>
+          <p className="text-[7px] sm:text-[10px] text-red-400 dark:text-red-500 mt-0.5">Tous</p>
+        </button>
+        {/* Soucis montage historique */}
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "soucis-historique" ? null : "soucis-historique")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("soucis-historique", "ring-orange-400")}`}>
+          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-400" /></span>
+          <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{terminatedLoading ? <span className="animate-pulse text-base">…</span> : allSoucisCount}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis montage</p>
+          <p className="text-[7px] sm:text-[10px] text-orange-400 dark:text-orange-500 mt-0.5">Tous</p>
         </button>
       </div>
         );
@@ -2139,6 +2175,144 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           panelProjects = projects
             .filter((p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé")
             .sort((a, b) => ((a.dateMontage || a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMontage || b.dateMesures || "z").split("T")[0]));
+        } else if (showSummaryPanel === "sav-historique") {
+          /* ── SAV HISTORIQUE ─────────────────────────────────────── */
+          const savEnCours = allSavProjects.filter(p => p.etatSAV !== "Terminé" && p.etatSAV !== "Annulé");
+          const savTermines = allSavProjects.filter(p => p.etatSAV === "Terminé" || p.etatSAV === "Annulé");
+
+          const SAV_ETAT_COLORS: Record<string, string> = {
+            "A contacter": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+            "Contact sans réponse": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+            "Attente news": "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+            "En cours de traitement": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+            "RDV fixé": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+            "Terminé": "bg-gray-100 text-gray-500 dark:bg-gray-700/40 dark:text-gray-400",
+            "Annulé": "bg-gray-100 text-gray-400 dark:bg-gray-700/40 dark:text-gray-500",
+          };
+
+          const renderSavRow = (p: Project) => {
+            const rdvDate = (p.dateRDVSAV || "").split("T")[0];
+            const names = (p.collaborateurs || "").split(/[\s&]+/).map((n: string) => n.trim()).filter(Boolean);
+            return (
+              <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-white/60 dark:hover:bg-white/5 transition-colors">
+                <div className="flex -space-x-1 shrink-0">
+                  {names.slice(0, 2).map((n: string) => (
+                    <span key={n} className="w-6 h-6 rounded-full text-[8px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                      style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                      {getCollaboratorInitials(n)}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex-1 min-w-0">
+                  {p.ofrTM && <p className="text-[9px] font-mono text-gray-400 leading-none mb-0.5">{p.ofrTM}</p>}
+                  <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1 font-medium">{p.projet}</p>
+                  {rdvDate && <p className="text-[10px] text-gray-400 mt-0.5">RDV : {new Date(rdvDate + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" })}</p>}
+                </div>
+                <span className={`text-[9px] font-semibold px-2 py-1 rounded-full shrink-0 whitespace-nowrap ${SAV_ETAT_COLORS[p.etatSAV] || "bg-gray-100 text-gray-500"}`}>{p.etatSAV || "—"}</span>
+                <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+              </Link>
+            );
+          };
+
+          return (
+            <div className="glass-card rounded-2xl p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">SAV — tous ({allSavCount})</p>
+                {terminatedLoading && <span className="text-[10px] text-gray-400 animate-pulse">Chargement…</span>}
+              </div>
+              {savEnCours.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 bg-red-50 dark:bg-red-900/20">
+                    <span className="text-[12px] font-bold text-red-700 dark:text-red-300">En cours ({savEnCours.length})</span>
+                  </div>
+                  <div className="space-y-0.5">{savEnCours.map(renderSavRow)}</div>
+                </div>
+              )}
+              {savTermines.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 bg-gray-50 dark:bg-gray-700/30">
+                    <span className="text-[12px] font-bold text-gray-500 dark:text-gray-400">Terminés / Annulés ({savTermines.length})</span>
+                  </div>
+                  <div className="space-y-0.5">{savTermines.map(renderSavRow)}</div>
+                </div>
+              )}
+              {allSavCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun SAV trouvé</p>}
+            </div>
+          );
+        } else if (showSummaryPanel === "soucis-historique") {
+          /* ── SOUCIS MONTAGE HISTORIQUE ──────────────────────────── */
+          const soucisActifs = allSoucisProjects.filter(p => p.etatCMD !== "Terminé" && p.etatCMD !== "Annulé" && p.etatCMD !== "Rapport clôturé");
+          const soucisTermines = allSoucisProjects.filter(p => p.etatCMD === "Terminé" || p.etatCMD === "Annulé" || p.etatCMD === "Rapport clôturé");
+
+          const CAUSE_COLORS: Record<string, string> = {
+            "Problème produit": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+            "Erreur de montage": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+            "Problème chantier": "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+            "Problème livraison": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+            "Manque d'info": "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+            "Client": "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300",
+          };
+
+          const renderSoucisRow = (p: Project) => {
+            const dateStr = (p.dateMontage || "").split("T")[0];
+            const names = (p.collaborateurs || "").split(/[\s&]+/).map((n: string) => n.trim()).filter(Boolean);
+            const logo = getClientLogo(p.projet);
+            return (
+              <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-white/60 dark:hover:bg-white/5 transition-colors">
+                <div className="flex -space-x-1 shrink-0">
+                  {names.slice(0, 2).map((n: string) => (
+                    <span key={n} className="w-6 h-6 rounded-full text-[8px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                      style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                      {getCollaboratorInitials(n)}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
+                    {dateStr && <span className="text-[9px] text-gray-400">{new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })}</span>}
+                  </div>
+                  <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1 font-medium">{p.projet}</p>
+                  {p.causeSoucis && <p className="text-[10px] text-gray-400 mt-0.5">Cause : {p.causeSoucis}</p>}
+                </div>
+                {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                {p.causeSoucis && (
+                  <span className={`text-[9px] font-semibold px-2 py-1 rounded-full shrink-0 whitespace-nowrap hidden sm:inline-flex ${CAUSE_COLORS[p.causeSoucis] || "bg-orange-100 text-orange-700"}`}>{p.causeSoucis}</span>
+                )}
+                <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+              </Link>
+            );
+          };
+
+          return (
+            <div className="glass-card rounded-2xl p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Soucis montage — tous ({allSoucisCount})</p>
+                {terminatedLoading && <span className="text-[10px] text-gray-400 animate-pulse">Chargement…</span>}
+              </div>
+              {soucisActifs.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 bg-orange-50 dark:bg-orange-900/20">
+                    <span className="text-[12px] font-bold text-orange-700 dark:text-orange-300">En cours ({soucisActifs.length})</span>
+                  </div>
+                  <div className="space-y-0.5">{soucisActifs.map(renderSoucisRow)}</div>
+                </div>
+              )}
+              {soucisTermines.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 bg-gray-50 dark:bg-gray-700/30">
+                    <span className="text-[12px] font-bold text-gray-500 dark:text-gray-400">Résolus ({soucisTermines.length})</span>
+                  </div>
+                  <div className="space-y-0.5">{soucisTermines.map(renderSoucisRow)}</div>
+                </div>
+              )}
+              {allSoucisCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun soucis de montage trouvé</p>}
+            </div>
+          );
         }
 
         const isRdvAFixer = false; // rdv-a-fixer has its own return above
