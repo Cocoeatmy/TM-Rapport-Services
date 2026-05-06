@@ -1183,7 +1183,20 @@ function HomePage() {
       <div className="sticky z-40 -mx-4 px-4 pb-2 pt-1 glass-navbar" style={{top: `var(--header-h, 60px)`}}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} onSwitchMode={(m: Mode) => { setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }} />
+          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} onSwitchMode={(m: Mode) => {
+            setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
+            if (m === "archives") {
+              const url = MODE_API["archives"];
+              fetch(url).then((r) => r.json()).then((data) => {
+                if (!Array.isArray(data)) return;
+                setProjectsData((prev) => {
+                  const updated = { ...prev, archives: data, "cmd-termine": data, rapport: data };
+                  try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+                  return updated;
+                });
+              }).catch(() => {});
+            }
+          }} />
         </div>
         {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
           <button
