@@ -903,7 +903,11 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const soucisEnCoursCount = soucisEnCoursProjects.length;
 
   // À facturer : projets dont la propriété "Facturations" = "A facturer"
-  const aFacturerProjects = projects.filter((p) => p.facturations === "A facturer")
+  // Les projets facturables ont souvent etatCMD = "Terminé" → absents de
+  // `projects` (actifs uniquement) → on cherche aussi dans terminatedProjects.
+  const aFacturerProjects = [...projects, ...terminatedProjects]
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i) // déduplique
+    .filter((p) => p.facturations === "A facturer")
     .sort((a, b) => ((a.dateOffre || "") > (b.dateOffre || "") ? -1 : 1));
   const aFacturerCount = aFacturerProjects.length;
 
