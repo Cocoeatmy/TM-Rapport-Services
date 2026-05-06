@@ -251,7 +251,7 @@ export function mapPageToProject(page: any): Project {
     photosGaranties: extractFiles(p["Photos garanties"]),
     photosCartons: extractFiles(p["État des cartons réceptionnés"]),
     rapportDeMontage: extractSelect(p["Rapport de montage"]),
-    facturations: extractSelect(p["Facturations"]),
+    facturations: extractStatus(p["Facturations"]),
     etatCMD: extractStatus(p["État - CMD"]),
     typeServices: extractMultiSelect(p["Type de services"]),
     cmdGrossiste: extractText(p["N° CMD Grossiste"]),
