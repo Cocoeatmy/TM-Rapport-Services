@@ -79,6 +79,7 @@ interface MonteurDashboardProps {
   userName: string;
   projects: Project[];
   isAdmin?: boolean;
+  onNavigate?: (mode: string) => void;
 }
 
 // --- Helper functions ---
@@ -713,7 +714,7 @@ function WeekProjectRow({ project }: { project: Project }) {
 
 // --- Admin view ---
 
-function AdminDashboard({ projects, userName }: { projects: Project[]; userName: string }) {
+function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void }) {
   const firstName = userName.split(" ")[0];
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
@@ -1070,9 +1071,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
       </div>
 
       {/* Raccourci Archives — navigation vers les projets clôturés */}
-      <Link
-        href="/?mode=archives"
-        className="glass-card rounded-2xl p-3 flex items-center justify-between gap-3 hover:shadow-lg active:scale-[0.99] transition-all group"
+      <button
+        onClick={() => onNavigate?.("archives")}
+        className="glass-card rounded-2xl p-3 flex items-center justify-between gap-3 hover:shadow-lg active:scale-[0.99] transition-all group w-full text-left"
       >
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
@@ -1088,7 +1089,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-amber-400 transition-colors shrink-0">
           <path d="m9 18 6-6-6-6"/>
         </svg>
-      </Link>
+      </button>
 
       <div className="grid grid-cols-2 gap-3">
         {(() => {
@@ -1995,10 +1996,10 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
 
 // --- Main component ---
 
-export function MonteurDashboard({ userName, projects, isAdmin }: MonteurDashboardProps) {
+export function MonteurDashboard({ userName, projects, isAdmin, onNavigate }: MonteurDashboardProps) {
   // Admin view: show all collaborators
   if (isAdmin) {
-    return <AdminDashboard projects={projects} userName={userName} />;
+    return <AdminDashboard projects={projects} userName={userName} onNavigate={onNavigate} />;
   }
 
   // Regular monteur view (unchanged logic)

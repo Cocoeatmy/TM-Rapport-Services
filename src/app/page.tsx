@@ -1242,6 +1242,7 @@ function HomePage() {
                 userName={currentUser.name}
                 projects={tagged}
                 isAdmin={currentUser?.role === "admin"}
+                onNavigate={(m) => { setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }}
               />
             );
           })()}
