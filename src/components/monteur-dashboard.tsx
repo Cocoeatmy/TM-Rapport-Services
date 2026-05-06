@@ -1110,7 +1110,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | null>(null);
   const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
@@ -1314,6 +1314,22 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const soucisEnCoursProjects = projects.filter((p) => p.etatCMD === "Soucis montage")
     .sort((a, b) => ((a.dateMontage || "").split("T")[0]).localeCompare((b.dateMontage || "").split("T")[0]));
   const soucisEnCoursCount = soucisEnCoursProjects.length;
+
+  // Mesures terminées sans commande : etatMesures = "Terminé" ET etatCMD pas clôturé
+  const mesuresSansCommandeProjects = [...projects, ...terminatedProjects]
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+    .filter((p) =>
+      p.etatMesures === "Terminé" &&
+      p.etatCMD !== "Terminé" &&
+      p.etatCMD !== "Annulé" &&
+      p.etatCMD !== "Rapport clôturé"
+    )
+    .sort((a, b) => {
+      const da = (a.dateMesures || "").split("T")[0];
+      const db = (b.dateMesures || "").split("T")[0];
+      return db.localeCompare(da); // plus récent en premier
+    });
+  const mesuresSansCommandeCount = mesuresSansCommandeProjects.length;
 
   // SAV historique : tous les SAV (actifs + terminés)
   const allSavProjects = [...projects, ...terminatedProjects]
@@ -1562,6 +1578,13 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{terminatedLoading ? <span className="animate-pulse text-base">…</span> : allSoucisCount}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis montage</p>
           <p className="text-[7px] sm:text-[10px] text-orange-400 dark:text-orange-500 mt-0.5">Tous</p>
+        </button>
+        {/* Mesures terminées sans commande */}
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "mesures-sans-commande" ? null : "mesures-sans-commande")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("mesures-sans-commande", "ring-cyan-400")}`}>
+          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center"><Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /></span>
+          <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresSansCommandeCount}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures</p>
+          <p className="text-[7px] sm:text-[10px] text-cyan-400 dark:text-cyan-500 mt-0.5">Non commandées</p>
         </button>
       </div>
         );
@@ -2175,6 +2198,104 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           panelProjects = projects
             .filter((p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé")
             .sort((a, b) => ((a.dateMontage || a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMontage || b.dateMesures || "z").split("T")[0]));
+        } else if (showSummaryPanel === "mesures-sans-commande") {
+          /* ── MESURES TERMINÉES SANS COMMANDE ────────────────────── */
+          const ETAT_CMD_COLORS: Record<string, string> = {
+            "En attente de mesures":    "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
+            "RDV - fixé":               "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+            "Récéptionné - RDV à fixer":"bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+            "Livraison partielle":       "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+            "Cabine à aller chercher":   "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
+            "Montage partiel":           "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
+            "Soucis montage":            "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+          };
+
+          return (
+            <div className="glass-card rounded-2xl p-4 space-y-3">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-2">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Mesures terminées — commande en attente ({mesuresSansCommandeCount})
+                </p>
+              </div>
+
+              {/* Column headers */}
+              {mesuresSansCommandeProjects.length > 0 && (
+                <div className="hidden sm:flex items-center gap-3 px-2 text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                  <span className="w-24 shrink-0">Date mesures</span>
+                  <span className="w-24 shrink-0">N° OFR TM</span>
+                  <span className="flex-1">Projet</span>
+                  <span className="w-28 shrink-0 text-right">Traitée par</span>
+                  <span className="w-32 shrink-0 text-right">État CMD</span>
+                </div>
+              )}
+
+              {/* Rows */}
+              <div className="space-y-1">
+                {mesuresSansCommandeProjects.map((p) => {
+                  const dateStr = (p.dateMesures || "").split("T")[0];
+                  const traitePar = p.mesuresTraiteePar || "";
+                  const traitColors = traitePar ? getCollaboratorColor(traitePar) : null;
+                  const logo = getClientLogo(p.projet);
+                  return (
+                    <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                      className="flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors group">
+                      {/* Date mesures */}
+                      <div className="w-24 shrink-0">
+                        {dateStr ? (
+                          <span className="text-[11px] font-semibold text-cyan-700 dark:text-cyan-300 tabular-nums">
+                            {new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-gray-300">—</span>
+                        )}
+                      </div>
+                      {/* N° OFR TM */}
+                      <div className="w-24 shrink-0">
+                        {parseTMNumbers(p.ofrTM || "").length > 0 ? (
+                          <div className="flex flex-col gap-px">
+                            {parseTMNumbers(p.ofrTM || "").slice(0, 2).map((tm, i) => (
+                              <span key={i} className="font-mono text-[10px] text-gray-600 dark:text-gray-300 leading-tight truncate">{tm}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="font-mono text-[10px] text-gray-300">—</span>
+                        )}
+                      </div>
+                      {/* Projet + logo */}
+                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                        {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1">{p.projet}</p>
+                      </div>
+                      {/* Mesures traitée par */}
+                      <div className="w-28 shrink-0 flex justify-end">
+                        {traitePar && traitColors && (
+                          <span className="flex items-center gap-1">
+                            <span className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center"
+                              style={{ backgroundColor: traitColors.bg, color: traitColors.text }}>
+                              {getCollaboratorInitials(traitePar)}
+                            </span>
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate hidden sm:block">{traitePar}</span>
+                          </span>
+                        )}
+                      </div>
+                      {/* État CMD */}
+                      <div className="w-32 shrink-0 flex justify-end">
+                        <span className={`text-[9px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${ETAT_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-500 dark:bg-gray-700/40 dark:text-gray-400"}`}>
+                          {p.etatCMD || "—"}
+                        </span>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-cyan-400 transition-colors shrink-0" />
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {mesuresSansCommandeProjects.length === 0 && (
+                <p className="text-sm text-gray-400 py-4 text-center">Toutes les mesures terminées ont une commande associée 🎉</p>
+              )}
+            </div>
+          );
         } else if (showSummaryPanel === "sav-historique") {
           /* ── SAV HISTORIQUE ─────────────────────────────────────── */
           const savEnCours = allSavProjects.filter(p => p.etatSAV !== "Terminé" && p.etatSAV !== "Annulé");
