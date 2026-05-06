@@ -734,7 +734,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const [terminatedLoading, setTerminatedLoading] = useState(false);
 
   // Tous les projets actifs (non-Terminé, non-Annulé) pour les stats globales
-  // (ex. "Dossiers en cours" = 209 projets, pas seulement les 80 de l'onglet CMD).
+  // (ex. "Projets en cours" = 209 projets, pas seulement les 80 de l'onglet CMD).
   const [allActiveProjects, setAllActiveProjects] = useState<Project[]>([]);
   useEffect(() => {
     fetch("/api/projects/all-active")
@@ -1059,7 +1059,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         </button>
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "dossiers-en-cours" ? null : "dossiers-en-cours")} className={`glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "dossiers-en-cours" ? "ring-2 ring-indigo-400" : ""}`}>
           <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400">{dossiersEnCoursCount || "…"}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Dossiers en cours</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Projets en cours</p>
           <p className="text-[7px] sm:text-[10px] text-indigo-400 dark:text-indigo-500 mt-0.5">{dossiersEnCoursCabines ? `${dossiersEnCoursCabines} cab.` : ""}</p>
         </button>
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "a-facturer" ? null : "a-facturer")} className={`glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "a-facturer" ? "ring-2 ring-yellow-400" : ""}`}>
@@ -1173,7 +1173,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           panelTitle = "Soucis en cours";
           panelProjects = soucisEnCoursProjects;
         } else if (showSummaryPanel === "dossiers-en-cours") {
-          panelTitle = "Dossiers en cours";
+          panelTitle = "Projets en cours";
           panelProjects = dossiersEnCoursProjects;
         } else if (showSummaryPanel === "a-facturer") {
           panelTitle = "À facturer";
@@ -1342,7 +1342,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             )}
             {panelProjects.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
 
-            {/* Dossiers en cours / À facturer : liste triée par Date Offre décroissante avec séparateurs par mois */}
+            {/* Projets en cours / À facturer : liste triée par Date Offre décroissante avec séparateurs par mois */}
             {(isDossiersEnCours || isAFacturer) && (() => {
               let lastMonthKey = "";
               let colorIdx = 0;
