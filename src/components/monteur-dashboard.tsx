@@ -1138,6 +1138,18 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
       .catch(() => {});
   }, []);
 
+  // Mesures terminées sans commande — route dédiée car ces projets ne sont dans aucun cache existant
+  const [mesuresSansCommandeData, setMesuresSansCommandeData] = useState<Project[]>([]);
+  const [mesuresSansCommandeLoading, setMesuresSansCommandeLoading] = useState(false);
+  useEffect(() => {
+    setMesuresSansCommandeLoading(true);
+    fetch("/api/projects/mesures-sans-commande")
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setMesuresSansCommandeData(data); })
+      .catch(() => {})
+      .finally(() => setMesuresSansCommandeLoading(false));
+  }, []);
+
   // Charge les projets terminés dès que le filtre sort de "semaine en cours"
   // (semaine courante = seulement des projets actifs suffisent).
   useEffect(() => {
@@ -1315,20 +1327,8 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
     .sort((a, b) => ((a.dateMontage || "").split("T")[0]).localeCompare((b.dateMontage || "").split("T")[0]));
   const soucisEnCoursCount = soucisEnCoursProjects.length;
 
-  // Mesures terminées sans commande : etatMesures = "Terminé" ET etatCMD pas clôturé
-  const mesuresSansCommandeProjects = [...projects, ...terminatedProjects]
-    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
-    .filter((p) =>
-      p.etatMesures === "Terminé" &&
-      p.etatCMD !== "Terminé" &&
-      p.etatCMD !== "Annulé" &&
-      p.etatCMD !== "Rapport clôturé"
-    )
-    .sort((a, b) => {
-      const da = (a.dateMesures || "").split("T")[0];
-      const db = (b.dateMesures || "").split("T")[0];
-      return db.localeCompare(da); // plus récent en premier
-    });
+  // Mesures terminées sans commande — données chargées via la route dédiée
+  const mesuresSansCommandeProjects = mesuresSansCommandeData;
   const mesuresSansCommandeCount = mesuresSansCommandeProjects.length;
 
   // SAV historique : tous les projets dont la case "SAV" est cochée (actifs + terminés)
@@ -1582,7 +1582,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
         {/* Mesures terminées sans commande */}
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "mesures-sans-commande" ? null : "mesures-sans-commande")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("mesures-sans-commande", "ring-cyan-400")}`}>
           <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center"><Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresSansCommandeCount}</p>
+          <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresSansCommandeLoading ? <span className="animate-pulse text-base">…</span> : mesuresSansCommandeCount}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures</p>
           <p className="text-[7px] sm:text-[10px] text-cyan-400 dark:text-cyan-500 mt-0.5">Non commandées</p>
         </button>
@@ -2217,6 +2217,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Mesures terminées — commande en attente ({mesuresSansCommandeCount})
                 </p>
+                {mesuresSansCommandeLoading && <span className="text-[10px] text-gray-400 animate-pulse">Chargement…</span>}
               </div>
 
               {/* Column headers */}
