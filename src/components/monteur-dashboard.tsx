@@ -1114,6 +1114,11 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
+  }, []);
 
   // Heures de travail — filtre et projets terminés
   const [selectedMonteurStats, setSelectedMonteurStats] = useState<string>("");
@@ -1446,13 +1451,36 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                   const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
                   const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
                   const logo = getClientLogo(p.projet);
+                  const typeBadge = <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${isMesure ? "bg-cyan-100 text-cyan-700" : "bg-orange-100 text-orange-700"}`}>{isMesure ? "Mesures" : "Montages"}</span>;
                   items.push(
+                    isIOS ? (
+                    <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                      className="block px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
+                      <div className="flex-1 min-w-0">
+                        {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
+                        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {typeBadge}
+                          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                          <div className="flex -space-x-1 shrink-0">
+                            {names.slice(0, 3).map((n) => (
+                              <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                                style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                                {getCollaboratorInitials(n)}
+                              </span>
+                            ))}
+                          </div>
+                          <Badge variant="outline" className="text-[10px] shrink-0 ml-auto">{p.nbCabines || 0} cab.</Badge>
+                        </div>
+                      </div>
+                    </Link>
+                    ) : (
                     <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                       className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1 flex-wrap">
                           {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
-                          <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${isMesure ? "bg-cyan-100 text-cyan-700" : "bg-orange-100 text-orange-700"}`}>{isMesure ? "Mesures" : "Montages"}</span>
+                          {typeBadge}
                         </div>
                         <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
                       </div>
@@ -1467,6 +1495,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                       </div>
                       <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
                     </Link>
+                    )
                   );
                   return items;
                 });
@@ -2128,15 +2157,65 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                     : (p.dateMesures || p.dateMontage || "").split("T")[0];
                   const rowBg = idx % 2 === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "bg-blue-100/60 dark:bg-blue-900/20";
                   const arrivage = getArrivageInfo(p);
+                  const dateStr = date ? new Date(date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---";
+                  const tmNumbers = parseTMNumbers(p.ofrTM || "");
+                  const tsColors: Record<string, string> = {
+                    "Montages": "bg-orange-100 text-orange-700", "Montage": "bg-orange-100 text-orange-700",
+                    "Mesures": "bg-cyan-100 text-cyan-700", "Services": "bg-emerald-100 text-emerald-700",
+                    "SAV": "bg-red-100 text-red-700", "Livraison": "bg-amber-100 text-amber-700",
+                    "Dépannage": "bg-pink-100 text-pink-700", "Démontage": "bg-rose-100 text-rose-700",
+                    "Remplacement": "bg-indigo-100 text-indigo-700",
+                  };
+                  const tsParts = (p.typeServices || []).flatMap((ts) =>
+                    ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts]
+                  ).filter(Boolean);
+                  const logoImg = (() => { const logo = getClientLogo(p.projet); return logo ? (
+                    <img src={logo} alt="" className="w-7 h-5 object-contain rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                  ) : null; })();
+
+                  if (isIOS) {
+                    return (
+                      <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                        className={`block px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
+                        <div className="flex items-start gap-2">
+                          <span className="w-20 shrink-0 flex flex-col justify-center gap-px pt-0.5">
+                            {tmNumbers.length > 0
+                              ? tmNumbers.map((tm, i) => (
+                                  <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                                ))
+                              : <span className="font-mono text-xs text-gray-400">---</span>
+                            }
+                          </span>
+                          <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-2">{p.projet}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1 ml-[5.5rem] flex-wrap">
+                          {tsParts.length > 0 && (
+                            <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${tsColors[tsParts[0]] || "bg-gray-100 text-gray-600"}`}>
+                              {tsParts[0]}
+                            </span>
+                          )}
+                          {logoImg && <span className="shrink-0">{logoImg}</span>}
+                          {names.length > 0 && (
+                            <div className="flex -space-x-1 shrink-0">
+                              {names.slice(0, 3).map((n) => (
+                                <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                                  style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>{getCollaboratorInitials(n)}</span>
+                              ))}
+                            </div>
+                          )}
+                          <Badge variant="outline" className="text-[10px] shrink-0 ml-auto">{p.nbCabines || 0} cab.</Badge>
+                        </div>
+                      </Link>
+                    );
+                  }
+
                   return (
                     <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
-                      <span className="hidden sm:inline-block text-gray-400 font-mono w-16 shrink-0">
-                        {date ? new Date(date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
-                      </span>
+                      <span className="hidden sm:inline-block text-gray-400 font-mono w-16 shrink-0">{dateStr}</span>
                       <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
-                        {parseTMNumbers(p.ofrTM || "").length > 0
-                          ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
+                        {tmNumbers.length > 0
+                          ? tmNumbers.map((tm, i) => (
                               <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
                             ))
                           : <span className="font-mono text-xs text-gray-400">---</span>
@@ -2146,7 +2225,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                       <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-2 sm:line-clamp-1">{p.projet}</span>
 
-                      {/* COL arrivage — masquée sur iOS portrait, visible sm+ */}
+                      {/* COL arrivage — visible sm+ */}
                       <span className="hidden sm:flex w-28 shrink-0 justify-end">
                         {arrivage ? (
                           <span
@@ -2160,36 +2239,19 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                         ) : null}
                       </span>
 
-                      {/* COL type service — w-20, 1 badge max */}
+                      {/* COL type service */}
                       <span className="w-20 shrink-0 flex justify-end">
-                        {(() => {
-                          const tsColors: Record<string, string> = {
-                            "Montages": "bg-orange-100 text-orange-700", "Montage": "bg-orange-100 text-orange-700",
-                            "Mesures": "bg-cyan-100 text-cyan-700", "Services": "bg-emerald-100 text-emerald-700",
-                            "SAV": "bg-red-100 text-red-700", "Livraison": "bg-amber-100 text-amber-700",
-                            "Dépannage": "bg-pink-100 text-pink-700", "Démontage": "bg-rose-100 text-rose-700",
-                            "Remplacement": "bg-indigo-100 text-indigo-700",
-                          };
-                          const parts = (p.typeServices || []).flatMap((ts) =>
-                            ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts]
-                          ).filter(Boolean);
-                          if (parts.length === 0) return null;
-                          return (
-                            <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full truncate max-w-full ${tsColors[parts[0]] || "bg-gray-100 text-gray-600"}`}>
-                              {parts[0]}
-                            </span>
-                          );
-                        })()}
+                        {tsParts.length > 0 ? (
+                          <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full truncate max-w-full ${tsColors[tsParts[0]] || "bg-gray-100 text-gray-600"}`}>
+                            {tsParts[0]}
+                          </span>
+                        ) : null}
                       </span>
 
-                      {/* COL logo — w-8, toujours présente */}
-                      <span className="w-8 shrink-0 flex justify-center">
-                        {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                          <img src={logo} alt="" className="w-7 h-5 object-contain rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
-                        ) : null; })()}
-                      </span>
+                      {/* COL logo */}
+                      <span className="w-8 shrink-0 flex justify-center">{logoImg}</span>
 
-                      {/* COL cabines — masquée sur iOS portrait, visible sm+ */}
+                      {/* COL cabines — visible sm+ */}
                       <Badge variant="outline" className="hidden sm:flex text-[10px] shrink-0 w-12 justify-center">{p.nbCabines || 0} cab.</Badge>
                     </Link>
                   );
