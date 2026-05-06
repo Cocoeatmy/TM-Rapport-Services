@@ -888,6 +888,12 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
     p.etatCMD === "Cabine à aller chercher" || p.etatCMD === "Récéptionné - RDV à fixer"
   );
   const emplacementCabinesCount = emplacementCabinesProjects.length;
+  const emplacementDepotTMCabines = emplacementCabinesProjects
+    .filter((p) => p.emplacementCabine === "Dépôt TM")
+    .reduce((s, p) => s + (p.nbCabines || 0), 0);
+  const emplacementAutresCabines = emplacementCabinesProjects
+    .filter((p) => p.emplacementCabine !== "Dépôt TM")
+    .reduce((s, p) => s + (p.nbCabines || 0), 0);
 
   // Rapports en attente : projets montage dont la date est passée ou aujourd'hui
   // et dont le rapport n'est pas clôturé
@@ -1050,7 +1056,11 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-sky-100/80 dark:bg-sky-900/30 flex items-center justify-center"><MapPin className="w-4 h-4 text-sky-500 dark:text-sky-400" /></span>
           <p className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400">{emplacementCabinesCount}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Emplacement cabines</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap justify-center">
+            <p className="text-[7px] sm:text-[9px] text-sky-500 dark:text-sky-400 leading-tight">À chercher : <span className="font-semibold">{emplacementAutresCabines}</span></p>
+            <span className="text-gray-300 dark:text-gray-600 text-[7px]">·</span>
+            <p className="text-[7px] sm:text-[9px] text-amber-500 dark:text-amber-400 leading-tight">Dépôt TM : <span className="font-semibold">{emplacementDepotTMCabines}</span></p>
+          </div>
         </button>
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rapports-attente" ? null : "rapports-attente")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "rapports-attente" ? "ring-2 ring-orange-400" : ""}`}>
           <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center"><Clock className="w-4 h-4 text-orange-500 dark:text-orange-400" /></span>
