@@ -884,7 +884,9 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const savTodayCount = savTodayProjects.length;
 
   // Emplacement cabines : projets avec le champ "Emplacement de cabine" renseigné
-  const emplacementCabinesProjects = projects.filter((p) => !!(p.emplacementCabine));
+  const emplacementCabinesProjects = projects.filter((p) =>
+    p.etatCMD === "Cabine à aller chercher" || p.etatCMD === "Récéptionné - RDV à fixer"
+  );
   const emplacementCabinesCount = emplacementCabinesProjects.length;
 
   // Rapports en attente : projets montage dont la date est passée ou aujourd'hui
@@ -1197,7 +1199,11 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
             .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
         } else if (showSummaryPanel === "emplacement-cabines") {
           panelTitle = "Emplacement cabines";
-          panelProjects = emplacementCabinesProjects.sort((a, b) => (a.emplacementCabine || "").localeCompare(b.emplacementCabine || ""));
+          panelProjects = emplacementCabinesProjects.sort((a, b) => {
+            // "Cabine à aller chercher" avant "Récéptionné - RDV à fixer"
+            if (a.etatCMD !== b.etatCMD) return a.etatCMD.localeCompare(b.etatCMD);
+            return (a.dateMontage || "").localeCompare(b.dateMontage || "");
+          });
         } else if (showSummaryPanel === "rapports-attente") {
           panelTitle = "Rapports en attente";
           panelProjects = rapportsAttenteProjects;
