@@ -536,15 +536,13 @@ export async function getProjectsMesures(): Promise<Project[]> {
   );
 }
 
-/** Mesures terminées mais CMD pas encore clôturée — pour relance commandes */
+/** Mesures terminées avec CMD = "Cabines mesurées" — projets dont la commande n'a pas encore été passée */
 export async function getProjectsMesuresSansCommande(): Promise<Project[]> {
   return queryAll(
     {
       and: [
         { property: "État - Mesures", status: { equals: "Terminé" } },
-        { property: "État - CMD", status: { does_not_equal: "Terminé" } },
-        { property: "État - CMD", status: { does_not_equal: "Annulé" } },
-        { property: "État - CMD", status: { does_not_equal: "Rapport clôturé" } },
+        { property: "État - CMD", status: { equals: "Cabines mesurées" } },
       ],
     },
     [{ property: "Mesures traitée le", direction: "descending" }]
