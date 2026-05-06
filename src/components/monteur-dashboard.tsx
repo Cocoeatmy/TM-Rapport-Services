@@ -1331,13 +1331,13 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
     });
   const mesuresSansCommandeCount = mesuresSansCommandeProjects.length;
 
-  // SAV historique : tous les SAV (actifs + terminés)
+  // SAV historique : tous les projets dont la case "SAV" est cochée (actifs + terminés)
   const allSavProjects = [...projects, ...terminatedProjects]
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
-    .filter((p) => (p as any)._source === "sav")
+    .filter((p) => p.sav === true)
     .sort((a, b) => {
-      const da = (a.dateRDVSAV || a.dateMontage || "").split("T")[0];
-      const db = (b.dateRDVSAV || b.dateMontage || "").split("T")[0];
+      const da = (a.dateMontage || a.dateRDVSAV || "").split("T")[0];
+      const db = (b.dateMontage || b.dateRDVSAV || "").split("T")[0];
       return db.localeCompare(da); // plus récent en premier
     });
   const allSavCount = allSavProjects.length;
@@ -2297,26 +2297,40 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
             </div>
           );
         } else if (showSummaryPanel === "sav-historique") {
-          /* ── SAV HISTORIQUE ─────────────────────────────────────── */
-          const savEnCours = allSavProjects.filter(p => p.etatSAV !== "Terminé" && p.etatSAV !== "Annulé");
-          const savTermines = allSavProjects.filter(p => p.etatSAV === "Terminé" || p.etatSAV === "Annulé");
+          /* ── SAV HISTORIQUE (coche SAV = true) ─────────────────── */
+          const DONE_STATES = ["Terminé", "Annulé", "Rapport clôturé"];
+          const savEnCours  = allSavProjects.filter(p => !DONE_STATES.includes(p.etatCMD));
+          const savTermines = allSavProjects.filter(p =>  DONE_STATES.includes(p.etatCMD));
 
-          const SAV_ETAT_COLORS: Record<string, string> = {
-            "A contacter": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-            "Contact sans réponse": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
-            "Attente news": "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+          const ETAT_SAV_COLORS: Record<string, string> = {
+            "A contacter":            "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+            "Contact sans réponse":   "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+            "Attente news":           "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
             "En cours de traitement": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-            "RDV fixé": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-            "Terminé": "bg-gray-100 text-gray-500 dark:bg-gray-700/40 dark:text-gray-400",
-            "Annulé": "bg-gray-100 text-gray-400 dark:bg-gray-700/40 dark:text-gray-500",
+            "RDV fixé":               "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+            "Terminé":                "bg-gray-100 text-gray-500 dark:bg-gray-700/40 dark:text-gray-400",
+            "Annulé":                 "bg-gray-100 text-gray-400 dark:bg-gray-700/40 dark:text-gray-500",
+            "Rapport clôturé":        "bg-gray-100 text-gray-400 dark:bg-gray-700/40 dark:text-gray-500",
+            "RDV - fixé":             "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+            "Soucis montage":         "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+            "Livraison partielle":    "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+            "Montage partiel":        "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
           };
 
           const renderSavRow = (p: Project) => {
-            const rdvDate = (p.dateRDVSAV || "").split("T")[0];
-            const names = (p.collaborateurs || "").split(/[\s&]+/).map((n: string) => n.trim()).filter(Boolean);
+            const dateStr  = (p.dateMontage || "").split("T")[0];
+            const names    = (p.collaborateurs || "").split(/[\s&]+/).map((n: string) => n.trim()).filter(Boolean);
+            const logo     = getClientLogo(p.projet);
+            // Affiche etatSAV si dispo, sinon etatCMD
+            const statusLabel = p.etatSAV || p.etatCMD || "—";
             return (
               <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-white/60 dark:hover:bg-white/5 transition-colors">
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors group">
+                {/* Date montage */}
+                <span className="text-[10px] text-gray-400 font-mono w-16 shrink-0 tabular-nums">
+                  {dateStr ? new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" }) : "—"}
+                </span>
+                {/* Avatars */}
                 <div className="flex -space-x-1 shrink-0">
                   {names.slice(0, 2).map((n: string) => (
                     <span key={n} className="w-6 h-6 rounded-full text-[8px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
@@ -2325,14 +2339,18 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                     </span>
                   ))}
                 </div>
+                {/* Projet */}
                 <div className="flex-1 min-w-0">
                   {p.ofrTM && <p className="text-[9px] font-mono text-gray-400 leading-none mb-0.5">{p.ofrTM}</p>}
                   <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1 font-medium">{p.projet}</p>
-                  {rdvDate && <p className="text-[10px] text-gray-400 mt-0.5">RDV : {new Date(rdvDate + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" })}</p>}
                 </div>
-                <span className={`text-[9px] font-semibold px-2 py-1 rounded-full shrink-0 whitespace-nowrap ${SAV_ETAT_COLORS[p.etatSAV] || "bg-gray-100 text-gray-500"}`}>{p.etatSAV || "—"}</span>
+                {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                {/* Statut */}
+                <span className={`text-[9px] font-semibold px-2 py-1 rounded-full shrink-0 whitespace-nowrap ${ETAT_SAV_COLORS[statusLabel] || "bg-gray-100 text-gray-500"}`}>
+                  {statusLabel}
+                </span>
                 <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
-                <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-red-400 transition-colors shrink-0" />
               </Link>
             );
           };
@@ -2340,7 +2358,9 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           return (
             <div className="glass-card rounded-2xl p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">SAV — tous ({allSavCount})</p>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  SAV — coche cochée ({allSavCount})
+                </p>
                 {terminatedLoading && <span className="text-[10px] text-gray-400 animate-pulse">Chargement…</span>}
               </div>
               {savEnCours.length > 0 && (
@@ -2354,12 +2374,12 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
               {savTermines.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 bg-gray-50 dark:bg-gray-700/30">
-                    <span className="text-[12px] font-bold text-gray-500 dark:text-gray-400">Terminés / Annulés ({savTermines.length})</span>
+                    <span className="text-[12px] font-bold text-gray-500 dark:text-gray-400">Terminés / Clôturés ({savTermines.length})</span>
                   </div>
                   <div className="space-y-0.5">{savTermines.map(renderSavRow)}</div>
                 </div>
               )}
-              {allSavCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun SAV trouvé</p>}
+              {allSavCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet avec SAV coché</p>}
             </div>
           );
         } else if (showSummaryPanel === "soucis-historique") {
