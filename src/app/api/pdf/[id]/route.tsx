@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProject, type Project } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { sendPdfByEmail } from "@/lib/email";
+import { sendReportToTelegram } from "@/lib/telegram";
 import { verifyToken } from "@/lib/auth";
 import ReactPDF, {
   Document,
@@ -1089,7 +1090,13 @@ export async function GET(
     const baseUrl = origin.startsWith("http") ? origin : `https://${origin}`;
     const clientPortalUrl = `${baseUrl}/client/${clientToken}`;
 
-    // Envoi email en arrière-plan (ne bloque pas le téléchargement)
+    // Collect all photo URLs for Telegram
+    const allPhotoUrls: string[] = [];
+    for (const list of [project.photosAvant, project.photosMontage, project.photosQRCode, project.photosGaranties]) {
+      if (list) allPhotoUrls.push(...list.map((p: { url: string }) => p.url));
+    }
+
+    // Envoi email + Telegram en arrière-plan (ne bloque pas le téléchargement)
     sendPdfByEmail({
       projectName: project.projet,
       ofrTM: project.ofrTM,
@@ -1102,6 +1109,21 @@ export async function GET(
         console.log(`Email envoyé pour ${project.ofrTM}`);
       } else {
         console.error(`Erreur email: ${result.error}`);
+      }
+    });
+
+    sendReportToTelegram({
+      projectName: project.projet,
+      ofrTM: project.ofrTM,
+      collaborateur,
+      pdfBuffer: buffer,
+      pdfFilename: filename,
+      photoUrls: allPhotoUrls,
+    }).then((result) => {
+      if (result.success) {
+        console.log(`Telegram envoyé pour ${project.ofrTM}`);
+      } else {
+        console.error(`Erreur Telegram: ${result.error}`);
       }
     });
 
