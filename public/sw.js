@@ -1,4 +1,4 @@
-// Service worker TM Rapport — v6
+// Service worker TM Rapport — v7
 // Stratégies :
 //   - Statique (_next/static, icons, logos, manifest) : cache-first (permanent).
 //   - API GET : network-first avec timeout 800 ms → on privilégie toujours la
@@ -12,7 +12,7 @@
 //
 // Les noms de cache sont versionnés : un bump de version purge tout l'ancien.
 
-const VERSION = "v6";
+const VERSION = "v7";
 const CACHE_NAME = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE = `tm-api-${VERSION}`;
