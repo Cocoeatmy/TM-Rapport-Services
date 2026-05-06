@@ -978,38 +978,53 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
             .sort((a, b) => (a.dateMontage || "").localeCompare(b.dateMontage || ""));
           return (
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1.5">
-              {allWeekProjects.map((p) => {
-                const source = getProjectSource(p);
-                const isMesure = source === "mesures";
-                const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
-                const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
-                const logo = getClientLogo(p.projet);
-                return (
-                  <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
-                    <span className="text-gray-400 font-mono w-16 shrink-0">
-                      {(p.dateMontage || p.dateMesures) ? new Date((p.dateMontage || p.dateMesures || "") + (p.dateMontage?.includes("T") ? "" : "T12:00:00")).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---"}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
-                        <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${isMesure ? "bg-cyan-100 text-cyan-700" : "bg-orange-100 text-orange-700"}`}>{isMesure ? "Mesures" : "Montages"}</span>
-                      </div>
-                      <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
-                    </div>
-                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
-                    <div className="flex -space-x-1 shrink-0">
-                      {names.slice(0, 3).map((n) => (
-                        <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
-                          style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
-                          {getCollaboratorInitials(n)}
+              {(() => {
+                let lastDay = "";
+                return allWeekProjects.flatMap((p) => {
+                  const dayKey = (p.dateMontage || p.dateMesures || "").split("T")[0];
+                  const items: React.ReactNode[] = [];
+                  if (dayKey !== lastDay) {
+                    items.push(
+                      <div key={`sep-${dayKey}-${p.id}`} className="flex items-center gap-2 pt-1 first:pt-0">
+                        <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium shrink-0 px-1">
+                          {dayKey ? new Date(dayKey + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" }) : ""}
                         </span>
-                      ))}
-                    </div>
-                    <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
-                  </Link>
-                );
-              })}
+                        <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
+                      </div>
+                    );
+                    lastDay = dayKey;
+                  }
+                  const source = getProjectSource(p);
+                  const isMesure = source === "mesures";
+                  const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
+                  const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
+                  const logo = getClientLogo(p.projet);
+                  items.push(
+                    <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
+                          <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${isMesure ? "bg-cyan-100 text-cyan-700" : "bg-orange-100 text-orange-700"}`}>{isMesure ? "Mesures" : "Montages"}</span>
+                        </div>
+                        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
+                      </div>
+                      {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                      <div className="flex -space-x-1 shrink-0">
+                        {names.slice(0, 3).map((n) => (
+                          <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                            style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                            {getCollaboratorInitials(n)}
+                          </span>
+                        ))}
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                    </Link>
+                  );
+                  return items;
+                });
+              })()}
             </div>
           );
         })()}
@@ -1120,7 +1135,14 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           </div>
           <div>
             <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Archives</p>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500">Projets clôturés</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500">
+              Projets clôturés
+              {terminatedLoading ? (
+                <span className="ml-1 animate-pulse">…</span>
+              ) : terminatedProjects.length > 0 ? (
+                <span className="ml-1 font-semibold text-amber-600 dark:text-amber-400">{terminatedProjects.length}</span>
+              ) : null}
+            </p>
           </div>
         </div>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-amber-400 transition-colors shrink-0">
