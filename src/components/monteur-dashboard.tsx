@@ -14,7 +14,7 @@ const CLIENT_LOGOS: { prefix: string; logo: string }[] = [
   { prefix: "gétaz", logo: "/logos/fournisseurs/BMS-Logo.png" },
   { prefix: "duka", logo: "/logos/fournisseurs/duka.ch-logo.png" },
   { prefix: "duscholux", logo: "/logos/fournisseurs/Duscholux-logo.png" },
-  { prefix: "ronal", logo: "/logos/fournisseurs/ronal-logo.png" },
+  { prefix: "ronal", logo: "/logos/fournisseurs/ronal-logo-v2.png" },
   { prefix: "nelo", logo: "/logos/fournisseurs/Nelo-logo.jpg" },
   { prefix: "novellini", logo: "/logos/fournisseurs/Novellini-logo.png" },
   { prefix: "samo", logo: "/logos/fournisseurs/Samo-logo.jpg" },
@@ -1239,7 +1239,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                       {/* COL logo — w-8, toujours présente */}
                       <span className="w-8 shrink-0 flex justify-center">
                         {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                          <img src={logo} alt="" className="w-7 h-5 object-contain rounded" />
+                          <img src={logo} alt="" className="w-7 h-5 object-contain rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
                         ) : null; })()}
                       </span>
 
@@ -1325,7 +1325,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                     });
                   })}
                   {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                    <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
+                    <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
                   ) : null; })()}
                   {p.dateMontageEnd && (() => { const days = getWorkingDays(p.dateMontage || "", p.dateMontageEnd); return days.length > 1 ? (
                     <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{days.length}j</span>
@@ -1443,7 +1443,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
                           )
                         )}
                         {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                          <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded" />
+                          <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
                         ) : null; })()}
                         {p.dateMontageEnd && (() => { const days = getWorkingDays(p.dateMontage || "", p.dateMontageEnd); return days.length > 1 ? (
                           <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{days.length}j</span>

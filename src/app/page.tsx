@@ -202,7 +202,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
   const fournisseursLogos: Record<string, string> = {
     "fournisseurs-duka": "/logos/fournisseurs/duka.ch-logo.png",
     "fournisseurs-duscholux": "/logos/fournisseurs/Duscholux-logo.png",
-    "fournisseurs-ronal": "/logos/fournisseurs/ronal-logo.png",
+    "fournisseurs-ronal": "/logos/fournisseurs/ronal-logo-v2.png",
     "fournisseurs-nelo": "/logos/fournisseurs/Nelo-logo.jpg",
     "fournisseurs-novellini": "/logos/fournisseurs/Novellini-logo.png",
     "fournisseurs-samo": "/logos/fournisseurs/Samo-logo.jpg",
