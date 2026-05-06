@@ -1325,42 +1325,64 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             )}
             {panelProjects.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
 
-            {/* Dossiers en cours / À facturer : liste triée par Date Offre décroissante */}
-            {(isDossiersEnCours || isAFacturer) && panelProjects.map((p, idx) => {
-              const collabField = p.collaborateurs || "";
-              const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
-              const rowBg = idx % 2 === 0 ? "bg-indigo-50/50 dark:bg-indigo-950/20" : "bg-indigo-100/40 dark:bg-indigo-900/15";
-              const dateOffreStr = p.dateOffre ? new Date(p.dateOffre + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" }) : "---";
-              return (
-                <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                  className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-indigo-200/60 dark:hover:bg-indigo-800/30 transition-colors text-xs ${rowBg}`}>
-                  <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
-                    {parseTMNumbers(p.ofrTM || "").length > 0
-                      ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
-                          <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
-                        ))
-                      : <span className="font-mono text-xs text-gray-400">---</span>
-                    }
-                  </span>
-                  <span className="w-24 shrink-0 font-mono text-indigo-600 dark:text-indigo-400 hidden sm:block">{dateOffreStr}</span>
-                  <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
-                  <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                  <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2 sm:line-clamp-1">{p.projet}</span>
-                  {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                    <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
-                  ) : null; })()}
-                  <div className="flex -space-x-1 shrink-0">
-                    {names.slice(0, 3).map((n) => (
-                      <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
-                        style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
-                        {getCollaboratorInitials(n)}
-                      </span>
-                    ))}
-                  </div>
-                  <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
-                </Link>
-              );
-            })}
+            {/* Dossiers en cours / À facturer : liste triée par Date Offre décroissante avec séparateurs par mois */}
+            {(isDossiersEnCours || isAFacturer) && (() => {
+              let lastMonthKey = "";
+              let colorIdx = 0;
+              return panelProjects.flatMap((p) => {
+                const monthKey = p.dateOffre ? p.dateOffre.slice(0, 7) : ""; // "YYYY-MM"
+                const items: React.ReactNode[] = [];
+                if (monthKey !== lastMonthKey) {
+                  const monthLabel = monthKey
+                    ? new Date(monthKey + "-15T12:00:00").toLocaleDateString("fr-CH", { month: "long", year: "numeric" })
+                    : "Sans date d'offre";
+                  items.push(
+                    <div key={`month-${monthKey || "none"}`} className="flex items-center gap-2 pt-2 pb-0.5">
+                      <div className="flex-1 h-px bg-indigo-200/70 dark:bg-indigo-700/40" />
+                      <span className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 shrink-0 px-1.5 capitalize">{monthLabel}</span>
+                      <div className="flex-1 h-px bg-indigo-200/70 dark:bg-indigo-700/40" />
+                    </div>
+                  );
+                  lastMonthKey = monthKey;
+                  colorIdx = 0;
+                }
+                const collabField = p.collaborateurs || "";
+                const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
+                const rowBg = colorIdx % 2 === 0 ? "bg-indigo-50/50 dark:bg-indigo-950/20" : "bg-indigo-100/40 dark:bg-indigo-900/15";
+                colorIdx++;
+                const dateOffreStr = p.dateOffre ? new Date(p.dateOffre + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" }) : "---";
+                items.push(
+                  <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-indigo-200/60 dark:hover:bg-indigo-800/30 transition-colors text-xs ${rowBg}`}>
+                    <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
+                      {parseTMNumbers(p.ofrTM || "").length > 0
+                        ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
+                            <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                          ))
+                        : <span className="font-mono text-xs text-gray-400">---</span>
+                      }
+                    </span>
+                    <span className="w-24 shrink-0 font-mono text-indigo-600 dark:text-indigo-400 hidden sm:block">{dateOffreStr}</span>
+                    <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
+                    <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
+                    <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2 sm:line-clamp-1">{p.projet}</span>
+                    {(() => { const logo = getClientLogo(p.projet); return logo ? (
+                      <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                    ) : null; })()}
+                    <div className="flex -space-x-1 shrink-0">
+                      {names.slice(0, 3).map((n) => (
+                        <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                          style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                          {getCollaboratorInitials(n)}
+                        </span>
+                      ))}
+                    </div>
+                    <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                  </Link>
+                );
+                return items;
+              });
+            })()}
 
             {/* RDV à fixer : liste simple avec colonne date */}
             {isRdvAFixer && panelProjects.map((p, idx) => {
