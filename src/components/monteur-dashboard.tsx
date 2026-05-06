@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
+import { PersonalStats } from "@/components/personal-stats";
 
 const CLIENT_LOGOS: { prefix: string; logo: string }[] = [
   { prefix: "getaz", logo: "/logos/fournisseurs/BMS-Logo.png" },
@@ -723,6 +724,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
 
   // Heures de travail — filtre et projets terminés
+  const [selectedMonteurStats, setSelectedMonteurStats] = useState<string>("");
   const [workFilter, setWorkFilter] = useState<"semaine" | "mois" | "annee" | "custom">("semaine");
   const [workMonth, setWorkMonth] = useState<string>(() => {
     const d = new Date();
@@ -1286,6 +1288,97 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                   })}
                 </>
               )}
+
+              {/* Heures de travail */}
+              {(() => {
+                const allProjects = [...projects, ...terminatedProjects];
+                const { fromStr, toStr, label } = getDateRangeForFilter(workFilter, workFrom, workTo, workMonth, workYear);
+                const soloData = COLLABORATEURS_LIST.map((name) => ({
+                  name, colors: getCollaboratorColor(name),
+                  minutes: getIndividualHoursForCollab(allProjects, name, fromStr, toStr),
+                })).filter((c) => c.minutes > 0);
+                const groupMap = new Map<string, number>();
+                for (const p of allProjects) {
+                  const collab = (p.collaborateurs || "").trim();
+                  if (!collab || (!collab.includes("&") && !collab.toLowerCase().includes("team"))) continue;
+                  const ha = p.heureArrivee || ""; const hd = p.heureDepart || "";
+                  if (!ha && !hd) continue;
+                  let mins = 0;
+                  if (ha.includes("|") || hd.includes("|")) {
+                    const arrParts = ha.split("|").map((s: string) => s.trim()).filter(Boolean);
+                    const depParts = hd.split("|").map((s: string) => s.trim()).filter(Boolean);
+                    for (let i = 0; i < Math.max(arrParts.length, depParts.length); i++) {
+                      const aPart = arrParts[i] || ""; const dPart = depParts[i] || "";
+                      if (isNamedEntry(aPart) || isNamedEntry(dPart)) continue;
+                      const aTime = extractHHMM(aPart) || aPart.split(/\s+/).at(-1) || "";
+                      const dTime = extractHHMM(dPart) || dPart.split(/\s+/).at(-1) || "";
+                      const entryDate = p.dateMontage?.split("T")[0] || "";
+                      if (fromStr && entryDate < fromStr) continue;
+                      if (toStr && entryDate > toStr) continue;
+                      const a = parseTimeToMinutes(aTime); const d = parseTimeToMinutes(dTime);
+                      if (a >= 0 && d >= 0 && d > a) mins += d - a;
+                    }
+                  } else {
+                    const dateStr = p.dateMontage?.split("T")[0] || "";
+                    if (fromStr && dateStr < fromStr) continue;
+                    if (toStr && dateStr > toStr) continue;
+                    const a = parseTimeToMinutes(extractHHMM(ha) || ha);
+                    const d = parseTimeToMinutes(extractHHMM(hd) || hd);
+                    if (a >= 0 && d >= 0 && d > a) mins += d - a;
+                  }
+                  if (mins > 0) groupMap.set(collab, (groupMap.get(collab) || 0) + mins);
+                }
+                const groupData = Array.from(groupMap.entries()).sort((a, b) => b[1] - a[1]);
+                const hasData = soloData.length > 0 || groupData.length > 0;
+                const currentYear = new Date().getFullYear();
+                const years = Array.from({ length: 4 }, (_, i) => currentYear - i);
+                return (
+                  <div className="glass-card rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1"><Clock className="w-3 h-3" />Heures de travail</p>
+                      {terminatedLoading && <span className="text-[10px] text-gray-400 animate-pulse">Chargement...</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(["semaine", "mois", "annee", "custom"] as const).map((f) => (
+                        <button key={f} onClick={() => setWorkFilter(f)} className={`text-[10px] font-medium px-2.5 py-1 rounded-full border transition-colors ${workFilter === f ? "bg-blue-600 text-white border-blue-600" : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"}`}>
+                          {f === "semaine" ? "Semaine" : f === "mois" ? "Mois" : f === "annee" ? "Année" : "Plage"}
+                        </button>
+                      ))}
+                    </div>
+                    {workFilter === "mois" && <input type="month" value={workMonth} onChange={(e) => setWorkMonth(e.target.value)} className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2.5 py-1.5" />}
+                    {workFilter === "annee" && <div className="flex flex-wrap gap-1.5">{years.map((y) => <button key={y} onClick={() => setWorkYear(String(y))} className={`text-xs px-3 py-1 rounded-full border transition-colors ${workYear === String(y) ? "bg-blue-600 text-white border-blue-600" : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"}`}>{y}</button>)}</div>}
+                    {workFilter === "custom" && <div className="grid grid-cols-2 gap-2"><div><p className="text-[10px] text-gray-400 mb-0.5">Du</p><input type="date" value={workFrom} onChange={(e) => setWorkFrom(e.target.value)} className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2 py-1.5" /></div><div><p className="text-[10px] text-gray-400 mb-0.5">Au</p><input type="date" value={workTo} onChange={(e) => setWorkTo(e.target.value)} className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-2 py-1.5" /></div></div>}
+                    <p className="text-[10px] text-gray-400 -mb-1">{label}</p>
+                    {!hasData ? <p className="text-xs text-gray-400 text-center py-2">Aucune heure enregistrée sur cette période</p> : (
+                      <>
+                        {soloData.length > 0 && (<><p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Individuel</p>{soloData.map((c) => <div key={c.name} className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0" style={{ backgroundColor: c.colors.bg, color: c.colors.text }}>{getCollaboratorInitials(c.name)}</div><span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span></div><span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(c.minutes)}</span></div>)}</>)}
+                        {groupData.length > 0 && (<><p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-1">Binômes & Équipes</p>{groupData.map(([name, mins]) => { const names = name.split("&").map((n: string) => n.trim()); return <div key={name} className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="flex -space-x-1.5">{names.slice(0, 4).map((n: string) => { const c = getCollaboratorColor(n); return <div key={n} className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 border border-white dark:border-slate-800" style={{ backgroundColor: c.dot, color: "#fff" }}>{getCollaboratorInitials(n)}</div>; })}</div><span className="text-sm text-gray-700 dark:text-gray-300">{name}</span></div><span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{fmtMin(mins)}</span></div>; })}</>)}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Stats monteur */}
+              <div className="glass-card rounded-2xl p-4 space-y-3">
+                <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                  <BarChart3 className="w-3 h-3" />Stats monteur
+                </p>
+                <select
+                  value={selectedMonteurStats}
+                  onChange={(e) => setSelectedMonteurStats(e.target.value)}
+                  className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 px-3 py-1.5"
+                >
+                  <option value="">-- Choisir un monteur --</option>
+                  {COLLABORATEURS_LIST.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+                {selectedMonteurStats && (
+                  <PersonalStats
+                    userName={selectedMonteurStats}
+                    projects={[...projects.filter((p: any) => p._source === "montage" || !p._source), ...terminatedProjects]}
+                  />
+                )}
+              </div>
             </div>
           );
         } else if (showSummaryPanel === "mesures-today") {
@@ -1799,8 +1892,8 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
         );
       })()}
 
-      {/* Heures de travail — section filtrable (actifs + terminés) */}
-      {(() => {
+      {/* (Heures de travail et Stats monteur déplacés dans le panel Monteurs actifs) */}
+      {false && (() => {
         const allProjects = [...projects, ...terminatedProjects];
         const { fromStr, toStr, label } = getDateRangeForFilter(workFilter, workFrom, workTo, workMonth, workYear);
 

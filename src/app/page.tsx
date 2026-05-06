@@ -1246,30 +1246,7 @@ function HomePage() {
               />
             );
           })()}
-          {currentUser && (projectsData["cmd"] || []).length > 0 && (
-            <>
-              {currentUser.role === "admin" && (
-                <div className="mt-4">
-                  <label className="text-sm font-medium text-gray-600 dark:text-gray-400 mr-2">
-                    Stats monteur :
-                  </label>
-                  <select
-                    value={selectedMonteurStats}
-                    onChange={(e) => setSelectedMonteurStats(e.target.value)}
-                    className="glass-card rounded-lg px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  >
-                    <option value="">-- Choisir un monteur --</option>
-                    {COLLABORATEURS_LIST.map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                  {selectedMonteurStats && (
-                    <PersonalStats userName={selectedMonteurStats} projects={[...(projectsData["cmd"] || []), ...(projectsData["cmd-termine"] || [])]} />
-                  )}
-                </div>
-              )}
-            </>
-          )}
+          {/* Stats monteur déplacé dans le panel Monteurs actifs */}
           {loading && (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
