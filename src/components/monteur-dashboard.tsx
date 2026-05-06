@@ -733,6 +733,16 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const [terminatedProjects, setTerminatedProjects] = useState<Project[]>([]);
   const [terminatedLoading, setTerminatedLoading] = useState(false);
 
+  // Tous les projets actifs (non-Terminé, non-Annulé) pour les stats globales
+  // (ex. "Dossiers en cours" = 209 projets, pas seulement les 80 de l'onglet CMD).
+  const [allActiveProjects, setAllActiveProjects] = useState<Project[]>([]);
+  useEffect(() => {
+    fetch("/api/projects/all-active")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setAllActiveProjects(data); })
+      .catch(() => {});
+  }, []);
+
   // Charge les projets terminés dès que le filtre sort de "semaine en cours"
   // (semaine courante = seulement des projets actifs suffisent).
   useEffect(() => {
@@ -911,19 +921,22 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
     .sort((a, b) => ((a.dateOffre || "") > (b.dateOffre || "") ? -1 : 1));
   const aFacturerCount = aFacturerProjects.length;
 
-  // Dossiers en cours : tous les projets dont État-CMD n'est pas Annulé ou Terminé,
-  // triés par Date Offre décroissante (la plus récente en haut)
-  const dossiersEnCoursProjects = projects.filter((p) =>
-    p.etatCMD !== "Annulé" && p.etatCMD !== "Terminé"
-  ).sort((a, b) => {
-    const da = a.dateOffre || "";
-    const db = b.dateOffre || "";
-    if (!da && !db) return 0;
-    if (!da) return 1;  // sans date → en bas
-    if (!db) return -1;
-    return db.localeCompare(da); // décroissant : plus récent en premier
-  });
+  // Dossiers en cours : TOUS les projets dont État-CMD n'est pas Annulé ou Terminé.
+  // On utilise allActiveProjects (endpoint /api/projects/all-active) qui retourne
+  // tous les statuts hors Terminé/Annulé — contrairement à `projects` qui ne
+  // couvre que les statuts CMD spécifiques (≈80 projets sur 209).
+  const dossiersEnCoursProjects = allActiveProjects
+    .filter((p) => p.etatCMD !== "Annulé" && p.etatCMD !== "Terminé")
+    .sort((a, b) => {
+      const da = a.dateOffre || "";
+      const db = b.dateOffre || "";
+      if (!da && !db) return 0;
+      if (!da) return 1;  // sans date → en bas
+      if (!db) return -1;
+      return db.localeCompare(da); // décroissant : plus récent en premier
+    });
   const dossiersEnCoursCount = dossiersEnCoursProjects.length;
+  const dossiersEnCoursCabines = dossiersEnCoursProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
 
   return (
     <div className="mb-6 space-y-4">
@@ -1045,9 +1058,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
         </button>
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "dossiers-en-cours" ? null : "dossiers-en-cours")} className={`glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "dossiers-en-cours" ? "ring-2 ring-indigo-400" : ""}`}>
-          <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400">{dossiersEnCoursCount}</p>
+          <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400">{dossiersEnCoursCount || "…"}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Dossiers en cours</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+          <p className="text-[7px] sm:text-[10px] text-indigo-400 dark:text-indigo-500 mt-0.5">{dossiersEnCoursCabines ? `${dossiersEnCoursCabines} cab.` : ""}</p>
         </button>
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "a-facturer" ? null : "a-facturer")} className={`glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "a-facturer" ? "ring-2 ring-yellow-400" : ""}`}>
           <p className="text-lg sm:text-2xl font-bold text-yellow-600 dark:text-yellow-400">{aFacturerCount}</p>
