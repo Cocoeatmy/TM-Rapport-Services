@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
-import { Calendar, MapPin, Clock, ChevronRight, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS } from "@/lib/constants";
@@ -1110,7 +1110,9 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
+  const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
 
   // Heures de travail — filtre et projets terminés
@@ -1509,37 +1511,25 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">À facturer</p>
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
         </button>
+        {/* Calendrier */}
+        <button onClick={() => { setShowSummaryPanel(showSummaryPanel === "calendrier" ? null : "calendrier"); setCalendarSelectedDay(null); }} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("calendrier", "ring-violet-400")}`}>
+          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center"><CalendarDays className="w-4 h-4 text-violet-500 dark:text-violet-400" /></span>
+          <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{collabData.flatMap(c => [...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects]).filter((p, i, a) => a.findIndex(x => x.id === p.id) === i).length}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Calendrier</p>
+          <p className="text-[7px] sm:text-[10px] text-violet-400 dark:text-violet-500 mt-0.5">Tous RDV</p>
+        </button>
+        {/* Archives */}
+        <button onClick={() => onNavigate?.("archives")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel !== null ? "opacity-40 scale-[0.97]" : ""}`}>
+          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-amber-100/80 dark:bg-amber-900/30 flex items-center justify-center"><Archive className="w-4 h-4 text-amber-600 dark:text-amber-400" /></span>
+          <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">
+            {terminatedLoading ? <span className="animate-pulse text-base">…</span> : terminatedProjects.length}
+          </p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Archives</p>
+          <p className="text-[7px] sm:text-[10px] text-amber-400 dark:text-amber-500 mt-0.5">Clôturés</p>
+        </button>
       </div>
         );
       })()}
-
-      {/* Raccourci Archives — navigation vers les projets clôturés */}
-      <button
-        onClick={() => onNavigate?.("archives")}
-        className="glass-card rounded-2xl p-3 flex items-center justify-between gap-3 hover:shadow-lg active:scale-[0.99] transition-all group w-full text-left"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-amber-600 dark:text-amber-400">
-              <rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>
-            </svg>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Archives</p>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500">
-              Projets clôturés
-              {terminatedLoading ? (
-                <span className="ml-1 animate-pulse">…</span>
-              ) : terminatedProjects.length > 0 ? (
-                <span className="ml-1 font-semibold text-amber-600 dark:text-amber-400">{terminatedProjects.length}</span>
-              ) : null}
-            </p>
-          </div>
-        </div>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-amber-400 transition-colors shrink-0">
-          <path d="m9 18 6-6-6-6"/>
-        </svg>
-      </button>
 
       <div className="grid grid-cols-2 gap-3">
         {(() => {
@@ -1589,6 +1579,175 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
 
       {/* Summary panel */}
       {showSummaryPanel && (() => {
+        /* ── CALENDRIER ───────────────────────────────────────────── */
+        if (showSummaryPanel === "calendrier") {
+          const todayStr2 = getTodayStr();
+          const allCalProjects = [...projects, ...terminatedProjects]
+            .filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i)
+            .filter(p => p.dateMontage || p.dateMesures);
+
+          // Build day map for the displayed month (± 1 month buffer)
+          const { year, month } = calendarMonth;
+          const firstOfMonth = new Date(year, month, 1);
+          const lastOfMonth = new Date(year, month + 1, 0);
+          const dayMap: Record<string, Project[]> = {};
+          for (const p of allCalProjects) {
+            const startRaw = (p.dateMontage || p.dateMesures || "").split("T")[0];
+            if (!startRaw) continue;
+            const endRaw = (p.dateMontageEnd || "").split("T")[0];
+            const days = endRaw && endRaw > startRaw ? getWorkingDays(startRaw, endRaw) : [startRaw];
+            for (const d of days) {
+              if (d < firstOfMonth.toISOString().split("T")[0] || d > lastOfMonth.toISOString().split("T")[0]) continue;
+              if (!dayMap[d]) dayMap[d] = [];
+              dayMap[d].push(p);
+            }
+          }
+
+          // Grid: Mon=0 … Sun=6
+          const firstDayWeekday = (firstOfMonth.getDay() + 6) % 7; // shift Sun=0→6
+          const daysInMonth = lastOfMonth.getDate();
+          const totalCells = Math.ceil((firstDayWeekday + daysInMonth) / 7) * 7;
+          const cells: (number | null)[] = [
+            ...Array(firstDayWeekday).fill(null),
+            ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+            ...Array(totalCells - firstDayWeekday - daysInMonth).fill(null),
+          ];
+
+          const monthLabel = firstOfMonth.toLocaleDateString("fr-CH", { month: "long", year: "numeric" });
+          const DAY_HEADERS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+          return (
+            <div className="glass-card rounded-2xl p-4 space-y-4">
+              {/* Header navigation */}
+              <div className="flex items-center justify-between">
+                <button onClick={() => { setCalendarMonth(m => { const d = new Date(m.year, m.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }); setCalendarSelectedDay(null); }} className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <ChevronLeft className="w-4 h-4 text-gray-500" />
+                </button>
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 capitalize">{monthLabel}</p>
+                <button onClick={() => { setCalendarMonth(m => { const d = new Date(m.year, m.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }); setCalendarSelectedDay(null); }} className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+
+              {/* Day headers */}
+              <div className="grid grid-cols-7 gap-0.5">
+                {DAY_HEADERS.map(d => (
+                  <div key={d} className="text-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase py-1">{d}</div>
+                ))}
+              </div>
+
+              {/* Calendar grid */}
+              <div className="grid grid-cols-7 gap-0.5">
+                {cells.map((day, idx) => {
+                  if (!day) return <div key={`empty-${idx}`} className="aspect-square" />;
+                  const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const dayProjects = dayMap[dateStr] || [];
+                  const isToday = dateStr === todayStr2;
+                  const isPast = dateStr < todayStr2;
+                  const isSelected = calendarSelectedDay === dateStr;
+                  const hasProjects = dayProjects.length > 0;
+
+                  // Unique collaborators
+                  const collabsOnDay = Array.from(new Set(
+                    dayProjects.flatMap(p => {
+                      const src = getProjectSource(p);
+                      const field = src === "mesures" ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
+                      return field.split(/[\s&,]+/).map(s => s.trim()).filter(Boolean);
+                    })
+                  )).slice(0, 4);
+
+                  return (
+                    <button
+                      key={dateStr}
+                      onClick={() => hasProjects ? setCalendarSelectedDay(isSelected ? null : dateStr) : undefined}
+                      className={[
+                        "relative flex flex-col items-center justify-start pt-1 pb-1.5 rounded-xl transition-all text-center",
+                        hasProjects ? "cursor-pointer hover:scale-105 active:scale-95" : "cursor-default",
+                        isToday ? "bg-violet-100 dark:bg-violet-900/40 ring-2 ring-violet-400" : "",
+                        isSelected ? "bg-violet-200 dark:bg-violet-800/50 ring-2 ring-violet-500 shadow-md" : "",
+                        !isToday && !isSelected && hasProjects ? "bg-white/70 dark:bg-white/5 hover:bg-violet-50 dark:hover:bg-violet-900/20" : "",
+                        isPast && !isToday ? "opacity-50" : "",
+                      ].join(" ")}
+                    >
+                      <span className={`text-[10px] sm:text-xs font-bold leading-none ${isToday ? "text-violet-700 dark:text-violet-300" : "text-gray-700 dark:text-gray-300"}`}>{day}</span>
+                      {collabsOnDay.length > 0 && (
+                        <div className="flex flex-wrap justify-center gap-px mt-1">
+                          {collabsOnDay.slice(0, 3).map(n => (
+                            <span key={n} className="w-3.5 h-3.5 rounded-full text-[6px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                              style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                              {getCollaboratorInitials(n).charAt(0)}
+                            </span>
+                          ))}
+                          {collabsOnDay.length > 3 && <span className="text-[7px] text-gray-400 leading-none mt-px">+{collabsOnDay.length - 3}</span>}
+                        </div>
+                      )}
+                      {hasProjects && dayProjects.length > 1 && (
+                        <span className="absolute bottom-0.5 right-1 text-[7px] text-violet-500 dark:text-violet-400 font-bold">{dayProjects.length}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Legend */}
+              <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
+                {collabData.filter(c => c.myProjects.length > 0).map(c => (
+                  <div key={c.name} className="flex items-center gap-1">
+                    <span className="w-4 h-4 rounded-full text-[7px] font-bold flex items-center justify-center"
+                      style={{ backgroundColor: c.colors.bg, color: c.colors.text }}>
+                      {getCollaboratorInitials(c.name).charAt(0)}
+                    </span>
+                    <span className="text-[9px] text-gray-500 dark:text-gray-400">{c.name.split(" ")[0]}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Selected day detail */}
+              {calendarSelectedDay && dayMap[calendarSelectedDay] && (
+                <div className="space-y-2 border-t border-gray-100 dark:border-gray-700 pt-3">
+                  <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    {new Date(calendarSelectedDay + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" })}
+                    <span className="ml-2 text-violet-500">· {dayMap[calendarSelectedDay].length} intervention{dayMap[calendarSelectedDay].length > 1 ? "s" : ""}</span>
+                  </p>
+                  <div className="space-y-1.5">
+                    {dayMap[calendarSelectedDay].map(p => {
+                      const src = getProjectSource(p);
+                      const isMesure = src === "mesures";
+                      const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
+                      const names = collabField.split(/[\s&]+/).map(n => n.trim()).filter(Boolean);
+                      const logo = getClientLogo(p.projet);
+                      return (
+                        <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/60 dark:bg-white/5 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors">
+                          <div className="flex -space-x-1 shrink-0">
+                            {names.slice(0, 3).map(n => (
+                              <span key={n} className="w-6 h-6 rounded-full text-[8px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                                style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                                {getCollaboratorInitials(n)}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1 mb-0.5">
+                              {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
+                              <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${isMesure ? "bg-cyan-100 text-cyan-700" : "bg-orange-100 text-orange-700"}`}>{isMesure ? "Mesures" : "Montages"}</span>
+                            </div>
+                            <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1">{p.projet}</p>
+                          </div>
+                          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                          <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                          <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+        /* ── FIN CALENDRIER ───────────────────────────────────────── */
+
         let panelProjects: Project[] = [];
         let panelTitle = "";
 
