@@ -902,10 +902,18 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
     .sort((a, b) => ((a.dateMontage || "").split("T")[0]).localeCompare((b.dateMontage || "").split("T")[0]));
   const soucisEnCoursCount = soucisEnCoursProjects.length;
 
-  // Dossiers en cours : tous les projets dont État-CMD n'est pas Annulé ou Terminé
+  // Dossiers en cours : tous les projets dont État-CMD n'est pas Annulé ou Terminé,
+  // triés par Date Offre décroissante (la plus récente en haut)
   const dossiersEnCoursProjects = projects.filter((p) =>
     p.etatCMD !== "Annulé" && p.etatCMD !== "Terminé"
-  ).sort((a, b) => ((a.dateMontage || a.dateMesures || "").split("T")[0]).localeCompare((b.dateMontage || b.dateMesures || "").split("T")[0]));
+  ).sort((a, b) => {
+    const da = a.dateOffre || "";
+    const db = b.dateOffre || "";
+    if (!da && !db) return 0;
+    if (!da) return 1;  // sans date → en bas
+    if (!db) return -1;
+    return db.localeCompare(da); // décroissant : plus récent en premier
+  });
   const dossiersEnCoursCount = dossiersEnCoursProjects.length;
 
   return (
@@ -1284,6 +1292,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         }
 
         const isRdvAFixer = false; // rdv-a-fixer has its own return above
+        const isDossiersEnCours = showSummaryPanel === "dossiers-en-cours";
         const dateLabel = "Date";
 
         return (
@@ -1292,7 +1301,8 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             {panelProjects.length > 0 && (
               <div className="flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 mb-1">
                 {isRdvAFixer && <span className="w-16 shrink-0">{dateLabel}</span>}
-                <span className="w-20 shrink-0">N° OFR TM</span>
+                <span className={isDossiersEnCours ? "w-20 shrink-0" : "w-20 shrink-0"}>N° OFR TM</span>
+                {isDossiersEnCours && <span className="w-24 shrink-0 hidden sm:block">Date offre</span>}
                 <span className="w-20 shrink-0 hidden sm:block">N° Mes. Fourn.</span>
                 <span className="w-20 shrink-0 hidden sm:block">N° CMD Fourn.</span>
                 <span className="flex-1">Projet</span>
@@ -1300,6 +1310,43 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
               </div>
             )}
             {panelProjects.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
+
+            {/* Dossiers en cours : liste triée par Date Offre décroissante */}
+            {isDossiersEnCours && panelProjects.map((p, idx) => {
+              const collabField = p.collaborateurs || "";
+              const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
+              const rowBg = idx % 2 === 0 ? "bg-indigo-50/50 dark:bg-indigo-950/20" : "bg-indigo-100/40 dark:bg-indigo-900/15";
+              const dateOffreStr = p.dateOffre ? new Date(p.dateOffre + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" }) : "---";
+              return (
+                <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-indigo-200/60 dark:hover:bg-indigo-800/30 transition-colors text-xs ${rowBg}`}>
+                  <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
+                    {parseTMNumbers(p.ofrTM || "").length > 0
+                      ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
+                          <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                        ))
+                      : <span className="font-mono text-xs text-gray-400">---</span>
+                    }
+                  </span>
+                  <span className="w-24 shrink-0 font-mono text-indigo-600 dark:text-indigo-400 hidden sm:block">{dateOffreStr}</span>
+                  <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
+                  <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
+                  <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2 sm:line-clamp-1">{p.projet}</span>
+                  {(() => { const logo = getClientLogo(p.projet); return logo ? (
+                    <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                  ) : null; })()}
+                  <div className="flex -space-x-1 shrink-0">
+                    {names.slice(0, 3).map((n) => (
+                      <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                        style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                        {getCollaboratorInitials(n)}
+                      </span>
+                    ))}
+                  </div>
+                  <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                </Link>
+              );
+            })}
 
             {/* RDV à fixer : liste simple avec colonne date */}
             {isRdvAFixer && panelProjects.map((p, idx) => {
@@ -1350,7 +1397,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
             })}
 
             {/* Autres panels : groupé par jour avec séparateurs */}
-            {!isRdvAFixer && (() => {
+            {!isRdvAFixer && !isDossiersEnCours && (() => {
               const todayStr = new Date().toISOString().split("T")[0];
               const now = new Date();
               const weekEnd = new Date(now);
