@@ -793,7 +793,7 @@ function HomePage() {
     "fournisseurs-novellini": "/api/projects/all-active",
     "fournisseurs-samo": "/api/projects/all-active",
     stats: "/api/projects/all-active",
-    archives: "/api/projects/cmd-termine",
+    archives: "/api/projects/cmd-termine", // overridden by combined fetch below
     "projets-tous": "/api/projects/all",
     sanitaires: "/api/projects/all-active",
   };
@@ -842,6 +842,25 @@ function HomePage() {
       });
     });
   }, []);
+
+  // Build combined archives from all 4 terminate endpoints
+  useEffect(() => {
+    const cmd = projectsData["cmd-termine"];
+    const mes = projectsData["mesures-termine"];
+    const svc = projectsData["services-termine"];
+    const sav = projectsData["sav-termine"];
+    if (!cmd && !mes && !svc && !sav) return;
+    const all = [...(cmd || []), ...(mes || []), ...(svc || []), ...(sav || [])];
+    const seen = new Set<string>();
+    const deduped = all.filter((p) => p?.id && !seen.has(p.id) && seen.add(p.id));
+    if (deduped.length !== (projectsData["archives"] || []).length) {
+      setProjectsData((prev) => {
+        const updated = { ...prev, archives: deduped };
+        try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+        return updated;
+      });
+    }
+  }, [projectsData["cmd-termine"], projectsData["mesures-termine"], projectsData["services-termine"], projectsData["sav-termine"]]);
 
   const refreshAllProjects = useCallback(() => {
     const allModes = Object.entries(MODE_API) as [string, string][];
@@ -1186,15 +1205,26 @@ function HomePage() {
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
             if (m === "archives") {
-              const url = MODE_API["archives"];
-              fetch(url).then((r) => r.json()).then((data) => {
-                if (!Array.isArray(data)) return;
+              Promise.all([
+                fetch("/api/projects/cmd-termine").then((r) => r.json()).catch(() => []),
+                fetch("/api/projects/mesures-termine").then((r) => r.json()).catch(() => []),
+                fetch("/api/projects/services-termine").then((r) => r.json()).catch(() => []),
+                fetch("/api/projects/sav-termine").then((r) => r.json()).catch(() => []),
+              ]).then(([cmd, mes, svc, sav]) => {
+                const all = [
+                  ...(Array.isArray(cmd) ? cmd : []),
+                  ...(Array.isArray(mes) ? mes : []),
+                  ...(Array.isArray(svc) ? svc : []),
+                  ...(Array.isArray(sav) ? sav : []),
+                ];
+                const seen = new Set<string>();
+                const deduped = all.filter((p) => p?.id && !seen.has(p.id) && seen.add(p.id));
                 setProjectsData((prev) => {
-                  const updated = { ...prev, archives: data, "cmd-termine": data, rapport: data };
+                  const updated = { ...prev, archives: deduped, "cmd-termine": cmd };
                   try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
                   return updated;
                 });
-              }).catch(() => {});
+              });
             }
           }} />
         </div>
