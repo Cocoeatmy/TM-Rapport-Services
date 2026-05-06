@@ -718,7 +718,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
 
   // Heures de travail — filtre et projets terminés
@@ -902,6 +902,12 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
     .sort((a, b) => ((a.dateMontage || "").split("T")[0]).localeCompare((b.dateMontage || "").split("T")[0]));
   const soucisEnCoursCount = soucisEnCoursProjects.length;
 
+  // Dossiers en cours : tous les projets dont État-CMD n'est pas Annulé ou Terminé
+  const dossiersEnCoursProjects = projects.filter((p) =>
+    p.etatCMD !== "Annulé" && p.etatCMD !== "Terminé"
+  ).sort((a, b) => ((a.dateMontage || a.dateMesures || "").split("T")[0]).localeCompare((b.dateMontage || b.dateMesures || "").split("T")[0]));
+  const dossiersEnCoursCount = dossiersEnCoursProjects.length;
+
   return (
     <div className="mb-6 space-y-4">
       {/* En-tête de bienvenue */}
@@ -970,7 +976,7 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
 
       {/* Summary cards — hauteur uniformisée via un placeholder invisible
           pour les cartes sans sous-texte "X cab." */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-1.5 sm:gap-3">
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "mesures-today" ? null : "mesures-today")} className={`glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "mesures-today" ? "ring-2 ring-cyan-400" : ""}`}>
           <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresTodayCount}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures aujourd'hui</p>
@@ -1019,6 +1025,11 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "soucis-en-cours" ? null : "soucis-en-cours")} className={`glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "soucis-en-cours" ? "ring-2 ring-red-400" : ""}`}>
           <p className="text-lg sm:text-2xl font-bold text-red-700 dark:text-red-400">{soucisEnCoursCount}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis en cours</p>
+          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+        </button>
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "dossiers-en-cours" ? null : "dossiers-en-cours")} className={`col-span-2 sm:col-span-1 glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel === "dossiers-en-cours" ? "ring-2 ring-indigo-400" : ""}`}>
+          <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400">{dossiersEnCoursCount}</p>
+          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Dossiers en cours</p>
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
         </button>
       </div>
@@ -1126,6 +1137,9 @@ function AdminDashboard({ projects, userName }: { projects: Project[]; userName:
         } else if (showSummaryPanel === "soucis-en-cours") {
           panelTitle = "Soucis en cours";
           panelProjects = soucisEnCoursProjects;
+        } else if (showSummaryPanel === "dossiers-en-cours") {
+          panelTitle = "Dossiers en cours";
+          panelProjects = dossiersEnCoursProjects;
         } else if (showSummaryPanel === "rdv-a-fixer") {
           // Split into 3 categories
           const montageStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
