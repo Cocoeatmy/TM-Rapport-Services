@@ -2683,22 +2683,74 @@ function HomePage() {
         // Collaborator stats (only completed/archived projects)
         const allProjectsRaw = projectsData["cmd-termine"] || projectsData["archives"] || [];
         const allProjects: Project[] = filterByStatsDate(allProjectsRaw, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+
+        // Helper: split collaborateurs field into array of trimmed names
+        const splitCollabs = (p: Project): string[] =>
+          (p.collaborateurs || "").split("&").map((n) => n.trim()).filter(Boolean);
+
+        // Solo only (1 collaborateur)
         const buildCollabStats = (projects: Project[]) => COLLABORATEURS_LIST.map((name) => {
-          const collabProjects = projects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase()));
-          const cabines = collabProjects.reduce((s, p) => {
-            const attr = cabineAttributions[p.id];
-            if (attr?.length) return s + attr.filter((m) => m.toLowerCase() === name.toLowerCase()).length;
-            return s + (p.nbCabines || 0);
-          }, 0);
-          const soucisCount = collabProjects.filter((p) => p.soucisMontage).length;
-          const soucisRate = collabProjects.length > 0 ? Math.round((soucisCount / collabProjects.length) * 100) : 0;
-          return { name, projects: collabProjects.length, cabines, soucisCount, soucisRate };
+          const soloProjects = projects.filter((p) => {
+            const collabs = splitCollabs(p);
+            return collabs.length === 1 && collabs[0].toLowerCase() === name.toLowerCase();
+          });
+          const cabines = soloProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+          const soucisCount = soloProjects.filter((p) => p.soucisMontage).length;
+          const soucisRate = soloProjects.length > 0 ? Math.round((soucisCount / soloProjects.length) * 100) : 0;
+          return { name, projects: soloProjects.length, cabines, soucisCount, soucisRate };
         }).sort((a, b) => b.cabines - a.cabines);
+
+        // Binôme (exactement 2 collaborateurs) — groupé par paire canonique
+        const buildBinomeStats = (projects: Project[]) => {
+          const map = new Map<string, { label: string; projects: number; cabines: number; soucisCount: number }>();
+          projects.forEach((p) => {
+            const collabs = splitCollabs(p);
+            if (collabs.length !== 2) return;
+            const key = [...collabs].sort((a, b) => a.localeCompare(b, "fr")).join(" & ");
+            const existing = map.get(key);
+            if (existing) {
+              existing.projects++;
+              existing.cabines += p.nbCabines || 0;
+              existing.soucisCount += p.soucisMontage ? 1 : 0;
+            } else {
+              map.set(key, { label: key, projects: 1, cabines: p.nbCabines || 0, soucisCount: p.soucisMontage ? 1 : 0 });
+            }
+          });
+          return Array.from(map.values())
+            .map((b) => ({ ...b, soucisRate: b.projects > 0 ? Math.round((b.soucisCount / b.projects) * 100) : 0 }))
+            .sort((a, b) => b.cabines - a.cabines);
+        };
+
+        // Team (3+ collaborateurs) — groupé par composition canonique
+        const buildTeamStats = (projects: Project[]) => {
+          const map = new Map<string, { label: string; projects: number; cabines: number; soucisCount: number }>();
+          projects.forEach((p) => {
+            const collabs = splitCollabs(p);
+            if (collabs.length < 3) return;
+            const key = [...collabs].sort((a, b) => a.localeCompare(b, "fr")).join(" & ");
+            const existing = map.get(key);
+            if (existing) {
+              existing.projects++;
+              existing.cabines += p.nbCabines || 0;
+              existing.soucisCount += p.soucisMontage ? 1 : 0;
+            } else {
+              map.set(key, { label: key, projects: 1, cabines: p.nbCabines || 0, soucisCount: p.soucisMontage ? 1 : 0 });
+            }
+          });
+          return Array.from(map.values())
+            .map((t) => ({ ...t, soucisRate: t.projects > 0 ? Math.round((t.soucisCount / t.projects) * 100) : 0 }))
+            .sort((a, b) => b.cabines - a.cabines);
+        };
+
         const collabStats = buildCollabStats(allProjects);
+        const binomeStats = buildBinomeStats(allProjects);
+        const teamStats = buildTeamStats(allProjects);
         const allProjectsB: Project[] = statsCompare
           ? filterByStatsDate(allProjectsRaw, statsBMode, statsBFrom, statsBTo, statsBMonth, statsBYear)
           : [];
         const collabStatsB = statsCompare ? buildCollabStats(allProjectsB) : [];
+        const binomeStatsB = statsCompare ? buildBinomeStats(allProjectsB) : [];
+        const teamStatsB = statsCompare ? buildTeamStats(allProjectsB) : [];
 
         const expandedSections = statsExpandedSections;
         const toggleSection = (s: string) => {
@@ -2865,6 +2917,7 @@ function HomePage() {
               <button onClick={() => toggleSection("collabs")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                 {expandedSections.has("collabs") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 Par collaborateur
+                <span className="ml-auto text-[10px] font-normal text-gray-400 normal-case tracking-normal">solo uniquement</span>
               </button>
               {expandedSections.has("collabs") && (
                 <div className="space-y-2">
@@ -2924,9 +2977,172 @@ function HomePage() {
                       </div>
                     );
                   })}
+                  {collabStats.filter((cs) => cs.projects > 0).length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-4">Aucun montage solo sur cette période</p>
+                  )}
                 </div>
               )}
             </div>
+
+            {/* Binômes */}
+            {binomeStats.length > 0 && (
+              <div>
+                <button onClick={() => toggleSection("binomes")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                  {expandedSections.has("binomes") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  Par binôme
+                  <span className="ml-auto text-[10px] font-bold text-indigo-500 normal-case tracking-normal">{binomeStats.length} paire{binomeStats.length > 1 ? "s" : ""}</span>
+                </button>
+                {expandedSections.has("binomes") && (
+                  <div className="space-y-2">
+                    {binomeStats.map((bs) => {
+                      const names = bs.label.split(" & ");
+                      const c1 = getCollaboratorColor(names[0] || "");
+                      const c2 = getCollaboratorColor(names[1] || "");
+                      const maxProjects = Math.max(...binomeStats.map((b) => b.projects), 1);
+                      const bsB = statsCompare ? (binomeStatsB.find((b) => b.label === bs.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
+                      return (
+                        <div key={bs.label} className="glass-card rounded-2xl p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="flex -space-x-1 shrink-0">
+                              <span className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800" style={{ backgroundColor: c1.dot }} />
+                              <span className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800" style={{ backgroundColor: c2.dot }} />
+                            </span>
+                            <span className="text-sm font-semibold truncate">{bs.label}</span>
+                            <span className="ml-auto text-xs text-gray-500 shrink-0">
+                              {statsCompare
+                                ? <><span className="text-blue-500 font-bold">{bs.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{bsB!.projects}B</span> projets</>
+                                : <>{bs.projects} projet{bs.projects > 1 ? "s" : ""}</>}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3 text-center mb-2">
+                            <div>
+                              {statsCompare ? (
+                                <div className="flex items-end justify-center gap-1">
+                                  <p className="text-lg font-bold text-blue-600">{bs.cabines}</p>
+                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.cabines}</p>
+                                </div>
+                              ) : (
+                                <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{bs.cabines}</p>
+                              )}
+                              <p className="text-[10px] text-gray-400">cabines</p>
+                            </div>
+                            <div>
+                              {statsCompare ? (
+                                <div className="flex items-end justify-center gap-1">
+                                  <p className="text-lg font-bold text-blue-600">{bs.soucisCount}</p>
+                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.soucisCount}</p>
+                                </div>
+                              ) : (
+                                <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{bs.soucisCount}</p>
+                              )}
+                              <p className="text-[10px] text-gray-400">soucis</p>
+                            </div>
+                            <div>
+                              {statsCompare ? (
+                                <div className="flex items-end justify-center gap-1">
+                                  <p className={`text-lg font-bold ${bs.soucisRate > 20 ? "text-red-500" : bs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{bs.soucisRate}%</p>
+                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.soucisRate}%</p>
+                                </div>
+                              ) : (
+                                <p className={`text-lg font-bold ${bs.soucisRate > 20 ? "text-red-500" : bs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{bs.soucisRate}%</p>
+                              )}
+                              <p className="text-[10px] text-gray-400">taux soucis</p>
+                            </div>
+                          </div>
+                          <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{
+                              width: `${(bs.projects / maxProjects) * 100}%`,
+                              background: `linear-gradient(90deg, ${c1.dot}, ${c2.dot})`,
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Teams 3+ */}
+            {teamStats.length > 0 && (
+              <div>
+                <button onClick={() => toggleSection("teams")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                  {expandedSections.has("teams") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  Par team
+                  <span className="ml-auto text-[10px] font-bold text-violet-500 normal-case tracking-normal">{teamStats.length} équipe{teamStats.length > 1 ? "s" : ""}</span>
+                </button>
+                {expandedSections.has("teams") && (
+                  <div className="space-y-2">
+                    {teamStats.map((ts) => {
+                      const names = ts.label.split(" & ");
+                      const maxProjects = Math.max(...teamStats.map((t) => t.projects), 1);
+                      const tsB = statsCompare ? (teamStatsB.find((t) => t.label === ts.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
+                      return (
+                        <div key={ts.label} className="glass-card rounded-2xl p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="flex -space-x-1 shrink-0">
+                              {names.map((n) => {
+                                const c = getCollaboratorColor(n);
+                                return <span key={n} className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800" style={{ backgroundColor: c.dot }} />;
+                              })}
+                            </span>
+                            <span className="text-sm font-semibold truncate">{ts.label}</span>
+                            <span className="ml-auto text-xs text-gray-500 shrink-0">
+                              {statsCompare
+                                ? <><span className="text-blue-500 font-bold">{ts.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{tsB!.projects}B</span> projets</>
+                                : <>{ts.projects} projet{ts.projects > 1 ? "s" : ""}</>}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3 text-center mb-2">
+                            <div>
+                              {statsCompare ? (
+                                <div className="flex items-end justify-center gap-1">
+                                  <p className="text-lg font-bold text-blue-600">{ts.cabines}</p>
+                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.cabines}</p>
+                                </div>
+                              ) : (
+                                <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.cabines}</p>
+                              )}
+                              <p className="text-[10px] text-gray-400">cabines</p>
+                            </div>
+                            <div>
+                              {statsCompare ? (
+                                <div className="flex items-end justify-center gap-1">
+                                  <p className="text-lg font-bold text-blue-600">{ts.soucisCount}</p>
+                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.soucisCount}</p>
+                                </div>
+                              ) : (
+                                <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.soucisCount}</p>
+                              )}
+                              <p className="text-[10px] text-gray-400">soucis</p>
+                            </div>
+                            <div>
+                              {statsCompare ? (
+                                <div className="flex items-end justify-center gap-1">
+                                  <p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p>
+                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.soucisRate}%</p>
+                                </div>
+                              ) : (
+                                <p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p>
+                              )}
+                              <p className="text-[10px] text-gray-400">taux soucis</p>
+                            </div>
+                          </div>
+                          <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{
+                              width: `${(ts.projects / maxProjects) * 100}%`,
+                              background: names.length >= 2
+                                ? `linear-gradient(90deg, ${names.map((n) => getCollaboratorColor(n).dot).join(", ")})`
+                                : getCollaboratorColor(names[0] || "").dot,
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Consultation des rapports */}
             {consultationsData && (
