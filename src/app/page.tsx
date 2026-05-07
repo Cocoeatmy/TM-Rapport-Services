@@ -18,6 +18,7 @@ import { getFavorites } from "@/lib/favorites";
 import { fetchWithRetry, prefetchProject } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import { StatsDateFilter, filterByStatsDate, type StatsDateMode } from "@/components/stats-date-filter";
+import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, type ChartType } from "@/components/stat-charts";
 
 const MonteurDashboard = dynamic(() => import("@/components/monteur-dashboard").then(m => ({ default: m.MonteurDashboard })), {
   ssr: false,
@@ -735,6 +736,22 @@ function HomePage() {
   const [consultationsSearch, setConsultationsSearch] = useState("");
   const [consultationsFilter, setConsultationsFilter] = useState<"all" | "viewed" | "not-viewed">("all");
   const [showRapportConsultations, setShowRapportConsultations] = useState(true);
+
+  // Préférences de type de graphique par section — persistées en localStorage
+  const [chartTypePrefs, setChartTypePrefs] = useState<Record<string, ChartType>>(() => {
+    try {
+      const saved = typeof window !== "undefined" ? localStorage.getItem("tm-stat-chart-types") : null;
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+  const setChartType = (section: string, type: ChartType) => {
+    setChartTypePrefs((prev) => {
+      const next = { ...prev, [section]: type };
+      try { localStorage.setItem("tm-stat-chart-types", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
   const statsLoadedRef = useRef(false);
   const [cabineAttributions, setCabineAttributions] = useState<Record<string, string[]>>({});
 
@@ -2975,57 +2992,94 @@ function HomePage() {
 
             {/* Tendance mensuelle (12 mois) from DB1 */}
             <div>
-              <button onClick={() => toggleSection("monthly")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
-                {expandedSections.has("monthly") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                Tendance mensuelle (12 mois)
-              </button>
-              {expandedSections.has("monthly") && (
-                <div className="glass-card rounded-2xl p-4">
-                  <div className="space-y-3">
-                    {last12.map((key) => {
-                      const d = svcByMonth[key];
-                      const [yy, mm] = key.split("-");
-                      const label = `${monthNames12[Number(mm) - 1]} ${yy}`;
-                      const maxVal = Math.max(...last12.map((k) => Math.max(svcByMonth[k].montages, svcByMonth[k].cabines, svcByMonth[k].mesures, svcByMonth[k].ofr)), 1);
-                      const bars = [
-                        { label: "Mesures", val: d.mesures, color: "bg-cyan-500" },
-                        { label: "Cabines", val: d.cabines, color: "bg-green-500" },
-                        { label: "Montages", val: d.montages, color: "bg-orange-500" },
-                        { label: "Démontages", val: d.demontages, color: "bg-rose-500" },
-                        { label: "Services", val: d.services, color: "bg-emerald-500" },
-                        { label: "SAV", val: d.sav, color: "bg-red-400" },
-                        { label: "Nb. OFR", val: d.ofr, color: "bg-blue-500" },
-                      ];
-                      return (
-                        <div key={key}>
-                          <div className="flex items-center gap-3 mb-1">
-                            <span className="text-xs font-medium text-gray-500 w-20 shrink-0">{label}</span>
-                            <span className="text-[10px] text-gray-400 ml-auto">CA: {d.ca > 0 ? `${(d.ca / 1000).toFixed(1)}k` : "0"}</span>
-                          </div>
-                          <div className="space-y-0.5 ml-[84px]">
-                            {bars.filter((b) => b.val > 0).map((b) => (
-                              <div key={b.label} className="flex items-center gap-2">
-                                <span className="text-[9px] text-gray-400 w-14 shrink-0">{b.label}</span>
-                                <div className="flex-1 h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                                  <div className={`h-full ${b.color} rounded-full transition-all`}
-                                    style={{ width: `${Math.max((b.val / maxVal) * 100, 3)}%` }} />
-                                </div>
-                                {/* Valeur affichée À DROITE de la barre — toujours
-                                    lisible, même si la barre est minuscule (1, 5,
-                                    9 démontages etc. qui passaient avant invisibles
-                                    dans la barre car le texte blanc était clippé
-                                    par le overflow-hidden de la mini-barre). */}
-                                <span className="text-[10px] font-bold text-gray-700 dark:text-gray-200 tabular-nums w-9 shrink-0 text-right">{b.val}</span>
+              {(() => {
+                const monthlyChartType = chartTypePrefs["monthly"] || "bar-h";
+                const monthlySeries = [
+                  { key: "mesures",    label: "Mesures",    color: "#06b6d4" },
+                  { key: "cabines",    label: "Cabines",    color: "#22c55e" },
+                  { key: "montages",   label: "Montages",   color: "#f97316" },
+                  { key: "demontages", label: "Démontages", color: "#fb7185" },
+                  { key: "services",   label: "Services",   color: "#10b981" },
+                  { key: "sav",        label: "SAV",        color: "#f87171" },
+                  { key: "ofr",        label: "Nb. OFR",    color: "#3b82f6" },
+                ];
+                const monthlyData = last12.map((key) => {
+                  const [yy, mm] = key.split("-");
+                  return { label: `${monthNames12[Number(mm) - 1]} ${yy.slice(2)}`, values: svcByMonth[key] as Record<string, number> };
+                });
+                return (
+                  <button onClick={() => toggleSection("monthly")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                    {expandedSections.has("monthly") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    Tendance mensuelle (12 mois)
+                    <ChartTypeSelector value={monthlyChartType} onChange={(t) => setChartType("monthly", t)} types={["bar-h", "line", "area", "bar-v"]} />
+                  </button>
+                );
+              })()}
+              {expandedSections.has("monthly") && (() => {
+                const monthlyChartType = chartTypePrefs["monthly"] || "bar-h";
+                const monthlySeries = [
+                  { key: "mesures",    label: "Mesures",    color: "#06b6d4" },
+                  { key: "cabines",    label: "Cabines",    color: "#22c55e" },
+                  { key: "montages",   label: "Montages",   color: "#f97316" },
+                  { key: "demontages", label: "Démontages", color: "#fb7185" },
+                  { key: "services",   label: "Services",   color: "#10b981" },
+                  { key: "sav",        label: "SAV",        color: "#f87171" },
+                  { key: "ofr",        label: "Nb. OFR",    color: "#3b82f6" },
+                ];
+                const monthlyData = last12.map((key) => {
+                  const [yy, mm] = key.split("-");
+                  return { label: `${monthNames12[Number(mm) - 1]} ${yy.slice(2)}`, values: svcByMonth[key] as Record<string, number> };
+                });
+                return (
+                  <div className="glass-card rounded-2xl p-4">
+                    {monthlyChartType === "line" || monthlyChartType === "area" ? (
+                      <TimeSeriesChart data={monthlyData} series={monthlySeries} chartType={monthlyChartType} />
+                    ) : monthlyChartType === "bar-v" ? (
+                      <MultiColumnChart data={monthlyData} series={monthlySeries} />
+                    ) : (
+                      /* bar-h — vue actuelle */
+                      <div className="space-y-3">
+                        {last12.map((key) => {
+                          const d = svcByMonth[key];
+                          const [yy, mm] = key.split("-");
+                          const label = `${monthNames12[Number(mm) - 1]} ${yy}`;
+                          const maxVal = Math.max(...last12.map((k) => Math.max(svcByMonth[k].montages, svcByMonth[k].cabines, svcByMonth[k].mesures, svcByMonth[k].ofr)), 1);
+                          const bars = [
+                            { label: "Mesures",    val: d.mesures,    color: "bg-cyan-500" },
+                            { label: "Cabines",    val: d.cabines,    color: "bg-green-500" },
+                            { label: "Montages",   val: d.montages,   color: "bg-orange-500" },
+                            { label: "Démontages", val: d.demontages, color: "bg-rose-500" },
+                            { label: "Services",   val: d.services,   color: "bg-emerald-500" },
+                            { label: "SAV",        val: d.sav,        color: "bg-red-400" },
+                            { label: "Nb. OFR",    val: d.ofr,        color: "bg-blue-500" },
+                          ];
+                          return (
+                            <div key={key}>
+                              <div className="flex items-center gap-3 mb-1">
+                                <span className="text-xs font-medium text-gray-500 w-20 shrink-0">{label}</span>
+                                <span className="text-[10px] text-gray-400 ml-auto">CA: {d.ca > 0 ? `${(d.ca / 1000).toFixed(1)}k` : "0"}</span>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {last12.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Aucune donnee pour cette periode</p>}
+                              <div className="space-y-0.5 ml-[84px]">
+                                {bars.filter((b) => b.val > 0).map((b) => (
+                                  <div key={b.label} className="flex items-center gap-2">
+                                    <span className="text-[9px] text-gray-400 w-14 shrink-0">{b.label}</span>
+                                    <div className="flex-1 h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                      <div className={`h-full ${b.color} rounded-full transition-all`}
+                                        style={{ width: `${Math.max((b.val / maxVal) * 100, 3)}%` }} />
+                                    </div>
+                                    <span className="text-[10px] font-bold text-gray-700 dark:text-gray-200 tabular-nums w-9 shrink-0 text-right">{b.val}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {last12.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Aucune donnée pour cette période</p>}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Collaborators breakdown */}
@@ -3033,261 +3087,209 @@ function HomePage() {
               <button onClick={() => toggleSection("collabs")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                 {expandedSections.has("collabs") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 Par collaborateur
-                <span className="ml-auto text-[10px] font-normal text-gray-400 normal-case tracking-normal">solo uniquement</span>
+                <span className="text-[10px] font-normal text-gray-400 normal-case tracking-normal">solo</span>
+                <ChartTypeSelector value={chartTypePrefs["collabs"] || "bar-h"} onChange={(t) => setChartType("collabs", t)} types={["bar-h", "bar-v", "donut"]} />
               </button>
-              {expandedSections.has("collabs") && (
-                <div className="space-y-2">
-                  {collabStats.filter((cs) => cs.projects > 0 || (statsCompare && collabStatsB.find(b => b.name === cs.name && b.projects > 0))).map((cs) => {
-                    const colors = getCollaboratorColor(cs.name);
-                    const maxCollabProjects = Math.max(...collabStats.map((c) => c.projects), 1);
-                    const csB = statsCompare ? (collabStatsB.find((b) => b.name === cs.name) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
-                    return (
-                      <div key={cs.name} className="glass-card rounded-2xl p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: colors.dot }} />
-                          <span className="text-sm font-semibold">{cs.name}</span>
-                          <span className="ml-auto text-xs text-gray-500">
-                            {statsCompare
-                              ? <><span className="text-blue-500 font-bold">{cs.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{csB!.projects}B</span> projets</>
-                              : <>{cs.projects} projets</>}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-3 text-center mb-2">
-                          <div>
-                            {statsCompare ? (
-                              <div className="flex items-end justify-center gap-1">
-                                <p className="text-lg font-bold text-blue-600">{cs.cabines}</p>
-                                <p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.cabines}</p>
-                              </div>
-                            ) : (
-                              <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.cabines}</p>
-                            )}
-                            <p className="text-[10px] text-gray-400">cabines</p>
+              {expandedSections.has("collabs") && (() => {
+                const ct = chartTypePrefs["collabs"] || "bar-h";
+                const distribData = collabStats.filter((cs) => cs.cabines > 0)
+                  .map((cs) => ({ label: cs.name.split(" ")[0], value: cs.cabines, color: getCollaboratorColor(cs.name).dot }));
+                if (ct === "donut") return (
+                  <div className="glass-card rounded-2xl p-4"><DonutChart data={distribData} /></div>
+                );
+                if (ct === "bar-v") return (
+                  <div className="glass-card rounded-2xl p-4"><ColumnChart data={distribData} /></div>
+                );
+                return (
+                  <div className="space-y-2">
+                    {collabStats.filter((cs) => cs.projects > 0 || (statsCompare && collabStatsB.find(b => b.name === cs.name && b.projects > 0))).map((cs) => {
+                      const colors = getCollaboratorColor(cs.name);
+                      const maxCollabProjects = Math.max(...collabStats.map((c) => c.projects), 1);
+                      const csB = statsCompare ? (collabStatsB.find((b) => b.name === cs.name) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
+                      return (
+                        <div key={cs.name} className="glass-card rounded-2xl p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: colors.dot }} />
+                            <span className="text-sm font-semibold">{cs.name}</span>
+                            <span className="ml-auto text-xs text-gray-500">
+                              {statsCompare
+                                ? <><span className="text-blue-500 font-bold">{cs.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{csB!.projects}B</span> projets</>
+                                : <>{cs.projects} projets</>}
+                            </span>
                           </div>
-                          <div>
-                            {statsCompare ? (
-                              <div className="flex items-end justify-center gap-1">
-                                <p className="text-lg font-bold text-blue-600">{cs.soucisCount}</p>
-                                <p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisCount}</p>
-                              </div>
-                            ) : (
-                              <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.soucisCount}</p>
-                            )}
-                            <p className="text-[10px] text-gray-400">soucis</p>
+                          <div className="grid grid-cols-3 gap-3 text-center mb-2">
+                            <div>
+                              {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{cs.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.cabines}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.cabines}</p>)}
+                              <p className="text-[10px] text-gray-400">cabines</p>
+                            </div>
+                            <div>
+                              {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{cs.soucisCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisCount}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.soucisCount}</p>)}
+                              <p className="text-[10px] text-gray-400">soucis</p>
+                            </div>
+                            <div>
+                              {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p>)}
+                              <p className="text-[10px] text-gray-400">taux soucis</p>
+                            </div>
                           </div>
-                          <div>
-                            {statsCompare ? (
-                              <div className="flex items-end justify-center gap-1">
-                                <p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p>
-                                <p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisRate}%</p>
-                              </div>
-                            ) : (
-                              <p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p>
-                            )}
-                            <p className="text-[10px] text-gray-400">taux soucis</p>
+                          <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${(cs.projects / maxCollabProjects) * 100}%`, backgroundColor: colors.dot }} />
                           </div>
                         </div>
-                        <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${(cs.projects / maxCollabProjects) * 100}%`, backgroundColor: colors.dot }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {collabStats.filter((cs) => cs.projects > 0).length === 0 && (
-                    <p className="text-xs text-gray-400 text-center py-4">Aucun montage solo sur cette période</p>
-                  )}
-                </div>
-              )}
+                      );
+                    })}
+                    {collabStats.filter((cs) => cs.projects > 0).length === 0 && (
+                      <p className="text-xs text-gray-400 text-center py-4">Aucun montage solo sur cette période</p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Binômes */}
-            {binomeStats.length > 0 && (
-              <div>
-                <button onClick={() => toggleSection("binomes")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
-                  {expandedSections.has("binomes") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  Par binôme
-                  <span className="ml-auto text-[10px] font-bold text-indigo-500 normal-case tracking-normal">{binomeStats.length} paire{binomeStats.length > 1 ? "s" : ""}</span>
-                </button>
-                {expandedSections.has("binomes") && (
-                  <div className="space-y-2">
-                    {binomeStats.map((bs) => {
-                      const names = bs.label.split(" & ");
-                      const c1 = getCollaboratorColor(names[0] || "");
-                      const c2 = getCollaboratorColor(names[1] || "");
-                      const maxProjects = Math.max(...binomeStats.map((b) => b.projects), 1);
-                      const bsB = statsCompare ? (binomeStatsB.find((b) => b.label === bs.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
-                      return (
-                        <div key={bs.label} className="glass-card rounded-2xl p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="flex -space-x-1 shrink-0">
-                              <span className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800" style={{ backgroundColor: c1.dot }} />
-                              <span className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800" style={{ backgroundColor: c2.dot }} />
-                            </span>
-                            <span className="text-sm font-semibold truncate">{bs.label}</span>
-                            <span className="ml-auto text-xs text-gray-500 shrink-0">
-                              {statsCompare
-                                ? <><span className="text-blue-500 font-bold">{bs.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{bsB!.projects}B</span> projets</>
-                                : <>{bs.projects} projet{bs.projects > 1 ? "s" : ""}</>}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-3 text-center mb-2">
-                            <div>
-                              {statsCompare ? (
-                                <div className="flex items-end justify-center gap-1">
-                                  <p className="text-lg font-bold text-blue-600">{bs.cabines}</p>
-                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.cabines}</p>
-                                </div>
-                              ) : (
-                                <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{bs.cabines}</p>
-                              )}
-                              <p className="text-[10px] text-gray-400">cabines</p>
+            {binomeStats.length > 0 && (() => {
+              const ct = chartTypePrefs["binomes"] || "bar-h";
+              const distribData = binomeStats.map((bs) => {
+                const names = bs.label.split(" & ");
+                const c1 = getCollaboratorColor(names[0] || "");
+                return { label: names[0]?.split(" ")[0] + (names[1] ? " & " + names[1].split(" ")[0] : ""), value: bs.cabines, color: c1.dot };
+              });
+              return (
+                <div>
+                  <button onClick={() => toggleSection("binomes")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                    {expandedSections.has("binomes") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    Par binôme
+                    <span className="text-[10px] font-bold text-indigo-500 normal-case tracking-normal">{binomeStats.length} paire{binomeStats.length > 1 ? "s" : ""}</span>
+                    <ChartTypeSelector value={ct} onChange={(t) => setChartType("binomes", t)} types={["bar-h", "bar-v", "donut"]} />
+                  </button>
+                  {expandedSections.has("binomes") && (() => {
+                    if (ct === "donut") return <div className="glass-card rounded-2xl p-4"><DonutChart data={distribData} /></div>;
+                    if (ct === "bar-v") return <div className="glass-card rounded-2xl p-4"><ColumnChart data={distribData} /></div>;
+                    return (
+                      <div className="space-y-2">
+                        {binomeStats.map((bs) => {
+                          const names = bs.label.split(" & ");
+                          const c1 = getCollaboratorColor(names[0] || "");
+                          const c2 = getCollaboratorColor(names[1] || "");
+                          const maxProjects = Math.max(...binomeStats.map((b) => b.projects), 1);
+                          const bsB = statsCompare ? (binomeStatsB.find((b) => b.label === bs.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
+                          return (
+                            <div key={bs.label} className="glass-card rounded-2xl p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="flex -space-x-1 shrink-0">
+                                  <span className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800" style={{ backgroundColor: c1.dot }} />
+                                  <span className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800" style={{ backgroundColor: c2.dot }} />
+                                </span>
+                                <span className="text-sm font-semibold truncate">{bs.label}</span>
+                                <span className="ml-auto text-xs text-gray-500 shrink-0">
+                                  {statsCompare ? <><span className="text-blue-500 font-bold">{bs.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{bsB!.projects}B</span> projets</> : <>{bs.projects} projet{bs.projects > 1 ? "s" : ""}</>}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-3 text-center mb-2">
+                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{bs.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.cabines}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{bs.cabines}</p>)}<p className="text-[10px] text-gray-400">cabines</p></div>
+                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{bs.soucisCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.soucisCount}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{bs.soucisCount}</p>)}<p className="text-[10px] text-gray-400">soucis</p></div>
+                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${bs.soucisRate > 20 ? "text-red-500" : bs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{bs.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${bs.soucisRate > 20 ? "text-red-500" : bs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{bs.soucisRate}%</p>)}<p className="text-[10px] text-gray-400">taux soucis</p></div>
+                              </div>
+                              <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all" style={{ width: `${(bs.projects / maxProjects) * 100}%`, background: `linear-gradient(90deg, ${c1.dot}, ${c2.dot})` }} />
+                              </div>
                             </div>
-                            <div>
-                              {statsCompare ? (
-                                <div className="flex items-end justify-center gap-1">
-                                  <p className="text-lg font-bold text-blue-600">{bs.soucisCount}</p>
-                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.soucisCount}</p>
-                                </div>
-                              ) : (
-                                <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{bs.soucisCount}</p>
-                              )}
-                              <p className="text-[10px] text-gray-400">soucis</p>
-                            </div>
-                            <div>
-                              {statsCompare ? (
-                                <div className="flex items-end justify-center gap-1">
-                                  <p className={`text-lg font-bold ${bs.soucisRate > 20 ? "text-red-500" : bs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{bs.soucisRate}%</p>
-                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.soucisRate}%</p>
-                                </div>
-                              ) : (
-                                <p className={`text-lg font-bold ${bs.soucisRate > 20 ? "text-red-500" : bs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{bs.soucisRate}%</p>
-                              )}
-                              <p className="text-[10px] text-gray-400">taux soucis</p>
-                            </div>
-                          </div>
-                          <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all" style={{
-                              width: `${(bs.projects / maxProjects) * 100}%`,
-                              background: `linear-gradient(90deg, ${c1.dot}, ${c2.dot})`,
-                            }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })()}
 
             {/* Teams 3+ */}
-            {teamStats.length > 0 && (
-              <div>
-                <button onClick={() => toggleSection("teams")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
-                  {expandedSections.has("teams") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  Par team
-                  <span className="ml-auto text-[10px] font-bold text-violet-500 normal-case tracking-normal">{teamStats.length} équipe{teamStats.length > 1 ? "s" : ""}</span>
-                </button>
-                {expandedSections.has("teams") && (
-                  <div className="space-y-2">
-                    {teamStats.map((ts) => {
-                      const names = ts.label.split(" & ");
-                      const maxProjects = Math.max(...teamStats.map((t) => t.projects), 1);
-                      const tsB = statsCompare ? (teamStatsB.find((t) => t.label === ts.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
-                      return (
-                        <div key={ts.label} className="glass-card rounded-2xl p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="flex -space-x-1 shrink-0">
-                              {names.map((n) => {
-                                const c = getCollaboratorColor(n);
-                                return <span key={n} className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800" style={{ backgroundColor: c.dot }} />;
-                              })}
-                            </span>
-                            <span className="text-sm font-semibold truncate">{ts.label}</span>
-                            <span className="ml-auto text-xs text-gray-500 shrink-0">
-                              {statsCompare
-                                ? <><span className="text-blue-500 font-bold">{ts.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{tsB!.projects}B</span> projets</>
-                                : <>{ts.projects} projet{ts.projects > 1 ? "s" : ""}</>}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-3 text-center mb-2">
-                            <div>
-                              {statsCompare ? (
-                                <div className="flex items-end justify-center gap-1">
-                                  <p className="text-lg font-bold text-blue-600">{ts.cabines}</p>
-                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.cabines}</p>
-                                </div>
-                              ) : (
-                                <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.cabines}</p>
-                              )}
-                              <p className="text-[10px] text-gray-400">cabines</p>
+            {teamStats.length > 0 && (() => {
+              const ct = chartTypePrefs["teams"] || "bar-h";
+              const distribData = teamStats.map((ts) => {
+                const names = ts.label.split(" & ");
+                return { label: names.map((n) => n.split(" ")[0]).join("+"), value: ts.cabines, color: getCollaboratorColor(names[0] || "").dot };
+              });
+              return (
+                <div>
+                  <button onClick={() => toggleSection("teams")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                    {expandedSections.has("teams") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    Par team
+                    <span className="text-[10px] font-bold text-violet-500 normal-case tracking-normal">{teamStats.length} équipe{teamStats.length > 1 ? "s" : ""}</span>
+                    <ChartTypeSelector value={ct} onChange={(t) => setChartType("teams", t)} types={["bar-h", "bar-v", "donut"]} />
+                  </button>
+                  {expandedSections.has("teams") && (() => {
+                    if (ct === "donut") return <div className="glass-card rounded-2xl p-4"><DonutChart data={distribData} /></div>;
+                    if (ct === "bar-v") return <div className="glass-card rounded-2xl p-4"><ColumnChart data={distribData} /></div>;
+                    return (
+                      <div className="space-y-2">
+                        {teamStats.map((ts) => {
+                          const names = ts.label.split(" & ");
+                          const maxProjects = Math.max(...teamStats.map((t) => t.projects), 1);
+                          const tsB = statsCompare ? (teamStatsB.find((t) => t.label === ts.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
+                          return (
+                            <div key={ts.label} className="glass-card rounded-2xl p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="flex -space-x-1 shrink-0">
+                                  {names.map((n) => { const c = getCollaboratorColor(n); return <span key={n} className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800" style={{ backgroundColor: c.dot }} />; })}
+                                </span>
+                                <span className="text-sm font-semibold truncate">{ts.label}</span>
+                                <span className="ml-auto text-xs text-gray-500 shrink-0">
+                                  {statsCompare ? <><span className="text-blue-500 font-bold">{ts.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{tsB!.projects}B</span> projets</> : <>{ts.projects} projet{ts.projects > 1 ? "s" : ""}</>}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-3 text-center mb-2">
+                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{ts.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.cabines}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.cabines}</p>)}<p className="text-[10px] text-gray-400">cabines</p></div>
+                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{ts.soucisCount}</p><p className="text-sm font-semibond text-orange-400 mb-0.5">/{tsB!.soucisCount}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.soucisCount}</p>)}<p className="text-[10px] text-gray-400">soucis</p></div>
+                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p>)}<p className="text-[10px] text-gray-400">taux soucis</p></div>
+                              </div>
+                              <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all" style={{ width: `${(ts.projects / maxProjects) * 100}%`, background: names.length >= 2 ? `linear-gradient(90deg, ${names.map((n) => getCollaboratorColor(n).dot).join(", ")})` : getCollaboratorColor(names[0] || "").dot }} />
+                              </div>
                             </div>
-                            <div>
-                              {statsCompare ? (
-                                <div className="flex items-end justify-center gap-1">
-                                  <p className="text-lg font-bold text-blue-600">{ts.soucisCount}</p>
-                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.soucisCount}</p>
-                                </div>
-                              ) : (
-                                <p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.soucisCount}</p>
-                              )}
-                              <p className="text-[10px] text-gray-400">soucis</p>
-                            </div>
-                            <div>
-                              {statsCompare ? (
-                                <div className="flex items-end justify-center gap-1">
-                                  <p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p>
-                                  <p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.soucisRate}%</p>
-                                </div>
-                              ) : (
-                                <p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p>
-                              )}
-                              <p className="text-[10px] text-gray-400">taux soucis</p>
-                            </div>
-                          </div>
-                          <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all" style={{
-                              width: `${(ts.projects / maxProjects) * 100}%`,
-                              background: names.length >= 2
-                                ? `linear-gradient(90deg, ${names.map((n) => getCollaboratorColor(n).dot).join(", ")})`
-                                : getCollaboratorColor(names[0] || "").dot,
-                            }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })()}
 
             {/* Par type de client (from DB2) */}
             <div>
               <button onClick={() => toggleSection("typeclient")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                 {expandedSections.has("typeclient") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 Par type de client
+                <ChartTypeSelector value={chartTypePrefs["typeclient"] || "bar-h"} onChange={(t) => setChartType("typeclient", t)} types={["bar-h", "donut"]} />
               </button>
-              {expandedSections.has("typeclient") && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {typeClientStats.map(([type, total]) => {
-                    const grandTotal = typeClientStats.reduce((s, [, v]) => s + v, 0);
-                    const pct = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0;
-                    return (
-                      <div key={type} className="glass-card rounded-2xl p-4">
-                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{type}</h4>
-                        <div className="text-center mb-3">
-                          <p className="text-2xl font-bold text-[#1e3a5f] dark:text-white">{total}</p>
-                          <p className="text-[10px] text-gray-400">montages</p>
+              {expandedSections.has("typeclient") && (() => {
+                const ct = chartTypePrefs["typeclient"] || "bar-h";
+                const tcPalette = ["#6366f1", "#8b5cf6", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444"];
+                const tcData = typeClientStats.map(([type, total], i) => ({ label: type, value: total, color: tcPalette[i % tcPalette.length] }));
+                if (ct === "donut") return <div className="glass-card rounded-2xl p-4"><DonutChart data={tcData} /></div>;
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {typeClientStats.map(([type, total]) => {
+                      const grandTotal = typeClientStats.reduce((s, [, v]) => s + v, 0);
+                      const pct = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0;
+                      return (
+                        <div key={type} className="glass-card rounded-2xl p-4">
+                          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{type}</h4>
+                          <div className="text-center mb-3">
+                            <p className="text-2xl font-bold text-[#1e3a5f] dark:text-white">{total}</p>
+                            <p className="text-[10px] text-gray-400">montages</p>
+                          </div>
+                          <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-1 text-right">{pct}% du total</p>
                         </div>
-                        <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-1 text-right">{pct}% du total</p>
-                      </div>
-                    );
-                  })}
-                  {typeClientStats.length === 0 && <p className="text-xs text-gray-400 text-center py-4 col-span-2">Aucune donnee</p>}
-                </div>
-              )}
+                      );
+                    })}
+                    {typeClientStats.length === 0 && <p className="text-xs text-gray-400 text-center py-4 col-span-2">Aucune donnée</p>}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Par fournisseur/marque (from DB3) */}
@@ -3295,8 +3297,19 @@ function HomePage() {
               <button onClick={() => toggleSection("marques")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                 {expandedSections.has("marques") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 Par fournisseur / marque
+                <ChartTypeSelector value={chartTypePrefs["marques"] || "bar-h"} onChange={(t) => setChartType("marques", t)} types={["bar-h", "bar-v", "donut"]} />
               </button>
-              {expandedSections.has("marques") && (
+              {expandedSections.has("marques") && (() => {
+                const ctMrq = chartTypePrefs["marques"] || "bar-h";
+                const MARQUE_HEX: Record<string, string> = { "RONAL": "#2563eb", "Duka": "#059669", "Duscholux": "#7c3aed", "NELO": "#0284c7", "Koralle": "#e11d48", "Novellini": "#0d9488", "Megius": "#c026d3", "Samo": "#4f46e5" };
+                const fallbackHex = ["#0891b2", "#db2777", "#65a30d", "#ea580c", "#84cc16"];
+                const mrqDistribData = mrqFiltered.map((r: any, idx: number) => {
+                  const val = filterMonthNum ? (r.monthly[MOIS_NAMES[filterMonthNum - 1]] || 0) : (r.total || Object.values(r.monthly as Record<string, number>).reduce((a: number, b: number) => a + b, 0));
+                  return { label: r.marque, value: val, color: MARQUE_HEX[r.marque] || fallbackHex[idx % fallbackHex.length] };
+                }).filter((d: { value: number }) => d.value > 0).sort((a: { value: number }, b: { value: number }) => b.value - a.value);
+                if (ctMrq === "donut") return <div className="glass-card rounded-2xl p-4"><DonutChart data={mrqDistribData} /></div>;
+                if (ctMrq === "bar-v") return <div className="glass-card rounded-2xl p-4"><ColumnChart data={mrqDistribData} /></div>;
+                return (
                 <div className="glass-card rounded-2xl p-4">
                   <div className="space-y-3">
                     {mrqFiltered.filter((r: any) => {
@@ -3356,10 +3369,11 @@ function HomePage() {
                         </div>
                       );
                     })}
-                    {mrqFiltered.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Aucune donnee</p>}
+                    {mrqFiltered.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Aucune donnée</p>}
                   </div>
                 </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Par serie de cabine (from DB4) */}
