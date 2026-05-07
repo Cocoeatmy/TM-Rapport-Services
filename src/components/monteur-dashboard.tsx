@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive } from "lucide-react";
@@ -1105,10 +1105,47 @@ function WeekProjectRow({ project }: { project: Project }) {
 
 // --- Admin view ---
 
+const DEFAULT_DASH_ORDER = [
+  "mesures-today", "today", "services-today", "sav-today",
+  "week", "active", "emplacement-cabines", "rapports-attente",
+  "sav-non-traites", "soucis-en-cours", "dossiers-en-cours", "a-facturer",
+  "calendrier", "archives", "sav-historique", "soucis-historique", "mesures-sans-commande",
+];
+
 function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void }) {
   const firstName = userName.split(" ")[0];
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
+
+  // ── Helpers réorganisation ─────────────────────────────────────────────────
+  const saveDashOrder = (order: string[]) => {
+    try { localStorage.setItem(`tm-dashboard-order-${userName}`, JSON.stringify(order)); } catch {}
+  };
+
+  const reorderDash = (srcId: string, dstId: string) => {
+    if (srcId === dstId) return;
+    setButtonOrder(prev => {
+      const arr = [...prev];
+      const si = arr.indexOf(srcId);
+      const di = arr.indexOf(dstId);
+      if (si < 0 || di < 0) return prev;
+      arr.splice(si, 1);
+      arr.splice(di, 0, srcId);
+      saveDashOrder(arr);
+      return arr;
+    });
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  };
+
+  const exitEditMode = () => {
+    setIsEditMode(false);
+    setDragSrcId(null);
+    setDragOverId(null);
+    touchDragIdRef.current = null;
+  };
   const [showWeekProjects, setShowWeekProjects] = useState(false);
   const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | null>(null);
   const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
@@ -1133,6 +1170,27 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const [terminatedProjects, setTerminatedProjects] = useState<Project[]>([]);
   const [terminatedLoading, setTerminatedLoading] = useState(false);
   const [archivesCount, setArchivesCount] = useState<number | null>(null);
+
+  // ── Réorganisation boutons style iOS ──────────────────────────────────────
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [buttonOrder, setButtonOrder] = useState<string[]>(() => {
+    try {
+      const saved = typeof window !== "undefined"
+        ? localStorage.getItem(`tm-dashboard-order-${userName}`)
+        : null;
+      if (saved) {
+        const parsed: string[] = JSON.parse(saved);
+        const valid = parsed.filter(id => DEFAULT_DASH_ORDER.includes(id));
+        const missing = DEFAULT_DASH_ORDER.filter(id => !valid.includes(id));
+        return [...valid, ...missing];
+      }
+    } catch {}
+    return [...DEFAULT_DASH_ORDER];
+  });
+  const [dragSrcId, setDragSrcId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchDragIdRef = useRef<string | null>(null);
 
   // Filtres panneaux
   const [soucisFilterYear, setSoucisFilterYear] = useState("");
@@ -1531,132 +1589,264 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
         })()}
       </div>
 
-      {/* Summary cards — hauteur uniformisée via un placeholder invisible
-          pour les cartes sans sous-texte "X cab." */}
+      {/* Summary cards — réorganisables style iOS */}
       {(() => {
-        // Classe appliquée aux boutons NON actifs quand un panel est ouvert
-        const dim = showSummaryPanel !== null ? "opacity-40 scale-[0.97]" : "";
-        // Classe du bouton actif : surbrillance forte
+        const dim = (!isEditMode && showSummaryPanel !== null) ? "opacity-40 scale-[0.97]" : "";
         const activeBtn = (panel: string, ring: string) =>
-          showSummaryPanel === panel
+          showSummaryPanel === panel && !isEditMode
             ? `ring-2 ring-offset-2 ${ring} shadow-xl scale-[1.04] z-10`
             : dim;
+
+        // Rendu d'un bouton par son ID
+        const renderCard = (id: string): React.ReactNode => {
+          switch (id) {
+            case "mesures-today": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "mesures-today" ? null : "mesures-today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("mesures-today", "ring-cyan-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center"><Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresTodayCount}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures aujourd'hui</p>
+                <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{mesuresTodayCabines} cab.</p>
+              </button>
+            );
+            case "today": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "today" ? null : "today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("today", "ring-blue-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-blue-100/80 dark:bg-blue-900/30 flex items-center justify-center"><Wrench className="w-4 h-4 text-blue-500 dark:text-blue-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{totalProjectsToday}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Montages aujourd'hui</p>
+                <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+              </button>
+            );
+            case "services-today": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "services-today" ? null : "services-today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("services-today", "ring-violet-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center"><Settings className="w-4 h-4 text-violet-500 dark:text-violet-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{servicesTodayCount}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Services aujourd'hui</p>
+                <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{servicesTodayCabines} cab.</p>
+              </button>
+            );
+            case "sav-today": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "sav-today" ? null : "sav-today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("sav-today", "ring-red-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{savTodayCount}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV aujourd'hui</p>
+                <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+              </button>
+            );
+            case "week": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "week" ? null : "week")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("week", "ring-emerald-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-emerald-100/80 dark:bg-emerald-900/30 flex items-center justify-center"><Box className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalCabinesWeek}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Cabines cette semaine</p>
+                <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+              </button>
+            );
+            case "active": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "active" ? null : "active")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("active", "ring-amber-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-amber-100/80 dark:bg-amber-900/30 flex items-center justify-center"><Users className="w-4 h-4 text-amber-500 dark:text-amber-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{busyToday}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Monteurs actifs</p>
+                <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+              </button>
+            );
+            case "emplacement-cabines": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "emplacement-cabines" ? null : "emplacement-cabines")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("emplacement-cabines", "ring-sky-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-sky-100/80 dark:bg-sky-900/30 flex items-center justify-center"><MapPin className="w-4 h-4 text-sky-500 dark:text-sky-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400">{emplacementCabinesCount}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Emplacement cabines</p>
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap justify-center">
+                  <p className="text-[7px] sm:text-[9px] text-sky-500 dark:text-sky-400 leading-tight">À chercher : <span className="font-semibold">{emplacementAutresCabines}</span></p>
+                  <span className="text-gray-300 dark:text-gray-600 text-[7px]">·</span>
+                  <p className="text-[7px] sm:text-[9px] text-amber-500 dark:text-amber-400 leading-tight">Dépôt TM : <span className="font-semibold">{emplacementDepotTMCabines}</span></p>
+                </div>
+              </button>
+            );
+            case "rapports-attente": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "rapports-attente" ? null : "rapports-attente")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("rapports-attente", "ring-orange-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center"><Clock className="w-4 h-4 text-orange-500 dark:text-orange-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{rapportsAttenteCount}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Rapports en attente</p>
+                <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+              </button>
+            );
+            case "sav-non-traites": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "sav-non-traites" ? null : "sav-non-traites")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("sav-non-traites", "ring-rose-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-rose-100/80 dark:bg-rose-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-rose-500 dark:text-rose-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{savNonTraitesCount}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV non traités</p>
+                <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+              </button>
+            );
+            case "soucis-en-cours": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "soucis-en-cours" ? null : "soucis-en-cours")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("soucis-en-cours", "ring-red-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-red-700 dark:text-red-400">{soucisEnCoursCount}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis en cours</p>
+                <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+              </button>
+            );
+            case "dossiers-en-cours": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "dossiers-en-cours" ? null : "dossiers-en-cours")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("dossiers-en-cours", "ring-indigo-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-indigo-100/80 dark:bg-indigo-900/30 flex items-center justify-center"><FolderOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400">{dossiersEnCoursCount || "…"}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Projets en cours</p>
+                <p className="text-[7px] sm:text-[10px] text-indigo-400 dark:text-indigo-500 mt-0.5">{dossiersEnCoursCabines ? `${dossiersEnCoursCabines} cab.` : ""}</p>
+              </button>
+            );
+            case "a-facturer": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "a-facturer" ? null : "a-facturer")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("a-facturer", "ring-yellow-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-yellow-100/80 dark:bg-yellow-900/30 flex items-center justify-center"><Receipt className="w-4 h-4 text-yellow-600 dark:text-yellow-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-yellow-600 dark:text-yellow-400">{aFacturerCount}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">À facturer</p>
+                <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+              </button>
+            );
+            case "calendrier": return (
+              <button onClick={() => { if (isEditMode) return; setShowSummaryPanel(showSummaryPanel === "calendrier" ? null : "calendrier"); setCalendarSelectedDay(null); }} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("calendrier", "ring-violet-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center"><CalendarDays className="w-4 h-4 text-violet-500 dark:text-violet-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{collabData.flatMap(c => [...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects]).filter((p, i, a) => a.findIndex(x => x.id === p.id) === i).length}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Calendrier</p>
+                <p className="text-[7px] sm:text-[10px] text-violet-400 dark:text-violet-500 mt-0.5">Tous RDV</p>
+              </button>
+            );
+            case "archives": return (
+              <button onClick={() => !isEditMode && onNavigate?.("archives")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${(!isEditMode && showSummaryPanel !== null) ? "opacity-40 scale-[0.97]" : ""}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-amber-100/80 dark:bg-amber-900/30 flex items-center justify-center"><Archive className="w-4 h-4 text-amber-600 dark:text-amber-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">
+                  {archivesCount === null ? <span className="animate-pulse text-base">…</span> : archivesCount}
+                </p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Archives</p>
+                <p className="text-[7px] sm:text-[10px] text-amber-400 dark:text-amber-500 mt-0.5">Clôturés</p>
+              </button>
+            );
+            case "sav-historique": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "sav-historique" ? null : "sav-historique")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("sav-historique", "ring-red-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-red-500 dark:text-red-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{terminatedLoading ? <span className="animate-pulse text-base">…</span> : allSavCount}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV</p>
+                <p className="text-[7px] sm:text-[10px] text-red-400 dark:text-red-500 mt-0.5">Tous</p>
+              </button>
+            );
+            case "soucis-historique": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "soucis-historique" ? null : "soucis-historique")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("soucis-historique", "ring-orange-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{terminatedLoading ? <span className="animate-pulse text-base">…</span> : allSoucisCount}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis montage</p>
+                <p className="text-[7px] sm:text-[10px] text-orange-400 dark:text-orange-500 mt-0.5">Tous</p>
+              </button>
+            );
+            case "mesures-sans-commande": return (
+              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "mesures-sans-commande" ? null : "mesures-sans-commande")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("mesures-sans-commande", "ring-cyan-400")}`}>
+                <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center"><Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /></span>
+                <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresSansCommandeLoading ? <span className="animate-pulse text-base">…</span> : mesuresSansCommandeCount}</p>
+                <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures</p>
+                <p className="text-[7px] sm:text-[10px] text-cyan-400 dark:text-cyan-500 mt-0.5">Non commandées</p>
+              </button>
+            );
+            default: return null;
+          }
+        };
+
         return (
-      <div className="grid grid-cols-2 sm:grid-cols-6 gap-1.5 sm:gap-3">
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "mesures-today" ? null : "mesures-today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("mesures-today", "ring-cyan-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center"><Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresTodayCount}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures aujourd'hui</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{mesuresTodayCabines} cab.</p>
-        </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "today" ? null : "today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("today", "ring-blue-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-blue-100/80 dark:bg-blue-900/30 flex items-center justify-center"><Wrench className="w-4 h-4 text-blue-500 dark:text-blue-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{totalProjectsToday}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Montages aujourd'hui</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
-        </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "services-today" ? null : "services-today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("services-today", "ring-violet-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center"><Settings className="w-4 h-4 text-violet-500 dark:text-violet-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{servicesTodayCount}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Services aujourd'hui</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{servicesTodayCabines} cab.</p>
-        </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "sav-today" ? null : "sav-today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("sav-today", "ring-red-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{savTodayCount}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV aujourd'hui</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
-        </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "week" ? null : "week")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("week", "ring-emerald-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-emerald-100/80 dark:bg-emerald-900/30 flex items-center justify-center"><Box className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalCabinesWeek}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Cabines cette semaine</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
-        </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "active" ? null : "active")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("active", "ring-amber-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-amber-100/80 dark:bg-amber-900/30 flex items-center justify-center"><Users className="w-4 h-4 text-amber-500 dark:text-amber-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{busyToday}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Monteurs actifs</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
-        </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "emplacement-cabines" ? null : "emplacement-cabines")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("emplacement-cabines", "ring-sky-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-sky-100/80 dark:bg-sky-900/30 flex items-center justify-center"><MapPin className="w-4 h-4 text-sky-500 dark:text-sky-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400">{emplacementCabinesCount}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Emplacement cabines</p>
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap justify-center">
-            <p className="text-[7px] sm:text-[9px] text-sky-500 dark:text-sky-400 leading-tight">À chercher : <span className="font-semibold">{emplacementAutresCabines}</span></p>
-            <span className="text-gray-300 dark:text-gray-600 text-[7px]">·</span>
-            <p className="text-[7px] sm:text-[9px] text-amber-500 dark:text-amber-400 leading-tight">Dépôt TM : <span className="font-semibold">{emplacementDepotTMCabines}</span></p>
+          <div className="space-y-2">
+            {/* Barre mode édition */}
+            {isEditMode && (
+              <div className="flex items-center justify-between px-1 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                <p className="text-[11px] text-blue-600 dark:text-blue-300 font-medium pl-1">
+                  ✦ Maintenez un bouton pour le déplacer
+                </p>
+                <button
+                  onClick={exitEditMode}
+                  className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all"
+                >
+                  Terminer
+                </button>
+              </div>
+            )}
+            <div className={`grid grid-cols-2 sm:grid-cols-6 gap-1.5 sm:gap-3 ${isEditMode ? "select-none" : ""}`}>
+              {buttonOrder.map(id => {
+                const isDragging = dragSrcId === id;
+                const isOver = dragOverId === id && dragSrcId !== id;
+                return (
+                  <div
+                    key={id}
+                    data-btn-id={id}
+                    draggable={isEditMode}
+                    className={[
+                      "relative",
+                      isEditMode ? "dash-edit-wiggle" : "",
+                      isDragging ? "dash-dragging" : "",
+                      isOver ? "dash-drag-over" : "",
+                    ].filter(Boolean).join(" ")}
+                    onMouseDown={() => {
+                      cancelLongPress();
+                      if (!isEditMode) {
+                        longPressTimer.current = setTimeout(() => setIsEditMode(true), 500);
+                      }
+                    }}
+                    onMouseUp={cancelLongPress}
+                    onMouseLeave={cancelLongPress}
+                    onTouchStart={(e) => {
+                      cancelLongPress();
+                      if (!isEditMode) {
+                        longPressTimer.current = setTimeout(() => {
+                          setIsEditMode(true);
+                          touchDragIdRef.current = id;
+                          setDragSrcId(id);
+                        }, 500);
+                      } else {
+                        touchDragIdRef.current = id;
+                        setDragSrcId(id);
+                      }
+                    }}
+                    onTouchMove={(e) => {
+                      cancelLongPress();
+                      if (!isEditMode || !touchDragIdRef.current) return;
+                      e.preventDefault();
+                      const touch = e.touches[0];
+                      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                      const btnEl = el?.closest?.("[data-btn-id]") as HTMLElement | null;
+                      const hoverId = btnEl?.dataset?.btnId ?? null;
+                      if (hoverId && hoverId !== touchDragIdRef.current) {
+                        reorderDash(touchDragIdRef.current, hoverId);
+                        setDragOverId(hoverId);
+                      }
+                    }}
+                    onTouchEnd={() => {
+                      cancelLongPress();
+                      touchDragIdRef.current = null;
+                      setDragSrcId(null);
+                      setDragOverId(null);
+                    }}
+                    onDragStart={(e) => {
+                      setDragSrcId(id);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverId !== id) setDragOverId(id);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragSrcId && dragSrcId !== id) reorderDash(dragSrcId, id);
+                      setDragSrcId(null);
+                      setDragOverId(null);
+                    }}
+                    onDragEnd={() => {
+                      setDragSrcId(null);
+                      setDragOverId(null);
+                    }}
+                  >
+                    {renderCard(id)}
+                    {/* Icône réorganisation en mode édition */}
+                    {isEditMode && (
+                      <span className="absolute top-1.5 right-1.5 z-20 text-gray-400/70 dark:text-gray-500/70 text-[14px] leading-none pointer-events-none select-none">⠿</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rapports-attente" ? null : "rapports-attente")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("rapports-attente", "ring-orange-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center"><Clock className="w-4 h-4 text-orange-500 dark:text-orange-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{rapportsAttenteCount}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Rapports en attente</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
-        </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "sav-non-traites" ? null : "sav-non-traites")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("sav-non-traites", "ring-rose-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-rose-100/80 dark:bg-rose-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-rose-500 dark:text-rose-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{savNonTraitesCount}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV non traités</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
-        </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "soucis-en-cours" ? null : "soucis-en-cours")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("soucis-en-cours", "ring-red-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-red-700 dark:text-red-400">{soucisEnCoursCount}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis en cours</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
-        </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "dossiers-en-cours" ? null : "dossiers-en-cours")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("dossiers-en-cours", "ring-indigo-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-indigo-100/80 dark:bg-indigo-900/30 flex items-center justify-center"><FolderOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400">{dossiersEnCoursCount || "…"}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Projets en cours</p>
-          <p className="text-[7px] sm:text-[10px] text-indigo-400 dark:text-indigo-500 mt-0.5">{dossiersEnCoursCabines ? `${dossiersEnCoursCabines} cab.` : ""}</p>
-        </button>
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "a-facturer" ? null : "a-facturer")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("a-facturer", "ring-yellow-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-yellow-100/80 dark:bg-yellow-900/30 flex items-center justify-center"><Receipt className="w-4 h-4 text-yellow-600 dark:text-yellow-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-yellow-600 dark:text-yellow-400">{aFacturerCount}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">À facturer</p>
-          <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
-        </button>
-        {/* Calendrier */}
-        <button onClick={() => { setShowSummaryPanel(showSummaryPanel === "calendrier" ? null : "calendrier"); setCalendarSelectedDay(null); }} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("calendrier", "ring-violet-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center"><CalendarDays className="w-4 h-4 text-violet-500 dark:text-violet-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{collabData.flatMap(c => [...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects]).filter((p, i, a) => a.findIndex(x => x.id === p.id) === i).length}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Calendrier</p>
-          <p className="text-[7px] sm:text-[10px] text-violet-400 dark:text-violet-500 mt-0.5">Tous RDV</p>
-        </button>
-        {/* Archives */}
-        <button onClick={() => onNavigate?.("archives")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel !== null ? "opacity-40 scale-[0.97]" : ""}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-amber-100/80 dark:bg-amber-900/30 flex items-center justify-center"><Archive className="w-4 h-4 text-amber-600 dark:text-amber-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">
-            {archivesCount === null ? <span className="animate-pulse text-base">…</span> : archivesCount}
-          </p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Archives</p>
-          <p className="text-[7px] sm:text-[10px] text-amber-400 dark:text-amber-500 mt-0.5">Clôturés</p>
-        </button>
-        {/* SAV historique */}
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "sav-historique" ? null : "sav-historique")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("sav-historique", "ring-red-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-red-500 dark:text-red-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{terminatedLoading ? <span className="animate-pulse text-base">…</span> : allSavCount}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV</p>
-          <p className="text-[7px] sm:text-[10px] text-red-400 dark:text-red-500 mt-0.5">Tous</p>
-        </button>
-        {/* Soucis montage historique */}
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "soucis-historique" ? null : "soucis-historique")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("soucis-historique", "ring-orange-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{terminatedLoading ? <span className="animate-pulse text-base">…</span> : allSoucisCount}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis montage</p>
-          <p className="text-[7px] sm:text-[10px] text-orange-400 dark:text-orange-500 mt-0.5">Tous</p>
-        </button>
-        {/* Mesures terminées sans commande */}
-        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "mesures-sans-commande" ? null : "mesures-sans-commande")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("mesures-sans-commande", "ring-cyan-400")}`}>
-          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center"><Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /></span>
-          <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresSansCommandeLoading ? <span className="animate-pulse text-base">…</span> : mesuresSansCommandeCount}</p>
-          <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures</p>
-          <p className="text-[7px] sm:text-[10px] text-cyan-400 dark:text-cyan-500 mt-0.5">Non commandées</p>
-        </button>
-      </div>
         );
       })()}
 

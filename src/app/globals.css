@@ -1324,3 +1324,25 @@ html[data-ui="ocean"] #main-header a.flex:hover {
   html[data-ui="ocean"] #main-header button,
   html[data-ui="ocean"] #main-header a.flex { transition: none; }
 }
+/* Dashboard — réorganisation style iOS */
+@keyframes dash-wiggle {
+  0%   { transform: rotate(-1.5deg) scale(1.02); }
+  50%  { transform: rotate(1.5deg) scale(1.02); }
+  100% { transform: rotate(-1.5deg) scale(1.02); }
+}
+.dash-edit-wiggle {
+  animation: dash-wiggle 0.22s ease-in-out infinite;
+  cursor: grab;
+}
+.dash-edit-wiggle:active {
+  cursor: grabbing;
+}
+.dash-dragging {
+  opacity: 0.45 !important;
+  transform: scale(0.93) !important;
+}
+.dash-drag-over {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 1rem;
+}
