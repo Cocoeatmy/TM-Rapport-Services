@@ -1262,8 +1262,9 @@ function HomePage() {
               onKeyDown={(e) => {
                 // Ne bascule vers la vue liste qu'à Entrée : éviter de
                 // démonter l'input à la 1ère lettre (bug perte de focus).
+                // "projets-tous" = tous les projets Notion (actifs + terminés).
                 if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                  setMode("cmd");
+                  setMode("projets-tous");
                 }
               }}
             />
@@ -3686,14 +3687,10 @@ function HomePage() {
           return true;
         };
 
-        const q = search.toLowerCase();
-        const matchesQuery = (p: any) =>
-          !q ||
-          p.projet.toLowerCase().includes(q) ||
-          p.ofrTM.toLowerCase().includes(q) ||
-          p.nomChantier.toLowerCase().includes(q) ||
-          p.collaborateurs.toLowerCase().includes(q) ||
-          p.fournisseurs.some((f: string) => f.toLowerCase().includes(q));
+        // Réutilise matchesSearch (fonction complète en tête de fichier) pour
+        // chercher dans tous les champs : OFR, CMD, chantier, adresse,
+        // collaborateurs, grossistes, fournisseurs, bon de livraison, etc.
+        const matchesQuery = (p: any) => matchesSearch(p, search.toLowerCase());
 
         const allFiltered = allProjects.filter((p: any) =>
           inPeriod(p) && inStatus(p) && inFlags(p) && matchesQuery(p),
