@@ -2,7 +2,7 @@
 
 import type { Dispatch, SetStateAction } from "react";
 
-export type StatsDateMode = "all" | "range" | "month" | "year";
+export type StatsDateMode = "all" | "rolling12" | "range" | "month" | "year";
 
 export interface StatsDateState {
   mode: StatsDateMode;
@@ -10,6 +10,15 @@ export interface StatsDateState {
   to: string;
   month: string;
   year: string;
+}
+
+/** Retourne la plage [from, to] pour le mode rolling12 (12 derniers mois glissants). */
+export function getRolling12Range(): { from: string; to: string } {
+  const today = new Date();
+  const to = today.toISOString().split("T")[0];
+  const from = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate() + 1)
+    .toISOString().split("T")[0];
+  return { from, to };
 }
 
 export const DEFAULT_STATS_DATE_STATE: StatsDateState = {
@@ -53,6 +62,7 @@ export function StatsDateFilter({
     { key: "all", label: "Tout" },
     { key: "month", label: "Mois" },
     { key: "year", label: "Année" },
+    { key: "rolling12", label: "12 mois" },
     { key: "range", label: "Période" },
   ];
   return (
@@ -152,12 +162,16 @@ export function filterByStatsDate<T extends { dateMontage?: string | null }>(
   year: string,
 ): T[] {
   if (dateMode === "all") return projects;
+  // Pour rolling12, calculer la plage dynamiquement
+  const r12 = dateMode === "rolling12" ? getRolling12Range() : null;
+  const effectiveFrom = r12 ? r12.from : from;
+  const effectiveTo   = r12 ? r12.to   : to;
   return projects.filter((p) => {
     const d = (p.dateMontage || "").split("T")[0];
     if (!d) return false;
-    if (dateMode === "range") {
-      if (from && d < from) return false;
-      if (to && d > to) return false;
+    if (dateMode === "range" || dateMode === "rolling12") {
+      if (effectiveFrom && d < effectiveFrom) return false;
+      if (effectiveTo   && d > effectiveTo)   return false;
       return true;
     }
     if (dateMode === "month") return d.startsWith(month);

@@ -1111,6 +1111,7 @@ const DEFAULT_DASH_ORDER = [
   "week", "active", "emplacement-cabines", "rapports-attente",
   "sav-non-traites", "soucis-en-cours", "dossiers-en-cours", "a-facturer",
   "calendrier", "archives", "sav-historique", "soucis-historique", "mesures-sans-commande",
+  "__empty__", // Case vide — taquin pour faciliter les déplacements
 ];
 
 function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [] }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[] }) {
@@ -1130,8 +1131,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       const si = arr.indexOf(srcId);
       const di = arr.indexOf(dstId);
       if (si < 0 || di < 0) return prev;
-      arr.splice(si, 1);
-      arr.splice(di, 0, srcId);
+      // Swap the two buttons (échange simple des positions)
+      [arr[si], arr[di]] = [arr[di], arr[si]];
       saveDashOrder(arr);
       return arr;
     });
@@ -1384,14 +1385,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const mesuresTodayCount = mesuresTodayProjects.length;
   const mesuresTodayCabines = mesuresTodayProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
 
-  // Services du jour
-  const servicesTodayProjects = projects.filter((p) => (p as any)._source === "services" && (p.dateMontage || "").split("T")[0] === todayStr);
+  // Services du jour — on filtre par typeServices (pas _source) car un projet peut
+  // être dédupliqué en "montage" si son État-CMD est actif, même s'il est aussi un service.
+  const servicesTodayProjects = projects.filter((p) =>
+    (p.typeServices || []).some((t) => t === "Services" || t.includes("Services")) &&
+    (p.dateMontage || "").split("T")[0] === todayStr
+  );
   const servicesTodayCount = servicesTodayProjects.length;
   const servicesTodayCabines = servicesTodayProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
 
   // SAV aujourd'hui : etatSAV = "RDV fixé" ET dateRDVSAV = aujourd'hui
+  // On ne filtre pas par _source (dédupliqué), on se base sur les champs métier directement.
   const savTodayProjects = projects.filter(
-    (p) => (p as any)._source === "sav" && p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === todayStr
+    (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === todayStr
   );
   const savTodayCount = savTodayProjects.length;
 
@@ -1744,6 +1750,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 <p className="text-[7px] sm:text-[10px] text-cyan-400 dark:text-cyan-500 mt-0.5">Non commandées</p>
               </button>
             );
+            case "__empty__": return isEditMode ? (
+              <div className={`w-full h-full min-h-[80px] sm:min-h-[100px] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all ${dragOverId === "__empty__" ? "border-blue-400 bg-blue-50/50 dark:bg-blue-900/20" : "border-gray-300/60 dark:border-gray-600/40 bg-gray-50/30 dark:bg-gray-800/10"}`}>
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium select-none">Déposer ici</span>
+              </div>
+            ) : null;
             default: return null;
           }
         };
@@ -1775,7 +1786,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     draggable={isEditMode}
                     className={[
                       "relative",
-                      isEditMode ? "dash-edit-wiggle" : "",
+                      isEditMode && id !== "__empty__" ? "dash-edit-wiggle" : "",
                       isDragging ? "dash-dragging" : "",
                       isOver ? "dash-drag-over" : "",
                     ].filter(Boolean).join(" ")}
@@ -1808,13 +1819,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       const el = document.elementFromPoint(touch.clientX, touch.clientY);
                       const btnEl = el?.closest?.("[data-btn-id]") as HTMLElement | null;
                       const hoverId = btnEl?.dataset?.btnId ?? null;
+                      // Juste le feedback visuel — le swap se fait au touchEnd
                       if (hoverId && hoverId !== touchDragIdRef.current) {
-                        reorderDash(touchDragIdRef.current, hoverId);
                         setDragOverId(hoverId);
                       }
                     }}
-                    onTouchEnd={() => {
+                    onTouchEnd={(e) => {
                       cancelLongPress();
+                      // Reorder uniquement au relâchement (une seule fois, propre)
+                      if (touchDragIdRef.current && dragOverId && touchDragIdRef.current !== dragOverId) {
+                        reorderDash(touchDragIdRef.current, dragOverId);
+                      }
                       touchDragIdRef.current = null;
                       setDragSrcId(null);
                       setDragOverId(null);
@@ -1840,8 +1855,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     }}
                   >
                     {renderCard(id)}
-                    {/* Icône réorganisation en mode édition */}
-                    {isEditMode && (
+                    {/* Icône réorganisation en mode édition (pas sur la case vide) */}
+                    {isEditMode && id !== "__empty__" && (
                       <span className="absolute top-1.5 right-1.5 z-20 text-gray-400/70 dark:text-gray-500/70 text-[14px] leading-none pointer-events-none select-none">⠿</span>
                     )}
                   </div>
@@ -3035,12 +3050,20 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               const src = (p as any)._source;
               return src !== "mesures" && src !== "sav";
             });
+          // Appliquer le même filtre date/année que les soucis au dénominateur
+          const allMontageFiltered = allMontageAll.filter(p => {
+            const dateStr = (p.dateMontage || "").split("T")[0];
+            if (soucisFilterYear && !dateStr.startsWith(soucisFilterYear)) return false;
+            if (soucisFilterFrom && dateStr < soucisFilterFrom) return false;
+            if (soucisFilterTo && dateStr > soucisFilterTo) return false;
+            return true;
+          });
           const brandList = Array.from(new Set(allSoucisProjects.flatMap(p => p.fournisseurs).filter(Boolean)));
           const brandStats = brandList.map(brand => {
             const soucisCab = filteredSoucisProjects
               .filter(p => p.fournisseurs.includes(brand))
               .reduce((s, p) => s + (p.nbCabines || 0), 0);
-            const totalCab = allMontageAll
+            const totalCab = allMontageFiltered
               .filter(p => p.fournisseurs.includes(brand))
               .reduce((s, p) => s + (p.nbCabines || 0), 0);
             const rate = totalCab > 0 ? Math.round(soucisCab / totalCab * 100) : 0;
@@ -3176,21 +3199,23 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {isRdvAFixer && <span className="w-16 shrink-0">{dateLabel}</span>}
                 <span className="w-20 shrink-0">N° OFR TM</span>
                 {isEmplacementCabines && <span className="w-28 shrink-0">Emplacement</span>}
+                {isEmplacementCabines && <span className="w-24 shrink-0">Arrivage</span>}
                 {isDossiersEnCours && <span className="w-24 shrink-0 hidden sm:block">Date offre</span>}
-                {!isEmplacementCabines && <span className="w-20 shrink-0 hidden sm:block">N° Mes. Fourn.</span>}
-                {!isEmplacementCabines && <span className="w-20 shrink-0 hidden sm:block">N° CMD Fourn.</span>}
+                {isAFacturer && <span className="w-28 shrink-0 hidden sm:block">Date</span>}
+                {!isEmplacementCabines && !isAFacturer && <span className="w-20 shrink-0 hidden sm:block">N° Mes. Fourn.</span>}
+                {!isEmplacementCabines && !isAFacturer && <span className="w-20 shrink-0 hidden sm:block">N° CMD Fourn.</span>}
                 <span className="flex-1">Projet</span>
                 <span className="w-14 text-right">Cabines</span>
               </div>
             )}
             {panelProjects.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
 
-            {/* Projets en cours / À facturer : liste triée par Date Offre décroissante avec séparateurs par mois */}
-            {(isDossiersEnCours || isAFacturer) && (() => {
+            {/* Projets en cours : liste triée par Date Offre décroissante avec séparateurs par mois */}
+            {isDossiersEnCours && (() => {
               let lastMonthKey = "";
               let colorIdx = 0;
               return panelProjects.flatMap((p) => {
-                const monthKey = p.dateOffre ? p.dateOffre.slice(0, 7) : ""; // "YYYY-MM"
+                const monthKey = p.dateOffre ? p.dateOffre.slice(0, 7) : "";
                 const items: React.ReactNode[] = [];
                 if (monthKey !== lastMonthKey) {
                   const monthLabel = monthKey
@@ -3225,6 +3250,85 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <span className="w-24 shrink-0 font-mono text-indigo-600 dark:text-indigo-400 hidden sm:block">{dateOffreStr}</span>
                     <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                     <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
+                    <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2 sm:line-clamp-1">{p.projet}</span>
+                    {(() => { const logo = getClientLogo(p.projet); return logo ? (
+                      <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                    ) : null; })()}
+                    <div className="flex -space-x-1 shrink-0">
+                      {names.slice(0, 3).map((n) => (
+                        <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                          style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                          {getCollaboratorInitials(n)}
+                        </span>
+                      ))}
+                    </div>
+                    <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                  </Link>
+                );
+                return items;
+              });
+            })()}
+
+            {/* À facturer : triés par date montage (ou mesures si montage vide), du plus récent au plus ancien */}
+            {isAFacturer && (() => {
+              // Date effective : dateMontage en priorité, sinon dateMesures
+              const getEffDate = (p: Project) =>
+                (p.dateMontage || "").split("T")[0] || (p.dateMesures || "").split("T")[0];
+              const getEffLabel = (p: Project) =>
+                (p.dateMontage || "").split("T")[0] ? "Montage" : "Mesures";
+
+              const sorted = [...panelProjects].sort((a, b) => {
+                const da = getEffDate(a);
+                const db = getEffDate(b);
+                if (!da && !db) return 0;
+                if (!da) return 1;  // sans date → fin
+                if (!db) return -1;
+                return db.localeCompare(da); // plus récent en premier
+              });
+
+              let lastMonthKey = "";
+              let colorIdx = 0;
+              return sorted.flatMap((p) => {
+                const effDate = getEffDate(p);
+                const monthKey = effDate ? effDate.slice(0, 7) : "";
+                const items: React.ReactNode[] = [];
+                if (monthKey !== lastMonthKey) {
+                  const monthLabel = monthKey
+                    ? new Date(monthKey + "-15T12:00:00").toLocaleDateString("fr-CH", { month: "long", year: "numeric" })
+                    : "Sans date";
+                  items.push(
+                    <div key={`month-${monthKey || "none"}`} className="flex items-center gap-2 pt-2 pb-0.5">
+                      <div className="flex-1 h-px bg-yellow-200/70 dark:bg-yellow-700/40" />
+                      <span className="text-[10px] font-semibold text-yellow-600 dark:text-yellow-400 shrink-0 px-1.5 capitalize">{monthLabel}</span>
+                      <div className="flex-1 h-px bg-yellow-200/70 dark:bg-yellow-700/40" />
+                    </div>
+                  );
+                  lastMonthKey = monthKey;
+                  colorIdx = 0;
+                }
+                const collabField = p.collaborateurs || "";
+                const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
+                const rowBg = colorIdx % 2 === 0 ? "bg-yellow-50/50 dark:bg-yellow-950/20" : "bg-yellow-100/40 dark:bg-yellow-900/15";
+                colorIdx++;
+                const effLabel = getEffLabel(p);
+                const effDateStr = effDate
+                  ? new Date(effDate + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })
+                  : "---";
+                items.push(
+                  <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-yellow-200/60 dark:hover:bg-yellow-800/30 transition-colors text-xs ${rowBg}`}>
+                    <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
+                      {parseTMNumbers(p.ofrTM || "").length > 0
+                        ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
+                            <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                          ))
+                        : <span className="font-mono text-xs text-gray-400">---</span>
+                      }
+                    </span>
+                    <span className="w-28 shrink-0 flex flex-col gap-px hidden sm:flex">
+                      <span className="font-mono text-yellow-600 dark:text-yellow-400">{effDateStr}</span>
+                      <span className="text-[9px] text-gray-400">{effLabel}</span>
+                    </span>
                     <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2 sm:line-clamp-1">{p.projet}</span>
                     {(() => { const logo = getClientLogo(p.projet); return logo ? (
                       <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
@@ -3368,20 +3472,22 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               : <span className="text-[10px] text-gray-400">—</span>
                             }
                           </span>
-                          <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
-                          {/* Arrivage date + J+ badge */}
-                          {arrivage && (
-                            <span className={`shrink-0 flex flex-col items-end gap-0.5`}>
-                              <span className={`text-[9px] font-mono tabular-nums ${arrivage.colorClass}`}>
-                                {arrivage.label} {new Date(arrivage.date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
-                              </span>
-                              {arrivage.days !== null && arrivage.days >= 0 && (
-                                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${arrivage.bgClass} ${arrivage.colorClass}`}>
-                                  J+{arrivage.days}
+                          {/* Arrivage date + J+ badge — juste après Emplacement */}
+                          <span className="w-24 shrink-0 flex flex-col items-start gap-0.5">
+                            {arrivage ? (
+                              <>
+                                <span className={`text-[9px] font-mono tabular-nums ${arrivage.colorClass}`}>
+                                  {arrivage.label} {new Date(arrivage.date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
                                 </span>
-                              )}
-                            </span>
-                          )}
+                                {arrivage.days !== null && arrivage.days >= 0 && (
+                                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${arrivage.bgClass} ${arrivage.colorClass}`}>
+                                    J+{arrivage.days}
+                                  </span>
+                                )}
+                              </>
+                            ) : null}
+                          </span>
+                          <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
                           {(() => { const logo = getClientLogo(p.projet); return logo ? (
                             <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
                           ) : null; })()}

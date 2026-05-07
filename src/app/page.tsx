@@ -18,7 +18,7 @@ import { getFavorites } from "@/lib/favorites";
 import { fetchWithRetry, prefetchProject } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import { StatsDateFilter, filterByStatsDate, type StatsDateMode } from "@/components/stats-date-filter";
-import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, type ChartType } from "@/components/stat-charts";
+import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 
 const MonteurDashboard = dynamic(() => import("@/components/monteur-dashboard").then(m => ({ default: m.MonteurDashboard })), {
   ssr: false,
@@ -2640,6 +2640,13 @@ function HomePage() {
 
       {/* VUE STATS */}
       {mode === "stats" && (() => {
+        // Plage effective pour rolling12
+        const _r12Today = new Date();
+        const statsR12From = new Date(_r12Today.getFullYear() - 1, _r12Today.getMonth(), _r12Today.getDate() + 1).toISOString().split("T")[0];
+        const statsR12To   = _r12Today.toISOString().split("T")[0];
+        const statsEffFrom = statsDateMode === "rolling12" ? statsR12From : statsDateFrom;
+        const statsEffTo   = statsDateMode === "rolling12" ? statsR12To   : statsDateTo;
+
         // Filter helpers for the 4 databases
         const filterYear = statsDateMode === "year" ? Number(statsYear) : null;
         const filterMonth = statsDateMode === "month" ? statsMonth : null; // "YYYY-MM"
@@ -2650,22 +2657,15 @@ function HomePage() {
         const svcFiltered = statsServices.filter((r: any) => {
           if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
           if (statsDateMode === "month" && filterMonth && r.mois !== filterMonth) return false;
-          if (statsDateMode === "range" && (statsDateFrom || statsDateTo)) {
-            // Build date from available fields
-            let rowDate: string | null = null;
+          if ((statsDateMode === "range" || statsDateMode === "rolling12") && (statsEffFrom || statsEffTo)) {
             const jourNum = r.jour ? parseInt(r.jour, 10) : 1;
             const jour = isNaN(jourNum) ? "01" : String(jourNum).padStart(2, "0");
-
-            if (r.mois) {
-              rowDate = `${r.mois}-${jour}`;
-            } else if (r.annee) {
-              rowDate = `${r.annee}-01-${jour}`;
-            }
-
-            if (!rowDate) return true; // no date info, keep it
-            // Compare only the parts we have (from/to are "YYYY-MM-DD")
-            const fromDate = statsDateFrom || "0000-00-00";
-            const toDate = statsDateTo || "9999-12-31";
+            let rowDate: string | null = null;
+            if (r.mois) rowDate = `${r.mois}-${jour}`;
+            else if (r.annee) rowDate = `${r.annee}-01-${jour}`;
+            if (!rowDate) return true;
+            const fromDate = statsEffFrom || "0000-00-00";
+            const toDate   = statsEffTo   || "9999-12-31";
             if (rowDate < fromDate || rowDate > toDate) return false;
           }
           return true;
@@ -2734,7 +2734,7 @@ function HomePage() {
         // DB2: clients by type
         const cliByYear = statsClients.filter((r: any) => {
           if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
-          if (statsDateMode === "range" && filterYear && r.annee !== filterYear) return false;
+          if ((statsDateMode === "range" || statsDateMode === "rolling12") && filterYear && r.annee !== filterYear) return false;
           return true;
         });
         // Group clients by name, sum monthly across years
@@ -2774,7 +2774,7 @@ function HomePage() {
         // DB3: marques — group by name, sum monthly across years
         const mrqByYear = statsMarques.filter((r: any) => {
           if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
-          if (statsDateMode === "range" && filterYear && r.annee !== filterYear) return false;
+          if ((statsDateMode === "range" || statsDateMode === "rolling12") && filterYear && r.annee !== filterYear) return false;
           return true;
         });
         const mrqGrouped: Record<string, any> = {};
@@ -2795,7 +2795,7 @@ function HomePage() {
         // DB4: series
         const serByYear = statsSeries.filter((r: any) => {
           if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
-          if (statsDateMode === "range" && filterYear && r.annee !== filterYear) return false;
+          if ((statsDateMode === "range" || statsDateMode === "rolling12") && filterYear && r.annee !== filterYear) return false;
           return true;
         });
         // Group series by fournisseur+serie name, sum counts across years
@@ -2813,29 +2813,88 @@ function HomePage() {
         });
         Object.values(seriesByFournisseur).forEach((arr) => arr.sort((a, b) => b.count - a.count));
 
-        // Collaborator stats (only completed/archived projects)
-        const allProjectsRaw = projectsData["cmd-termine"] || projectsData["archives"] || [];
+        // Collaborator stats — tous les projets clôturés (cmd + services + sav terminés)
+        // + projets actifs dont la date de montage est passée (réalisés mais pas encore clôturés)
+        const todayForStats = new Date().toISOString().split("T")[0];
+        const allProjectsRaw: Project[] = (() => {
+          const seenIds = new Set<string>();
+          const add = (list: Project[]) => list.filter(p => !seenIds.has(p.id) && !!seenIds.add(p.id));
+          // 1. Projets clôturés (toutes sources)
+          const terminated = [
+            ...add(projectsData["cmd-termine"] || []),
+            ...add(projectsData["services-termine"] || []),
+            ...add(projectsData["sav-termine"] || []),
+            ...add(projectsData["mesures-termine"] || []),
+          ];
+          // 2. Projets actifs dont le montage est déjà passé (clôture pas encore faite dans Notion)
+          const active = [
+            ...(projectsData["cmd"] || []),
+            ...(projectsData["services"] || []),
+            ...(projectsData["sav"] || []),
+          ].filter(p => {
+            const date = (p.dateMontage || "").split("T")[0];
+            return date && date <= todayForStats;
+          });
+          add(active);
+          return [...terminated, ...active.filter(p => !terminated.some(t => t.id === p.id))];
+        })();
         const allProjects: Project[] = filterByStatsDate(allProjectsRaw, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
 
         // Helper: split collaborateurs field into array of trimmed names
         const splitCollabs = (p: Project): string[] =>
           (p.collaborateurs || "").split("&").map((n) => n.trim()).filter(Boolean);
 
+        // SAV helpers
+        const hasSAV = (p: Project) => p.sav === true || (p.etatSAV && p.etatSAV !== "Aucun SAV");
+        const isFournisseurSAV = (p: Project) => hasSAV(p) && (p.causeSAV || "").toLowerCase().includes("fournisseur");
+        const isTMSAV = (p: Project) => hasSAV(p) && (p.causeSAV || "").toLowerCase().includes("tm");
+
+        // Mesures par collaborateur — liste séparée filtrée par dateMesures
+        const allMesuresRaw: Project[] = [
+          ...(projectsData["mesures-termine"] || []),
+          ...(projectsData["mesures"] || []),
+        ].filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
+        const filterMesuresByMode = (list: Project[], mode: string, from: string, to: string, month: string, year: string) => {
+          if (mode === "all") return list;
+          const effFrom = mode === "rolling12" ? statsR12From : from;
+          const effTo   = mode === "rolling12" ? statsR12To   : to;
+          return list.filter(p => {
+            const d = (p.dateMesures || "").split("T")[0];
+            if (!d) return false;
+            if (mode === "range" || mode === "rolling12") { if (effFrom && d < effFrom) return false; if (effTo && d > effTo) return false; return true; }
+            if (mode === "month") return d.startsWith(month);
+            if (mode === "year") return d.startsWith(year);
+            return true;
+          });
+        };
+        const allMesures = filterMesuresByMode(allMesuresRaw, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+        const allMesuresB = statsCompare ? filterMesuresByMode(allMesuresRaw, statsBMode, statsBFrom, statsBTo, statsBMonth, statsBYear) : [];
+
         // Solo only (1 collaborateur)
-        const buildCollabStats = (projects: Project[]) => COLLABORATEURS_LIST.map((name) => {
+        const buildCollabStats = (projects: Project[], mesuresProjects: Project[]) => COLLABORATEURS_LIST.map((name) => {
+          const nl = name.toLowerCase();
           const soloProjects = projects.filter((p) => {
-            const collabs = splitCollabs(p);
-            return collabs.length === 1 && collabs[0].toLowerCase() === name.toLowerCase();
+            const c = splitCollabs(p);
+            return c.length === 1 && c[0].toLowerCase() === nl;
+          });
+          const soloMesures = mesuresProjects.filter((p) => {
+            const c = splitCollabs(p);
+            return c.length === 1 && c[0].toLowerCase() === nl;
           });
           const cabines = soloProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
           const soucisCount = soloProjects.filter((p) => p.soucisMontage).length;
           const soucisRate = soloProjects.length > 0 ? Math.round((soucisCount / soloProjects.length) * 100) : 0;
-          return { name, projects: soloProjects.length, cabines, soucisCount, soucisRate };
+          const savProjects = soloProjects.filter(hasSAV);
+          const savCount = savProjects.length;
+          const savFournisseurCount = savProjects.filter(isFournisseurSAV).length;
+          const savFournisseurPct = savCount > 0 ? Math.round((savFournisseurCount / savCount) * 100) : 0;
+          const savPersonnelCount = savProjects.filter(isTMSAV).length;
+          return { name, projects: soloProjects.length, mesures: soloMesures.length, cabines, soucisCount, soucisRate, savCount, savFournisseurCount, savFournisseurPct, savPersonnelCount };
         }).sort((a, b) => b.cabines - a.cabines);
 
         // Binôme (exactement 2 collaborateurs) — groupé par paire canonique
         const buildBinomeStats = (projects: Project[]) => {
-          const map = new Map<string, { label: string; projects: number; cabines: number; soucisCount: number }>();
+          const map = new Map<string, { label: string; projects: number; cabines: number; soucisCount: number; savCount: number; savFournisseurCount: number; savFournisseurPct: number; savPersonnelCount: number }>();
           projects.forEach((p) => {
             const collabs = splitCollabs(p);
             if (collabs.length !== 2) return;
@@ -2845,18 +2904,19 @@ function HomePage() {
               existing.projects++;
               existing.cabines += p.nbCabines || 0;
               existing.soucisCount += p.soucisMontage ? 1 : 0;
+              if (hasSAV(p)) { existing.savCount++; if (isFournisseurSAV(p)) existing.savFournisseurCount++; if (isTMSAV(p)) existing.savPersonnelCount++; }
             } else {
-              map.set(key, { label: key, projects: 1, cabines: p.nbCabines || 0, soucisCount: p.soucisMontage ? 1 : 0 });
+              map.set(key, { label: key, projects: 1, cabines: p.nbCabines || 0, soucisCount: p.soucisMontage ? 1 : 0, savCount: hasSAV(p) ? 1 : 0, savFournisseurCount: isFournisseurSAV(p) ? 1 : 0, savFournisseurPct: 0, savPersonnelCount: isTMSAV(p) ? 1 : 0 });
             }
           });
           return Array.from(map.values())
-            .map((b) => ({ ...b, soucisRate: b.projects > 0 ? Math.round((b.soucisCount / b.projects) * 100) : 0 }))
+            .map((b) => ({ ...b, soucisRate: b.projects > 0 ? Math.round((b.soucisCount / b.projects) * 100) : 0, savFournisseurPct: b.savCount > 0 ? Math.round((b.savFournisseurCount / b.savCount) * 100) : 0 }))
             .sort((a, b) => b.cabines - a.cabines);
         };
 
         // Team (3+ collaborateurs) — groupé par composition canonique
         const buildTeamStats = (projects: Project[]) => {
-          const map = new Map<string, { label: string; projects: number; cabines: number; soucisCount: number }>();
+          const map = new Map<string, { label: string; projects: number; cabines: number; soucisCount: number; savCount: number; savFournisseurCount: number; savFournisseurPct: number; savPersonnelCount: number }>();
           projects.forEach((p) => {
             const collabs = splitCollabs(p);
             if (collabs.length < 3) return;
@@ -2866,22 +2926,23 @@ function HomePage() {
               existing.projects++;
               existing.cabines += p.nbCabines || 0;
               existing.soucisCount += p.soucisMontage ? 1 : 0;
+              if (hasSAV(p)) { existing.savCount++; if (isFournisseurSAV(p)) existing.savFournisseurCount++; if (isTMSAV(p)) existing.savPersonnelCount++; }
             } else {
-              map.set(key, { label: key, projects: 1, cabines: p.nbCabines || 0, soucisCount: p.soucisMontage ? 1 : 0 });
+              map.set(key, { label: key, projects: 1, cabines: p.nbCabines || 0, soucisCount: p.soucisMontage ? 1 : 0, savCount: hasSAV(p) ? 1 : 0, savFournisseurCount: isFournisseurSAV(p) ? 1 : 0, savFournisseurPct: 0, savPersonnelCount: isTMSAV(p) ? 1 : 0 });
             }
           });
           return Array.from(map.values())
-            .map((t) => ({ ...t, soucisRate: t.projects > 0 ? Math.round((t.soucisCount / t.projects) * 100) : 0 }))
+            .map((t) => ({ ...t, soucisRate: t.projects > 0 ? Math.round((t.soucisCount / t.projects) * 100) : 0, savFournisseurPct: t.savCount > 0 ? Math.round((t.savFournisseurCount / t.savCount) * 100) : 0 }))
             .sort((a, b) => b.cabines - a.cabines);
         };
 
-        const collabStats = buildCollabStats(allProjects);
+        const collabStats = buildCollabStats(allProjects, allMesures);
         const binomeStats = buildBinomeStats(allProjects);
         const teamStats = buildTeamStats(allProjects);
         const allProjectsB: Project[] = statsCompare
           ? filterByStatsDate(allProjectsRaw, statsBMode, statsBFrom, statsBTo, statsBMonth, statsBYear)
           : [];
-        const collabStatsB = statsCompare ? buildCollabStats(allProjectsB) : [];
+        const collabStatsB = statsCompare ? buildCollabStats(allProjectsB, allMesuresB) : [];
         const binomeStatsB = statsCompare ? buildBinomeStats(allProjectsB) : [];
         const teamStatsB = statsCompare ? buildTeamStats(allProjectsB) : [];
 
@@ -2902,8 +2963,8 @@ function HomePage() {
               </div>
             )}
 
-            {/* Filtre de dates + bouton VS */}
-            <div>
+            {/* Filtre de dates + bouton VS — sticky */}
+            <div className="sticky z-30 -mx-4 px-4 pt-2 pb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm shadow-sm" style={{top: `var(--header-h, 60px)`}}>
               {/* Période A */}
               <div className="flex items-center gap-2 mb-1">
                 {statsCompare && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">A</span>}
@@ -2929,7 +2990,7 @@ function HomePage() {
                     onModeChange={setStatsBMode} onFromChange={setStatsBFrom} onToChange={setStatsBTo} onMonthChange={setStatsBMonth} onYearChange={setStatsBYear} />
                 </>
               )}
-            </div>
+            </div> {/* fin sticky */}
 
             {/* KPIs */}
             <div>
@@ -3011,7 +3072,7 @@ function HomePage() {
                   <button onClick={() => toggleSection("monthly")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                     {expandedSections.has("monthly") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     Tendance mensuelle (12 mois)
-                    <ChartTypeSelector value={monthlyChartType} onChange={(t) => setChartType("monthly", t)} types={["bar-h", "line", "area", "bar-v"]} />
+                    <ChartTypeSelector value={monthlyChartType} onChange={(t) => setChartType("monthly", t)} types={["bar-h", "line", "area", "bar-v", "bar-stack", "area-stack"]} />
                   </button>
                 );
               })()}
@@ -3036,6 +3097,10 @@ function HomePage() {
                       <TimeSeriesChart data={monthlyData} series={monthlySeries} chartType={monthlyChartType} />
                     ) : monthlyChartType === "bar-v" ? (
                       <MultiColumnChart data={monthlyData} series={monthlySeries} />
+                    ) : monthlyChartType === "bar-stack" ? (
+                      <StackedBarChart data={monthlyData} series={monthlySeries} />
+                    ) : monthlyChartType === "area-stack" ? (
+                      <StackedAreaChart data={monthlyData} series={monthlySeries} />
                     ) : (
                       /* bar-h — vue actuelle */
                       <div className="space-y-3">
@@ -3088,24 +3153,23 @@ function HomePage() {
                 {expandedSections.has("collabs") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 Par collaborateur
                 <span className="text-[10px] font-normal text-gray-400 normal-case tracking-normal">solo</span>
-                <ChartTypeSelector value={chartTypePrefs["collabs"] || "bar-h"} onChange={(t) => setChartType("collabs", t)} types={["bar-h", "bar-v", "donut"]} />
+                <ChartTypeSelector value={chartTypePrefs["collabs"] || "bar-h"} onChange={(t) => setChartType("collabs", t)} types={["bar-h", "bar-v", "donut", "pie", "treemap", "radar"]} />
               </button>
               {expandedSections.has("collabs") && (() => {
                 const ct = chartTypePrefs["collabs"] || "bar-h";
                 const distribData = collabStats.filter((cs) => cs.cabines > 0)
                   .map((cs) => ({ label: cs.name.split(" ")[0], value: cs.cabines, color: getCollaboratorColor(cs.name).dot }));
-                if (ct === "donut") return (
-                  <div className="glass-card rounded-2xl p-4"><DonutChart data={distribData} /></div>
-                );
-                if (ct === "bar-v") return (
-                  <div className="glass-card rounded-2xl p-4"><ColumnChart data={distribData} /></div>
-                );
+                if (ct === "donut") return <div className="glass-card rounded-2xl p-4"><DonutChart data={distribData} /></div>;
+                if (ct === "pie")   return <div className="glass-card rounded-2xl p-4"><PieChart2 data={distribData} /></div>;
+                if (ct === "treemap") return <div className="glass-card rounded-2xl p-4"><TreemapChart data={distribData} /></div>;
+                if (ct === "radar") return <div className="glass-card rounded-2xl p-4"><RadarChart data={distribData} /></div>;
+                if (ct === "bar-v") return <div className="glass-card rounded-2xl p-4"><ColumnChart data={distribData} /></div>;
                 return (
                   <div className="space-y-2">
                     {collabStats.filter((cs) => cs.projects > 0 || (statsCompare && collabStatsB.find(b => b.name === cs.name && b.projects > 0))).map((cs) => {
                       const colors = getCollaboratorColor(cs.name);
                       const maxCollabProjects = Math.max(...collabStats.map((c) => c.projects), 1);
-                      const csB = statsCompare ? (collabStatsB.find((b) => b.name === cs.name) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
+                      const csB = statsCompare ? (collabStatsB.find((b) => b.name === cs.name) ?? { projects: 0, mesures: 0, cabines: 0, soucisCount: 0, soucisRate: 0, savCount: 0, savFournisseurCount: 0, savFournisseurPct: 0, savPersonnelCount: 0 }) : null;
                       return (
                         <div key={cs.name} className="glass-card rounded-2xl p-4">
                           <div className="flex items-center gap-2 mb-2">
@@ -3117,18 +3181,35 @@ function HomePage() {
                                 : <>{cs.projects} projets</>}
                             </span>
                           </div>
-                          <div className="grid grid-cols-3 gap-3 text-center mb-2">
+                          {/* Rangée 1: cabines, mesures, soucis */}
+                          <div className="grid grid-cols-3 gap-2 text-center mb-2">
                             <div>
                               {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{cs.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.cabines}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.cabines}</p>)}
                               <p className="text-[10px] text-gray-400">cabines</p>
                             </div>
                             <div>
+                              {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-cyan-600">{cs.mesures}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.mesures}</p></div>) : (<p className="text-lg font-bold text-cyan-600 dark:text-cyan-400">{cs.mesures}</p>)}
+                              <p className="text-[10px] text-gray-400">mesures</p>
+                            </div>
+                            <div>
                               {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{cs.soucisCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisCount}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.soucisCount}</p>)}
                               <p className="text-[10px] text-gray-400">soucis</p>
                             </div>
+                          </div>
+                          {/* Rangée 2: taux soucis, SAV, breakdown SAV */}
+                          <div className="grid grid-cols-3 gap-2 text-center mb-2">
                             <div>
                               {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p>)}
                               <p className="text-[10px] text-gray-400">taux soucis</p>
+                            </div>
+                            <div>
+                              {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-red-500">{cs.savCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.savCount}</p></div>) : (<p className={`text-lg font-bold ${cs.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{cs.savCount}</p>)}
+                              <p className="text-[10px] text-gray-400">SAV</p>
+                            </div>
+                            <div>
+                              <p className={`text-sm font-bold ${cs.savFournisseurPct > 50 ? "text-orange-500" : "text-gray-500"}`}>{cs.savCount > 0 ? `${cs.savFournisseurPct}% fourn.` : "—"}</p>
+                              <p className={`text-sm font-bold ${cs.savPersonnelCount > 0 ? "text-red-500" : "text-gray-400"}`}>{cs.savCount > 0 ? `${cs.savPersonnelCount} TM` : ""}</p>
+                              <p className="text-[10px] text-gray-400">erreurs SAV</p>
                             </div>
                           </div>
                           <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
@@ -3157,12 +3238,15 @@ function HomePage() {
                 <div>
                   <button onClick={() => toggleSection("binomes")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                     {expandedSections.has("binomes") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    Par binôme
+                    Par équipe
                     <span className="text-[10px] font-bold text-indigo-500 normal-case tracking-normal">{binomeStats.length} paire{binomeStats.length > 1 ? "s" : ""}</span>
-                    <ChartTypeSelector value={ct} onChange={(t) => setChartType("binomes", t)} types={["bar-h", "bar-v", "donut"]} />
+                    <ChartTypeSelector value={ct} onChange={(t) => setChartType("binomes", t)} types={["bar-h", "bar-v", "donut", "pie", "treemap", "radar"]} />
                   </button>
                   {expandedSections.has("binomes") && (() => {
                     if (ct === "donut") return <div className="glass-card rounded-2xl p-4"><DonutChart data={distribData} /></div>;
+                    if (ct === "pie")   return <div className="glass-card rounded-2xl p-4"><PieChart2 data={distribData} /></div>;
+                    if (ct === "treemap") return <div className="glass-card rounded-2xl p-4"><TreemapChart data={distribData} /></div>;
+                    if (ct === "radar") return <div className="glass-card rounded-2xl p-4"><RadarChart data={distribData} /></div>;
                     if (ct === "bar-v") return <div className="glass-card rounded-2xl p-4"><ColumnChart data={distribData} /></div>;
                     return (
                       <div className="space-y-2">
@@ -3171,7 +3255,7 @@ function HomePage() {
                           const c1 = getCollaboratorColor(names[0] || "");
                           const c2 = getCollaboratorColor(names[1] || "");
                           const maxProjects = Math.max(...binomeStats.map((b) => b.projects), 1);
-                          const bsB = statsCompare ? (binomeStatsB.find((b) => b.label === bs.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
+                          const bsB = statsCompare ? (binomeStatsB.find((b) => b.label === bs.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0, savCount: 0, savFournisseurCount: 0, savFournisseurPct: 0, savPersonnelCount: 0 }) : null;
                           return (
                             <div key={bs.label} className="glass-card rounded-2xl p-4">
                               <div className="flex items-center gap-2 mb-2">
@@ -3184,10 +3268,12 @@ function HomePage() {
                                   {statsCompare ? <><span className="text-blue-500 font-bold">{bs.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{bsB!.projects}B</span> projets</> : <>{bs.projects} projet{bs.projects > 1 ? "s" : ""}</>}
                                 </span>
                               </div>
-                              <div className="grid grid-cols-3 gap-3 text-center mb-2">
+                              <div className="grid grid-cols-5 gap-2 text-center mb-2">
                                 <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{bs.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.cabines}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{bs.cabines}</p>)}<p className="text-[10px] text-gray-400">cabines</p></div>
                                 <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{bs.soucisCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.soucisCount}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{bs.soucisCount}</p>)}<p className="text-[10px] text-gray-400">soucis</p></div>
                                 <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${bs.soucisRate > 20 ? "text-red-500" : bs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{bs.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${bs.soucisRate > 20 ? "text-red-500" : bs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{bs.soucisRate}%</p>)}<p className="text-[10px] text-gray-400">taux soucis</p></div>
+                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-red-500">{bs.savCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{bsB!.savCount}</p></div>) : (<p className={`text-lg font-bold ${bs.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{bs.savCount}</p>)}<p className="text-[10px] text-gray-400">SAV</p></div>
+                                <div><p className={`text-sm font-bold ${bs.savFournisseurPct > 50 ? "text-orange-500" : "text-gray-500"}`}>{bs.savCount > 0 ? `${bs.savFournisseurPct}% fo.` : "—"}</p><p className={`text-sm font-bold ${bs.savPersonnelCount > 0 ? "text-red-500" : "text-gray-400"}`}>{bs.savCount > 0 ? `${bs.savPersonnelCount} TM` : ""}</p><p className="text-[10px] text-gray-400">erreurs</p></div>
                               </div>
                               <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                                 <div className="h-full rounded-full transition-all" style={{ width: `${(bs.projects / maxProjects) * 100}%`, background: `linear-gradient(90deg, ${c1.dot}, ${c2.dot})` }} />
@@ -3215,17 +3301,20 @@ function HomePage() {
                     {expandedSections.has("teams") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     Par team
                     <span className="text-[10px] font-bold text-violet-500 normal-case tracking-normal">{teamStats.length} équipe{teamStats.length > 1 ? "s" : ""}</span>
-                    <ChartTypeSelector value={ct} onChange={(t) => setChartType("teams", t)} types={["bar-h", "bar-v", "donut"]} />
+                    <ChartTypeSelector value={ct} onChange={(t) => setChartType("teams", t)} types={["bar-h", "bar-v", "donut", "pie", "treemap", "radar"]} />
                   </button>
                   {expandedSections.has("teams") && (() => {
                     if (ct === "donut") return <div className="glass-card rounded-2xl p-4"><DonutChart data={distribData} /></div>;
+                    if (ct === "pie")   return <div className="glass-card rounded-2xl p-4"><PieChart2 data={distribData} /></div>;
+                    if (ct === "treemap") return <div className="glass-card rounded-2xl p-4"><TreemapChart data={distribData} /></div>;
+                    if (ct === "radar") return <div className="glass-card rounded-2xl p-4"><RadarChart data={distribData} /></div>;
                     if (ct === "bar-v") return <div className="glass-card rounded-2xl p-4"><ColumnChart data={distribData} /></div>;
                     return (
                       <div className="space-y-2">
                         {teamStats.map((ts) => {
                           const names = ts.label.split(" & ");
                           const maxProjects = Math.max(...teamStats.map((t) => t.projects), 1);
-                          const tsB = statsCompare ? (teamStatsB.find((t) => t.label === ts.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0 }) : null;
+                          const tsB = statsCompare ? (teamStatsB.find((t) => t.label === ts.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0, savCount: 0, savFournisseurCount: 0, savFournisseurPct: 0, savPersonnelCount: 0 }) : null;
                           return (
                             <div key={ts.label} className="glass-card rounded-2xl p-4">
                               <div className="flex items-center gap-2 mb-2">
@@ -3237,10 +3326,12 @@ function HomePage() {
                                   {statsCompare ? <><span className="text-blue-500 font-bold">{ts.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{tsB!.projects}B</span> projets</> : <>{ts.projects} projet{ts.projects > 1 ? "s" : ""}</>}
                                 </span>
                               </div>
-                              <div className="grid grid-cols-3 gap-3 text-center mb-2">
+                              <div className="grid grid-cols-5 gap-2 text-center mb-2">
                                 <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{ts.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.cabines}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.cabines}</p>)}<p className="text-[10px] text-gray-400">cabines</p></div>
-                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{ts.soucisCount}</p><p className="text-sm font-semibond text-orange-400 mb-0.5">/{tsB!.soucisCount}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.soucisCount}</p>)}<p className="text-[10px] text-gray-400">soucis</p></div>
+                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{ts.soucisCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.soucisCount}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.soucisCount}</p>)}<p className="text-[10px] text-gray-400">soucis</p></div>
                                 <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p>)}<p className="text-[10px] text-gray-400">taux soucis</p></div>
+                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-red-500">{ts.savCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.savCount}</p></div>) : (<p className={`text-lg font-bold ${ts.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{ts.savCount}</p>)}<p className="text-[10px] text-gray-400">SAV</p></div>
+                                <div><p className={`text-sm font-bold ${ts.savFournisseurPct > 50 ? "text-orange-500" : "text-gray-500"}`}>{ts.savCount > 0 ? `${ts.savFournisseurPct}% fo.` : "—"}</p><p className={`text-sm font-bold ${ts.savPersonnelCount > 0 ? "text-red-500" : "text-gray-400"}`}>{ts.savCount > 0 ? `${ts.savPersonnelCount} TM` : ""}</p><p className="text-[10px] text-gray-400">erreurs</p></div>
                               </div>
                               <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                                 <div className="h-full rounded-full transition-all" style={{ width: `${(ts.projects / maxProjects) * 100}%`, background: names.length >= 2 ? `linear-gradient(90deg, ${names.map((n) => getCollaboratorColor(n).dot).join(", ")})` : getCollaboratorColor(names[0] || "").dot }} />
@@ -3260,13 +3351,17 @@ function HomePage() {
               <button onClick={() => toggleSection("typeclient")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                 {expandedSections.has("typeclient") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 Par type de client
-                <ChartTypeSelector value={chartTypePrefs["typeclient"] || "bar-h"} onChange={(t) => setChartType("typeclient", t)} types={["bar-h", "donut"]} />
+                <ChartTypeSelector value={chartTypePrefs["typeclient"] || "bar-h"} onChange={(t) => setChartType("typeclient", t)} types={["bar-h", "bar-v", "donut", "pie", "treemap", "radar"]} />
               </button>
               {expandedSections.has("typeclient") && (() => {
                 const ct = chartTypePrefs["typeclient"] || "bar-h";
                 const tcPalette = ["#6366f1", "#8b5cf6", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444"];
                 const tcData = typeClientStats.map(([type, total], i) => ({ label: type, value: total, color: tcPalette[i % tcPalette.length] }));
                 if (ct === "donut") return <div className="glass-card rounded-2xl p-4"><DonutChart data={tcData} /></div>;
+                if (ct === "pie")   return <div className="glass-card rounded-2xl p-4"><PieChart2 data={tcData} /></div>;
+                if (ct === "treemap") return <div className="glass-card rounded-2xl p-4"><TreemapChart data={tcData} /></div>;
+                if (ct === "radar") return <div className="glass-card rounded-2xl p-4"><RadarChart data={tcData} /></div>;
+                if (ct === "bar-v") return <div className="glass-card rounded-2xl p-4"><ColumnChart data={tcData} /></div>;
                 return (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {typeClientStats.map(([type, total]) => {
@@ -3297,7 +3392,7 @@ function HomePage() {
               <button onClick={() => toggleSection("marques")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                 {expandedSections.has("marques") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 Par fournisseur / marque
-                <ChartTypeSelector value={chartTypePrefs["marques"] || "bar-h"} onChange={(t) => setChartType("marques", t)} types={["bar-h", "bar-v", "donut"]} />
+                <ChartTypeSelector value={chartTypePrefs["marques"] || "bar-h"} onChange={(t) => setChartType("marques", t)} types={["bar-h", "bar-v", "donut", "pie", "treemap", "radar"]} />
               </button>
               {expandedSections.has("marques") && (() => {
                 const ctMrq = chartTypePrefs["marques"] || "bar-h";
@@ -3308,6 +3403,9 @@ function HomePage() {
                   return { label: r.marque, value: val, color: MARQUE_HEX[r.marque] || fallbackHex[idx % fallbackHex.length] };
                 }).filter((d: { value: number }) => d.value > 0).sort((a: { value: number }, b: { value: number }) => b.value - a.value);
                 if (ctMrq === "donut") return <div className="glass-card rounded-2xl p-4"><DonutChart data={mrqDistribData} /></div>;
+                if (ctMrq === "pie")   return <div className="glass-card rounded-2xl p-4"><PieChart2 data={mrqDistribData} /></div>;
+                if (ctMrq === "treemap") return <div className="glass-card rounded-2xl p-4"><TreemapChart data={mrqDistribData} /></div>;
+                if (ctMrq === "radar") return <div className="glass-card rounded-2xl p-4"><RadarChart data={mrqDistribData} /></div>;
                 if (ctMrq === "bar-v") return <div className="glass-card rounded-2xl p-4"><ColumnChart data={mrqDistribData} /></div>;
                 return (
                 <div className="glass-card rounded-2xl p-4">
