@@ -1175,20 +1175,21 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
   // ── Réorganisation boutons style iOS ──────────────────────────────────────
   const [isEditMode, setIsEditMode] = useState(false);
-  const [buttonOrder, setButtonOrder] = useState<string[]>(() => {
+  // On initialise avec l'ordre par défaut pour éviter un écart SSR/client.
+  // useEffect lit localStorage après hydration → pas de reset au refresh (macOS).
+  const [buttonOrder, setButtonOrder] = useState<string[]>([...DEFAULT_DASH_ORDER]);
+  useEffect(() => {
     try {
-      const saved = typeof window !== "undefined"
-        ? localStorage.getItem(`tm-dashboard-order-${userName}`)
-        : null;
+      const saved = localStorage.getItem(`tm-dashboard-order-${userName}`);
       if (saved) {
         const parsed: string[] = JSON.parse(saved);
         const valid = parsed.filter(id => DEFAULT_DASH_ORDER.includes(id));
         const missing = DEFAULT_DASH_ORDER.filter(id => !valid.includes(id));
-        return [...valid, ...missing];
+        setButtonOrder([...valid, ...missing]);
       }
     } catch {}
-    return [...DEFAULT_DASH_ORDER];
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [dragSrcId, setDragSrcId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

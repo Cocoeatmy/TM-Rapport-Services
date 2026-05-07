@@ -790,6 +790,7 @@ function HomePage() {
     dashboard: "/api/projects",
     mesures: "/api/projects/mesures",
     "mesures-termine": "/api/projects/mesures-termine",
+    "mesures-sans-commande": "/api/projects/mesures-sans-commande",
     cmd: "/api/projects",
     "cmd-termine": "/api/projects/cmd-termine",
     services: "/api/projects/services",
@@ -2854,11 +2855,23 @@ function HomePage() {
         const isFournisseurSAV = (p: Project) => hasSAV(p) && (p.causeSAV || "").toLowerCase().includes("fournisseur");
         const isTMSAV = (p: Project) => hasSAV(p) && (p.causeSAV || "").toLowerCase().includes("tm");
 
-        // Mesures par collaborateur — liste séparée filtrée par dateMesures
+        // Mesures par collaborateur — on agrège TOUTES les sources disponibles
+        // et on garde uniquement celles qui ont un dateMesures (mesures faites).
+        // L'endpoint "mesures-termine" retourne [] (TODO non implémenté), d'où ce contournement.
         const allMesuresRaw: Project[] = [
-          ...(projectsData["mesures-termine"] || []),
+          ...(projectsData["cmd-termine"] || []),
+          ...(projectsData["services-termine"] || []),
+          ...(projectsData["sav-termine"] || []),
+          ...(projectsData["archives"] || []),
+          ...(projectsData["cmd"] || []),
+          ...(projectsData["services"] || []),
+          ...(projectsData["sav"] || []),
           ...(projectsData["mesures"] || []),
-        ].filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
+          ...(projectsData["mesures-sans-commande"] || []),
+        ].filter((p, i, arr) => {
+          if (!(p.dateMesures || "").split("T")[0]) return false; // mesures faites = dateMesures renseigné
+          return arr.findIndex(x => x.id === p.id) === i; // dédupliquer
+        });
         const filterMesuresByMode = (list: Project[], mode: string, from: string, to: string, month: string, year: string) => {
           if (mode === "all") return list;
           const effFrom = mode === "rolling12" ? statsR12From : from;
