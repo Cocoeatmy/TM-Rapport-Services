@@ -2342,13 +2342,14 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           };
 
           return (
-            <div className="glass-card rounded-2xl p-4 space-y-3">
+            <div className="glass-card glass-panel rounded-2xl p-4 space-y-3">
               {/* Switcher */}
               <div className="flex items-center gap-2">
-                <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1 flex-1">
+                <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1.5 gap-1.5 flex-1">
                   <button
+                    type="button"
                     onClick={() => setMesuresSubView("commande")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${!isAnnulees ? "bg-white dark:bg-gray-700 text-cyan-700 dark:text-cyan-300 shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700"}`}>
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-[11px] font-semibold transition-colors touch-manipulation select-none ${!isAnnulees ? "bg-white dark:bg-gray-700 text-cyan-700 dark:text-cyan-300 shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"}`}>
                     <Ruler className="w-3 h-3" />
                     À commander
                     <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${!isAnnulees ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" : "bg-gray-200 dark:bg-gray-700 text-gray-500"}`}>
@@ -2356,8 +2357,9 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                     </span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => setMesuresSubView("annulees")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${isAnnulees ? "bg-white dark:bg-gray-700 text-red-600 dark:text-red-400 shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700"}`}>
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-[11px] font-semibold transition-colors touch-manipulation select-none ${isAnnulees ? "bg-white dark:bg-gray-700 text-red-600 dark:text-red-400 shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"}`}>
                     <AlertCircle className="w-3 h-3" />
                     Annulées
                     <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${isAnnulees ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" : "bg-gray-200 dark:bg-gray-700 text-gray-500"}`}>

@@ -186,6 +186,13 @@
   50% { background-position: 100% 50%; }
 }
 
+/* Désactive le lift (translateY) au hover pour les panneaux de contenu
+   (panneaux non-cliquables) afin d'éviter le décalage zone visuelle vs zone de clic. */
+.glass-panel:hover,
+.glass-panel:active {
+  transform: none !important;
+}
+
 /* Glass card */
 .glass-card {
   background: rgba(255, 255, 255, 0.65);
