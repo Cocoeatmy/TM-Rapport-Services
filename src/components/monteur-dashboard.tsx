@@ -1132,6 +1132,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const [workTo, setWorkTo] = useState("");
   const [terminatedProjects, setTerminatedProjects] = useState<Project[]>([]);
   const [terminatedLoading, setTerminatedLoading] = useState(false);
+  const [archivesCount, setArchivesCount] = useState<number | null>(null);
 
   // Tous les projets actifs (non-Terminé, non-Annulé) pour les stats globales
   // (ex. "Projets en cours" = 209 projets, pas seulement les 80 de l'onglet CMD).
@@ -1192,6 +1193,14 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
       setTerminatedProjects(all.filter(p => p?.id && !seen.has(p.id) && seen.add(p.id)));
     }).finally(() => setTerminatedLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Charge le total de TOUS les projets Notion pour afficher le bon count sur le bouton Archives
+  useEffect(() => {
+    fetch("/api/projects/all")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setArchivesCount(data.length); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1604,7 +1613,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
         <button onClick={() => onNavigate?.("archives")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${showSummaryPanel !== null ? "opacity-40 scale-[0.97]" : ""}`}>
           <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-amber-100/80 dark:bg-amber-900/30 flex items-center justify-center"><Archive className="w-4 h-4 text-amber-600 dark:text-amber-400" /></span>
           <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">
-            {terminatedLoading ? <span className="animate-pulse text-base">…</span> : terminatedProjects.length}
+            {archivesCount === null ? <span className="animate-pulse text-base">…</span> : archivesCount}
           </p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Archives</p>
           <p className="text-[7px] sm:text-[10px] text-amber-400 dark:text-amber-500 mt-0.5">Clôturés</p>

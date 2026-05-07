@@ -230,7 +230,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
   return (
     <div className="mb-4 space-y-1.5">
       {/* Ligne principale */}
-      <div className="p-1.5 max-w-full overflow-x-auto scrollbar-hide">
+      <div className="p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain">
         <div className="flex gap-1">
           <button onClick={() => { handleSelect("dashboard"); setOpen(null); }} className={tabCls(mode === "dashboard")}>
             Dashboard
@@ -277,7 +277,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
 
       {/* Sous-menu Services - deuxième ligne */}
       {open === "services" && (
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1">
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1 touch-pan-x overscroll-x-contain">
           {servicesModes.map((m) => (
             <button key={m} onClick={() => handleSelect(m)}
               className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
@@ -293,7 +293,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
 
       {/* Sous-menu Clients - deuxième ligne */}
       {open === "clients" && (
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1">
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1 touch-pan-x overscroll-x-contain">
           {clientsModes.map((m) => (
             <button key={m} onClick={() => handleSelect(m)}
               className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
@@ -309,7 +309,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
 
       {/* Sous-menu Grossistes */}
       {open === "grossistes" && (
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center touch-pan-x overscroll-x-contain">
           {grossistesModes.map((m) => {
             const logo = grossistesLogos[m];
             const isActive = mode === m;
@@ -360,7 +360,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
 
       {/* Sous-menu Fournisseurs */}
       {open === "fournisseurs-menu" && (
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center touch-pan-x overscroll-x-contain">
           {fournisseursModes.map((m) => {
             const logo = fournisseursLogos[m];
             const isActive = mode === m;
@@ -843,24 +843,19 @@ function HomePage() {
     });
   }, []);
 
-  // Build combined archives from all 4 terminate endpoints
+  // Si projets-tous est déjà chargé (ex. retour depuis cet onglet),
+  // on l'utilise aussi comme source pour archives pour la cohérence.
   useEffect(() => {
-    const cmd = projectsData["cmd-termine"];
-    const mes = projectsData["mesures-termine"];
-    const svc = projectsData["services-termine"];
-    const sav = projectsData["sav-termine"];
-    if (!cmd && !mes && !svc && !sav) return;
-    const all = [...(cmd || []), ...(mes || []), ...(svc || []), ...(sav || [])];
-    const seen = new Set<string>();
-    const deduped = all.filter((p) => p?.id && !seen.has(p.id) && seen.add(p.id));
-    if (deduped.length !== (projectsData["archives"] || []).length) {
-      setProjectsData((prev) => {
-        const updated = { ...prev, archives: deduped };
-        try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
-        return updated;
-      });
-    }
-  }, [projectsData["cmd-termine"], projectsData["mesures-termine"], projectsData["services-termine"], projectsData["sav-termine"]]);
+    const all = projectsData["projets-tous"];
+    if (!all || all.length === 0) return;
+    if ((projectsData["archives"] || []).length === all.length) return;
+    setProjectsData((prev) => {
+      const updated = { ...prev, archives: all };
+      try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectsData["projets-tous"]]);
 
   const refreshAllProjects = useCallback(() => {
     const allModes = Object.entries(MODE_API) as [string, string][];
@@ -1205,26 +1200,15 @@ function HomePage() {
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
             if (m === "archives") {
-              Promise.all([
-                fetch("/api/projects/cmd-termine").then((r) => r.json()).catch(() => []),
-                fetch("/api/projects/mesures-termine").then((r) => r.json()).catch(() => []),
-                fetch("/api/projects/services-termine").then((r) => r.json()).catch(() => []),
-                fetch("/api/projects/sav-termine").then((r) => r.json()).catch(() => []),
-              ]).then(([cmd, mes, svc, sav]) => {
-                const all = [
-                  ...(Array.isArray(cmd) ? cmd : []),
-                  ...(Array.isArray(mes) ? mes : []),
-                  ...(Array.isArray(svc) ? svc : []),
-                  ...(Array.isArray(sav) ? sav : []),
-                ];
-                const seen = new Set<string>();
-                const deduped = all.filter((p) => p?.id && !seen.has(p.id) && seen.add(p.id));
+              // Archives = tous les projets Notion (même source que l'onglet "Projets")
+              fetch("/api/projects/all").then((r) => r.json()).then((data) => {
+                const all = Array.isArray(data) ? data : [];
                 setProjectsData((prev) => {
-                  const updated = { ...prev, archives: deduped, "cmd-termine": cmd };
+                  const updated = { ...prev, archives: all };
                   try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
                   return updated;
                 });
-              });
+              }).catch(() => {});
             }
           }} />
         </div>
