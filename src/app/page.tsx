@@ -734,6 +734,7 @@ function HomePage() {
   } | null>(null);
   const [consultationsSearch, setConsultationsSearch] = useState("");
   const [consultationsFilter, setConsultationsFilter] = useState<"all" | "viewed" | "not-viewed">("all");
+  const [showRapportConsultations, setShowRapportConsultations] = useState(true);
   const statsLoadedRef = useRef(false);
   const [cabineAttributions, setCabineAttributions] = useState<Record<string, string[]>>({});
 
@@ -1325,6 +1326,121 @@ function HomePage() {
 
         return (
           <div>
+            {/* Consultation des rapports — déplacé depuis Stats */}
+            {consultationsData && (
+              <div className="mb-5">
+                <button
+                  onClick={() => setShowRapportConsultations((v) => !v)}
+                  className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left"
+                >
+                  {showRapportConsultations ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  Consultation des rapports
+                  <span className="ml-auto text-xs font-bold text-emerald-600 normal-case tracking-normal">{consultationsData.summary.percentage}%</span>
+                </button>
+                {showRapportConsultations && (() => {
+                  const s = consultationsData.summary;
+                  const sortedProjects = consultationsData.projects.slice().sort((a, b) => {
+                    const at = a.lastView ? new Date(a.lastView).getTime() : 0;
+                    const bt = b.lastView ? new Date(b.lastView).getTime() : 0;
+                    if (bt !== at) return bt - at;
+                    return (b.dateMontage || "").localeCompare(a.dateMontage || "");
+                  });
+                  const q = consultationsSearch.trim().toLowerCase();
+                  const filteredList = sortedProjects.filter((p) => {
+                    if (consultationsFilter === "viewed" && !p.consulted) return false;
+                    if (consultationsFilter === "not-viewed" && p.consulted) return false;
+                    if (q && !p.projet.toLowerCase().includes(q)) return false;
+                    return true;
+                  });
+                  return (
+                    <div className="space-y-3 mb-4">
+                      <div className="glass-card rounded-2xl p-4">
+                        <div className="flex items-center gap-4">
+                          <div className="text-center shrink-0">
+                            <p className="text-4xl font-bold text-emerald-600">{s.percentage}%</p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">consultés</p>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden mb-2">
+                              <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${s.percentage}%` }} />
+                            </div>
+                            <p className="text-xs text-gray-600 dark:text-gray-300">
+                              <span className="font-bold text-emerald-600">{s.consulted}</span> consultés
+                              <span className="text-gray-400"> / </span>
+                              <span className="font-bold">{s.totalRapports}</span> rapports terminés
+                            </p>
+                            <p className="text-[10px] text-gray-400 mt-1">
+                              👁 {s.totalViews} ouverture{s.totalViews > 1 ? "s" : ""} portail · 📄 {s.totalPdfOpens} ouverture{s.totalPdfOpens > 1 ? "s" : ""} PDF
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          value={consultationsSearch}
+                          onChange={(e) => setConsultationsSearch(e.target.value)}
+                          placeholder="Rechercher un projet..."
+                          className="flex-1 h-9 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-sm"
+                        />
+                        <div className="flex gap-1">
+                          {(["all", "viewed", "not-viewed"] as const).map((f) => (
+                            <button
+                              key={f}
+                              onClick={() => setConsultationsFilter(f)}
+                              className={`h-9 px-3 rounded-lg text-xs font-medium transition-colors ${
+                                consultationsFilter === f
+                                  ? "bg-emerald-500 text-white"
+                                  : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
+                              }`}
+                            >
+                              {f === "all" ? "Tous" : f === "viewed" ? "Consultés" : "Non lus"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="glass-card rounded-2xl divide-y divide-gray-100 dark:divide-gray-700 max-h-96 overflow-y-auto">
+                        {filteredList.length === 0 ? (
+                          <p className="text-center text-xs text-gray-400 py-8">Aucun rapport</p>
+                        ) : (
+                          filteredList.map((p) => (
+                            <Link
+                              key={p.projectId}
+                              href={`/projet/${p.projectId}?mode=rapport`}
+                              className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-800/50"
+                            >
+                              <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${p.consulted ? "bg-emerald-500" : "bg-gray-300 dark:bg-gray-600"}`} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{p.projet || "Projet sans nom"}</p>
+                                <p className="text-[10px] text-gray-400 truncate">
+                                  {p.typeClient || "—"}
+                                  {p.dateMontage && ` · ${new Date(p.dateMontage).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })}`}
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                {p.consulted ? (
+                                  <>
+                                    <p className="text-xs font-semibold text-emerald-600">👁 {p.viewCount} · 📄 {p.pdfCount}</p>
+                                    {p.lastView && (
+                                      <p className="text-[10px] text-gray-400">
+                                        {new Date(p.lastView).toLocaleString("fr-CH", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                      </p>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-[10px] text-gray-400">Non lu</span>
+                                )}
+                              </div>
+                            </Link>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+                <div className="border-b border-gray-100 dark:border-gray-800 mb-5" />
+              </div>
+            )}
+
             <div className="relative mb-4 max-w-lg">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
@@ -3141,121 +3257,6 @@ function HomePage() {
                     })}
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Consultation des rapports */}
-            {consultationsData && (
-              <div>
-                <button onClick={() => toggleSection("consultations")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
-                  {expandedSections.has("consultations") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  Consultation des rapports
-                  <span className="ml-auto text-xs font-bold text-emerald-600 normal-case tracking-normal">{consultationsData.summary.percentage}%</span>
-                </button>
-                {expandedSections.has("consultations") && (() => {
-                  const s = consultationsData.summary;
-                  const sortedProjects = consultationsData.projects.slice().sort((a, b) => {
-                    const at = a.lastView ? new Date(a.lastView).getTime() : 0;
-                    const bt = b.lastView ? new Date(b.lastView).getTime() : 0;
-                    if (bt !== at) return bt - at;
-                    return (b.dateMontage || "").localeCompare(a.dateMontage || "");
-                  });
-                  const q = consultationsSearch.trim().toLowerCase();
-                  const filteredList = sortedProjects.filter((p) => {
-                    if (consultationsFilter === "viewed" && !p.consulted) return false;
-                    if (consultationsFilter === "not-viewed" && p.consulted) return false;
-                    if (q && !p.projet.toLowerCase().includes(q)) return false;
-                    return true;
-                  });
-                  return (
-                    <div className="space-y-3">
-                      <div className="glass-card rounded-2xl p-4">
-                        <div className="flex items-center gap-4">
-                          <div className="text-center shrink-0">
-                            <p className="text-4xl font-bold text-emerald-600">{s.percentage}%</p>
-                            <p className="text-[10px] text-gray-500 mt-0.5">consultés</p>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden mb-2">
-                              <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${s.percentage}%` }} />
-                            </div>
-                            <p className="text-xs text-gray-600 dark:text-gray-300">
-                              <span className="font-bold text-emerald-600">{s.consulted}</span> consultés
-                              <span className="text-gray-400"> / </span>
-                              <span className="font-bold">{s.totalRapports}</span> rapports terminés
-                            </p>
-                            <p className="text-[10px] text-gray-400 mt-1">
-                              👁 {s.totalViews} ouverture{s.totalViews > 1 ? "s" : ""} portail · 📄 {s.totalPdfOpens} ouverture{s.totalPdfOpens > 1 ? "s" : ""} PDF
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <input
-                          value={consultationsSearch}
-                          onChange={(e) => setConsultationsSearch(e.target.value)}
-                          placeholder="Rechercher un projet..."
-                          className="flex-1 h-9 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-sm"
-                        />
-                        <div className="flex gap-1">
-                          {(["all", "viewed", "not-viewed"] as const).map((f) => (
-                            <button
-                              key={f}
-                              onClick={() => setConsultationsFilter(f)}
-                              className={`h-9 px-3 rounded-lg text-xs font-medium transition-colors ${
-                                consultationsFilter === f
-                                  ? "bg-emerald-500 text-white"
-                                  : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
-                              }`}
-                            >
-                              {f === "all" ? "Tous" : f === "viewed" ? "Consultés" : "Non lus"}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="glass-card rounded-2xl divide-y divide-gray-100 dark:divide-gray-700 max-h-96 overflow-y-auto">
-                        {filteredList.length === 0 ? (
-                          <p className="text-center text-xs text-gray-400 py-8">Aucun rapport</p>
-                        ) : (
-                          filteredList.map((p) => (
-                            <Link
-                              key={p.projectId}
-                              href={`/projet/${p.projectId}?mode=stats`}
-                              className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-800/50"
-                            >
-                              <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${p.consulted ? "bg-emerald-500" : "bg-gray-300 dark:bg-gray-600"}`} />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{p.projet || "Projet sans nom"}</p>
-                                <p className="text-[10px] text-gray-400 truncate">
-                                  {p.typeClient || "—"}
-                                  {p.dateMontage && ` · ${new Date(p.dateMontage).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })}`}
-                                </p>
-                              </div>
-                              <div className="text-right shrink-0">
-                                {p.consulted ? (
-                                  <>
-                                    <p className="text-xs font-semibold text-emerald-600">
-                                      👁 {p.viewCount} · 📄 {p.pdfCount}
-                                    </p>
-                                    {p.lastView && (
-                                      <p className="text-[10px] text-gray-400">
-                                        {new Date(p.lastView).toLocaleString("fr-CH", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                                      </p>
-                                    )}
-                                  </>
-                                ) : (
-                                  <span className="text-[10px] text-gray-400">Non lu</span>
-                                )}
-                              </div>
-                            </Link>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
               </div>
             )}
 
