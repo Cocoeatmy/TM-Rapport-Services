@@ -1,6 +1,33 @@
 import { NextResponse } from "next/server";
 
 /**
+ * Retourne une réponse d'erreur appropriée selon le type d'erreur Notion.
+ * - 429 / rate_limited → 503 + Retry-After (au lieu d'une 500 générique)
+ * - Autres             → 500
+ */
+export function errorResponse(error: unknown): NextResponse {
+  const err = error as any;
+  const isRateLimit = err?.status === 429 || err?.code === "rate_limited";
+  if (isRateLimit) {
+    console.warn("[api] Notion rate limit reached, returning 503");
+    return NextResponse.json(
+      { error: "Service temporairement surchargé. Veuillez réessayer dans quelques secondes." },
+      {
+        status: 503,
+        headers: {
+          "Retry-After": "10",
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+  return NextResponse.json(
+    { error: err?.message || "Erreur serveur" },
+    { status: 500 },
+  );
+}
+
+/**
  * Helper de réponse JSON avec en-têtes de cache CDN agressifs.
  *
  * Stratégie :

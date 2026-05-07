@@ -6,12 +6,28 @@
 //   immédiatement ET un re-fetch est déclenché en arrière-plan.
 // - Expirées (> TTL) : purgées, retour null (force un fetch bloquant).
 //
-// Résultat pratique : un utilisateur ne paie presque jamais la latence Notion,
-// tout en garantissant des données à jour dans les ~secondes qui suivent.
+// Protection thundering-herd :
+// - Quand le cache est vide et plusieurs requêtes arrivent simultanément,
+//   un seul appel Notion est lancé ; les autres attendent sa résolution.
+//
+// Fallback stale :
+// - En cas d'erreur Notion (ex. rate-limit 429), on retourne les dernières
+//   données connues plutôt que de propager une 500 côté client.
 
 const cache = new Map<string, { data: unknown; expires: number; staleAt: number }>();
 const TTL = 5 * 60 * 1000;          // 5 min — durée totale avant purge
 const FRESH_MS = 30 * 1000;         // 30 s — fenêtre où la donnée est considérée fraîche
+
+// Cache de secours : conserve les données jusqu'à 30 min même après expiration
+// du cache principal. Utilisé uniquement quand Notion est indisponible / rate-limité.
+const fallbackCache = new Map<string, { data: unknown; storedAt: number }>();
+const FALLBACK_TTL = 30 * 60 * 1000; // 30 min
+
+// Déduplication des fetches bloquants : si deux requêtes arrivent simultanément
+// et que le cache est vide, une seule requête Notion est lancée.
+const inflightFetch = new Map<string, Promise<unknown>>();
+
+// Déduplication des revalidations en arrière-plan.
 const inflightRevalidate = new Map<string, Promise<unknown>>();
 
 export function getCached<T>(key: string): T | null {
@@ -27,6 +43,8 @@ export function getCached<T>(key: string): T | null {
 export function setCache(key: string, data: unknown) {
   const now = Date.now();
   cache.set(key, { data, expires: now + TTL, staleAt: now + FRESH_MS });
+  // Met à jour également le fallback (durée de vie plus longue).
+  fallbackCache.set(key, { data, storedAt: now });
 }
 
 /**
@@ -45,6 +63,21 @@ export function getCachedWithStale<T>(
     return null;
   }
   return { data: entry.data as T, stale: now > entry.staleAt };
+}
+
+/**
+ * Retourne les dernières données connues pour une clé, même expirées,
+ * tant qu'elles ont moins de FALLBACK_TTL (30 min). Utilisé comme
+ * dernier recours quand Notion renvoie une erreur.
+ */
+function getFallback<T>(key: string): T | null {
+  const entry = fallbackCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.storedAt > FALLBACK_TTL) {
+    fallbackCache.delete(key);
+    return null;
+  }
+  return entry.data as T;
 }
 
 /**
@@ -71,9 +104,13 @@ export function revalidateInBackground<T>(
 }
 
 /**
- * Helper qui implémente le pattern SWR complet : si la donnée cachée est
- * utilisable (fraîche ou périmée mais non expirée), elle est retournée et un
- * revalidate est potentiellement lancé. Sinon, un fetch bloquant est fait.
+ * Helper qui implémente le pattern SWR complet avec protection thundering-herd
+ * et fallback stale en cas d'erreur Notion.
+ *
+ * - Cache frais    → retourné immédiatement.
+ * - Cache périmé   → retourné + revalidation en arrière-plan.
+ * - Cache vide     → un seul fetch bloquant (les autres attendent via in-flight).
+ * - Erreur fetch   → données de fallback (≤ 30 min) si disponibles, sinon re-throw.
  */
 export async function cachedOrFetch<T>(
   key: string,
@@ -84,15 +121,42 @@ export async function cachedOrFetch<T>(
     if (entry.stale) revalidateInBackground(key, fetcher);
     return entry.data;
   }
-  const data = await fetcher();
-  setCache(key, data);
-  return data;
+
+  // Thundering-herd protection : si un fetch est déjà en vol, on attend le même.
+  const existing = inflightFetch.get(key);
+  if (existing) return existing as Promise<T>;
+
+  const p = (async () => {
+    try {
+      const data = await fetcher();
+      setCache(key, data);
+      return data;
+    } catch (err: any) {
+      // Fallback : retourner les dernières données connues pour éviter une 500.
+      const fallback = getFallback<T>(key);
+      if (fallback !== null) {
+        console.warn(
+          `[server-cache] Notion error (${err?.status ?? err?.message}), ` +
+          `serving stale fallback for "${key}"`,
+        );
+        return fallback;
+      }
+      throw err;
+    } finally {
+      inflightFetch.delete(key);
+    }
+  })();
+
+  inflightFetch.set(key, p);
+  return p;
 }
 
 export function invalidateCache(key?: string) {
   if (key) {
     cache.delete(key);
+    fallbackCache.delete(key);
   } else {
     cache.clear();
+    fallbackCache.clear();
   }
 }

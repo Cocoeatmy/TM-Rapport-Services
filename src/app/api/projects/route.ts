@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProjects, createProject, deleteProject } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
 import { verifyToken } from "@/lib/auth";
-import { cachedJson } from "@/lib/edge-cache";
+import { cachedJson, errorResponse } from "@/lib/edge-cache";
 
 export const revalidate = 120;
 
@@ -16,12 +16,8 @@ export async function GET() {
     // en ~10 ms, peu importe le nombre de devices.
     const projects = await cachedOrFetch("projects", getProjects);
     return cachedJson(projects);
-  } catch (error: any) {
-    console.error("Error fetching projects:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la récupération des projets" },
-      { status: 500 }
-    );
+  } catch (error) {
+    return errorResponse(error);
   }
 }
 

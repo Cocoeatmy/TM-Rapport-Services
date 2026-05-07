@@ -448,11 +448,32 @@ async function resolveRelationNames(ids: string[]): Promise<Record<string, strin
   return result;
 }
 
+/**
+ * Exécute un appel Notion avec retry exponentiel sur les erreurs 429
+ * (rate-limit). Évite de propager immédiatement une erreur temporaire.
+ */
+async function notionQueryWithRetry(params: Parameters<typeof notion.databases.query>[0], maxRetries = 3): Promise<any> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await notion.databases.query(params);
+    } catch (err: any) {
+      const isRateLimit = err?.status === 429 || err?.code === "rate_limited";
+      if (!isRateLimit) throw err;
+      lastErr = err;
+      const delay = Math.min(1000 * Math.pow(2, attempt), 8000); // 1s, 2s, 4s
+      console.warn(`[notion] Rate limited (attempt ${attempt + 1}/${maxRetries}), retry in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
 async function queryAll(filter: any, sorts?: any[]): Promise<Project[]> {
   const allResults: any[] = [];
   let cursor: string | undefined = undefined;
   do {
-    const response: any = await notion.databases.query({
+    const response: any = await notionQueryWithRetry({
       database_id: databaseId,
       filter,
       sorts,
@@ -606,6 +627,14 @@ export async function getAllActiveProjects(): Promise<Project[]> {
 export async function getAllProjectsRaw(): Promise<Project[]> {
   return queryAll(
     undefined,
+    [{ property: "Date Montage", direction: "descending" }]
+  );
+}
+
+// Projets dont l'état CMD est "Terminé" (archivage CMD).
+export async function getProjectsCmdTermine(): Promise<Project[]> {
+  return queryAll(
+    { property: "État - CMD", status: { equals: "Terminé" } },
     [{ property: "Date Montage", direction: "descending" }]
   );
 }
