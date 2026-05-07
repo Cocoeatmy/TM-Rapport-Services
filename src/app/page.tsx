@@ -684,10 +684,15 @@ function HomePage() {
 
   // Sync filters to URL search params
   useEffect(() => {
-    const header = document.getElementById("main-header");
-    if (header) {
-      document.documentElement.style.setProperty("--header-h", `${header.offsetHeight}px`);
-    }
+    const setHeights = () => {
+      const header = document.getElementById("main-header");
+      if (header) document.documentElement.style.setProperty("--header-h", `${header.offsetHeight}px`);
+      const navbar = document.getElementById("main-navbar");
+      if (navbar) document.documentElement.style.setProperty("--navbar-h", `${navbar.offsetHeight}px`);
+    };
+    setHeights();
+    window.addEventListener("resize", setHeights);
+    return () => window.removeEventListener("resize", setHeights);
   }, []);
 
   // Sync filters to URL (without search — search uses debounce to avoid losing focus)
@@ -1207,7 +1212,7 @@ function HomePage() {
       {/* Onglets navigation + Nouveau projet — fixé en haut.
           glass-navbar : fond translucide flouté pour que les libellés
           restent lisibles quand on scrolle la page derrière. */}
-      <div className="sticky z-40 -mx-4 px-4 pb-2 pt-1 glass-navbar" style={{top: `var(--header-h, 60px)`}}>
+      <div id="main-navbar" className="sticky z-40 -mx-4 px-4 pb-2 pt-1 glass-navbar" style={{top: `var(--header-h, 60px)`}}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} onSwitchMode={(m: Mode) => {
@@ -2878,8 +2883,9 @@ function HomePage() {
             return c.length === 1 && c[0].toLowerCase() === nl;
           });
           const soloMesures = mesuresProjects.filter((p) => {
-            const c = splitCollabs(p);
-            return c.length === 1 && c[0].toLowerCase() === nl;
+            // Les mesures utilisent "mesuresTraiteePar", pas "collaborateurs"
+            const traiteePar = (p.mesuresTraiteePar || "").trim().toLowerCase();
+            return traiteePar === nl;
           });
           const cabines = soloProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
           const soucisCount = soloProjects.filter((p) => p.soucisMontage).length;
@@ -2889,7 +2895,8 @@ function HomePage() {
           const savFournisseurCount = savProjects.filter(isFournisseurSAV).length;
           const savFournisseurPct = savCount > 0 ? Math.round((savFournisseurCount / savCount) * 100) : 0;
           const savPersonnelCount = savProjects.filter(isTMSAV).length;
-          return { name, projects: soloProjects.length, mesures: soloMesures.length, cabines, soucisCount, soucisRate, savCount, savFournisseurCount, savFournisseurPct, savPersonnelCount };
+          const savRate = soloProjects.length > 0 ? Math.round((savCount / soloProjects.length) * 100) : 0;
+          return { name, projects: soloProjects.length, mesures: soloMesures.length, cabines, soucisCount, soucisRate, savCount, savRate, savFournisseurCount, savFournisseurPct, savPersonnelCount };
         }).sort((a, b) => b.cabines - a.cabines);
 
         // Binôme (exactement 2 collaborateurs) — groupé par paire canonique
@@ -2964,7 +2971,7 @@ function HomePage() {
             )}
 
             {/* Filtre de dates + bouton VS — sticky */}
-            <div className="sticky z-30 -mx-4 px-4 pt-2 pb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm shadow-sm" style={{top: `var(--header-h, 60px)`}}>
+            <div className="sticky z-30 -mx-4 px-4 pt-2 pb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm shadow-sm" style={{top: `calc(var(--header-h, 60px) + var(--navbar-h, 48px))`}}>
               {/* Période A */}
               <div className="flex items-center gap-2 mb-1">
                 {statsCompare && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">A</span>}
@@ -3169,47 +3176,59 @@ function HomePage() {
                     {collabStats.filter((cs) => cs.projects > 0 || (statsCompare && collabStatsB.find(b => b.name === cs.name && b.projects > 0))).map((cs) => {
                       const colors = getCollaboratorColor(cs.name);
                       const maxCollabProjects = Math.max(...collabStats.map((c) => c.projects), 1);
-                      const csB = statsCompare ? (collabStatsB.find((b) => b.name === cs.name) ?? { projects: 0, mesures: 0, cabines: 0, soucisCount: 0, soucisRate: 0, savCount: 0, savFournisseurCount: 0, savFournisseurPct: 0, savPersonnelCount: 0 }) : null;
+                      const csB = statsCompare ? (collabStatsB.find((b) => b.name === cs.name) ?? { projects: 0, mesures: 0, cabines: 0, soucisCount: 0, soucisRate: 0, savCount: 0, savRate: 0, savFournisseurCount: 0, savFournisseurPct: 0, savPersonnelCount: 0 }) : null;
+                      const savRateColor = cs.savRate > 10 ? "text-red-500" : cs.savRate > 5 ? "text-orange-500" : cs.savRate > 0 ? "text-yellow-500" : "text-gray-400";
                       return (
                         <div key={cs.name} className="glass-card rounded-2xl p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: colors.dot }} />
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: colors.dot }} />
                             <span className="text-sm font-semibold">{cs.name}</span>
                             <span className="ml-auto text-xs text-gray-500">
                               {statsCompare
                                 ? <><span className="text-blue-500 font-bold">{cs.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{csB!.projects}B</span> projets</>
-                                : <>{cs.projects} projets</>}
+                                : <>{cs.projects} projet{cs.projects > 1 ? "s" : ""}</>}
                             </span>
                           </div>
-                          {/* Rangée 1: cabines, mesures, soucis */}
-                          <div className="grid grid-cols-3 gap-2 text-center mb-2">
-                            <div>
-                              {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{cs.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.cabines}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.cabines}</p>)}
-                              <p className="text-[10px] text-gray-400">cabines</p>
+                          {/* 3 colonnes : [Cabines+Mesures] [Soucis+Taux soucis] [SAV+Taux SAV] */}
+                          <div className="grid grid-cols-3 gap-3 text-center mb-3">
+                            {/* Colonne 1 : Cabines + Mesures */}
+                            <div className="space-y-2">
+                              <div>
+                                {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{cs.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.cabines}</p></div>) : (<p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{cs.cabines}</p>)}
+                                <p className="text-[10px] text-gray-400">cabines</p>
+                              </div>
+                              <div>
+                                {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-cyan-600 dark:text-cyan-400">{cs.mesures}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.mesures}</p></div>) : (<p className="text-lg font-bold text-cyan-600 dark:text-cyan-400">{cs.mesures}</p>)}
+                                <p className="text-[10px] text-gray-400">mesures</p>
+                              </div>
                             </div>
-                            <div>
-                              {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-cyan-600">{cs.mesures}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.mesures}</p></div>) : (<p className="text-lg font-bold text-cyan-600 dark:text-cyan-400">{cs.mesures}</p>)}
-                              <p className="text-[10px] text-gray-400">mesures</p>
+                            {/* Colonne 2 : Soucis + Taux soucis */}
+                            <div className="space-y-2 border-x border-gray-100 dark:border-gray-700">
+                              <div>
+                                {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{cs.soucisCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisCount}</p></div>) : (<p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{cs.soucisCount}</p>)}
+                                <p className="text-[10px] text-gray-400">soucis</p>
+                              </div>
+                              <div>
+                                {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p>)}
+                                <p className="text-[10px] text-gray-400">taux soucis</p>
+                              </div>
                             </div>
-                            <div>
-                              {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{cs.soucisCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisCount}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{cs.soucisCount}</p>)}
-                              <p className="text-[10px] text-gray-400">soucis</p>
-                            </div>
-                          </div>
-                          {/* Rangée 2: taux soucis, SAV, breakdown SAV */}
-                          <div className="grid grid-cols-3 gap-2 text-center mb-2">
-                            <div>
-                              {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${cs.soucisRate > 20 ? "text-red-500" : cs.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{cs.soucisRate}%</p>)}
-                              <p className="text-[10px] text-gray-400">taux soucis</p>
-                            </div>
-                            <div>
-                              {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-red-500">{cs.savCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.savCount}</p></div>) : (<p className={`text-lg font-bold ${cs.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{cs.savCount}</p>)}
-                              <p className="text-[10px] text-gray-400">SAV</p>
-                            </div>
-                            <div>
-                              <p className={`text-sm font-bold ${cs.savFournisseurPct > 50 ? "text-orange-500" : "text-gray-500"}`}>{cs.savCount > 0 ? `${cs.savFournisseurPct}% fourn.` : "—"}</p>
-                              <p className={`text-sm font-bold ${cs.savPersonnelCount > 0 ? "text-red-500" : "text-gray-400"}`}>{cs.savCount > 0 ? `${cs.savPersonnelCount} TM` : ""}</p>
-                              <p className="text-[10px] text-gray-400">erreurs SAV</p>
+                            {/* Colonne 3 : SAV + Taux SAV */}
+                            <div className="space-y-2">
+                              <div>
+                                {statsCompare ? (<div className="flex items-end justify-center gap-1"><p className={`text-xl font-bold ${cs.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{cs.savCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{csB!.savCount}</p></div>) : (<p className={`text-xl font-bold ${cs.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{cs.savCount}</p>)}
+                                <p className="text-[10px] text-gray-400">SAV</p>
+                              </div>
+                              <div>
+                                <p className={`text-lg font-bold ${savRateColor}`}>{cs.projects > 0 ? `${cs.savRate}%` : "—"}</p>
+                                <p className="text-[10px] text-gray-400">taux SAV</p>
+                                {cs.savCount > 0 && (
+                                  <p className="text-[9px] text-gray-400 mt-0.5 leading-tight">
+                                    {cs.savFournisseurPct > 0 && <span className="text-orange-500">{cs.savFournisseurPct}% fo. </span>}
+                                    {cs.savPersonnelCount > 0 && <span className="text-red-500">{cs.savPersonnelCount} TM</span>}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
