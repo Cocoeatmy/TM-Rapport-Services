@@ -471,6 +471,7 @@ interface MonteurDashboardProps {
   projects: Project[];
   isAdmin?: boolean;
   onNavigate?: (mode: string) => void;
+  terminatedProjectsInit?: Project[];
 }
 
 // --- Helper functions ---
@@ -1112,7 +1113,7 @@ const DEFAULT_DASH_ORDER = [
   "calendrier", "archives", "sav-historique", "soucis-historique", "mesures-sans-commande",
 ];
 
-function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void }) {
+function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [] }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[] }) {
   const firstName = userName.split(" ")[0];
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
@@ -1167,7 +1168,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const [workYear, setWorkYear] = useState<string>(() => String(new Date().getFullYear()));
   const [workFrom, setWorkFrom] = useState("");
   const [workTo, setWorkTo] = useState("");
-  const [terminatedProjects, setTerminatedProjects] = useState<Project[]>([]);
+  const [terminatedProjects, setTerminatedProjects] = useState<Project[]>(() => terminatedProjectsInit);
   const [terminatedLoading, setTerminatedLoading] = useState(false);
   const [archivesCount, setArchivesCount] = useState<number | null>(null);
 
@@ -1246,27 +1247,28 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   // Sous-vue du panel Mesures : "commande" | "annulees"
   const [mesuresSubView, setMesuresSubView] = useState<"commande" | "annulees">("commande");
 
-  // Charge les projets terminés dès que le filtre sort de "semaine en cours"
-  // (semaine courante = seulement des projets actifs suffisent).
+  // Sync terminatedProjects depuis la prop quand page.tsx finit de fetch
+  // (utile si le cache localStorage était vide au premier rendu)
   useEffect(() => {
-    if (terminatedProjects.length > 0 || terminatedLoading) return;
-    setTerminatedLoading(true);
-    Promise.all([
-      fetch("/api/projects/cmd-termine").then(r => r.json()).catch(() => []),
-      fetch("/api/projects/mesures-termine").then(r => r.json()).catch(() => []),
-      fetch("/api/projects/services-termine").then(r => r.json()).catch(() => []),
-      fetch("/api/projects/sav-termine").then(r => r.json()).catch(() => []),
-    ]).then(([cmd, mes, svc, sav]) => {
-      const all = [
-        ...(Array.isArray(cmd) ? cmd : []),
-        ...(Array.isArray(mes) ? mes : []),
-        ...(Array.isArray(svc) ? svc : []),
-        ...(Array.isArray(sav) ? sav : []),
-      ];
-      // Déduplique par id
-      const seen = new Set<string>();
-      setTerminatedProjects(all.filter(p => p?.id && !seen.has(p.id) && seen.add(p.id)));
-    }).finally(() => setTerminatedLoading(false));
+    if (terminatedProjectsInit.length > 0 && terminatedProjects.length === 0) {
+      setTerminatedProjects(terminatedProjectsInit);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terminatedProjectsInit.length]);
+
+  // Fallback : si la prop est toujours vide (cache froid + prop pas encore reçue),
+  // on fetch directement — ne sera exécuté que si la prop reste à [] après 1 s.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (terminatedProjects.length > 0 || terminatedLoading) return;
+      setTerminatedLoading(true);
+      fetch("/api/projects/cmd-termine").then(r => r.json()).catch(() => []).then((cmd) => {
+        const all = Array.isArray(cmd) ? cmd : [];
+        const seen = new Set<string>();
+        setTerminatedProjects(all.filter((p: Project) => p?.id && !seen.has(p.id) && seen.add(p.id)));
+      }).finally(() => setTerminatedLoading(false));
+    }, 1000);
+    return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3728,10 +3730,10 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
 
 // --- Main component ---
 
-export function MonteurDashboard({ userName, projects, isAdmin, onNavigate }: MonteurDashboardProps) {
+export function MonteurDashboard({ userName, projects, isAdmin, onNavigate, terminatedProjectsInit = [] }: MonteurDashboardProps) {
   // Admin view: show all collaborators
   if (isAdmin) {
-    return <AdminDashboard projects={projects} userName={userName} onNavigate={onNavigate} />;
+    return <AdminDashboard projects={projects} userName={userName} onNavigate={onNavigate} terminatedProjectsInit={terminatedProjectsInit} />;
   }
 
   // Regular monteur view (unchanged logic)

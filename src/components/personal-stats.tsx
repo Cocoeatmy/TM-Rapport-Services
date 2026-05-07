@@ -246,7 +246,10 @@ export function PersonalStats({ userName, projects }: PersonalStatsProps) {
       mostCabinesDay,
       careerTotal,
     };
-  }, [projects, userName, dateMode, dateFrom, dateTo, dateMonth, dateYear, filterState]);
+  // Note : filterState est exclu des deps car c'est un objet inline recréé à chaque render ;
+  // dateMode/dateFrom/dateTo/dateMonth/dateYear couvrent déjà tous ses champs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, userName, dateMode, dateFrom, dateTo, dateMonth, dateYear]);
 
   function pctChange(current: number, previous: number): { pct: number; up: boolean } {
     if (previous === 0) return { pct: current > 0 ? 100 : 0, up: current > 0 };
