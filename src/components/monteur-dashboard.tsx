@@ -1134,6 +1134,23 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const [terminatedLoading, setTerminatedLoading] = useState(false);
   const [archivesCount, setArchivesCount] = useState<number | null>(null);
 
+  // Filtres panneaux
+  const [soucisFilterYear, setSoucisFilterYear] = useState("");
+  const [soucisFilterCause, setSoucisFilterCause] = useState("");
+  const [soucisFilterFrom, setSoucisFilterFrom] = useState("");
+  const [soucisFilterTo, setSoucisFilterTo] = useState("");
+  const [savFilterYear, setSavFilterYear] = useState("");
+  const [savFilterCause, setSavFilterCause] = useState("");
+  const [savFilterFrom, setSavFilterFrom] = useState("");
+  const [savFilterTo, setSavFilterTo] = useState("");
+  const [mesuresFilterYear, setMesuresFilterYear] = useState("");
+  const [mesuresFilterFrom, setMesuresFilterFrom] = useState("");
+  const [mesuresFilterTo, setMesuresFilterTo] = useState("");
+  const [dossiersFilterYear, setDossiersFilterYear] = useState("");
+  const [dossiersFilterType, setDossiersFilterType] = useState("");
+  const [dossiersFilterFrom, setDossiersFilterFrom] = useState("");
+  const [dossiersFilterTo, setDossiersFilterTo] = useState("");
+
   // Tous les projets actifs (non-Terminé, non-Annulé) pour les stats globales
   // (ex. "Projets en cours" = 209 projets, pas seulement les 80 de l'onglet CMD).
   const [allActiveProjects, setAllActiveProjects] = useState<Project[]>([]);
@@ -2172,8 +2189,133 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           panelTitle = "Soucis en cours";
           panelProjects = soucisEnCoursProjects;
         } else if (showSummaryPanel === "dossiers-en-cours") {
-          panelTitle = "Projets en cours";
-          panelProjects = dossiersEnCoursProjects;
+          /* ── PROJETS EN COURS ─────────────────────────────────── */
+          const dossiersYears = Array.from(new Set(
+            dossiersEnCoursProjects.map(p => (p.dateOffre || p.dateMontage || "").split("T")[0].slice(0, 4)).filter(Boolean)
+          )).sort((a, b) => b.localeCompare(a));
+          const dossiersTypes = Array.from(new Set(
+            dossiersEnCoursProjects.flatMap(p => p.typeServices || []).filter(Boolean)
+          )).sort();
+          const hasDossiersFilter = !!(dossiersFilterYear || dossiersFilterType || dossiersFilterFrom || dossiersFilterTo);
+          const filteredDossiers = dossiersEnCoursProjects.filter(p => {
+            const dateStr = (p.dateOffre || p.dateMontage || "").split("T")[0];
+            if (dossiersFilterYear && !dateStr.startsWith(dossiersFilterYear)) return false;
+            if (dossiersFilterType && !(p.typeServices || []).some(t => t.includes(dossiersFilterType))) return false;
+            if (dossiersFilterFrom && dateStr < dossiersFilterFrom) return false;
+            if (dossiersFilterTo && dateStr > dossiersFilterTo) return false;
+            return true;
+          });
+
+          // Tri par dateOffre desc
+          const sortedDossiers = [...filteredDossiers].sort((a, b) =>
+            ((b.dateOffre || "z").split("T")[0]).localeCompare((a.dateOffre || "z").split("T")[0])
+          );
+
+          return (
+            <div className="glass-card rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Projets en cours ({filteredDossiers.length}{hasDossiersFilter ? ` / ${dossiersEnCoursProjects.length}` : ""})
+                </p>
+              </div>
+
+              {/* Filtres */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1">
+                  <button onClick={() => setDossiersFilterYear("")}
+                    className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors ${!dossiersFilterYear ? "bg-indigo-600 text-white border-indigo-600" : "border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-300"}`}>
+                    Tout
+                  </button>
+                  {dossiersYears.map(y => (
+                    <button key={y} onClick={() => setDossiersFilterYear(dossiersFilterYear === y ? "" : y)}
+                      className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors ${dossiersFilterYear === y ? "bg-indigo-600 text-white border-indigo-600" : "border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-300"}`}>
+                      {y}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {dossiersTypes.length > 0 && (
+                    <select value={dossiersFilterType} onChange={e => setDossiersFilterType(e.target.value)}
+                      className="text-[10px] px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 flex-1 min-w-[120px]">
+                      <option value="">Tous types</option>
+                      {dossiersTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  )}
+                  <input type="date" value={dossiersFilterFrom} onChange={e => setDossiersFilterFrom(e.target.value)}
+                    className="text-[10px] px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 w-32" />
+                  <input type="date" value={dossiersFilterTo} onChange={e => setDossiersFilterTo(e.target.value)}
+                    className="text-[10px] px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 w-32" />
+                  {hasDossiersFilter && (
+                    <button onClick={() => { setDossiersFilterYear(""); setDossiersFilterType(""); setDossiersFilterFrom(""); setDossiersFilterTo(""); }}
+                      className="text-[10px] px-2.5 py-1 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200 transition-colors">
+                      Effacer
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Liste triée par date offre desc, groupée par mois */}
+              {sortedDossiers.length === 0 && <p className="text-sm text-gray-400 py-2 text-center">Aucun projet sur cette période</p>}
+              {(() => {
+                let lastMonthKey = "";
+                let colorIdx = 0;
+                return sortedDossiers.flatMap((p) => {
+                  const monthKey = p.dateOffre ? p.dateOffre.slice(0, 7) : "";
+                  const items: React.ReactNode[] = [];
+                  if (monthKey !== lastMonthKey) {
+                    const monthLbl = monthKey
+                      ? new Date(monthKey + "-15T12:00:00").toLocaleDateString("fr-CH", { month: "long", year: "numeric" })
+                      : "Sans date d'offre";
+                    items.push(
+                      <div key={`month-${monthKey || "none"}`} className="flex items-center gap-2 pt-2 pb-0.5">
+                        <div className="flex-1 h-px bg-indigo-200/70 dark:bg-indigo-700/40" />
+                        <span className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 shrink-0 px-1.5 capitalize">{monthLbl}</span>
+                        <div className="flex-1 h-px bg-indigo-200/70 dark:bg-indigo-700/40" />
+                      </div>
+                    );
+                    lastMonthKey = monthKey;
+                    colorIdx = 0;
+                  }
+                  const collabField = p.collaborateurs || "";
+                  const names = collabField.split(" & ").map((n: string) => n.trim()).filter(Boolean);
+                  const rowBg = colorIdx % 2 === 0 ? "bg-indigo-50/50 dark:bg-indigo-950/20" : "bg-indigo-100/40 dark:bg-indigo-900/15";
+                  colorIdx++;
+                  const dateOffreStr = p.dateOffre ? new Date(p.dateOffre + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" }) : "---";
+                  items.push(
+                    <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-indigo-200/60 dark:hover:bg-indigo-800/30 transition-colors text-xs ${rowBg}`}>
+                      <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
+                        {parseTMNumbers(p.ofrTM || "").length > 0
+                          ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
+                              <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                            ))
+                          : <span className="font-mono text-xs text-gray-400">---</span>
+                        }
+                      </span>
+                      <span className="w-24 shrink-0 font-mono text-indigo-600 dark:text-indigo-400 hidden sm:block text-[10px]">{dateOffreStr}</span>
+                      <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2 sm:line-clamp-1">{p.projet}</span>
+                      {(p.typeServices || []).slice(0, 1).map(ts => (
+                        <span key={ts} className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 hidden sm:inline-flex">{ts}</span>
+                      ))}
+                      {(() => { const logo = getClientLogo(p.projet); return logo ? (
+                        <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                      ) : null; })()}
+                      <div className="flex -space-x-1 shrink-0">
+                        {names.slice(0, 3).map((n: string) => (
+                          <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                            style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                            {getCollaboratorInitials(n)}
+                          </span>
+                        ))}
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                    </Link>
+                  );
+                  return items;
+                });
+              })()}
+            </div>
+          );
         } else if (showSummaryPanel === "a-facturer") {
           panelTitle = "À facturer";
           panelProjects = aFacturerProjects;
@@ -2354,8 +2496,20 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
         } else if (showSummaryPanel === "mesures-sans-commande") {
           /* ── MESURES — vue double (à commander / annulées) ──────── */
           const isAnnulees = mesuresSubView === "annulees";
-          const displayList   = isAnnulees ? mesuresAnnuleesData   : mesuresSansCommandeProjects;
+          const rawList = isAnnulees ? mesuresAnnuleesData : mesuresSansCommandeProjects;
           const displayLoading = isAnnulees ? mesuresAnnuleesLoading : mesuresSansCommandeLoading;
+          // Filtrage mesures
+          const displayList = rawList.filter(p => {
+            const dateStr = (p.dateMesures || "").split("T")[0];
+            if (mesuresFilterYear && !dateStr.startsWith(mesuresFilterYear)) return false;
+            if (mesuresFilterFrom && dateStr < mesuresFilterFrom) return false;
+            if (mesuresFilterTo && dateStr > mesuresFilterTo) return false;
+            return true;
+          });
+          const mesuresYears = Array.from(new Set(
+            rawList.map(p => (p.dateMesures || "").split("T")[0].slice(0, 4)).filter(Boolean)
+          )).sort((a, b) => b.localeCompare(a));
+          const hasMesuresFilter = !!(mesuresFilterYear || mesuresFilterFrom || mesuresFilterTo);
           const hoverClass    = isAnnulees ? "hover:bg-red-50 dark:hover:bg-red-900/10" : "hover:bg-cyan-50 dark:hover:bg-cyan-900/20";
           const arrowClass    = isAnnulees ? "group-hover:text-red-400" : "group-hover:text-cyan-400";
           const dateClass     = isAnnulees ? "text-red-600 dark:text-red-400" : "text-cyan-700 dark:text-cyan-300";
@@ -2437,6 +2591,30 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                 {displayLoading && <span className="text-[10px] text-gray-400 animate-pulse shrink-0">Chargement…</span>}
               </div>
 
+              {/* Filtres */}
+              <div className="flex flex-wrap gap-1 items-center">
+                <button onClick={() => setMesuresFilterYear("")}
+                  className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors ${!mesuresFilterYear ? "bg-cyan-600 text-white border-cyan-600" : "border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-cyan-300"}`}>
+                  Tout
+                </button>
+                {mesuresYears.map(y => (
+                  <button key={y} onClick={() => setMesuresFilterYear(mesuresFilterYear === y ? "" : y)}
+                    className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors ${mesuresFilterYear === y ? "bg-cyan-600 text-white border-cyan-600" : "border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-cyan-300"}`}>
+                    {y}
+                  </button>
+                ))}
+                <input type="date" value={mesuresFilterFrom} onChange={e => setMesuresFilterFrom(e.target.value)}
+                  className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 w-28 ml-1" />
+                <input type="date" value={mesuresFilterTo} onChange={e => setMesuresFilterTo(e.target.value)}
+                  className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 w-28" />
+                {hasMesuresFilter && (
+                  <button onClick={() => { setMesuresFilterYear(""); setMesuresFilterFrom(""); setMesuresFilterTo(""); }}
+                    className="text-[10px] px-2.5 py-1 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200 transition-colors">
+                    Effacer
+                  </button>
+                )}
+              </div>
+
               {/* Column headers */}
               {displayList.length > 0 && (
                 <div className="hidden sm:flex items-center gap-3 px-2 text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 pb-1.5">
@@ -2462,9 +2640,6 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
         } else if (showSummaryPanel === "sav-historique") {
           /* ── SAV HISTORIQUE (coche SAV = true) ─────────────────── */
           const DONE_STATES = ["Terminé", "Annulé", "Rapport clôturé"];
-          const savEnCours  = allSavProjects.filter(p => !DONE_STATES.includes(p.etatCMD));
-          const savTermines = allSavProjects.filter(p =>  DONE_STATES.includes(p.etatCMD));
-
           const ETAT_SAV_COLORS: Record<string, string> = {
             "A contacter":            "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
             "Contact sans réponse":   "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
@@ -2480,20 +2655,56 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
             "Montage partiel":        "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
           };
 
+          // Années disponibles
+          const savYears = Array.from(new Set(
+            allSavProjects.map(p => (p.dateMontage || p.dateRDVSAV || "").split("T")[0].slice(0, 4)).filter(Boolean)
+          )).sort((a, b) => b.localeCompare(a));
+
+          // Causes SAV disponibles
+          const savAllCauses = Array.from(new Set(allSavProjects.map(p => p.causeSAV).filter(Boolean)));
+
+          // Filtrage
+          const filteredSavProjects = allSavProjects.filter(p => {
+            const dateStr = (p.dateMontage || p.dateRDVSAV || "").split("T")[0];
+            if (savFilterYear && !dateStr.startsWith(savFilterYear)) return false;
+            if (savFilterCause && p.causeSAV !== savFilterCause) return false;
+            if (savFilterFrom && dateStr < savFilterFrom) return false;
+            if (savFilterTo && dateStr > savFilterTo) return false;
+            return true;
+          });
+
+          const savEnCours  = filteredSavProjects.filter(p => !DONE_STATES.includes(p.etatCMD));
+          const savTermines = filteredSavProjects.filter(p =>  DONE_STATES.includes(p.etatCMD));
+
+          // Stats % par marque
+          const allMontageAllSav = [...projects, ...terminatedProjects]
+            .filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i)
+            .filter(p => { const src = (p as any)._source; return src !== "mesures" && src !== "sav"; });
+          const savBrandList = Array.from(new Set(allSavProjects.flatMap(p => p.fournisseurs).filter(Boolean)));
+          const savBrandStats = savBrandList.map(brand => {
+            const savCab = filteredSavProjects
+              .filter(p => p.fournisseurs.includes(brand))
+              .reduce((s, p) => s + (p.nbCabines || 0), 0);
+            const totalCab = allMontageAllSav
+              .filter(p => p.fournisseurs.includes(brand))
+              .reduce((s, p) => s + (p.nbCabines || 0), 0);
+            const rate = totalCab > 0 ? Math.round(savCab / totalCab * 100) : 0;
+            return { brand, savCab, totalCab, rate };
+          }).filter(b => b.totalCab > 0).sort((a, b) => b.rate - a.rate);
+
+          const hasSavFilter = !!(savFilterYear || savFilterCause || savFilterFrom || savFilterTo);
+
           const renderSavRow = (p: Project) => {
             const dateStr  = (p.dateMontage || "").split("T")[0];
             const names    = (p.collaborateurs || "").split(/[\s&]+/).map((n: string) => n.trim()).filter(Boolean);
             const logo     = getClientLogo(p.projet);
-            // Affiche etatSAV si dispo, sinon etatCMD
             const statusLabel = p.etatSAV || p.etatCMD || "—";
             return (
               <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                 className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors group">
-                {/* Date montage */}
                 <span className="text-[10px] text-gray-400 font-mono w-16 shrink-0 tabular-nums">
                   {dateStr ? new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" }) : "—"}
                 </span>
-                {/* Avatars */}
                 <div className="flex -space-x-1 shrink-0">
                   {names.slice(0, 2).map((n: string) => (
                     <span key={n} className="w-6 h-6 rounded-full text-[8px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
@@ -2502,13 +2713,12 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                     </span>
                   ))}
                 </div>
-                {/* Projet */}
                 <div className="flex-1 min-w-0">
                   {p.ofrTM && <p className="text-[9px] font-mono text-gray-400 leading-none mb-0.5">{p.ofrTM}</p>}
                   <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1 font-medium">{p.projet}</p>
+                  {p.causeSAV && <p className="text-[10px] text-gray-400 mt-0.5">Cause SAV : {p.causeSAV}</p>}
                 </div>
                 {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
-                {/* Statut */}
                 <span className={`text-[9px] font-semibold px-2 py-1 rounded-full shrink-0 whitespace-nowrap ${ETAT_SAV_COLORS[statusLabel] || "bg-gray-100 text-gray-500"}`}>
                   {statusLabel}
                 </span>
@@ -2519,13 +2729,62 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           };
 
           return (
-            <div className="glass-card rounded-2xl p-4 space-y-4">
+            <div className="glass-card rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  SAV — coche cochée ({allSavCount})
+                  SAV — coche cochée ({filteredSavProjects.length}{hasSavFilter ? ` / ${allSavCount}` : ""})
                 </p>
                 {terminatedLoading && <span className="text-[10px] text-gray-400 animate-pulse">Chargement…</span>}
               </div>
+
+              {/* Stats % par marque */}
+              {savBrandStats.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 py-2 border-y border-red-100 dark:border-red-900/30">
+                  {savBrandStats.map(b => (
+                    <div key={b.brand} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] ${b.rate >= 20 ? "bg-red-50 dark:bg-red-900/20" : b.rate >= 10 ? "bg-orange-50 dark:bg-orange-900/20" : "bg-green-50 dark:bg-green-900/20"}`}>
+                      <span className="font-medium text-gray-700 dark:text-gray-300 truncate max-w-[80px]">{b.brand}</span>
+                      <span className={`font-bold tabular-nums ${b.rate >= 20 ? "text-red-600 dark:text-red-400" : b.rate >= 10 ? "text-orange-600 dark:text-orange-400" : "text-green-600 dark:text-green-400"}`}>{b.rate}%</span>
+                      <span className="text-gray-400 dark:text-gray-500">{b.savCab}/{b.totalCab}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Filtres */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1">
+                  <button onClick={() => setSavFilterYear("")}
+                    className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors ${!savFilterYear ? "bg-red-600 text-white border-red-600" : "border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-red-300"}`}>
+                    Tout
+                  </button>
+                  {savYears.map(y => (
+                    <button key={y} onClick={() => setSavFilterYear(savFilterYear === y ? "" : y)}
+                      className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors ${savFilterYear === y ? "bg-red-600 text-white border-red-600" : "border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-red-300"}`}>
+                      {y}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {savAllCauses.length > 0 && (
+                    <select value={savFilterCause} onChange={e => setSavFilterCause(e.target.value)}
+                      className="text-[10px] px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 flex-1 min-w-[120px]">
+                      <option value="">Toutes causes SAV</option>
+                      {savAllCauses.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
+                  <input type="date" value={savFilterFrom} onChange={e => setSavFilterFrom(e.target.value)}
+                    className="text-[10px] px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 w-32" />
+                  <input type="date" value={savFilterTo} onChange={e => setSavFilterTo(e.target.value)}
+                    className="text-[10px] px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 w-32" />
+                  {hasSavFilter && (
+                    <button onClick={() => { setSavFilterYear(""); setSavFilterCause(""); setSavFilterFrom(""); setSavFilterTo(""); }}
+                      className="text-[10px] px-2.5 py-1 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200 transition-colors">
+                      Effacer
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {savEnCours.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 bg-red-50 dark:bg-red-900/20">
@@ -2542,14 +2801,11 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                   <div className="space-y-0.5">{savTermines.map(renderSavRow)}</div>
                 </div>
               )}
-              {allSavCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet avec SAV coché</p>}
+              {filteredSavProjects.length === 0 && <p className="text-sm text-gray-400 py-2 text-center">Aucun SAV sur cette période</p>}
             </div>
           );
         } else if (showSummaryPanel === "soucis-historique") {
           /* ── SOUCIS MONTAGE HISTORIQUE ──────────────────────────── */
-          const soucisActifs = allSoucisProjects.filter(p => p.etatCMD !== "Terminé" && p.etatCMD !== "Annulé" && p.etatCMD !== "Rapport clôturé");
-          const soucisTermines = allSoucisProjects.filter(p => p.etatCMD === "Terminé" || p.etatCMD === "Annulé" || p.etatCMD === "Rapport clôturé");
-
           const CAUSE_COLORS: Record<string, string> = {
             "Problème produit": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
             "Erreur de montage": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
@@ -2558,6 +2814,48 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
             "Manque d'info": "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
             "Client": "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300",
           };
+
+          // Années disponibles
+          const soucisYears = Array.from(new Set(
+            allSoucisProjects.map(p => (p.dateMontage || "").split("T")[0].slice(0, 4)).filter(Boolean)
+          )).sort((a, b) => b.localeCompare(a));
+
+          // Causes disponibles
+          const soucisAllCauses = Array.from(new Set(allSoucisProjects.map(p => p.causeSoucis).filter(Boolean)));
+
+          // Filtrage
+          const filteredSoucisProjects = allSoucisProjects.filter(p => {
+            const dateStr = (p.dateMontage || "").split("T")[0];
+            if (soucisFilterYear && !dateStr.startsWith(soucisFilterYear)) return false;
+            if (soucisFilterCause && p.causeSoucis !== soucisFilterCause) return false;
+            if (soucisFilterFrom && dateStr < soucisFilterFrom) return false;
+            if (soucisFilterTo && dateStr > soucisFilterTo) return false;
+            return true;
+          });
+
+          const soucisActifs = filteredSoucisProjects.filter(p => p.etatCMD !== "Terminé" && p.etatCMD !== "Annulé" && p.etatCMD !== "Rapport clôturé");
+          const soucisTermines = filteredSoucisProjects.filter(p => p.etatCMD === "Terminé" || p.etatCMD === "Annulé" || p.etatCMD === "Rapport clôturé");
+
+          // Stats % par marque (fournisseur)
+          const allMontageAll = [...projects, ...terminatedProjects]
+            .filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i)
+            .filter(p => {
+              const src = (p as any)._source;
+              return src !== "mesures" && src !== "sav";
+            });
+          const brandList = Array.from(new Set(allSoucisProjects.flatMap(p => p.fournisseurs).filter(Boolean)));
+          const brandStats = brandList.map(brand => {
+            const soucisCab = filteredSoucisProjects
+              .filter(p => p.fournisseurs.includes(brand))
+              .reduce((s, p) => s + (p.nbCabines || 0), 0);
+            const totalCab = allMontageAll
+              .filter(p => p.fournisseurs.includes(brand))
+              .reduce((s, p) => s + (p.nbCabines || 0), 0);
+            const rate = totalCab > 0 ? Math.round(soucisCab / totalCab * 100) : 0;
+            return { brand, soucisCab, totalCab, rate };
+          }).filter(b => b.totalCab > 0).sort((a, b) => b.rate - a.rate);
+
+          const hasFilter = !!(soucisFilterYear || soucisFilterCause || soucisFilterFrom || soucisFilterTo);
 
           const renderSoucisRow = (p: Project) => {
             const dateStr = (p.dateMontage || "").split("T")[0];
@@ -2593,11 +2891,64 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           };
 
           return (
-            <div className="glass-card rounded-2xl p-4 space-y-4">
+            <div className="glass-card rounded-2xl p-4 space-y-3">
+              {/* Header */}
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Soucis montage — tous ({allSoucisCount})</p>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Soucis montage ({filteredSoucisProjects.length}{hasFilter ? ` / ${allSoucisCount}` : ""})
+                </p>
                 {terminatedLoading && <span className="text-[10px] text-gray-400 animate-pulse">Chargement…</span>}
               </div>
+
+              {/* Stats % par marque */}
+              {brandStats.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 py-2 border-y border-orange-100 dark:border-orange-900/30">
+                  {brandStats.map(b => (
+                    <div key={b.brand} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] ${b.rate >= 20 ? "bg-red-50 dark:bg-red-900/20" : b.rate >= 10 ? "bg-orange-50 dark:bg-orange-900/20" : "bg-green-50 dark:bg-green-900/20"}`}>
+                      <span className="font-medium text-gray-700 dark:text-gray-300 truncate max-w-[80px]">{b.brand}</span>
+                      <span className={`font-bold tabular-nums ${b.rate >= 20 ? "text-red-600 dark:text-red-400" : b.rate >= 10 ? "text-orange-600 dark:text-orange-400" : "text-green-600 dark:text-green-400"}`}>{b.rate}%</span>
+                      <span className="text-gray-400 dark:text-gray-500">{b.soucisCab}/{b.totalCab}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Filtres */}
+              <div className="space-y-2">
+                {/* Années */}
+                <div className="flex flex-wrap gap-1">
+                  <button onClick={() => setSoucisFilterYear("")}
+                    className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors ${!soucisFilterYear ? "bg-orange-600 text-white border-orange-600" : "border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-300"}`}>
+                    Tout
+                  </button>
+                  {soucisYears.map(y => (
+                    <button key={y} onClick={() => setSoucisFilterYear(soucisFilterYear === y ? "" : y)}
+                      className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors ${soucisFilterYear === y ? "bg-orange-600 text-white border-orange-600" : "border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-300"}`}>
+                      {y}
+                    </button>
+                  ))}
+                </div>
+                {/* Cause + plage date */}
+                <div className="flex flex-wrap gap-2 items-center">
+                  <select value={soucisFilterCause} onChange={e => setSoucisFilterCause(e.target.value)}
+                    className="text-[10px] px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 flex-1 min-w-[120px]">
+                    <option value="">Toutes causes</option>
+                    {soucisAllCauses.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <input type="date" value={soucisFilterFrom} onChange={e => setSoucisFilterFrom(e.target.value)}
+                    className="text-[10px] px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 w-32" placeholder="Du" />
+                  <input type="date" value={soucisFilterTo} onChange={e => setSoucisFilterTo(e.target.value)}
+                    className="text-[10px] px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 w-32" placeholder="Au" />
+                  {hasFilter && (
+                    <button onClick={() => { setSoucisFilterYear(""); setSoucisFilterCause(""); setSoucisFilterFrom(""); setSoucisFilterTo(""); }}
+                      className="text-[10px] px-2.5 py-1 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200 transition-colors">
+                      Effacer
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Liste */}
               {soucisActifs.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 bg-orange-50 dark:bg-orange-900/20">
@@ -2614,13 +2965,13 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                   <div className="space-y-0.5">{soucisTermines.map(renderSoucisRow)}</div>
                 </div>
               )}
-              {allSoucisCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun soucis de montage trouvé</p>}
+              {filteredSoucisProjects.length === 0 && <p className="text-sm text-gray-400 py-2 text-center">Aucun soucis sur cette période</p>}
             </div>
           );
         }
 
         const isRdvAFixer = false; // rdv-a-fixer has its own return above
-        const isDossiersEnCours = showSummaryPanel === "dossiers-en-cours";
+        const isDossiersEnCours = (showSummaryPanel as string) === "dossiers-en-cours";
         const isAFacturer = showSummaryPanel === "a-facturer";
         const isEmplacementCabines = showSummaryPanel === "emplacement-cabines";
         const dateLabel = "Date";
