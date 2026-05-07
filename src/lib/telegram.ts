@@ -39,7 +39,7 @@ export async function sendReportToTelegram({
     // Send PDF
     const pdfForm = new FormData();
     pdfForm.append("chat_id", CHAT_ID);
-    pdfForm.append("document", new Blob([pdfBuffer], { type: "application/pdf" }), pdfFilename);
+    pdfForm.append("document", new Blob([pdfBuffer.buffer as ArrayBuffer], { type: "application/pdf" }), pdfFilename);
     pdfForm.append("caption", caption);
     pdfForm.append("parse_mode", "MarkdownV2");
     await telegramApi("sendDocument", pdfForm);
