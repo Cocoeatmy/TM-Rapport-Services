@@ -197,10 +197,19 @@ function extractDateEnd(prop: any): string | null {
 
 function extractFiles(prop: any): FileItem[] {
   if (!prop || prop.type !== "files") return [];
+  // Dédup par URL : Notion peut stocker la même URL deux fois si une
+  // requête a été rejouée (retry réseau, double-tap, instances Vercel
+  // concurrentes). On nettoie ici une bonne fois pour toutes.
+  const seenUrls = new Set<string>();
   return (prop.files?.map((f: any) => ({
     name: f.name || "file",
     url: f.type === "external" ? f.external?.url : f.file?.url || "",
-  })) || []).filter((f: FileItem) => f.url && f.url.length > 0);
+  })) || []).filter((f: FileItem) => {
+    if (!f.url || f.url.length === 0) return false;
+    if (seenUrls.has(f.url)) return false;
+    seenUrls.add(f.url);
+    return true;
+  });
 }
 
 function extractPlace(prop: any): string {

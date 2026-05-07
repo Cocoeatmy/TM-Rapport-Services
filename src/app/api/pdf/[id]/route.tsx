@@ -768,9 +768,16 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
 
         // groups[cabine][bucket] = liste de photos
         const groups: Record<number, Partial<Record<PhotoBucketKey, Photo[]>>> = {};
+        // Dédup global par URL : si la même photo se retrouve dans deux
+        // champs Notion différents (suite à un retry réseau, une race
+        // condition entre instances Vercel ou un ancien bug de migration),
+        // elle n'est rendue qu'une seule fois dans le PDF.
+        const seenPdfUrls = new Set<string>();
         const dispatchList = (list: Photo[], notionFieldKey: "photosAvant" | "photosMontage" | "photosQRCode" | "photosGaranties") => {
           const fallback = defaultBucketForField(notionFieldKey);
           for (const p of list) {
+            if (!p.url || seenPdfUrls.has(p.url)) continue;
+            seenPdfUrls.add(p.url);
             const bucket = detectBucket(p.name, fallback);
             const cab = extractCabine(p.name) ?? 0;
             if (!groups[cab]) groups[cab] = {};
