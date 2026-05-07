@@ -267,11 +267,6 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
               Stats
             </button>
           )}
-          {isAdmin && (
-            <button onClick={() => { handleSelect("projets-tous"); setOpen(null); }} className={tabCls(mode === "projets-tous")}>
-              Projets
-            </button>
-          )}
         </div>
       </div>
 

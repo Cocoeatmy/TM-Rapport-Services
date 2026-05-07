@@ -122,6 +122,7 @@ export interface Project {
   commentairesMesures: string;
   soucisMontage: boolean;
   causeSoucis: string;
+  causeSAV: string;
   etatSAV: string;
   dateRDVSAV: string | null;
   sav: boolean;
@@ -281,6 +282,7 @@ export function mapPageToProject(page: any): Project {
     commentairesMesures: extractText(p["Commentaires Mesures"]),
     soucisMontage: p["Soucis montage"]?.checkbox || false,
     causeSoucis: extractSelect(p["Cause Soucis montages"]),
+    causeSAV: extractSelect(p["Cause SAV"]),
     etatSAV: extractStatus(p["État - SAV"]),
     dateRDVSAV: extractDate(p["Date - RDV SAV"]),
     sav: p["SAV"]?.checkbox || false,

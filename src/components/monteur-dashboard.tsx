@@ -522,7 +522,7 @@ function getArrivageInfo(p: { arrivageTM?: string | null; arrivageGrossiste?: st
     // Pas encore arrivé
     colorClass = "text-gray-500 dark:text-gray-400";
     bgClass = "bg-gray-100 dark:bg-gray-800";
-  } else if (days <= 6) {
+  } else if (days <= 5) {
     colorClass = "text-green-700 dark:text-green-400";
     bgClass = "bg-green-100 dark:bg-green-900/30";
   } else if (days <= 9) {
@@ -1110,7 +1110,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | null>(null);
   const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
@@ -1340,7 +1340,7 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
     const cloture = (p.rapportDeMontage || "").toLowerCase().includes("clôt") ||
                     (p.rapportDeMontage || "").toLowerCase().includes("clot");
     return !cloture;
-  }).sort((a, b) => ((a.dateMontage || "").split("T")[0]).localeCompare((b.dateMontage || "").split("T")[0]));
+  }).sort((a, b) => ((b.dateMontage || "").split("T")[0]).localeCompare((a.dateMontage || "").split("T")[0]));
   const rapportsAttenteCount = rapportsAttenteProjects.length;
 
   // SAV non traités : tous les SAV actifs (pas terminés/annulés)
@@ -1538,12 +1538,12 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Montages aujourd'hui</p>
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
         </button>
-        <div className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center transition-all ${showSummaryPanel !== null ? "opacity-40 scale-[0.97]" : ""}`}>
+        <button onClick={() => setShowSummaryPanel(showSummaryPanel === "services-today" ? null : "services-today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("services-today", "ring-violet-400")}`}>
           <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center"><Settings className="w-4 h-4 text-violet-500 dark:text-violet-400" /></span>
           <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{servicesTodayCount}</p>
           <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Services aujourd'hui</p>
           <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{servicesTodayCabines} cab.</p>
-        </div>
+        </button>
         <button onClick={() => setShowSummaryPanel(showSummaryPanel === "sav-today" ? null : "sav-today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all ${activeBtn("sav-today", "ring-red-400")}`}>
           <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" /></span>
           <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{savTodayCount}</p>
@@ -1731,12 +1731,24 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           return (
             <div className="glass-card rounded-2xl p-4 space-y-4">
               {/* Header navigation */}
-              <div className="flex items-center justify-between">
-                <button onClick={() => { setCalendarMonth(m => { const d = new Date(m.year, m.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }); setCalendarSelectedDay(null); }} className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center transition-colors">
+              <div className="flex items-center justify-between gap-2">
+                <button onClick={() => { setCalendarMonth(m => { const d = new Date(m.year, m.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }); setCalendarSelectedDay(null); }} className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center transition-colors shrink-0">
                   <ChevronLeft className="w-4 h-4 text-gray-500" />
                 </button>
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 capitalize">{monthLabel}</p>
-                <button onClick={() => { setCalendarMonth(m => { const d = new Date(m.year, m.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }); setCalendarSelectedDay(null); }} className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center transition-colors">
+                <div className="flex items-center gap-2 flex-1 justify-center">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 capitalize">{monthLabel}</p>
+                  <input
+                    type="month"
+                    value={`${year}-${String(month + 1).padStart(2, "0")}`}
+                    onChange={(e) => {
+                      const [y, mo] = e.target.value.split("-").map(Number);
+                      if (y && mo) { setCalendarMonth({ year: y, month: mo - 1 }); setCalendarSelectedDay(null); }
+                    }}
+                    className="text-[10px] text-gray-500 dark:text-gray-400 bg-transparent border-none outline-none cursor-pointer w-5 opacity-50 hover:opacity-100 transition-opacity"
+                    title="Aller à un mois"
+                  />
+                </div>
+                <button onClick={() => { setCalendarMonth(m => { const d = new Date(m.year, m.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }); setCalendarSelectedDay(null); }} className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center transition-colors shrink-0">
                   <ChevronRight className="w-4 h-4 text-gray-500" />
                 </button>
               </div>
@@ -2085,6 +2097,10 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
           panelTitle = "SAV aujourd'hui";
           panelProjects = savTodayProjects
             .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+        } else if (showSummaryPanel === "services-today") {
+          panelTitle = "Services aujourd'hui";
+          panelProjects = servicesTodayProjects
+            .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
         } else if (showSummaryPanel === "emplacement-cabines") {
           panelTitle = "Emplacement cabines";
           panelProjects = emplacementCabinesProjects.sort((a, b) => {
@@ -2096,8 +2112,59 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
             return ea.localeCompare(eb);
           });
         } else if (showSummaryPanel === "rapports-attente") {
-          panelTitle = "Rapports en attente";
-          panelProjects = rapportsAttenteProjects;
+          /* ── RAPPORTS EN ATTENTE ─────────────────────────────── */
+          return (
+            <div className="glass-card rounded-2xl p-4 space-y-1.5">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                Rapports en attente ({rapportsAttenteProjects.length})
+              </p>
+              {rapportsAttenteProjects.length > 0 && (
+                <div className="hidden sm:flex items-center gap-2 px-2 pb-1.5 text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                  <span className="w-20 shrink-0">Date montage</span>
+                  <span className="w-20 shrink-0">N° OFR TM</span>
+                  <span className="flex-1">Projet</span>
+                  <span className="w-14 text-right">Cab.</span>
+                </div>
+              )}
+              {rapportsAttenteProjects.length === 0 && (
+                <p className="text-sm text-gray-400 py-2 text-center">Tous les rapports sont clôturés 🎉</p>
+              )}
+              {rapportsAttenteProjects.map((p, idx) => {
+                const dateStr = (p.dateMontage || p.dateMesures || "").split("T")[0];
+                const names = (p.collaborateurs || "").split(" & ").map((n: string) => n.trim()).filter(Boolean);
+                const rowBg = idx % 2 === 0 ? "bg-orange-50/50 dark:bg-orange-950/20" : "bg-orange-100/40 dark:bg-orange-900/15";
+                const logo = getClientLogo(p.projet);
+                const isOld = dateStr && dateStr < todayStr;
+                return (
+                  <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-orange-200/60 dark:hover:bg-orange-800/30 transition-colors text-xs ${rowBg}`}>
+                    <span className={`w-20 shrink-0 font-mono text-[10px] tabular-nums ${isOld ? "text-red-500 dark:text-red-400 font-semibold" : "text-gray-500 dark:text-gray-400"}`}>
+                      {dateStr ? new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" }) : "---"}
+                    </span>
+                    <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
+                      {parseTMNumbers(p.ofrTM || "").length > 0
+                        ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
+                            <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                          ))
+                        : <span className="font-mono text-xs text-gray-400">---</span>
+                      }
+                    </span>
+                    <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                    {logo && <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                    <div className="flex -space-x-1 shrink-0">
+                      {names.slice(0, 3).map((n: string) => (
+                        <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                          style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                          {getCollaboratorInitials(n)}
+                        </span>
+                      ))}
+                    </div>
+                    <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                  </Link>
+                );
+              })}
+            </div>
+          );
         } else if (showSummaryPanel === "sav-non-traites") {
           panelTitle = "SAV non traités";
           panelProjects = savNonTraitesProjects;
@@ -2726,11 +2793,19 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                         {groupProjects.length} projet{groupProjects.length > 1 ? "s" : ""} · {groupProjects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
                       </span>
                     </div>
-                    {groupProjects.map((p, idx) => {
+                    {[...groupProjects].sort((a, b) => {
+                      const da = (a.arrivageTM || a.arrivageGrossiste || "");
+                      const db = (b.arrivageTM || b.arrivageGrossiste || "");
+                      if (!da && !db) return 0;
+                      if (!da) return 1;
+                      if (!db) return -1;
+                      return da.localeCompare(db); // plus ancienne en premier = plus urgente
+                    }).map((p, idx) => {
                       const rowBg = idx % 2 === 0
                         ? "bg-white/60 dark:bg-slate-800/40"
                         : "bg-blue-50/40 dark:bg-blue-950/15";
                       const emplacements = p.emplacementCabine ? p.emplacementCabine.split(", ") : [];
+                      const arrivage = getArrivageInfo(p);
                       return (
                         <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                           className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
@@ -2751,6 +2826,19 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                             }
                           </span>
                           <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                          {/* Arrivage date + J+ badge */}
+                          {arrivage && (
+                            <span className={`shrink-0 flex flex-col items-end gap-0.5`}>
+                              <span className={`text-[9px] font-mono tabular-nums ${arrivage.colorClass}`}>
+                                {arrivage.label} {new Date(arrivage.date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
+                              </span>
+                              {arrivage.days !== null && arrivage.days >= 0 && (
+                                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${arrivage.bgClass} ${arrivage.colorClass}`}>
+                                  J+{arrivage.days}
+                                </span>
+                              )}
+                            </span>
+                          )}
                           {(() => { const logo = getClientLogo(p.projet); return logo ? (
                             <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
                           ) : null; })()}
@@ -2847,28 +2935,41 @@ function AdminDashboard({ projects, userName, onNavigate }: { projects: Project[
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                         <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
                         {(showSummaryPanel === "rdv-fixe") && (
-                          isMesure ? (
-                            <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-cyan-100 text-cyan-700">Mesures</span>
-                          ) : (
-                            (p.typeServices && p.typeServices.length > 0) ? p.typeServices.flatMap((ts) => {
-                              const parts = ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts];
-                              return parts.map((part) => {
-                                const tsColors: Record<string, string> = {
-                                  "Montages": "bg-orange-100 text-orange-700",
-                                  "Montage": "bg-orange-100 text-orange-700",
-                                  "Services": "bg-emerald-100 text-emerald-700",
-                                  "SAV": "bg-red-100 text-red-700",
-                                  "Livraison": "bg-amber-100 text-amber-700",
-                                  "Dépannage": "bg-pink-100 text-pink-700",
-                                  "Démontage": "bg-rose-100 text-rose-700",
-                                  "Remplacement": "bg-indigo-100 text-indigo-700",
-                                };
-                                return <span key={part} className={`shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${tsColors[part] || "bg-gray-100 text-gray-600"}`}>{part}</span>;
-                              });
-                            }) : (
-                              <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Montages</span>
-                            )
-                          )
+                          <span className="flex items-center gap-1 shrink-0">
+                            {isMesure ? (
+                              <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-cyan-100 text-cyan-700">Mesures</span>
+                            ) : (
+                              (p.typeServices && p.typeServices.length > 0) ? p.typeServices.flatMap((ts) => {
+                                const parts = ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts];
+                                return parts.map((part) => {
+                                  const tsColors: Record<string, string> = {
+                                    "Montages": "bg-orange-100 text-orange-700",
+                                    "Montage": "bg-orange-100 text-orange-700",
+                                    "Services": "bg-emerald-100 text-emerald-700",
+                                    "SAV": "bg-red-100 text-red-700",
+                                    "Livraison": "bg-amber-100 text-amber-700",
+                                    "Dépannage": "bg-pink-100 text-pink-700",
+                                    "Démontage": "bg-rose-100 text-rose-700",
+                                    "Remplacement": "bg-indigo-100 text-indigo-700",
+                                  };
+                                  return <span key={part} className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${tsColors[part] || "bg-gray-100 text-gray-600"}`}>{part}</span>;
+                                });
+                              }) : (
+                                <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Montages</span>
+                              )
+                            )}
+                            {/* Initiales collaborateurs */}
+                            {names.length > 0 && (
+                              <span className="flex -space-x-1">
+                                {names.slice(0, 3).map((n) => (
+                                  <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                                    style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                                    {getCollaboratorInitials(n)}
+                                  </span>
+                                ))}
+                              </span>
+                            )}
+                          </span>
                         )}
                         {(() => { const logo = getClientLogo(p.projet); return logo ? (
                           <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
