@@ -119,6 +119,7 @@ function BucketPhotoUpload({
   const notionFieldKey = BUCKET_NOTION_FIELD[bucket];
   const notionFieldName: Record<typeof notionFieldKey, string> = {
     photosAvant: "Photos avant montage",
+    photosDemontage: "Photos démontage",
     photosMontage: "Photos montage terminé",
     photosQRCode: "Photos QR Code",
     photosGaranties: "Photos garanties",
@@ -2069,7 +2070,7 @@ function ProjectPageContent({ id }: { id: string }) {
           // Le polling sert uniquement à la collaboration sur les textes.
           if (prev) {
             const photoFields = [
-              "photosAvant", "photosMontage", "photosQRCode", "photosGaranties",
+              "photosAvant", "photosDemontage", "photosMontage", "photosQRCode", "photosGaranties",
               "photosCartons", "photosSituations", "photosMesures", "photosLocalite",
               "photosPiecesManquantes", "photosDefautsSignale",
             ] as const;
@@ -3228,6 +3229,7 @@ function ProjectPageContent({ id }: { id: string }) {
                     </div>
                     <Separator />
                     <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} />
+                    <BucketPhotoUpload bucket="DEMONTAGE" projectId={id} project={project} setProject={setProject} />
                     <div className="grid grid-cols-3 gap-3">
                       <BucketPhotoUpload bucket="MONTAGE_GAUCHE" projectId={id} project={project} setProject={setProject} />
                       <BucketPhotoUpload bucket="MONTAGE_CENTRE" projectId={id} project={project} setProject={setProject} />
@@ -3447,6 +3449,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
                           {/* Photos cabine */}
                           <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <BucketPhotoUpload bucket="DEMONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                           <div className="grid grid-cols-3 gap-3">
                             <BucketPhotoUpload bucket="MONTAGE_GAUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                             <BucketPhotoUpload bucket="MONTAGE_CENTRE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
@@ -3557,7 +3560,7 @@ function ProjectPageContent({ id }: { id: string }) {
                     if (!prev) return data;
                     const incoming = { ...data } as typeof data;
                     const photoFields = [
-                      "photosAvant", "photosMontage", "photosQRCode", "photosGaranties",
+                      "photosAvant", "photosDemontage", "photosMontage", "photosQRCode", "photosGaranties",
                       "photosCartons", "photosSituations", "photosMesures", "photosLocalite",
                       "photosPiecesManquantes", "photosDefautsSignale",
                     ] as const;

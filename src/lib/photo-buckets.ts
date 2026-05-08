@@ -3,6 +3,7 @@
 // du nom de fichier et on stocke tout dans les colonnes Notion existantes :
 //
 //   "Photos avant montage"     ← AVANT_INTERVENTION + AVANT_MONTAGE
+//   "Photos démontage"         ← DEMONTAGE (seul)
 //   "Photos montage terminé"   ← MONTAGE_GAUCHE + MONTAGE_CENTRE
 //                                + MONTAGE_DROITE + APRES_INTERVENTION
 //   "Photos QR Code"           ← QR_CODE (seul)
@@ -15,6 +16,7 @@
 export type PhotoBucketKey =
   | "AVANT_INTERVENTION"
   | "AVANT_MONTAGE"
+  | "DEMONTAGE"
   | "MONTAGE_GAUCHE"
   | "MONTAGE_CENTRE"
   | "MONTAGE_DROITE"
@@ -25,6 +27,7 @@ export type PhotoBucketKey =
 export const BUCKET_PREFIX: Record<PhotoBucketKey, string> = {
   AVANT_INTERVENTION: "Avant intervention",
   AVANT_MONTAGE: "Avant montage",
+  DEMONTAGE: "Demontage",
   MONTAGE_GAUCHE: "Montage gauche",
   MONTAGE_CENTRE: "Montage centre",
   MONTAGE_DROITE: "Montage droite",
@@ -36,6 +39,7 @@ export const BUCKET_PREFIX: Record<PhotoBucketKey, string> = {
 export const BUCKET_LABEL: Record<PhotoBucketKey, string> = {
   AVANT_INTERVENTION: "Photos avant intervention",
   AVANT_MONTAGE: "Photos avant montage",
+  DEMONTAGE: "Photos démontage",
   MONTAGE_GAUCHE: "Photos montage — gauche",
   MONTAGE_CENTRE: "Photos montage — centre",
   MONTAGE_DROITE: "Photos montage — droite",
@@ -47,10 +51,11 @@ export const BUCKET_LABEL: Record<PhotoBucketKey, string> = {
 // Mapping bucket → champ Notion qui stocke ses fichiers.
 export const BUCKET_NOTION_FIELD: Record<
   PhotoBucketKey,
-  "photosAvant" | "photosMontage" | "photosQRCode" | "photosGaranties"
+  "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties"
 > = {
   AVANT_INTERVENTION: "photosAvant",
   AVANT_MONTAGE: "photosAvant",
+  DEMONTAGE: "photosDemontage",
   MONTAGE_GAUCHE: "photosMontage",
   MONTAGE_CENTRE: "photosMontage",
   MONTAGE_DROITE: "photosMontage",
@@ -63,6 +68,7 @@ export const BUCKET_NOTION_FIELD: Record<
 export const BUCKET_ORDER: PhotoBucketKey[] = [
   "AVANT_INTERVENTION",
   "AVANT_MONTAGE",
+  "DEMONTAGE",
   "MONTAGE_GAUCHE",
   "MONTAGE_CENTRE",
   "MONTAGE_DROITE",
@@ -75,9 +81,10 @@ export const BUCKET_ORDER: PhotoBucketKey[] = [
 // On choisit celui qui correspond à l'ancien comportement, afin que les
 // photos déjà uploadées avant ce refactor restent visibles à un seul endroit.
 export function defaultBucketForField(
-  field: "photosAvant" | "photosMontage" | "photosQRCode" | "photosGaranties",
+  field: "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties",
 ): PhotoBucketKey {
   if (field === "photosAvant") return "AVANT_INTERVENTION";
+  if (field === "photosDemontage") return "DEMONTAGE";
   if (field === "photosMontage") return "MONTAGE_CENTRE";
   if (field === "photosQRCode") return "QR_CODE";
   return "GARANTIE";
@@ -140,6 +147,7 @@ export function filterByBucket<T extends { name: string }>(
 /** Photos sources d'un projet, regroupées par champ Notion. */
 export interface ProjectPhotoSources {
   photosAvant?: { name: string }[];
+  photosDemontage?: { name: string }[];
   photosMontage?: { name: string }[];
   photosQRCode?: { name: string }[];
   photosGaranties?: { name: string }[];
@@ -153,7 +161,7 @@ export function bucketsPresent(
   const present = new Set<PhotoBucketKey>();
   const check = (
     list: { name: string }[] | undefined,
-    field: "photosAvant" | "photosMontage" | "photosQRCode" | "photosGaranties",
+    field: "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties",
   ) => {
     if (!list) return;
     const fallback = defaultBucketForField(field);
@@ -170,6 +178,7 @@ export function bucketsPresent(
     }
   };
   check(project.photosAvant, "photosAvant");
+  check(project.photosDemontage, "photosDemontage");
   check(project.photosMontage, "photosMontage");
   check(project.photosQRCode, "photosQRCode");
   check(project.photosGaranties, "photosGaranties");

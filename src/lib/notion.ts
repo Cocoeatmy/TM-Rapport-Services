@@ -96,6 +96,7 @@ export interface Project {
   commentairesMontages: string;
   rapportMonteur: string;
   photosAvant: FileItem[];
+  photosDemontage: FileItem[];
   photosMontage: FileItem[];
   photosQRCode: FileItem[];
   photosGaranties: FileItem[];
@@ -257,6 +258,7 @@ export function mapPageToProject(page: any): Project {
     commentairesMontages: extractText(p["Commentaires Montages"]),
     rapportMonteur: extractText(p["Rapport monteur"]),
     photosAvant: extractFiles(p["Photos avant montage"]),
+    photosDemontage: extractFiles(p["Photos démontage"]),
     photosMontage: extractFiles(p["Photos montage terminé"]),
     photosQRCode: extractFiles(p["Photos QR Code"]),
     photosGaranties: extractFiles(p["Photos garanties"]),
@@ -949,6 +951,7 @@ export async function updateProject(
   };
   writeFilesField("photosCartons", "État des cartons réceptionnés", "carton");
   writeFilesField("photosAvant", "Photos avant montage", "avant");
+  writeFilesField("photosDemontage", "Photos démontage", "demontage");
   writeFilesField("photosMontage", "Photos montage terminé", "montage");
   writeFilesField("photosQRCode", "Photos QR Code", "qrcode");
   writeFilesField("photosGaranties", "Photos garanties", "garantie");
