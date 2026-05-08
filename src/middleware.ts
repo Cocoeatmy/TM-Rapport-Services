@@ -13,6 +13,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/cron/") ||
     pathname.startsWith("/api/client/") ||
     pathname.startsWith("/api/reminders") ||
+    pathname.startsWith("/api/notion-webhook") || // webhook Notion (pas de cookie auth)
     pathname.startsWith("/client/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/icons") ||
