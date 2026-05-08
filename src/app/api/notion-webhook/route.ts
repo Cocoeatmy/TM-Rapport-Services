@@ -18,6 +18,9 @@ import { revalidatePath } from "next/cache";
 import { createHmac, timingSafeEqual } from "crypto";
 import { invalidateCache } from "@/lib/server-cache";
 
+// Forcer le rendu dynamique — indispensable pour recevoir des webhooks
+export const dynamic = "force-dynamic";
+
 // Toutes les routes API projets à invalider lors d'un changement Notion
 const PROJECT_PATHS = [
   "/api/projects",
@@ -130,11 +133,18 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET pour vérifier que l'endpoint est accessible
+// GET — health check (Notion peut utiliser GET pour valider l'endpoint)
 export async function GET() {
-  return NextResponse.json({
-    status: "ok",
-    endpoint: "/api/notion-webhook",
-    secured: !!process.env.NOTION_WEBHOOK_SECRET,
+  return NextResponse.json(
+    { status: "ok", endpoint: "/api/notion-webhook", secured: !!process.env.NOTION_WEBHOOK_SECRET },
+    { headers: { "Access-Control-Allow-Origin": "*" } },
+  );
+}
+
+// HEAD — Notion envoie une requête HEAD pour valider le SSL/accessibilité
+export async function HEAD() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: { "Access-Control-Allow-Origin": "*" },
   });
 }
