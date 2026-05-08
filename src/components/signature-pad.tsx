@@ -90,14 +90,34 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
   }, [existingSignature]);
 
   useEffect(() => {
-    // Wait for next frame to ensure container is rendered
-    requestAnimationFrame(() => {
-      initCanvas();
-    });
+    // Tentative immédiate (cas nominal — container déjà visible)
+    let raf = requestAnimationFrame(() => initCanvas());
+
+    // Fallback ResizeObserver : si le conteneur est dans un layout
+    // encore invisible (width=0) au moment du RAF, initCanvas() retourne
+    // sans setReady(true) → les events de dessin ne sont jamais attachés.
+    // Le ResizeObserver re-déclenche initCanvas() dès que le conteneur
+    // acquiert une largeur non nulle (ex: carte révélée par scroll).
+    const container = containerRef.current;
+    let ro: ResizeObserver | undefined;
+    if (container && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          if ((entry.contentRect?.width ?? 0) > 0) {
+            initCanvas();
+          }
+        }
+      });
+      ro.observe(container);
+    }
 
     const handleResize = () => initCanvas();
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro?.disconnect();
+      window.removeEventListener("resize", handleResize);
+    };
   }, [initCanvas]);
 
   const getPos = (e: TouchEvent | MouseEvent): { x: number; y: number } | null => {
@@ -123,9 +143,21 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
     const canvas = canvasRef.current;
     if (!canvas || !ready) return;
 
+    const getCtx = () => {
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+      // Réapplique les styles car ils peuvent être perdus si le canvas
+      // a été redimensionné (canvas.width= reset tout le contexte).
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = "#1e3a5f";
+      return ctx;
+    };
+
     const handleStart = (e: TouchEvent | MouseEvent) => {
       e.preventDefault();
-      const ctx = canvas.getContext("2d");
+      const ctx = getCtx();
       if (!ctx) return;
       const pos = getPos(e);
       if (!pos) return;
@@ -139,7 +171,7 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
     const handleMove = (e: TouchEvent | MouseEvent) => {
       e.preventDefault();
       if (!drawingRef.current) return;
-      const ctx = canvas.getContext("2d");
+      const ctx = getCtx();
       if (!ctx) return;
       const pos = getPos(e);
       if (!pos) return;
