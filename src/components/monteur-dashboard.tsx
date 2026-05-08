@@ -2675,9 +2675,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       );
                     })}
                   </div>
-                  <span className="ml-auto text-[10px] font-semibold bg-white/60 dark:bg-white/10 px-2 py-0.5 rounded-full shrink-0">
-                    {categoryProjects.length} projet{categoryProjects.length > 1 ? "s" : ""}
-                  </span>
+                  <div className="ml-auto flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] font-semibold bg-white/60 dark:bg-white/10 px-2 py-0.5 rounded-full">
+                      {categoryProjects.length} projet{categoryProjects.length > 1 ? "s" : ""}
+                    </span>
+                    <span className="text-[10px] font-semibold bg-white/60 dark:bg-white/10 px-2 py-0.5 rounded-full">
+                      {categoryProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cab.
+                    </span>
+                  </div>
                 </div>
                 {dateLabel && (
                   <div className="hidden sm:flex items-center gap-2 px-2 py-0.5 mb-1 text-[9px] font-semibold text-gray-400 uppercase tracking-wider">
