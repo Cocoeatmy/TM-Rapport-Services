@@ -16,7 +16,7 @@
 
 const cache = new Map<string, { data: unknown; expires: number; staleAt: number }>();
 const TTL = 5 * 60 * 1000;          // 5 min — durée totale avant purge
-const FRESH_MS = 30 * 1000;         // 30 s — fenêtre où la donnée est considérée fraîche
+const FRESH_MS = 10 * 1000;         // 10 s — fenêtre où la donnée est considérée fraîche (réduit de 30→10 pour sync Notion plus rapide)
 
 // Cache de secours : conserve les données jusqu'à 30 min même après expiration
 // du cache principal. Utilisé uniquement quand Notion est indisponible / rate-limité.

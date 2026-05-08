@@ -60,8 +60,8 @@ export interface EdgeCacheOptions {
 }
 
 export function cachedJson<T>(data: T, options: EdgeCacheOptions = {}): NextResponse {
-  const sMaxAge = options.sMaxAge ?? 10;
-  const swr = options.swr ?? 60;
+  const sMaxAge = options.sMaxAge ?? 5;   // réduit de 10→5 s pour une sync Notion plus rapide
+  const swr = options.swr ?? 30;          // réduit de 60→30 s
   return NextResponse.json(data, {
     headers: {
       "Cache-Control": `public, max-age=0, must-revalidate, s-maxage=${sMaxAge}, stale-while-revalidate=${swr}`,

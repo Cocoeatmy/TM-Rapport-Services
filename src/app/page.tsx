@@ -953,6 +953,37 @@ function HomePage() {
     };
   }, [refreshAllProjects]);
 
+  // ── Polling arrière-plan : toutes les 30 s, rafraîchit l'endpoint du
+  // mode courant (uniquement si la page est visible). Silencieux — aucune
+  // interruption UI. Garantit que les changements Notion apparaissent en
+  // ≤ 30 s sans aucune action de l'utilisateur.
+  useEffect(() => {
+    const POLL_MS = 30_000; // 30 s
+    const poll = () => {
+      if (typeof document !== "undefined" && document.hidden) return; // page en arrière-plan : skip
+      const url = MODE_API[mode];
+      if (!url) return;
+      fetch(url)
+        .then((r) => r.json())
+        .then((data) => {
+          if (!Array.isArray(data)) return;
+          setProjectsData((prev) => {
+            // Met à jour toutes les clés qui pointent vers cette URL
+            const updated = { ...prev };
+            Object.entries(MODE_API).forEach(([key, u]) => {
+              if (u === url) updated[key] = data;
+            });
+            try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+            return updated;
+          });
+        })
+        .catch(() => {}); // silencieux en cas d'erreur réseau
+    };
+    const timer = setInterval(poll, POLL_MS);
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]); // relancé à chaque changement de mode
+
   const handleDeleteProject = useCallback(async (projectId: string) => {
     // Optimistic removal
     setProjectsData((prev) => {
