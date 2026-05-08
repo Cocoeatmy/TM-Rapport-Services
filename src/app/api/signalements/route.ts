@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getProjects, getAllActiveProjects } from "@/lib/notion";
 
-export const revalidate = 120;
+export const revalidate = 30;
 
 interface PieceItem {
   id: string;

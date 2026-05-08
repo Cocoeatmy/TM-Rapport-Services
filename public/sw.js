@@ -1,8 +1,8 @@
-// Service worker TM Rapport — v7
+// Service worker TM Rapport — v8
 // Stratégies :
 //   - Statique (_next/static, icons, logos, manifest) : cache-first (permanent).
-//   - API GET : network-first avec timeout 800 ms → on privilégie toujours la
-//     donnée fraîche, mais si le réseau tarde (> 800 ms) ou échoue, on sert le
+//   - API GET : network-first avec timeout 400 ms → on privilégie toujours la
+//     donnée fraîche, mais si le réseau tarde (> 400 ms) ou échoue, on sert le
 //     cache pour ne pas bloquer l'UI. Le cache API est mis à jour en
 //     silence à chaque fois que le réseau répond.
 //   - Pages HTML : network-first avec fallback cache + page offline.
@@ -12,7 +12,7 @@
 //
 // Les noms de cache sont versionnés : un bump de version purge tout l'ancien.
 
-const VERSION = "v7";
+const VERSION = "v8";
 const CACHE_NAME = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE = `tm-api-${VERSION}`;
@@ -29,7 +29,7 @@ const STATIC_ASSETS = [
 
 // Au-delà de ce délai, on considère que le réseau est trop lent et on sert
 // le cache (s'il existe) pour ne pas faire attendre l'utilisateur.
-const NETWORK_TIMEOUT_MS = 800;
+const NETWORK_TIMEOUT_MS = 400;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

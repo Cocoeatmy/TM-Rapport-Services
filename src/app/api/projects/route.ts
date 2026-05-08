@@ -4,7 +4,7 @@ import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
 import { verifyToken } from "@/lib/auth";
 import { cachedJson, errorResponse } from "@/lib/edge-cache";
 
-export const revalidate = 120;
+export const revalidate = 30;
 
 export async function GET() {
   try {

@@ -59,28 +59,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Aucun fichier" }, { status: 400 });
     }
 
-    const uploaded: { name: string; url: string }[] = [];
+    // Uploads Cloudinary en parallèle (gain ~Nx sur N photos simultanées)
+    const uploaded: { name: string; url: string }[] = await Promise.all(
+      files.map(async (file) => {
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
 
-    for (const file of files) {
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
+        const result = await cloudinary.uploader.upload(base64, {
+          folder: `tm-rapport/${projectId}/${category}`,
+          resource_type: "image",
+          transformation: [
+            { width: 1200, crop: "limit" },
+            { quality: "auto:good" },
+            { fetch_format: "jpg" },
+          ],
+        });
 
-      const result = await cloudinary.uploader.upload(base64, {
-        folder: `tm-rapport/${projectId}/${category}`,
-        resource_type: "image",
-        transformation: [
-          { width: 1200, crop: "limit" },
-          { quality: "auto:good" },
-          { fetch_format: "jpg" },
-        ],
-      });
-
-      uploaded.push({
-        name: file.name,
-        url: result.secure_url,
-      });
-    }
+        return { name: file.name, url: result.secure_url };
+      })
+    );
 
     // Sauvegarder les URLs dans Notion si un champ est spécifié
     console.log("Upload done, saving to Notion:", { notionField, uploadedCount: uploaded.length });

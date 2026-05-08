@@ -2,7 +2,7 @@ import { getProjectsServices } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
 import { cachedJson, errorResponse } from "@/lib/edge-cache";
 
-export const revalidate = 120;
+export const revalidate = 30;
 
 export async function GET() {
   try {

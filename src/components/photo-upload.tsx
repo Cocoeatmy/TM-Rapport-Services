@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Camera, ImagePlus, X, Loader2, Download, CloudUpload } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
+import { compressImage } from "@/lib/compress-image";
 import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
 import { addPendingUpload, removePendingUpload } from "@/lib/idb-uploads";
 import { usePendingUploads } from "@/lib/use-pending-uploads";
@@ -95,6 +96,12 @@ export function PhotoUpload({
       return new File([file], newName, { type: file.type });
     });
 
+    // Compression côté client en parallèle avant upload.
+    // Réduit une photo iPhone (10 Mo) à ~400 Ko → upload 20x plus rapide.
+    const compressed: File[] = await Promise.all(
+      renamed.map((f) => compressImage(f, 1600, 0.82))
+    );
+
     // Helper : enregistre les fichiers en IDB pour upload différé
     // dès le retour réseau. Les blobs survivent au reload, et le
     // hook usePendingUploads les redessine en attendant la synchro.
@@ -126,7 +133,7 @@ export function PhotoUpload({
         return;
       }
       const formData = new FormData();
-      for (const f of renamed) formData.append("files", f);
+      for (const f of compressed) formData.append("files", f);
       formData.append("category", category);
       formData.append("projectId", projectId);
       if (notionField) formData.append("notionField", notionField);
