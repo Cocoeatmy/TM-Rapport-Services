@@ -17,13 +17,36 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createHmac, timingSafeEqual } from "crypto";
 import { invalidateCache } from "@/lib/server-cache";
+import { getData, setData } from "@/lib/kv-store";
 
 // Forcer le rendu dynamique — indispensable pour recevoir des webhooks
 export const dynamic = "force-dynamic";
 
-// Stockage en mémoire du jeton de vérification reçu de Notion
-// (visible via GET /api/notion-webhook pour le copier-coller)
-let storedVerificationToken: string | null = null;
+// Clé kv-store pour le jeton de vérification (persisté dans Notion)
+const KV_VERIFY_KEY = "notion-webhook-verify";
+
+// Cache mémoire local (évite un appel Notion à chaque GET sur la même instance)
+let cachedVerifyToken: string | null = null;
+
+async function storeVerificationToken(token: string): Promise<void> {
+  cachedVerifyToken = token;
+  try {
+    await setData<{ token: string }>(KV_VERIFY_KEY, [{ token }]);
+  } catch (err) {
+    console.error("[notion-webhook] Failed to persist verification token:", err);
+  }
+}
+
+async function getVerificationToken(): Promise<string | null> {
+  if (cachedVerifyToken) return cachedVerifyToken;
+  try {
+    const rows = await getData<{ token: string }>(KV_VERIFY_KEY);
+    cachedVerifyToken = rows[0]?.token ?? null;
+  } catch {
+    // Silencieux
+  }
+  return cachedVerifyToken;
+}
 
 // Toutes les routes API projets à invalider lors d'un changement Notion
 const PROJECT_PATHS = [
@@ -83,7 +106,7 @@ export async function POST(req: NextRequest) {
     // ── 2. Handshake de vérification initial ──────────────────────────────
     // Notion envoie un POST avec verification_token pour valider l'endpoint
     if (payload?.verification_token) {
-      storedVerificationToken = payload.verification_token;
+      await storeVerificationToken(payload.verification_token);
       console.log("[notion-webhook] Verification handshake reçu ✓ token:", payload.verification_token);
       return NextResponse.json({ verification_token: payload.verification_token });
     }
@@ -129,7 +152,7 @@ export async function POST(req: NextRequest) {
     try { payload = JSON.parse(rawBody); } catch { payload = {}; }
 
     if (payload?.verification_token) {
-      storedVerificationToken = payload.verification_token;
+      await storeVerificationToken(payload.verification_token);
       console.warn("[notion-webhook] ⚠️  Mode sans signature — token reçu:", payload.verification_token);
       return NextResponse.json({ verification_token: payload.verification_token });
     }
@@ -141,22 +164,20 @@ export async function POST(req: NextRequest) {
 
 // GET — health check + affichage du jeton de vérification si disponible
 export async function GET() {
+  const token = await getVerificationToken();
+
   const payload: Record<string, unknown> = {
     status: "ok",
     endpoint: "/api/notion-webhook",
     secured: !!process.env.NOTION_WEBHOOK_SECRET,
+    verification_token: token,
+    instruction: token
+      ? "Copiez ce jeton dans le champ 'Jeton de vérification' sur Notion"
+      : "Aucun jeton reçu pour l'instant — relancez la vérification depuis Notion",
   };
 
-  if (storedVerificationToken) {
-    payload.verification_token = storedVerificationToken;
-    payload.instruction = "Copiez ce jeton dans le champ 'Jeton de vérification' sur Notion";
-  } else {
-    payload.verification_token = null;
-    payload.instruction = "Aucun jeton reçu pour l'instant — relancez la vérification depuis Notion";
-  }
-
   return NextResponse.json(payload, {
-    headers: { "Access-Control-Allow-Origin": "*" },
+    headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" },
   });
 }
 
