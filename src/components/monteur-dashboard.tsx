@@ -3754,6 +3754,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         {(() => { const logo = getClientLogo(p.projet); return logo ? (
                           <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
                         ) : null; })()}
+                        {/* Initiales collaborateurs — visibles sur toutes les vues du rendu générique */}
+                        {(showSummaryPanel === "week" || showSummaryPanel === "today" || showSummaryPanel === "mesures-today" || showSummaryPanel === "sav-today" || showSummaryPanel === "services-today") && names.length > 0 && (
+                          <div className="flex -space-x-1 shrink-0">
+                            {names.slice(0, 3).map((n) => (
+                              <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                                style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                                {getCollaboratorInitials(n)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         {p.dateMontageEnd && (() => { const days = getWorkingDays(p.dateMontage || "", p.dateMontageEnd); return days.length > 1 ? (
                           <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{days.length}j</span>
                         ) : null; })()}
