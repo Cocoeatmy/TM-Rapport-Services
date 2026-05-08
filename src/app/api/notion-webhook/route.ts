@@ -21,6 +21,10 @@ import { invalidateCache } from "@/lib/server-cache";
 // Forcer le rendu dynamique — indispensable pour recevoir des webhooks
 export const dynamic = "force-dynamic";
 
+// Stockage en mémoire du jeton de vérification reçu de Notion
+// (visible via GET /api/notion-webhook pour le copier-coller)
+let storedVerificationToken: string | null = null;
+
 // Toutes les routes API projets à invalider lors d'un changement Notion
 const PROJECT_PATHS = [
   "/api/projects",
@@ -79,7 +83,8 @@ export async function POST(req: NextRequest) {
     // ── 2. Handshake de vérification initial ──────────────────────────────
     // Notion envoie un POST avec verification_token pour valider l'endpoint
     if (payload?.verification_token) {
-      console.log("[notion-webhook] Verification handshake reçu ✓");
+      storedVerificationToken = payload.verification_token;
+      console.log("[notion-webhook] Verification handshake reçu ✓ token:", payload.verification_token);
       return NextResponse.json({ verification_token: payload.verification_token });
     }
 
@@ -124,7 +129,8 @@ export async function POST(req: NextRequest) {
     try { payload = JSON.parse(rawBody); } catch { payload = {}; }
 
     if (payload?.verification_token) {
-      console.warn("[notion-webhook] ⚠️  Mode sans signature — ajouter NOTION_WEBHOOK_SECRET !");
+      storedVerificationToken = payload.verification_token;
+      console.warn("[notion-webhook] ⚠️  Mode sans signature — token reçu:", payload.verification_token);
       return NextResponse.json({ verification_token: payload.verification_token });
     }
 
@@ -133,12 +139,25 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET — health check (Notion peut utiliser GET pour valider l'endpoint)
+// GET — health check + affichage du jeton de vérification si disponible
 export async function GET() {
-  return NextResponse.json(
-    { status: "ok", endpoint: "/api/notion-webhook", secured: !!process.env.NOTION_WEBHOOK_SECRET },
-    { headers: { "Access-Control-Allow-Origin": "*" } },
-  );
+  const payload: Record<string, unknown> = {
+    status: "ok",
+    endpoint: "/api/notion-webhook",
+    secured: !!process.env.NOTION_WEBHOOK_SECRET,
+  };
+
+  if (storedVerificationToken) {
+    payload.verification_token = storedVerificationToken;
+    payload.instruction = "Copiez ce jeton dans le champ 'Jeton de vérification' sur Notion";
+  } else {
+    payload.verification_token = null;
+    payload.instruction = "Aucun jeton reçu pour l'instant — relancez la vérification depuis Notion";
+  }
+
+  return NextResponse.json(payload, {
+    headers: { "Access-Control-Allow-Origin": "*" },
+  });
 }
 
 // HEAD — Notion envoie une requête HEAD pour valider le SSL/accessibilité
