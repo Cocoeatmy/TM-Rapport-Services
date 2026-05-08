@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState, useRef } from "react";
+import { Suspense, useCallback, useEffect, useState, useRef, useDeferredValue, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Onboarding } from "@/components/onboarding";
 import { PullToRefresh } from "@/components/pull-to-refresh";
@@ -611,8 +611,15 @@ export default function Page() {
 // Recherche multi-champs : retourne true si le projet correspond à la
 // requête q (déjà en minuscules). Couvre tous les identifiants et
 // informations pertinents pour retrouver un projet rapidement.
-function matchesSearch(p: import("@/lib/notion").Project, q: string): boolean {
+// Si `prebuilt` est fourni (chaîne pré-indexée en minuscules), une seule
+// comparaison .includes() suffit → beaucoup plus rapide.
+function matchesSearch(
+  p: import("@/lib/notion").Project,
+  q: string,
+  prebuilt?: string,
+): boolean {
   if (!q) return true;
+  if (prebuilt !== undefined) return prebuilt.includes(q);
   const check = (v: string | null | undefined) => (v || "").toLowerCase().includes(q);
   return (
     check(p.projet) ||
@@ -653,6 +660,32 @@ function HomePage() {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
   const [search, setSearch] = useState(qParam || "");
+  // useDeferredValue : l'input répond immédiatement, le filtrage (coûteux)
+  // est décalé en tâche de priorité basse → recherche instantanée.
+  const deferredSearch = useDeferredValue(search);
+
+  // Index de recherche pré-calculé : un string unique par projet contenant
+  // tous les champs recherchables (en minuscules). Recalculé uniquement quand
+  // projectsData change, pas à chaque frappe.
+  const searchIndex = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const projects of Object.values(projectsData)) {
+      for (const p of projects) {
+        if (map.has(p.id)) continue;
+        map.set(p.id, [
+          p.projet, p.ofrTM, p.ofrGrossiste, p.nomChantier, p.adresseChantier,
+          p.cmdTM, p.cmdTMUsine, p.cmdGrossiste, p.cmdFournisseurs,
+          p.servCmdFournisseurs, p.servMesuresFournisseurs, p.bonLivraison,
+          p.collaborateurs, p.contacts, p.emplacementCabine,
+          ...(p.fournisseurs || []), ...(p.fournisseursNames || []),
+          ...(p.grossistesNames || []), ...(p.sanitaireNames || []),
+          ...(p.seriesCabines || []),
+        ].join(" ").toLowerCase());
+      }
+    }
+    return map;
+  }, [projectsData]);
+
   const [statusFilter, setStatusFilter] = useState<string | null>(statusParam);
   const [collabFilter, setCollabFilter] = useState<string | null>(collabParam || collaborateurParam);
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
@@ -1001,7 +1034,7 @@ function HomePage() {
     if (quickFilter === "rdv-a-fixer" && p.etatCMD !== "Cabine à aller chercher" && p.etatCMD !== "Récéptionné - RDV à fixer") {
       return false;
     }
-    return matchesSearch(p, search.toLowerCase());
+    return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
   }).sort((a, b) => {
     if (mode.startsWith("mesures")) {
       // Mesures : trier par statut prioritaire
@@ -1599,7 +1632,7 @@ function HomePage() {
         const grossistesFiltered = grossistesProjects.filter((p) => {
           if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
           if (statusFilter && p.etatCMD !== statusFilter) return false;
-          return matchesSearch(p, search.toLowerCase());
+          return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
         }).sort((a, b) => {
           const dateA = a.dateMontage;
           const dateB = b.dateMontage;
@@ -1950,7 +1983,7 @@ function HomePage() {
         const fournisseursFiltered = fournisseursProjects.filter((p) => {
           if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
           if (statusFilter && p.etatCMD !== statusFilter) return false;
-          return matchesSearch(p, search.toLowerCase());
+          return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
         }).sort((a, b) => {
           const dateA = a.dateMontage;
           const dateB = b.dateMontage;
@@ -2309,17 +2342,11 @@ function HomePage() {
           return p.typeClient === "Sanitaire" || p.typeClient === "Sanitaires";
         });
 
-        const q = search.toLowerCase();
+        const q = deferredSearch.toLowerCase();
         const sanitairesFiltered = sanitairesProjects.filter((p) => {
           if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
           if (statusFilter && p.etatCMD !== statusFilter) return false;
-          return (
-            p.projet.toLowerCase().includes(q) ||
-            p.ofrTM.toLowerCase().includes(q) ||
-            p.nomChantier.toLowerCase().includes(q) ||
-            p.fournisseurs.some((f) => f.toLowerCase().includes(q)) ||
-            (p.sanitaireNames || []).some((s: string) => s.toLowerCase().includes(q))
-          );
+          return matchesSearch(p, q, searchIndex.get(p.id));
         }).sort((a, b) => {
           const dateA = a.dateMontage;
           const dateB = b.dateMontage;
@@ -3897,15 +3924,9 @@ function HomePage() {
         const archiveProjects = (projectsData["archives"] || projectsData["cmd-termine"] || [])
           .sort((a: any, b: any) => ((b.dateMontage || "").localeCompare(a.dateMontage || "")));
 
-        const q = search.toLowerCase();
+        const q = deferredSearch.toLowerCase();
         const archiveFiltered = q
-          ? archiveProjects.filter((p: any) =>
-              p.projet.toLowerCase().includes(q) ||
-              p.ofrTM.toLowerCase().includes(q) ||
-              p.nomChantier.toLowerCase().includes(q) ||
-              p.collaborateurs.toLowerCase().includes(q) ||
-              p.fournisseurs.some((f: string) => f.toLowerCase().includes(q))
-            )
+          ? archiveProjects.filter((p: any) => matchesSearch(p, q, searchIndex.get(p.id)))
           : archiveProjects;
 
         // Group by month
@@ -4031,7 +4052,7 @@ function HomePage() {
         // Réutilise matchesSearch (fonction complète en tête de fichier) pour
         // chercher dans tous les champs : OFR, CMD, chantier, adresse,
         // collaborateurs, grossistes, fournisseurs, bon de livraison, etc.
-        const matchesQuery = (p: any) => matchesSearch(p, search.toLowerCase());
+        const matchesQuery = (p: any) => matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
 
         const allFiltered = allProjects.filter((p: any) =>
           inPeriod(p) && inStatus(p) && inFlags(p) && matchesQuery(p),

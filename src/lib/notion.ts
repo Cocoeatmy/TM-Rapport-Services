@@ -125,6 +125,7 @@ export interface Project {
   causeSAV: string;
   etatSAV: string;
   dateRDVSAV: string | null;
+  dateSAVRecu: string | null;
   sav: boolean;
   bonLivraison: string;
   signatureUrl: string;
@@ -285,6 +286,7 @@ export function mapPageToProject(page: any): Project {
     causeSAV: extractSelect(p["Cause SAV"]),
     etatSAV: extractStatus(p["État - SAV"]),
     dateRDVSAV: extractDate(p["Date - RDV SAV"]),
+    dateSAVRecu: extractDate(p["Date - SAV reçu le"]),
     sav: p["SAV"]?.checkbox || false,
     bonLivraison: (() => {
       const bl = p["Bon de livraison"];

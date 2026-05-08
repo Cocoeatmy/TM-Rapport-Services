@@ -11,3 +11,4 @@ data/pieces.json
 tsconfig.tsbuildinfo
 tm-rapport
 .vercel
+.env*.local

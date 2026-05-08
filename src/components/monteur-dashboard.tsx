@@ -1120,8 +1120,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
 
   // ── Helpers réorganisation ─────────────────────────────────────────────────
+  // Sauvegarde locale (immédiate) + serveur (multi-plateforme)
   const saveDashOrder = (order: string[]) => {
+    // 1. localStorage pour la réactivité immédiate
     try { localStorage.setItem(`tm-dashboard-order-${userName}`, JSON.stringify(order)); } catch {}
+    // 2. Persistance serveur (Notion) — fire-and-forget, pas bloquant
+    const slug = encodeURIComponent(userName);
+    fetch(`/api/preferences/dashboard-order/${slug}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order }),
+    }).catch(() => {/* silencieux, localStorage reste le fallback */});
   };
 
   const reorderDash = (srcId: string, dstId: string) => {
@@ -1176,24 +1185,61 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // ── Réorganisation boutons style iOS ──────────────────────────────────────
   const [isEditMode, setIsEditMode] = useState(false);
   // On initialise avec l'ordre par défaut pour éviter un écart SSR/client.
-  // useEffect lit localStorage après hydration → pas de reset au refresh (macOS).
+  // useEffect :
+  //   1. Applique immédiatement localStorage (cache rapide)
+  //   2. Fetch le serveur (source de vérité multi-plateforme)
+  //   3. Si le serveur a un ordre différent → met à jour + synchro localStorage
   const [buttonOrder, setButtonOrder] = useState<string[]>([...DEFAULT_DASH_ORDER]);
   useEffect(() => {
+    // Étape 1 : localStorage (instantané)
+    let localOrder: string[] | null = null;
     try {
       const saved = localStorage.getItem(`tm-dashboard-order-${userName}`);
       if (saved) {
         const parsed: string[] = JSON.parse(saved);
-        const valid = parsed.filter(id => DEFAULT_DASH_ORDER.includes(id));
+        const valid = parsed.filter((id: string) => DEFAULT_DASH_ORDER.includes(id));
         const missing = DEFAULT_DASH_ORDER.filter(id => !valid.includes(id));
-        setButtonOrder([...valid, ...missing]);
+        localOrder = [...valid, ...missing];
+        setButtonOrder(localOrder);
       }
     } catch {}
+
+    // Étape 2 : serveur (Notion) — source de vérité cross-device
+    const slug = encodeURIComponent(userName);
+    fetch(`/api/preferences/dashboard-order/${slug}`)
+      .then(r => r.json())
+      .then((data: { order: string[] | null }) => {
+        if (!Array.isArray(data?.order)) return;
+        const valid = data.order.filter((id: string) => DEFAULT_DASH_ORDER.includes(id));
+        const missing = DEFAULT_DASH_ORDER.filter(id => !valid.includes(id));
+        const serverOrder = [...valid, ...missing];
+        // Met à jour l'UI + synchro localStorage si différent du cache local
+        setButtonOrder(serverOrder);
+        try { localStorage.setItem(`tm-dashboard-order-${userName}`, JSON.stringify(serverOrder)); } catch {}
+      })
+      .catch(() => {/* localStorage reste utilisé si le serveur est inaccessible */});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [dragSrcId, setDragSrcId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchDragIdRef = useRef<string | null>(null);
+
+  // ── Tris "RDV à fixer" — un config par catégorie (clé = titre) ──────────
+  type RdvSortKey = "date" | "days" | "cabines";
+  type RdvSortDir = "asc" | "desc";
+  const [rdvSortConfig, setRdvSortConfig] = useState<Record<string, { key: RdvSortKey; dir: RdvSortDir }>>({});
+  const toggleRdvSort = (catKey: string, key: RdvSortKey) => {
+    setRdvSortConfig(prev => {
+      const cur = prev[catKey] || { key: "date", dir: "asc" };
+      return {
+        ...prev,
+        [catKey]: cur.key === key
+          ? { key, dir: cur.dir === "asc" ? "desc" : "asc" }
+          : { key, dir: "asc" },
+      };
+    });
+  };
 
   // Filtres panneaux
   const [soucisFilterYear, setSoucisFilterYear] = useState("");
@@ -2533,7 +2579,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const mesuresStatuses = ["Pas contacté", "Contact sans réponse"];
 
           const montageProjects = projects.filter((p) => montageStatuses.includes(p.etatCMD))
-            .sort((a, b) => ((a.dateMesures || a.dateMontage || "z").split("T")[0]).localeCompare((b.dateMesures || b.dateMontage || "z").split("T")[0]));
+            .sort((a, b) => {
+              const da = (a.arrivageTM || a.arrivageGrossiste || "z").split("T")[0];
+              const db = (b.arrivageTM || b.arrivageGrossiste || "z").split("T")[0];
+              return da.localeCompare(db);
+            });
 
           const mesuresProjects = projects.filter((p) => p.etatCMD === "En attente de mesures" && mesuresStatuses.includes(p.etatMesures))
             .sort((a, b) => ((a.dateMesuresRecue || a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMesuresRecue || b.dateMesures || "z").split("T")[0]));
@@ -2557,13 +2607,75 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
           const totalCount = pureMontageProjets.length + mesuresProjects.length + servicesProjects.length + savAFixerProjects.length;
 
-          const renderCategory = (title: string, color: string, bgColor: string, categoryProjects: Project[], dateLabel?: string, useDateField?: "dateMesuresRecue" | "dateDemandeProjet") => {
+          /** Calcule J+x depuis une date ISO et retourne label + classe couleur */
+          const getDaysBadge = (dateStr: string): { label: string; colorClass: string; bgClass: string; days: number } | null => {
+            if (!dateStr) return null;
+            const days = Math.floor((Date.now() - new Date(dateStr + "T12:00:00").getTime()) / 86_400_000);
+            if (days < 0) return null;
+            const colorClass = days <= 5 ? "text-green-600 dark:text-green-400" : days <= 9 ? "text-orange-500 dark:text-orange-400" : "text-red-500 dark:text-red-400";
+            const bgClass    = days <= 5 ? "bg-green-50 dark:bg-green-900/20"   : days <= 9 ? "bg-orange-50 dark:bg-orange-900/20"   : "bg-red-50 dark:bg-red-900/20";
+            return { label: `J+${days}`, colorClass, bgClass, days };
+          };
+
+          /** Retourne la date de référence (YYYY-MM-DD) d'un projet selon le champ actif. */
+          const getRefDate = (p: Project, field?: "dateMesuresRecue" | "dateDemandeProjet" | "dateSAVRecu" | "arrivageTM"): string => {
+            if (field === "dateMesuresRecue") return (p.dateMesuresRecue || p.dateMesures || "").split("T")[0];
+            if (field === "dateDemandeProjet") return (p.dateDemandeProjet || p.dateMontage || "").split("T")[0];
+            if (field === "dateSAVRecu")       return (p.dateSAVRecu || "").split("T")[0];
+            if (field === "arrivageTM")        return (p.arrivageTM || p.arrivageGrossiste || "").split("T")[0];
+            return (p.dateMesures || p.dateMontage || "").split("T")[0];
+          };
+
+          const renderCategory = (title: string, color: string, bgColor: string, categoryProjects: Project[], dateLabel?: string, useDateField?: "dateMesuresRecue" | "dateDemandeProjet" | "dateSAVRecu" | "arrivageTM", showDaysBadge?: boolean) => {
             if (categoryProjects.length === 0) return null;
+
+            // ── Tri ────────────────────────────────────────────────────────────
+            const curSort = rdvSortConfig[title] || { key: "date" as RdvSortKey, dir: "asc" as RdvSortDir };
+            const sortedProjects = [...categoryProjects].sort((a, b) => {
+              if (curSort.key === "cabines") {
+                const diff = (a.nbCabines || 0) - (b.nbCabines || 0);
+                return curSort.dir === "asc" ? diff : -diff;
+              }
+              // "date" : plus ancienne en premier (asc) ; "days" : J+ le plus bas en premier (asc = date desc)
+              const da = getRefDate(a, useDateField) || "9999-99-99";
+              const db = getRefDate(b, useDateField) || "9999-99-99";
+              const cmp = da.localeCompare(db);
+              if (curSort.key === "days") return curSort.dir === "asc" ? -cmp : cmp;
+              return curSort.dir === "asc" ? cmp : -cmp;
+            });
+
+            // ── Boutons de tri ─────────────────────────────────────────────────
+            const sortBtns: { key: RdvSortKey; label: string }[] = [
+              { key: "date",    label: "Date" },
+              { key: "days",    label: "J+x" },
+              { key: "cabines", label: "Cab." },
+            ];
+
             return (
               <div key={title} className="mb-4">
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 ${bgColor}`}>
-                  <span className={`text-[12px] font-bold ${color}`}>{title}</span>
-                  <span className="ml-auto text-[10px] font-semibold bg-white/60 dark:bg-white/10 px-2 py-0.5 rounded-full">
+                  <span className={`text-[12px] font-bold ${color} shrink-0`}>{title}</span>
+                  {/* Boutons de tri */}
+                  <div className="flex items-center gap-1 ml-2">
+                    {sortBtns.map(({ key, label }) => {
+                      const active = curSort.key === key;
+                      const arrow = active ? (curSort.dir === "asc" ? " ↑" : " ↓") : "";
+                      return (
+                        <button
+                          key={key}
+                          onClick={(e) => { e.stopPropagation(); toggleRdvSort(title, key); }}
+                          className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-md transition-colors whitespace-nowrap ${
+                            active
+                              ? "bg-white/80 dark:bg-white/20 shadow-sm " + color
+                              : "bg-white/30 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-white/15"
+                          }`}
+                        >
+                          {label}{arrow}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="ml-auto text-[10px] font-semibold bg-white/60 dark:bg-white/10 px-2 py-0.5 rounded-full shrink-0">
                     {categoryProjects.length} projet{categoryProjects.length > 1 ? "s" : ""}
                   </span>
                 </div>
@@ -2572,15 +2684,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <span className="w-16 shrink-0">{dateLabel}</span>
                   </div>
                 )}
-                {categoryProjects.map((p, idx) => {
+                {sortedProjects.map((p, idx) => {
                   const isMesure = p.etatMesures && mesuresStatuses.includes(p.etatMesures);
                   const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
                   const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
-                  const date = useDateField === "dateMesuresRecue"
-                    ? (p.dateMesuresRecue || p.dateMesures || "").split("T")[0]
-                    : useDateField === "dateDemandeProjet"
-                    ? (p.dateDemandeProjet || p.dateMontage || "").split("T")[0]
-                    : (p.dateMesures || p.dateMontage || "").split("T")[0];
+                  const date = getRefDate(p, useDateField);
                   const rowBg = idx % 2 === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "bg-blue-100/60 dark:bg-blue-900/20";
                   const arrivage = getArrivageInfo(p);
                   const dateStr = date ? new Date(date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }) : "---";
@@ -2599,6 +2707,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <img src={logo} alt="" className="w-7 h-5 object-contain rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
                   ) : null; })();
 
+                  // Badge J+x (uniquement si showDaysBadge et date de référence connue)
+                  const daysBadge = showDaysBadge ? getDaysBadge(date) : null;
+
                   if (isIOS) {
                     return (
                       <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
@@ -2613,6 +2724,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             }
                           </span>
                           <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-2">{p.projet}</span>
+                          {/* J+x badge iOS — affiché en haut à droite */}
+                          {daysBadge && (
+                            <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${daysBadge.bgClass} ${daysBadge.colorClass}`}>
+                              {dateStr} {daysBadge.label}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 ml-[5.5rem] flex-wrap">
                           {tsParts.length > 0 && (
@@ -2638,7 +2755,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   return (
                     <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
-                      <span className="hidden sm:inline-block text-gray-400 font-mono w-16 shrink-0">{dateStr}</span>
+                      {/* Colonne date + J+x (desktop) */}
+                      <span className="hidden sm:flex items-center gap-1 w-28 shrink-0">
+                        <span className="text-gray-400 font-mono">{dateStr}</span>
+                        {daysBadge && (
+                          <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full ${daysBadge.bgClass} ${daysBadge.colorClass}`}>
+                            {daysBadge.label}
+                          </span>
+                        )}
+                      </span>
                       <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
                         {tmNumbers.length > 0
                           ? tmNumbers.map((tm, i) => (
@@ -2689,10 +2814,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           return (
             <div className="glass-card rounded-2xl p-4">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">RDV à fixer ({totalCount})</p>
-              {renderCategory("Mesures à relever", "text-cyan-700 dark:text-cyan-300", "bg-cyan-50 dark:bg-cyan-900/20", mesuresProjects, "Reçue le", "dateMesuresRecue")}
-              {renderCategory("Montages à planifier", "text-orange-700 dark:text-orange-300", "bg-orange-50 dark:bg-orange-900/20", pureMontageProjets)}
+              {renderCategory("Mesures à relever", "text-cyan-700 dark:text-cyan-300", "bg-cyan-50 dark:bg-cyan-900/20", mesuresProjects, "Reçue le", "dateMesuresRecue", true)}
+              {renderCategory("Montages à planifier", "text-orange-700 dark:text-orange-300", "bg-orange-50 dark:bg-orange-900/20", pureMontageProjets, "Arrivage", "arrivageTM")}
               {renderCategory("Services à planifier", "text-emerald-700 dark:text-emerald-300", "bg-emerald-50 dark:bg-emerald-900/20", servicesProjects, "Reçue le", "dateDemandeProjet")}
-              {renderCategory("SAV à contacter", "text-red-700 dark:text-red-300", "bg-red-50 dark:bg-red-900/20", savAFixerProjects)}
+              {renderCategory("SAV à contacter", "text-red-700 dark:text-red-300", "bg-red-50 dark:bg-red-900/20", savAFixerProjects, "SAV reçu le", "dateSAVRecu", true)}
               {totalCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
             </div>
           );
