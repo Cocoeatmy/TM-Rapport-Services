@@ -513,13 +513,20 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
             <Text style={styles.label}>N° OFR TM</Text>
             <Text style={styles.value}>{project.ofrTM || "---"}</Text>
           </View>
-          {/* N° CMD Services — uniquement pour les clients Grossistes
-              et Fournisseurs (ils nous envoient leur propre numéro de
-              commande qui doit apparaître sur le rapport de montage).
-              Le champ s'appelle "N° Serv. CMD Fournisseurs" dans Notion
-              mais on le présente comme "N° CMD Services" ici. */}
-          {(project.typeClient === "Grossistes" || project.typeClient === "Grossiste"
-            || project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur") && (
+          {/* Référence commande selon le type de client :
+              - Grossistes : N° CMD Grossiste (ou N° OFR Grossiste si CMD vide)
+              - Fournisseurs : N° CMD Services (servCmdFournisseurs) */}
+          {(project.typeClient === "Grossistes" || project.typeClient === "Grossiste") && (
+            <View style={styles.row}>
+              <Text style={styles.label}>
+                {project.cmdGrossiste ? "N° CMD Grossiste" : "N° OFR Grossiste"}
+              </Text>
+              <Text style={styles.value}>
+                {project.cmdGrossiste || project.ofrGrossiste || "---"}
+              </Text>
+            </View>
+          )}
+          {(project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur") && (
             <View style={styles.row}>
               <Text style={styles.label}>N° CMD Services</Text>
               <Text style={styles.value}>{project.servCmdFournisseurs || "---"}</Text>
