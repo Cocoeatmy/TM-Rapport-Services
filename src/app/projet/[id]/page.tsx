@@ -2573,7 +2573,7 @@ function ProjectPageContent({ id }: { id: string }) {
           </CardHeader>
           <CardContent>
             {/* Mesures traitée le + Mesures traitée par (au-dessus de date montage) */}
-            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (project.dateMesures || project.mesuresTraiteePar) && (
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (project.dateMesures || project.mesuresTraiteePar) && (
               <div className="grid grid-cols-2 gap-3 mb-3 pb-3 border-b border-gray-100 dark:border-gray-700">
                 <div className="flex items-start gap-2">
                   <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
@@ -2613,7 +2613,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 }}
               />
             </div>
-            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <DurationEstimate project={project} />
             )}
 
@@ -2803,7 +2803,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 </div>
               )}
             </div>
-            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <div className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
@@ -2844,7 +2844,7 @@ function ProjectPageContent({ id }: { id: string }) {
             <DocumentLinks files={project.documentsMontagee} label="Documents Montage" projectId={id} notionField="Documents pour Montage" />
 
             {/* Commentaires Montages — sous Documents Montage */}
-            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <div className="mt-3">
                 <EditableTextField
                   label="Commentaires Montages"
@@ -2857,17 +2857,21 @@ function ProjectPageContent({ id }: { id: string }) {
                 />
               </div>
             )}
-            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <DeliveryScan projectId={id} bonLivraison={project.bonLivraison} />
             )}
-            {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <CartonPhotos projectId={id} initialPhotos={project.photosCartons} />
             )}
           </CardContent>
         </Card>
 
-        {/* Bouton démarrer/consulter le rapport */}
-        {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && !showRapport && (
+        {/* Bouton démarrer/consulter le rapport de montage.
+            On le cache seulement pour les modes qui ont leur propre flux
+            (mesures, services, sav et leurs variantes terminées).
+            Tous les autres modes (cmd, dashboard, rapport, stats, archives,
+            projets-tous, calendrier, etc.) doivent afficher ce bouton. */}
+        {!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && !showRapport && (
           <button
             onClick={() => { setShowRapport(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
             className={`w-full py-4 rounded-2xl active:scale-[0.98] text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg transition-all ${
@@ -2875,11 +2879,11 @@ function ProjectPageContent({ id }: { id: string }) {
             }`}
           >
             <FileText className="w-5 h-5" />
-            {project.rapportMonteur ? "Consulter le rapport de services" : "Démarrer le rapport de services"}
+            {project.rapportMonteur ? "Consulter le rapport de montage" : "Démarrer le rapport de montage"}
           </button>
         )}
 
-        {showRapport && (mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
+        {showRapport && !["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && (
           <button
             onClick={() => { setShowRapport(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
             className="w-full py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium text-sm flex items-center justify-center gap-2 transition-all"
@@ -2892,7 +2896,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
         {/* Colonne droite - Rapport (visible uniquement quand showRapport) */}
         <div className={`space-y-4 ${!showRapport ? "hidden" : ""}`}>
-        {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (() => {
+        {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (() => {
           // Barre de progression du montage — 5 critères par cabine.
           // Mise à jour en direct : au fur et à mesure que le monteur
           // remplit arrivée/départ/rapport/photos, la barre avance.
@@ -2955,7 +2959,7 @@ function ProjectPageContent({ id }: { id: string }) {
             </div>
           );
         })()}
-        {(mode === "cmd" || mode === "dashboard" || mode === "rapport") && (
+        {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
           <>
             {/* Horaires */}
             <Card>
