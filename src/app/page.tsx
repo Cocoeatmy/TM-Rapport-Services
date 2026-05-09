@@ -796,15 +796,13 @@ function HomePage() {
   useEffect(() => {
     if (mode !== "stats" || statsLoadedRef.current) return;
     statsLoadedRef.current = true;
-    setStatsLoading(true);
-    Promise.all([
-      fetch("/api/stats/services").then((r) => r.json()).catch(() => []),
-      fetch("/api/stats/clients").then((r) => r.json()).catch(() => []),
-      fetch("/api/stats/marques").then((r) => r.json()).catch(() => []),
-      fetch("/api/stats/series").then((r) => r.json()).catch(() => []),
-      fetch("/api/cabine-attribution").then((r) => r.json()).catch(() => []),
-      fetch("/api/stats/consultations").then((r) => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([svc, cli, mrq, ser, attrs, consults]) => {
+
+    const LS_DATA = "tm-stats-data-v1";
+    const LS_TS   = "tm-stats-ts-v1";
+    const FRESH_MS = 60 * 60 * 1000; // 1 h
+
+    /** Injecte un tableau de résultats dans les états React. */
+    const applyResults = ([svc, cli, mrq, ser, attrs, consults]: any[]) => {
       if (Array.isArray(svc)) setStatsServices(svc);
       if (Array.isArray(cli)) setStatsClients(cli);
       if (Array.isArray(mrq)) setStatsMarques(mrq);
@@ -815,8 +813,47 @@ function HomePage() {
         setCabineAttributions(attrMap);
       }
       if (consults && consults.summary) setConsultationsData(consults);
-      setStatsLoading(false);
-    });
+    };
+
+    /** Récupère les données depuis les 6 API Notion et met à jour le cache. */
+    const fetchFromAPI = (showSpinner: boolean) => {
+      if (showSpinner) setStatsLoading(true);
+      Promise.all([
+        fetch("/api/stats/services").then((r) => r.json()).catch(() => []),
+        fetch("/api/stats/clients").then((r) => r.json()).catch(() => []),
+        fetch("/api/stats/marques").then((r) => r.json()).catch(() => []),
+        fetch("/api/stats/series").then((r) => r.json()).catch(() => []),
+        fetch("/api/cabine-attribution").then((r) => r.json()).catch(() => []),
+        fetch("/api/stats/consultations").then((r) => r.ok ? r.json() : null).catch(() => null),
+      ]).then((results) => {
+        applyResults(results);
+        setStatsLoading(false);
+        try {
+          localStorage.setItem(LS_DATA, JSON.stringify(results));
+          localStorage.setItem(LS_TS, String(Date.now()));
+        } catch { /* quota dépassé — on continue sans cache */ }
+      });
+    };
+
+    // Stratégie stale-while-revalidate :
+    // • Cache chaud (< 1 h) → affichage immédiat, pas d'appel réseau.
+    // • Cache tiède (> 1 h) → affichage immédiat depuis cache + refresh silencieux.
+    // • Pas de cache → spinner + fetch bloquant.
+    try {
+      const ts  = Number(localStorage.getItem(LS_TS) || "0");
+      const raw = localStorage.getItem(LS_DATA);
+      if (raw && ts > 0) {
+        applyResults(JSON.parse(raw));
+        setStatsLoading(false);
+        if (Date.now() - ts >= FRESH_MS) {
+          // Cache périmé → rafraîchissement silencieux en arrière-plan.
+          fetchFromAPI(false);
+        }
+        return; // Ne pas afficher le spinner dans tous les cas où le cache existe.
+      }
+    } catch { /* localStorage inaccessible → fetch normal */ }
+
+    fetchFromAPI(true);
   }, [mode]);
 
   const MODE_API: Record<string, string> = {
@@ -1570,14 +1607,21 @@ function HomePage() {
                 <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
               </div>
             )}
-            {Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([monthKey, projs]) => (
+            {Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([monthKey, projs]) => {
+              // Dans chaque groupe mensuel, re-trier du plus récent au plus ancien (jour précis).
+              const sortedProjs = [...projs].sort((a, b) => {
+                const dA = a.dateMontage || a.dateMesures || "";
+                const dB = b.dateMontage || b.dateMesures || "";
+                return dB.localeCompare(dA);
+              });
+              return (
               <div key={monthKey} className="mb-6">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <CalendarDays className="w-4 h-4" />
                   {formatMonth(monthKey)} ({projs.length})
                 </h3>
                 <div className="space-y-3">
-                  {projs.map((p) => {
+                  {sortedProjs.map((p) => {
                     const date = p.dateMontage || p.dateMesures;
                     const status = p.etatCMD || p.etatMesures || "";
                     const allStatusColors: Record<string, string> = { ...STATUS_CMD_COLORS, ...STATUS_MESURES_COLORS };
@@ -1592,16 +1636,19 @@ function HomePage() {
                             onTouchStart={() => prefetchProject(p.id)}
                             className="flex-1 min-w-0"
                           >
+                            {/* Date de montage — badge proéminent, première info visible */}
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
+                                <Calendar className="w-3 h-3 shrink-0" />
+                                {date ? formatDateFR(date) : "Date non définie"}
+                              </span>
+                            </div>
                             <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words text-base leading-tight">
                               {p.projet || "Sans nom"}
                             </h4>
                             {p.ofrTM && (
                               <p className="text-xs text-gray-500 mt-0.5">OFR {p.ofrTM}</p>
                             )}
-                            <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-600 dark:text-gray-400">
-                              <Calendar className="w-3.5 h-3.5 shrink-0" />
-                              <span>{date ? formatDateFR(date) : "---"}</span>
-                            </div>
                             <div className="flex flex-wrap gap-1.5 mt-2">
                               {(p.collaborateurs || "").split(" & ").filter(Boolean).map((name) => (
                                 <span
@@ -1641,7 +1688,8 @@ function HomePage() {
                   })}
                 </div>
               </div>
-            ))}
+              );
+            })}
             {rapportFiltered.length === 0 && !loading && (
               <div className="text-center py-12 text-gray-400">
                 <FileText className="w-10 h-10 mx-auto mb-3 opacity-50" />
