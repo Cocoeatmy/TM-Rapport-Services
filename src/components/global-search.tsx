@@ -67,6 +67,7 @@ export function GlobalSearch() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">("all");
   const [projects, setProjects] = useState<Project[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -90,10 +91,13 @@ export function GlobalSearch() {
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (q.length < 2) return [];
-    return projects
-      .filter((p) => (searchIndex.get(p.id) ?? "").includes(q))
-      ;
-  }, [query, projects, searchIndex]);
+    return projects.filter((p) => {
+      if (!(searchIndex.get(p.id) ?? "").includes(q)) return false;
+      if (statusFilter === "open") return p.etatCMD !== "Terminé";
+      if (statusFilter === "closed") return p.etatCMD === "Terminé";
+      return true;
+    });
+  }, [query, projects, searchIndex, statusFilter]);
 
   const closeSearch = useCallback(() => {
     setOpen(false);
@@ -171,6 +175,31 @@ export function GlobalSearch() {
                 <button onClick={closeSearch} className="text-gray-400 hover:text-gray-600 ml-1">
                   <kbd className="text-[11px] font-mono bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700">Esc</kbd>
                 </button>
+              </div>
+
+              {/* Filtres statut */}
+              <div className="flex gap-1.5 px-4 py-2 border-b border-gray-100 dark:border-gray-800">
+                {(["all", "open", "closed"] as const).map((f) => {
+                  const label = f === "all" ? "Tous" : f === "open" ? "Ouverts" : "Clôturés";
+                  const active = statusFilter === f;
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => setStatusFilter(f)}
+                      className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${
+                        active
+                          ? f === "open"
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                            : f === "closed"
+                            ? "bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                            : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+                          : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Liste des résultats */}
