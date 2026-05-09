@@ -1324,6 +1324,22 @@ html[data-ui="ocean"] #main-header a.flex:hover {
   html[data-ui="ocean"] #main-header button,
   html[data-ui="ocean"] #main-header a.flex { transition: none; }
 }
+/* ============================================================ */
+/* iOS-only : titre sur plus de lignes                          */
+/* @supports (-webkit-touch-callout: none)  → iOS WebKit       */
+/* @media (hover: none)                     → exclut macOS Safari */
+/* Ensemble = appareils iOS uniquement.                          */
+/* ============================================================ */
+@supports (-webkit-touch-callout: none) {
+  @media (hover: none) {
+    .ios-line-clamp {
+      /* Laisse le titre s'étaler sur 4 lignes max sur iPhone/iPad,
+         au lieu de 2, pour ne jamais le couper. */
+      -webkit-line-clamp: 4 !important;
+    }
+  }
+}
+
 /* Dashboard — réorganisation style iOS */
 @keyframes dash-wiggle {
   0%   { transform: rotate(-1.5deg) scale(1.02); }

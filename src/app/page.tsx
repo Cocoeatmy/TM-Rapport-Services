@@ -67,7 +67,7 @@ function ProjectCard({ project, mode, isAdmin, onDelete }: { project: Project; m
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words text-base leading-tight">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 ios-line-clamp break-words text-base leading-tight">
               {project.projet || "Sans nom"}
             </h3>
             {project.ofrTM && (
