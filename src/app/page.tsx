@@ -3081,37 +3081,37 @@ function HomePage() {
             .sort((a, b) => b.cabines - a.cabines);
         };
 
-        // Team (3+ collaborateurs) — groupé par composition canonique
-        const buildTeamStats = (projects: Project[]) => {
-          const map = new Map<string, { label: string; projects: number; cabines: number; soucisCount: number; savCount: number; savFournisseurCount: number; savFournisseurPct: number; savPersonnelCount: number }>();
-          projects.forEach((p) => {
-            const collabs = splitCollabs(p);
-            if (collabs.length < 3) return;
-            const key = [...collabs].sort((a, b) => a.localeCompare(b, "fr")).join(" & ");
-            const existing = map.get(key);
-            if (existing) {
-              existing.projects++;
-              existing.cabines += p.nbCabines || 0;
-              existing.soucisCount += p.soucisMontage ? 1 : 0;
-              if (hasSAV(p)) { existing.savCount++; if (isFournisseurSAV(p)) existing.savFournisseurCount++; if (isTMSAV(p)) existing.savPersonnelCount++; }
-            } else {
-              map.set(key, { label: key, projects: 1, cabines: p.nbCabines || 0, soucisCount: p.soucisMontage ? 1 : 0, savCount: hasSAV(p) ? 1 : 0, savFournisseurCount: isFournisseurSAV(p) ? 1 : 0, savFournisseurPct: 0, savPersonnelCount: isTMSAV(p) ? 1 : 0 });
-            }
-          });
-          return Array.from(map.values())
-            .map((t) => ({ ...t, soucisRate: t.projects > 0 ? Math.round((t.soucisCount / t.projects) * 100) : 0, savFournisseurPct: t.savCount > 0 ? Math.round((t.savFournisseurCount / t.savCount) * 100) : 0 }))
-            .sort((a, b) => b.cabines - a.cabines);
+        // Team TM — projets dont le champ collaborateurs contient "team tm"
+        const buildTeamTMStats = (projects: Project[]) => {
+          const ps = projects.filter((p) => (p.collaborateurs || "").toLowerCase().includes("team tm"));
+          const cabines = ps.reduce((s, p) => s + (p.nbCabines || 0), 0);
+          const soucisCount = ps.filter((p) => p.soucisMontage).length;
+          const savPs = ps.filter(hasSAV);
+          const savCount = savPs.length;
+          const savFournisseurCount = savPs.filter(isFournisseurSAV).length;
+          const savPersonnelCount = savPs.filter(isTMSAV).length;
+          return {
+            projects: ps.length,
+            cabines,
+            soucisCount,
+            soucisRate: ps.length > 0 ? Math.round((soucisCount / ps.length) * 100) : 0,
+            savCount,
+            savFournisseurCount,
+            savFournisseurPct: savCount > 0 ? Math.round((savFournisseurCount / savCount) * 100) : 0,
+            savPersonnelCount,
+            savRate: ps.length > 0 ? Math.round((savCount / ps.length) * 100) : 0,
+          };
         };
 
         const collabStats = buildCollabStats(allProjects, allMesures);
         const binomeStats = buildBinomeStats(allProjects);
-        const teamStats = buildTeamStats(allProjects);
+        const teamTMStats = buildTeamTMStats(allProjects);
         const allProjectsB: Project[] = statsCompare
           ? filterByStatsDate(allProjectsRaw, statsBMode, statsBFrom, statsBTo, statsBMonth, statsBYear)
           : [];
         const collabStatsB = statsCompare ? buildCollabStats(allProjectsB, allMesuresB) : [];
         const binomeStatsB = statsCompare ? buildBinomeStats(allProjectsB) : [];
-        const teamStatsB = statsCompare ? buildTeamStats(allProjectsB) : [];
+        const teamTMStatsB = statsCompare ? buildTeamTMStats(allProjectsB) : null;
 
         const expandedSections = statsExpandedSections;
         const toggleSection = (s: string) => {
@@ -3467,65 +3467,69 @@ function HomePage() {
               );
             })()}
 
-            {/* Teams 3+ — toujours affiché même si vide */}
+            {/* Team TM */}
             {(() => {
-              const ct = chartTypePrefs["teams"] || "bar-h";
-              const distribData = teamStats.map((ts) => {
-                const names = ts.label.split(" & ");
-                return { label: names.map((n) => n.split(" ")[0]).join("+"), value: ts.cabines, color: getCollaboratorColor(names[0] || "").dot };
-              });
+              const ts = teamTMStats;
+              const tsB = statsCompare ? teamTMStatsB : null;
+              const savRateColor = ts.savRate > 10 ? "text-red-500" : ts.savRate > 5 ? "text-orange-500" : ts.savRate > 0 ? "text-yellow-500" : "text-gray-400";
+              const colors = getCollaboratorColor("Team TM");
               return (
                 <div>
-                  <button onClick={() => toggleSection("teams")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
-                    {expandedSections.has("teams") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    Par team
-                    {teamStats.length > 0
-                      ? <span className="text-[10px] font-bold text-violet-500 normal-case tracking-normal">{teamStats.length} équipe{teamStats.length > 1 ? "s" : ""}</span>
-                      : <span className="text-[10px] text-gray-400 normal-case tracking-normal font-normal">3+ collaborateurs</span>}
-                    {teamStats.length > 0 && <ChartTypeSelector value={ct} onChange={(t) => setChartType("teams", t)} types={["bar-h", "bar-v", "donut", "pie", "treemap", "radar"]} />}
+                  <button onClick={() => toggleSection("teamtm")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                    {expandedSections.has("teamtm") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    Team TM
+                    <span className="text-[10px] font-bold text-indigo-500 normal-case tracking-normal">{ts.projects} projet{ts.projects > 1 ? "s" : ""}</span>
                   </button>
-                  {expandedSections.has("teams") && (() => {
-                    if (teamStats.length === 0) {
-                      return <p className="text-xs text-gray-400 text-center py-4">Aucun montage à 3+ collaborateurs sur cette période</p>;
-                    }
-                    if (ct === "donut") return <div className="glass-card rounded-2xl p-4"><DonutChart data={distribData} /></div>;
-                    if (ct === "pie")   return <div className="glass-card rounded-2xl p-4"><PieChart2 data={distribData} /></div>;
-                    if (ct === "treemap") return <div className="glass-card rounded-2xl p-4"><TreemapChart data={distribData} /></div>;
-                    if (ct === "radar") return <div className="glass-card rounded-2xl p-4"><RadarChart data={distribData} /></div>;
-                    if (ct === "bar-v") return <div className="glass-card rounded-2xl p-4"><ColumnChart data={distribData} /></div>;
-                    return (
-                      <div className="space-y-2">
-                        {teamStats.map((ts) => {
-                          const names = ts.label.split(" & ");
-                          const maxProjects = Math.max(...teamStats.map((t) => t.projects), 1);
-                          const tsB = statsCompare ? (teamStatsB.find((t) => t.label === ts.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0, savCount: 0, savFournisseurCount: 0, savFournisseurPct: 0, savPersonnelCount: 0 }) : null;
-                          return (
-                            <div key={ts.label} className="glass-card rounded-2xl p-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="flex -space-x-1 shrink-0">
-                                  {names.map((n) => { const c = getCollaboratorColor(n); return <span key={n} className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800" style={{ backgroundColor: c.dot }} />; })}
-                                </span>
-                                <span className="text-sm font-semibold truncate">{ts.label}</span>
-                                <span className="ml-auto text-xs text-gray-500 shrink-0">
-                                  {statsCompare ? <><span className="text-blue-500 font-bold">{ts.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{tsB!.projects}B</span> projets</> : <>{ts.projects} projet{ts.projects > 1 ? "s" : ""}</>}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-5 gap-2 text-center mb-2">
-                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{ts.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.cabines}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.cabines}</p>)}<p className="text-[10px] text-gray-400">cabines</p></div>
-                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{ts.soucisCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.soucisCount}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.soucisCount}</p>)}<p className="text-[10px] text-gray-400">soucis</p></div>
-                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p>)}<p className="text-[10px] text-gray-400">taux soucis</p></div>
-                                <div>{statsCompare ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-red-500">{ts.savCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB!.savCount}</p></div>) : (<p className={`text-lg font-bold ${ts.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{ts.savCount}</p>)}<p className="text-[10px] text-gray-400">SAV</p></div>
-                                <div><p className={`text-sm font-bold ${ts.savFournisseurPct > 50 ? "text-orange-500" : "text-gray-500"}`}>{ts.savCount > 0 ? `${ts.savFournisseurPct}% fo.` : "—"}</p><p className={`text-sm font-bold ${ts.savPersonnelCount > 0 ? "text-red-500" : "text-gray-400"}`}>{ts.savCount > 0 ? `${ts.savPersonnelCount} TM` : ""}</p><p className="text-[10px] text-gray-400">erreurs</p></div>
-                              </div>
-                              <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full transition-all" style={{ width: `${(ts.projects / maxProjects) * 100}%`, background: names.length >= 2 ? `linear-gradient(90deg, ${names.map((n) => getCollaboratorColor(n).dot).join(", ")})` : getCollaboratorColor(names[0] || "").dot }} />
-                              </div>
-                            </div>
-                          );
-                        })}
+                  {expandedSections.has("teamtm") && (
+                    <div className="glass-card rounded-2xl p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: colors.dot }} />
+                        <span className="text-sm font-semibold">Team TM</span>
+                        <span className="ml-auto text-xs text-gray-500">
+                          {statsCompare && tsB
+                            ? <><span className="text-blue-500 font-bold">{ts.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{tsB.projects}B</span> projets</>
+                            : <>{ts.projects} projet{ts.projects > 1 ? "s" : ""}</>}
+                        </span>
                       </div>
-                    );
-                  })()}
+                      <div className="grid grid-cols-3 gap-3 text-center mb-3">
+                        <div className="space-y-2">
+                          <div>
+                            {statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{ts.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.cabines}</p></div>) : (<p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{ts.cabines}</p>)}
+                            <p className="text-[10px] text-gray-400">cabines</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2 border-x border-gray-100 dark:border-gray-700">
+                          <div>
+                            {statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{ts.soucisCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.soucisCount}</p></div>) : (<p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{ts.soucisCount}</p>)}
+                            <p className="text-[10px] text-gray-400">soucis</p>
+                          </div>
+                          <div>
+                            {statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p>)}
+                            <p className="text-[10px] text-gray-400">taux soucis</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div>
+                            {statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className={`text-xl font-bold ${ts.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{ts.savCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.savCount}</p></div>) : (<p className={`text-xl font-bold ${ts.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{ts.savCount}</p>)}
+                            <p className="text-[10px] text-gray-400">SAV</p>
+                          </div>
+                          <div>
+                            <p className={`text-lg font-bold ${savRateColor}`}>{ts.projects > 0 ? `${ts.savRate}%` : "—"}</p>
+                            <p className="text-[10px] text-gray-400">taux SAV</p>
+                            {ts.savCount > 0 && (
+                              <p className="text-[9px] text-gray-400 mt-0.5 leading-tight">
+                                {ts.savFournisseurPct > 0 && <span className="text-orange-500">{ts.savFournisseurPct}% fo. </span>}
+                                {ts.savPersonnelCount > 0 && <span className="text-red-500">{ts.savPersonnelCount} TM</span>}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: ts.projects > 0 ? "100%" : "0%", backgroundColor: colors.dot }} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
