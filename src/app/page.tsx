@@ -3405,8 +3405,8 @@ function HomePage() {
               );
             })()}
 
-            {/* Teams 3+ */}
-            {teamStats.length > 0 && (() => {
+            {/* Teams 3+ — toujours affiché même si vide */}
+            {(() => {
               const ct = chartTypePrefs["teams"] || "bar-h";
               const distribData = teamStats.map((ts) => {
                 const names = ts.label.split(" & ");
@@ -3417,10 +3417,15 @@ function HomePage() {
                   <button onClick={() => toggleSection("teams")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                     {expandedSections.has("teams") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     Par team
-                    <span className="text-[10px] font-bold text-violet-500 normal-case tracking-normal">{teamStats.length} équipe{teamStats.length > 1 ? "s" : ""}</span>
-                    <ChartTypeSelector value={ct} onChange={(t) => setChartType("teams", t)} types={["bar-h", "bar-v", "donut", "pie", "treemap", "radar"]} />
+                    {teamStats.length > 0
+                      ? <span className="text-[10px] font-bold text-violet-500 normal-case tracking-normal">{teamStats.length} équipe{teamStats.length > 1 ? "s" : ""}</span>
+                      : <span className="text-[10px] text-gray-400 normal-case tracking-normal font-normal">3+ collaborateurs</span>}
+                    {teamStats.length > 0 && <ChartTypeSelector value={ct} onChange={(t) => setChartType("teams", t)} types={["bar-h", "bar-v", "donut", "pie", "treemap", "radar"]} />}
                   </button>
                   {expandedSections.has("teams") && (() => {
+                    if (teamStats.length === 0) {
+                      return <p className="text-xs text-gray-400 text-center py-4">Aucun montage à 3+ collaborateurs sur cette période</p>;
+                    }
                     if (ct === "donut") return <div className="glass-card rounded-2xl p-4"><DonutChart data={distribData} /></div>;
                     if (ct === "pie")   return <div className="glass-card rounded-2xl p-4"><PieChart2 data={distribData} /></div>;
                     if (ct === "treemap") return <div className="glass-card rounded-2xl p-4"><TreemapChart data={distribData} /></div>;
