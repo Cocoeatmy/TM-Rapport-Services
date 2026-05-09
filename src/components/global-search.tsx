@@ -149,13 +149,16 @@ export function GlobalSearch() {
 
       {/* Overlay modal */}
       {open && (
-        <div
-          className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-start justify-center pt-[8vh] px-4 cursor-pointer"
-          onPointerDown={closeSearch}
-        >
+        <>
+          {/* Fond sombre — tap dessus = fermeture */}
           <div
-            className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700 cursor-default"
-            onPointerDown={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm cursor-pointer"
+            onPointerDown={closeSearch}
+          />
+          {/* Contenu modal — z au-dessus du fond, pointer-events normaux */}
+          <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-[8vh] px-4 pointer-events-none">
+          <div
+            className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700 pointer-events-auto"
           >
             {/* Barre de saisie */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-800">
@@ -233,7 +236,8 @@ export function GlobalSearch() {
                 : "Recherche dans tous vos projets, y compris les archives"}
             </div>
           </div>
-        </div>
+          </div>
+        </>
       )}
     </>
   );
