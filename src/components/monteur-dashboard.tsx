@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
-import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive, X, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS } from "@/lib/constants";
@@ -3978,49 +3978,44 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
 // --- Main component ---
 
-export function MonteurDashboard({ userName, projects, isAdmin, onNavigate, terminatedProjectsInit = [] }: MonteurDashboardProps) {
-  // Admin view: show all collaborators
-  if (isAdmin) {
-    return <AdminDashboard projects={projects} userName={userName} onNavigate={onNavigate} terminatedProjectsInit={terminatedProjectsInit} />;
-  }
-
-  // Regular monteur view (unchanged logic)
+// ─── Dashboard collaborateur (non-admin) ─────────────────────────────────────
+function CollaborateurDashboard({ userName, projects }: { userName: string; projects: Project[] }) {
   const firstName = userName.split(" ")[0];
   const colors = getCollaboratorColor(firstName);
-
   const todayStr = getTodayStr();
   const weekEndStr = getWeekEndStr();
   const thisWeekEndStr = getThisWeekEndStr();
 
-  // Filtrer les projets du monteur par rôle correct selon la source
+  // ── État ──────────────────────────────────────────────────────────────────
+  type CollabPanel = "mesures-today" | "montages-today" | "sav-today" | "services-today" |
+    "rapports-attente" | "projets-en-cours" | "emplacement-cabines";
+  const [showPanel, setShowPanel] = useState<CollabPanel | null>(null);
+  const [allActiveProjects, setAllActiveProjects] = useState<Project[]>([]);
+  const [loadingActive, setLoadingActive] = useState(false);
+
+  useEffect(() => {
+    setLoadingActive(true);
+    fetch("/api/projects/all-active")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setAllActiveProjects(data); })
+      .catch(() => {})
+      .finally(() => setLoadingActive(false));
+  }, []);
+
+  // ── Mes projets ───────────────────────────────────────────────────────────
   const myProjects = projects.filter((p) => {
     const source = getProjectSource(p);
-    if (source === "mesures") {
-      return matchesCollaborator(p.mesuresTraiteePar || "", firstName);
-    }
+    if (source === "mesures") return matchesCollaborator(p.mesuresTraiteePar || "", firstName);
     return matchesCollaborator(p.collaborateurs || "", firstName);
   });
-
-  // Date effective d'un projet (mesures ou montage)
   const getDate = (p: Project) => p.dateMontage || p.dateMesures || "";
 
-  // Projets du jour (inclut les projets multi-jours qui couvrent aujourd'hui)
   const todayProjects = myProjects.filter((p) => projectSpansDate(p, todayStr));
-
-  // Projets cette semaine (excl. aujourd'hui)
   const thisWeekProjects = myProjects
-    .filter((p) => {
-      if (todayProjects.includes(p)) return false; // déjà dans "aujourd'hui"
-      return projectActiveDuringRange(p, todayStr, thisWeekEndStr);
-    })
+    .filter((p) => { if (todayProjects.includes(p)) return false; return projectActiveDuringRange(p, todayStr, thisWeekEndStr); })
     .sort((a, b) => getDate(a).localeCompare(getDate(b)));
-
-  // Projets semaine prochaine
   const nextWeekProjects = myProjects
-    .filter((p) => {
-      if (todayProjects.includes(p) || thisWeekProjects.includes(p)) return false;
-      return projectActiveDuringRange(p, thisWeekEndStr, weekEndStr);
-    })
+    .filter((p) => { if (todayProjects.includes(p) || thisWeekProjects.includes(p)) return false; return projectActiveDuringRange(p, thisWeekEndStr, weekEndStr); })
     .sort((a, b) => getDate(a).localeCompare(getDate(b)));
 
   const allUpcoming = [...todayProjects, ...thisWeekProjects, ...nextWeekProjects];
@@ -4028,17 +4023,110 @@ export function MonteurDashboard({ userName, projects, isAdmin, onNavigate, term
   const totalCabines = Object.values(myCabinesBySource).reduce((s, v) => s + v, 0);
   const mySummary = formatCabinesSummary(myCabinesBySource);
 
+  // ── Stats boutons filtrés (mes projets uniquement) ─────────────────────────
+  const mesuresTodayMine = myProjects.filter((p) =>
+    (p as any)._source === "mesures" && (p.dateMesures || "").split("T")[0] === todayStr
+  );
+  const montagesTodayMine = myProjects.filter((p) =>
+    (p as any)._source === "montage" && projectSpansDate(p, todayStr)
+  );
+  const servicesTodayMine = myProjects.filter((p) =>
+    (p as any)._source === "services" && (p.dateMontage || "").split("T")[0] === todayStr
+  );
+  const savTodayMine = myProjects.filter((p) =>
+    p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === todayStr
+  );
+  const rapportsAttenteMine = myProjects.filter((p) => {
+    const src = (p as any)._source;
+    if (src === "mesures" || src === "sav") return false;
+    const dateStr = (p.dateMontage || "").split("T")[0];
+    if (!dateStr || dateStr > todayStr) return false;
+    const cloture = (p.rapportDeMontage || "").toLowerCase().includes("clôt") ||
+                    (p.rapportDeMontage || "").toLowerCase().includes("clot");
+    return !cloture;
+  }).sort((a, b) => ((b.dateMontage || "").split("T")[0]).localeCompare((a.dateMontage || "").split("T")[0]));
+
+  // ── Projets en cours — TOUS (exception) ───────────────────────────────────
+  const dossiersEnCoursTous = allActiveProjects
+    .filter((p) => p.etatCMD !== "Annulé" && p.etatCMD !== "Terminé")
+    .sort((a, b) => {
+      const da = a.dateOffre || ""; const db = b.dateOffre || "";
+      if (!da && !db) return 0; if (!da) return 1; if (!db) return -1;
+      return db.localeCompare(da);
+    });
+  const dossiersEnCoursCount = dossiersEnCoursTous.length;
+  const dossiersEnCoursCabines = dossiersEnCoursTous.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
+
+  // ── Emplacement cabines — TOUS (exception) ────────────────────────────────
+  const emplacementAll = projects.filter((p) =>
+    p.etatCMD === "Cabine à aller chercher" || p.etatCMD === "Récéptionné - RDV à fixer"
+  );
+  const emplacementCount = emplacementAll.length;
+  const emplacementDepotTM = emplacementAll.filter((p) => p.emplacementCabine === "Dépôt TM").reduce((s, p) => s + (p.nbCabines || 0), 0);
+  const emplacementAutres = emplacementAll.filter((p) => p.emplacementCabine !== "Dépôt TM").reduce((s, p) => s + (p.nbCabines || 0), 0);
+
   if (myProjects.length === 0) return null;
+
+  const togglePanel = (panel: CollabPanel) => setShowPanel((prev) => prev === panel ? null : panel);
+
+  const btnCls = (panel: CollabPanel, ring: string) =>
+    `relative glass-card rounded-2xl p-2 sm:p-3 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${
+      showPanel === panel
+        ? `ring-2 ring-offset-2 ${ring} shadow-xl scale-[1.04] z-10`
+        : showPanel !== null ? "opacity-40 scale-[0.97]" : ""
+    }`;
+
+  const panelHeader = (icon: React.ReactNode, label: string, color: string, count?: number) => (
+    <div className="flex items-center justify-between mb-3">
+      <p className={`text-sm font-semibold ${color} flex items-center gap-1.5`}>
+        {icon} {label}
+        {count !== undefined && <span className="text-xs font-normal text-gray-400">({count})</span>}
+      </p>
+      <button onClick={() => setShowPanel(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+
+  const emptyMsg = (msg: string) => (
+    <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">{msg}</p>
+  );
+
+  const projectList = (list: Project[]) => (
+    <div className="space-y-1.5">
+      {list.map((p) => <ProjectRow key={p.id} project={p} colors={colors} />)}
+    </div>
+  );
+
+  const weekSeparator = (projects: Project[]) => {
+    let lastDay = "";
+    return projects.flatMap((p) => {
+      const dayKey = (p.dateMontage || p.dateMesures || "").split("T")[0];
+      const items: React.ReactNode[] = [];
+      if (dayKey !== lastDay && lastDay !== "") {
+        items.push(
+          <div key={`sep-${dayKey}`} className="flex items-center gap-2 pt-1">
+            <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium shrink-0 px-1">
+              {dayKey ? new Date(dayKey + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" }) : ""}
+            </span>
+            <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
+          </div>
+        );
+      }
+      lastDay = dayKey;
+      items.push(<WeekProjectRow key={p.id} project={p} />);
+      return items;
+    });
+  };
 
   return (
     <div className="mb-6 space-y-4">
-      {/* En-tête personnalisé */}
+      {/* En-tête */}
       <div className="glass-card rounded-2xl p-4">
         <div className="flex items-center gap-3">
-          <div
-            className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold"
-            style={{ backgroundColor: colors.bg, color: colors.text }}
-          >
+          <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold"
+            style={{ backgroundColor: colors.bg, color: colors.text }}>
             {getCollaboratorInitials(firstName)}
           </div>
           <div className="flex-1">
@@ -4058,21 +4146,166 @@ export function MonteurDashboard({ userName, projects, isAdmin, onNavigate, term
         </div>
       </div>
 
-      {/* Montages du jour */}
+      {/* ── Boutons stats ── */}
+      <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+        {/* Mesures aujourd'hui */}
+        <button onClick={() => togglePanel("mesures-today")} className={btnCls("mesures-today", "ring-cyan-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center">
+            <Ruler className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400" />
+          </span>
+          <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400 mt-1">{mesuresTodayMine.length}</p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">Mesures<br/>aujourd'hui</p>
+          <p className="text-[7px] sm:text-[9px] text-gray-400 dark:text-gray-500 mt-0.5">{mesuresTodayMine.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.</p>
+        </button>
+
+        {/* Montages aujourd'hui */}
+        <button onClick={() => togglePanel("montages-today")} className={btnCls("montages-today", "ring-blue-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-blue-100/80 dark:bg-blue-900/30 flex items-center justify-center">
+            <Wrench className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
+          </span>
+          <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{montagesTodayMine.length}</p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">Montages<br/>aujourd'hui</p>
+          <p className="text-[7px] sm:text-[9px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0</p>
+        </button>
+
+        {/* SAV aujourd'hui */}
+        <button onClick={() => togglePanel("sav-today")} className={btnCls("sav-today", "ring-red-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center">
+            <AlertTriangle className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />
+          </span>
+          <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{savTodayMine.length}</p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">SAV<br/>aujourd'hui</p>
+          <p className="text-[7px] sm:text-[9px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0</p>
+        </button>
+
+        {/* Services aujourd'hui */}
+        <button onClick={() => togglePanel("services-today")} className={btnCls("services-today", "ring-violet-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center">
+            <Settings className="w-3.5 h-3.5 text-violet-500 dark:text-violet-400" />
+          </span>
+          <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400 mt-1">{servicesTodayMine.length}</p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">Services<br/>aujourd'hui</p>
+          <p className="text-[7px] sm:text-[9px] text-gray-400 dark:text-gray-500 mt-0.5">{servicesTodayMine.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.</p>
+        </button>
+
+        {/* Rapports en attente */}
+        <button onClick={() => togglePanel("rapports-attente")} className={btnCls("rapports-attente", "ring-orange-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center">
+            <Clock className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400" />
+          </span>
+          <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">{rapportsAttenteMine.length}</p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">Rapports<br/>en attente</p>
+          <p className="text-[7px] sm:text-[9px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0</p>
+        </button>
+
+        {/* Projets en cours — TOUS */}
+        <button onClick={() => togglePanel("projets-en-cours")} className={btnCls("projets-en-cours", "ring-indigo-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-indigo-100/80 dark:bg-indigo-900/30 flex items-center justify-center">
+            <FolderOpen className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+          </span>
+          <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+            {loadingActive ? <span className="animate-pulse text-base">…</span> : dossiersEnCoursCount}
+          </p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">Projets<br/>en cours</p>
+          <p className="text-[7px] sm:text-[9px] text-indigo-400 dark:text-indigo-500 mt-0.5">{dossiersEnCoursCabines ? `${dossiersEnCoursCabines} cab.` : <span className="invisible">0</span>}</p>
+        </button>
+
+        {/* Emplacement cabines — TOUS */}
+        <button onClick={() => togglePanel("emplacement-cabines")} className={btnCls("emplacement-cabines", "ring-sky-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-sky-100/80 dark:bg-sky-900/30 flex items-center justify-center">
+            <MapPin className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
+          </span>
+          <p className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400 mt-1">{emplacementCount}</p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">Emplacement<br/>cabines</p>
+          <div className="flex flex-col items-center mt-0.5">
+            <p className="text-[7px] sm:text-[9px] text-sky-500 leading-tight">À cherch. : <span className="font-semibold">{emplacementAutres}</span></p>
+            <p className="text-[7px] sm:text-[9px] text-amber-500 leading-tight">Dépôt TM : <span className="font-semibold">{emplacementDepotTM}</span></p>
+          </div>
+        </button>
+      </div>
+
+      {/* ── Panneau détail ── */}
+      {showPanel && (
+        <div className="glass-card rounded-2xl p-4 space-y-2">
+          {showPanel === "mesures-today" && (
+            <>
+              {panelHeader(<Ruler className="w-4 h-4" />, "Mesures aujourd'hui", "text-cyan-700 dark:text-cyan-300")}
+              {mesuresTodayMine.length === 0 ? emptyMsg("Aucune mesure aujourd'hui") : projectList(mesuresTodayMine)}
+            </>
+          )}
+          {showPanel === "montages-today" && (
+            <>
+              {panelHeader(<Wrench className="w-4 h-4" />, "Montages aujourd'hui", "text-blue-700 dark:text-blue-300")}
+              {montagesTodayMine.length === 0 ? emptyMsg("Aucun montage aujourd'hui") : projectList(montagesTodayMine)}
+            </>
+          )}
+          {showPanel === "sav-today" && (
+            <>
+              {panelHeader(<AlertTriangle className="w-4 h-4" />, "SAV aujourd'hui", "text-red-700 dark:text-red-300")}
+              {savTodayMine.length === 0 ? emptyMsg("Aucun SAV aujourd'hui") : projectList(savTodayMine)}
+            </>
+          )}
+          {showPanel === "services-today" && (
+            <>
+              {panelHeader(<Settings className="w-4 h-4" />, "Services aujourd'hui", "text-violet-700 dark:text-violet-300")}
+              {servicesTodayMine.length === 0 ? emptyMsg("Aucun service aujourd'hui") : projectList(servicesTodayMine)}
+            </>
+          )}
+          {showPanel === "rapports-attente" && (
+            <>
+              {panelHeader(<Clock className="w-4 h-4" />, "Rapports en attente", "text-orange-700 dark:text-orange-300", rapportsAttenteMine.length)}
+              {rapportsAttenteMine.length === 0 ? emptyMsg("Aucun rapport en attente 🎉") : projectList(rapportsAttenteMine)}
+            </>
+          )}
+          {showPanel === "projets-en-cours" && (
+            <>
+              {panelHeader(<FolderOpen className="w-4 h-4" />, "Projets en cours", "text-indigo-700 dark:text-indigo-300", dossiersEnCoursCount)}
+              {loadingActive
+                ? <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+                : dossiersEnCoursTous.length === 0
+                  ? emptyMsg("Aucun projet en cours")
+                  : <div className="space-y-1.5 max-h-96 overflow-y-auto">{dossiersEnCoursTous.map((p) => <ProjectRow key={p.id} project={p} colors={colors} />)}</div>
+              }
+            </>
+          )}
+          {showPanel === "emplacement-cabines" && (
+            <>
+              {panelHeader(<MapPin className="w-4 h-4" />, "Emplacement cabines", "text-sky-700 dark:text-sky-300", emplacementCount)}
+              {emplacementAll.length === 0 ? emptyMsg("Aucune cabine à placer") : (
+                <div className="space-y-4">
+                  {emplacementAll.filter((p) => p.emplacementCabine !== "Dépôt TM").length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-sky-600 dark:text-sky-300 mb-2 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> À chercher ({emplacementAutres} cab.)
+                      </p>
+                      {projectList(emplacementAll.filter((p) => p.emplacementCabine !== "Dépôt TM"))}
+                    </div>
+                  )}
+                  {emplacementAll.filter((p) => p.emplacementCabine === "Dépôt TM").length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-amber-600 dark:text-amber-300 mb-2 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> Dépôt TM ({emplacementDepotTM} cab.)
+                      </p>
+                      {projectList(emplacementAll.filter((p) => p.emplacementCabine === "Dépôt TM"))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Aujourd'hui */}
       {todayProjects.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5" />
-            Aujourd'hui
+            <Calendar className="w-3.5 h-3.5" /> Aujourd'hui
           </p>
           <div className="space-y-2">
-            {todayProjects.map((p) => (
-              <ProjectRow key={p.id} project={p} colors={colors} />
-            ))}
+            {todayProjects.map((p) => <ProjectRow key={p.id} project={p} colors={colors} />)}
           </div>
-          <div className="mt-3">
-            <DailyRouteButton projects={todayProjects} />
-          </div>
+          <div className="mt-3"><DailyRouteButton projects={todayProjects} /></div>
         </div>
       )}
 
@@ -4080,32 +4313,9 @@ export function MonteurDashboard({ userName, projects, isAdmin, onNavigate, term
       {thisWeekProjects.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            Cette semaine
+            <Clock className="w-3.5 h-3.5" /> Cette semaine
           </p>
-          <div className="space-y-1.5">
-            {(() => {
-              let lastDay = "";
-              return thisWeekProjects.flatMap((p) => {
-                const dayKey = (p.dateMontage || p.dateMesures || "").split("T")[0];
-                const items: React.ReactNode[] = [];
-                if (dayKey !== lastDay && lastDay !== "") {
-                  items.push(
-                    <div key={`sep-${dayKey}`} className="flex items-center gap-2 pt-1">
-                      <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
-                      <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium shrink-0 px-1">
-                        {dayKey ? new Date(dayKey + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" }) : ""}
-                      </span>
-                      <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
-                    </div>
-                  );
-                }
-                lastDay = dayKey;
-                items.push(<WeekProjectRow key={p.id} project={p} />);
-                return items;
-              });
-            })()}
-          </div>
+          <div className="space-y-1.5">{weekSeparator(thisWeekProjects)}</div>
         </div>
       )}
 
@@ -4113,34 +4323,21 @@ export function MonteurDashboard({ userName, projects, isAdmin, onNavigate, term
       {nextWeekProjects.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5" />
-            Semaine prochaine
+            <Calendar className="w-3.5 h-3.5" /> Semaine prochaine
           </p>
-          <div className="space-y-1.5">
-            {(() => {
-              let lastDay = "";
-              return nextWeekProjects.flatMap((p) => {
-                const dayKey = (p.dateMontage || p.dateMesures || "").split("T")[0];
-                const items: React.ReactNode[] = [];
-                if (dayKey !== lastDay && lastDay !== "") {
-                  items.push(
-                    <div key={`sep-${dayKey}`} className="flex items-center gap-2 pt-1">
-                      <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
-                      <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium shrink-0 px-1">
-                        {dayKey ? new Date(dayKey + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" }) : ""}
-                      </span>
-                      <div className="flex-1 h-px bg-gray-200/80 dark:bg-gray-700/60" />
-                    </div>
-                  );
-                }
-                lastDay = dayKey;
-                items.push(<WeekProjectRow key={p.id} project={p} />);
-                return items;
-              });
-            })()}
-          </div>
+          <div className="space-y-1.5">{weekSeparator(nextWeekProjects)}</div>
         </div>
       )}
     </div>
   );
+}
+
+export function MonteurDashboard({ userName, projects, isAdmin, onNavigate, terminatedProjectsInit = [] }: MonteurDashboardProps) {
+  // Admin view: show all collaborators
+  if (isAdmin) {
+    return <AdminDashboard projects={projects} userName={userName} onNavigate={onNavigate} terminatedProjectsInit={terminatedProjectsInit} />;
+  }
+
+  // Collaborateur (non-admin) view
+  return <CollaborateurDashboard userName={userName} projects={projects} />;
 }
