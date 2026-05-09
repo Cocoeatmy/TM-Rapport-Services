@@ -1107,6 +1107,8 @@ function HomePage() {
     acc[name] = projects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase())).length;
     return acc;
   }, {});
+  // Compteur "Team TM" — projets dont le champ collaborateurs contient "team tm"
+  const teamTMCount = projects.filter((p) => p.collaborateurs.toLowerCase().includes("team tm")).length;
 
   const rdvFixeCount = mode === "cmd" ? projects.filter((p) => p.etatCMD === "RDV - fixé").length
     : projects.filter((p) => {
@@ -4626,6 +4628,24 @@ function HomePage() {
                       </button>
                     );
                   })}
+                  {/* Bouton "Team" — projets assignés à "Team TM" dans Notion */}
+                  {(() => {
+                    const teamColors = getCollaboratorColor("Team TM");
+                    const isTeamSelected = collabFilter === "Team TM";
+                    return (
+                      <button
+                        onClick={() => setCollabFilter(isTeamSelected ? null : "Team TM")}
+                        className="w-full text-left text-xs font-medium px-3 py-2 rounded-lg transition-colors flex items-center gap-2"
+                        style={isTeamSelected ? { backgroundColor: "#1e3a5f", color: "white" } : { backgroundColor: teamColors.bg, color: teamColors.text }}
+                      >
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: isTeamSelected ? "white" : teamColors.dot }}
+                        />
+                        Team ({teamTMCount})
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -4692,6 +4712,24 @@ function HomePage() {
                   </button>
                 );
               })}
+              {/* Bouton "Team" mobile */}
+              {(() => {
+                const teamColors = getCollaboratorColor("Team TM");
+                const isTeamSelected = collabFilter === "Team TM";
+                return (
+                  <button
+                    onClick={() => setCollabFilter(isTeamSelected ? null : "Team TM")}
+                    className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors inline-flex items-center gap-1 whitespace-nowrap"
+                    style={isTeamSelected ? { backgroundColor: "#1e3a5f", color: "white" } : { backgroundColor: teamColors.bg, color: teamColors.text }}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: isTeamSelected ? "white" : teamColors.dot }}
+                    />
+                    Team ({teamTMCount})
+                  </button>
+                );
+              })()}
             </div>
           </div>
 
