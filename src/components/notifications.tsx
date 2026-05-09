@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, MessageCircle, Package, Calendar, AlertTriangle } from "lucide-react";
 
@@ -164,6 +164,17 @@ export function NotificationBell() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notifs, setNotifs] = useState<Notification[]>([]);
+  const bellRef = useRef<HTMLDivElement>(null);
+
+  // Fermeture au tap/clic en dehors du panneau (iOS-compatible via pointerdown)
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: PointerEvent) => {
+      if (!bellRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", handler);
+    return () => document.removeEventListener("pointerdown", handler);
+  }, [open]);
 
   const refresh = useCallback(async () => {
     const data = await fetchNotifications();
@@ -222,7 +233,7 @@ export function NotificationBell() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={bellRef}>
       <button
         onClick={() => { setOpen(!open); if (!open) markAllRead(); }}
         className="w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 transition-colors relative"
@@ -236,8 +247,6 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="fixed left-2 right-2 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-72 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-700">
               <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Notifications</span>
@@ -285,7 +294,6 @@ export function NotificationBell() {
               )}
             </div>
           </div>
-        </>
       )}
     </div>
   );

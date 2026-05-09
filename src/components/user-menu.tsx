@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette, Image as ImageIcon } from "lucide-react";
 import { getCollaboratorInitials } from "@/lib/collaborators";
@@ -22,6 +22,17 @@ export function UserMenu() {
   const [darkMode, setDarkMode] = useState(false);
   const [uiMode, setUiMode] = useState<UiMode>("classic");
   const [saveToPhotos, setSaveToPhotos] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Fermeture au clic/tap en dehors du menu (iOS-compatible via pointerdown)
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", handler);
+    return () => document.removeEventListener("pointerdown", handler);
+  }, [open]);
 
   const toggleDark = () => {
     const newMode = !darkMode;
@@ -129,7 +140,7 @@ export function UserMenu() {
   const initials = getCollaboratorInitials(user.name);
 
   return (
-    <div className="relative">
+    <div className="relative" ref={menuRef}>
       <button
         onClick={() => setOpen(!open)}
         className="w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-xs font-bold text-white hover:bg-white/25 transition-colors"
@@ -138,8 +149,6 @@ export function UserMenu() {
       </button>
 
       {open && (
-        <>
-          <div className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-12 z-50 w-56 bg-white dark:bg-slate-800 rounded-xl p-2 shadow-xl border border-gray-200 dark:border-gray-700">
             <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 mb-1">
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
@@ -272,7 +281,6 @@ export function UserMenu() {
               Déconnexion
             </button>
           </div>
-        </>
       )}
     </div>
   );

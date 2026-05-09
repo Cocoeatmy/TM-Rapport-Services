@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Search, X, Loader2, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Project } from "@/lib/notion";
@@ -94,6 +94,12 @@ export function GlobalSearch() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query]);
 
+  const closeSearch = useCallback(() => {
+    setOpen(false);
+    setQuery("");
+    setApiResults([]);
+  }, []);
+
   // Cmd+K / Ctrl+K pour ouvrir, Escape pour fermer
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -102,11 +108,11 @@ export function GlobalSearch() {
         setOpen(true);
         setTimeout(() => inputRef.current?.focus(), 50);
       }
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") closeSearch();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [closeSearch]);
 
   // Fusionner local (instantané) + API (complet) en déduplication par id
   // Les résultats locaux apparaissent en premier (déjà dans le cache → rapides),
@@ -119,8 +125,7 @@ export function GlobalSearch() {
   const allResults = [...localResults, ...apiOnlyResults];
 
   const navigate = (p: Project) => {
-    setOpen(false);
-    setQuery("");
+    closeSearch();
     router.push(`/projet/${p.id}`);
   };
 
@@ -145,8 +150,8 @@ export function GlobalSearch() {
       {/* Overlay modal */}
       {open && (
         <div
-          className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-start justify-center pt-[8vh] px-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
+          className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-start justify-center pt-[8vh] px-4 cursor-pointer"
+          onPointerDown={(e) => { if (e.target === e.currentTarget) closeSearch(); }}
         >
           <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
             {/* Barre de saisie */}
@@ -169,7 +174,7 @@ export function GlobalSearch() {
                   <X className="w-4 h-4" />
                 </button>
               )}
-              <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 ml-1">
+              <button onClick={closeSearch} className="text-gray-400 hover:text-gray-600 ml-1">
                 <kbd className="text-[11px] font-mono bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700">Esc</kbd>
               </button>
             </div>
