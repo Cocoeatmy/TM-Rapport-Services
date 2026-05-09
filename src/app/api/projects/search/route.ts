@@ -30,7 +30,6 @@ const SEARCH_FILTERS = (q: string) => ({
     { property: "Bon de livraison", rich_text: { contains: q } },
     { property: "Collaborateurs", rich_text: { contains: q } },
     { property: "Contacts", rich_text: { contains: q } },
-    { property: "Emplacement de cabine", select: { equals: q } },
   ],
 });
 
