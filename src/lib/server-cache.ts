@@ -48,6 +48,20 @@ export function setCache(key: string, data: unknown) {
 }
 
 /**
+ * Variante longue durée pour le cron nocturne.
+ * TTL = 2h (données valides pour toute la matinée).
+ * Utilisé par warm-all pour que les données survivent au-delà des 5 min habituelles.
+ */
+const LONG_TTL = 2 * 60 * 60 * 1000;       // 2 heures
+const LONG_FRESH_MS = 10 * 60 * 1000;      // 10 min de fraîcheur
+
+export function setCacheLong(key: string, data: unknown) {
+  const now = Date.now();
+  cache.set(key, { data, expires: now + LONG_TTL, staleAt: now + LONG_FRESH_MS });
+  fallbackCache.set(key, { data, storedAt: now });
+}
+
+/**
  * Retourne une entrée du cache avec son état de fraîcheur.
  * Si la donnée existe mais est périmée, `stale` vaut true : l'appelant doit
  * lancer un revalidate en arrière-plan via {@link revalidateInBackground}.

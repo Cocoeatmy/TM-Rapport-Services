@@ -855,12 +855,15 @@ function HomePage() {
   // Cache-first: afficher le cache instantanément, puis mettre à jour en arrière-plan
   useEffect(() => {
     // 1. Charger le cache local IMMÉDIATEMENT — affichage instantané
+    let localCacheAge = Infinity;
     try {
       const cached = localStorage.getItem("tm-projects-cache");
+      const cachedTs = localStorage.getItem("tm-projects-cache-ts");
       if (cached) {
         const parsed = JSON.parse(cached);
         setProjectsData(parsed);
-        setLoading(false); // Afficher immédiatement avec les données cachées
+        setLoading(false);
+        localCacheAge = cachedTs ? (Date.now() - Number(cachedTs)) / (1000 * 60 * 60) : Infinity;
       }
     } catch {}
 
@@ -872,20 +875,44 @@ function HomePage() {
       }
     }).catch(() => {});
 
-    // 2. Mettre à jour chaque endpoint INDIVIDUELLEMENT dès qu'il arrive
+    // 2a. Si le cache local est absent ou vieux (> 6h), charger le snapshot
+    //     nocturne en UNE seule requête → toutes les données d'un coup
+    const loadSnapshot = localCacheAge > 6;
+    if (loadSnapshot) {
+      fetch("/api/projects/snapshot")
+        .then((r) => r.json())
+        .then((snap) => {
+          if (snap.ok && snap.data && typeof snap.data === "object") {
+            setProjectsData((prev) => {
+              const merged = { ...prev, ...snap.data };
+              try {
+                localStorage.setItem("tm-projects-cache", JSON.stringify(merged));
+                localStorage.setItem("tm-projects-cache-ts", String(Date.now()));
+              } catch {}
+              return merged;
+            });
+            setLoading(false);
+          }
+        })
+        .catch(() => {});
+    }
+
+    // 2b. Mettre à jour chaque endpoint INDIVIDUELLEMENT dès qu'il arrive
+    //     (données fraîches en parallèle, complète / remplace le snapshot)
     const allModes = Object.entries(MODE_API) as [string, string][];
     const uniqueUrls = [...new Set(allModes.map(([, url]) => url))];
 
-    // Fetch each unique URL and update state as soon as each arrives
     uniqueUrls.forEach((url) => {
       fetch(url).then((r) => r.json()).then((data) => {
         if (!Array.isArray(data)) return;
-        // Map this URL's data to all modes that use it
         const modesForUrl = allModes.filter(([, u]) => u === url);
         setProjectsData((prev) => {
           const updated = { ...prev };
           modesForUrl.forEach(([key]) => { updated[key] = data; });
-          try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+          try {
+            localStorage.setItem("tm-projects-cache", JSON.stringify(updated));
+            localStorage.setItem("tm-projects-cache-ts", String(Date.now()));
+          } catch {}
           return updated;
         });
         setLoading(false);

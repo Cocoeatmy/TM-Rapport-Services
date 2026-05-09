@@ -12,6 +12,14 @@
     {
       "path": "/api/cron/rdv-reminders",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/warm-all",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/warm-all",
+      "schedule": "0 6 * * *"
     }
   ]
 }
