@@ -48,6 +48,13 @@ export const BUCKET_LABEL: Record<PhotoBucketKey, string> = {
   GARANTIE: "Photos Garantie",
 };
 
+/** Texte d'instruction affiché en sous-titre dans le rapport (null = aucun). */
+export const BUCKET_HINT: Partial<Record<PhotoBucketKey, string>> = {
+  AVANT_INTERVENTION: "1 photo des lieux + 1 photo de l'état du receveur de douche",
+  DEMONTAGE:          "1 photo de l'état après démontage + 1 photo après nettoyage",
+  APRES_INTERVENTION: "1 photo de l'état du receveur de douche",
+};
+
 // Mapping bucket → champ Notion qui stocke ses fichiers.
 export const BUCKET_NOTION_FIELD: Record<
   PhotoBucketKey,

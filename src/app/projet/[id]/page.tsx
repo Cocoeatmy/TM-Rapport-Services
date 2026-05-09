@@ -91,6 +91,7 @@ import { showRetryToast } from "@/components/error-toast";
 import {
   type PhotoBucketKey,
   BUCKET_LABEL,
+  BUCKET_HINT,
   BUCKET_NOTION_FIELD,
   bucketFilePrefix,
   defaultBucketForField,
@@ -177,17 +178,23 @@ function BucketPhotoUpload({
     }).catch(() => {});
   };
 
+  const hint = BUCKET_HINT[bucket];
   return (
-    <PhotoUpload
-      category={`${bucket.toLowerCase()}${cabineIdx ? `-cab${cabineIdx}` : ""}`}
-      label={BUCKET_LABEL[bucket]}
-      projectId={projectId}
-      notionField={notionFieldName[notionFieldKey]}
-      filePrefix={bucketFilePrefix(bucket, cabineIdx)}
-      existingPhotos={existingPhotos}
-      onUpload={handleUpload}
-      onDelete={handleDelete}
-    />
+    <div>
+      {hint && (
+        <p className="text-xs text-gray-400 mb-1 mt-0.5">({hint})</p>
+      )}
+      <PhotoUpload
+        category={`${bucket.toLowerCase()}${cabineIdx ? `-cab${cabineIdx}` : ""}`}
+        label={BUCKET_LABEL[bucket]}
+        projectId={projectId}
+        notionField={notionFieldName[notionFieldKey]}
+        filePrefix={bucketFilePrefix(bucket, cabineIdx)}
+        existingPhotos={existingPhotos}
+        onUpload={handleUpload}
+        onDelete={handleDelete}
+      />
+    </div>
   );
 }
 
