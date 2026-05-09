@@ -9,6 +9,7 @@ import { RefreshButton } from "@/components/refresh-button";
 import { CreateProjectButton } from "@/components/create-project-button";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineBanner } from "@/components/offline-banner";
+import { GlobalSearch } from "@/components/global-search";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -84,6 +85,7 @@ export default function RootLayout({
               </svg>
             </a>
             <div className="flex items-center gap-2">
+              <GlobalSearch />
               <CreateProjectButton />
               <NotificationBell />
               <RefreshButton />
