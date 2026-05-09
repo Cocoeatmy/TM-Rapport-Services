@@ -1,4 +1,4 @@
-// Service worker TM Rapport — v8
+// Service worker TM Rapport — v9
 // Stratégies :
 //   - Statique (_next/static, icons, logos, manifest) : cache-first (permanent).
 //   - API GET : network-first avec timeout 400 ms → on privilégie toujours la
@@ -9,10 +9,12 @@
 //     IMPORTANT v6 : le fallback ne sert PLUS le HTML de "/" pour d'autres
 //     routes. Servir "/" pour "/projet/123" confondait le routeur Next.js
 //     (payload RSC disant "route: /") qui naviguait vers le dashboard.
+//   v9 : pré-téléchargement des projets du jour via offline-prefetch.ts
+//        (côté client) + OFFLINE_HTML enrichi avec navigation de retour.
 //
 // Les noms de cache sont versionnés : un bump de version purge tout l'ancien.
 
-const VERSION = "v8";
+const VERSION = "v9";
 const CACHE_NAME = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE = `tm-api-${VERSION}`;
@@ -62,7 +64,7 @@ self.addEventListener("activate", (event) => {
 });
 
 const OFFLINE_HTML =
-  '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TM Rapport - Hors ligne</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f1f5f9;color:#1e293b}.box{text-align:center;padding:2rem;max-width:400px}h1{font-size:1.5rem}p{color:#64748b;font-size:0.9rem}button{margin-top:1rem;padding:0.75rem 2rem;border:none;border-radius:0.75rem;background:#1e3a5f;color:white;font-weight:600;cursor:pointer}</style></head><body><div class="box"><h1>Hors ligne</h1><p>Pas de connexion. Les donnees seront synchronisees au retour du reseau.</p><button onclick="location.reload()">Reessayer</button></div></body></html>';
+  '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TM Rapport - Hors ligne</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f1f5f9;color:#1e293b}.box{text-align:center;padding:2rem;max-width:400px}h1{font-size:1.5rem;margin-bottom:0.5rem}p{color:#64748b;font-size:0.9rem;margin:0.5rem 0}svg{display:block;margin:0 auto 1.5rem;opacity:0.3}.btns{display:flex;flex-direction:column;gap:0.75rem;margin-top:1.5rem}button{padding:0.75rem 2rem;border:none;border-radius:0.75rem;font-weight:600;cursor:pointer;font-size:0.95rem}.primary{background:#1e3a5f;color:white}.secondary{background:#e2e8f0;color:#475569}</style></head><body><div class="box"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="1.5"><path d="M1 6s4-2 11-2 11 2 11 2"/><path d="M5 10s3-1.5 7-1.5 7 1.5 7 1.5"/><line x1="2" y1="2" x2="22" y2="22"/><circle cx="12" cy="16" r="1"/></svg><h1>Pas de connexion</h1><p>Vos donnees en cache restent accessibles.</p><p>Les modifications seront synchronisees au retour du reseau.</p><div class="btns"><button class="primary" onclick="history.length>1?history.back():location.href=\'/\'">Retour</button><button class="secondary" onclick="location.href=\'/\'">Tableau de bord</button><button class="secondary" onclick="location.reload()">Reessayer</button></div></div></body></html>';
 
 /**
  * Course entre le fetch réseau et un timeout. Si le réseau gagne, on met en

@@ -19,6 +19,7 @@ import { fetchWithRetry, prefetchProject } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import { StatsDateFilter, filterByStatsDate, type StatsDateMode } from "@/components/stats-date-filter";
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
+import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 
 const MonteurDashboard = dynamic(() => import("@/components/monteur-dashboard").then(m => ({ default: m.MonteurDashboard })), {
   ssr: false,
@@ -756,6 +757,22 @@ function HomePage() {
   }, [mode, statusFilter, collabFilter, quickFilter, router]);
 
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
+
+  // Pré-cache les projets du jour pour l'accès hors ligne (silencieux, best-effort)
+  useEffect(() => {
+    if (!currentUser) return;
+    const all: Project[] = [];
+    const seen = new Set<string>();
+    for (const arr of Object.values(projectsData)) {
+      for (const p of arr) {
+        if (p?.id && !seen.has(p.id)) { seen.add(p.id); all.push(p); }
+      }
+    }
+    if (all.length > 0) {
+      prefetchTodaysProjects(all, currentUser.name).catch(() => {});
+    }
+  }, [projectsData, currentUser]);
+
   const [viewMode, setViewMode] = useState<"list" | "calendar" | "collab" | "week" | "kanban">("list");
   const [clientSearch, setClientSearch] = useState("");
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
