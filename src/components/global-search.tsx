@@ -151,9 +151,12 @@ export function GlobalSearch() {
       {open && (
         <div
           className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-start justify-center pt-[8vh] px-4 cursor-pointer"
-          onPointerDown={(e) => { if (e.target === e.currentTarget) closeSearch(); }}
+          onPointerDown={closeSearch}
         >
-          <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
+          <div
+            className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700 cursor-default"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             {/* Barre de saisie */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-800">
               <Search className="w-5 h-5 text-gray-400 shrink-0" />
