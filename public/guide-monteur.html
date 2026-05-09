@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guide utilisateur — TM Rapport</title>
+  <style>
+    /* ─── Reset & base ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 15px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1e293b;
+      background: #fff;
+      line-height: 1.65;
+    }
+
+    /* ─── Page layout ─── */
+    .page {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 48px 40px;
+    }
+
+    /* ─── Cover page ─── */
+    .cover {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      background: linear-gradient(160deg, #0f2a4a 0%, #1e3a5f 50%, #1d4ed8 100%);
+      color: white;
+      padding: 60px 40px;
+      page-break-after: always;
+    }
+    .cover-logo {
+      width: 90px;
+      height: 90px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 42px;
+      margin-bottom: 32px;
+      border: 2px solid rgba(255,255,255,0.3);
+    }
+    .cover h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+    .cover h2 {
+      font-size: 1.15rem;
+      font-weight: 400;
+      opacity: 0.8;
+      margin-bottom: 48px;
+    }
+    .cover-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 56px;
+    }
+    .cover-pill {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .cover-footer {
+      margin-top: auto;
+      opacity: 0.55;
+      font-size: 0.78rem;
+    }
+
+    /* ─── Table of contents ─── */
+    .toc {
+      page-break-after: always;
+      padding: 48px 40px;
+    }
+    .toc h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1e3a5f;
+      margin-bottom: 28px;
+      padding-bottom: 12px;
+      border-bottom: 3px solid #1e3a5f;
+    }
+    .toc-list { list-style: none; }
+    .toc-list li {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 7px 0;
+      border-bottom: 1px dashed #e2e8f0;
+      font-size: 0.95rem;
+    }
+    .toc-list li .num {
+      font-weight: 700;
+      color: #1e3a5f;
+      min-width: 24px;
+    }
+    .toc-list li .dots { flex: 1; border-bottom: 1px dashed #cbd5e1; margin: 0 4px 3px; }
+    .toc-sub {
+      list-style: none;
+      padding-left: 28px;
+    }
+    .toc-sub li {
+      font-size: 0.88rem;
+      color: #475569;
+      padding: 4px 0;
+      border-bottom: none;
+    }
+
+    /* ─── Section headers ─── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+      margin-top: 8px;
+    }
+    .section-number {
+      width: 40px;
+      height: 40px;
+      background: #1e3a5f;
+      color: white;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .section-title {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #1e3a5f;
+      letter-spacing: -0.01em;
+    }
+
+    h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #1e3a5f;
+      margin: 28px 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h3::before {
+      content: "";
+      display: inline-block;
+      width: 4px;
+      height: 18px;
+      background: #3b82f6;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    p { margin-bottom: 10px; }
+
+    /* ─── Cards ─── */
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 20px 22px;
+      margin-bottom: 18px;
+    }
+    .card-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #1e3a5f;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ─── Tips & warnings ─── */
+    .tip {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      border-radius: 0 10px 10px 0;
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-size: 0.92rem;
+    }
+    .tip strong { color: #1d4ed8; }
+    .warning {
+      background: #fff7ed;
+      border-left: 4px solid #f97316;
+      border-radius: 0 10px 10px 0;
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-size: 0.92rem;
+    }
+    .warning strong { color: #c2410c; }
+    .success {
+      background: #f0fdf4;
+      border-left: 4px solid #22c55e;
+      border-radius: 0 10px 10px 0;
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-size: 0.92rem;
+    }
+    .success strong { color: #15803d; }
+
+    /* ─── Steps ─── */
+    .steps { margin: 14px 0 20px; }
+    .step {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 14px;
+      align-items: flex-start;
+    }
+    .step-num {
+      width: 28px;
+      height: 28px;
+      background: #1e3a5f;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.82rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-content strong { display: block; font-size: 0.95rem; margin-bottom: 2px; }
+    .step-content span { font-size: 0.88rem; color: #475569; }
+
+    /* ─── Photo buckets table ─── */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 14px 0;
+    }
+    .photo-bucket {
+      background: #f1f5f9;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.88rem;
+    }
+    .photo-bucket .label {
+      font-weight: 700;
+      color: #1e3a5f;
+      margin-bottom: 4px;
+    }
+    .photo-bucket .hint {
+      color: #64748b;
+      font-size: 0.82rem;
+      font-style: italic;
+    }
+    .photo-bucket.required { border: 1.5px solid #3b82f6; }
+    .photo-bucket .badge {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 100px;
+      margin-bottom: 4px;
+    }
+
+    /* ─── Icon badges ─── */
+    .icon-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 14px 0;
+    }
+    .icon-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.88rem;
+    }
+    .icon-badge .icon { font-size: 1.15rem; }
+    .icon-badge strong { color: #1e3a5f; }
+
+    /* ─── Offline banner mockup ─── */
+    .offline-mock {
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 8px 0;
+    }
+    .offline-mock.orange { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+    .offline-mock.gray   { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+    .offline-mock.blue   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+
+    /* ─── Page breaks ─── */
+    .page-break { page-break-before: always; padding-top: 48px; }
+
+    /* ─── Divider ─── */
+    .divider {
+      border: none;
+      border-top: 2px solid #e2e8f0;
+      margin: 36px 0;
+    }
+
+    ul, ol {
+      padding-left: 22px;
+      margin-bottom: 12px;
+    }
+    li { margin-bottom: 5px; font-size: 0.93rem; }
+
+    /* ─── Print ─── */
+    @media print {
+      body { font-size: 13px; }
+      .page { padding: 0 32px; }
+      .no-print { display: none; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════ COVER ════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-logo">📋</div>
+  <h1>Guide Utilisateur</h1>
+  <h2>TM Rapport — Application monteurs</h2>
+  <div class="cover-pills">
+    <span class="cover-pill">📱 iOS &amp; Android</span>
+    <span class="cover-pill">📷 Photos</span>
+    <span class="cover-pill">✍️ Signature</span>
+    <span class="cover-pill">📍 GPS automatique</span>
+    <span class="cover-pill">📶 Mode hors-ligne</span>
+  </div>
+  <p style="opacity:0.7;font-size:0.95rem;max-width:440px;">
+    Ce guide explique comment utiliser l'application TM Rapport pour compléter vos rapports de chantier, prendre vos photos et signer électroniquement.
+  </p>
+  <div class="cover-footer">
+    <p>TM Rapport Service &nbsp;·&nbsp; Usage interne &nbsp;·&nbsp; Confidentiel</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════ TOC ════════════════════════════════════════ -->
+<div class="toc">
+  <h2>Table des matières</h2>
+  <ul class="toc-list">
+    <li>
+      <span class="num">1</span>
+      <span>Accès &amp; connexion</span>
+      <span class="dots"></span>
+      <span>3</span>
+    </li>
+    <li>
+      <span class="num">2</span>
+      <span>Tableau de bord</span>
+      <span class="dots"></span>
+      <span>3</span>
+    </li>
+    <li>
+      <span class="num">3</span>
+      <span>Rechercher un projet</span>
+      <span class="dots"></span>
+      <span>4</span>
+    </li>
+    <li>
+      <span class="num">4</span>
+      <span>Remplir un rapport de chantier</span>
+      <span class="dots"></span>
+      <span>4</span>
+    </li>
+    <ul class="toc-sub">
+      <li>4.1 &nbsp;Heures d'arrivée &amp; de départ</li>
+      <li>4.2 &nbsp;Texte du rapport</li>
+      <li>4.3 &nbsp;Photos</li>
+      <li>4.4 &nbsp;Signature client</li>
+      <li>4.5 &nbsp;Enregistrer &amp; envoyer</li>
+    </ul>
+    <li>
+      <span class="num">5</span>
+      <span>Projets multi-cabines</span>
+      <span class="dots"></span>
+      <span>7</span>
+    </li>
+    <li>
+      <span class="num">6</span>
+      <span>GPS automatique</span>
+      <span class="dots"></span>
+      <span>8</span>
+    </li>
+    <li>
+      <span class="num">7</span>
+      <span>Mode hors-ligne</span>
+      <span class="dots"></span>
+      <span>8</span>
+    </li>
+    <li>
+      <span class="num">8</span>
+      <span>Conseils &amp; bonnes pratiques</span>
+      <span class="dots"></span>
+      <span>9</span>
+    </li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════ CONTENT ════════════════════════════════════════ -->
+<div class="page">
+
+  <!-- ── Section 1 : Accès ── -->
+  <div class="section-header">
+    <div class="section-number">1</div>
+    <div class="section-title">Accès &amp; connexion</div>
+  </div>
+
+  <p>L'application TM Rapport est accessible depuis le navigateur de votre iPhone ou Android, sans installation depuis l'App Store.</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>Ouvrez Safari (iOS) ou Chrome (Android)</strong>
+        <span>Tapez l'adresse fournie par votre responsable dans la barre d'adresse.</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>Entrez votre adresse e-mail et votre mot de passe</strong>
+        <span>Ces identifiants vous sont fournis par l'administrateur. Ne les partagez pas.</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>Ajoutez l'app à votre écran d'accueil (recommandé)</strong>
+        <span>Sur iOS : bouton Partager ➜ « Sur l'écran d'accueil ». Sur Android : ⋮ ➜ « Ajouter à l'écran d'accueil ». L'app se comportera comme une app native.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip">
+    <strong>💡 Conseil :</strong> Une fois l'app ajoutée à l'écran d'accueil, vous n'avez plus besoin de retaper l'adresse à chaque fois. Elle s'ouvre directement depuis l'icône.
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── Section 2 : Tableau de bord ── -->
+  <div class="section-header">
+    <div class="section-number">2</div>
+    <div class="section-title">Tableau de bord</div>
+  </div>
+
+  <p>À l'ouverture, vous arrivez sur votre tableau de bord personnel. Il affiche un résumé de vos chantiers et informations utiles pour la journée.</p>
+
+  <div class="icon-row">
+    <div class="icon-badge"><span class="icon">💬</span><div><strong>Citation du jour</strong><br><span style="font-size:0.8rem;color:#64748b;">Une phrase de motivation personnalisée, différente chaque jour.</span></div></div>
+    <div class="icon-badge"><span class="icon">📅</span><div><strong>Votre planning</strong><br><span style="font-size:0.8rem;color:#64748b;">Les chantiers prévus aujourd'hui, cette semaine et la semaine prochaine.</span></div></div>
+    <div class="icon-badge"><span class="icon">🔧</span><div><strong>Statut des arrivages</strong><br><span style="font-size:0.8rem;color:#64748b;">Couleur : vert (récent), orange (6–9j), rouge (urgent).</span></div></div>
+    <div class="icon-badge"><span class="icon">⏱️</span><div><strong>Vos heures</strong><br><span style="font-size:0.8rem;color:#64748b;">Récapitulatif de vos heures travaillées par projet.</span></div></div>
+  </div>
+
+  <div class="tip">
+    <strong>📍 GPS silencieux :</strong> Dès que vous ouvrez un projet et que vous vous trouvez à moins de 200 m du chantier, l'application enregistre automatiquement votre heure d'arrivée. Pas besoin de faire quoi que ce soit.
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── Section 3 : Rechercher ── -->
+  <div class="section-header">
+    <div class="section-number">3</div>
+    <div class="section-title">Rechercher un projet</div>
+  </div>
+
+  <p>Deux façons de trouver un projet :</p>
+
+  <div class="card">
+    <div class="card-title">🔍 Recherche rapide (barre de recherche)</div>
+    <p style="font-size:0.9rem;margin:0;">Appuyez sur la barre de recherche en haut de l'écran. Tapez le numéro TM, le nom du chantier ou votre prénom. Les résultats apparaissent instantanément depuis les données en mémoire.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📋 Onglet Projets</div>
+    <p style="font-size:0.9rem;margin:0;">Dans la barre de navigation, appuyez sur votre onglet de projets. Faites défiler la liste ou utilisez les filtres pour retrouver votre chantier par statut ou date.</p>
+  </div>
+
+  <div class="tip">
+    <strong>⌨️ Raccourci :</strong> Sur iPad avec clavier, appuyez sur <strong>⌘ K</strong> pour ouvrir la recherche globale instantanément.
+  </div>
+
+</div><!-- end .page -->
+
+<!-- ════════════ Section 4 (nouvelle page) ════════════ -->
+<div class="page page-break">
+
+  <div class="section-header">
+    <div class="section-number">4</div>
+    <div class="section-title">Remplir un rapport de chantier</div>
+  </div>
+
+  <p>Appuyez sur un projet dans la liste pour ouvrir sa fiche. L'onglet <strong>Rapport</strong> est l'endroit où vous complétez votre travail.</p>
+
+  <div class="card" style="background:#eff6ff;border-color:#bfdbfe;">
+    <div class="card-title" style="color:#1d4ed8;">📊 Barre de progression</div>
+    <p style="font-size:0.9rem;margin:0;">En haut de chaque rapport, une barre de progression indique l'état de complétion. Elle devient verte quand les 5 critères sont atteints :</p>
+    <ul style="margin-top:8px;font-size:0.88rem;">
+      <li>✅ Heure d'arrivée renseignée</li>
+      <li>✅ Heure de départ renseignée</li>
+      <li>✅ Texte du rapport complété</li>
+      <li>✅ Photos avant intervention</li>
+      <li>✅ Photos montage</li>
+    </ul>
+  </div>
+
+  <!-- 4.1 Heures -->
+  <h3>4.1 &nbsp; Heures d'arrivée &amp; de départ</h3>
+
+  <p>Deux façons d'enregistrer vos heures :</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">A</div>
+      <div class="step-content">
+        <strong>GPS automatique (recommandé)</strong>
+        <span>L'app détecte votre arrivée et votre départ automatiquement via le GPS. Aucune action requise — les heures se remplissent toutes seules.</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">B</div>
+      <div class="step-content">
+        <strong>Saisie manuelle</strong>
+        <span>Appuyez sur le champ « Heure d'arrivée » ou « Heure de départ » et saisissez l'heure au format HH:MM (ex. 08:30). Le total d'heures est calculé automatiquement.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip">
+    <strong>📅 Chantier sur plusieurs jours ?</strong> Si votre intervention s'étale sur plusieurs jours, utilisez le tableau multi-jours : ajoutez une ligne par jour avec la date, votre prénom, et vos heures d'arrivée/départ.
+  </div>
+
+  <!-- 4.2 Texte -->
+  <h3>4.2 &nbsp; Texte du rapport</h3>
+
+  <p>Dans la section <strong>Rapport</strong>, vous avez plusieurs options :</p>
+
+  <div class="card">
+    <div class="card-title">☑️ Cases à cocher (sélection rapide)</div>
+    <ul style="font-size:0.9rem;margin:0;">
+      <li>L'installation s'est déroulée sans encombre</li>
+      <li>Difficultés à l'assemblage</li>
+      <li>Client présent</li>
+      <li>Personne sur site</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="card-title">✏️ Zone de texte libre</div>
+    <p style="font-size:0.9rem;margin-bottom:8px;">Décrivez le déroulement de l'intervention, les particularités du chantier, ou tout autre observation utile.</p>
+    <div class="icon-row" style="margin:0;">
+      <div class="icon-badge" style="font-size:0.82rem;padding:6px 10px;"><span class="icon">✨</span><span>Bouton IA pour reformuler et améliorer votre texte automatiquement</span></div>
+      <div class="icon-badge" style="font-size:0.82rem;padding:6px 10px;"><span class="icon">🎤</span><span>Dictée vocale — appuyez et parlez</span></div>
+    </div>
+  </div>
+
+  <!-- 4.3 Photos -->
+  <h3>4.3 &nbsp; Photos</h3>
+
+  <p>Les photos s'organisent en <strong>9 catégories</strong>. Certaines ont des indications précises sur le nombre et le type de photo attendus :</p>
+
+  <div class="photo-grid">
+    <div class="photo-bucket required">
+      <div class="badge">Obligatoire</div>
+      <div class="label">📸 Avant intervention</div>
+      <div class="hint">1 photo des lieux + 1 photo de l'état du receveur de douche</div>
+    </div>
+    <div class="photo-bucket">
+      <div class="label">📸 Avant montage</div>
+      <div class="hint">Photos de la zone avant de commencer l'assemblage</div>
+    </div>
+    <div class="photo-bucket required">
+      <div class="badge">Obligatoire</div>
+      <div class="label">🔩 Démontage</div>
+      <div class="hint">1 photo après démontage + 1 photo après nettoyage</div>
+    </div>
+    <div class="photo-bucket">
+      <div class="label">🔧 Montage — Gauche</div>
+      <div class="hint">Photos du côté gauche de la cabine en cours de montage</div>
+    </div>
+    <div class="photo-bucket">
+      <div class="label">🔧 Montage — Centre</div>
+      <div class="hint">Photos de face de la cabine</div>
+    </div>
+    <div class="photo-bucket">
+      <div class="label">🔧 Montage — Droite</div>
+      <div class="hint">Photos du côté droit de la cabine</div>
+    </div>
+    <div class="photo-bucket required">
+      <div class="badge">Obligatoire</div>
+      <div class="label">✅ Après intervention</div>
+      <div class="hint">1 photo de l'état final du receveur de douche</div>
+    </div>
+    <div class="photo-bucket">
+      <div class="label">📱 QR Code</div>
+      <div class="hint">Photo du QR code du produit installé</div>
+    </div>
+    <div class="photo-bucket">
+      <div class="label">🛡️ Garantie</div>
+      <div class="hint">Document ou étiquette de garantie</div>
+    </div>
+  </div>
+
+  <div class="steps" style="margin-top:14px;">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>Appuyez sur le bouton « + » de la catégorie souhaitée</strong>
+        <span>Le sélecteur de photos ou l'appareil photo s'ouvre.</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>Prenez la photo ou sélectionnez depuis votre galerie</strong>
+        <span>Les photos sont compressées automatiquement avant l'envoi pour économiser votre data.</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>Les photos s'envoient en parallèle</strong>
+        <span>Un indicateur de progression s'affiche. Les photos apparaissent dans la galerie dès l'envoi terminé.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="warning">
+    <strong>⚠️ Photos manquantes :</strong> Si vous essayez d'envoyer le rapport avec des photos manquantes, un avertissement s'affiche. Vous pouvez choisir d'envoyer quand même ou revenir compléter les photos.
+  </div>
+
+</div><!-- end .page page-break -->
+
+<!-- ════════════ Suite section 4 ════════════ -->
+<div class="page page-break">
+
+  <!-- 4.4 Signature -->
+  <h3>4.4 &nbsp; Signature client</h3>
+
+  <p>En fin d'intervention, faites signer le client directement sur l'écran de votre téléphone ou tablette :</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>Faites défiler jusqu'à la section « Signature »</strong>
+        <span>Elle se trouve en bas du rapport, après les photos.</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>Tendez l'appareil au client</strong>
+        <span>La zone de signature s'affiche en plein écran. Le client signe avec le doigt.</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>Appuyez sur « Valider la signature »</strong>
+        <span>La signature est sauvegardée immédiatement, même sans connexion internet.</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <strong>En cas d'erreur, appuyez sur « Effacer »</strong>
+        <span>Le client peut recommencer autant de fois que nécessaire.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="success">
+    <strong>✅ Signature hors-ligne :</strong> La signature est sauvegardée localement sur l'appareil et synchronisée automatiquement dès que la connexion revient. Vous pouvez signer même sans internet.
+  </div>
+
+  <!-- 4.5 Enregistrer -->
+  <h3>4.5 &nbsp; Enregistrer &amp; envoyer le rapport</h3>
+
+  <div class="card">
+    <div class="card-title">💾 Bouton « Enregistrer le rapport »</div>
+    <p style="font-size:0.9rem;margin:0;">Sauvegarde toutes les informations (heures, texte, photos, signature) dans Notion. À utiliser régulièrement pendant l'intervention pour ne pas perdre votre travail.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📤 Bouton « Envoyer le rapport »</div>
+    <p style="font-size:0.9rem;margin:0;">Marque le rapport comme terminé et le transmet. À utiliser une fois l'intervention <strong>entièrement terminée</strong> et toutes les photos ajoutées.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📄 Bouton « Télécharger le PDF »</div>
+    <p style="font-size:0.9rem;margin:0;">Génère un PDF du rapport complet (photos, heures, signature). Utile si le client souhaite une copie papier immédiate.</p>
+  </div>
+
+  <div class="tip">
+    <strong>💡 Conseil :</strong> Enregistrez régulièrement pendant l'intervention. Si votre téléphone se décharge ou perd la connexion, vos données sont conservées localement et synchronisées dès que possible.
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── Section 5 : Multi-cabines ── -->
+  <div class="section-header">
+    <div class="section-number">5</div>
+    <div class="section-title">Projets multi-cabines</div>
+  </div>
+
+  <p>Certains projets comportent plusieurs cabines à installer (ex. Cabine 1, Cabine 2…). La fiche rapport s'adapte automatiquement.</p>
+
+  <div class="card">
+    <div class="card-title">🔢 Fonctionnement par cabine</div>
+    <p style="font-size:0.9rem;margin-bottom:10px;">Chaque cabine possède sa propre section pliable/dépliable avec :</p>
+    <ul style="font-size:0.9rem;">
+      <li>Un nom/emplacement modifiable (ex. "Salle de bain principale")</li>
+      <li>L'attribution du monteur responsable</li>
+      <li>Sa propre date d'intervention</li>
+      <li>Ses propres heures d'arrivée et de départ</li>
+      <li>Son propre texte de rapport</li>
+      <li>Ses propres photos (toutes les 9 catégories)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📝 Rapport global</div>
+    <p style="font-size:0.9rem;margin:0;">En plus des rapports par cabine, une section <strong>Rapport global</strong> permet de noter des observations qui concernent l'ensemble du chantier.</p>
+  </div>
+
+  <div class="tip">
+    <strong>📸 Photos multi-cabines :</strong> Chaque photo est automatiquement associée à sa cabine. Nommage automatique : « Avant intervention.Cab1 », « Montage centre.Cab2 », etc.
+  </div>
+
+</div><!-- end page -->
+
+<!-- ════════════ Section 6 & 7 ════════════ -->
+<div class="page page-break">
+
+  <!-- ── Section 6 : GPS ── -->
+  <div class="section-header">
+    <div class="section-number">6</div>
+    <div class="section-title">GPS automatique</div>
+  </div>
+
+  <p>L'application utilise votre GPS pour enregistrer automatiquement vos heures d'arrivée et de départ sur chaque chantier, sans que vous ayez besoin de faire quoi que ce soit.</p>
+
+  <div class="card">
+    <div class="card-title">📍 Comment ça fonctionne</div>
+    <div class="steps" style="margin-top:8px;">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <strong>L'app calcule la position du chantier</strong>
+          <span>À partir de l'adresse du projet, elle détermine les coordonnées GPS exactes.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <strong>Une zone de 200 m est créée autour du chantier</strong>
+          <span>Quand vous entrez dans cette zone, votre heure d'arrivée est enregistrée.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <strong>Quand vous quittez la zone, l'heure de départ est notée</strong>
+          <span>L'app vérifie votre position toutes les 5 minutes. Si vous avez mis le téléphone en veille, elle corrige l'heure à votre retour dans l'app.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="warning">
+    <strong>⚠️ Autorisation GPS requise :</strong> Pour que le GPS fonctionne, acceptez la demande d'autorisation de localisation quand l'app la propose. Sélectionnez « Toujours autoriser » pour une détection optimale.
+  </div>
+
+  <div class="tip">
+    <strong>✏️ Correction manuelle toujours possible :</strong> Si le GPS n'a pas enregistré la bonne heure, vous pouvez toujours modifier manuellement les champs « Heure d'arrivée » et « Heure de départ » dans le rapport.
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── Section 7 : Hors-ligne ── -->
+  <div class="section-header">
+    <div class="section-number">7</div>
+    <div class="section-title">Mode hors-ligne</div>
+  </div>
+
+  <p>L'application est conçue pour les environnements sans connexion internet (sous-sols, zones rurales, bâtiments isolés). Vous pouvez travailler normalement et tout se synchronise automatiquement dès que le réseau revient.</p>
+
+  <h3>Ce que vous pouvez faire hors-ligne</h3>
+  <ul>
+    <li>Consulter les projets déjà chargés</li>
+    <li>Remplir le texte du rapport</li>
+    <li>Saisir les heures d'arrivée et de départ</li>
+    <li>Signer le rapport client</li>
+    <li>Prendre et enregistrer des photos (synchronisation dès le retour du réseau)</li>
+  </ul>
+
+  <h3>Les bannières d'état</h3>
+  <p>Une bannière colorée en haut de l'écran vous indique l'état de la connexion :</p>
+
+  <div class="offline-mock orange">
+    🔴 &nbsp; Hors ligne — 3 opération(s) en attente · synchro automatique au retour du réseau
+  </div>
+  <div class="offline-mock gray">
+    ⚫ &nbsp; Hors ligne — vous pouvez continuer à travailler, tout sera synchronisé au retour du réseau
+  </div>
+  <div class="offline-mock blue">
+    🔵 &nbsp; Synchronisation de 3 opération(s) en cours…
+  </div>
+
+  <div class="success">
+    <strong>✅ Synchronisation automatique :</strong> Dès que votre téléphone retrouve du réseau (Wi-Fi ou data), toutes les modifications enregistrées hors-ligne sont envoyées automatiquement. Vous n'avez rien à faire.
+  </div>
+
+  <div class="tip">
+    <strong>🔄 Synchronisation manuelle :</strong> Vous pouvez aussi appuyer sur l'icône nuage ☁️ dans le coin supérieur droit pour forcer une synchronisation immédiate.
+  </div>
+
+</div><!-- end page -->
+
+<!-- ════════════ Section 8 ════════════ -->
+<div class="page page-break">
+
+  <div class="section-header">
+    <div class="section-number">8</div>
+    <div class="section-title">Conseils &amp; bonnes pratiques</div>
+  </div>
+
+  <div class="card" style="border-color:#22c55e;background:#f0fdf4;">
+    <div class="card-title" style="color:#15803d;">✅ À faire systématiquement</div>
+    <ul style="font-size:0.9rem;margin:0;">
+      <li>📸 Prendre les photos <strong>avant</strong> de commencer le montage (l'état initial ne peut pas être refait)</li>
+      <li>💾 Enregistrer le rapport <strong>au fur et à mesure</strong> (après les photos, après le texte, après la signature)</li>
+      <li>✍️ Faire signer le client <strong>avant de quitter</strong> le chantier</li>
+      <li>🛡️ Photographier l'étiquette de garantie de chaque produit installé</li>
+      <li>📱 Scanner le QR code du produit si présent</li>
+    </ul>
+  </div>
+
+  <div class="card" style="border-color:#f97316;background:#fff7ed;">
+    <div class="card-title" style="color:#c2410c;">⚠️ À éviter</div>
+    <ul style="font-size:0.9rem;margin:0;">
+      <li>❌ Ne pas fermer l'app avant d'avoir enregistré (le bouton « Enregistrer » doit avoir été appuyé)</li>
+      <li>❌ Ne pas oublier les photos de démontage (état après démontage + état après nettoyage)</li>
+      <li>❌ Ne pas envoyer le rapport sans avoir vérifié la barre de progression (les 5 critères doivent être verts)</li>
+    </ul>
+  </div>
+
+  <h3>Qualité des photos</h3>
+  <div class="card">
+    <ul style="font-size:0.9rem;margin:0;">
+      <li>Prenez les photos dans un espace bien éclairé — ouvrez les lumières si nécessaire</li>
+      <li>Cadrez la totalité de la cabine, pas seulement un détail</li>
+      <li>Les photos sont automatiquement compressées, donc pas besoin de réduire la qualité manuellement</li>
+      <li>Vous pouvez ajouter plusieurs photos par catégorie (ex. plusieurs angles pour le montage)</li>
+    </ul>
+  </div>
+
+  <h3>Rapport texte de qualité</h3>
+  <div class="card">
+    <ul style="font-size:0.9rem;margin:0;">
+      <li>Utilisez le bouton <strong>✨ IA</strong> pour améliorer automatiquement votre texte</li>
+      <li>Mentionnez les particularités du chantier (murs hors-plomb, plomberie décalée, etc.)</li>
+      <li>Signalez toute anomalie dans le champ texte libre, même mineure</li>
+      <li>Si le client a des remarques, notez-les dans le rapport</li>
+    </ul>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- Footer -->
+  <div style="text-align:center;margin-top:40px;color:#94a3b8;font-size:0.82rem;">
+    <p style="font-weight:700;font-size:1rem;color:#1e3a5f;margin-bottom:6px;">TM Rapport Service</p>
+    <p>Guide utilisateur — Version monteurs &nbsp;·&nbsp; Usage interne</p>
+    <p>Pour toute question, contactez votre responsable d'équipe.</p>
+    <div style="margin-top:20px;padding:14px 20px;background:#f1f5f9;border-radius:10px;display:inline-block;">
+      <p style="margin:0;font-size:0.85rem;color:#475569;">
+        📞 Problème technique ? &nbsp;·&nbsp; Contactez l'administrateur de l'application
+      </p>
+    </div>
+  </div>
+
+</div><!-- end page -->
+
+<!-- Bouton impression (non visible en PDF) -->
+<div class="no-print" style="position:fixed;bottom:24px;right:24px;">
+  <button onclick="window.print()" style="background:#1e3a5f;color:white;border:none;border-radius:12px;padding:12px 24px;font-size:0.95rem;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(30,58,95,0.35);">
+    🖨️ Imprimer / Exporter PDF
+  </button>
+</div>
+
+</body>
+</html>
