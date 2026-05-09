@@ -67,7 +67,7 @@ function ProjectCard({ project, mode, isAdmin, onDelete }: { project: Project; m
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 ios-line-clamp break-words text-base leading-tight">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 break-words text-base leading-tight">
               {project.projet || "Sans nom"}
             </h3>
             {project.ofrTM && (
@@ -1575,7 +1575,7 @@ function HomePage() {
                             >
                               <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${p.consulted ? "bg-emerald-500" : "bg-gray-300 dark:bg-gray-600"}`} />
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{p.projet || "Projet sans nom"}</p>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-3 sm:line-clamp-1">{p.projet || "Projet sans nom"}</p>
                                 <p className="text-[10px] text-gray-400 truncate">
                                   {p.typeClient || "—"}
                                   {p.dateMontage && ` · ${new Date(p.dateMontage).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })}`}
@@ -2064,7 +2064,7 @@ function HomePage() {
                     <div className="space-y-2">
                       {rdvFixe.sort((a,b) => (a.dateMontage||"").localeCompare(b.dateMontage||"")).slice(0, 8).map(p => (
                         <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[60%]">{p.projet}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 sm:line-clamp-1 max-w-[60%]">{p.projet}</span>
                           <span className="text-xs text-gray-500">{p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", {day:"numeric",month:"short"}) : "—"}</span>
                         </div>
                       ))}
@@ -2439,7 +2439,7 @@ function HomePage() {
                     <div className="space-y-2">
                       {fRdvFixe.sort((a,b) => (a.dateMontage||"").localeCompare(b.dateMontage||"")).slice(0, 8).map(p => (
                         <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[60%]">{p.projet}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 sm:line-clamp-1 max-w-[60%]">{p.projet}</span>
                           <span className="text-xs text-gray-500">{p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", {day:"numeric",month:"short"}) : "—"}</span>
                         </div>
                       ))}
@@ -2778,7 +2778,7 @@ function HomePage() {
                     <div className="space-y-2">
                       {sRdvFixe.sort((a,b) => (a.dateMontage||"").localeCompare(b.dateMontage||"")).slice(0, 8).map(p => (
                         <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[60%]">{p.projet}</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 sm:line-clamp-1 max-w-[60%]">{p.projet}</span>
                           <span className="text-xs text-gray-500">{p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", {day:"numeric",month:"short"}) : "—"}</span>
                         </div>
                       ))}
@@ -4108,7 +4108,7 @@ function HomePage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words leading-tight">{p.projet || "Sans nom"}</h4>
+                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 break-words leading-tight">{p.projet || "Sans nom"}</h4>
                           {p.ofrTM && <p className="text-xs text-gray-500 mt-0.5">OFR {p.ofrTM}</p>}
                           <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
                             <Calendar className="w-3.5 h-3.5 shrink-0" />
@@ -4457,7 +4457,7 @@ function HomePage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 break-words leading-tight">{p.projet || "Sans nom"}</h4>
+                          <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 break-words leading-tight">{p.projet || "Sans nom"}</h4>
                           {p.ofrTM && <p className="text-xs text-gray-500 mt-0.5">OFR {p.ofrTM}</p>}
                           <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
                             <Calendar className="w-3.5 h-3.5 shrink-0" />

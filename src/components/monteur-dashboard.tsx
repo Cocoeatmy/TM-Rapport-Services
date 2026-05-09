@@ -993,11 +993,11 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
             </span>
           )}
         </div>
-        <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-2 mt-0.5">{project.projet}</p>
+        <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.projet}</p>
         {project.adresseChantier && (
           <div className="flex items-center gap-1 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
             <MapPin className="w-3 h-3 shrink-0" />
-            <span className="line-clamp-1">{project.adresseChantier}</span>
+            <span className="line-clamp-3 sm:line-clamp-1">{project.adresseChantier}</span>
           </div>
         )}
         <div className="flex items-center gap-1 mt-1">
@@ -1083,7 +1083,7 @@ function WeekProjectRow({ project }: { project: Project }) {
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2 mt-0.5">{project.projet}</p>
+        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.projet}</p>
         <div className="flex items-center gap-1 mt-0.5">
           {collabNames.length >= 1 && (
             <div className="flex -space-x-1">
@@ -1597,7 +1597,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       className="block px-2 py-1.5 rounded-lg hover:bg-white/60 dark:hover:bg-white/5 transition-colors text-xs">
                       <div className="flex-1 min-w-0">
                         {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
-                        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
+                        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</p>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {typeBadge}
                           {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
@@ -1621,7 +1621,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
                           {typeBadge}
                         </div>
-                        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</p>
+                        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</p>
                       </div>
                       {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
                       <div className="flex -space-x-1 shrink-0">
@@ -2139,7 +2139,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
                               <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${isMesure ? "bg-cyan-100 text-cyan-700" : "bg-orange-100 text-orange-700"}`}>{isMesure ? "Mesures" : "Montages"}</span>
                             </div>
-                            <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1">{p.projet}</p>
+                            <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1">{p.projet}</p>
                           </div>
                           {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
                           <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
@@ -2420,7 +2420,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         : <span className="font-mono text-xs text-gray-400">---</span>
                       }
                     </span>
-                    <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                    <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
                     {logo && <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
                     <div className="flex -space-x-1 shrink-0">
                       {names.slice(0, 3).map((n: string) => (
@@ -2547,7 +2547,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         }
                       </span>
                       <span className="w-24 shrink-0 font-mono text-indigo-600 dark:text-indigo-400 hidden sm:block text-[10px]">{dateOffreStr}</span>
-                      <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2 sm:line-clamp-1">{p.projet}</span>
+                      <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1">{p.projet}</span>
                       {(p.typeServices || []).slice(0, 1).map(ts => (
                         <span key={ts} className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 hidden sm:inline-flex">{ts}</span>
                       ))}
@@ -2728,7 +2728,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               : <span className="font-mono text-xs text-gray-400">---</span>
                             }
                           </span>
-                          <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-2">{p.projet}</span>
+                          <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-2">{p.projet}</span>
                           {/* J+x badge iOS — affiché en haut à droite */}
                           {daysBadge && (
                             <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${daysBadge.bgClass} ${daysBadge.colorClass}`}>
@@ -2779,7 +2779,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       </span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                      <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-2 sm:line-clamp-1">{p.projet}</span>
+                      <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-1">{p.projet}</span>
 
                       {/* COL arrivage — visible sm+ */}
                       <span className="hidden sm:flex w-28 shrink-0 justify-end">
@@ -2881,7 +2881,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {/* Projet + logo */}
                 <div className="flex-1 min-w-0 flex items-center gap-2">
                   {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
-                  <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1">{p.projet}</p>
+                  <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1">{p.projet}</p>
                 </div>
                 {/* Mesures traitée par */}
                 <div className="w-28 shrink-0 flex justify-end">
@@ -3053,7 +3053,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </div>
                 <div className="flex-1 min-w-0">
                   {p.ofrTM && <p className="text-[9px] font-mono text-gray-400 leading-none mb-0.5">{p.ofrTM}</p>}
-                  <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1 font-medium">{p.projet}</p>
+                  <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1 font-medium">{p.projet}</p>
                   {p.causeSAV && <p className="text-[10px] text-gray-400 mt-0.5">Cause SAV : {p.causeSAV}</p>}
                 </div>
                 {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
@@ -3223,7 +3223,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     {p.ofrTM && <span className="text-[9px] font-mono text-gray-400">{p.ofrTM}</span>}
                     {dateStr && <span className="text-[9px] text-gray-400">{new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })}</span>}
                   </div>
-                  <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-1 font-medium">{p.projet}</p>
+                  <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1 font-medium">{p.projet}</p>
                   {p.causeSoucis && <p className="text-[10px] text-gray-400 mt-0.5">Cause : {p.causeSoucis}</p>}
                 </div>
                 {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
@@ -3381,7 +3381,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <span className="w-24 shrink-0 font-mono text-indigo-600 dark:text-indigo-400 hidden sm:block">{dateOffreStr}</span>
                     <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                     <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                    <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2 sm:line-clamp-1">{p.projet}</span>
+                    <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1">{p.projet}</span>
                     {(() => { const logo = getClientLogo(p.projet); return logo ? (
                       <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
                     ) : null; })()}
@@ -3460,7 +3460,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       <span className="font-mono text-yellow-600 dark:text-yellow-400">{effDateStr}</span>
                       <span className="text-[9px] text-gray-400">{effLabel}</span>
                     </span>
-                    <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2 sm:line-clamp-1">{p.projet}</span>
+                    <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1">{p.projet}</span>
                     {(() => { const logo = getClientLogo(p.projet); return logo ? (
                       <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
                     ) : null; })()}
@@ -3497,7 +3497,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   <span className="w-20 shrink-0 font-mono text-gray-600 dark:text-gray-300 truncate">{p.ofrTM || "---"}</span>
                   <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                   <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                  <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                  <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
                   {p.typeServices && p.typeServices.length > 0 && p.typeServices.flatMap((ts) => {
                     // Split "Démontage + Montage" into separate badges
                     const parts = ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts];
@@ -3618,7 +3618,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               </>
                             ) : null}
                           </span>
-                          <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                          <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
                           {(() => { const logo = getClientLogo(p.projet); return logo ? (
                             <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
                           ) : null; })()}
@@ -3713,7 +3713,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       </span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                        <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                        <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
                         {(showSummaryPanel === "rdv-fixe") && (
                           <span className="flex items-center gap-1 shrink-0">
                             {isMesure ? (
