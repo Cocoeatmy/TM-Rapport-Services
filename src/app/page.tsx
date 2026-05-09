@@ -686,6 +686,18 @@ function HomePage() {
     return map;
   }, [projectsData]);
 
+  // Expose les projets sur window.__TM_PROJECTS__ pour GlobalSearch (header)
+  useEffect(() => {
+    const seen = new Set<string>();
+    const all: import("@/lib/notion").Project[] = [];
+    for (const arr of Object.values(projectsData)) {
+      for (const p of arr) {
+        if (p?.id && !seen.has(p.id)) { seen.add(p.id); all.push(p); }
+      }
+    }
+    (window as any).__TM_PROJECTS__ = all;
+  }, [projectsData]);
+
   const [statusFilter, setStatusFilter] = useState<string | null>(statusParam);
   const [collabFilter, setCollabFilter] = useState<string | null>(collabParam || collaborateurParam);
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);

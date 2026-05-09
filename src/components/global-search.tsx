@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback, useDeferredValue } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Search, X, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Project } from "@/lib/notion";
@@ -17,7 +17,7 @@ function statusBadge(p: Project) {
   return STATUS_BADGE[s] ?? { label: s || "Actif", color: "bg-green-100 text-green-700" };
 }
 
-// Index de recherche identique à celui de page.tsx (même champs, même logique)
+// Index de recherche identique à celui de page.tsx
 function buildIndex(projects: Project[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const p of projects) {
@@ -35,8 +35,16 @@ function buildIndex(projects: Project[]): Map<string, string> {
   return map;
 }
 
-// Charge tous les projets du cache localStorage (toutes les clés)
-function loadFromCache(): Project[] {
+// Source 1 : window.__TM_PROJECTS__ (mis à jour par page.tsx en temps réel)
+// Source 2 : localStorage tm-projects-cache (fallback si page.tsx pas encore chargé)
+function loadProjects(): Project[] {
+  if (typeof window === "undefined") return [];
+
+  // Priorité : état React de page.tsx exposé sur window
+  const global = (window as any).__TM_PROJECTS__;
+  if (Array.isArray(global) && global.length > 0) return global;
+
+  // Fallback : cache localStorage
   try {
     const raw = localStorage.getItem("tm-projects-cache");
     if (!raw) return [];
@@ -62,27 +70,30 @@ export function GlobalSearch() {
   const [projects, setProjects] = useState<Project[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // useDeferredValue : l'input répond immédiatement, le filtrage
-  // est décalé en tâche de priorité basse → recherche instantanée
-  const deferredQuery = useDeferredValue(query);
-
-  // Charger les projets du cache à l'ouverture
+  // Recharge les projets à chaque ouverture
   useEffect(() => {
     if (!open) return;
-    setProjects(loadFromCache());
+    setProjects(loadProjects());
   }, [open]);
 
-  // Index pré-calculé (recalculé uniquement si la liste de projets change)
+  // Recharge aussi dès que query change (au cas où les projets arrivent en retard)
+  useEffect(() => {
+    if (!open || query.length < 2) return;
+    const fresh = loadProjects();
+    if (fresh.length > projects.length) setProjects(fresh);
+  }, [query, open, projects.length]);
+
+  // Index pré-calculé (recalculé uniquement si la liste change)
   const searchIndex = useMemo(() => buildIndex(projects), [projects]);
 
-  // Filtrage client-side — identique à l'ancienne barre
+  // Filtrage client-side — même logique que l'ancienne barre
   const results = useMemo(() => {
-    const q = deferredQuery.trim().toLowerCase();
+    const q = query.trim().toLowerCase();
     if (q.length < 2) return [];
     return projects
       .filter((p) => (searchIndex.get(p.id) ?? "").includes(q))
       .slice(0, 20);
-  }, [deferredQuery, projects, searchIndex]);
+  }, [query, projects, searchIndex]);
 
   const closeSearch = useCallback(() => {
     setOpen(false);
@@ -172,6 +183,11 @@ export function GlobalSearch() {
                 {query.length >= 2 && results.length === 0 && (
                   <p className="text-center text-sm text-gray-400 py-10">
                     Aucun résultat pour <strong>« {query} »</strong>
+                    {projects.length === 0 && (
+                      <span className="block text-xs mt-1 text-orange-400">
+                        (données pas encore chargées — réessayez dans quelques secondes)
+                      </span>
+                    )}
                   </p>
                 )}
                 {results.length > 0 && (
@@ -186,8 +202,8 @@ export function GlobalSearch() {
               {/* Footer */}
               <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-400">
                 {results.length > 0
-                  ? `${results.length} projet${results.length > 1 ? "s" : ""} trouvé${results.length > 1 ? "s" : ""}`
-                  : "Recherche dans vos projets chargés"}
+                  ? `${results.length} projet${results.length > 1 ? "s" : ""} trouvé${results.length > 1 ? "s" : ""} sur ${projects.length}`
+                  : `${projects.length} projet${projects.length > 1 ? "s" : ""} disponible${projects.length > 1 ? "s" : ""}`}
               </div>
             </div>
           </div>
