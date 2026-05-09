@@ -42,20 +42,21 @@ export function GlobalSearch() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Charger les projets du cache localStorage au montage (et quand on ouvre)
+  // On lit TOUS les caches disponibles pour maximiser la couverture locale
   useEffect(() => {
     if (!open) return;
     try {
-      const raw = localStorage.getItem("tm-projects-cache");
-      if (!raw) return;
-      const parsed: Record<string, Project[]> = JSON.parse(raw);
       const seen = new Set<string>();
       const all: Project[] = [];
-      for (const arr of Object.values(parsed)) {
-        if (!Array.isArray(arr)) continue;
-        for (const p of arr) {
-          if (p?.id && !seen.has(p.id)) {
-            seen.add(p.id);
-            all.push(p);
+
+      // Cache principal (projets actifs chargés par page.tsx)
+      const raw = localStorage.getItem("tm-projects-cache");
+      if (raw) {
+        const parsed: Record<string, Project[]> = JSON.parse(raw);
+        for (const arr of Object.values(parsed)) {
+          if (!Array.isArray(arr)) continue;
+          for (const p of arr) {
+            if (p?.id && !seen.has(p.id)) { seen.add(p.id); all.push(p); }
           }
         }
       }
@@ -69,14 +70,15 @@ export function GlobalSearch() {
   const localResults = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (q.length < 2) return [];
-    return localProjects.filter((p) => (localIndex.get(p.id) ?? "").includes(q)).slice(0, 8);
+    return localProjects.filter((p) => (localIndex.get(p.id) ?? "").includes(q)).slice(0, 10);
   }, [query, localProjects, localIndex]);
 
-  // Appel API si résultats locaux insuffisants (debounce 400ms)
+  // Appel API SYSTÉMATIQUE avec debounce 300ms
+  // L'API cherche dans TOUS les projets Notion (actifs + terminés + archives)
+  // — le cache local ne contient que les projets actifs récemment chargés.
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) { setApiResults([]); setApiLoading(false); return; }
-    if (localResults.length >= 5) { setApiResults([]); setApiLoading(false); return; }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setApiLoading(true);
     debounceRef.current = setTimeout(async () => {
@@ -84,13 +86,13 @@ export function GlobalSearch() {
         const res = await fetch(`/api/projects/search?q=${encodeURIComponent(q)}`);
         if (!res.ok) throw new Error();
         const data: Project[] = await res.json();
-        const localIds = new Set(localResults.map((p) => p.id));
-        setApiResults(data.filter((p) => !localIds.has(p.id)).slice(0, 8));
+        // On garde tous les résultats API, on déduplique côté affichage
+        setApiResults(data);
       } catch { setApiResults([]); }
       finally { setApiLoading(false); }
-    }, 400);
+    }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, localResults]);
+  }, [query]);
 
   // Cmd+K / Ctrl+K pour ouvrir, Escape pour fermer
   useEffect(() => {
@@ -106,7 +108,15 @@ export function GlobalSearch() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  const allResults = [...localResults, ...apiResults];
+  // Fusionner local (instantané) + API (complet) en déduplication par id
+  // Les résultats locaux apparaissent en premier (déjà dans le cache → rapides),
+  // puis les résultats API non encore présents localement (archivés, terminés…)
+  const localIds = useMemo(() => new Set(localResults.map((p) => p.id)), [localResults]);
+  const apiOnlyResults = useMemo(
+    () => apiResults.filter((p) => !localIds.has(p.id)).slice(0, 10),
+    [apiResults, localIds],
+  );
+  const allResults = [...localResults, ...apiOnlyResults];
 
   const navigate = (p: Project) => {
     setOpen(false);
@@ -186,21 +196,21 @@ export function GlobalSearch() {
                   {localResults.length > 0 && (
                     <li className="px-4 pt-2 pb-1">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                        Résultats instantanés ({localResults.length})
+                        Instantané ({localResults.length})
                       </span>
                     </li>
                   )}
                   {localResults.map((p) => (
                     <ResultRow key={p.id} project={p} onSelect={navigate} />
                   ))}
-                  {apiResults.length > 0 && (
+                  {apiOnlyResults.length > 0 && (
                     <li className="px-4 pt-3 pb-1">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                        Trouvés dans Notion ({apiResults.length})
+                        {apiLoading ? "Recherche…" : `Notion — archives incluses (${apiOnlyResults.length})`}
                       </span>
                     </li>
                   )}
-                  {apiResults.map((p) => (
+                  {apiOnlyResults.map((p) => (
                     <ResultRow key={p.id} project={p} onSelect={navigate} />
                   ))}
                 </ul>
@@ -208,9 +218,10 @@ export function GlobalSearch() {
             </div>
 
             {/* Footer */}
-            <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-400">
+            <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-400 flex items-center gap-1.5">
+              {apiLoading && <Loader2 className="w-3 h-3 animate-spin shrink-0" />}
               {allResults.length > 0
-                ? `${allResults.length} projet${allResults.length > 1 ? "s" : ""} trouvé${allResults.length > 1 ? "s" : ""}`
+                ? `${allResults.length} projet${allResults.length > 1 ? "s" : ""} trouvé${allResults.length > 1 ? "s" : ""}${apiLoading ? " · mise à jour…" : ""}`
                 : "Recherche dans tous vos projets, y compris les archives"}
             </div>
           </div>
