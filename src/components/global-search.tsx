@@ -130,11 +130,11 @@ export function GlobalSearch() {
 
   return (
     <>
-      {/* Bouton dans le header */}
+      {/* Bouton dans le header — rond sur mobile (comme +, cloche, refresh), pill sur desktop */}
       <button
         onClick={openSearch}
         aria-label="Recherche globale (⌘K)"
-        className="flex items-center gap-2 h-9 px-3 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white/80 hover:text-white text-sm transition-all"
+        className="w-9 h-9 shrink-0 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors sm:w-auto sm:rounded-xl sm:px-3 sm:gap-2"
       >
         <Search className="w-4 h-4" />
         <span className="hidden sm:inline text-sm">Rechercher</span>
