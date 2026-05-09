@@ -92,7 +92,7 @@ export function GlobalSearch() {
     if (q.length < 2) return [];
     return projects
       .filter((p) => (searchIndex.get(p.id) ?? "").includes(q))
-      .slice(0, 20);
+      ;
   }, [query, projects, searchIndex]);
 
   const closeSearch = useCallback(() => {
