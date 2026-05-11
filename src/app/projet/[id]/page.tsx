@@ -2522,7 +2522,7 @@ function ProjectPageContent({ id }: { id: string }) {
         <div className={`grid grid-cols-1 gap-4 ${!showRapport ? "md:grid-cols-2" : ""}`}>
 
         {/* --- Colonne gauche : Informations projet + Dates --- */}
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
 
         {/* === SECTION 1 : Informations projet === */}
         <Card>
@@ -2713,6 +2713,8 @@ function ProjectPageContent({ id }: { id: string }) {
           </CardContent>
         </Card>
 
+          {/* Remplissage aurora — prend l'espace restant sous les cards */}
+          <div className="flex-1 rounded-2xl aurora-column-fill min-h-[40px]" />
         </div>{/* fin colonne gauche */}
 
         {/* --- Colonne droite : Informations client + Cabines --- */}
