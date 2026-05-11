@@ -1296,7 +1296,7 @@ function EditableCollaborateur({ project, mode, onUpdate }: { project: Project; 
     <div className="flex items-start gap-2">
       <Users className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-gray-500">Collaborateurs</p>
+        <p className="text-xs text-gray-500">{mode === "mesures" ? "Mesures traitée par" : "Montage traité par"}</p>
         {editing ? (
           <div className="space-y-2 mt-1">
             <div className="flex flex-wrap gap-1.5">
@@ -1799,7 +1799,6 @@ function ProjectPageContent({ id }: { id: string }) {
   // Notif discret si on n'a pas pu fusionner automatiquement (conflit).
   const [collabUpdateToast, setCollabUpdateToast] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
-  const [showAllDates, setShowAllDates] = useState(false);
   const [showRapport, setShowRapport] = useState(false);
   // Clé de rafraîchissement pour DefautsList : incrémentée à chaque
   // nouveau défaut soumis pour forcer le rechargement des données KV.
@@ -2595,30 +2594,98 @@ function ProjectPageContent({ id }: { id: string }) {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Informations Dates</CardTitle>
           </CardHeader>
-          <CardContent>
-            {/* Mesures traitée le + Mesures traitée par (au-dessus de date montage) */}
-            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (project.dateMesures || project.mesuresTraiteePar) && (
-              <div className="grid grid-cols-2 gap-3 mb-3 pb-3 border-b border-gray-100 dark:border-gray-700">
-                <div className="flex items-start gap-2">
-                  <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Mesures traitée le</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {project.dateMesures ? new Date(project.dateMesures.split("T")[0] + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "long", year: "numeric" }) : "---"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Users className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Mesures traitée par</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.mesuresTraiteePar || "---"}</p>
-                  </div>
+          <CardContent className="space-y-3">
+
+            {/* 1 — Demande de projet reçue le */}
+            <ExtraDateField
+              label="Demande de projet reçue le"
+              value={project.dateDemandeProjet}
+              projectId={id}
+              fieldName="dateDemandeProjet"
+              onUpdate={(v) => setProject((prev) => prev ? { ...prev, dateDemandeProjet: v } : prev)}
+            />
+
+            <div className="h-px bg-gray-100 dark:bg-gray-700" />
+
+            {/* 2 — Date demande mesures / Mesures traitée le / Mesures traitée par */}
+            <div className="grid grid-cols-3 gap-2">
+              <ExtraDateField
+                label="Date demande de mesures reçue le"
+                value={project.dateMesuresRecue}
+                projectId={id}
+                fieldName="dateMesuresRecue"
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, dateMesuresRecue: v } : prev)}
+              />
+              <ExtraDateField
+                label="Mesures traitée le"
+                value={project.dateMesures}
+                projectId={id}
+                fieldName="dateMesures"
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, dateMesures: v } : prev)}
+              />
+              <div className="flex items-start gap-1.5">
+                <Users className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-gray-400">Mesures traitée par</p>
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-200">{project.mesuresTraiteePar || "—"}</p>
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* Date de montage/mesures + Collaborateurs */}
+            <div className="h-px bg-gray-100 dark:bg-gray-700" />
+
+            {/* 3 — Date d'offre */}
+            <ExtraDateField
+              label="Date d'offre"
+              value={project.dateOffre}
+              projectId={id}
+              fieldName="dateOffre"
+              onUpdate={(v) => setProject((prev) => prev ? { ...prev, dateOffre: v } : prev)}
+            />
+
+            <div className="h-px bg-gray-100 dark:bg-gray-700" />
+
+            {/* 4 — CMD reçue le / Date CMD Usine */}
+            <div className="grid grid-cols-2 gap-2">
+              <ExtraDateField
+                label="CMD reçue le"
+                value={project.dateCMDRecue}
+                projectId={id}
+                fieldName="dateCMDRecue"
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, dateCMDRecue: v } : prev)}
+              />
+              <ExtraDateField
+                label="Date CMD – Usine"
+                value={project.dateCMDUsine}
+                projectId={id}
+                fieldName="dateCMDUsine"
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, dateCMDUsine: v } : prev)}
+              />
+            </div>
+
+            <div className="h-px bg-gray-100 dark:bg-gray-700" />
+
+            {/* 5 — Arrivage Grossiste / Arrivage Dépôt TM */}
+            <div className="grid grid-cols-2 gap-2">
+              <ExtraDateField
+                label="Date d'arrivage Grossiste"
+                value={project.arrivageGrossiste}
+                projectId={id}
+                fieldName="arrivageGrossiste"
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, arrivageGrossiste: v } : prev)}
+              />
+              <ExtraDateField
+                label="Date d'arrivage Dépôt TM"
+                value={project.arrivageTM}
+                projectId={id}
+                fieldName="arrivageTM"
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, arrivageTM: v } : prev)}
+              />
+            </div>
+
+            <div className="h-px bg-gray-100 dark:bg-gray-700" />
+
+            {/* 6 — Date de montage / Montage traité par */}
             <div className="grid grid-cols-2 gap-3">
               <EditableDate
                 project={project}
@@ -2637,53 +2704,11 @@ function ProjectPageContent({ id }: { id: string }) {
                 }}
               />
             </div>
+
+            {/* 7 — Durée estimée */}
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <DurationEstimate project={project} />
             )}
-
-            {/* Dates additionnelles — visibles uniquement si remplies, ou toutes si mode édition */}
-            {(() => {
-              const extraDates = [
-                { label: "Date d'arrivage Grossiste", value: project.arrivageGrossiste, field: "arrivageGrossiste" },
-                { label: "Date d'arrivée Dépôt TM",  value: project.arrivageTM,        field: "arrivageTM" },
-                { label: "Demande projet reçue le",   value: project.dateDemandeProjet, field: "dateDemandeProjet" },
-                { label: "Date Mesures reçue le",     value: project.dateMesuresRecue,  field: "dateMesuresRecue" },
-                { label: "Date Offre",                value: project.dateOffre,         field: "dateOffre" },
-                { label: "CMD reçue le",              value: project.dateCMDRecue,      field: "dateCMDRecue" },
-                { label: "Date CMD – Usine",          value: project.dateCMDUsine,      field: "dateCMDUsine" },
-              ];
-              const filledDates = extraDates.filter(d => d.value);
-              const datesToShow = showAllDates ? extraDates : filledDates;
-              const emptyCount = 7 - filledDates.length;
-              return (
-                <>
-                  {datesToShow.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
-                      {datesToShow.map((d) => (
-                        <ExtraDateField
-                          key={d.field}
-                          label={d.label}
-                          value={d.value}
-                          projectId={id}
-                          fieldName={d.field}
-                          onUpdate={(v) => setProject((prev) => prev ? { ...prev, [d.field]: v } : prev)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {emptyCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAllDates(!showAllDates)}
-                      className="text-xs text-blue-500 hover:text-blue-700 mt-2 flex items-center gap-1"
-                    >
-                      <Pencil className="w-3 h-3" />
-                      {showAllDates ? "Masquer les dates vides" : `Modifier les dates (${emptyCount} non remplies)`}
-                    </button>
-                  )}
-                </>
-              );
-            })()}
 
           </CardContent>
         </Card>
