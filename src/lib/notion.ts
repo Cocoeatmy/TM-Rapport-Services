@@ -535,9 +535,15 @@ export async function getProjects(): Promise<Project[]> {
   return queryAll(
     {
       or: [
+        // Étape mesures → commande
+        { property: "État - CMD", status: { equals: "OFR envoyées sans mesures" } },
+        { property: "État - CMD", status: { equals: "Cabines mesurées" } },
+        // Étape commande
+        { property: "État - CMD", status: { equals: "Cabines en CMD" } },
         { property: "État - CMD", status: { equals: "Cabines à recevoir" } },
         { property: "État - CMD", status: { equals: "Livraison partielle" } },
         { property: "État - CMD", status: { equals: "Cabine à aller chercher" } },
+        // Étape montage
         { property: "État - CMD", status: { equals: "Récéptionné - RDV à fixer" } },
         { property: "État - CMD", status: { equals: "RDV - fixé" } },
         { property: "État - CMD", status: { equals: "RDV - Attendre news" } },

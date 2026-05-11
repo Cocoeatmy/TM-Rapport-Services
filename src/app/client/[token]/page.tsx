@@ -29,17 +29,20 @@ interface PublicProject {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  "Cabines en CMD": { bg: "bg-gray-100", text: "text-gray-700" },
-  "Cabines à recevoir": { bg: "bg-yellow-100", text: "text-yellow-800" },
-  "Livraison partielle": { bg: "bg-orange-100", text: "text-orange-800" },
-  "Cabine à aller chercher": { bg: "bg-blue-100", text: "text-blue-800" },
-  "Récéptionné - RDV à fixer": { bg: "bg-blue-100", text: "text-blue-800" },
-  "RDV - fixé": { bg: "bg-green-100", text: "text-green-800" },
-  "RDV - Attendre news": { bg: "bg-purple-100", text: "text-purple-800" },
-  "Montage partiel": { bg: "bg-amber-100", text: "text-amber-800" },
-  "Soucis montage": { bg: "bg-red-100", text: "text-red-800" },
-  "Terminé": { bg: "bg-emerald-100", text: "text-emerald-800" },
-  "En attente de mesures": { bg: "bg-cyan-100", text: "text-cyan-800" },
+  "En attente de mesures":     { bg: "bg-cyan-100",   text: "text-cyan-800" },
+  "Cabines mesurées":          { bg: "bg-teal-100",   text: "text-teal-800" },
+  "OFR envoyées sans mesures": { bg: "bg-violet-100", text: "text-violet-800" },
+  "Cabines en CMD":            { bg: "bg-gray-100",   text: "text-gray-700" },
+  "Cabines à recevoir":        { bg: "bg-yellow-100", text: "text-yellow-800" },
+  "Livraison partielle":       { bg: "bg-orange-100", text: "text-orange-800" },
+  "Cabine à aller chercher":   { bg: "bg-blue-100",   text: "text-blue-800" },
+  "Récéptionné - RDV à fixer": { bg: "bg-blue-100",   text: "text-blue-800" },
+  "RDV - fixé":                { bg: "bg-green-100",  text: "text-green-800" },
+  "RDV - Attendre news":       { bg: "bg-purple-100", text: "text-purple-800" },
+  "Montage partiel":           { bg: "bg-amber-100",  text: "text-amber-800" },
+  "Soucis montage":            { bg: "bg-red-100",    text: "text-red-800" },
+  "Annulé":                    { bg: "bg-red-100",    text: "text-red-700" },
+  "Terminé":                   { bg: "bg-emerald-100", text: "text-emerald-800" },
 };
 
 function formatDate(dateStr: string | null): string {

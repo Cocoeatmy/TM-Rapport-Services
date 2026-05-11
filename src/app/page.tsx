@@ -4378,7 +4378,7 @@ function HomePage() {
                 <div>
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1.5">État CMD</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {Object.keys(STATUS_CMD_COLORS).concat(["Terminé", "Annulé"]).map((s) => {
+                    {Object.keys(STATUS_CMD_COLORS).map((s) => {
                       const active = pAllStatusCMD.includes(s);
                       return (
                         <button

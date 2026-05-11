@@ -8,47 +8,66 @@ export const COLLABORATEURS_LIST = ["Micael", "Claudio", "Jean-Marc", "Jacobo", 
 export const TEAM_EXCLUDED_COLLABORATORS = ["Micael"] as const;
 
 export const STATUS_CMD_COLORS: Record<string, string> = {
-  "Cabines en CMD": "bg-gray-100 text-gray-700",
-  "Cabines à recevoir": "bg-yellow-100 text-yellow-800",
-  "Livraison partielle": "bg-orange-100 text-orange-800",
-  "Cabine à aller chercher": "bg-blue-100 text-blue-800",
-  "Récéptionné - RDV à fixer": "bg-blue-100 text-blue-800",
-  "RDV - fixé": "bg-green-100 text-green-800",
-  "RDV - Attendre news": "bg-purple-100 text-purple-800",
-  "Montage partiel": "bg-amber-100 text-amber-800",
-  "Soucis montage": "bg-red-100 text-red-800",
+  // ── Étape mesures ──────────────────────────────────────────
+  "En attente de mesures":      "bg-cyan-100 text-cyan-800",
+  "Cabines mesurées":           "bg-teal-100 text-teal-800",
+  "OFR envoyées sans mesures":  "bg-violet-100 text-violet-800",
+  // ── Étape commande ─────────────────────────────────────────
+  "Cabines en CMD":             "bg-gray-100 text-gray-700",
+  "Cabines à recevoir":         "bg-yellow-100 text-yellow-800",
+  "Livraison partielle":        "bg-orange-100 text-orange-800",
+  "Cabine à aller chercher":    "bg-blue-100 text-blue-800",
+  // ── Étape montage ──────────────────────────────────────────
+  "Récéptionné - RDV à fixer":  "bg-blue-100 text-blue-800",
+  "RDV - fixé":                 "bg-green-100 text-green-800",
+  "RDV - Attendre news":        "bg-purple-100 text-purple-800",
+  "Montage partiel":            "bg-amber-100 text-amber-800",
+  "Soucis montage":             "bg-red-100 text-red-800",
+  // ── États finaux ───────────────────────────────────────────
+  "Annulé":                     "bg-red-100 text-red-700",
+  "Terminé":                    "bg-green-100 text-green-700",
 };
 
 export const STATUS_MESURES_COLORS: Record<string, string> = {
-  "Pas contacté": "bg-gray-100 text-gray-700",
-  "Contact sans réponse": "bg-yellow-100 text-yellow-800",
-  "OFR envoyée sans mesures": "bg-cyan-100 text-cyan-800",
+  "Pas contacté":                         "bg-gray-100 text-gray-700",
+  "Contact sans réponse":                 "bg-yellow-100 text-yellow-800",
+  "OFR envoyée sans mesures":             "bg-cyan-100 text-cyan-800",
   "Mesures non relevées - attendre news": "bg-orange-100 text-orange-800",
-  "RDV - Fixé": "bg-green-100 text-green-800",
-  "RDV - Attendre news": "bg-purple-100 text-purple-800",
-  "Mesures partielles": "bg-amber-100 text-amber-800",
-  "Mesures relevées - attente news": "bg-blue-100 text-blue-800",
+  "RDV - Fixé":                           "bg-green-100 text-green-800",
+  "RDV - Attendre news":                  "bg-purple-100 text-purple-800",
+  "Mesures partielles":                   "bg-amber-100 text-amber-800",
+  "Mesures relevées - attente news":      "bg-blue-100 text-blue-800",
+  "Projet sans de mesures":              "bg-gray-100 text-gray-500",
+  "Annulé":                               "bg-red-100 text-red-700",
+  "Terminé":                              "bg-green-100 text-green-700",
 };
 
 export const STATUS_SORT_ORDER: Record<string, number> = {
-  "Montage partiel": 1,
-  "Livraison partielle": 2,
-  "Cabine à aller chercher": 3,
-  "Récéptionné - RDV à fixer": 4,
-  "RDV - Attendre news": 5,
-  "Cabines à recevoir": 6,
-  "Soucis montage": 7,
+  "Montage partiel":            1,
+  "Soucis montage":             2,
+  "Livraison partielle":        3,
+  "Cabine à aller chercher":    4,
+  "Récéptionné - RDV à fixer":  5,
+  "RDV - Attendre news":        6,
+  "Cabines à recevoir":         7,
+  "OFR envoyées sans mesures":  8,
+  "Cabines mesurées":           9,
+  "En attente de mesures":      10,
+  "Cabines en CMD":             11,
 };
 
 export const STATUS_MESURES_SORT_ORDER: Record<string, number> = {
-  "RDV - Fixé": 1,
-  "RDV - Attendre news": 2,
-  "Contact sans réponse": 3,
-  "Pas contacté": 4,
-  "Mesures partielles": 5,
-  "Mesures relevées - attente news": 6,
-  "OFR envoyée sans mesures": 7,
+  "RDV - Fixé":                           1,
+  "RDV - Attendre news":                  2,
+  "Contact sans réponse":                 3,
+  "Pas contacté":                         4,
+  "Mesures partielles":                   5,
+  "Mesures relevées - attente news":      6,
+  "OFR envoyée sans mesures":             7,
   "Mesures non relevées - attendre news": 8,
+  "Projet sans de mesures":              9,
+  "Annulé":                               10,
+  "Terminé":                              11,
 };
 
 /** Item d'une section de check-list. L'id sert de clé de stockage
