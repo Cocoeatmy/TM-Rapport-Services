@@ -5,11 +5,18 @@
  * Effectue des fetch() silencieux des pages projet et de leurs données API.
  * Le Service Worker intercepte ces requêtes → les met en cache automatiquement.
  * Résultat : les pages sont consultables hors ligne même si jamais visitées.
+ *
+ * Protection anti-spam Notion :
+ * - Une seule exécution par jour et par utilisateur (clé localStorage horodatée).
+ * - Pas de `cache: "no-store"` → le CDN Vercel (sMaxAge 15 s / SWR 60 s) absorbe
+ *   les appels répétés au lieu de frapper Notion à chaque fois.
+ * - Délai de 300 ms entre projets pour étaler les requêtes dans le temps.
  */
 
 import type { Project } from "./notion";
 
-const LS_OFFLINE_READY = "tm-offline-ready-projects";
+const LS_OFFLINE_READY    = "tm-offline-ready-projects";
+const LS_LAST_PREFETCH    = "tm-offline-prefetch-date"; // "YYYY-MM-DD:userName"
 
 /** Pré-cache une page projet et ses données API essentielles. */
 async function prefetchOne(projectId: string): Promise<void> {
@@ -20,17 +27,27 @@ async function prefetchOne(projectId: string): Promise<void> {
     `/api/defauts?projectId=${projectId}`, // Défauts
   ];
 
+  // ⚠️ Ne PAS utiliser cache: "no-store" — cela bypasse le CDN Vercel et
+  // frappe Notion directement à chaque requête, causant des 429 rate-limit.
+  // Le SW (network-first) rafraîchit et met en cache de son côté.
   await Promise.allSettled(
     urls.map((url) =>
-      fetch(url, { credentials: "include", cache: "no-store" }).catch(() => {})
+      fetch(url, { credentials: "include" }).catch(() => {})
     )
   );
 }
 
+/** Attente non-bloquante en ms. */
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 /**
  * Pré-télécharge les projets du jour assignés à l'utilisateur courant.
- * - Chaque collaborateur ne télécharge que ses propres projets.
+ *
+ * Garde-fous :
+ * - Ne s'exécute qu'une seule fois par jour par utilisateur
+ *   (vérifié via localStorage — évite le spam si la page est rechargée).
  * - Limité à 10 projets max pour ne pas saturer le réseau.
+ * - Pause de 300 ms entre chaque projet pour étaler les requêtes.
  * - Stocke la liste des IDs prêts dans localStorage pour un affichage d'état.
  */
 export async function prefetchTodaysProjects(
@@ -41,6 +58,10 @@ export async function prefetchTodaysProjects(
   if (!navigator.onLine) return;
 
   const todayStr = new Date().toISOString().split("T")[0];
+
+  // ── Throttle : 1 exécution par jour et par utilisateur ──────────────────
+  const throttleKey = `${todayStr}:${userName}`;
+  if (localStorage.getItem(LS_LAST_PREFETCH) === throttleKey) return;
 
   const mine = allProjects.filter((p) => {
     const start = p.dateMontage || "";
@@ -57,9 +78,14 @@ export async function prefetchTodaysProjects(
 
   if (mine.length === 0) return;
 
-  // Pré-cache en séquence pour ne pas surcharger le réseau
+  // Marque immédiatement l'exécution pour éviter le double-déclenchement
+  // si la page est rechargée pendant le prefetch.
+  try { localStorage.setItem(LS_LAST_PREFETCH, throttleKey); } catch {}
+
+  // Pré-cache en séquence avec pause pour ne pas surcharger le réseau
   for (const p of mine.slice(0, 10)) {
     await prefetchOne(p.id);
+    await sleep(300); // étale les requêtes : 10 projets × 300 ms = 3 s max
   }
 
   // Marque ces projets comme disponibles hors ligne

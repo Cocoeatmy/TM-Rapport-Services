@@ -229,10 +229,10 @@ export function PhotoUpload({
 
   return (
     <div>
-      <label className="text-sm font-medium text-gray-700 mb-2 block">{label}</label>
-      <div className="grid grid-cols-3 gap-2">
+      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">{label}</label>
+      <div className="grid grid-cols-2 gap-2">
         {allImages.map((img, i) => (
-          <div key={`${img.isPreview ? "p" : "e"}-${i}-${img.src}`} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
+          <div key={`${img.isPreview ? "p" : "e"}-${i}-${img.src}`} className="relative rounded-xl overflow-hidden bg-gray-100 group" style={{ aspectRatio: "4/3" }}>
             <img
               src={img.isPreview ? img.src : thumbnailUrl(img.src, 300)}
               alt={`${label} ${i + 1}`}
@@ -240,25 +240,24 @@ export function PhotoUpload({
               decoding="async"
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 p-1 bg-gradient-to-t from-black/50 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+            {/* Barre inférieure : télécharger (toujours visible sur mobile) */}
+            <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 p-1.5 bg-gradient-to-t from-black/60 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
               <a
                 href={img.src}
                 download={`photo-${i + 1}.jpg`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-7 h-7 bg-white/80 rounded-full flex items-center justify-center hover:bg-white"
+                className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center hover:bg-white shadow active:scale-95"
+                title="Télécharger"
               >
-                <Download className="w-3.5 h-3.5 text-gray-700" />
+                <Download className="w-4.5 h-4.5 text-gray-700" />
               </a>
             </div>
-            {/* Bouton X de suppression : présent sur TOUTES les photos
-                (preview en cours d'upload comme photos déjà sauvegardées),
-                pour qu'on puisse toujours retirer une photo erronée. */}
+            {/* Bouton X de suppression — séparé du bouton télécharger */}
             <button
               type="button"
               onClick={async () => {
                 if (img.isPending && img.pendingId) {
-                  // Photo en attente de synchro : on retire de l'IDB.
                   try { await removePendingUpload(img.pendingId); } catch {}
                   return;
                 }
@@ -268,7 +267,7 @@ export function PhotoUpload({
                   removeExisting(img.src);
                 }
               }}
-              className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center hover:bg-red-500 transition-colors"
+              className="absolute top-1.5 right-1.5 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center hover:bg-red-500 transition-colors active:scale-95"
               title={
                 img.isPending
                   ? "Annuler cet upload en attente"
@@ -277,13 +276,12 @@ export function PhotoUpload({
                     : "Supprimer cette photo du rapport"
               }
             >
-              <X className="w-3.5 h-3.5 text-white" />
+              <X className="w-4 h-4 text-white" />
             </button>
-            {/* Badge "en attente de synchro" pour les photos qui
-                attendent en IDB (offline ou échec d'upload). */}
+            {/* Badge "en attente de synchro" */}
             {img.isPending && (
               <div
-                className="absolute top-1 left-1 flex items-center gap-1 bg-orange-500/90 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full shadow"
+                className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-orange-500/90 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full shadow"
                 title="En attente de synchronisation"
               >
                 <CloudUpload className="w-2.5 h-2.5" />
@@ -294,24 +292,25 @@ export function PhotoUpload({
         ))}
 
         {uploading ? (
-          <div className="aspect-square rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center">
+          <div className="rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center" style={{ aspectRatio: "4/3" }}>
             <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
           </div>
         ) : (
           <>
             <button
               onClick={() => cameraRef.current?.click()}
-              className="aspect-square rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors active:scale-95"
+              className="rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors active:scale-95 min-h-[80px]"
+              style={{ aspectRatio: "4/3" }}
             >
-              <Camera className="w-6 h-6" />
-              <span className="text-[10px]">Photo</span>
+              <Camera className="w-7 h-7" />
+              <span className="text-xs font-medium">Photo</span>
             </button>
             <button
               onClick={() => galleryRef.current?.click()}
-              className="aspect-square rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-purple-400 hover:text-purple-500 transition-colors active:scale-95"
-            >
-              <ImagePlus className="w-6 h-6" />
-              <span className="text-[10px]">Galerie</span>
+              className="rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-purple-400 hover:text-purple-500 transition-colors active:scale-95 min-h-[80px]"
+              style={{ aspectRatio: "4/3" }}>
+              <ImagePlus className="w-7 h-7" />
+              <span className="text-xs font-medium">Galerie</span>
             </button>
           </>
         )}

@@ -993,7 +993,16 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
             </span>
           )}
         </div>
-        <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.projet}</p>
+        {project.nomChantier ? (
+          <>
+            <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.nomChantier}</p>
+            {project.projet && project.projet !== project.nomChantier && (
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-2 sm:line-clamp-1 mt-0">{project.projet}</p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.projet}</p>
+        )}
         {project.adresseChantier && (
           <div className="flex items-center gap-1 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
             <MapPin className="w-3 h-3 shrink-0" />
@@ -1083,7 +1092,16 @@ function WeekProjectRow({ project }: { project: Project }) {
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.projet}</p>
+        {project.nomChantier ? (
+          <>
+            <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.nomChantier}</p>
+            {project.projet && project.projet !== project.nomChantier && (
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-2 sm:line-clamp-1 mt-0">{project.projet}</p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.projet}</p>
+        )}
         <div className="flex items-center gap-1 mt-0.5">
           {collabNames.length >= 1 && (
             <div className="flex -space-x-1">
@@ -2728,7 +2746,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               : <span className="font-mono text-xs text-gray-400">---</span>
                             }
                           </span>
-                          <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-2">{p.projet}</span>
+                          <span className="flex-1 min-w-0">
+                            {p.nomChantier ? (
+                              <>
+                                <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 leading-tight">{p.nomChantier}</span>
+                                {p.projet && p.projet !== p.nomChantier && (
+                                  <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 leading-tight">{p.projet}</span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="block text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-2">{p.projet}</span>
+                            )}
+                          </span>
                           {/* J+x badge iOS — affiché en haut à droite */}
                           {daysBadge && (
                             <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${daysBadge.bgClass} ${daysBadge.colorClass}`}>
@@ -2779,7 +2808,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       </span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                      <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-1">{p.projet}</span>
+                      <span className="flex-1 min-w-0">
+                        {p.nomChantier ? (
+                          <>
+                            <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-1">{p.nomChantier}</span>
+                            {p.projet && p.projet !== p.nomChantier && (
+                              <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 leading-tight hidden sm:block">{p.projet}</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="block text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-1">{p.projet}</span>
+                        )}
+                      </span>
 
                       {/* COL arrivage — visible sm+ */}
                       <span className="hidden sm:flex w-28 shrink-0 justify-end">
@@ -2857,45 +2897,79 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             const traitePar  = p.mesuresTraiteePar || "";
             const traitColors = traitePar ? getCollaboratorColor(traitePar) : null;
             const logo       = getClientLogo(p.projet);
+            const dateLabel  = dateStr
+              ? new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })
+              : "—";
+            const tmNums = parseTMNumbers(p.ofrTM || "");
+            const title = p.nomChantier || p.projet || "—";
+            const subtitle = p.nomChantier && p.projet && p.projet !== p.nomChantier ? p.projet : null;
+
             return (
               <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                className={`flex items-center gap-3 px-2 py-2.5 rounded-xl ${hoverClass} transition-colors group`}>
-                {/* Date mesures */}
-                <div className="w-24 shrink-0">
-                  {dateStr ? (
-                    <span className={`text-[11px] font-semibold tabular-nums ${dateClass}`}>
-                      {new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })}
+                className={`block sm:flex sm:items-center sm:gap-3 px-2 py-2.5 rounded-xl ${hoverClass} transition-colors group`}>
+
+                {/* ── Mobile : layout bloc ── */}
+                <div className="sm:hidden">
+                  {/* Ligne 1 : date + OFR + avatar + chevron */}
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] font-semibold tabular-nums shrink-0 ${dateClass}`}>{dateLabel}</span>
+                    <span className="flex-1 min-w-0">
+                      {tmNums.length > 0 ? (
+                        <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400 truncate block">{tmNums[0]}</span>
+                      ) : <span className="font-mono text-[10px] text-gray-300">—</span>}
                     </span>
-                  ) : <span className="text-[11px] text-gray-300">—</span>}
-                </div>
-                {/* N° OFR TM */}
-                <div className="w-24 shrink-0">
-                  {parseTMNumbers(p.ofrTM || "").length > 0 ? (
-                    <div className="flex flex-col gap-px">
-                      {parseTMNumbers(p.ofrTM || "").slice(0, 2).map((tm, i) => (
-                        <span key={i} className="font-mono text-[10px] text-gray-600 dark:text-gray-300 leading-tight truncate">{tm}</span>
-                      ))}
-                    </div>
-                  ) : <span className="font-mono text-[10px] text-gray-300">—</span>}
-                </div>
-                {/* Projet + logo */}
-                <div className="flex-1 min-w-0 flex items-center gap-2">
-                  {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
-                  <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1">{p.projet}</p>
-                </div>
-                {/* Mesures traitée par */}
-                <div className="w-28 shrink-0 flex justify-end">
-                  {traitePar && traitColors && (
-                    <span className="flex items-center gap-1">
-                      <span className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center"
+                    {traitePar && traitColors && (
+                      <span className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center shrink-0"
                         style={{ backgroundColor: traitColors.bg, color: traitColors.text }}>
                         {getCollaboratorInitials(traitePar)}
                       </span>
-                      <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate hidden sm:block">{traitePar}</span>
-                    </span>
-                  )}
+                    )}
+                    <ChevronRight className={`w-3.5 h-3.5 text-gray-300 ${arrowClass} transition-colors shrink-0`} />
+                  </div>
+                  {/* Ligne 2 : titre sur 3 lignes */}
+                  <div className="flex items-center gap-1.5 mt-1">
+                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3">{title}</p>
+                      {subtitle && <p className="text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1">{subtitle}</p>}
+                    </div>
+                  </div>
                 </div>
-                <ChevronRight className={`w-3.5 h-3.5 text-gray-300 ${arrowClass} transition-colors shrink-0`} />
+
+                {/* ── Desktop : layout flex original ── */}
+                <div className="hidden sm:contents">
+                  <div className="w-24 shrink-0">
+                    <span className={`text-[11px] font-semibold tabular-nums ${dateClass}`}>{dateLabel}</span>
+                  </div>
+                  <div className="w-24 shrink-0">
+                    {tmNums.length > 0 ? (
+                      <div className="flex flex-col gap-px">
+                        {tmNums.slice(0, 2).map((tm, i) => (
+                          <span key={i} className="font-mono text-[10px] text-gray-600 dark:text-gray-300 leading-tight truncate">{tm}</span>
+                        ))}
+                      </div>
+                    ) : <span className="font-mono text-[10px] text-gray-300">—</span>}
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">{title}</p>
+                      {subtitle && <p className="text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1">{subtitle}</p>}
+                    </div>
+                  </div>
+                  <div className="w-28 shrink-0 flex justify-end">
+                    {traitePar && traitColors && (
+                      <span className="flex items-center gap-1">
+                        <span className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center"
+                          style={{ backgroundColor: traitColors.bg, color: traitColors.text }}>
+                          {getCollaboratorInitials(traitePar)}
+                        </span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{traitePar}</span>
+                      </span>
+                    )}
+                  </div>
+                  <ChevronRight className={`w-3.5 h-3.5 text-gray-300 ${arrowClass} transition-colors shrink-0`} />
+                </div>
               </Link>
             );
           };
@@ -3713,7 +3787,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       </span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                        <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
+                        <span className="flex-1 min-w-0">
+                          {p.nomChantier ? (
+                            <>
+                              <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.nomChantier}</span>
+                              {p.projet && p.projet !== p.nomChantier && (
+                                <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 mt-0">{p.projet}</span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="block text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
+                          )}
+                        </span>
                         {(showSummaryPanel === "rdv-fixe") && (
                           <span className="flex items-center gap-1 shrink-0">
                             {isMesure ? (

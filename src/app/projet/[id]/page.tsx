@@ -34,8 +34,9 @@ import {
 } from "lucide-react";
 import { MontageChecklist } from "@/components/checklist";
 import { ProjectChat } from "@/components/project-chat";
-import { GPSTracker } from "@/components/gps-tracker";
-import { AdminGpsTimer } from "@/components/admin-gps-timer";
+// GPS DÉSACTIVÉ — décommenter pour réactiver le pointage GPS automatique
+// import { GPSTracker } from "@/components/gps-tracker";
+// import { AdminGpsTimer } from "@/components/admin-gps-timer";
 import { SiteTimer } from "@/components/site-timer";
 import { StockUsage } from "@/components/stock-usage";
 import { SAVForm } from "@/components/sav-form";
@@ -2999,13 +3000,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
                     }}
                   />
-                  {/* GPS tracker : tourne pour TOUS les utilisateurs (les
-                      monteurs sont ceux qui se déplacent), mais en mode
-                      silencieux sans UI pour eux. L'admin a l'UI complète
-                      pour pointer manuellement si besoin. Le pointage va
-                      vers /api/gps-pointage et N'ÉCRIT PAS dans
-                      heureArrivee/heureDepart du rapport — c'est un canal
-                      séparé pour le contrôle des heures. */}
+                  {/* GPS DÉSACTIVÉ — décommenter le bloc ci-dessous pour réactiver
                   <GPSTracker
                     chantierAddress={project.adresseChantier}
                     projectId={id}
@@ -3016,6 +3011,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   {currentUser?.role === "admin" && (
                     <AdminGpsTimer projectId={id} />
                   )}
+                  */}
                   {/* Heures arrivée/départ intégrées dans le SiteTimer ci-dessus */}
                   {heureArrivee && heureDepart && (() => {
                     const [ah, am] = heureArrivee.split(":").map(Number);
@@ -3237,7 +3233,7 @@ function ProjectPageContent({ id }: { id: string }) {
                     <Separator />
                     <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} />
                     <BucketPhotoUpload bucket="DEMONTAGE" projectId={id} project={project} setProject={setProject} />
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <BucketPhotoUpload bucket="MONTAGE_GAUCHE" projectId={id} project={project} setProject={setProject} />
                       <BucketPhotoUpload bucket="MONTAGE_CENTRE" projectId={id} project={project} setProject={setProject} />
                       <BucketPhotoUpload bucket="MONTAGE_DROITE" projectId={id} project={project} setProject={setProject} />
@@ -3457,7 +3453,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           {/* Photos cabine */}
                           <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                           <BucketPhotoUpload bucket="DEMONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <BucketPhotoUpload bucket="MONTAGE_GAUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                             <BucketPhotoUpload bucket="MONTAGE_CENTRE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                             <BucketPhotoUpload bucket="MONTAGE_DROITE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
