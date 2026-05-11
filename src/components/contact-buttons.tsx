@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Phone, MessageCircle, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -11,14 +11,15 @@ interface ContactButtonsProps {
 
 function extractPhoneFromText(text: string): string {
   if (!text) return "";
-  // Chercher un numéro de téléphone dans le texte
-  // Formats: +41 79 555 24 74, 079 555 24 74, 0795552474, +41795552474
+  // Séparateur flexible : espace, point, slash, tiret, optionnel
+  const s = "[\\s.\\/\\-]?";
   const patterns = [
-    /(\+\d{2}\s?\d{2}\s?\d{3}\s?\d{2}\s?\d{2})/,  // +41 79 555 24 74
-    /(\+\d{10,13})/,                                  // +41795552474
-    /(0\d{2}\s?\d{3}\s?\d{2}\s?\d{2})/,              // 079 555 24 74
-    /(0\d{9,10})/,                                     // 0795552474
-    /(\d{3}\s?\d{3}\s?\d{2}\s?\d{2})/,               // 079 555 24 74 sans 0
+    // +41 79 555 24 74  /  +41795552474
+    new RegExp(`(\\+41${s}\\d{2}${s}\\d{3}${s}\\d{2}${s}\\d{2})`),
+    new RegExp(`(\\+\\d{10,13})`),
+    // 079/555.24.74  /  079 555 24 74  /  0795552474
+    new RegExp(`(0\\d{2}${s}\\d{3}${s}\\d{2}${s}\\d{2})`),
+    new RegExp(`(0\\d{9,10})`),
   ];
   for (const pattern of patterns) {
     const match = text.match(pattern);
@@ -28,10 +29,15 @@ function extractPhoneFromText(text: string): string {
 }
 
 export function ContactButtons({ contactName, phoneNumber }: ContactButtonsProps) {
-  // Extraire automatiquement le numéro depuis contactName si pas de phoneNumber
   const autoPhone = phoneNumber || extractPhoneFromText(contactName || "");
   const [showInput, setShowInput] = useState(false);
   const [number, setNumber] = useState(autoPhone);
+
+  // Resynchroniser si contactName/phoneNumber changent (chargement asynchrone)
+  useEffect(() => {
+    const detected = phoneNumber || extractPhoneFromText(contactName || "");
+    if (detected) setNumber(detected);
+  }, [contactName, phoneNumber]);
 
   const cleanNumber = (n: string) => {
     let cleaned = n.replace(/\s/g, "").replace(/[^0-9+]/g, "");
