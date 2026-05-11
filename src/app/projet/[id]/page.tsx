@@ -617,6 +617,165 @@ function ExtraDateField({ label, value, projectId, fieldName, onUpdate }: {
   );
 }
 
+/** Adresse chantier : conserve le lien GPS + bouton crayon admin */
+function InlineAddressField({
+  value, projectId, isAdmin, onUpdate,
+}: { value: string; projectId: string; isAdmin: boolean; onUpdate: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || "");
+  const [saving, setSaving] = useState(false);
+
+  if (!value && !isAdmin) return null;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await offlineFetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adresseChantier: draft.trim() || null }),
+      });
+      onUpdate(draft.trim());
+      setEditing(false);
+    } catch { } finally { setSaving(false); }
+  };
+
+  if (editing) {
+    return (
+      <div className="space-y-1 py-1">
+        <p className="text-xs text-gray-500">Adresse chantier</p>
+        <input autoFocus value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") setEditing(false); }}
+          className="text-xs border rounded px-1.5 py-1 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 w-full" />
+        <div className="flex gap-1">
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 text-[10px] bg-green-500 text-white py-0.5 rounded hover:bg-green-600">{saving ? "…" : "✓"}</button>
+          <button onClick={() => { setEditing(false); setDraft(value || ""); }}
+            className="flex-1 text-[10px] bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 py-0.5 rounded">✕</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-1">
+      {value
+        ? <MapAddressLink address={value} />
+        : <div className="py-1"><p className="text-xs text-gray-500">Adresse chantier</p><p className="text-xs text-gray-300 italic">—</p></div>
+      }
+      {isAdmin && (
+        <button onClick={() => { setDraft(value || ""); setEditing(true); }}
+          className="text-gray-300 hover:text-blue-500 p-0.5 mt-5 shrink-0 transition-colors">
+          <Pencil className="w-2.5 h-2.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Champ texte / nombre éditable inline (admin uniquement).
+ * Affiche valeur + crayon en lecture ; input + ✓/✕ en édition.
+ * Pour les non-admins : comportement identique à InfoRow (masqué si vide).
+ */
+function InlineField({
+  icon: Icon,
+  label,
+  value,
+  projectId,
+  fieldName,
+  type = "text",
+  isAdmin,
+  onUpdate,
+}: {
+  icon?: any;
+  label: string;
+  value: string | number | null;
+  projectId: string;
+  fieldName: string;
+  type?: "text" | "number";
+  isAdmin: boolean;
+  onUpdate: (v: any) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value ?? ""));
+  const [saving, setSaving] = useState(false);
+
+  if (!isAdmin && !value) return null;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const parsed =
+        type === "number"
+          ? draft.trim() ? Number(draft) : null
+          : draft.trim() || null;
+      await offlineFetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [fieldName]: parsed }),
+      });
+      onUpdate(parsed);
+      setEditing(false);
+    } catch (err) {
+      console.error("InlineField save:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-2 py-1">
+      {Icon && <Icon className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />}
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-gray-500">{label}</p>
+        {editing ? (
+          <div className="mt-0.5 space-y-1">
+            <input
+              type={type}
+              value={draft}
+              autoFocus
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSave();
+                if (e.key === "Escape") { setEditing(false); setDraft(String(value ?? "")); }
+              }}
+              className="text-xs border rounded px-1.5 py-1 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 w-full"
+            />
+            <div className="flex gap-1">
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 text-[10px] bg-green-500 text-white py-0.5 rounded hover:bg-green-600">
+                {saving ? "…" : "✓"}
+              </button>
+              <button onClick={() => { setEditing(false); setDraft(String(value ?? "")); }}
+                className="flex-1 text-[10px] bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 py-0.5 rounded">
+                ✕
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-all">
+              {value != null && value !== "" ? String(value) : (
+                isAdmin ? <span className="text-gray-300 text-xs italic">—</span> : null
+              )}
+            </p>
+            {isAdmin && (
+              <button
+                onClick={() => { setDraft(String(value ?? "")); setEditing(true); }}
+                className="text-gray-300 hover:text-blue-500 p-0.5 shrink-0 transition-colors"
+              >
+                <Pencil className="w-2.5 h-2.5" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Sélecteur inline d'emplacement cabine.
  * Les options sont chargées depuis Notion via /api/projects/field-options
@@ -2496,10 +2655,12 @@ function ProjectPageContent({ id }: { id: string }) {
     );
   }
 
+  const isAdmin = currentUser?.role === "admin";
+
   return (
     <div className="max-w-4xl mx-auto w-full pb-8 px-4">
       {/* Modal d'édition admin */}
-      {currentUser?.role === "admin" && project && (
+      {isAdmin && project && (
         <AdminEditModal
           project={project}
           isOpen={showEditModal}
@@ -2549,7 +2710,7 @@ function ProjectPageContent({ id }: { id: string }) {
             {project.ofrTM && (
               <p className="text-xs text-gray-500">OFR {project.ofrTM}</p>
             )}
-            {currentUser?.role === "admin" && (
+            {isAdmin && (
               <div className="mt-1.5 flex flex-wrap items-start gap-x-3 gap-y-2">
                 <StatusDropdown
                   project={project}
@@ -2570,7 +2731,7 @@ function ProjectPageContent({ id }: { id: string }) {
               </div>
             )}
           </div>
-          {currentUser?.role === "admin" && (
+          {isAdmin && (
             <button
               onClick={() => setShowEditModal(true)}
               className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
@@ -2600,7 +2761,7 @@ function ProjectPageContent({ id }: { id: string }) {
           >
             <Star className={`w-5 h-5 ${fav ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
           </button>
-          {currentUser?.role === "admin" && (
+          {isAdmin && (
             <button
               onClick={() => setShowHistory(!showHistory)}
               className={`relative w-9 h-9 flex items-center justify-center rounded-full active:scale-90 transition-all ${historyCount > 0 ? "bg-yellow-50" : ""} hover:bg-gray-100`}
@@ -2616,7 +2777,7 @@ function ProjectPageContent({ id }: { id: string }) {
       </div>
 
       {/* Historique des modifications (toggle) */}
-      {showHistory && currentUser?.role === "admin" && (
+      {showHistory && isAdmin && (
         <div className="px-4 mt-2">
           <ProjectHistory projectId={id} onCountChange={setHistoryCount} />
         </div>
@@ -2639,17 +2800,20 @@ function ProjectPageContent({ id }: { id: string }) {
           <CardContent className="space-y-0">
 
             {/* Nom projet | Adresse chantier */}
-            <div className="grid grid-cols-2 gap-3 py-2">
-              <div className="flex items-start gap-2">
-                <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs text-gray-500">Nom projet</p>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.nomChantier || "---"}</p>
-                </div>
-              </div>
-              {project.adresseChantier && (
-                <MapAddressLink address={project.adresseChantier} />
-              )}
+            <div className="grid grid-cols-2 gap-3 py-1">
+              <InlineField
+                icon={FileText} label="Nom projet"
+                value={project.nomChantier} projectId={id} fieldName="nomChantier"
+                isAdmin={isAdmin}
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, nomChantier: v || "" } : prev)}
+              />
+              {/* Adresse : MapAddressLink en lecture, input en édition (admin) */}
+              <InlineAddressField
+                value={project.adresseChantier}
+                projectId={id}
+                isAdmin={isAdmin}
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, adresseChantier: v } : prev)}
+              />
             </div>
 
             {/* Sous-titre N° TM */}
@@ -2658,37 +2822,45 @@ function ProjectPageContent({ id }: { id: string }) {
               <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
             </div>
             <div className="grid grid-cols-3 gap-3 py-1">
-              <InfoRow icon={Hash} label="N° OFR TM" value={project.ofrTM} />
-              <InfoRow icon={Hash} label="N° CMD TM" value={project.cmdTM} />
-              <InfoRow icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} />
+              <InlineField icon={Hash} label="N° OFR TM" value={project.ofrTM} projectId={id} fieldName="ofrTM" isAdmin={isAdmin}
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, ofrTM: v || "" } : prev)} />
+              <InlineField icon={Hash} label="N° CMD TM" value={project.cmdTM} projectId={id} fieldName="cmdTM" isAdmin={isAdmin}
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdTM: v || "" } : prev)} />
+              <InlineField icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} projectId={id} fieldName="cmdTMUsine" isAdmin={isAdmin}
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdTMUsine: v || "" } : prev)} />
             </div>
 
-            {/* Sous-titre N° Grossistes (conditionnel) */}
-            {(project.ofrGrossiste || project.cmdGrossiste) && (
+            {/* Sous-titre N° Grossistes (toujours visible pour admin) */}
+            {(isAdmin || project.ofrGrossiste || project.cmdGrossiste) && (
               <>
                 <div className="flex items-center gap-2 pt-3 pb-1">
                   <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">N° Grossistes</span>
                   <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
                 </div>
                 <div className="grid grid-cols-3 gap-3 py-1">
-                  <InfoRow icon={Hash} label="N° OFR Grossiste" value={project.ofrGrossiste} />
-                  <InfoRow icon={Hash} label="N° CMD Grossiste" value={project.cmdGrossiste} />
+                  <InlineField icon={Hash} label="N° OFR Grossiste" value={project.ofrGrossiste} projectId={id} fieldName="ofrGrossiste" isAdmin={isAdmin}
+                    onUpdate={(v) => setProject((prev) => prev ? { ...prev, ofrGrossiste: v || "" } : prev)} />
+                  <InlineField icon={Hash} label="N° CMD Grossiste" value={project.cmdGrossiste} projectId={id} fieldName="cmdGrossiste" isAdmin={isAdmin}
+                    onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdGrossiste: v || "" } : prev)} />
                   <div />
                 </div>
               </>
             )}
 
-            {/* Sous-titre N° Fournisseurs (conditionnel) */}
-            {(project.cmdFournisseurs || project.servMesuresFournisseurs || project.servCmdFournisseurs) && (
+            {/* Sous-titre N° Fournisseurs (toujours visible pour admin) */}
+            {(isAdmin || project.cmdFournisseurs || project.servMesuresFournisseurs || project.servCmdFournisseurs) && (
               <>
                 <div className="flex items-center gap-2 pt-3 pb-1">
                   <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">N° Fournisseurs</span>
                   <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
                 </div>
                 <div className="grid grid-cols-3 gap-3 py-1">
-                  <InfoRow icon={Hash} label="N° CMD Fournisseurs" value={project.cmdFournisseurs} />
-                  <InfoRow icon={Hash} label="N° Serv. Mesures Fourn." value={project.servMesuresFournisseurs} />
-                  <InfoRow icon={Hash} label="N° CMD Services" value={project.servCmdFournisseurs} />
+                  <InlineField icon={Hash} label="N° CMD Fourn." value={project.cmdFournisseurs} projectId={id} fieldName="cmdFournisseurs" isAdmin={isAdmin}
+                    onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdFournisseurs: v || "" } : prev)} />
+                  <InlineField icon={Hash} label="N° Serv. Mesures" value={project.servMesuresFournisseurs} projectId={id} fieldName="servMesuresFournisseurs" isAdmin={isAdmin}
+                    onUpdate={(v) => setProject((prev) => prev ? { ...prev, servMesuresFournisseurs: v || "" } : prev)} />
+                  <InlineField icon={Hash} label="N° CMD Services" value={project.servCmdFournisseurs} projectId={id} fieldName="servCmdFournisseurs" isAdmin={isAdmin}
+                    onUpdate={(v) => setProject((prev) => prev ? { ...prev, servCmdFournisseurs: v || "" } : prev)} />
                 </div>
               </>
             )}
@@ -2927,13 +3099,12 @@ function ProjectPageContent({ id }: { id: string }) {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-3">
-              <div className="flex items-start gap-2">
-                <Box className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs text-gray-500">Nb. Cabines</p>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.nbCabines ?? "---"}</p>
-                </div>
-              </div>
+              <InlineField
+                icon={Box} label="Nb. Cabines" type="number"
+                value={project.nbCabines} projectId={id} fieldName="nbCabines"
+                isAdmin={isAdmin}
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, nbCabines: v } : prev)}
+              />
               {project.fournisseurs.length > 0 && (
                 <div className="flex items-start gap-2">
                   <Truck className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
@@ -2969,20 +3140,17 @@ function ProjectPageContent({ id }: { id: string }) {
                     <EmplacementSelect
                       value={project.emplacementCabine}
                       projectId={id}
-                      isAdmin={currentUser?.role === "admin"}
+                      isAdmin={isAdmin}
                       onUpdate={(v) => setProject((prev) => prev ? { ...prev, emplacementCabine: v } : prev)}
                     />
                   </div>
                 </div>
-                {project.nbCartons != null && project.nbCartons > 0 && (
-                  <div className="flex items-start gap-2">
-                    <Package className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-500">Nb. de cartons</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.nbCartons}</p>
-                    </div>
-                  </div>
-                )}
+                <InlineField
+                  icon={Package} label="Nb. de cartons" type="number"
+                  value={project.nbCartons} projectId={id} fieldName="nbCartons"
+                  isAdmin={isAdmin}
+                  onUpdate={(v) => setProject((prev) => prev ? { ...prev, nbCartons: v } : prev)}
+                />
               </div>
             )}
           </CardContent>
@@ -3170,7 +3338,7 @@ function ProjectPageContent({ id }: { id: string }) {
                     heureArrivee={project.heureArrivee}
                     heureDepart={project.heureDepart}
                   />
-                  {currentUser?.role === "admin" && (
+                  {isAdmin && (
                     <AdminGpsTimer projectId={id} />
                   )}
                   */}
@@ -3832,7 +4000,7 @@ function ProjectPageContent({ id }: { id: string }) {
               </p>
 
               {/* Suivi consultations rapport */}
-              {currentUser?.role === "admin" && <ReportConsultations projectId={id} />}
+              {isAdmin && <ReportConsultations projectId={id} />}
             </div>
           </>
         )}

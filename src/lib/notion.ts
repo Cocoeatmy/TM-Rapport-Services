@@ -911,6 +911,11 @@ export async function updateProject(
       number: data.nbCabines,
     };
   }
+  if ((data as any).nbCartons !== undefined) {
+    properties["Nb. de cartons"] = {
+      number: (data as any).nbCartons,
+    };
+  }
   // === Champs éditables par l'admin depuis l'app ===
   if ((data as any).projet !== undefined) {
     properties["Projet"] = {
