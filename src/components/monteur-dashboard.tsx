@@ -4356,26 +4356,113 @@ function CollaborateurDashboard({ userName, projects }: { userName: string; proj
           {showPanel === "emplacement-cabines" && (
             <>
               {panelHeader(<MapPin className="w-4 h-4" />, "Emplacement cabines", "text-sky-700 dark:text-sky-300", emplacementCount)}
-              {emplacementAll.length === 0 ? emptyMsg("Aucune cabine à placer") : (
-                <div className="space-y-4">
-                  {emplacementAll.filter((p) => p.emplacementCabine !== "Dépôt TM").length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-sky-600 dark:text-sky-300 mb-2 flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> À chercher ({emplacementAutres} cab.)
-                      </p>
-                      {projectList(emplacementAll.filter((p) => p.emplacementCabine !== "Dépôt TM"))}
-                    </div>
-                  )}
-                  {emplacementAll.filter((p) => p.emplacementCabine === "Dépôt TM").length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-amber-600 dark:text-amber-300 mb-2 flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> Dépôt TM ({emplacementDepotTM} cab.)
-                      </p>
-                      {projectList(emplacementAll.filter((p) => p.emplacementCabine === "Dépôt TM"))}
-                    </div>
-                  )}
-                </div>
-              )}
+              {emplacementAll.length === 0 ? emptyMsg("Aucune cabine à placer") : (() => {
+                // Même palette de couleurs que la vue admin
+                const EMPL_COLORS: Record<string, { badge: string; header: string }> = {
+                  "Dépôt TM":                { badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",    header: "bg-amber-600 dark:bg-amber-700" },
+                  "Sur chantier":            { badge: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",    header: "bg-green-700 dark:bg-green-800" },
+                  "Getaz Yverdon":           { badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",        header: "bg-blue-700 dark:bg-blue-800" },
+                  "Getaz Bussigny":          { badge: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",header: "bg-indigo-700 dark:bg-indigo-800" },
+                  "Getaz Payerne":           { badge: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",            header: "bg-sky-700 dark:bg-sky-800" },
+                  "Dubat Villars-ste-Croix": { badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",header: "bg-purple-700 dark:bg-purple-800" },
+                  "Dubat Yverdon":           { badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",header: "bg-violet-700 dark:bg-violet-800" },
+                  "Chez sanitaire":          { badge: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",        header: "bg-teal-700 dark:bg-teal-800" },
+                  "Matway":                  { badge: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",header: "bg-orange-600 dark:bg-orange-700" },
+                  "Saneo Orbe":              { badge: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300",        header: "bg-cyan-700 dark:bg-cyan-800" },
+                  "Saneo Lonay":             { badge: "bg-lime-100 text-lime-700 dark:bg-lime-900/40 dark:text-lime-300",        header: "bg-lime-700 dark:bg-lime-800" },
+                  "Saneo - Givisiez":        { badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", header: "bg-emerald-700 dark:bg-emerald-800" },
+                  "Sanitas Villars-sur-Glâne":{ badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",      header: "bg-rose-700 dark:bg-rose-800" },
+                  "Tema La Chaux-de-Fonds":  { badge: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300", header: "bg-fuchsia-700 dark:bg-fuchsia-800" },
+                  "Sylroc Diffusion SA":     { badge: "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300",        header: "bg-pink-700 dark:bg-pink-800" },
+                };
+                const getEmplColor = (e: string) => EMPL_COLORS[e] ?? { badge: "bg-gray-100 text-gray-600 dark:bg-gray-700/40 dark:text-gray-300", header: "bg-[#1e3a5f]" };
+
+                // Grouper par emplacement
+                const emplacementMap: Record<string, typeof emplacementAll> = {};
+                emplacementAll.forEach((p) => {
+                  const key = p.emplacementCabine || "Sans emplacement";
+                  if (!emplacementMap[key]) emplacementMap[key] = [];
+                  emplacementMap[key].push(p);
+                });
+                const sortedKeys = Object.keys(emplacementMap).sort((a, b) => {
+                  if (a === "Dépôt TM") return 1;
+                  if (b === "Dépôt TM") return -1;
+                  return a.localeCompare(b);
+                });
+
+                return (
+                  <div>
+                    {sortedKeys.map((empl) => {
+                      const groupProjects = emplacementMap[empl];
+                      const { header } = getEmplColor(empl);
+                      return (
+                        <div key={empl} className="mb-1">
+                          <div className={`flex items-center gap-2 px-3 py-2 mt-3 mb-1 rounded-lg shadow-sm ${header}`}>
+                            <span className="text-[12px] font-bold text-white truncate">{empl}</span>
+                            <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-semibold bg-white/20 text-white shrink-0">
+                              {groupProjects.length} projet{groupProjects.length > 1 ? "s" : ""} · {groupProjects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
+                            </span>
+                          </div>
+                          {[...groupProjects].sort((a, b) => {
+                            const da = (a.arrivageTM || a.arrivageGrossiste || "");
+                            const db = (b.arrivageTM || b.arrivageGrossiste || "");
+                            if (!da && !db) return 0;
+                            if (!da) return 1;
+                            if (!db) return -1;
+                            return da.localeCompare(db);
+                          }).map((p, idx) => {
+                            const rowBg = idx % 2 === 0 ? "bg-white/60 dark:bg-slate-800/40" : "bg-blue-50/40 dark:bg-blue-950/15";
+                            const emplacements = p.emplacementCabine ? p.emplacementCabine.split(", ") : [];
+                            const arrivage = getArrivageInfo(p);
+                            return (
+                              <a key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
+                                <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
+                                  {parseTMNumbers(p.ofrTM || "").length > 0
+                                    ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
+                                        <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                                      ))
+                                    : <span className="font-mono text-xs text-gray-400">---</span>
+                                  }
+                                </span>
+                                <span className="w-28 shrink-0 flex flex-col gap-0.5">
+                                  {emplacements.length > 0
+                                    ? emplacements.map((e) => (
+                                        <span key={e} className={`text-[9px] font-semibold px-1.5 py-0.5 rounded truncate ${getEmplColor(e).badge}`}>{e}</span>
+                                      ))
+                                    : <span className="text-[10px] text-gray-400">—</span>
+                                  }
+                                </span>
+                                <span className="w-24 shrink-0 flex flex-col items-start gap-0.5">
+                                  {arrivage ? (
+                                    <>
+                                      <span className={`text-[9px] font-mono tabular-nums ${arrivage.colorClass}`}>
+                                        {arrivage.label} {new Date(arrivage.date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
+                                      </span>
+                                      {arrivage.days !== null && arrivage.days >= 0 && (
+                                        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${arrivage.bgClass} ${arrivage.colorClass}`}>
+                                          J+{arrivage.days}
+                                        </span>
+                                      )}
+                                    </>
+                                  ) : null}
+                                </span>
+                                <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
+                                {(() => { const logo = getClientLogo(p.projet); return logo ? (
+                                  <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                                ) : null; })()}
+                                <span className="text-[10px] border border-gray-200 dark:border-gray-600 rounded-full px-1.5 py-0.5 shrink-0 text-gray-600 dark:text-gray-300">
+                                  {p.nbCabines || 0} cab.
+                                </span>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>
