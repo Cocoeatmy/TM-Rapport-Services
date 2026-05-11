@@ -2854,12 +2854,12 @@ function ProjectPageContent({ id }: { id: string }) {
                   <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">N° Fournisseurs</span>
                   <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
                 </div>
-                <div className="grid grid-cols-3 gap-3 py-1">
-                  <InlineField icon={Hash} label="N° CMD Fourn." value={project.cmdFournisseurs} projectId={id} fieldName="cmdFournisseurs" isAdmin={isAdmin}
+                <div className="flex flex-col py-1">
+                  <InlineField icon={Hash} label="N° CMD Fournisseurs" value={project.cmdFournisseurs} projectId={id} fieldName="cmdFournisseurs" isAdmin={isAdmin}
                     onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdFournisseurs: v || "" } : prev)} />
-                  <InlineField icon={Hash} label="N° Serv. Mesures" value={project.servMesuresFournisseurs} projectId={id} fieldName="servMesuresFournisseurs" isAdmin={isAdmin}
+                  <InlineField icon={Hash} label="N° CMD Mesures Fournisseurs" value={project.servMesuresFournisseurs} projectId={id} fieldName="servMesuresFournisseurs" isAdmin={isAdmin}
                     onUpdate={(v) => setProject((prev) => prev ? { ...prev, servMesuresFournisseurs: v || "" } : prev)} />
-                  <InlineField icon={Hash} label="N° CMD Services" value={project.servCmdFournisseurs} projectId={id} fieldName="servCmdFournisseurs" isAdmin={isAdmin}
+                  <InlineField icon={Hash} label="N° CMD Services Fournisseurs" value={project.servCmdFournisseurs} projectId={id} fieldName="servCmdFournisseurs" isAdmin={isAdmin}
                     onUpdate={(v) => setProject((prev) => prev ? { ...prev, servCmdFournisseurs: v || "" } : prev)} />
                 </div>
               </>
