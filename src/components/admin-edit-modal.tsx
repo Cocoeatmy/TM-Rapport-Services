@@ -233,6 +233,9 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
                   onChange={(e) => set("adresseChantier", e.target.value)}
                   placeholder="Rue, Numéro, NPA Localité"
                 />
+                <p className="text-[10px] text-amber-500 mt-1">
+                  Sync via champ texte Notion « Adresse chantier texte » (créer si absent)
+                </p>
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Nb. Cabines">
@@ -248,7 +251,7 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
                   {emplacementOptions.length > 0 ? (
                     <select
                       className={inputCls}
-                      value={form.emplacementCabine || ""}
+                      value={(form.emplacementCabine || "").split(",")[0].trim()}
                       onChange={(e) => set("emplacementCabine", e.target.value)}
                     >
                       <option value="">— Choisir —</option>
@@ -302,6 +305,9 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
                   value={form.contacts || ""}
                   onChange={(e) => set("contacts", e.target.value)}
                 />
+                <p className="text-[10px] text-amber-500 mt-1">
+                  Sync via champ texte Notion « Contacts projet » (créer si absent)
+                </p>
               </Field>
             </div>
           </section>

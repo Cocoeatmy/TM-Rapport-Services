@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Hash,
   Box,
+  Package,
   Truck,
   ChevronDown,
   ChevronUp,
@@ -594,13 +595,15 @@ function ExtraDateField({ label, value, projectId, fieldName, onUpdate }: {
       <div className="flex-1 min-w-0">
         <p className="text-[10px] text-gray-400">{label}</p>
         {editing ? (
-          <div className="flex items-center gap-1 mt-0.5">
+          <div className="mt-0.5 space-y-1">
             <input type="date" value={draft} onChange={(e) => setDraft(e.target.value)}
               className="text-xs border rounded px-1.5 py-1 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 w-full" />
-            <button onClick={handleSave} disabled={saving}
-              className="text-[10px] bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 shrink-0">✓</button>
-            <button onClick={() => { setEditing(false); setDraft(value ? value.split("T")[0] : ""); }}
-              className="text-[10px] bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded shrink-0">✕</button>
+            <div className="flex gap-1">
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 text-[10px] bg-green-500 text-white py-1 rounded hover:bg-green-600">✓</button>
+              <button onClick={() => { setEditing(false); setDraft(value ? value.split("T")[0] : ""); }}
+                className="flex-1 text-[10px] bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 py-1 rounded">✕</button>
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-1">
@@ -610,6 +613,110 @@ function ExtraDateField({ label, value, projectId, fieldName, onUpdate }: {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Sélecteur inline d'emplacement cabine.
+ * Les options sont chargées depuis Notion via /api/projects/field-options
+ * et se mettent à jour automatiquement si de nouvelles options sont ajoutées.
+ * Visible par tous, éditable uniquement par les admins.
+ */
+function EmplacementSelect({
+  value,
+  projectId,
+  isAdmin,
+  onUpdate,
+}: {
+  value: string;
+  projectId: string;
+  isAdmin: boolean;
+  onUpdate: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [options, setOptions] = useState<string[]>([]);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  // Charge les options depuis Notion au premier clic
+  const loadOptions = async () => {
+    if (options.length > 0) return;
+    try {
+      const res = await fetch("/api/projects/field-options?fields=Emplacement+de+cabine");
+      const data = await res.json();
+      setOptions(data["Emplacement de cabine"] ?? []);
+    } catch {}
+  };
+
+  const handleOpen = async () => {
+    setDraft(value.split(",")[0].trim());
+    await loadOptions();
+    setEditing(true);
+  };
+
+  const handleSave = async (selected: string) => {
+    setSaving(true);
+    try {
+      await offlineFetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emplacementCabine: selected }),
+      });
+      onUpdate(selected);
+      setEditing(false);
+    } catch (err) {
+      console.error("Save emplacement error:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <p className="text-xs text-gray-500">Emplacement cabine</p>
+      {editing ? (
+        <div className="mt-1 flex flex-col gap-1">
+          <select
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+          >
+            <option value="">— Choisir —</option>
+            {options.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+          <div className="flex gap-1">
+            <button
+              onClick={() => handleSave(draft)}
+              disabled={saving}
+              className="flex-1 text-[11px] bg-green-500 hover:bg-green-600 text-white py-1 rounded-lg font-medium transition-colors"
+            >
+              {saving ? "…" : "✓"}
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              className="flex-1 text-[11px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 py-1 rounded-lg transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 mt-0.5">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{value || "---"}</p>
+          {isAdmin && (
+            <button
+              onClick={handleOpen}
+              className="text-gray-300 hover:text-blue-500 p-0.5 transition-colors"
+            >
+              <Pencil className="w-2.5 h-2.5" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -2713,8 +2820,6 @@ function ProjectPageContent({ id }: { id: string }) {
           </CardContent>
         </Card>
 
-          {/* Remplissage aurora — prend l'espace restant sous les cards */}
-          <div className="flex-1 rounded-2xl aurora-column-fill min-h-[40px]" />
         </div>{/* fin colonne gauche */}
 
         {/* --- Colonne droite : Informations client + Cabines --- */}
@@ -2860,11 +2965,24 @@ function ProjectPageContent({ id }: { id: string }) {
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <div className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Emplacement cabine</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.emplacementCabine || "---"}</p>
+                  <div className="flex-1 min-w-0">
+                    <EmplacementSelect
+                      value={project.emplacementCabine}
+                      projectId={id}
+                      isAdmin={currentUser?.role === "admin"}
+                      onUpdate={(v) => setProject((prev) => prev ? { ...prev, emplacementCabine: v } : prev)}
+                    />
                   </div>
                 </div>
+                {project.nbCartons != null && project.nbCartons > 0 && (
+                  <div className="flex items-start gap-2">
+                    <Package className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">Nb. de cartons</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.nbCartons}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

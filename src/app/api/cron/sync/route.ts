@@ -28,19 +28,23 @@ export async function GET(request: NextRequest) {
       { name: "all-active", cacheKey: "projects-all-active", fn: getAllActiveProjects },
     ];
 
-    await Promise.all(
-      tasks.map(async (task) => {
-        const t0 = Date.now();
-        try {
-          const data = await task.fn();
-          setCache(task.cacheKey, data);
-          results[task.name] = { count: data.length, ms: Date.now() - t0 };
-        } catch (err: any) {
-          results[task.name] = { count: -1, ms: Date.now() - t0 };
-          console.error(`Sync error for ${task.name}:`, err.message);
-        }
-      })
-    );
+    // Exécution séquentielle avec pause entre chaque tâche pour éviter
+    // de saturer le rate-limit Notion (3 req/s par token d'intégration).
+    // Promise.all lançait 5 requêtes simultanées, ce qui combiné avec les
+    // autres crons et actions utilisateur déclenchait des erreurs 429.
+    for (const task of tasks) {
+      const t0 = Date.now();
+      try {
+        const data = await task.fn();
+        setCache(task.cacheKey, data);
+        results[task.name] = { count: data.length, ms: Date.now() - t0 };
+      } catch (err: any) {
+        results[task.name] = { count: -1, ms: Date.now() - t0 };
+        console.error(`Sync error for ${task.name}:`, err.message);
+      }
+      // Pause de 400ms entre chaque appel pour ne pas dépasser 3 req/s
+      await new Promise((r) => setTimeout(r, 400));
+    }
 
     // Persiste le cache des noms de relations vers KV — pendant le
     // run on a parcouru tous les projets et résolu toutes les

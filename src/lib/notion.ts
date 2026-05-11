@@ -145,6 +145,7 @@ export interface Project {
   photosDefautsSignale: FileItem[];
   arrivageTM: string | null;
   arrivageGrossiste: string | null;
+  nbCartons: number | null;
 }
 
 export interface FileItem {
@@ -331,6 +332,7 @@ export function mapPageToProject(page: any): Project {
     photosDefautsSignale: extractFiles(p["Photos - Défauts signalé"]),
     arrivageTM: extractDate(p["Arrivage TM"]),
     arrivageGrossiste: extractDate(p["Arrivage Grossiste"]),
+    nbCartons: extractNumber(p["Nb. de cartons"]),
   };
 }
 
@@ -478,6 +480,27 @@ async function notionQueryWithRetry(params: Parameters<typeof notion.databases.q
       lastErr = err;
       const delay = Math.min(1000 * Math.pow(2, attempt), 8000); // 1s, 2s, 4s
       console.warn(`[notion] Rate limited (attempt ${attempt + 1}/${maxRetries}), retry in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * Exécute un `notion.pages.update()` avec retry exponentiel sur les erreurs 429.
+ * Même logique que notionQueryWithRetry, mais pour les mutations.
+ */
+async function notionUpdateWithRetry(params: Parameters<typeof notion.pages.update>[0], maxRetries = 4): Promise<any> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await notion.pages.update(params);
+    } catch (err: any) {
+      const isRateLimit = err?.status === 429 || err?.code === "rate_limited";
+      if (!isRateLimit) throw err;
+      lastErr = err;
+      const delay = Math.min(1500 * Math.pow(2, attempt), 12000); // 1.5s, 3s, 6s, 12s
+      console.warn(`[notion] Rate limited on update (attempt ${attempt + 1}/${maxRetries}), retry in ${delay}ms`);
       await new Promise((r) => setTimeout(r, delay));
     }
   }
@@ -799,13 +822,17 @@ export async function updateProject(
     };
   }
   if (data.adresseChantier !== undefined) {
-    // Le champ "Adresse chantier" est de type Place dans Notion (non
-    // écrivable via API). On écrit dans le champ texte parallèle
-    // "Adresse chantier texte" (rich_text) — le code de lecture consulte
-    // le Place en priorité, puis ce champ en fallback.
-    properties["Adresse chantier texte"] = {
-      rich_text: toRichText(data.adresseChantier),
-    };
+    // "Adresse chantier" est un champ Place (non écrivable via API).
+    // On tente d'écrire dans "Adresse chantier texte" (rich_text parallèle)
+    // si ce champ existe dans la base. Sinon on skip silencieusement
+    // plutôt que de faire échouer tout le PATCH.
+    const addrType = await getPropertyType("Adresse chantier texte");
+    if (addrType === "rich_text" || addrType === "text") {
+      properties["Adresse chantier texte"] = {
+        rich_text: toRichText(data.adresseChantier),
+      };
+    }
+    // Si le champ n'existe pas → pas d'erreur, les autres champs sont quand même sauvegardés
   }
   if (data.collaborateurs !== undefined) {
     properties["Collaborateurs montages"] = {
@@ -843,9 +870,16 @@ export async function updateProject(
     };
   }
   if (data.contacts !== undefined) {
-    properties["Contacts projet"] = {
-      rich_text: toRichText(data.contacts),
-    };
+    // Vérifier que le champ existe bien en tant que rich_text.
+    // "Contact Projet" est souvent une relation dans Notion, pas du texte.
+    // On évite de crasher tout le PATCH si le champ est absent ou mal typé.
+    const contactsType = await getPropertyType("Contacts projet");
+    if (contactsType === "rich_text" || contactsType === "text") {
+      properties["Contacts projet"] = {
+        rich_text: toRichText(data.contacts),
+      };
+    }
+    // Champ absent ou relation → skip silencieux
   }
   if (data.contactsRDV !== undefined) {
     properties["Contacts pour RDV"] = {
@@ -923,9 +957,16 @@ export async function updateProject(
     }
   }
   if ((data as any).emplacementCabine !== undefined) {
-    properties["Emplacement de cabine"] = {
-      select: (data as any).emplacementCabine ? { name: (data as any).emplacementCabine } : null,
-    };
+    // Ce champ est de type multi_select dans Notion (extractMultiSelect en lecture).
+    // La valeur lue est une string jointe par ", " — on re-sépare pour écrire
+    // les options individuelles. Ex: "Salle de bain, WC" → [{name:"Salle de bain"},{name:"WC"}]
+    const val: string = (data as any).emplacementCabine || "";
+    const items = val
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((name) => ({ name }));
+    properties["Emplacement de cabine"] = { multi_select: items };
   }
   if ((data as any).signatureUrl !== undefined) {
     const sigUrl = (data as any).signatureUrl;
@@ -986,7 +1027,7 @@ export async function updateProject(
   writeFilesField("photosPiecesManquantes", "Photos - Pièces manquante", "piece");
   writeFilesField("photosDefautsSignale", "Photos - Défauts signalé", "defaut");
 
-  await notion.pages.update({
+  await notionUpdateWithRetry({
     page_id: pageId,
     properties,
   });
@@ -1106,7 +1147,7 @@ export async function createProject(data: {
 }
 
 export async function deleteProject(pageId: string): Promise<void> {
-  await notion.pages.update({
+  await notionUpdateWithRetry({
     page_id: pageId,
     archived: true,
   });

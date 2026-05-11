@@ -41,11 +41,15 @@ export async function PATCH(
     invalidateCache("projects-mesures");
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    const status = error?.status === 429 ? 429 : error?.code === "notionhq_client_request_timeout" ? 504 : 500;
+    const isRateLimit = error?.status === 429 || error?.code === "rate_limited";
+    const isTimeout = error?.code === "notionhq_client_request_timeout";
+    const status = isRateLimit ? 429 : isTimeout ? 504 : 500;
+    const message = isRateLimit
+      ? "Notion est momentanément surchargé. Réessayez dans quelques secondes."
+      : isTimeout
+      ? "La requête a expiré. Réessayez."
+      : error.message || "Erreur lors de la mise à jour";
     console.error(`[PATCH /api/projects/${id}] ${status}:`, error?.message || error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors de la mise à jour" },
-      { status }
-    );
+    return NextResponse.json({ error: message }, { status });
   }
 }

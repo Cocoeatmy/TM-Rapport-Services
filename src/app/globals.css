@@ -461,77 +461,35 @@ html[data-ui="ocean"].dark .sticky.glass-card:active {
 /* Supporte light ET dark. La détection dark reste `.dark` sur   */
 /* la même racine <html>, donc dark+aurora = palette "midnight". */
 
-/* ---------- Background : aurore douce (light) ---------- */
+/* ---------- Background : aurore (light) ---------- */
 html[data-ui="aurora"] .lg-bg {
   background:
-    radial-gradient(ellipse 90% 60% at 15% 0%,  rgba(186, 130, 255, 0.35) 0%, transparent 55%),
-    radial-gradient(ellipse 70% 55% at 85% 15%, rgba(255, 155, 200, 0.28) 0%, transparent 60%),
-    radial-gradient(ellipse 85% 70% at 50% 100%, rgba(110, 160, 255, 0.30) 0%, transparent 60%),
-    linear-gradient(135deg, #f6f2ff 0%, #eef2ff 30%, #f0f4ff 60%, #fff0f6 100%);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 200% 200%;
+    radial-gradient(ellipse 100% 50% at 10% 0%,   rgba(186, 130, 255, 0.55) 0%, transparent 55%),
+    radial-gradient(ellipse  80% 45% at 90% 5%,   rgba(255, 140, 200, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse  70% 60% at 50% 100%,  rgba(100, 150, 255, 0.45) 0%, transparent 60%),
+    radial-gradient(ellipse  60% 40% at 75% 55%,   rgba(160, 200, 255, 0.30) 0%, transparent 55%),
+    linear-gradient(150deg, #f0eaff 0%, #e8eeff 35%, #eef5ff 65%, #fceeff 100%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 300% 300%;
   animation: auroraFlow 28s ease-in-out infinite;
 }
 
 html[data-ui="aurora"].dark .lg-bg {
   background:
-    radial-gradient(ellipse 80% 55% at 20% 0%,  rgba(130, 80, 220, 0.50) 0%, transparent 55%),
-    radial-gradient(ellipse 70% 50% at 80% 10%, rgba(220, 80, 170, 0.35) 0%, transparent 60%),
-    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(50, 100, 220, 0.45) 0%, transparent 60%),
-    linear-gradient(135deg, #0a0820 0%, #120a2e 30%, #0d0a26 60%, #180a20 100%);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 200% 200%;
+    radial-gradient(ellipse 90% 50% at 15% 0%,    rgba(130, 70, 230, 0.65) 0%, transparent 55%),
+    radial-gradient(ellipse 75% 45% at 85% 8%,    rgba(220, 70, 170, 0.50) 0%, transparent 55%),
+    radial-gradient(ellipse 85% 65% at 50% 100%,  rgba(50, 90, 230, 0.55) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 40% at 70% 55%,   rgba(80, 40, 180, 0.35) 0%, transparent 55%),
+    linear-gradient(150deg, #080620 0%, #0f0828 35%, #090820 65%, #120820 100%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 300% 300%;
   animation: auroraFlow 28s ease-in-out infinite;
 }
 
 @keyframes auroraFlow {
-  0%, 100% { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 50%; }
-  50%      { background-position: 0% 0%, 0% 0%, 0% 0%, 100% 50%; }
-}
-
-/* ---------- Aurora column fill (espace résiduel colonne infos) ---------- */
-.aurora-column-fill {
-  /* Neutre par défaut (hors aurora) */
-  background: transparent;
-}
-
-html[data-ui="aurora"] .aurora-column-fill {
-  background:
-    radial-gradient(ellipse 110% 55% at 15% 10%,  rgba(186, 130, 255, 0.30) 0%, transparent 60%),
-    radial-gradient(ellipse 90%  70% at 85% 85%,  rgba(110, 160, 255, 0.25) 0%, transparent 60%),
-    radial-gradient(ellipse 75%  50% at 75% 20%,  rgba(255, 155, 200, 0.20) 0%, transparent 55%),
-    radial-gradient(ellipse 60%  80% at 25% 80%,  rgba(140, 190, 255, 0.18) 0%, transparent 55%),
-    linear-gradient(160deg, rgba(246, 242, 255, 0.70) 0%, rgba(238, 242, 255, 0.65) 45%, rgba(255, 240, 250, 0.70) 100%);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 200% 200%;
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border: 1px solid rgba(200, 170, 255, 0.25);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.85) inset,
-    0 4px 24px rgba(160, 120, 255, 0.08);
-  animation: auroraFill 20s ease-in-out infinite;
-}
-
-html[data-ui="aurora"].dark .aurora-column-fill {
-  background:
-    radial-gradient(ellipse 110% 55% at 15% 10%,  rgba(130, 80,  220, 0.40) 0%, transparent 60%),
-    radial-gradient(ellipse 90%  70% at 85% 85%,  rgba(50,  100, 220, 0.35) 0%, transparent 60%),
-    radial-gradient(ellipse 75%  50% at 75% 20%,  rgba(220, 80,  170, 0.28) 0%, transparent 55%),
-    radial-gradient(ellipse 60%  80% at 25% 80%,  rgba(60,  120, 200, 0.25) 0%, transparent 55%),
-    linear-gradient(160deg, rgba(12, 8, 35, 0.85) 0%, rgba(20, 10, 50, 0.85) 45%, rgba(15, 8, 40, 0.85) 100%);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 200% 200%;
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
-  border: 1px solid rgba(130, 80, 220, 0.20);
-  box-shadow:
-    0 1px 0 rgba(160, 100, 255, 0.12) inset,
-    0 4px 24px rgba(80, 40, 160, 0.15);
-  animation: auroraFill 20s ease-in-out infinite;
-}
-
-@keyframes auroraFill {
   0%, 100% { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 50%; }
   33%      { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 60% 30%; }
-  66%      { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 40% 80%; }
+  66%      { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 100% 70%; }
 }
+
 
 /* ---------- Cartes ---------- */
 html[data-ui="aurora"] .glass-card {
