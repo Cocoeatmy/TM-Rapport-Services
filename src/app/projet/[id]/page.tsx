@@ -1388,17 +1388,18 @@ function InfoRow({
 function StatusDropdown({
   project,
   mode,
+  label,
   onUpdate,
 }: {
   project: Project;
-  mode: string;
+  mode: "cmd" | "mesures";
+  label: string;
   onUpdate: (field: string, value: string) => void;
 }) {
   const isMesures = mode === "mesures";
   const statusColors = isMesures ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
   const currentStatus = isMesures ? project.etatMesures : project.etatCMD;
   const field = isMesures ? "etatMesures" : "etatCMD";
-  const label = isMesures ? "Mesures" : "CMD";
   const colorClass = statusColors[currentStatus] || "bg-gray-100 text-gray-700";
   const [saving, setSaving] = useState(false);
 
@@ -1413,8 +1414,7 @@ function StatusDropdown({
       });
       if (res.ok) {
         onUpdate(field, newStatus);
-        toast.success(`Statut ${label} mis a jour`);
-        // Log the change
+        toast.success(`Statut ${label} mis à jour`);
         try {
           await fetch("/api/logs", {
             method: "POST",
@@ -1431,28 +1431,34 @@ function StatusDropdown({
         toast.error("Erreur lors du changement de statut");
       }
     } catch {
-      toast.error("Erreur reseau");
+      toast.error("Erreur réseau");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${colorClass}`}>
-        {currentStatus || "---"}
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[9px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 leading-none">
+        {label}
       </span>
-      <select
-        value={currentStatus || ""}
-        onChange={(e) => handleChange(e.target.value)}
-        disabled={saving}
-        className="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-gray-700 dark:text-gray-300 disabled:opacity-50"
-      >
-        {!currentStatus && <option value="">---</option>}
-        {Object.keys(statusColors).map((status) => (
-          <option key={status} value={status}>{status}</option>
-        ))}
-      </select>
+      <div className="flex items-center gap-1.5">
+        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap leading-tight ${colorClass}`}>
+          {currentStatus || "—"}
+        </span>
+        <select
+          value={currentStatus || ""}
+          onChange={(e) => handleChange(e.target.value)}
+          disabled={saving}
+          className="text-[11px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-0.5 text-gray-700 dark:text-gray-300 disabled:opacity-50 max-w-[130px]"
+        >
+          {!currentStatus && <option value="">---</option>}
+          {Object.keys(statusColors).map((status) => (
+            <option key={status} value={status}>{status}</option>
+          ))}
+        </select>
+        {saving && <span className="text-[10px] text-gray-400 animate-pulse">…</span>}
+      </div>
     </div>
   );
 }
@@ -2438,10 +2444,19 @@ function ProjectPageContent({ id }: { id: string }) {
               <p className="text-xs text-gray-500">OFR {project.ofrTM}</p>
             )}
             {currentUser?.role === "admin" && (
-              <div className="mt-1">
+              <div className="mt-1.5 flex flex-wrap items-start gap-x-3 gap-y-2">
                 <StatusDropdown
                   project={project}
-                  mode={mode}
+                  mode="mesures"
+                  label="État – Mesures"
+                  onUpdate={(field, value) => {
+                    setProject((prev) => prev ? { ...prev, [field]: value } : prev);
+                  }}
+                />
+                <StatusDropdown
+                  project={project}
+                  mode="cmd"
+                  label="État – CMD"
                   onUpdate={(field, value) => {
                     setProject((prev) => prev ? { ...prev, [field]: value } : prev);
                   }}
