@@ -305,7 +305,7 @@ export function mapPageToProject(page: any): Project {
       // Lecture tolérante : on accepte le champ Notion qu'il soit
       // configuré en "Files & media", "URL", ou "Text" — en pratique
       // les rapports peuvent avoir été créés avec n'importe lequel.
-      const sig = p["Signature client"];
+      const sig = p["Signature clients"];
       if (!sig) return "";
       if (sig.type === "files" && sig.files?.length > 0) {
         const f = sig.files[0];
@@ -908,26 +908,26 @@ export async function updateProject(
   if ((data as any).signatureUrl !== undefined) {
     const sigUrl = (data as any).signatureUrl;
     if (sigUrl) {
-      // Détection dynamique du type du champ "Signature client" dans
+      // Détection dynamique du type du champ "Signature clients" dans
       // Notion : la base d'un client peut avoir Files, URL ou Text.
       // On adapte le payload sinon Notion rejette la requête entière.
-      const sigType = await getPropertyType("Signature client");
+      const sigType = await getPropertyType("Signature clients");
       if (sigType === "url") {
-        properties["Signature client"] = { url: sigUrl };
+        properties["Signature clients"] = { url: sigUrl };
       } else if (sigType === "rich_text") {
-        properties["Signature client"] = { rich_text: toRichText(sigUrl) };
+        properties["Signature clients"] = { rich_text: toRichText(sigUrl) };
       } else if (sigType === null) {
         // Champ pas trouvé dans le schéma — on log côté serveur pour
         // que l'admin sache qu'il faut le créer dans Notion. On écrit
         // tout de même en files (comportement historique) au cas où
         // la propriété aurait été ajoutée juste après le 1er fetch.
-        console.warn("[notion] Champ 'Signature client' introuvable dans la base — créez-le (type Files & media ou URL).");
-        properties["Signature client"] = {
+        console.warn("[notion] Champ 'Signature clients' introuvable dans la base — créez-le (type Files & media ou URL).");
+        properties["Signature clients"] = {
           files: [{ type: "external" as const, name: "signature.png", external: { url: sigUrl } }],
         };
       } else {
         // Type "files" ou autre → format Files par défaut.
-        properties["Signature client"] = {
+        properties["Signature clients"] = {
           files: [{ type: "external" as const, name: "signature.png", external: { url: sigUrl } }],
         };
       }
