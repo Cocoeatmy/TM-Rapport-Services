@@ -242,7 +242,7 @@ export function mapPageToProject(page: any): Project {
     fournisseurs: extractMultiSelect(p["n8n Fournisseurs"]),
     seriesCabines: extractMultiSelect(p["n8n Séries Cabines"]),
     nomChantier: extractText(p["Nom chantier"]),
-    adresseChantier: extractPlace(p["Adresse chantier"]) || extractFormula(p["n8n - Adresse chantier"]),
+    adresseChantier: extractPlace(p["Adresse chantier"]) || extractFormula(p["n8n - Adresse chantier"]) || extractText(p["Adresse chantier texte"]),
     dateMontage: extractDate(p["Date Montage"]),
     dateMontageEnd: extractDateEnd(p["Date Montage"]),
     dateDemandeProjet: extractDate(p["Demande projet reçue le"]),
@@ -718,6 +718,7 @@ export async function updateProject(
     dateCMDUsine?: string | null;
     arrivageGrossiste?: string | null;
     arrivageTM?: string | null;
+    adresseChantier?: string;
     collaborateurs?: string;
     mesuresTraiteePar?: string;
     bonLivraison?: string;
@@ -795,6 +796,15 @@ export async function updateProject(
   if (data.arrivageTM !== undefined) {
     properties["Arrivage TM"] = {
       date: data.arrivageTM ? { start: data.arrivageTM } : null,
+    };
+  }
+  if (data.adresseChantier !== undefined) {
+    // Le champ "Adresse chantier" est de type Place dans Notion (non
+    // écrivable via API). On écrit dans le champ texte parallèle
+    // "Adresse chantier texte" (rich_text) — le code de lecture consulte
+    // le Place en priorité, puis ce champ en fallback.
+    properties["Adresse chantier texte"] = {
+      rich_text: toRichText(data.adresseChantier),
     };
   }
   if (data.collaborateurs !== undefined) {

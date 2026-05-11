@@ -7,8 +7,10 @@ import type { Project } from "@/lib/notion";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
 
 const ETAT_CMD_OPTIONS = [
-  "Cabines en CMD",
   "En attente de mesures",
+  "Cabines mesurées",
+  "OFR envoyées sans mesures",
+  "Cabines en CMD",
   "Cabines à recevoir",
   "Livraison partielle",
   "Cabine à aller chercher",
@@ -17,8 +19,8 @@ const ETAT_CMD_OPTIONS = [
   "RDV - Attendre news",
   "Montage partiel",
   "Soucis montage",
-  "Terminé",
   "Annulé",
+  "Terminé",
 ];
 
 const ETAT_MESURES_OPTIONS = [
@@ -30,6 +32,8 @@ const ETAT_MESURES_OPTIONS = [
   "RDV - Attendre news",
   "Mesures partielles",
   "Mesures relevées - attente news",
+  "Projet sans de mesures",
+  "Annulé",
   "Terminé",
 ];
 
@@ -111,6 +115,7 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
           servMesuresFournisseurs: form.servMesuresFournisseurs,
           servCmdFournisseurs: form.servCmdFournisseurs,
           nomChantier: form.nomChantier,
+          adresseChantier: form.adresseChantier,
           nbCabines: form.nbCabines ?? undefined,
           typeClient: form.typeClient,
           emplacementCabine: form.emplacementCabine,
@@ -220,6 +225,14 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
             <div className="space-y-3">
               <Field label="Nom du chantier">
                 <input className={inputCls} value={form.nomChantier || ""} onChange={(e) => set("nomChantier", e.target.value)} />
+              </Field>
+              <Field label="Adresse chantier">
+                <input
+                  className={inputCls}
+                  value={form.adresseChantier || ""}
+                  onChange={(e) => set("adresseChantier", e.target.value)}
+                  placeholder="Rue, Numéro, NPA Localité"
+                />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Nb. Cabines">
