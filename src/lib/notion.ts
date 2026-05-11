@@ -716,6 +716,8 @@ export async function updateProject(
     dateOffre?: string | null;
     dateCMDRecue?: string | null;
     dateCMDUsine?: string | null;
+    arrivageGrossiste?: string | null;
+    arrivageTM?: string | null;
     collaborateurs?: string;
     mesuresTraiteePar?: string;
     bonLivraison?: string;
@@ -783,6 +785,16 @@ export async function updateProject(
   if (data.dateCMDUsine !== undefined) {
     properties["Date CMD – Usine"] = {
       date: data.dateCMDUsine ? { start: data.dateCMDUsine } : null,
+    };
+  }
+  if (data.arrivageGrossiste !== undefined) {
+    properties["Arrivage Grossiste"] = {
+      date: data.arrivageGrossiste ? { start: data.arrivageGrossiste } : null,
+    };
+  }
+  if (data.arrivageTM !== undefined) {
+    properties["Arrivage TM"] = {
+      date: data.arrivageTM ? { start: data.arrivageTM } : null,
     };
   }
   if (data.collaborateurs !== undefined) {

@@ -2644,15 +2644,17 @@ function ProjectPageContent({ id }: { id: string }) {
             {/* Dates additionnelles — visibles uniquement si remplies, ou toutes si mode édition */}
             {(() => {
               const extraDates = [
-                { label: "Demande projet reçue le", value: project.dateDemandeProjet, field: "dateDemandeProjet" },
-                { label: "Date Mesures reçue le", value: project.dateMesuresRecue, field: "dateMesuresRecue" },
-                { label: "Date Offre", value: project.dateOffre, field: "dateOffre" },
-                { label: "CMD reçue le", value: project.dateCMDRecue, field: "dateCMDRecue" },
-                { label: "Date CMD – Usine", value: project.dateCMDUsine, field: "dateCMDUsine" },
+                { label: "Date d'arrivage Grossiste", value: project.arrivageGrossiste, field: "arrivageGrossiste" },
+                { label: "Date d'arrivée Dépôt TM",  value: project.arrivageTM,        field: "arrivageTM" },
+                { label: "Demande projet reçue le",   value: project.dateDemandeProjet, field: "dateDemandeProjet" },
+                { label: "Date Mesures reçue le",     value: project.dateMesuresRecue,  field: "dateMesuresRecue" },
+                { label: "Date Offre",                value: project.dateOffre,         field: "dateOffre" },
+                { label: "CMD reçue le",              value: project.dateCMDRecue,      field: "dateCMDRecue" },
+                { label: "Date CMD – Usine",          value: project.dateCMDUsine,      field: "dateCMDUsine" },
               ];
               const filledDates = extraDates.filter(d => d.value);
               const datesToShow = showAllDates ? extraDates : filledDates;
-              const emptyCount = 5 - filledDates.length;
+              const emptyCount = 7 - filledDates.length;
               return (
                 <>
                   {datesToShow.length > 0 && (
