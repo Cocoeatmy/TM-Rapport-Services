@@ -365,8 +365,14 @@ async function hydrateRelationCacheFromKV(): Promise<void> {
       // notion.ts et kv-store.ts (qui dépend lui-même de notion.ts).
       const { getData } = await import("@/lib/kv-store");
       const stored = await getData<{ id: string; name: string }>("relation-names-cache");
+      // On filtre les entrées corrompues : si name === id (UUID brut en guise de nom,
+      // causé par un rate-limit passé), on les ignore — elles seront re-résolues au
+      // prochain accès avec le nouveau retry robuste.
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       for (const entry of stored || []) {
         if (entry?.id && entry?.name && !relationNameCache[entry.id]) {
+          // Ignorer les entrées où name est un UUID (données corrompues)
+          if (UUID_RE.test(entry.name)) continue;
           relationNameCache[entry.id] = entry.name;
         }
       }
@@ -429,25 +435,55 @@ async function fetchRelationName(id: string): Promise<string> {
   const pending = relationInflight[id];
   if (pending) return pending;
   const p = (async () => {
-    try {
-      const page = await notion.pages.retrieve({ page_id: id });
-      const props = (page as any).properties;
-      for (const val of Object.values(props) as any[]) {
-        if (val?.type === "title") {
-          const name = val.title?.map((t: any) => t.plain_text).join("") || id;
-          relationNameCache[id] = name;
-          scheduleKVWrite();
-          return name;
+    // Retry exponentiel sur les 429 — critique : on ne doit JAMAIS cacher
+    // l'UUID brut comme "nom" à cause d'un rate-limit temporaire. Sans retry,
+    // la valeur corrompue (UUID) se retrouve dans le cache KV et s'affiche
+    // dans l'app jusqu'à la prochaine résolution réussie.
+    const MAX_RETRIES = 3;
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const page = await notion.pages.retrieve({ page_id: id });
+        const props = (page as any).properties;
+        for (const val of Object.values(props) as any[]) {
+          if (val?.type === "title") {
+            const name = val.title?.map((t: any) => t.plain_text).join("") || id;
+            relationNameCache[id] = name;
+            scheduleKVWrite();
+            delete relationInflight[id];
+            return name;
+          }
         }
+        // Page trouvée mais pas de titre → on met l'ID (cas permanent, on cache)
+        relationNameCache[id] = id;
+        delete relationInflight[id];
+        return id;
+      } catch (err: any) {
+        const isRateLimit = err?.status === 429 || err?.code === "rate_limited";
+        if (isRateLimit && attempt < MAX_RETRIES - 1) {
+          lastErr = err;
+          const delay = Math.min(1000 * Math.pow(2, attempt), 6000); // 1s, 2s, 4s
+          console.warn(`[notion] Rate limited on relation ${id} (attempt ${attempt + 1}/${MAX_RETRIES}), retry in ${delay}ms`);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        // Erreur permanente (page supprimée, accès refusé…) → cache l'ID
+        // mais UNIQUEMENT si ce n'est PAS un rate-limit (sinon risque de
+        // polluer le cache KV avec une valeur fausse).
+        if (!isRateLimit) {
+          relationNameCache[id] = id;
+          scheduleKVWrite();
+        }
+        // Si c'est un rate-limit et qu'on a épuisé les retries → on ne cache
+        // pas, on retourne l'ID pour cet appel uniquement. Le prochain appel
+        // retenterra (pas de cache corrompu).
+        delete relationInflight[id];
+        return id;
       }
-      relationNameCache[id] = id;
-      return id;
-    } catch {
-      relationNameCache[id] = id;
-      return id;
-    } finally {
-      delete relationInflight[id];
     }
+    // Tous les retries épuisés sur rate-limit
+    delete relationInflight[id];
+    return id;
   })();
   relationInflight[id] = p;
   return p;
@@ -480,6 +516,27 @@ async function notionQueryWithRetry(params: Parameters<typeof notion.databases.q
       lastErr = err;
       const delay = Math.min(1000 * Math.pow(2, attempt), 8000); // 1s, 2s, 4s
       console.warn(`[notion] Rate limited (attempt ${attempt + 1}/${maxRetries}), retry in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * Exécute un `notion.pages.retrieve()` avec retry exponentiel sur les erreurs 429.
+ * Évite que "Projet introuvable" apparaisse à cause d'un rate-limit temporaire.
+ */
+async function notionRetrieveWithRetry(pageId: string, maxRetries = 4): Promise<any> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await notion.pages.retrieve({ page_id: pageId });
+    } catch (err: any) {
+      const isRateLimit = err?.status === 429 || err?.code === "rate_limited";
+      if (!isRateLimit) throw err;
+      lastErr = err;
+      const delay = Math.min(1500 * Math.pow(2, attempt), 12000); // 1.5s, 3s, 6s, 12s
+      console.warn(`[notion] Rate limited on retrieve (attempt ${attempt + 1}/${maxRetries}), retry in ${delay}ms`);
       await new Promise((r) => setTimeout(r, delay));
     }
   }
@@ -684,7 +741,7 @@ export async function getProjectsCmdTermine(): Promise<Project[]> {
 }
 
 export async function getProject(pageId: string): Promise<Project> {
-  const page = await notion.pages.retrieve({ page_id: pageId });
+  const page = await notionRetrieveWithRetry(pageId);
   const project = mapPageToProject(page);
   // Resolve relation names for single project
   const allRelIds = [...new Set([...project.grossistesRelation, ...project.fournisseursRelation, ...project.sanitaireRelation, ...project.contactsProjetRelation])];

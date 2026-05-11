@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive, X, Loader2 } from "lucide-react";
@@ -1431,9 +1431,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       if (!seenWeekIds.has(p.id)) { seenWeekIds.add(p.id); uniqueWeekProjects.push(p); }
     });
   });
-  const totalProjectsToday = new Set(
-    collabData.flatMap((c) => c.todayProjects.map((p) => p.id))
-  ).size;
+  // Dédupliquer les projets du jour par id
+  const uniqueTodayProjects = Array.from(
+    new Map(collabData.flatMap((c) => c.todayProjects).map((p) => [p.id, p])).values()
+  );
+  const totalProjectsToday = uniqueTodayProjects.length;
+  // Décomposition par type pour l'affichage du texte
+  const todayMontages = uniqueTodayProjects.filter((p) => {
+    const src = getProjectSource(p);
+    return src !== "mesures" && !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"));
+  }).length;
+  const todayMesures = uniqueTodayProjects.filter((p) => getProjectSource(p) === "mesures").length;
+  const todayServices = uniqueTodayProjects.filter((p) =>
+    (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"))
+  ).length;
+  // Texte composite ex: "2 mesures · 1 montage · 1 service prévu(s) aujourd'hui"
+  const todayParts: string[] = [];
+  if (todayMesures > 0) todayParts.push(`${todayMesures} mesure${todayMesures > 1 ? "s" : ""}`);
+  if (todayMontages > 0) todayParts.push(`${todayMontages} montage${todayMontages > 1 ? "s" : ""}`);
+  if (todayServices > 0) todayParts.push(`${todayServices} service${todayServices > 1 ? "s" : ""}`);
+  const todayLabel = todayParts.length > 0
+    ? `${todayParts.join(" · ")} prévu${totalProjectsToday > 1 ? "s" : ""} aujourd'hui`
+    : "Aucun projet prévu aujourd'hui";
   const totalCabinesWeek = uniqueWeekProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
   // Agrégation par source de projet (montage/mesures/services/sav)
   // depuis la liste dédupliquée — évite de compter une Team N fois.
@@ -1444,6 +1463,86 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   });
   const weekSummary = formatCabinesSummary(allWeekCabinesBySource);
   const busyToday = collabData.filter((c) => c.todayProjects.length > 0).length;
+
+  // ── Stats hebdomadaires : semaine courante vs semaine précédente ──────────────
+  // On fusionne projets actifs + terminés (dédupliqués par id) pour couvrir
+  // à la fois les projets encore en cours ET ceux déjà marqués "Terminé".
+  const allProjectsForStats = useMemo(() => {
+    const seen = new Set<string>();
+    const all: Project[] = [];
+    for (const p of [...projects, ...terminatedProjects]) {
+      if (!seen.has(p.id)) { seen.add(p.id); all.push(p); }
+    }
+    return all;
+  }, [projects, terminatedProjects]);
+
+  // Bornes de la semaine courante (Lundi → Dimanche)
+  const thisWeekBounds = useMemo(() => {
+    const today = new Date();
+    const dow = today.getDay();
+    const mon = new Date(today);
+    mon.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    return {
+      start: mon.toISOString().split("T")[0],
+      end:   sun.toISOString().split("T")[0],
+    };
+  }, []);
+
+  // Bornes de la semaine précédente
+  const prevWeekBounds = useMemo(() => {
+    const today = new Date();
+    const dow = today.getDay();
+    const thisMon = new Date(today);
+    thisMon.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+    const prevMon = new Date(thisMon);
+    prevMon.setDate(thisMon.getDate() - 7);
+    const prevSun = new Date(prevMon);
+    prevSun.setDate(prevMon.getDate() + 6);
+    return {
+      start: prevMon.toISOString().split("T")[0],
+      end:   prevSun.toISOString().split("T")[0],
+    };
+  }, []);
+
+  const inRange = (dateStr: string | null | undefined, start: string, end: string) => {
+    if (!dateStr) return false;
+    const d = dateStr.split("T")[0];
+    return d >= start && d <= end;
+  };
+
+  const weekStats = useMemo(() => {
+    const calc = (start: string, end: string) => {
+      // Montages : dateMontage dans la plage, source != mesures
+      const montages = allProjectsForStats.filter((p) =>
+        (p as any)._source !== "mesures" &&
+        !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
+        inRange(p.dateMontage, start, end)
+      );
+      // Mesures : dateMesures dans la plage
+      const mesures = allProjectsForStats.filter((p) =>
+        inRange(p.dateMesures, start, end)
+      );
+      // Services : typeServices contient "Services" et dateMontage dans la plage
+      const services = allProjectsForStats.filter((p) =>
+        (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
+        inRange(p.dateMontage, start, end)
+      );
+      return {
+        montages: montages.length,
+        montagesCabines: montages.reduce((s, p) => s + (p.nbCabines || 0), 0),
+        mesures: mesures.length,
+        mesuresCabines: mesures.reduce((s, p) => s + (p.nbCabines || 0), 0),
+        services: services.length,
+        servicesCabines: services.reduce((s, p) => s + (p.nbCabines || 0), 0),
+      };
+    };
+    return {
+      cur:  calc(thisWeekBounds.start, thisWeekBounds.end),
+      prev: calc(prevWeekBounds.start, prevWeekBounds.end),
+    };
+  }, [allProjectsForStats, thisWeekBounds, prevWeekBounds]);
 
   // Mesures aujourd'hui
   const mesuresTodayProjects = projects.filter((p) => (p as any)._source === "mesures" && (p.dateMesures || "").split("T")[0] === todayStr);
@@ -1568,8 +1667,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             <p className="font-semibold text-gray-900 dark:text-gray-100">Bonjour {firstName} 👋</p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {totalProjectsToday > 0
-                ? `${totalProjectsToday} montage${totalProjectsToday > 1 ? "s" : ""} prévu${totalProjectsToday > 1 ? "s" : ""} aujourd'hui · ${busyToday} monteur${busyToday > 1 ? "s" : ""} actif${busyToday > 1 ? "s" : ""}`
-                : "Aucun montage prévu aujourd'hui"}
+                ? `${todayLabel} · ${busyToday} monteur${busyToday > 1 ? "s" : ""} actif${busyToday > 1 ? "s" : ""}`
+                : "Aucun projet prévu aujourd'hui"}
             </p>
             <p className="text-[10px] text-gray-400 dark:text-gray-500 italic mt-0.5 leading-tight">"{getDailyQuote(firstName)}"</p>
           </div>
@@ -1579,6 +1678,42 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             {weekSummary && <p className="text-[9px] text-gray-400 mt-0.5">{weekSummary}</p>}
           </button>
         </div>
+
+        {/* ── Barre stats hebdomadaires ── */}
+        {(() => {
+          const cur = weekStats.cur;
+          const prev = weekStats.prev;
+          const StatCell = ({ label, curVal, curCab, prevVal, color }: {
+            label: string; curVal: number; curCab: number; prevVal: number; color: string;
+          }) => {
+            const diff = curVal - prevVal;
+            const trend = diff > 0 ? "↑" : diff < 0 ? "↓" : "=";
+            const trendColor = diff > 0 ? "text-emerald-500" : diff < 0 ? "text-red-400" : "text-gray-400";
+            return (
+              <div className="flex-1 min-w-0 text-center">
+                <p className={`text-[10px] font-semibold uppercase tracking-wider mb-1 ${color}`}>{label}</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-gray-100 leading-none">{curVal}</p>
+                {curCab > 0 && <p className="text-[10px] text-gray-400">{curCab} cab.</p>}
+                <div className="flex items-center justify-center gap-0.5 mt-1">
+                  <span className={`text-[10px] font-semibold ${trendColor}`}>{trend}{Math.abs(diff) > 0 ? Math.abs(diff) : ""}</span>
+                  <span className="text-[9px] text-gray-400">vs sem. préc. ({prevVal})</span>
+                </div>
+              </div>
+            );
+          };
+          return (
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+              <div className="flex items-stretch gap-2">
+                <StatCell label="Mesures" curVal={cur.mesures} curCab={cur.mesuresCabines} prevVal={prev.mesures} color="text-cyan-600 dark:text-cyan-400" />
+                <div className="w-px bg-gray-100 dark:bg-gray-700 self-stretch" />
+                <StatCell label="Montages" curVal={cur.montages} curCab={cur.montagesCabines} prevVal={prev.montages} color="text-orange-500 dark:text-orange-400" />
+                <div className="w-px bg-gray-100 dark:bg-gray-700 self-stretch" />
+                <StatCell label="Services" curVal={cur.services} curCab={cur.servicesCabines} prevVal={prev.services} color="text-violet-500 dark:text-violet-400" />
+              </div>
+            </div>
+          );
+        })()}
+
         {showWeekProjects && (() => {
           const allWeekProjects = collabData
             .flatMap((c) => [...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects])

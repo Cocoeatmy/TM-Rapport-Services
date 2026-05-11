@@ -1494,15 +1494,131 @@ function EditableTextField({ label, value, projectId, fieldName, notionField, mu
   );
 }
 
+/**
+ * Cellule compacte "Mesures traitée par" pour la grille Informations Dates.
+ * Affiche un badge coloré (même palette que getCollaboratorColor) et charge
+ * les options dynamiquement depuis Notion → jamais besoin de mettre à jour le code.
+ */
+function MesuresParCell({
+  value,
+  projectId,
+  onUpdate,
+}: {
+  value: string;
+  projectId: string;
+  onUpdate: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [options, setOptions] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/projects/field-options?fields=Mesures+trait%C3%A9e+par")
+      .then((r) => r.json())
+      .then((data) => {
+        const opts = data["Mesures traitée par"];
+        if (Array.isArray(opts) && opts.length > 0) setOptions(opts);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSelect = async (name: string) => {
+    const newValue = name === value ? "" : name;
+    setSaving(true);
+    try {
+      await offlineFetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mesuresTraiteePar: newValue }),
+      });
+      onUpdate(newValue);
+      setEditing(false);
+    } catch {} finally {
+      setSaving(false);
+    }
+  };
+
+  const colors = value ? getCollaboratorColor(value) : null;
+
+  return (
+    <div className="flex items-start gap-1.5">
+      <Users className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] text-gray-400">Mesures traitée par</p>
+        {editing ? (
+          <div className="mt-1 space-y-1.5">
+            <div className="flex flex-wrap gap-1">
+              {options.map((name) => {
+                const c = getCollaboratorColor(name);
+                return (
+                  <button
+                    key={name}
+                    onClick={() => handleSelect(name)}
+                    disabled={saving}
+                    className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full transition-all disabled:opacity-50 ${
+                      value === name ? "ring-2 ring-offset-1 ring-blue-400" : "opacity-60 hover:opacity-100"
+                    }`}
+                    style={{ backgroundColor: c.bg, color: c.text }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.dot }} />
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setEditing(false)}
+              className="text-[10px] text-gray-400 hover:text-gray-600"
+            >
+              Annuler
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+            {value && colors ? (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: colors.bg, color: colors.text }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colors.dot }} />
+                {value}
+              </span>
+            ) : (
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-200">—</span>
+            )}
+            <button onClick={() => setEditing(true)} className="text-gray-300 hover:text-blue-500 p-0.5">
+              <Pencil className="w-2.5 h-2.5" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EditableCollaborateur({ project, mode, onUpdate }: { project: Project; mode: string; onUpdate: (collab: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const currentCollab = mode === "mesures" ? project.mesuresTraiteePar : project.collaborateurs;
-  const COLLABS = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"];
+  const notionOptionField = mode === "mesures" ? "Mesures traitée par" : "Collaborateurs montages";
+  // Options chargées depuis Notion (fallback statique le temps du chargement)
+  const [options, setOptions] = useState<string[]>(["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"]);
   const [selected, setSelected] = useState<string[]>(
     currentCollab ? currentCollab.split(" & ").map((n) => n.trim()).filter(Boolean) : []
   );
   const notionField = mode === "mesures" ? "mesuresTraiteePar" : "collaborateurs";
+
+  // Charge les options depuis Notion au montage
+  useEffect(() => {
+    const encoded = encodeURIComponent(notionOptionField);
+    fetch(`/api/projects/field-options?fields=${encoded}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const opts = data[notionOptionField];
+        if (Array.isArray(opts) && opts.length > 0) setOptions(opts);
+      })
+      .catch(() => {});
+  }, [notionOptionField]);
 
   const toggleCollab = (name: string) => {
     setSelected((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]);
@@ -1566,7 +1682,7 @@ function EditableCollaborateur({ project, mode, onUpdate }: { project: Project; 
         {editing ? (
           <div className="space-y-2 mt-1">
             <div className="flex flex-wrap gap-1.5">
-              {COLLABS.map((name) => {
+              {options.map((name) => {
                 const isSelected = selected.includes(name);
                 const colors = getCollaboratorColor(name);
                 return (
@@ -2043,6 +2159,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const mode = searchParams.get("mode") || "cmd";
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<"temporary" | "notfound" | null>(null);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [reformulating, setReformulating] = useState(false);
@@ -2300,14 +2417,39 @@ function ProjectPageContent({ id }: { id: string }) {
       }
     } catch {}
 
-    // 2. Fetch API en arrière-plan pour les données fraîches
-    fetch(`/api/projects/${id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        initProject(data);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    // 2. Fetch API en arrière-plan avec retry (protection rate-limit Notion)
+    const fetchWithProjectRetry = async (retries = 3, delayMs = 1500) => {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const res = await fetch(`/api/projects/${id}`);
+          const data = await res.json();
+          if (data?.id) {
+            initProject(data);
+            setFetchError(null);
+            setLoading(false);
+            return;
+          }
+          // Erreur serveur : temporaire (rate-limit/timeout) ou définitive
+          const isTemporary = res.status === 429 || res.status === 504 || res.status === 503;
+          if (isTemporary && attempt < retries) {
+            await new Promise((r) => setTimeout(r, delayMs * Math.pow(2, attempt)));
+            continue;
+          }
+          // Pas de données après tous les retries
+          setFetchError(isTemporary ? "temporary" : "notfound");
+          setLoading(false);
+          return;
+        } catch {
+          if (attempt < retries) {
+            await new Promise((r) => setTimeout(r, delayMs * Math.pow(2, attempt)));
+            continue;
+          }
+          setFetchError("temporary");
+          setLoading(false);
+        }
+      }
+    };
+    fetchWithProjectRetry();
   }, [id]);
 
   // Polling: re-fetch project data toutes les 15 s pour la collaboration
@@ -2645,12 +2787,73 @@ function ProjectPageContent({ id }: { id: string }) {
   }
 
   if (!project) {
+    const isTemporary = fetchError === "temporary";
     return (
       <div className="px-4 py-12 text-center">
-        <p className="text-gray-500">Projet introuvable</p>
-        <Button variant="ghost" className="mt-4" onClick={() => router.push("/")}>
-          Retour
-        </Button>
+        {isTemporary ? (
+          <>
+            <div className="flex flex-col items-center gap-3">
+              <AlertTriangle className="w-10 h-10 text-amber-400" />
+              <p className="text-gray-700 dark:text-gray-200 font-medium">
+                Impossible de charger le projet
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs">
+                Notion est momentanément surchargé. Le projet existe bien —
+                réessayez dans quelques secondes.
+              </p>
+              <Button
+                className="mt-2"
+                onClick={() => {
+                  setLoading(true);
+                  setFetchError(null);
+                  const retry = async (retries = 3, delayMs = 1500) => {
+                    for (let attempt = 0; attempt <= retries; attempt++) {
+                      try {
+                        const res = await fetch(`/api/projects/${id}`);
+                        const data = await res.json();
+                        if (data?.id) {
+                          initProject(data);
+                          setFetchError(null);
+                          setLoading(false);
+                          return;
+                        }
+                        const isTemp = res.status === 429 || res.status === 504 || res.status === 503;
+                        if (isTemp && attempt < retries) {
+                          await new Promise((r) => setTimeout(r, delayMs * Math.pow(2, attempt)));
+                          continue;
+                        }
+                        setFetchError(isTemp ? "temporary" : "notfound");
+                        setLoading(false);
+                        return;
+                      } catch {
+                        if (attempt < retries) {
+                          await new Promise((r) => setTimeout(r, delayMs * Math.pow(2, attempt)));
+                          continue;
+                        }
+                        setFetchError("temporary");
+                        setLoading(false);
+                      }
+                    }
+                  };
+                  retry();
+                }}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Réessayer
+              </Button>
+            </div>
+            <Button variant="ghost" className="mt-4" onClick={() => router.push("/")}>
+              Retour à l'accueil
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="text-gray-500">Projet introuvable</p>
+            <Button variant="ghost" className="mt-4" onClick={() => router.push("/")}>
+              Retour
+            </Button>
+          </>
+        )}
       </div>
     );
   }
@@ -2902,13 +3105,11 @@ function ProjectPageContent({ id }: { id: string }) {
                 fieldName="dateMesures"
                 onUpdate={(v) => setProject((prev) => prev ? { ...prev, dateMesures: v } : prev)}
               />
-              <div className="flex items-start gap-1.5">
-                <Users className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-gray-400">Mesures traitée par</p>
-                  <p className="text-xs font-medium text-gray-700 dark:text-gray-200">{project.mesuresTraiteePar || "—"}</p>
-                </div>
-              </div>
+              <MesuresParCell
+                value={project.mesuresTraiteePar}
+                projectId={id}
+                onUpdate={(v) => setProject((prev) => prev ? { ...prev, mesuresTraiteePar: v } : prev)}
+              />
             </div>
 
             <div className="h-px bg-gray-100 dark:bg-gray-700" />
