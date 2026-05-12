@@ -100,6 +100,7 @@ import {
   detectBucket,
   filterByBucket,
   missingBucketLabels,
+  extractCabine,
 } from "@/lib/photo-buckets";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import { thumbnailUrl } from "@/lib/image-url";
@@ -192,6 +193,82 @@ function BucketPhotoUpload({
         projectId={projectId}
         notionField={notionFieldName[notionFieldKey]}
         filePrefix={bucketFilePrefix(bucket, cabineIdx)}
+        existingPhotos={existingPhotos}
+        onUpload={handleUpload}
+        onDelete={handleDelete}
+      />
+    </div>
+  );
+}
+
+/**
+ * Zone d'upload unique regroupant les 3 sous-buckets montage
+ * (MONTAGE_GAUCHE, MONTAGE_CENTRE, MONTAGE_DROITE) en une seule interface.
+ * Les nouvelles photos sont enregistrées avec le préfixe MONTAGE_GAUCHE ;
+ * les photos existantes des 3 sous-buckets sont toutes affichées ensemble.
+ */
+function CombinedMontageUpload({
+  cabineIdx,
+  projectId,
+  project,
+  setProject,
+}: {
+  cabineIdx?: number;
+  projectId: string;
+  project: Project | null;
+  setProject: React.Dispatch<React.SetStateAction<Project | null>>;
+}) {
+  if (!project) return null;
+  const fieldDefault = defaultBucketForField("photosMontage");
+  const MONTAGE_BUCKETS: PhotoBucketKey[] = ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE"];
+
+  // Toutes les photos des 3 sous-buckets combinées
+  const existingPhotos = MONTAGE_BUCKETS.flatMap((b) =>
+    filterByBucket(project.photosMontage || [], b, cabineIdx, fieldDefault)
+  );
+
+  const handleUpload = (newFiles: { name: string; url: string }[]) => {
+    setProject((prev) => {
+      if (!prev) return prev;
+      const current = prev.photosMontage || [];
+      const existingUrls = new Set(current.map((f) => f.url));
+      const toAdd = newFiles.filter((f) => f.url && !existingUrls.has(f.url));
+      if (toAdd.length === 0) return prev;
+      return { ...prev, photosMontage: [...current, ...toAdd] };
+    });
+  };
+
+  const handleDelete = (survivingPhotos: { name: string; url: string }[]) => {
+    if (!project) return;
+    const current = project.photosMontage || [];
+    // Conserver tout ce qui n'est PAS un sous-bucket montage de cette cabine
+    const kept = current.filter((f) => {
+      const bkt = detectBucket(f.name, fieldDefault);
+      if (!MONTAGE_BUCKETS.includes(bkt)) return true;
+      if (cabineIdx !== undefined) {
+        const cab = extractCabine(f.name);
+        return cabineIdx >= 1 ? cab !== cabineIdx : cab !== null;
+      }
+      return false;
+    });
+    const nextFullList = [...kept, ...survivingPhotos];
+    setProject((prev) => (prev ? { ...prev, photosMontage: nextFullList } : prev));
+    offlineFetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ photosMontage: nextFullList }),
+    }).catch(() => {});
+  };
+
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-1 mt-0.5">(1 photo gauche, 1 photo centre, 1 photo droite)</p>
+      <PhotoUpload
+        category={`montage${cabineIdx ? `-cab${cabineIdx}` : ""}`}
+        label="Photos montage"
+        projectId={projectId}
+        notionField="Photos montage terminé"
+        filePrefix={bucketFilePrefix("MONTAGE_GAUCHE", cabineIdx)}
         existingPhotos={existingPhotos}
         onUpload={handleUpload}
         onDelete={handleDelete}
@@ -3764,15 +3841,7 @@ function ProjectPageContent({ id }: { id: string }) {
                     <Separator />
                     <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} />
                     <BucketPhotoUpload bucket="DEMONTAGE" projectId={id} project={project} setProject={setProject} />
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium text-gray-700">Photos montage</p>
-                      <p className="text-xs text-gray-400">(1 photo gauche, 1 photo centre, 1 photo droite)</p>
-                      <div className="space-y-4 pl-0">
-                        <BucketPhotoUpload bucket="MONTAGE_GAUCHE" projectId={id} project={project} setProject={setProject} />
-                        <BucketPhotoUpload bucket="MONTAGE_CENTRE" projectId={id} project={project} setProject={setProject} />
-                        <BucketPhotoUpload bucket="MONTAGE_DROITE" projectId={id} project={project} setProject={setProject} />
-                      </div>
-                    </div>
+                    <CombinedMontageUpload projectId={id} project={project} setProject={setProject} />
                     <BucketPhotoUpload bucket="APRES_INTERVENTION" projectId={id} project={project} setProject={setProject} />
                     <BucketPhotoUpload bucket="QR_CODE" projectId={id} project={project} setProject={setProject} />
                     <BucketPhotoUpload bucket="GARANTIE" projectId={id} project={project} setProject={setProject} />
@@ -3988,15 +4057,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           {/* Photos cabine */}
                           <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                           <BucketPhotoUpload bucket="DEMONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-gray-700">Photos montage</p>
-                            <p className="text-xs text-gray-400">(1 photo gauche, 1 photo centre, 1 photo droite)</p>
-                            <div className="space-y-4">
-                              <BucketPhotoUpload bucket="MONTAGE_GAUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                              <BucketPhotoUpload bucket="MONTAGE_CENTRE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                              <BucketPhotoUpload bucket="MONTAGE_DROITE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                            </div>
-                          </div>
+                          <CombinedMontageUpload cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                           <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                           <BucketPhotoUpload bucket="QR_CODE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                           <BucketPhotoUpload bucket="GARANTIE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
