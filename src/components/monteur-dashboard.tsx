@@ -993,15 +993,9 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
             </span>
           )}
         </div>
-        {project.nomChantier ? (
-          <>
-            <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.nomChantier}</p>
-            {project.projet && project.projet !== project.nomChantier && (
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-2 sm:line-clamp-1 mt-0">{project.projet}</p>
-            )}
-          </>
-        ) : (
-          <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.projet}</p>
+        <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.projet}</p>
+        {project.nomChantier && project.nomChantier !== project.projet && (
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-2 sm:line-clamp-1 mt-0">{project.nomChantier}</p>
         )}
         {project.adresseChantier && (
           <div className="flex items-center gap-1 mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
@@ -1092,15 +1086,9 @@ function WeekProjectRow({ project }: { project: Project }) {
             </span>
           )}
         </div>
-        {project.nomChantier ? (
-          <>
-            <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.nomChantier}</p>
-            {project.projet && project.projet !== project.nomChantier && (
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-2 sm:line-clamp-1 mt-0">{project.projet}</p>
-            )}
-          </>
-        ) : (
-          <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.projet}</p>
+        <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 mt-0.5">{project.projet}</p>
+        {project.nomChantier && project.nomChantier !== project.projet && (
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-2 sm:line-clamp-1 mt-0">{project.nomChantier}</p>
         )}
         <div className="flex items-center gap-1 mt-0.5">
           {collabNames.length >= 1 && (
