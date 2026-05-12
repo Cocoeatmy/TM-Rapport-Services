@@ -173,6 +173,14 @@ export async function processPendingUploads(): Promise<{ success: number; failed
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       if (res.ok) {
         await removePendingUpload(item.id);
+        // Invalider le cache client pour que la photo apparaisse immédiatement
+        // dans l'UI (sinon il faut attendre le prochain poll de 15 s).
+        if (typeof window !== "undefined") {
+          try {
+            const { invalidateApiCache } = await import("@/lib/api-helpers");
+            invalidateApiCache();
+          } catch {}
+        }
         success++;
       } else if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
         // 4xx hors 408/429 : erreur permanente, on ne réessaie pas.

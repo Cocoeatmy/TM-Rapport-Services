@@ -89,15 +89,27 @@ export async function POST(request: NextRequest) {
         const page = await notion.pages.retrieve({ page_id: projectId }) as any;
         const existingFiles = page.properties[notionField]?.files || [];
 
-        // Dédup par URL : si Notion contenait déjà des doublons
-        // (bug historique), la liste finale est nettoyée. Aucun
-        // upload légitime ne perd de photo car les nouveaux fichiers
-        // ont des URL Cloudinary uniques.
+        // Dédup par URL ET par nom de fichier.
+        //
+        // Pourquoi le nom ? En cas de retry (réseau coupé APRÈS que le
+        // serveur a traité la 1ère requête mais AVANT que le client reçoive
+        // la réponse), le client re-upload le même fichier. Cloudinary génère
+        // alors un nouveau public_id → URL différente → `seenUrls` ne détecte
+        // pas le doublon → la photo apparaît deux fois dans Notion.
+        //
+        // Les noms de fichiers dans cette app sont uniques par projet/bucket
+        // (format `${filePrefix}.${idx}.ext`) donc un doublon de nom = même
+        // photo. On garde l'entrée existante (déjà dans Notion) et on ignore
+        // le retry pour ce fichier.
         const seenUrls = new Set<string>();
+        const seenNames = new Set<string>();
         const allFiles: { type: "external"; name: string; external: { url: string } }[] = [];
         const pushUnique = (name: string, url: string | undefined | null) => {
           if (!url || seenUrls.has(url)) return;
+          // Même nom → même photo uploadée deux fois (retry) → on ignore
+          if (name && seenNames.has(name)) return;
           seenUrls.add(url);
+          if (name) seenNames.add(name);
           allFiles.push({ type: "external", name: name || "photo", external: { url } });
         };
         for (const f of existingFiles) {
