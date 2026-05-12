@@ -3764,10 +3764,14 @@ function ProjectPageContent({ id }: { id: string }) {
                     <Separator />
                     <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} />
                     <BucketPhotoUpload bucket="DEMONTAGE" projectId={id} project={project} setProject={setProject} />
-                    <div className="space-y-4">
-                      <BucketPhotoUpload bucket="MONTAGE_GAUCHE" projectId={id} project={project} setProject={setProject} />
-                      <BucketPhotoUpload bucket="MONTAGE_CENTRE" projectId={id} project={project} setProject={setProject} />
-                      <BucketPhotoUpload bucket="MONTAGE_DROITE" projectId={id} project={project} setProject={setProject} />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-700">Photos montage</p>
+                      <p className="text-xs text-gray-400">(1 photo gauche, 1 photo centre, 1 photo droite)</p>
+                      <div className="space-y-4 pl-0">
+                        <BucketPhotoUpload bucket="MONTAGE_GAUCHE" projectId={id} project={project} setProject={setProject} />
+                        <BucketPhotoUpload bucket="MONTAGE_CENTRE" projectId={id} project={project} setProject={setProject} />
+                        <BucketPhotoUpload bucket="MONTAGE_DROITE" projectId={id} project={project} setProject={setProject} />
+                      </div>
                     </div>
                     <BucketPhotoUpload bucket="APRES_INTERVENTION" projectId={id} project={project} setProject={setProject} />
                     <BucketPhotoUpload bucket="QR_CODE" projectId={id} project={project} setProject={setProject} />
@@ -3984,10 +3988,14 @@ function ProjectPageContent({ id }: { id: string }) {
                           {/* Photos cabine */}
                           <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                           <BucketPhotoUpload bucket="DEMONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                          <div className="space-y-4">
-                            <BucketPhotoUpload bucket="MONTAGE_GAUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                            <BucketPhotoUpload bucket="MONTAGE_CENTRE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                            <BucketPhotoUpload bucket="MONTAGE_DROITE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-gray-700">Photos montage</p>
+                            <p className="text-xs text-gray-400">(1 photo gauche, 1 photo centre, 1 photo droite)</p>
+                            <div className="space-y-4">
+                              <BucketPhotoUpload bucket="MONTAGE_GAUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                              <BucketPhotoUpload bucket="MONTAGE_CENTRE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                              <BucketPhotoUpload bucket="MONTAGE_DROITE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                            </div>
                           </div>
                           <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                           <BucketPhotoUpload bucket="QR_CODE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
