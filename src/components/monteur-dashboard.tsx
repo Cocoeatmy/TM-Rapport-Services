@@ -2870,15 +2870,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             }
                           </span>
                           <span className="flex-1 min-w-0">
-                            {p.nomChantier ? (
-                              <>
-                                <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 leading-tight">{p.nomChantier}</span>
-                                {p.projet && p.projet !== p.nomChantier && (
-                                  <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 leading-tight">{p.projet}</span>
-                                )}
-                              </>
-                            ) : (
-                              <span className="block text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-2">{p.projet}</span>
+                            <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 leading-tight">{p.projet}</span>
+                            {p.nomChantier && p.nomChantier !== p.projet && (
+                              <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 leading-tight">{p.nomChantier}</span>
                             )}
                           </span>
                           {/* J+x badge iOS — affiché en haut à droite */}
@@ -2932,15 +2926,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                       <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                       <span className="flex-1 min-w-0">
-                        {p.nomChantier ? (
-                          <>
-                            <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-1">{p.nomChantier}</span>
-                            {p.projet && p.projet !== p.nomChantier && (
-                              <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 leading-tight hidden sm:block">{p.projet}</span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="block text-xs text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-1">{p.projet}</span>
+                        <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-1">{p.projet}</span>
+                        {p.nomChantier && p.nomChantier !== p.projet && (
+                          <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 leading-tight hidden sm:block">{p.nomChantier}</span>
                         )}
                       </span>
 
@@ -3024,8 +3012,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               ? new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })
               : "—";
             const tmNums = parseTMNumbers(p.ofrTM || "");
-            const title = p.nomChantier || p.projet || "—";
-            const subtitle = p.nomChantier && p.projet && p.projet !== p.nomChantier ? p.projet : null;
+            const title = p.projet || p.nomChantier || "—";
+            const subtitle = p.nomChantier && p.nomChantier !== p.projet ? p.nomChantier : null;
 
             return (
               <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
@@ -3911,15 +3899,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
                         <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                         <span className="flex-1 min-w-0">
-                          {p.nomChantier ? (
-                            <>
-                              <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.nomChantier}</span>
-                              {p.projet && p.projet !== p.nomChantier && (
-                                <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 mt-0">{p.projet}</span>
-                              )}
-                            </>
-                          ) : (
-                            <span className="block text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
+                          <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
+                          {p.nomChantier && p.nomChantier !== p.projet && (
+                            <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 mt-0">{p.nomChantier}</span>
                           )}
                         </span>
                         {(showSummaryPanel === "rdv-fixe") && (
