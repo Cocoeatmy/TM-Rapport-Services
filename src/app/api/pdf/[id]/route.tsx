@@ -616,10 +616,14 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
             if (isMultiCabineTimes) {
               return (
                 <View>
-                  {Array.from({ length: nb }, (_, i) => (
+                  {Array.from({ length: nb }, (_, i) => {
+                    // Utilise le nom personnalisé si défini et différent du défaut
+                    const customNom = cabineAttribution?.noms?.[i];
+                    const cabLabel = (customNom && customNom !== `Cabine ${i + 1}`) ? customNom : `Cabine ${i + 1}`;
+                    return (
                     <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                       <Text style={{ width: 70, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>
-                        Cabine {i + 1}
+                        {cabLabel}
                       </Text>
                       {dateMap[i] ? (
                         <View style={{ ...styles.timeBox, flex: 1.5, marginRight: 4 }}>
@@ -636,7 +640,8 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                         <Text style={styles.timeValue}>{departMap[i] || "--:--"}</Text>
                       </View>
                     </View>
-                  ))}
+                    );
+                  })}
                 </View>
               );
             }
