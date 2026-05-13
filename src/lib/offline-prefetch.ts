@@ -16,7 +16,7 @@
 import type { Project } from "./notion";
 
 const LS_OFFLINE_READY    = "tm-offline-ready-projects";
-const LS_LAST_PREFETCH    = "tm-offline-prefetch-date"; // "YYYY-MM-DD:userName"
+const LS_LAST_PREFETCH    = "tm-offline-prefetch-ts"; // timestamp Unix (ms)
 
 /** Pré-cache une page projet et ses données API essentielles. */
 async function prefetchOne(projectId: string): Promise<void> {
@@ -58,17 +58,22 @@ export async function prefetchTodaysProjects(
   if (!navigator.onLine) return;
 
   const todayStr = new Date().toISOString().split("T")[0];
+  // Date limite : aujourd'hui + 7 jours
+  const limitDate = new Date();
+  limitDate.setDate(limitDate.getDate() + 7);
+  const limitStr = limitDate.toISOString().split("T")[0];
 
-  // ── Throttle : 1 exécution par jour et par utilisateur ──────────────────
-  const throttleKey = `${todayStr}:${userName}`;
-  if (localStorage.getItem(LS_LAST_PREFETCH) === throttleKey) return;
+  // ── Throttle : 1 exécution par heure maximum ─────────────────────────────
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+  const lastTs = parseInt(localStorage.getItem(LS_LAST_PREFETCH) || "0", 10);
+  if (Date.now() - lastTs < ONE_HOUR_MS) return;
 
   const mine = allProjects.filter((p) => {
     const start = p.dateMontage || "";
     const end = p.dateMontageEnd || start;
     if (!start) return false;
-    // Le projet couvre aujourd'hui (peut durer plusieurs jours)
-    if (!(start <= todayStr && end >= todayStr)) return false;
+    // Projets des 7 prochains jours (ou en cours)
+    if (start > limitStr || end < todayStr) return false;
     const collab = (p.collaborateurs || "").toLowerCase();
     return (
       collab.includes(userName.toLowerCase()) ||
@@ -78,14 +83,14 @@ export async function prefetchTodaysProjects(
 
   if (mine.length === 0) return;
 
-  // Marque immédiatement l'exécution pour éviter le double-déclenchement
-  // si la page est rechargée pendant le prefetch.
-  try { localStorage.setItem(LS_LAST_PREFETCH, throttleKey); } catch {}
+  // Marque immédiatement l'exécution pour éviter le double-déclenchement.
+  try { localStorage.setItem(LS_LAST_PREFETCH, String(Date.now())); } catch {}
 
   // Pré-cache en séquence avec pause pour ne pas surcharger le réseau
-  for (const p of mine.slice(0, 10)) {
+  // Limite augmentée à 20 projets (7 jours × quelques projets/jour)
+  for (const p of mine.slice(0, 20)) {
     await prefetchOne(p.id);
-    await sleep(300); // étale les requêtes : 10 projets × 300 ms = 3 s max
+    await sleep(300); // étale les requêtes
   }
 
   // Marque ces projets comme disponibles hors ligne

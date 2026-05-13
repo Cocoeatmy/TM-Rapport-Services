@@ -1,23 +1,15 @@
-// Service worker TM Rapport — v9
+// Service worker TM Rapport — v10
 // Stratégies :
 //   - Statique (_next/static, icons, logos, manifest) : cache-first (permanent).
-//   - API GET : network-first avec timeout 400 ms → on privilégie toujours la
-//     donnée fraîche, mais si le réseau tarde (> 400 ms) ou échoue, on sert le
-//     cache pour ne pas bloquer l'UI. Le cache API est mis à jour en
-//     silence à chaque fois que le réseau répond.
-//   - Pages HTML : network-first avec fallback cache + page offline.
-//     IMPORTANT v6 : le fallback ne sert PLUS le HTML de "/" pour d'autres
-//     routes. Servir "/" pour "/projet/123" confondait le routeur Next.js
-//     (payload RSC disant "route: /") qui naviguait vers le dashboard.
-//   v9 : pré-téléchargement des projets du jour via offline-prefetch.ts
-//        (côté client) + OFFLINE_HTML enrichi avec navigation de retour.
-//
-// Les noms de cache sont versionnés : un bump de version purge tout l'ancien.
+//   - API GET : network-first avec timeout 400 ms → si réseau lent/absent, sert le cache.
+//   - Pages HTML : network-first avec timeout 6 s → si timeout ou échec, sert le cache,
+//     sinon page offline. On ne retombe PLUS sur "/" (confond le routeur RSC Next.js).
+//   v10 : timeout HTML 6 s (vs attente infinie), pré-cache étendu aux 7 prochains jours.
 
-const VERSION = "v9";
-const CACHE_NAME = `tm-rapport-${VERSION}`;
+const VERSION = "v10";
+const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
-const API_CACHE = `tm-api-${VERSION}`;
+const API_CACHE   = `tm-api-${VERSION}`;
 
 const STATIC_ASSETS = [
   "/manifest.json",
@@ -25,24 +17,18 @@ const STATIC_ASSETS = [
   "/icons/icon-512.png",
   "/icons/logo-app.png",
 ];
-// On ne pré-cache plus "/" : servir le HTML du dashboard comme fallback
-// pour d'autres routes (/projet/[id], /admin/…) causait une confusion
-// du routeur Next.js qui naviguait vers "/" au lieu de la page demandée.
 
-// Au-delà de ce délai, on considère que le réseau est trop lent et on sert
-// le cache (s'il existe) pour ne pas faire attendre l'utilisateur.
-const NETWORK_TIMEOUT_MS = 400;
+/** Délai avant fallback cache pour les requêtes API (réseau lent). */
+const API_TIMEOUT_MS  = 400;
+/** Délai avant fallback cache pour la navigation HTML (réseau très lent / hors-ligne). */
+const HTML_TIMEOUT_MS = 6000;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) =>
-      // `addAll` échoue si une seule URL 404 ; on fait donc des `add` individuels
-      // tolérants aux échecs pour ne pas bloquer l'install.
       Promise.all(
         STATIC_ASSETS.map((url) =>
-          cache.add(url).catch(() => {
-            /* non bloquant */
-          })
+          cache.add(url).catch(() => { /* non bloquant */ })
         )
       )
     )
@@ -67,12 +53,14 @@ const OFFLINE_HTML =
   '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TM Rapport - Hors ligne</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f1f5f9;color:#1e293b}.box{text-align:center;padding:2rem;max-width:400px}h1{font-size:1.5rem;margin-bottom:0.5rem}p{color:#64748b;font-size:0.9rem;margin:0.5rem 0}svg{display:block;margin:0 auto 1.5rem;opacity:0.3}.btns{display:flex;flex-direction:column;gap:0.75rem;margin-top:1.5rem}button{padding:0.75rem 2rem;border:none;border-radius:0.75rem;font-weight:600;cursor:pointer;font-size:0.95rem}.primary{background:#1e3a5f;color:white}.secondary{background:#e2e8f0;color:#475569}</style></head><body><div class="box"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="1.5"><path d="M1 6s4-2 11-2 11 2 11 2"/><path d="M5 10s3-1.5 7-1.5 7 1.5 7 1.5"/><line x1="2" y1="2" x2="22" y2="22"/><circle cx="12" cy="16" r="1"/></svg><h1>Pas de connexion</h1><p>Vos donnees en cache restent accessibles.</p><p>Les modifications seront synchronisees au retour du reseau.</p><div class="btns"><button class="primary" onclick="history.length>1?history.back():location.href=\'/\'">Retour</button><button class="secondary" onclick="location.href=\'/\'">Tableau de bord</button><button class="secondary" onclick="location.reload()">Reessayer</button></div></div></body></html>';
 
 /**
- * Course entre le fetch réseau et un timeout. Si le réseau gagne, on met en
- * cache + retourne la réponse. Si le timeout expire en premier, on tente de
- * servir depuis le cache ; sinon on attend quand même le réseau.
+ * Network-first avec timeout configurable.
+ * - Si le réseau répond avant `timeoutMs` : met en cache + retourne la réponse.
+ * - Si le timeout expire : sert le cache si disponible, sinon attend le réseau.
+ * - Si le réseau échoue : lance une exception (le caller gère le fallback).
  */
-async function networkFirstWithTimeout(request, cache) {
+async function networkFirstWithTimeout(request, cache, timeoutMs) {
   let networkResolved = false;
+
   const networkPromise = fetch(request).then(
     (response) => {
       networkResolved = true;
@@ -88,20 +76,19 @@ async function networkFirstWithTimeout(request, cache) {
   );
 
   const timeoutPromise = new Promise((resolve) =>
-    setTimeout(() => resolve("timeout"), NETWORK_TIMEOUT_MS),
+    setTimeout(() => resolve("timeout"), timeoutMs)
   );
 
   const winner = await Promise.race([networkPromise, timeoutPromise]);
-  if (winner !== "timeout") return winner;
+  if (winner !== "timeout") return winner; // réseau plus rapide que le timeout
 
-  // Timeout atteint : on tente le cache pour débloquer l'UI.
+  // Timeout atteint : sert le cache pour débloquer l'UI immédiatement.
   const cached = await cache.match(request);
   if (cached) {
-    // On laisse le fetch réseau continuer en arrière-plan pour mettre à jour
-    // le cache pour la prochaine requête.
+    // Le fetch réseau continue en arrière-plan pour rafraîchir le cache.
     return cached;
   }
-  // Pas de cache : on attend quand même le réseau (pas d'autre option).
+  // Pas de cache : on attend quand même le réseau (seule option).
   return networkPromise;
 }
 
@@ -112,15 +99,14 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   if (url.origin !== self.location.origin) return;
 
-  // === API : network-first avec timeout 2s (fallback cache) ===
+  // === API : network-first avec timeout 400 ms ===
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(
       caches.open(API_CACHE).then(async (cache) => {
         try {
-          return await networkFirstWithTimeout(request, cache);
+          return await networkFirstWithTimeout(request, cache, API_TIMEOUT_MS);
         } catch {
-          // Échec réseau total : on sert le cache, sinon JSON vide pour ne
-          // pas crasher l'UI (les listes deviennent juste vides).
+          // Échec réseau total : cache, sinon JSON vide (UI reste fonctionnelle).
           const cached = await cache.match(request);
           if (cached) return cached;
           return new Response(JSON.stringify([]), {
@@ -158,49 +144,44 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // === Pages & chunks Next.js : network-first avec fallback offline ===
+  // === Pages & chunks Next.js : network-first avec timeout 6 s ===
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response && response.ok) {
-          const cloned = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, cloned));
-        }
-        return response;
-      })
-      .catch(async () => {
-        // 1. Si cette URL exacte est en cache, on la sert.
-        const cached = await caches.match(request);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      try {
+        return await networkFirstWithTimeout(request, cache, HTML_TIMEOUT_MS);
+      } catch {
+        // Réseau totalement indisponible : cherche en cache.
+        const cached = await cache.match(request);
         if (cached) return cached;
 
-        // 2. Pour les navigations HTML, on affiche la page offline dédiée.
-        //    On ne retombe PLUS sur le HTML "/" — cela confondait le routeur
-        //    Next.js (payload RSC "route: /") et renvoyait l'utilisateur sur
-        //    le dashboard au lieu de rester sur la page demandée.
-        if (request.mode === "navigate" || (request.headers.get("accept") || "").includes("text/html")) {
+        // Navigation HTML : page offline.
+        if (
+          request.mode === "navigate" ||
+          (request.headers.get("accept") || "").includes("text/html")
+        ) {
           return new Response(OFFLINE_HTML, {
             headers: { "Content-Type": "text/html; charset=utf-8" },
             status: 200,
           });
         }
 
-        // 3. Chunk JS/CSS introuvable : on tente une recherche approximative
-        //    dans tous les caches (utile après un déploiement où le hash a changé).
+        // Chunk JS/CSS introuvable après déploiement : recherche approximative.
         if (url.pathname.startsWith("/_next/")) {
           const allCaches = await caches.keys();
           for (const cacheName of allCaches) {
-            const cache = await caches.open(cacheName);
-            const keys = await cache.keys();
+            const c = await caches.open(cacheName);
+            const keys = await c.keys();
             for (const key of keys) {
               if (new URL(key.url).pathname === url.pathname) {
-                return cache.match(key);
+                return c.match(key);
               }
             }
           }
         }
 
         return new Response("", { status: 404 });
-      })
+      }
+    })
   );
 });
 
@@ -212,9 +193,7 @@ self.addEventListener("push", function (event) {
     icon: data.icon || "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
     data: { url: data.url || "/" },
-    // Garde la notif visible jusqu'au clic si urgente (retard)
     requireInteraction: !!data.urgent,
-    // Regroupe les notifs du même projet (évite le spam)
     tag: data.url || "tm-notif",
     renotify: true,
   };
@@ -228,7 +207,6 @@ self.addEventListener("notificationclick", function (event) {
   const url = event.notification.data?.url || "/";
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (windowClients) {
-      // Si l'app est déjà ouverte dans un onglet, on navigue dedans
       for (var i = 0; i < windowClients.length; i++) {
         var client = windowClients[i];
         if ("focus" in client) {
@@ -237,13 +215,12 @@ self.addEventListener("notificationclick", function (event) {
           return;
         }
       }
-      // Sinon on ouvre une nouvelle fenêtre sur la bonne page
       return clients.openWindow(url);
     })
   );
 });
 
-// === Message handler : permet à l'app de forcer une purge du cache API ===
+// === Message handler : purge cache API sur demande ===
 self.addEventListener("message", (event) => {
   if (event.data?.type === "INVALIDATE_API_CACHE") {
     event.waitUntil(
