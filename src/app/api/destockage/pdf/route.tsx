@@ -192,7 +192,10 @@ function fmt(d: string) {
 }
 function fmtPrix(n?: number) {
   if (n == null) return null;
-  return `CHF ${n.toLocaleString("fr-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // Formatage manuel — évite les apostrophes/caractères fr-CH non supportés par Helvetica
+  const [int, dec] = n.toFixed(2).split(".");
+  const intFmt = int.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `CHF ${intFmt}.${dec}`;
 }
 function optimizeUrl(url: string) {
   if (!url) return url;
@@ -245,9 +248,15 @@ function FicheCabinePDF({ entry, now }: { entry: StockCabine; now: string }) {
           </View>
           <View>
             <Text style={S.headerDate}>Généré le {now}</Text>
-            <Text style={{ ...S.headerDate, color: "#ffffff", fontFamily: "Helvetica-Bold", fontSize: 8 }}>
-              {entry.status === "stock" ? "🟢 En stock" : "⚫ Déstocké"}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+              <View style={{
+                width: 7, height: 7, borderRadius: 4,
+                backgroundColor: entry.status === "stock" ? "#4ade80" : "#94a3b8",
+              }} />
+              <Text style={{ fontSize: 8, color: "#ffffff", fontFamily: "Helvetica-Bold" }}>
+                {entry.status === "stock" ? "En stock" : "Déstocké"}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -278,12 +287,6 @@ function FicheCabinePDF({ entry, now }: { entry: StockCabine; now: string }) {
                   <Text style={S.prixLabel}>Prix de vente</Text>
                   <Text style={S.prixValue}>{prixVente}</Text>
                 </View>
-                {entry.prixAchat != null && (
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={{ fontSize: 7, color: "#93c5fd" }}>Prix d&apos;achat</Text>
-                    <Text style={{ fontSize: 10, color: "#bfdbfe", fontFamily: "Helvetica-Bold" }}>{fmtPrix(entry.prixAchat)}</Text>
-                  </View>
-                )}
               </View>
             )}
 
@@ -308,21 +311,9 @@ function FicheCabinePDF({ entry, now }: { entry: StockCabine; now: string }) {
                 </View>
               )}
               {entry.mesuresApprox && (
-                <View style={S.infoRow}>
+                <View style={S.infoRowLast}>
                   <Text style={S.infoLabel}>Mesures</Text>
                   <Text style={S.infoValue}>{entry.mesuresApprox}</Text>
-                </View>
-              )}
-              {entry.emplacement && (
-                <View style={S.infoRow}>
-                  <Text style={S.infoLabel}>Emplacement</Text>
-                  <Text style={S.infoValue}>{entry.emplacement}</Text>
-                </View>
-              )}
-              {entry.dateArrivee && (
-                <View style={S.infoRowLast}>
-                  <Text style={S.infoLabel}>Date d&apos;arrivée</Text>
-                  <Text style={S.infoValue}>{fmt(entry.dateArrivee)}</Text>
                 </View>
               )}
             </View>
