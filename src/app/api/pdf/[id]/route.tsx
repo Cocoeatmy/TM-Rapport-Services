@@ -546,7 +546,11 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Date de montage</Text>
-            <Text style={styles.value}>{formatDate(project.dateMontage)}</Text>
+            <Text style={styles.value}>
+              {project.dateMontageEnd && project.dateMontageEnd !== project.dateMontage
+                ? `${formatDate(project.dateMontage)} → ${formatDate(project.dateMontageEnd)}`
+                : formatDate(project.dateMontage)}
+            </Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Collaborateurs</Text>
