@@ -457,12 +457,10 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
               value={form.configuration} onChange={(v) => setForm({ ...form, configuration: v })} color="violet" />
             <MultiSelect label="Type de montage" options={MONTAGE_OPTIONS}
               value={form.typeMontage} onChange={(v) => setForm({ ...form, typeMontage: v })} color="blue" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <MultiSelect label="Version" options={VERSION_OPTIONS}
-                value={form.version} onChange={(v) => setForm({ ...form, version: v })} color="blue" />
-              <MultiSelect label="Type de verre" options={VERRE_OPTIONS}
-                value={form.typeVerre} onChange={(v) => setForm({ ...form, typeVerre: v })} color="cyan" />
-            </div>
+            <MultiSelect label="Version" options={VERSION_OPTIONS}
+              value={form.version} onChange={(v) => setForm({ ...form, version: v })} color="blue" />
+            <MultiSelect label="Type de verre" options={VERRE_OPTIONS}
+              value={form.typeVerre} onChange={(v) => setForm({ ...form, typeVerre: v })} color="cyan" />
             <MultiSelect label="Traitement de verre" options={TRAITEMENT_OPTIONS}
               value={form.traitementVerre} onChange={(v) => setForm({ ...form, traitementVerre: v })} color="green" />
             <MultiSelect label="Couleur / Finition" options={COULEUR_OPTIONS}
