@@ -599,26 +599,61 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                   </div>
                 )}
 
-                {/* Contenu */}
+                {/* Contenu — pleine largeur, actions intégrées dans le titre */}
                 <div className="flex-1 min-w-0">
-                  {/* Titre + statut */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-semibold text-gray-900 dark:text-gray-100">{e.serie}</h4>
-                    {e.quantity > 1 && (
-                      <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                        × {e.quantity}
+
+                  {/* Ligne titre : série + badges + icônes action */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <h4 className="font-semibold text-gray-900 dark:text-gray-100">{e.serie}</h4>
+                      {e.quantity > 1 && (
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                          × {e.quantity}
+                        </span>
+                      )}
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                        e.status === "stock"
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                          : "bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-gray-300"
+                      }`}>
+                        {e.status === "stock" ? "En stock" : "Déstocké"}
                       </span>
-                    )}
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                      e.status === "stock"
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                        : "bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-gray-300"
-                    }`}>
-                      {e.status === "stock" ? "En stock" : "Déstocké"}
-                    </span>
+                    </div>
+                    {/* Icônes — crayon + poubelle uniquement (petits, ne volent pas d'espace) */}
+                    <div className="flex items-center gap-0.5 shrink-0 -mt-0.5">
+                      <button onClick={() => startEdit(e)} title="Modifier"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-colors">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      {isAdmin && (
+                        <button onClick={() => handleDelete(e)} title="Supprimer (admin)"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Meta — flex-wrap, pas de truncate */}
+                  {/* Bouton Déstocker / Remettre en stock — sous le titre, gauche */}
+                  {e.status === "stock" ? (
+                    <div className="mt-2">
+                      <Button onClick={() => handleDestock(e)} size="sm"
+                        className="gap-1.5 bg-gradient-to-r from-blue-500 to-cyan-400 text-white hover:from-blue-600 hover:to-cyan-500">
+                        <Archive className="w-3.5 h-3.5" />
+                        Déstocker
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="mt-1.5">
+                      <button onClick={() => handleRestock(e)} title="Remettre en stock"
+                        className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+                        <Undo2 className="w-3.5 h-3.5" />
+                        Remettre en stock
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Meta */}
                   <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-gray-600 dark:text-gray-400">
                     {e.fournisseur && (
                       <div className="flex items-center gap-1"><Hash className="w-3 h-3 shrink-0" /><span>{e.fournisseur}</span></div>
@@ -655,7 +690,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                     )}
                   </div>
 
-                  {/* Badges — défilement horizontal sur mobile (une seule ligne swipeable) */}
+                  {/* Badges — défilement horizontal (une ligne swipeable) */}
                   {(() => {
                     const tags = [
                       ...(e.configuration || []).map((t) => ({ t, cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" })),
@@ -698,34 +733,6 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                         </a>
                       )}
                     </div>
-                  )}
-                </div>
-
-                {/* Actions — bouton modifier toujours visible */}
-                <div className="flex items-center gap-1 shrink-0">
-                  {e.status === "stock" && (
-                    <Button onClick={() => handleDestock(e)} size="sm"
-                      className="gap-1.5 bg-gradient-to-r from-blue-500 to-cyan-400 text-white hover:from-blue-600 hover:to-cyan-500">
-                      <Archive className="w-3.5 h-3.5" />
-                      Déstocker
-                    </Button>
-                  )}
-                  {e.status === "destocke" && (
-                    <button onClick={() => handleRestock(e)} title="Remettre en stock"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700">
-                      <Undo2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  {/* Modifier — toujours disponible */}
-                  <button onClick={() => startEdit(e)} title="Modifier"
-                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  {isAdmin && (
-                    <button onClick={() => handleDelete(e)} title="Supprimer (admin)"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   )}
                 </div>
               </div>
