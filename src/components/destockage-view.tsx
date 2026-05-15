@@ -38,6 +38,7 @@ interface StockCabine {
   prixVente?: number;
   mesuresApprox?: string;
   numeroArticle?: string;
+  typeMontage?: string[];
 }
 
 type Filter = "all" | "stock" | "destocke";
@@ -49,6 +50,7 @@ const VERSION_OPTIONS    = ["Avec profiles", "Sans profiles", "Profils UP"];
 const VERRE_OPTIONS      = ["Transparent", "Satiné", "Discret", "Discret 2/3", "Miroir", "Fumé"];
 const TRAITEMENT_OPTIONS = ["Sans traitement", "Traitement de surface du verre", "Traitement intern du verre"];
 const COULEUR_OPTIONS    = ["Argent mat", "Argent brillant", "Noir mat", "Inox", "Blanc", "Couleurs brushed"];
+const MONTAGE_OPTIONS    = ["Montage sur receveur de douche", "Montage sur carrelage"];
 
 // ── MultiSelect ───────────────────────────────────────────────────────────────
 
@@ -187,6 +189,7 @@ type FormState = {
   prixVente: string;
   mesuresApprox: string;
   numeroArticle: string;
+  typeMontage: string[];
 };
 
 const EMPTY_FORM: FormState = {
@@ -196,6 +199,7 @@ const EMPTY_FORM: FormState = {
   mesuresCabinePdfName: "", configuration: [], version: [],
   typeVerre: [], traitementVerre: [], couleur: [],
   prixAchat: "", prixVente: "", mesuresApprox: "", numeroArticle: "",
+  typeMontage: [],
 };
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -343,6 +347,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
       prixVente: entry.prixVente != null ? String(entry.prixVente) : "",
       mesuresApprox: entry.mesuresApprox || "",
       numeroArticle: entry.numeroArticle || "",
+      typeMontage: entry.typeMontage || [],
     });
     setShowAdd(true);
     setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
@@ -450,6 +455,8 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
           <div className="space-y-3">
             <MultiSelect label="Configuration" options={CONFIG_OPTIONS}
               value={form.configuration} onChange={(v) => setForm({ ...form, configuration: v })} color="violet" />
+            <MultiSelect label="Type de montage" options={MONTAGE_OPTIONS}
+              value={form.typeMontage} onChange={(v) => setForm({ ...form, typeMontage: v })} color="blue" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <MultiSelect label="Version" options={VERSION_OPTIONS}
                 value={form.version} onChange={(v) => setForm({ ...form, version: v })} color="blue" />
@@ -621,6 +628,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                   {(() => {
                     const tags = [
                       ...(e.configuration || []).map((t) => ({ t, cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" })),
+                      ...(e.typeMontage || []).map((t) => ({ t, cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" })),
                       ...(e.version || []).map((t) => ({ t, cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" })),
                       ...(e.typeVerre || []).map((t) => ({ t, cls: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" })),
                       ...(e.traitementVerre || []).map((t) => ({ t, cls: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" })),
