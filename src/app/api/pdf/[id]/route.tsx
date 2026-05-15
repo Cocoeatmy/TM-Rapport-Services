@@ -621,7 +621,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                     const customNom = cabineAttribution?.noms?.[i];
                     const cabLabel = (customNom && customNom !== `Cabine ${i + 1}`) ? customNom : `Cabine ${i + 1}`;
                     return (
-                    <View key={i} style={{ flexDirection: "row", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                    <View key={i} wrap={false} style={{ flexDirection: "row", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                       <Text style={{ width: 70, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>
                         {cabLabel}
                       </Text>
