@@ -28,6 +28,7 @@ export interface StockCabine {
   prixAchat?: number;          // CHF
   prixVente?: number;          // CHF
   mesuresApprox?: string;      // ex: "90×90 cm, H=200 cm"
+  numeroArticle?: string;      // ex: "12345-A"
 }
 
 const KEY = "destockage";
@@ -89,6 +90,7 @@ export async function POST(request: NextRequest) {
     prixAchat: parsePrix(body.prixAchat),
     prixVente: parsePrix(body.prixVente),
     mesuresApprox: (body.mesuresApprox || "").trim(),
+    numeroArticle: (body.numeroArticle || "").trim(),
   };
   all.unshift(entry);
   await setData(KEY, all);
@@ -129,6 +131,7 @@ export async function PATCH(request: NextRequest) {
     prixAchat:           body.prixAchat !== undefined ? parsePrix(body.prixAchat) : cur.prixAchat,
     prixVente:           body.prixVente !== undefined ? parsePrix(body.prixVente) : cur.prixVente,
     mesuresApprox:       body.mesuresApprox !== undefined ? String(body.mesuresApprox).trim() : cur.mesuresApprox,
+    numeroArticle:       body.numeroArticle !== undefined ? String(body.numeroArticle).trim() : cur.numeroArticle,
   };
 
   if (body.status === "destocke" && cur.status !== "destocke") {

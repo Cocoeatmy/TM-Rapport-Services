@@ -37,6 +37,7 @@ interface StockCabine {
   prixAchat?: number;
   prixVente?: number;
   mesuresApprox?: string;
+  numeroArticle?: string;
 }
 
 type Filter = "all" | "stock" | "destocke";
@@ -185,6 +186,7 @@ type FormState = {
   prixAchat: string;
   prixVente: string;
   mesuresApprox: string;
+  numeroArticle: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -193,7 +195,7 @@ const EMPTY_FORM: FormState = {
   commentaires: "", photoCabine: "", mesuresCabinePdf: "",
   mesuresCabinePdfName: "", configuration: [], version: [],
   typeVerre: [], traitementVerre: [], couleur: [],
-  prixAchat: "", prixVente: "", mesuresApprox: "",
+  prixAchat: "", prixVente: "", mesuresApprox: "", numeroArticle: "",
 };
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -340,6 +342,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
       prixAchat: entry.prixAchat != null ? String(entry.prixAchat) : "",
       prixVente: entry.prixVente != null ? String(entry.prixVente) : "",
       mesuresApprox: entry.mesuresApprox || "",
+      numeroArticle: entry.numeroArticle || "",
     });
     setShowAdd(true);
     setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
@@ -416,6 +419,11 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
               <Label className="text-xs text-gray-600 dark:text-gray-300">Fournisseur</Label>
               <Input value={form.fournisseur} onChange={(e) => setForm({ ...form, fournisseur: e.target.value })}
                 placeholder="Ex: Duka" className="mt-1 h-10 glass-input" />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-600 dark:text-gray-300">Numéro d&apos;article</Label>
+              <Input value={form.numeroArticle} onChange={(e) => setForm({ ...form, numeroArticle: e.target.value })}
+                placeholder="Ex: 12345-A" className="mt-1 h-10 glass-input" />
             </div>
             <div>
               <Label className="text-xs text-gray-600 dark:text-gray-300">Quantité</Label>
@@ -576,6 +584,13 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-gray-600 dark:text-gray-400">
                     {e.fournisseur && (
                       <div className="flex items-center gap-1"><Hash className="w-3 h-3 shrink-0" /><span>{e.fournisseur}</span></div>
+                    )}
+                    {e.numeroArticle && (
+                      <div className="flex items-center gap-1">
+                        <span className="font-mono text-[10px] bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
+                          {e.numeroArticle}
+                        </span>
+                      </div>
                     )}
                     {e.emplacement && (
                       <div className="flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0" /><span>{e.emplacement}</span></div>
