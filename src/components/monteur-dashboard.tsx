@@ -3854,8 +3854,21 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               const weekEndStr = weekEnd.toISOString().split("T")[0];
 
               // Build a map of dateKey → projects, expanding multi-day projects
+              const isSavPanel = showSummaryPanel === "sav-non-traites";
               const dayMap: Record<string, Project[]> = {};
               panelProjects.forEach((p) => {
+                // For SAV panel: group by date SAV received, not montage date
+                if (isSavPanel) {
+                  const savDate = (p.dateSAVRecu || "").split("T")[0];
+                  if (!savDate) {
+                    if (!dayMap["no-date"]) dayMap["no-date"] = [];
+                    dayMap["no-date"].push(p);
+                  } else {
+                    if (!dayMap[savDate]) dayMap[savDate] = [];
+                    dayMap[savDate].push(p);
+                  }
+                  return;
+                }
                 const startDate = (p.dateMontage || p.dateMesures || "").split("T")[0];
                 if (!startDate) {
                   if (!dayMap["no-date"]) dayMap["no-date"] = [];
@@ -3987,12 +4000,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         {p.dateMontageEnd && (() => { const days = getWorkingDays(p.dateMontage || "", p.dateMontageEnd); return days.length > 1 ? (
                           <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{days.length}j</span>
                         ) : null; })()}
-                        {/* État SAV inline edit — visible uniquement dans le panel SAV non traités */}
+                        {/* État SAV inline edit + J+x badge — visible uniquement dans le panel SAV non traités */}
                         {showSummaryPanel === "sav-non-traites" && (() => {
                           const currentEtat = savEtatOverride[p.id] ?? p.etatSAV ?? "";
+                          const isTermine = currentEtat === "Terminé";
+                          // Calcul J+x depuis dateSAVRecu
+                          const savRecuStr = (p.dateSAVRecu || "").split("T")[0];
+                          let jPlusDays: number | null = null;
+                          if (savRecuStr) {
+                            const savDate = new Date(savRecuStr + "T12:00:00");
+                            const refDate = isTermine ? savDate : new Date();
+                            jPlusDays = Math.floor((refDate.getTime() - savDate.getTime()) / (1000 * 60 * 60 * 24));
+                          }
+                          const jPlusBadgeClass = jPlusDays === null ? "" :
+                            jPlusDays <= 5 ? "bg-green-100 text-green-700" :
+                            jPlusDays <= 11 ? "bg-orange-100 text-orange-700" :
+                            "bg-red-100 text-red-700";
                           if (editingSavId === p.id) {
                             return (
-                              <div className="shrink-0 relative z-10" onClick={e => e.preventDefault()}>
+                              <div className="shrink-0 flex items-center gap-1 relative z-10" onClick={e => e.preventDefault()}>
+                                {jPlusDays !== null && (
+                                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${jPlusBadgeClass}`}>J+{jPlusDays}</span>
+                                )}
                                 <select
                                   autoFocus
                                   value={currentEtat}
@@ -4008,13 +4037,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             );
                           }
                           return (
-                            <button
-                              type="button"
-                              onClick={e => { e.preventDefault(); setEditingSavId(p.id); }}
-                              className={`shrink-0 text-[9px] font-semibold px-2 py-1 rounded-full whitespace-nowrap hover:opacity-80 transition-opacity ${SAV_ETAT_COLORS[currentEtat] || "bg-gray-100 text-gray-400"}`}
-                            >
-                              {currentEtat || "—"}
-                            </button>
+                            <div className="shrink-0 flex items-center gap-1" onClick={e => e.preventDefault()}>
+                              {jPlusDays !== null && (
+                                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${jPlusBadgeClass}`}>J+{jPlusDays}</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={e => { e.preventDefault(); setEditingSavId(p.id); }}
+                                className={`shrink-0 text-[9px] font-semibold px-2 py-1 rounded-full whitespace-nowrap hover:opacity-80 transition-opacity ${SAV_ETAT_COLORS[currentEtat] || "bg-gray-100 text-gray-400"}`}
+                              >
+                                {currentEtat || "—"}
+                              </button>
+                            </div>
                           );
                         })()}
                         <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>

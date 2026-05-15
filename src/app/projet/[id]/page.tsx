@@ -3258,6 +3258,22 @@ function ProjectPageContent({ id }: { id: string }) {
 
             <div className="h-px bg-gray-100 dark:bg-gray-700" />
 
+            {/* 5b — Date SAV reçu le (visible uniquement si projet SAV) */}
+            {project.sav && (
+              <>
+                <div className="h-px bg-gray-100 dark:bg-gray-700" />
+                <ExtraDateField
+                  label="SAV reçu le"
+                  value={project.dateSAVRecu}
+                  projectId={id}
+                  fieldName="dateSAVRecu"
+                  onUpdate={(v) => setProject((prev) => prev ? { ...prev, dateSAVRecu: v } : prev)}
+                />
+              </>
+            )}
+
+            <div className="h-px bg-gray-100 dark:bg-gray-700" />
+
             {/* 6 — Date de montage / Montage traité par */}
             <div className="grid grid-cols-2 gap-3">
               <EditableDate

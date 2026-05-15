@@ -51,7 +51,7 @@ const DestockageView = dynamic(() => import("@/components/destockage-view").then
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
-function ProjectCard({ project, mode, isAdmin, onDelete }: { project: Project; mode: string; isAdmin?: boolean; onDelete?: (id: string) => void }) {
+function ProjectCard({ project, mode, isAdmin, onDelete, compact }: { project: Project; mode: string; isAdmin?: boolean; onDelete?: (id: string) => void; compact?: boolean }) {
   const statusColors = mode.startsWith("mesures") ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
   const statusValue = mode.startsWith("mesures") ? project.etatMesures : project.etatCMD;
   const statusColor = statusColors[statusValue] || "bg-gray-100 text-gray-700";
@@ -74,55 +74,61 @@ function ProjectCard({ project, mode, isAdmin, onDelete }: { project: Project; m
             {project.ofrTM && (
               <p className="text-xs text-gray-500 mt-0.5">OFR {project.ofrTM}</p>
             )}
-            {project.nomChantier && (
+            {!compact && project.nomChantier && (
               <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-600 dark:text-gray-400">
                 <FileText className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">{project.nomChantier}</span>
               </div>
             )}
-            <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
-              <MapPin className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">
-                {project.adresseChantier || "---"}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
-              <Calendar className="w-3.5 h-3.5 shrink-0" />
-              <span>{formatDateFR(mode.startsWith("mesures") ? project.dateMesures : project.dateMontage)}</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {project.fournisseurs.slice(0, 2).map((f) => (
-                <Badge key={f} variant="secondary" className="text-xs">
-                  {f}
-                </Badge>
-              ))}
-              {project.nbCabines && (
-                <Badge variant="outline" className="text-xs">
-                  {project.nbCabines} cabine{project.nbCabines > 1 ? "s" : ""}
-                </Badge>
-              )}
-              {project.emplacementCabine && (
-                <Badge variant="outline" className="text-xs">
-                  {project.emplacementCabine}
-                </Badge>
-              )}
-              {((mode === "mesures" ? project.mesuresTraiteePar : project.collaborateurs) || "").split(" & ").filter(Boolean).map((name) => (
-                <span
-                  key={name}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full"
-                  style={{
-                    backgroundColor: getCollaboratorColor(name.trim()).bg,
-                    color: getCollaboratorColor(name.trim()).text,
-                  }}
-                >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: getCollaboratorColor(name.trim()).dot }}
-                  />
-                  {name.trim()}
+            {!compact && (
+              <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
+                <MapPin className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
+                  {project.adresseChantier || "---"}
                 </span>
-              ))}
-            </div>
+              </div>
+            )}
+            {!compact && (
+              <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
+                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                <span>{formatDateFR(mode.startsWith("mesures") ? project.dateMesures : project.dateMontage)}</span>
+              </div>
+            )}
+            {!compact && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {project.fournisseurs.slice(0, 2).map((f) => (
+                  <Badge key={f} variant="secondary" className="text-xs">
+                    {f}
+                  </Badge>
+                ))}
+                {project.nbCabines && (
+                  <Badge variant="outline" className="text-xs">
+                    {project.nbCabines} cabine{project.nbCabines > 1 ? "s" : ""}
+                  </Badge>
+                )}
+                {project.emplacementCabine && (
+                  <Badge variant="outline" className="text-xs">
+                    {project.emplacementCabine}
+                  </Badge>
+                )}
+                {((mode === "mesures" ? project.mesuresTraiteePar : project.collaborateurs) || "").split(" & ").filter(Boolean).map((name) => (
+                  <span
+                    key={name}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full"
+                    style={{
+                      backgroundColor: getCollaboratorColor(name.trim()).bg,
+                      color: getCollaboratorColor(name.trim()).text,
+                    }}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: getCollaboratorColor(name.trim()).dot }}
+                    />
+                    {name.trim()}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex flex-col items-end gap-2">
             <span
@@ -1413,24 +1419,6 @@ function HomePage() {
       {/* VUE DASHBOARD */}
       {mode === "dashboard" && (
         <div>
-          {/* Recherche globale */}
-          <div className="relative mb-4 max-w-lg">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder="Rechercher dans tous les projets..."
-              className="pl-9 h-11 rounded-xl glass-input"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                // Ne bascule vers la vue liste qu'à Entrée : éviter de
-                // démonter l'input à la 1ère lettre (bug perte de focus).
-                // "projets-tous" = tous les projets Notion (actifs + terminés).
-                if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                  setMode("projets-tous");
-                }
-              }}
-            />
-          </div>
           {currentUser && (() => {
             const tagged = [
               ...(projectsData["cmd"] || []).map((p) => ({ ...p, _source: "montage" as const })),
@@ -1832,7 +1820,7 @@ function HomePage() {
                 {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
                 <div className="space-y-3">
                   {grossistesFiltered.map((project) => (
-                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
+                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact />
                   ))}
                   {grossistesFiltered.length === 0 && !loading && (
                     <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet</p></div>
@@ -2185,7 +2173,7 @@ function HomePage() {
                 {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
                 <div className="space-y-3">
                   {fournisseursFiltered.map((project) => (
-                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
+                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact />
                   ))}
                   {fournisseursFiltered.length === 0 && !loading && (
                     <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet</p></div>
@@ -2543,7 +2531,7 @@ function HomePage() {
                 {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
                 <div className="space-y-3">
                   {sanitairesFiltered.map((project) => (
-                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
+                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact />
                   ))}
                   {sanitairesFiltered.length === 0 && !loading && (
                     <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet sanitaire</p></div>

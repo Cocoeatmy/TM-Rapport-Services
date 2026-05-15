@@ -805,6 +805,7 @@ export async function updateProject(
     etatCMD?: string;
     etatMesures?: string;
     etatSAV?: string;
+    dateSAVRecu?: string | null;
     contacts?: string;
     contactsRDV?: string;
     commentairesMesures?: string;
@@ -930,6 +931,11 @@ export async function updateProject(
   if (data.etatSAV !== undefined) {
     properties["État - SAV"] = {
       status: { name: data.etatSAV },
+    };
+  }
+  if (data.dateSAVRecu !== undefined) {
+    properties["Date - SAV reçu le"] = {
+      date: data.dateSAVRecu ? { start: data.dateSAVRecu } : null,
     };
   }
   if (data.contacts !== undefined) {
