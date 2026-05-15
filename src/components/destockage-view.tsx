@@ -390,7 +390,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
           <span>{counts.stock} entrée{counts.stock > 1 ? "s" : ""} en stock{counts.totalCabines > 0 && ` · ${counts.totalCabines} cabines`}</span>
-          {(counts.valeurBrut > 0 || counts.valeurNet > 0) && (
+          {isAdmin && (counts.valeurBrut > 0 || counts.valeurNet > 0) && (
             <span className="flex items-center gap-3 text-xs font-medium">
               <span className="flex items-center gap-1">
                 <span className="text-gray-400">BRUT</span>
