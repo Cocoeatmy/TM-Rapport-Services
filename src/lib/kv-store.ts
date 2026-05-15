@@ -82,37 +82,34 @@ async function getOrCreateBackupPageId(key: string): Promise<string> {
 
 /**
  * Write JSON data into the content blocks of a Notion page.
- * Clears existing blocks first, then writes the JSON string chunked into
- * paragraph blocks (each <= 2000 chars).
+ *
+ * Stratégie write-first pour éviter la perte de données en cas d'interruption
+ * (déploiement rapide, timeout serverless, etc.) :
+ *
+ *  1. Lire les IDs des blocs EXISTANTS (avant tout changement).
+ *  2. Écrire les NOUVEAUX blocs (append) — les données sont déjà persistées.
+ *  3. Supprimer les anciens blocs.
+ *
+ * Si le process est tué entre 2 et 3, la page contient les deux versions.
+ * `readFromNotion` gère ce cas en extrayant le DERNIER tableau JSON valide.
  */
 async function writeToNotion(key: string, jsonString: string): Promise<void> {
   const pageId = await getOrCreateBackupPageId(key);
 
-  // Delete all existing child blocks
+  // 1. Mémoriser les IDs des blocs actuels AVANT d'écrire quoi que ce soit
   const existingBlocks = await notion.blocks.children.list({
     block_id: pageId,
     page_size: 100,
   });
+  const oldBlockIds = existingBlocks.results.map((b) => b.id);
 
-  for (const block of existingBlocks.results) {
-    try {
-      await notion.blocks.delete({ block_id: block.id });
-    } catch {
-      // Ignore delete errors for individual blocks
-    }
-  }
-
-  // Chunk the JSON string and create paragraph blocks
+  // 2. Écrire les nouveaux blocs EN PREMIER (les données sont sûres dès ici)
   const chunks: string[] = [];
   for (let i = 0; i < jsonString.length; i += NOTION_BLOCK_CHAR_LIMIT) {
     chunks.push(jsonString.slice(i, i + NOTION_BLOCK_CHAR_LIMIT));
   }
+  if (chunks.length === 0) chunks.push("[]");
 
-  if (chunks.length === 0) {
-    chunks.push("[]");
-  }
-
-  // Notion API allows appending up to 100 blocks at a time
   const batchSize = 100;
   for (let i = 0; i < chunks.length; i += batchSize) {
     const batch = chunks.slice(i, i + batchSize);
@@ -126,6 +123,15 @@ async function writeToNotion(key: string, jsonString: string): Promise<void> {
         },
       })),
     });
+  }
+
+  // 3. Supprimer les anciens blocs (après que les nouveaux sont écrits)
+  for (const blockId of oldBlockIds) {
+    try {
+      await notion.blocks.delete({ block_id: blockId });
+    } catch {
+      // Ignorer les erreurs de suppression individuelle
+    }
   }
 }
 
@@ -160,7 +166,23 @@ async function readFromNotion<T>(key: string): Promise<T[]> {
     } while (cursor);
 
     if (!allText || allText.trim() === "") return [];
-    return JSON.parse(allText);
+
+    // Tentative normale
+    try {
+      return JSON.parse(allText);
+    } catch {
+      // La page peut contenir ancienne + nouvelle version en cas d'interruption
+      // pendant la suppression des anciens blocs (write-first strategy).
+      // On cherche le DERNIER tableau JSON valide dans le texte.
+      const lastBracket = allText.lastIndexOf("[");
+      if (lastBracket !== -1) {
+        try {
+          return JSON.parse(allText.slice(lastBracket));
+        } catch {}
+      }
+      console.error(`[kv-store] Could not parse content for "${key}", returning []`);
+      return [];
+    }
   } catch (err) {
     console.error(`[kv-store] Failed to read from Notion for "${key}":`, err);
     return [];
