@@ -597,31 +597,31 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                     </span>
                   </div>
 
-                  {/* Meta */}
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-gray-600 dark:text-gray-400">
+                  {/* Meta — grille 2 col sur mobile, flex-wrap sur desktop */}
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-gray-600 dark:text-gray-400">
                     {e.fournisseur && (
-                      <div className="flex items-center gap-1"><Hash className="w-3 h-3 shrink-0" /><span>{e.fournisseur}</span></div>
+                      <div className="flex items-center gap-1 min-w-0"><Hash className="w-3 h-3 shrink-0" /><span className="truncate">{e.fournisseur}</span></div>
                     )}
                     {e.numeroArticle && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-mono text-[10px] bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="font-mono text-[10px] bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded truncate">
                           {e.numeroArticle}
                         </span>
                       </div>
                     )}
                     {e.emplacement && (
-                      <div className="flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0" /><span>{e.emplacement}</span></div>
+                      <div className="flex items-center gap-1 min-w-0"><MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{e.emplacement}</span></div>
                     )}
                     {e.dateArrivee && (
-                      <div className="flex items-center gap-1"><Calendar className="w-3 h-3 shrink-0" /><span>Arrivé {formatDate(e.dateArrivee)}</span></div>
+                      <div className="flex items-center gap-1 min-w-0"><Calendar className="w-3 h-3 shrink-0" /><span className="truncate">Arrivé {formatDate(e.dateArrivee)}</span></div>
                     )}
                     {e.status === "destocke" && e.destockedAt && (
-                      <div className="flex items-center gap-1"><Archive className="w-3 h-3 shrink-0" /><span>Sorti {formatDate(e.destockedAt)}{e.destockedBy ? ` · ${e.destockedBy}` : ""}</span></div>
+                      <div className="flex items-center gap-1 col-span-2 sm:col-span-1 min-w-0"><Archive className="w-3 h-3 shrink-0" /><span className="truncate">Sorti {formatDate(e.destockedAt)}{e.destockedBy ? ` · ${e.destockedBy}` : ""}</span></div>
                     )}
                     {(e.prixAchat != null || e.prixVente != null) && (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 col-span-2 sm:col-span-1 min-w-0">
                         <Banknote className="w-3 h-3 shrink-0" />
-                        <span>
+                        <span className="truncate">
                           {[
                             e.prixAchat != null && `Achat ${formatPrix(e.prixAchat)}`,
                             e.prixVente != null && `Vente ${formatPrix(e.prixVente)}`,
@@ -630,11 +630,11 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     )}
                     {e.mesuresApprox && (
-                      <div className="flex items-center gap-1"><Ruler className="w-3 h-3 shrink-0" /><span>{e.mesuresApprox}</span></div>
+                      <div className="flex items-center gap-1 min-w-0"><Ruler className="w-3 h-3 shrink-0" /><span className="truncate">{e.mesuresApprox}</span></div>
                     )}
                   </div>
 
-                  {/* Badges caractéristiques */}
+                  {/* Badges — défilement horizontal sur mobile (une seule ligne swipeable) */}
                   {(() => {
                     const tags = [
                       ...(e.configuration || []).map((t) => ({ t, cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" })),
@@ -646,10 +646,12 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                     ];
                     if (!tags.length) return null;
                     return (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {tags.map(({ t, cls }, i) => (
-                          <span key={i} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${cls}`}>{t}</span>
-                        ))}
+                      <div className="mt-2 overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+                        <div className="flex gap-1 flex-nowrap pb-0.5">
+                          {tags.map(({ t, cls }, i) => (
+                            <span key={i} className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 ${cls}`}>{t}</span>
+                          ))}
+                        </div>
                       </div>
                     );
                   })()}
