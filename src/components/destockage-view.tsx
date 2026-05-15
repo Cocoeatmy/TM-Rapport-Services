@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive, Package, Plus, Search, Loader2, Check, Trash2, Undo2,
-  Calendar, MapPin, Hash, FileText, Camera, X, Banknote, Ruler,
+  Calendar, MapPin, Hash, FileText, Camera, X, Banknote, Ruler, Pencil,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface StockCabine {
   id: string;
@@ -26,13 +26,13 @@ interface StockCabine {
   destockedProjectRef: string;
   createdAt: number;
   createdBy: string;
-  // Métadonnées cabine
   photoCabine?: string;
   mesuresCabinePdf?: string;
   mesuresCabinePdfName?: string;
   configuration?: string[];
   version?: string[];
   typeVerre?: string[];
+  traitementVerre?: string[];
   couleur?: string[];
   prixAchat?: number;
   prixVente?: number;
@@ -41,37 +41,33 @@ interface StockCabine {
 
 type Filter = "all" | "stock" | "destocke";
 
-// ── Options ──────────────────────────────────────────────────────────────────
+// ── Options ───────────────────────────────────────────────────────────────────
 
-const CONFIG_OPTIONS = ["Niche", "Angle", "Quart de cercle", "Pentagonale", "Baignoire", 'Configuration "U"'];
-const VERSION_OPTIONS = ["Avec profiles", "Sans profiles", "Profils UP"];
-const VERRE_OPTIONS   = ["Transparent", "Satiné", "Discret", "Discret 2/3", "Miroir", "Fumé"];
-const COULEUR_OPTIONS = ["Argent mat", "Argent brillant", "Noir mat", "Inox", "Blanc", "Couleurs brushed"];
+const CONFIG_OPTIONS     = ["Niche", "Angle", "Quart de cercle", "Pentagonale", "Baignoire", 'Configuration "U"'];
+const VERSION_OPTIONS    = ["Avec profiles", "Sans profiles", "Profils UP"];
+const VERRE_OPTIONS      = ["Transparent", "Satiné", "Discret", "Discret 2/3", "Miroir", "Fumé"];
+const TRAITEMENT_OPTIONS = ["Sans traitement", "Traitement de surface du verre", "Traitement intern du verre"];
+const COULEUR_OPTIONS    = ["Argent mat", "Argent brillant", "Noir mat", "Inox", "Blanc", "Couleurs brushed"];
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── MultiSelect ───────────────────────────────────────────────────────────────
 
-/** Sélecteur multi-choix en pills */
 function MultiSelect({
-  label,
-  options,
-  value,
-  onChange,
-  color = "blue",
+  label, options, value, onChange, color = "blue",
 }: {
   label: string;
   options: string[];
   value: string[];
   onChange: (v: string[]) => void;
-  color?: "blue" | "violet" | "cyan" | "amber";
+  color?: "blue" | "violet" | "cyan" | "green" | "amber";
 }) {
   const colorMap = {
-    blue:   { on: "bg-blue-500 text-white border-blue-500",   off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300" },
+    blue:   { on: "bg-blue-500 text-white border-blue-500",     off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300" },
     violet: { on: "bg-violet-500 text-white border-violet-500", off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300" },
-    cyan:   { on: "bg-cyan-500 text-white border-cyan-500",   off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-cyan-300" },
-    amber:  { on: "bg-amber-500 text-white border-amber-500", off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-amber-300" },
+    cyan:   { on: "bg-cyan-500 text-white border-cyan-500",     off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-cyan-300" },
+    green:  { on: "bg-green-600 text-white border-green-600",   off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-green-400" },
+    amber:  { on: "bg-amber-500 text-white border-amber-500",   off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-amber-300" },
   };
   const cls = colorMap[color];
-
   const toggle = (opt: string) =>
     onChange(value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt]);
 
@@ -84,9 +80,7 @@ function MultiSelect({
             key={opt}
             type="button"
             onClick={() => toggle(opt)}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
-              value.includes(opt) ? cls.on : cls.off
-            }`}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-all ${value.includes(opt) ? cls.on : cls.off}`}
           >
             {opt}
           </button>
@@ -96,14 +90,10 @@ function MultiSelect({
   );
 }
 
-/** Bouton upload photo ou PDF avec prévisualisation */
+// ── FileUploadField ───────────────────────────────────────────────────────────
+
 function FileUploadField({
-  label,
-  type,
-  value,
-  valueName,
-  onUpload,
-  onRemove,
+  label, type, value, valueName, onUpload, onRemove,
 }: {
   label: string;
   type: "photo" | "pdf";
@@ -114,7 +104,6 @@ function FileUploadField({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const accept = type === "photo" ? "image/*" : "application/pdf";
 
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -149,62 +138,34 @@ function FileUploadField({
           <div className="flex items-center gap-2">
             {type === "photo" ? (
               <a href={value} target="_blank" rel="noopener noreferrer" title="Voir en grand">
-                <img
-                  src={value}
-                  alt="Photo cabine"
-                  className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity"
-                />
+                <img src={value} alt="Photo" className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity" />
               </a>
             ) : (
-              <a
-                href={value}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline max-w-[200px] truncate"
-              >
+              <a href={value} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline max-w-[200px] truncate">
                 <FileText className="w-4 h-4 shrink-0" />
                 {valueName || "Mesures.pdf"}
               </a>
             )}
-            <button
-              type="button"
-              onClick={onRemove}
-              className="w-6 h-6 flex items-center justify-center rounded-full text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 transition-colors"
-              title="Supprimer"
-            >
+            <button type="button" onClick={onRemove}
+              className="w-6 h-6 flex items-center justify-center rounded-full text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 transition-colors" title="Supprimer">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 hover:border-blue-400 hover:text-blue-500 dark:hover:text-blue-400 transition-all disabled:opacity-50"
-          >
-            {uploading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : type === "photo" ? (
-              <Camera className="w-3.5 h-3.5" />
-            ) : (
-              <FileText className="w-3.5 h-3.5" />
-            )}
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-all disabled:opacity-50">
+            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : type === "photo" ? <Camera className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
             {uploading ? "Envoi en cours…" : label}
           </button>
         )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept={accept}
-          className="hidden"
-          onChange={handleChange}
-        />
+        <input ref={inputRef} type="file" accept={type === "photo" ? "image/*" : "application/pdf"} className="hidden" onChange={handleChange} />
       </div>
     </div>
   );
 }
 
-// ── Form state type ───────────────────────────────────────────────────────────
+// ── Form state ────────────────────────────────────────────────────────────────
 
 type FormState = {
   serie: string;
@@ -219,6 +180,7 @@ type FormState = {
   configuration: string[];
   version: string[];
   typeVerre: string[];
+  traitementVerre: string[];
   couleur: string[];
   prixAchat: string;
   prixVente: string;
@@ -226,35 +188,27 @@ type FormState = {
 };
 
 const EMPTY_FORM: FormState = {
-  serie: "",
-  fournisseur: "",
-  quantity: 1,
-  emplacement: "",
+  serie: "", fournisseur: "", quantity: 1, emplacement: "",
   dateArrivee: new Date().toISOString().slice(0, 10),
-  commentaires: "",
-  photoCabine: "",
-  mesuresCabinePdf: "",
-  mesuresCabinePdfName: "",
-  configuration: [],
-  version: [],
-  typeVerre: [],
-  couleur: [],
-  prixAchat: "",
-  prixVente: "",
-  mesuresApprox: "",
+  commentaires: "", photoCabine: "", mesuresCabinePdf: "",
+  mesuresCabinePdfName: "", configuration: [], version: [],
+  typeVerre: [], traitementVerre: [], couleur: [],
+  prixAchat: "", prixVente: "", mesuresApprox: "",
 };
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
-  const [entries, setEntries] = useState<StockCabine[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>("stock");
-  const [search, setSearch] = useState("");
-  const [showAdd, setShowAdd] = useState(false);
+  const [entries, setEntries]       = useState<StockCabine[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [filter, setFilter]         = useState<Filter>("stock");
+  const [search, setSearch]         = useState("");
+  const [showAdd, setShowAdd]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [editingId, setEditingId]   = useState<string | null>(null);
+  const [form, setForm]             = useState<FormState>(EMPTY_FORM);
+  // Photo hover zoom
+  const [hoveredPhotoId, setHoveredPhotoId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -280,7 +234,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
         e.serie, e.fournisseur, e.emplacement, e.commentaires,
         e.destockedProjectRef, e.mesuresApprox,
         ...(e.configuration || []), ...(e.version || []),
-        ...(e.typeVerre || []), ...(e.couleur || []),
+        ...(e.typeVerre || []), ...(e.traitementVerre || []), ...(e.couleur || []),
       ].some((s) => (s || "").toLowerCase().includes(q));
     });
   }, [entries, filter, search]);
@@ -300,7 +254,6 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
     try {
       const payload = {
         ...form,
-        quantity: form.quantity,
         prixAchat: form.prixAchat !== "" ? parseFloat(form.prixAchat) : undefined,
         prixVente: form.prixVente !== "" ? parseFloat(form.prixVente) : undefined,
         ...(editingId ? { id: editingId } : {}),
@@ -327,7 +280,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
 
   const handleDestock = async (entry: StockCabine) => {
     const ref = prompt(
-      `Déstocker « ${entry.serie}${entry.quantity > 1 ? ` × ${entry.quantity}` : ""} » — référence du projet (OFR, nom, etc.) ?`,
+      `Déstocker « ${entry.serie}${entry.quantity > 1 ? ` × ${entry.quantity}` : ""} » — référence projet ?`,
       entry.destockedProjectRef,
     );
     if (ref === null) return;
@@ -355,7 +308,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
   };
 
   const handleDelete = async (entry: StockCabine) => {
-    if (!confirm(`Supprimer définitivement l'entrée « ${entry.serie} » ?`)) return;
+    if (!confirm(`Supprimer définitivement « ${entry.serie} » ?`)) return;
     try {
       const res = await fetch("/api/destockage", {
         method: "DELETE",
@@ -382,6 +335,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
       configuration: entry.configuration || [],
       version: entry.version || [],
       typeVerre: entry.typeVerre || [],
+      traitementVerre: entry.traitementVerre || [],
       couleur: entry.couleur || [],
       prixAchat: entry.prixAchat != null ? String(entry.prixAchat) : "",
       prixVente: entry.prixVente != null ? String(entry.prixVente) : "",
@@ -401,6 +355,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="space-y-4">
+
       {/* En-tête */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
@@ -422,42 +377,35 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="inline-flex glass-tabs rounded-xl p-1">
           {([
-            { id: "stock" as const, label: `En stock (${counts.stock})` },
+            { id: "stock" as const,    label: `En stock (${counts.stock})` },
             { id: "destocke" as const, label: `Déstockés (${counts.destocke})` },
-            { id: "all" as const, label: `Tous (${counts.all})` },
+            { id: "all" as const,      label: `Tous (${counts.all})` },
           ]).map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilter(f.id)}
+            <button key={f.id} onClick={() => setFilter(f.id)}
               className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
                 filter === f.id
                   ? "glass-tab-active text-[#1e3a5f] dark:text-white"
                   : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-              }`}
-            >
+              }`}>
               {f.label}
             </button>
           ))}
         </div>
         <div className="relative max-w-sm flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Rechercher série, fournisseur…"
-            className="pl-9 h-10 rounded-xl glass-input"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <Input placeholder="Rechercher série, fournisseur…" className="pl-9 h-10 rounded-xl glass-input"
+            value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
 
-      {/* ── Formulaire ajout / édition ── */}
+      {/* ── Formulaire ── */}
       {showAdd && (
         <div className="glass-card rounded-2xl p-5 space-y-4">
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
             {editingId ? "Modifier l'entrée" : "Nouvelle entrée stock"}
           </h3>
 
-          {/* Section 1 : Identité */}
+          {/* Identité */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs text-gray-600 dark:text-gray-300">Série *</Label>
@@ -488,117 +436,67 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
             </div>
           </div>
 
-          {/* Séparateur */}
           <div className="h-px bg-gray-100 dark:bg-gray-700" />
 
-          {/* Section 2 : Caractéristiques */}
+          {/* Caractéristiques */}
           <div className="space-y-3">
-            <MultiSelect
-              label="Configuration"
-              options={CONFIG_OPTIONS}
-              value={form.configuration}
-              onChange={(v) => setForm({ ...form, configuration: v })}
-              color="violet"
-            />
+            <MultiSelect label="Configuration" options={CONFIG_OPTIONS}
+              value={form.configuration} onChange={(v) => setForm({ ...form, configuration: v })} color="violet" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <MultiSelect
-                label="Version"
-                options={VERSION_OPTIONS}
-                value={form.version}
-                onChange={(v) => setForm({ ...form, version: v })}
-                color="blue"
-              />
-              <MultiSelect
-                label="Type de verre"
-                options={VERRE_OPTIONS}
-                value={form.typeVerre}
-                onChange={(v) => setForm({ ...form, typeVerre: v })}
-                color="cyan"
-              />
+              <MultiSelect label="Version" options={VERSION_OPTIONS}
+                value={form.version} onChange={(v) => setForm({ ...form, version: v })} color="blue" />
+              <MultiSelect label="Type de verre" options={VERRE_OPTIONS}
+                value={form.typeVerre} onChange={(v) => setForm({ ...form, typeVerre: v })} color="cyan" />
             </div>
-            <MultiSelect
-              label="Couleur / Finition"
-              options={COULEUR_OPTIONS}
-              value={form.couleur}
-              onChange={(v) => setForm({ ...form, couleur: v })}
-              color="amber"
-            />
+            <MultiSelect label="Traitement de verre" options={TRAITEMENT_OPTIONS}
+              value={form.traitementVerre} onChange={(v) => setForm({ ...form, traitementVerre: v })} color="green" />
+            <MultiSelect label="Couleur / Finition" options={COULEUR_OPTIONS}
+              value={form.couleur} onChange={(v) => setForm({ ...form, couleur: v })} color="amber" />
           </div>
 
-          {/* Séparateur */}
           <div className="h-px bg-gray-100 dark:bg-gray-700" />
 
-          {/* Section 3 : Prix + mesures */}
+          {/* Prix + mesures */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs text-gray-600 dark:text-gray-300">Prix d&apos;achat (CHF)</Label>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Ex: 450.00"
-                value={form.prixAchat}
-                onChange={(e) => setForm({ ...form, prixAchat: e.target.value })}
-                className="mt-1 h-10 glass-input"
-              />
+              <Input type="number" min="0" step="0.01" placeholder="Ex: 450.00"
+                value={form.prixAchat} onChange={(e) => setForm({ ...form, prixAchat: e.target.value })}
+                className="mt-1 h-10 glass-input" />
             </div>
             <div>
               <Label className="text-xs text-gray-600 dark:text-gray-300">Prix de vente (CHF)</Label>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Ex: 750.00"
-                value={form.prixVente}
-                onChange={(e) => setForm({ ...form, prixVente: e.target.value })}
-                className="mt-1 h-10 glass-input"
-              />
+              <Input type="number" min="0" step="0.01" placeholder="Ex: 750.00"
+                value={form.prixVente} onChange={(e) => setForm({ ...form, prixVente: e.target.value })}
+                className="mt-1 h-10 glass-input" />
             </div>
             <div className="sm:col-span-2">
               <Label className="text-xs text-gray-600 dark:text-gray-300">Mesures approximatives</Label>
-              <Input
-                value={form.mesuresApprox}
-                onChange={(e) => setForm({ ...form, mesuresApprox: e.target.value })}
-                placeholder="Ex: 90×90 cm, H=200 cm"
-                className="mt-1 h-10 glass-input"
-              />
+              <Input value={form.mesuresApprox} onChange={(e) => setForm({ ...form, mesuresApprox: e.target.value })}
+                placeholder="Ex: 90×90 cm, H=200 cm" className="mt-1 h-10 glass-input" />
             </div>
           </div>
 
-          {/* Séparateur */}
           <div className="h-px bg-gray-100 dark:bg-gray-700" />
 
-          {/* Section 4 : Fichiers */}
+          {/* Fichiers */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FileUploadField
-              label="Photo cabine"
-              type="photo"
-              value={form.photoCabine}
+            <FileUploadField label="Photo cabine" type="photo" value={form.photoCabine}
               onUpload={(url) => setForm({ ...form, photoCabine: url })}
-              onRemove={() => setForm({ ...form, photoCabine: "" })}
-            />
-            <FileUploadField
-              label="Fiche de mesures (PDF)"
-              type="pdf"
-              value={form.mesuresCabinePdf}
-              valueName={form.mesuresCabinePdfName}
+              onRemove={() => setForm({ ...form, photoCabine: "" })} />
+            <FileUploadField label="Fiche de mesures (PDF)" type="pdf"
+              value={form.mesuresCabinePdf} valueName={form.mesuresCabinePdfName}
               onUpload={(url, name) => setForm({ ...form, mesuresCabinePdf: url, mesuresCabinePdfName: name || "" })}
-              onRemove={() => setForm({ ...form, mesuresCabinePdf: "", mesuresCabinePdfName: "" })}
-            />
+              onRemove={() => setForm({ ...form, mesuresCabinePdf: "", mesuresCabinePdfName: "" })} />
           </div>
 
-          {/* Séparateur */}
           <div className="h-px bg-gray-100 dark:bg-gray-700" />
 
-          {/* Section 5 : Commentaires */}
+          {/* Commentaires */}
           <div>
             <Label className="text-xs text-gray-600 dark:text-gray-300">Commentaires</Label>
-            <Input
-              value={form.commentaires}
-              onChange={(e) => setForm({ ...form, commentaires: e.target.value })}
-              placeholder="Ex: OFR associée, particularités…"
-              className="mt-1 h-10 glass-input"
-            />
+            <Input value={form.commentaires} onChange={(e) => setForm({ ...form, commentaires: e.target.value })}
+              placeholder="Ex: OFR associée, particularités…" className="mt-1 h-10 glass-input" />
           </div>
 
           <div className="flex gap-2 justify-end pt-1">
@@ -629,20 +527,35 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
             <div key={e.id} className={`glass-card rounded-2xl p-4 ${e.status === "destocke" ? "opacity-75" : ""}`}>
               <div className="flex items-start gap-3">
 
-                {/* Photo miniature */}
+                {/* Photo miniature avec zoom au hover */}
                 {e.photoCabine && (
-                  <a href={e.photoCabine} target="_blank" rel="noopener noreferrer" className="shrink-0" title="Voir la photo">
+                  <div
+                    className="relative shrink-0"
+                    onMouseEnter={() => setHoveredPhotoId(e.id)}
+                    onMouseLeave={() => setHoveredPhotoId(null)}
+                    style={{ zIndex: hoveredPhotoId === e.id ? 50 : "auto" }}
+                  >
                     <img
                       src={e.photoCabine}
                       alt={e.serie}
-                      className="w-14 h-14 object-cover rounded-xl border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity"
+                      className="w-14 h-14 object-cover rounded-xl border border-gray-200 dark:border-gray-600 cursor-zoom-in"
                     />
-                  </a>
+                    {/* Aperçu agrandi au survol */}
+                    {hoveredPhotoId === e.id && (
+                      <div className="absolute left-16 top-0 z-[60] pointer-events-none">
+                        <img
+                          src={e.photoCabine}
+                          alt={e.serie}
+                          className="w-56 h-56 object-cover rounded-2xl shadow-2xl border-2 border-white dark:border-gray-700"
+                        />
+                      </div>
+                    )}
+                  </div>
                 )}
 
-                {/* Contenu principal */}
+                {/* Contenu */}
                 <div className="flex-1 min-w-0">
-                  {/* Titre + badges statut */}
+                  {/* Titre + statut */}
                   <div className="flex items-center gap-2 flex-wrap">
                     <h4 className="font-semibold text-gray-900 dark:text-gray-100">{e.serie}</h4>
                     {e.quantity > 1 && (
@@ -659,31 +572,19 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                     </span>
                   </div>
 
-                  {/* Meta : fournisseur, emplacement, date, prix */}
+                  {/* Meta */}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-gray-600 dark:text-gray-400">
                     {e.fournisseur && (
-                      <div className="flex items-center gap-1">
-                        <Hash className="w-3 h-3 shrink-0" />
-                        <span>{e.fournisseur}</span>
-                      </div>
+                      <div className="flex items-center gap-1"><Hash className="w-3 h-3 shrink-0" /><span>{e.fournisseur}</span></div>
                     )}
                     {e.emplacement && (
-                      <div className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3 shrink-0" />
-                        <span>{e.emplacement}</span>
-                      </div>
+                      <div className="flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0" /><span>{e.emplacement}</span></div>
                     )}
                     {e.dateArrivee && (
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3 shrink-0" />
-                        <span>Arrivé {formatDate(e.dateArrivee)}</span>
-                      </div>
+                      <div className="flex items-center gap-1"><Calendar className="w-3 h-3 shrink-0" /><span>Arrivé {formatDate(e.dateArrivee)}</span></div>
                     )}
                     {e.status === "destocke" && e.destockedAt && (
-                      <div className="flex items-center gap-1">
-                        <Archive className="w-3 h-3 shrink-0" />
-                        <span>Sorti {formatDate(e.destockedAt)}{e.destockedBy ? ` · ${e.destockedBy}` : ""}</span>
-                      </div>
+                      <div className="flex items-center gap-1"><Archive className="w-3 h-3 shrink-0" /><span>Sorti {formatDate(e.destockedAt)}{e.destockedBy ? ` · ${e.destockedBy}` : ""}</span></div>
                     )}
                     {(e.prixAchat != null || e.prixVente != null) && (
                       <div className="flex items-center gap-1">
@@ -697,32 +598,30 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     )}
                     {e.mesuresApprox && (
-                      <div className="flex items-center gap-1">
-                        <Ruler className="w-3 h-3 shrink-0" />
-                        <span>{e.mesuresApprox}</span>
-                      </div>
+                      <div className="flex items-center gap-1"><Ruler className="w-3 h-3 shrink-0" /><span>{e.mesuresApprox}</span></div>
                     )}
                   </div>
 
-                  {/* Pills : configuration, version, verre, couleur */}
+                  {/* Badges caractéristiques */}
                   {(() => {
-                    const allTags = [
+                    const tags = [
                       ...(e.configuration || []).map((t) => ({ t, cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" })),
                       ...(e.version || []).map((t) => ({ t, cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" })),
                       ...(e.typeVerre || []).map((t) => ({ t, cls: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" })),
+                      ...(e.traitementVerre || []).map((t) => ({ t, cls: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" })),
                       ...(e.couleur || []).map((t) => ({ t, cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" })),
                     ];
-                    if (allTags.length === 0) return null;
+                    if (!tags.length) return null;
                     return (
                       <div className="flex flex-wrap gap-1 mt-2">
-                        {allTags.map(({ t, cls }, i) => (
+                        {tags.map(({ t, cls }, i) => (
                           <span key={i} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${cls}`}>{t}</span>
                         ))}
                       </div>
                     );
                   })()}
 
-                  {/* Commentaires + ref projet + PDF */}
+                  {/* Commentaires / ref / PDF */}
                   {(e.commentaires || e.destockedProjectRef || e.mesuresCabinePdf) && (
                     <div className="mt-2 flex items-start gap-3 flex-wrap">
                       {(e.commentaires || e.destockedProjectRef) && (
@@ -736,12 +635,8 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                         </div>
                       )}
                       {e.mesuresCabinePdf && (
-                        <a
-                          href={e.mesuresCabinePdf}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:underline"
-                        >
+                        <a href={e.mesuresCabinePdf} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:underline">
                           <FileText className="w-3 h-3" />
                           {e.mesuresCabinePdfName || "Mesures PDF"}
                         </a>
@@ -750,41 +645,29 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                   )}
                 </div>
 
-                {/* Actions */}
+                {/* Actions — bouton modifier toujours visible */}
                 <div className="flex items-center gap-1 shrink-0">
-                  {e.status === "stock" ? (
-                    <>
-                      <Button
-                        onClick={() => handleDestock(e)}
-                        size="sm"
-                        className="gap-1.5 bg-gradient-to-r from-blue-500 to-cyan-400 text-white hover:from-blue-600 hover:to-cyan-500"
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                        Déstocker
-                      </Button>
-                      <button
-                        onClick={() => startEdit(e)}
-                        title="Modifier"
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700"
-                      >
-                        <FileText className="w-4 h-4" />
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => handleRestock(e)}
-                      title="Remettre en stock"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700"
-                    >
+                  {e.status === "stock" && (
+                    <Button onClick={() => handleDestock(e)} size="sm"
+                      className="gap-1.5 bg-gradient-to-r from-blue-500 to-cyan-400 text-white hover:from-blue-600 hover:to-cyan-500">
+                      <Archive className="w-3.5 h-3.5" />
+                      Déstocker
+                    </Button>
+                  )}
+                  {e.status === "destocke" && (
+                    <button onClick={() => handleRestock(e)} title="Remettre en stock"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700">
                       <Undo2 className="w-4 h-4" />
                     </button>
                   )}
+                  {/* Modifier — toujours disponible */}
+                  <button onClick={() => startEdit(e)} title="Modifier"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    <Pencil className="w-4 h-4" />
+                  </button>
                   {isAdmin && (
-                    <button
-                      onClick={() => handleDelete(e)}
-                      title="Supprimer (admin)"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
-                    >
+                    <button onClick={() => handleDelete(e)} title="Supprimer (admin)"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}

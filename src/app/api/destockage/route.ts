@@ -16,13 +16,14 @@ export interface StockCabine {
   destockedProjectRef: string; // référence libre vers le projet (ex: OFR, nom)
   createdAt: number;           // timestamp ms
   createdBy: string;           // email de l'utilisateur qui a créé l'entrée
-  // ── Nouvelles métadonnées cabine ──
+  // ── Métadonnées cabine ──
   photoCabine?: string;        // URL Cloudinary — photo représentative
   mesuresCabinePdf?: string;   // URL Cloudinary — fiche de mesures PDF
   mesuresCabinePdfName?: string; // Nom du fichier PDF original
   configuration?: string[];    // Niche | Angle | Quart de cercle | …
   version?: string[];          // Avec profiles | Sans profiles | Profils UP
   typeVerre?: string[];        // Transparent | Satiné | Discret | …
+  traitementVerre?: string[];  // Sans traitement | Traitement de surface | …
   couleur?: string[];          // Argent mat | Argent brillant | Noir mat | …
   prixAchat?: number;          // CHF
   prixVente?: number;          // CHF
@@ -30,6 +31,15 @@ export interface StockCabine {
 }
 
 const KEY = "destockage";
+
+function parseArr(v: unknown): string[] {
+  return Array.isArray(v) ? v : [];
+}
+function parsePrix(v: unknown): number | undefined {
+  if (v === "" || v === null || v === undefined) return undefined;
+  const n = parseFloat(String(v));
+  return isNaN(n) ? undefined : n;
+}
 
 export async function GET(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
@@ -68,16 +78,16 @@ export async function POST(request: NextRequest) {
     destockedProjectRef: "",
     createdAt: Date.now(),
     createdBy: user.email,
-    // Nouvelles métadonnées
     photoCabine: body.photoCabine || "",
     mesuresCabinePdf: body.mesuresCabinePdf || "",
     mesuresCabinePdfName: body.mesuresCabinePdfName || "",
-    configuration: Array.isArray(body.configuration) ? body.configuration : [],
-    version: Array.isArray(body.version) ? body.version : [],
-    typeVerre: Array.isArray(body.typeVerre) ? body.typeVerre : [],
-    couleur: Array.isArray(body.couleur) ? body.couleur : [],
-    prixAchat: typeof body.prixAchat === "number" ? body.prixAchat : (body.prixAchat ? parseFloat(body.prixAchat) : undefined),
-    prixVente: typeof body.prixVente === "number" ? body.prixVente : (body.prixVente ? parseFloat(body.prixVente) : undefined),
+    configuration: parseArr(body.configuration),
+    version: parseArr(body.version),
+    typeVerre: parseArr(body.typeVerre),
+    traitementVerre: parseArr(body.traitementVerre),
+    couleur: parseArr(body.couleur),
+    prixAchat: parsePrix(body.prixAchat),
+    prixVente: parsePrix(body.prixVente),
     mesuresApprox: (body.mesuresApprox || "").trim(),
   };
   all.unshift(entry);
@@ -98,35 +108,34 @@ export async function PATCH(request: NextRequest) {
   const idx = all.findIndex((e) => e.id === body.id);
   if (idx === -1) return NextResponse.json({ error: "Entrée introuvable" }, { status: 404 });
 
-  const current = all[idx];
+  const cur = all[idx];
   const updated: StockCabine = {
-    ...current,
-    serie: body.serie !== undefined ? String(body.serie).trim() : current.serie,
-    fournisseur: body.fournisseur !== undefined ? String(body.fournisseur).trim() : current.fournisseur,
-    quantity: body.quantity !== undefined ? Number(body.quantity) : current.quantity,
-    emplacement: body.emplacement !== undefined ? String(body.emplacement).trim() : current.emplacement,
-    dateArrivee: body.dateArrivee !== undefined ? String(body.dateArrivee) : current.dateArrivee,
-    commentaires: body.commentaires !== undefined ? String(body.commentaires).trim() : current.commentaires,
-    destockedProjectRef: body.destockedProjectRef !== undefined ? String(body.destockedProjectRef).trim() : current.destockedProjectRef,
-    // Nouvelles métadonnées
-    photoCabine: body.photoCabine !== undefined ? body.photoCabine : current.photoCabine,
-    mesuresCabinePdf: body.mesuresCabinePdf !== undefined ? body.mesuresCabinePdf : current.mesuresCabinePdf,
-    mesuresCabinePdfName: body.mesuresCabinePdfName !== undefined ? body.mesuresCabinePdfName : current.mesuresCabinePdfName,
-    configuration: body.configuration !== undefined ? (Array.isArray(body.configuration) ? body.configuration : []) : current.configuration,
-    version: body.version !== undefined ? (Array.isArray(body.version) ? body.version : []) : current.version,
-    typeVerre: body.typeVerre !== undefined ? (Array.isArray(body.typeVerre) ? body.typeVerre : []) : current.typeVerre,
-    couleur: body.couleur !== undefined ? (Array.isArray(body.couleur) ? body.couleur : []) : current.couleur,
-    prixAchat: body.prixAchat !== undefined ? (body.prixAchat === "" || body.prixAchat === null ? undefined : parseFloat(body.prixAchat)) : current.prixAchat,
-    prixVente: body.prixVente !== undefined ? (body.prixVente === "" || body.prixVente === null ? undefined : parseFloat(body.prixVente)) : current.prixVente,
-    mesuresApprox: body.mesuresApprox !== undefined ? String(body.mesuresApprox).trim() : current.mesuresApprox,
+    ...cur,
+    serie:               body.serie !== undefined ? String(body.serie).trim() : cur.serie,
+    fournisseur:         body.fournisseur !== undefined ? String(body.fournisseur).trim() : cur.fournisseur,
+    quantity:            body.quantity !== undefined ? Number(body.quantity) : cur.quantity,
+    emplacement:         body.emplacement !== undefined ? String(body.emplacement).trim() : cur.emplacement,
+    dateArrivee:         body.dateArrivee !== undefined ? String(body.dateArrivee) : cur.dateArrivee,
+    commentaires:        body.commentaires !== undefined ? String(body.commentaires).trim() : cur.commentaires,
+    destockedProjectRef: body.destockedProjectRef !== undefined ? String(body.destockedProjectRef).trim() : cur.destockedProjectRef,
+    photoCabine:         body.photoCabine !== undefined ? body.photoCabine : cur.photoCabine,
+    mesuresCabinePdf:    body.mesuresCabinePdf !== undefined ? body.mesuresCabinePdf : cur.mesuresCabinePdf,
+    mesuresCabinePdfName:body.mesuresCabinePdfName !== undefined ? body.mesuresCabinePdfName : cur.mesuresCabinePdfName,
+    configuration:       body.configuration !== undefined ? parseArr(body.configuration) : cur.configuration,
+    version:             body.version !== undefined ? parseArr(body.version) : cur.version,
+    typeVerre:           body.typeVerre !== undefined ? parseArr(body.typeVerre) : cur.typeVerre,
+    traitementVerre:     body.traitementVerre !== undefined ? parseArr(body.traitementVerre) : cur.traitementVerre,
+    couleur:             body.couleur !== undefined ? parseArr(body.couleur) : cur.couleur,
+    prixAchat:           body.prixAchat !== undefined ? parsePrix(body.prixAchat) : cur.prixAchat,
+    prixVente:           body.prixVente !== undefined ? parsePrix(body.prixVente) : cur.prixVente,
+    mesuresApprox:       body.mesuresApprox !== undefined ? String(body.mesuresApprox).trim() : cur.mesuresApprox,
   };
 
-  // Transition de statut
-  if (body.status === "destocke" && current.status !== "destocke") {
+  if (body.status === "destocke" && cur.status !== "destocke") {
     updated.status = "destocke";
     updated.destockedAt = new Date().toISOString().slice(0, 10);
     updated.destockedBy = user.name || user.email;
-  } else if (body.status === "stock" && current.status !== "stock") {
+  } else if (body.status === "stock" && cur.status !== "stock") {
     updated.status = "stock";
     updated.destockedAt = "";
     updated.destockedBy = "";
