@@ -2635,7 +2635,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           );
 
           return (
-            <div className="glass-card rounded-2xl p-4 space-y-3">
+            <div className="glass-card glass-panel rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Projets en cours ({filteredDossiers.length}{hasDossiersFilter ? ` / ${dossiersEnCoursProjects.length}` : ""})

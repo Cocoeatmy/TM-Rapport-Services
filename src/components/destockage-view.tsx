@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Package, Plus, Search, Loader2, Check, Trash2, Undo2, Calendar, MapPin, Hash, FileText } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Archive, Package, Plus, Search, Loader2, Check, Trash2, Undo2,
+  Calendar, MapPin, Hash, FileText, Camera, X, Banknote, Ruler,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
-/** Une entrée représente un lot de cabines physiquement présentes au
- *  dépôt / atelier, en attente d'être envoyées sur un chantier. */
+// ── Types ────────────────────────────────────────────────────────────────────
+
 interface StockCabine {
   id: string;
   serie: string;
@@ -23,9 +26,225 @@ interface StockCabine {
   destockedProjectRef: string;
   createdAt: number;
   createdBy: string;
+  // Métadonnées cabine
+  photoCabine?: string;
+  mesuresCabinePdf?: string;
+  mesuresCabinePdfName?: string;
+  configuration?: string[];
+  version?: string[];
+  typeVerre?: string[];
+  couleur?: string[];
+  prixAchat?: number;
+  prixVente?: number;
+  mesuresApprox?: string;
 }
 
 type Filter = "all" | "stock" | "destocke";
+
+// ── Options ──────────────────────────────────────────────────────────────────
+
+const CONFIG_OPTIONS = ["Niche", "Angle", "Quart de cercle", "Pentagonale", "Baignoire", 'Configuration "U"'];
+const VERSION_OPTIONS = ["Avec profiles", "Sans profiles", "Profils UP"];
+const VERRE_OPTIONS   = ["Transparent", "Satiné", "Discret", "Discret 2/3", "Miroir", "Fumé"];
+const COULEUR_OPTIONS = ["Argent mat", "Argent brillant", "Noir mat", "Inox", "Blanc", "Couleurs brushed"];
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+/** Sélecteur multi-choix en pills */
+function MultiSelect({
+  label,
+  options,
+  value,
+  onChange,
+  color = "blue",
+}: {
+  label: string;
+  options: string[];
+  value: string[];
+  onChange: (v: string[]) => void;
+  color?: "blue" | "violet" | "cyan" | "amber";
+}) {
+  const colorMap = {
+    blue:   { on: "bg-blue-500 text-white border-blue-500",   off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-blue-300" },
+    violet: { on: "bg-violet-500 text-white border-violet-500", off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300" },
+    cyan:   { on: "bg-cyan-500 text-white border-cyan-500",   off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-cyan-300" },
+    amber:  { on: "bg-amber-500 text-white border-amber-500", off: "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-amber-300" },
+  };
+  const cls = colorMap[color];
+
+  const toggle = (opt: string) =>
+    onChange(value.includes(opt) ? value.filter((v) => v !== opt) : [...value, opt]);
+
+  return (
+    <div>
+      <Label className="text-xs text-gray-600 dark:text-gray-300">{label}</Label>
+      <div className="flex flex-wrap gap-1.5 mt-1.5">
+        {options.map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => toggle(opt)}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+              value.includes(opt) ? cls.on : cls.off
+            }`}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Bouton upload photo ou PDF avec prévisualisation */
+function FileUploadField({
+  label,
+  type,
+  value,
+  valueName,
+  onUpload,
+  onRemove,
+}: {
+  label: string;
+  type: "photo" | "pdf";
+  value: string;
+  valueName?: string;
+  onUpload: (url: string, name?: string) => void;
+  onRemove: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const accept = type === "photo" ? "image/*" : "application/pdf";
+
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("type", type);
+      const res = await fetch("/api/destockage-upload", { method: "POST", body: fd });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || "Erreur upload");
+        return;
+      }
+      const data = await res.json();
+      onUpload(data.url as string, data.name as string);
+      toast.success(type === "photo" ? "Photo uploadée" : "PDF uploadé");
+    } catch {
+      toast.error("Erreur réseau");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div>
+      <Label className="text-xs text-gray-600 dark:text-gray-300">{label}</Label>
+      <div className="mt-1.5">
+        {value ? (
+          <div className="flex items-center gap-2">
+            {type === "photo" ? (
+              <a href={value} target="_blank" rel="noopener noreferrer" title="Voir en grand">
+                <img
+                  src={value}
+                  alt="Photo cabine"
+                  className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity"
+                />
+              </a>
+            ) : (
+              <a
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline max-w-[200px] truncate"
+              >
+                <FileText className="w-4 h-4 shrink-0" />
+                {valueName || "Mesures.pdf"}
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={onRemove}
+              className="w-6 h-6 flex items-center justify-center rounded-full text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 transition-colors"
+              title="Supprimer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 hover:border-blue-400 hover:text-blue-500 dark:hover:text-blue-400 transition-all disabled:opacity-50"
+          >
+            {uploading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : type === "photo" ? (
+              <Camera className="w-3.5 h-3.5" />
+            ) : (
+              <FileText className="w-3.5 h-3.5" />
+            )}
+            {uploading ? "Envoi en cours…" : label}
+          </button>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          onChange={handleChange}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Form state type ───────────────────────────────────────────────────────────
+
+type FormState = {
+  serie: string;
+  fournisseur: string;
+  quantity: number;
+  emplacement: string;
+  dateArrivee: string;
+  commentaires: string;
+  photoCabine: string;
+  mesuresCabinePdf: string;
+  mesuresCabinePdfName: string;
+  configuration: string[];
+  version: string[];
+  typeVerre: string[];
+  couleur: string[];
+  prixAchat: string;
+  prixVente: string;
+  mesuresApprox: string;
+};
+
+const EMPTY_FORM: FormState = {
+  serie: "",
+  fournisseur: "",
+  quantity: 1,
+  emplacement: "",
+  dateArrivee: new Date().toISOString().slice(0, 10),
+  commentaires: "",
+  photoCabine: "",
+  mesuresCabinePdf: "",
+  mesuresCabinePdfName: "",
+  configuration: [],
+  version: [],
+  typeVerre: [],
+  couleur: [],
+  prixAchat: "",
+  prixVente: "",
+  mesuresApprox: "",
+};
+
+// ── Main component ─────────────────────────────────────────────────────────────
 
 export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
   const [entries, setEntries] = useState<StockCabine[]>([]);
@@ -35,14 +254,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
   const [showAdd, setShowAdd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    serie: "",
-    fournisseur: "",
-    quantity: 1,
-    emplacement: "",
-    dateArrivee: new Date().toISOString().slice(0, 10),
-    commentaires: "",
-  });
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -64,8 +276,12 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
     return entries.filter((e) => {
       if (filter !== "all" && e.status !== filter) return false;
       if (!q) return true;
-      return [e.serie, e.fournisseur, e.emplacement, e.commentaires, e.destockedProjectRef]
-        .some((s) => (s || "").toLowerCase().includes(q));
+      return [
+        e.serie, e.fournisseur, e.emplacement, e.commentaires,
+        e.destockedProjectRef, e.mesuresApprox,
+        ...(e.configuration || []), ...(e.version || []),
+        ...(e.typeVerre || []), ...(e.couleur || []),
+      ].some((s) => (s || "").toLowerCase().includes(q));
     });
   }, [entries, filter, search]);
 
@@ -76,29 +292,23 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
     totalCabines: entries.filter((e) => e.status === "stock").reduce((s, e) => s + (e.quantity || 0), 0),
   }), [entries]);
 
-  const resetForm = () => setForm({
-    serie: "",
-    fournisseur: "",
-    quantity: 1,
-    emplacement: "",
-    dateArrivee: new Date().toISOString().slice(0, 10),
-    commentaires: "",
-  });
+  const resetForm = () => setForm({ ...EMPTY_FORM, dateArrivee: new Date().toISOString().slice(0, 10) });
 
   const handleSubmit = async () => {
-    if (!form.serie.trim()) {
-      toast.error("Série requise");
-      return;
-    }
+    if (!form.serie.trim()) { toast.error("Série requise"); return; }
     setSubmitting(true);
     try {
-      const url = "/api/destockage";
-      const method = editingId ? "PATCH" : "POST";
-      const body = editingId ? { ...form, id: editingId } : form;
-      const res = await fetch(url, {
-        method,
+      const payload = {
+        ...form,
+        quantity: form.quantity,
+        prixAchat: form.prixAchat !== "" ? parseFloat(form.prixAchat) : undefined,
+        prixVente: form.prixVente !== "" ? parseFloat(form.prixVente) : undefined,
+        ...(editingId ? { id: editingId } : {}),
+      };
+      const res = await fetch("/api/destockage", {
+        method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -127,15 +337,9 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: entry.id, status: "destocke", destockedProjectRef: ref }),
       });
-      if (res.ok) {
-        toast.success("Cabine déstockée");
-        refresh();
-      } else {
-        toast.error("Erreur lors du déstockage");
-      }
-    } catch {
-      toast.error("Erreur réseau");
-    }
+      if (res.ok) { toast.success("Cabine déstockée"); refresh(); }
+      else toast.error("Erreur lors du déstockage");
+    } catch { toast.error("Erreur réseau"); }
   };
 
   const handleRestock = async (entry: StockCabine) => {
@@ -146,10 +350,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: entry.id, status: "stock" }),
       });
-      if (res.ok) {
-        toast.success("Remis en stock");
-        refresh();
-      }
+      if (res.ok) { toast.success("Remis en stock"); refresh(); }
     } catch {}
   };
 
@@ -161,12 +362,8 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: entry.id }),
       });
-      if (res.ok) {
-        toast.success("Entrée supprimée");
-        refresh();
-      } else {
-        toast.error("Admin requis");
-      }
+      if (res.ok) { toast.success("Entrée supprimée"); refresh(); }
+      else toast.error("Admin requis");
     } catch {}
   };
 
@@ -179,19 +376,32 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
       emplacement: entry.emplacement,
       dateArrivee: entry.dateArrivee,
       commentaires: entry.commentaires,
+      photoCabine: entry.photoCabine || "",
+      mesuresCabinePdf: entry.mesuresCabinePdf || "",
+      mesuresCabinePdfName: entry.mesuresCabinePdfName || "",
+      configuration: entry.configuration || [],
+      version: entry.version || [],
+      typeVerre: entry.typeVerre || [],
+      couleur: entry.couleur || [],
+      prixAchat: entry.prixAchat != null ? String(entry.prixAchat) : "",
+      prixVente: entry.prixVente != null ? String(entry.prixVente) : "",
+      mesuresApprox: entry.mesuresApprox || "",
     });
     setShowAdd(true);
+    setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
   };
 
   const formatDate = (d: string) => {
     if (!d) return "---";
-    const dt = new Date(d + "T00:00:00");
-    return dt.toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" });
+    return new Date(d + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" });
   };
+
+  const formatPrix = (n?: number) =>
+    n != null ? `CHF ${n.toLocaleString("fr-CH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : null;
 
   return (
     <div className="space-y-4">
-      {/* En-tête + bouton "Nouvelle entrée" */}
+      {/* En-tête */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Package className="w-5 h-5 text-blue-600 dark:text-cyan-400" />
@@ -202,10 +412,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
           {counts.totalCabines > 0 && ` · ${counts.totalCabines} cabines`}
         </div>
         <div className="flex-1" />
-        <Button
-          onClick={() => { setEditingId(null); resetForm(); setShowAdd(true); }}
-          className="gap-2 glass-btn"
-        >
+        <Button onClick={() => { setEditingId(null); resetForm(); setShowAdd(true); }} className="gap-2 glass-btn">
           <Plus className="w-4 h-4" />
           Nouvelle entrée
         </Button>
@@ -235,7 +442,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
         <div className="relative max-w-sm flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
-            placeholder="Rechercher série, fournisseur..."
+            placeholder="Rechercher série, fournisseur…"
             className="pl-9 h-10 rounded-xl glass-input"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -243,77 +450,159 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
         </div>
       </div>
 
-      {/* Formulaire ajout / édition */}
+      {/* ── Formulaire ajout / édition ── */}
       {showAdd && (
-        <div className="glass-card rounded-2xl p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-              {editingId ? "Modifier l'entrée" : "Nouvelle entrée stock"}
-            </h3>
-          </div>
+        <div className="glass-card rounded-2xl p-5 space-y-4">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+            {editingId ? "Modifier l'entrée" : "Nouvelle entrée stock"}
+          </h3>
+
+          {/* Section 1 : Identité */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs text-gray-600 dark:text-gray-300">Série *</Label>
-              <Input
-                value={form.serie}
-                onChange={(e) => setForm({ ...form, serie: e.target.value })}
-                placeholder="Ex: Multi-S 4000"
-                className="mt-1 h-10 glass-input"
-              />
+              <Input value={form.serie} onChange={(e) => setForm({ ...form, serie: e.target.value })}
+                placeholder="Ex: Multi-S 4000" className="mt-1 h-10 glass-input" />
             </div>
             <div>
               <Label className="text-xs text-gray-600 dark:text-gray-300">Fournisseur</Label>
-              <Input
-                value={form.fournisseur}
-                onChange={(e) => setForm({ ...form, fournisseur: e.target.value })}
-                placeholder="Ex: Duka"
-                className="mt-1 h-10 glass-input"
-              />
+              <Input value={form.fournisseur} onChange={(e) => setForm({ ...form, fournisseur: e.target.value })}
+                placeholder="Ex: Duka" className="mt-1 h-10 glass-input" />
             </div>
             <div>
               <Label className="text-xs text-gray-600 dark:text-gray-300">Quantité</Label>
+              <Input type="number" min="1" value={form.quantity}
+                onChange={(e) => setForm({ ...form, quantity: Math.max(1, parseInt(e.target.value || "1", 10)) })}
+                className="mt-1 h-10 glass-input" />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-600 dark:text-gray-300">Date d&apos;arrivée</Label>
+              <Input type="date" value={form.dateArrivee}
+                onChange={(e) => setForm({ ...form, dateArrivee: e.target.value })}
+                className="mt-1 h-10 glass-input" />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs text-gray-600 dark:text-gray-300">Emplacement</Label>
+              <Input value={form.emplacement} onChange={(e) => setForm({ ...form, emplacement: e.target.value })}
+                placeholder="Ex: Dépôt TM Yverdon — Box 3" className="mt-1 h-10 glass-input" />
+            </div>
+          </div>
+
+          {/* Séparateur */}
+          <div className="h-px bg-gray-100 dark:bg-gray-700" />
+
+          {/* Section 2 : Caractéristiques */}
+          <div className="space-y-3">
+            <MultiSelect
+              label="Configuration"
+              options={CONFIG_OPTIONS}
+              value={form.configuration}
+              onChange={(v) => setForm({ ...form, configuration: v })}
+              color="violet"
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <MultiSelect
+                label="Version"
+                options={VERSION_OPTIONS}
+                value={form.version}
+                onChange={(v) => setForm({ ...form, version: v })}
+                color="blue"
+              />
+              <MultiSelect
+                label="Type de verre"
+                options={VERRE_OPTIONS}
+                value={form.typeVerre}
+                onChange={(v) => setForm({ ...form, typeVerre: v })}
+                color="cyan"
+              />
+            </div>
+            <MultiSelect
+              label="Couleur / Finition"
+              options={COULEUR_OPTIONS}
+              value={form.couleur}
+              onChange={(v) => setForm({ ...form, couleur: v })}
+              color="amber"
+            />
+          </div>
+
+          {/* Séparateur */}
+          <div className="h-px bg-gray-100 dark:bg-gray-700" />
+
+          {/* Section 3 : Prix + mesures */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-gray-600 dark:text-gray-300">Prix d&apos;achat (CHF)</Label>
               <Input
                 type="number"
-                min="1"
-                value={form.quantity}
-                onChange={(e) => setForm({ ...form, quantity: Math.max(1, parseInt(e.target.value || "1", 10)) })}
+                min="0"
+                step="0.01"
+                placeholder="Ex: 450.00"
+                value={form.prixAchat}
+                onChange={(e) => setForm({ ...form, prixAchat: e.target.value })}
                 className="mt-1 h-10 glass-input"
               />
             </div>
             <div>
-              <Label className="text-xs text-gray-600 dark:text-gray-300">Date d&apos;arrivée</Label>
+              <Label className="text-xs text-gray-600 dark:text-gray-300">Prix de vente (CHF)</Label>
               <Input
-                type="date"
-                value={form.dateArrivee}
-                onChange={(e) => setForm({ ...form, dateArrivee: e.target.value })}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Ex: 750.00"
+                value={form.prixVente}
+                onChange={(e) => setForm({ ...form, prixVente: e.target.value })}
                 className="mt-1 h-10 glass-input"
               />
             </div>
             <div className="sm:col-span-2">
-              <Label className="text-xs text-gray-600 dark:text-gray-300">Emplacement</Label>
+              <Label className="text-xs text-gray-600 dark:text-gray-300">Mesures approximatives</Label>
               <Input
-                value={form.emplacement}
-                onChange={(e) => setForm({ ...form, emplacement: e.target.value })}
-                placeholder="Ex: Dépôt TM Yverdon — Box 3"
-                className="mt-1 h-10 glass-input"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label className="text-xs text-gray-600 dark:text-gray-300">Commentaires</Label>
-              <Input
-                value={form.commentaires}
-                onChange={(e) => setForm({ ...form, commentaires: e.target.value })}
-                placeholder="Ex: OFR associée, couleur, particularités..."
+                value={form.mesuresApprox}
+                onChange={(e) => setForm({ ...form, mesuresApprox: e.target.value })}
+                placeholder="Ex: 90×90 cm, H=200 cm"
                 className="mt-1 h-10 glass-input"
               />
             </div>
           </div>
+
+          {/* Séparateur */}
+          <div className="h-px bg-gray-100 dark:bg-gray-700" />
+
+          {/* Section 4 : Fichiers */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FileUploadField
+              label="Photo cabine"
+              type="photo"
+              value={form.photoCabine}
+              onUpload={(url) => setForm({ ...form, photoCabine: url })}
+              onRemove={() => setForm({ ...form, photoCabine: "" })}
+            />
+            <FileUploadField
+              label="Fiche de mesures (PDF)"
+              type="pdf"
+              value={form.mesuresCabinePdf}
+              valueName={form.mesuresCabinePdfName}
+              onUpload={(url, name) => setForm({ ...form, mesuresCabinePdf: url, mesuresCabinePdfName: name || "" })}
+              onRemove={() => setForm({ ...form, mesuresCabinePdf: "", mesuresCabinePdfName: "" })}
+            />
+          </div>
+
+          {/* Séparateur */}
+          <div className="h-px bg-gray-100 dark:bg-gray-700" />
+
+          {/* Section 5 : Commentaires */}
+          <div>
+            <Label className="text-xs text-gray-600 dark:text-gray-300">Commentaires</Label>
+            <Input
+              value={form.commentaires}
+              onChange={(e) => setForm({ ...form, commentaires: e.target.value })}
+              placeholder="Ex: OFR associée, particularités…"
+              className="mt-1 h-10 glass-input"
+            />
+          </div>
+
           <div className="flex gap-2 justify-end pt-1">
-            <Button
-              variant="outline"
-              onClick={() => { setShowAdd(false); setEditingId(null); resetForm(); }}
-              disabled={submitting}
-            >
+            <Button variant="outline" onClick={() => { setShowAdd(false); setEditingId(null); resetForm(); }} disabled={submitting}>
               Annuler
             </Button>
             <Button onClick={handleSubmit} disabled={submitting} className="gap-2 glass-btn">
@@ -324,7 +613,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {/* Liste */}
+      {/* ── Liste ── */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -337,16 +626,25 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
       ) : (
         <div className="space-y-2">
           {filtered.map((e) => (
-            <div
-              key={e.id}
-              className={`glass-card rounded-2xl p-4 ${e.status === "destocke" ? "opacity-75" : ""}`}
-            >
-              <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div key={e.id} className={`glass-card rounded-2xl p-4 ${e.status === "destocke" ? "opacity-75" : ""}`}>
+              <div className="flex items-start gap-3">
+
+                {/* Photo miniature */}
+                {e.photoCabine && (
+                  <a href={e.photoCabine} target="_blank" rel="noopener noreferrer" className="shrink-0" title="Voir la photo">
+                    <img
+                      src={e.photoCabine}
+                      alt={e.serie}
+                      className="w-14 h-14 object-cover rounded-xl border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity"
+                    />
+                  </a>
+                )}
+
+                {/* Contenu principal */}
                 <div className="flex-1 min-w-0">
+                  {/* Titre + badges statut */}
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-semibold text-gray-900 dark:text-gray-100">
-                      {e.serie}
-                    </h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-gray-100">{e.serie}</h4>
                     {e.quantity > 1 && (
                       <span className="text-xs font-medium px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                         × {e.quantity}
@@ -360,43 +658,99 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                       {e.status === "stock" ? "En stock" : "Déstocké"}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 mt-2 text-xs text-gray-600 dark:text-gray-400">
+
+                  {/* Meta : fournisseur, emplacement, date, prix */}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-gray-600 dark:text-gray-400">
                     {e.fournisseur && (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         <Hash className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{e.fournisseur}</span>
+                        <span>{e.fournisseur}</span>
                       </div>
                     )}
                     {e.emplacement && (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         <MapPin className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{e.emplacement}</span>
+                        <span>{e.emplacement}</span>
                       </div>
                     )}
                     {e.dateArrivee && (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         <Calendar className="w-3 h-3 shrink-0" />
                         <span>Arrivé {formatDate(e.dateArrivee)}</span>
                       </div>
                     )}
                     {e.status === "destocke" && e.destockedAt && (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         <Archive className="w-3 h-3 shrink-0" />
                         <span>Sorti {formatDate(e.destockedAt)}{e.destockedBy ? ` · ${e.destockedBy}` : ""}</span>
                       </div>
                     )}
+                    {(e.prixAchat != null || e.prixVente != null) && (
+                      <div className="flex items-center gap-1">
+                        <Banknote className="w-3 h-3 shrink-0" />
+                        <span>
+                          {[
+                            e.prixAchat != null && `Achat ${formatPrix(e.prixAchat)}`,
+                            e.prixVente != null && `Vente ${formatPrix(e.prixVente)}`,
+                          ].filter(Boolean).join(" · ")}
+                        </span>
+                      </div>
+                    )}
+                    {e.mesuresApprox && (
+                      <div className="flex items-center gap-1">
+                        <Ruler className="w-3 h-3 shrink-0" />
+                        <span>{e.mesuresApprox}</span>
+                      </div>
+                    )}
                   </div>
-                  {(e.commentaires || e.destockedProjectRef) && (
-                    <div className="mt-2 text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
-                      <FileText className="w-3 h-3 shrink-0 mt-0.5" />
-                      <span>
-                        {e.destockedProjectRef && <strong className="text-gray-800 dark:text-gray-200">{e.destockedProjectRef}</strong>}
-                        {e.destockedProjectRef && e.commentaires && " — "}
-                        {e.commentaires}
-                      </span>
+
+                  {/* Pills : configuration, version, verre, couleur */}
+                  {(() => {
+                    const allTags = [
+                      ...(e.configuration || []).map((t) => ({ t, cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" })),
+                      ...(e.version || []).map((t) => ({ t, cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" })),
+                      ...(e.typeVerre || []).map((t) => ({ t, cls: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" })),
+                      ...(e.couleur || []).map((t) => ({ t, cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" })),
+                    ];
+                    if (allTags.length === 0) return null;
+                    return (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {allTags.map(({ t, cls }, i) => (
+                          <span key={i} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${cls}`}>{t}</span>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Commentaires + ref projet + PDF */}
+                  {(e.commentaires || e.destockedProjectRef || e.mesuresCabinePdf) && (
+                    <div className="mt-2 flex items-start gap-3 flex-wrap">
+                      {(e.commentaires || e.destockedProjectRef) && (
+                        <div className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
+                          <FileText className="w-3 h-3 shrink-0 mt-0.5" />
+                          <span>
+                            {e.destockedProjectRef && <strong className="text-gray-800 dark:text-gray-200">{e.destockedProjectRef}</strong>}
+                            {e.destockedProjectRef && e.commentaires && " — "}
+                            {e.commentaires}
+                          </span>
+                        </div>
+                      )}
+                      {e.mesuresCabinePdf && (
+                        <a
+                          href={e.mesuresCabinePdf}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          <FileText className="w-3 h-3" />
+                          {e.mesuresCabinePdfName || "Mesures PDF"}
+                        </a>
+                      )}
                     </div>
                   )}
                 </div>
+
+                {/* Actions */}
                 <div className="flex items-center gap-1 shrink-0">
                   {e.status === "stock" ? (
                     <>
