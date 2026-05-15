@@ -3958,12 +3958,13 @@ function ProjectPageContent({ id }: { id: string }) {
                         className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          {cabineDragMode && (
+                          {cabineDragMode ? (
                             <GripVertical className="w-4 h-4 text-gray-400 shrink-0" />
+                          ) : (
+                            <span className="w-8 h-8 rounded-full bg-[#1e3a5f] text-white text-sm font-bold flex items-center justify-center shrink-0">
+                              {idx + 1}
+                            </span>
                           )}
-                          <span className="w-8 h-8 rounded-full bg-[#1e3a5f] text-white text-sm font-bold flex items-center justify-center">
-                            {idx + 1}
-                          </span>
                           <span className="font-medium text-sm">{cabine.nom}</span>
                         </div>
                         {!cabineDragMode && (cabine.open ? (
