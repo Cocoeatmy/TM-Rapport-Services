@@ -32,6 +32,7 @@ import {
   Camera,
   ImagePlus,
   X,
+  GripVertical,
 } from "lucide-react";
 import { MontageChecklist } from "@/components/checklist";
 import { ProjectChat } from "@/components/project-chat";
@@ -2300,6 +2301,21 @@ function ProjectPageContent({ id }: { id: string }) {
   const [rapport, setRapport] = useState("");
   const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
+  // ── Drag-and-drop reorder cabines ────────────────────────────────────────
+  const [cabineDragMode, setCabineDragMode] = useState(false);
+  const [dragCabSrc, setDragCabSrc] = useState<number | null>(null);
+  const [dragCabOver, setDragCabOver] = useState<number | null>(null);
+  const cabineLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cabineTouchSrcRef = useRef<number | null>(null);
+  const reorderCabines = (srcIdx: number, dstIdx: number) => {
+    if (srcIdx === dstIdx) return;
+    setCabines(prev => {
+      const arr = [...prev];
+      const [moved] = arr.splice(srcIdx, 1);
+      arr.splice(dstIdx, 0, moved);
+      return arr;
+    });
+  };
   const [signature, setSignature] = useState("");
 
   // Restaure la signature depuis le localStorage tant que le projet n'a
@@ -3870,31 +3886,91 @@ function ProjectPageContent({ id }: { id: string }) {
                     <h3 className="text-sm font-semibold text-gray-700">
                       {cabines.length} cabines
                     </h3>
-                    <span className="text-xs text-gray-400">Cliquez pour déplier</span>
+                    <div className="flex items-center gap-2">
+                      {cabineDragMode ? (
+                        <button
+                          type="button"
+                          onClick={() => { setCabineDragMode(false); setDragCabSrc(null); setDragCabOver(null); }}
+                          className="text-xs font-semibold text-blue-600 px-2 py-1 rounded-lg bg-blue-50"
+                        >
+                          Terminer
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setCabineDragMode(true)}
+                          className="text-xs text-gray-400 flex items-center gap-1 hover:text-gray-600"
+                        >
+                          <GripVertical className="w-3.5 h-3.5" />
+                          Réorganiser
+                        </button>
+                      )}
+                      {!cabineDragMode && <span className="text-xs text-gray-400">Cliquez pour déplier</span>}
+                    </div>
                   </div>
 
                   {cabines.map((cabine, idx) => (
-                    <Card key={idx} className="overflow-hidden">
+                    <Card
+                      key={idx}
+                      data-cabineidx={idx}
+                      className={`overflow-hidden transition-all ${cabineDragMode ? "cursor-grab active:cursor-grabbing" : ""} ${dragCabOver === idx && dragCabSrc !== idx ? "ring-2 ring-blue-400 ring-offset-1" : ""} ${dragCabSrc === idx ? "opacity-50" : ""}`}
+                      draggable={cabineDragMode}
+                      onDragStart={() => { if (cabineDragMode) setDragCabSrc(idx); }}
+                      onDragOver={(e) => { e.preventDefault(); if (cabineDragMode && dragCabSrc !== null) setDragCabOver(idx); }}
+                      onDrop={() => { if (cabineDragMode && dragCabSrc !== null) { reorderCabines(dragCabSrc, idx); setDragCabSrc(null); setDragCabOver(null); } }}
+                      onDragEnd={() => { setDragCabSrc(null); setDragCabOver(null); }}
+                    >
                       <button
                         type="button"
                         onClick={() => {
+                          if (cabineDragMode) return;
                           setCabines((prev) =>
                             prev.map((c, i) => (i === idx ? { ...c, open: !c.open } : c))
                           );
                         }}
+                        onTouchStart={() => {
+                          if (cabineDragMode) { cabineTouchSrcRef.current = idx; return; }
+                          cabineLongPressTimer.current = setTimeout(() => {
+                            setCabineDragMode(true);
+                            cabineTouchSrcRef.current = idx;
+                            setDragCabSrc(idx);
+                          }, 500);
+                        }}
+                        onTouchEnd={() => {
+                          if (cabineLongPressTimer.current) { clearTimeout(cabineLongPressTimer.current); cabineLongPressTimer.current = null; }
+                          if (cabineDragMode && cabineTouchSrcRef.current !== null && dragCabOver !== null && cabineTouchSrcRef.current !== dragCabOver) {
+                            reorderCabines(cabineTouchSrcRef.current, dragCabOver);
+                          }
+                          cabineTouchSrcRef.current = null;
+                          setDragCabSrc(null);
+                          setDragCabOver(null);
+                        }}
+                        onTouchMove={(e) => {
+                          if (!cabineDragMode) { if (cabineLongPressTimer.current) { clearTimeout(cabineLongPressTimer.current); cabineLongPressTimer.current = null; } return; }
+                          const touch = e.touches[0];
+                          const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                          const card = el?.closest("[data-cabineidx]");
+                          if (card) {
+                            const overIdx = parseInt(card.getAttribute("data-cabineidx") || "-1", 10);
+                            if (overIdx >= 0 && overIdx !== dragCabOver) setDragCabOver(overIdx);
+                          }
+                        }}
                         className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition-colors"
                       >
                         <div className="flex items-center gap-3">
+                          {cabineDragMode && (
+                            <GripVertical className="w-4 h-4 text-gray-400 shrink-0" />
+                          )}
                           <span className="w-8 h-8 rounded-full bg-[#1e3a5f] text-white text-sm font-bold flex items-center justify-center">
                             {idx + 1}
                           </span>
                           <span className="font-medium text-sm">{cabine.nom}</span>
                         </div>
-                        {cabine.open ? (
+                        {!cabineDragMode && (cabine.open ? (
                           <ChevronUp className="w-4 h-4 text-gray-400" />
                         ) : (
                           <ChevronDown className="w-4 h-4 text-gray-400" />
-                        )}
+                        ))}
                       </button>
 
                       {cabine.open && (
