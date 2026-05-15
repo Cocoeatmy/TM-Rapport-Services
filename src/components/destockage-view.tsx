@@ -618,31 +618,31 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                     </span>
                   </div>
 
-                  {/* Meta — grille 2 col sur mobile, flex-wrap sur desktop */}
-                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-gray-600 dark:text-gray-400">
+                  {/* Meta — flex-wrap, pas de truncate */}
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-gray-600 dark:text-gray-400">
                     {e.fournisseur && (
-                      <div className="flex items-center gap-1 min-w-0"><Hash className="w-3 h-3 shrink-0" /><span className="truncate">{e.fournisseur}</span></div>
+                      <div className="flex items-center gap-1"><Hash className="w-3 h-3 shrink-0" /><span>{e.fournisseur}</span></div>
                     )}
                     {e.numeroArticle && (
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span className="font-mono text-[10px] bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded truncate">
+                      <div className="flex items-center gap-1">
+                        <span className="font-mono text-[10px] bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
                           {e.numeroArticle}
                         </span>
                       </div>
                     )}
                     {e.emplacement && (
-                      <div className="flex items-center gap-1 min-w-0"><MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{e.emplacement}</span></div>
+                      <div className="flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0" /><span>{e.emplacement}</span></div>
                     )}
                     {e.dateArrivee && (
-                      <div className="flex items-center gap-1 min-w-0"><Calendar className="w-3 h-3 shrink-0" /><span className="truncate">Arrivé {formatDate(e.dateArrivee)}</span></div>
+                      <div className="flex items-center gap-1"><Calendar className="w-3 h-3 shrink-0" /><span>Arrivé {formatDate(e.dateArrivee)}</span></div>
                     )}
                     {e.status === "destocke" && e.destockedAt && (
-                      <div className="flex items-center gap-1 col-span-2 sm:col-span-1 min-w-0"><Archive className="w-3 h-3 shrink-0" /><span className="truncate">Sorti {formatDate(e.destockedAt)}{e.destockedBy ? ` · ${e.destockedBy}` : ""}</span></div>
+                      <div className="flex items-center gap-1"><Archive className="w-3 h-3 shrink-0" /><span>Sorti {formatDate(e.destockedAt)}{e.destockedBy ? ` · ${e.destockedBy}` : ""}</span></div>
                     )}
                     {(e.prixAchat != null || e.prixVente != null) && (
-                      <div className="flex items-center gap-1 col-span-2 sm:col-span-1 min-w-0">
+                      <div className="flex items-center gap-1">
                         <Banknote className="w-3 h-3 shrink-0" />
-                        <span className="truncate">
+                        <span>
                           {[
                             e.prixAchat != null && `Achat ${formatPrix(e.prixAchat)}`,
                             e.prixVente != null && `Vente ${formatPrix(e.prixVente)}`,
@@ -651,7 +651,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     )}
                     {e.mesuresApprox && (
-                      <div className="flex items-center gap-1 min-w-0"><Ruler className="w-3 h-3 shrink-0" /><span className="truncate">{e.mesuresApprox}</span></div>
+                      <div className="flex items-center gap-1"><Ruler className="w-3 h-3 shrink-0" /><span>{e.mesuresApprox}</span></div>
                     )}
                   </div>
 
@@ -683,7 +683,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                       {(e.commentaires || e.destockedProjectRef) && (
                         <div className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
                           <FileText className="w-3 h-3 shrink-0 mt-0.5" />
-                          <span>
+                          <span className="line-clamp-2">
                             {e.destockedProjectRef && <strong className="text-gray-800 dark:text-gray-200">{e.destockedProjectRef}</strong>}
                             {e.destockedProjectRef && e.commentaires && " — "}
                             {e.commentaires}
