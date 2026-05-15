@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive, Package, Plus, Search, Loader2, Check, Trash2, Undo2,
-  Calendar, MapPin, Hash, FileText, Camera, X, Banknote, Ruler, Pencil, FileDown,
+  Calendar, MapPin, Hash, FileText, Camera, X, Banknote, Ruler, Pencil, FileDown, FolderDown,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -409,6 +409,17 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
           )}
         </div>
         <div className="flex-1" />
+        <a
+          href={`/api/destockage/pdf/all?filter=${filter}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`Exporter toutes les fiches PDF (vue actuelle)`}
+        >
+          <Button variant="outline" className="gap-2">
+            <FolderDown className="w-4 h-4" />
+            Exporter PDF
+          </Button>
+        </a>
         <Button onClick={() => { setEditingId(null); resetForm(); setShowAdd(true); }} className="gap-2 glass-btn">
           <Plus className="w-4 h-4" />
           Nouvelle entrée
