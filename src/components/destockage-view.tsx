@@ -213,8 +213,8 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId]   = useState<string | null>(null);
   const [form, setForm]             = useState<FormState>(EMPTY_FORM);
-  // Photo hover zoom
-  const [hoveredPhotoId, setHoveredPhotoId] = useState<string | null>(null);
+  // Photo hover zoom — position fixe pour échapper aux stacking contexts (backdrop-filter)
+  const [hoveredPhoto, setHoveredPhoto] = useState<{ src: string; x: number; y: number } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -363,6 +363,19 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="space-y-4">
+      {/* Aperçu photo agrandi — position fixed pour échapper aux stacking contexts */}
+      {hoveredPhoto && (
+        <div
+          className="fixed z-[9999] pointer-events-none"
+          style={{ left: hoveredPhoto.x, top: hoveredPhoto.y }}
+        >
+          <img
+            src={hoveredPhoto.src}
+            alt="Aperçu cabine"
+            className="w-56 h-56 object-cover rounded-2xl shadow-2xl border-2 border-white dark:border-gray-700"
+          />
+        </div>
+      )}
 
       {/* En-tête */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -540,29 +553,28 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
             <div key={e.id} className={`glass-card rounded-2xl p-4 ${e.status === "destocke" ? "opacity-75" : ""}`}>
               <div className="flex items-start gap-3">
 
-                {/* Photo miniature avec zoom au hover */}
+                {/* Photo miniature — zoom fixe au survol, cliquable pour ouvrir */}
                 {e.photoCabine && (
                   <div
-                    className="relative shrink-0"
-                    onMouseEnter={() => setHoveredPhotoId(e.id)}
-                    onMouseLeave={() => setHoveredPhotoId(null)}
-                    style={{ zIndex: hoveredPhotoId === e.id ? 50 : "auto" }}
+                    className="shrink-0"
+                    onMouseEnter={(ev) => {
+                      const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+                      const pw = 224, ph = 224, mg = 12;
+                      let x = rect.right + mg;
+                      let y = rect.top;
+                      if (x + pw > window.innerWidth)  x = rect.left - pw - mg;
+                      if (y + ph > window.innerHeight) y = window.innerHeight - ph - mg;
+                      setHoveredPhoto({ src: e.photoCabine!, x, y });
+                    }}
+                    onMouseLeave={() => setHoveredPhoto(null)}
                   >
-                    <img
-                      src={e.photoCabine}
-                      alt={e.serie}
-                      className="w-14 h-14 object-cover rounded-xl border border-gray-200 dark:border-gray-600 cursor-zoom-in"
-                    />
-                    {/* Aperçu agrandi au survol */}
-                    {hoveredPhotoId === e.id && (
-                      <div className="absolute left-16 top-0 z-[60] pointer-events-none">
-                        <img
-                          src={e.photoCabine}
-                          alt={e.serie}
-                          className="w-56 h-56 object-cover rounded-2xl shadow-2xl border-2 border-white dark:border-gray-700"
-                        />
-                      </div>
-                    )}
+                    <a href={e.photoCabine} target="_blank" rel="noopener noreferrer" title="Ouvrir la photo">
+                      <img
+                        src={e.photoCabine}
+                        alt={e.serie}
+                        className="w-14 h-14 object-cover rounded-xl border border-gray-200 dark:border-gray-600 cursor-zoom-in hover:opacity-90 transition-opacity"
+                      />
+                    </a>
                   </div>
                 )}
 
