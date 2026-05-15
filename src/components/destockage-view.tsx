@@ -245,12 +245,17 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
     });
   }, [entries, filter, search]);
 
-  const counts = useMemo(() => ({
-    all: entries.length,
-    stock: entries.filter((e) => e.status === "stock").length,
-    destocke: entries.filter((e) => e.status === "destocke").length,
-    totalCabines: entries.filter((e) => e.status === "stock").reduce((s, e) => s + (e.quantity || 0), 0),
-  }), [entries]);
+  const counts = useMemo(() => {
+    const inStock = entries.filter((e) => e.status === "stock");
+    return {
+      all: entries.length,
+      stock: inStock.length,
+      destocke: entries.filter((e) => e.status === "destocke").length,
+      totalCabines: inStock.reduce((s, e) => s + (e.quantity || 0), 0),
+      valeurBrut: inStock.reduce((s, e) => s + (e.prixVente ?? 0) * (e.quantity || 1), 0),
+      valeurNet:  inStock.reduce((s, e) => s + (e.prixAchat ?? 0) * (e.quantity || 1), 0),
+    };
+  }, [entries]);
 
   const resetForm = () => setForm({ ...EMPTY_FORM, dateArrivee: new Date().toISOString().slice(0, 10) });
 
@@ -383,9 +388,25 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
           <Package className="w-5 h-5 text-blue-600 dark:text-cyan-400" />
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Déstockage</h1>
         </div>
-        <div className="text-sm text-gray-500 dark:text-gray-400">
-          {counts.stock} entrée{counts.stock > 1 ? "s" : ""} en stock
-          {counts.totalCabines > 0 && ` · ${counts.totalCabines} cabines`}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+          <span>{counts.stock} entrée{counts.stock > 1 ? "s" : ""} en stock{counts.totalCabines > 0 && ` · ${counts.totalCabines} cabines`}</span>
+          {(counts.valeurBrut > 0 || counts.valeurNet > 0) && (
+            <span className="flex items-center gap-3 text-xs font-medium">
+              <span className="flex items-center gap-1">
+                <span className="text-gray-400">BRUT</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                  CHF {counts.valeurBrut.toLocaleString("fr-CH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </span>
+              </span>
+              <span className="text-gray-300 dark:text-gray-600">|</span>
+              <span className="flex items-center gap-1">
+                <span className="text-gray-400">NET</span>
+                <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                  CHF {counts.valeurNet.toLocaleString("fr-CH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </span>
+              </span>
+            </span>
+          )}
         </div>
         <div className="flex-1" />
         <Button onClick={() => { setEditingId(null); resetForm(); setShowAdd(true); }} className="gap-2 glass-btn">
