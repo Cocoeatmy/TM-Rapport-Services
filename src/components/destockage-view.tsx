@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive, Package, Plus, Search, Loader2, Check, Trash2, Undo2,
-  Calendar, MapPin, Hash, FileText, Camera, X, Banknote, Ruler, Pencil,
+  Calendar, MapPin, Hash, FileText, Camera, X, Banknote, Ruler, Pencil, FileDown,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -619,8 +619,13 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                         {e.status === "stock" ? "En stock" : "Déstocké"}
                       </span>
                     </div>
-                    {/* Icônes — crayon + poubelle uniquement (petits, ne volent pas d'espace) */}
+                    {/* Icônes — PDF + crayon + poubelle (petits, ne volent pas d'espace) */}
                     <div className="flex items-center gap-0.5 shrink-0 -mt-0.5">
+                      <a href={`/api/destockage/pdf?id=${e.id}`} target="_blank" rel="noopener noreferrer"
+                        title="Générer fiche PDF"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors">
+                        <FileDown className="w-3.5 h-3.5" />
+                      </a>
                       <button onClick={() => startEdit(e)} title="Modifier"
                         className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-colors">
                         <Pencil className="w-3.5 h-3.5" />
