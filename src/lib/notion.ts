@@ -804,6 +804,7 @@ export async function updateProject(
     bonLivraison?: string;
     etatCMD?: string;
     etatMesures?: string;
+    etatSAV?: string;
     contacts?: string;
     contactsRDV?: string;
     commentairesMesures?: string;
@@ -924,6 +925,11 @@ export async function updateProject(
   if (data.etatMesures !== undefined) {
     properties["État - Mesures"] = {
       status: { name: data.etatMesures },
+    };
+  }
+  if (data.etatSAV !== undefined) {
+    properties["État - SAV"] = {
+      status: { name: data.etatSAV },
     };
   }
   if (data.contacts !== undefined) {

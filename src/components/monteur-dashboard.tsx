@@ -1231,6 +1231,34 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchDragIdRef = useRef<string | null>(null);
 
+  // ── Édition inline État SAV ───────────────────────────────────────────────
+  const [editingSavId, setEditingSavId] = useState<string | null>(null);
+  const [savEtatOverride, setSavEtatOverride] = useState<Record<string, string>>({});
+  const SAV_ETAT_OPTIONS = [
+    "Aucun SAV", "A contacter", "Contact sans réponse",
+    "Attente news", "En cours de traitement", "RDV fixé", "Terminé",
+  ];
+  const SAV_ETAT_COLORS: Record<string, string> = {
+    "Aucun SAV":              "bg-gray-100 text-gray-500",
+    "A contacter":            "bg-red-100 text-red-700",
+    "Contact sans réponse":   "bg-orange-100 text-orange-700",
+    "Attente news":           "bg-yellow-100 text-yellow-700",
+    "En cours de traitement": "bg-blue-100 text-blue-700",
+    "RDV fixé":               "bg-green-100 text-green-700",
+    "Terminé":                "bg-gray-200 text-gray-600",
+  };
+  const updateSavEtat = async (projectId: string, newEtat: string) => {
+    setSavEtatOverride(prev => ({ ...prev, [projectId]: newEtat }));
+    setEditingSavId(null);
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ etatSAV: newEtat }),
+      });
+    } catch {}
+  };
+
   // ── Tris "RDV à fixer" — un config par catégorie (clé = titre) ──────────
   type RdvSortKey = "date" | "days" | "cabines";
   type RdvSortDir = "asc" | "desc";
@@ -3521,6 +3549,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {!isEmplacementCabines && !isAFacturer && <span className="w-20 shrink-0 hidden sm:block">N° Mes. Fourn.</span>}
                 {!isEmplacementCabines && !isAFacturer && <span className="w-20 shrink-0 hidden sm:block">N° CMD Fourn.</span>}
                 <span className="flex-1">Projet</span>
+                {showSummaryPanel === "sav-non-traites" && <span className="w-32 shrink-0 hidden sm:block">État SAV</span>}
                 <span className="w-14 text-right">Cabines</span>
               </div>
             )}
@@ -3958,6 +3987,36 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         {p.dateMontageEnd && (() => { const days = getWorkingDays(p.dateMontage || "", p.dateMontageEnd); return days.length > 1 ? (
                           <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{days.length}j</span>
                         ) : null; })()}
+                        {/* État SAV inline edit — visible uniquement dans le panel SAV non traités */}
+                        {showSummaryPanel === "sav-non-traites" && (() => {
+                          const currentEtat = savEtatOverride[p.id] ?? p.etatSAV ?? "";
+                          if (editingSavId === p.id) {
+                            return (
+                              <div className="shrink-0 relative z-10" onClick={e => e.preventDefault()}>
+                                <select
+                                  autoFocus
+                                  value={currentEtat}
+                                  onChange={e => updateSavEtat(p.id, e.target.value)}
+                                  onBlur={() => setEditingSavId(null)}
+                                  className="text-[10px] px-2 py-1 rounded-lg border border-blue-300 bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 shadow-md outline-none"
+                                >
+                                  {SAV_ETAT_OPTIONS.map(opt => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          }
+                          return (
+                            <button
+                              type="button"
+                              onClick={e => { e.preventDefault(); setEditingSavId(p.id); }}
+                              className={`shrink-0 text-[9px] font-semibold px-2 py-1 rounded-full whitespace-nowrap hover:opacity-80 transition-opacity ${SAV_ETAT_COLORS[currentEtat] || "bg-gray-100 text-gray-400"}`}
+                            >
+                              {currentEtat || "—"}
+                            </button>
+                          );
+                        })()}
                         <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
                       </Link>
                     );
