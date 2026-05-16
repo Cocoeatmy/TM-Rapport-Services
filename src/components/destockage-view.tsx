@@ -420,10 +420,12 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
             Exporter PDF
           </Button>
         </a>
-        <Button onClick={() => { setEditingId(null); resetForm(); setShowAdd(true); }} className="gap-2 glass-btn">
-          <Plus className="w-4 h-4" />
-          Nouvelle entrée
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => { setEditingId(null); resetForm(); setShowAdd(true); }} className="gap-2 glass-btn">
+            <Plus className="w-4 h-4" />
+            Nouvelle entrée
+          </Button>
+        )}
       </div>
 
       {/* Filtres + recherche */}
@@ -650,8 +652,8 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                     </div>
                   </div>
 
-                  {/* Bouton Déstocker / Remettre en stock — sous le titre, gauche */}
-                  {e.status === "stock" ? (
+                  {/* Bouton Déstocker / Remettre en stock — admin seulement */}
+                  {isAdmin && (e.status === "stock" ? (
                     <div className="mt-2">
                       <Button onClick={() => handleDestock(e)} size="sm"
                         className="gap-1.5 bg-gradient-to-r from-blue-500 to-cyan-400 text-white hover:from-blue-600 hover:to-cyan-500">
@@ -667,7 +669,7 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
                         Remettre en stock
                       </button>
                     </div>
-                  )}
+                  ))}
 
                   {/* Meta */}
                   <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-gray-600 dark:text-gray-400">
