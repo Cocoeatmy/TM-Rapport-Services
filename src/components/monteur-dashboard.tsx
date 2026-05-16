@@ -1275,7 +1275,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   };
 
   // ── Tris "RDV à fixer" — un config par catégorie (clé = titre) ──────────
-  type RdvSortKey = "date" | "days" | "cabines";
+  type RdvSortKey = "date" | "days" | "cabines" | "localite";
   type RdvSortDir = "asc" | "desc";
   const [rdvSortConfig, setRdvSortConfig] = useState<Record<string, { key: RdvSortKey; dir: RdvSortDir }>>({});
   const toggleRdvSort = (catKey: string, key: RdvSortKey) => {
@@ -1306,7 +1306,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [dossiersFilterType, setDossiersFilterType] = useState("");
   const [dossiersFilterFrom, setDossiersFilterFrom] = useState("");
   const [dossiersFilterTo, setDossiersFilterTo] = useState("");
-  const [rdvLocaliteFilter, setRdvLocaliteFilter] = useState("");
 
   // Tous les projets actifs (non-Terminé, non-Annulé) pour les stats globales
   // (ex. "Projets en cours" = 209 projets, pas seulement les 80 de l'onglet CMD).
@@ -2772,42 +2771,35 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           panelProjects = aFacturerProjects;
         } else if (showSummaryPanel === "rdv-a-fixer") {
           /**
-           * Extrait la ville depuis "... à 1234 Ville" ou "... 1234 Ville".
-           * Cherche d'abord dans adresseChantier, puis dans le nom du projet
-           * (car l'adresse est souvent intégrée au nom : "Duka - Getaz Bulle - … à 1752 Villars-sur-Glâne").
+           * Extrait le NPA (4 chiffres) depuis adresseChantier ou le nom du projet.
+           * Le NPA est la première séquence de 4 chiffres trouvée.
            */
-          const extractCity = (addr: string, projectName?: string): string => {
+          const extractNPA = (addr: string, projectName?: string): string => {
             for (const text of [addr, projectName]) {
               if (!text) continue;
-              // Pattern: "à 1234 Ville" ou juste "1234 Ville" en fin de chaîne
-              const m = text.match(/\d{4}\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s\-\.]+?)(?:\s*[-–(].*)?$/);
-              if (m) return m[1].trim();
+              const m = text.match(/\b(\d{4})\b/);
+              if (m) return m[1];
             }
-            // Dernier mot de l'adresse comme ultime fallback
-            if (addr) {
-              const words = addr.trim().split(/\s+/);
-              return words[words.length - 1] || "";
-            }
-            return "";
+            return "9999"; // trie en dernier si pas de NPA
           };
 
           // Split into 3 categories
           const montageStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
           const mesuresStatuses = ["Pas contacté", "Contact sans réponse"];
 
-          const montageProjectsAll = projects.filter((p) => montageStatuses.includes(p.etatCMD))
+          const montageProjects = projects.filter((p) => montageStatuses.includes(p.etatCMD))
             .sort((a, b) => {
               const da = (a.arrivageTM || a.arrivageGrossiste || "z").split("T")[0];
               const db = (b.arrivageTM || b.arrivageGrossiste || "z").split("T")[0];
               return da.localeCompare(db);
             });
 
-          const mesuresProjectsAll = projects.filter((p) => p.etatCMD === "En attente de mesures" && mesuresStatuses.includes(p.etatMesures))
+          const mesuresProjects = projects.filter((p) => p.etatCMD === "En attente de mesures" && mesuresStatuses.includes(p.etatMesures))
             .sort((a, b) => ((a.dateMesuresRecue || a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMesuresRecue || b.dateMesures || "z").split("T")[0]));
 
           // "Services à planifier" = uniquement les projets dont au moins un typeService
           // est "Services" ou commence par "Service" (ex. "Services + Démontage").
-          const servicesProjectsAll = projects.filter((p) =>
+          const servicesProjects = projects.filter((p) =>
             montageStatuses.includes(p.etatCMD) &&
             p.typeServices &&
             p.typeServices.some((t) => t.toLowerCase().startsWith("service"))
@@ -2815,23 +2807,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
           // SAV à contacter
           const savAFixerStatuses2 = ["A contacter", "Contact sans réponse", "Attente news", "En cours de traitement"];
-          const savAFixerProjectsAll = projects.filter(
+          const savAFixerProjects = projects.filter(
             (p) => (p as any)._source === "sav" && savAFixerStatuses2.includes(p.etatSAV)
           ).sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
-
-          // ── Filtre par localité ────────────────────────────────────────────────
-          const allRdvProjects = [...montageProjectsAll, ...mesuresProjectsAll, ...servicesProjectsAll, ...savAFixerProjectsAll];
-          const localites = Array.from(
-            new Set(allRdvProjects.map((p) => extractCity(p.adresseChantier, p.projet)).filter(Boolean))
-          ).sort((a, b) => a.localeCompare(b, "fr"));
-
-          const applyLocalite = (list: Project[]) =>
-            rdvLocaliteFilter ? list.filter((p) => extractCity(p.adresseChantier, p.projet) === rdvLocaliteFilter) : list;
-
-          const montageProjects = applyLocalite(montageProjectsAll);
-          const mesuresProjects = applyLocalite(mesuresProjectsAll);
-          const servicesProjects = applyLocalite(servicesProjectsAll);
-          const savAFixerProjects = applyLocalite(savAFixerProjectsAll);
 
           // Remove services from montage list to avoid duplicates
           const pureMontageProjets = montageProjects.filter((p) => !servicesProjects.some((s) => s.id === p.id));
@@ -2867,6 +2845,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 const diff = (a.nbCabines || 0) - (b.nbCabines || 0);
                 return curSort.dir === "asc" ? diff : -diff;
               }
+              if (curSort.key === "localite") {
+                const na = extractNPA(a.adresseChantier, a.projet);
+                const nb = extractNPA(b.adresseChantier, b.projet);
+                const cmp = na.localeCompare(nb);
+                return curSort.dir === "asc" ? cmp : -cmp;
+              }
               // "date" : plus ancienne en premier (asc) ; "days" : J+ le plus bas en premier (asc = date desc)
               const da = getRefDate(a, useDateField) || "9999-99-99";
               const db = getRefDate(b, useDateField) || "9999-99-99";
@@ -2886,7 +2870,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               <div key={title} className="mb-4">
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-1.5 ${bgColor}`}>
                   <span className={`text-[12px] font-bold ${color} shrink-0`}>{title}</span>
-                  {/* Boutons de tri */}
+                  {/* Boutons de tri texte */}
                   <div className="flex items-center gap-1 ml-2">
                     {sortBtns.map(({ key, label }) => {
                       const active = curSort.key === key;
@@ -2905,6 +2889,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         </button>
                       );
                     })}
+                    {/* Bouton tri par NPA (localité) */}
+                    {(() => {
+                      const active = curSort.key === "localite";
+                      return (
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleRdvSort(title, "localite"); }}
+                          title={`Trier par NPA${active ? (curSort.dir === "asc" ? " ↑" : " ↓") : ""}`}
+                          className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md transition-colors ${
+                            active
+                              ? "bg-white/80 dark:bg-white/20 shadow-sm " + color
+                              : "bg-white/30 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-white/15"
+                          }`}
+                        >
+                          <MapPin className="w-2.5 h-2.5" />
+                          {active && <span className="text-[9px] font-bold">{curSort.dir === "asc" ? "↑" : "↓"}</span>}
+                        </button>
+                      );
+                    })()}
                   </div>
                   <div className="ml-auto flex items-center gap-1 shrink-0">
                     <span className="text-[10px] font-semibold bg-white/60 dark:bg-white/10 px-2 py-0.5 rounded-full">
@@ -3059,53 +3061,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
           return (
             <div className="glass-card rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  RDV à fixer ({totalCount})
-                </p>
-                {rdvLocaliteFilter && (
-                  <button onClick={() => setRdvLocaliteFilter("")}
-                    className="text-[10px] text-orange-600 dark:text-orange-400 font-medium hover:underline">
-                    ✕ {rdvLocaliteFilter}
-                  </button>
-                )}
-              </div>
-              {/* Filtre localité */}
-              {localites.length > 1 && (
-                <div className="flex gap-1.5 overflow-x-auto pb-1.5 mb-3 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
-                  <button
-                    onClick={() => setRdvLocaliteFilter("")}
-                    className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${
-                      !rdvLocaliteFilter
-                        ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
-                        : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-gray-400"
-                    }`}
-                  >
-                    Toutes
-                  </button>
-                  {localites.map((loc) => {
-                    const count = allRdvProjects.filter((p) => extractCity(p.adresseChantier, p.projet) === loc).length;
-                    return (
-                      <button
-                        key={loc}
-                        onClick={() => setRdvLocaliteFilter(rdvLocaliteFilter === loc ? "" : loc)}
-                        className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-colors whitespace-nowrap ${
-                          rdvLocaliteFilter === loc
-                            ? "bg-orange-500 text-white border-orange-500"
-                            : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-orange-300"
-                        }`}
-                      >
-                        {loc} <span className="opacity-70">({count})</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">RDV à fixer ({totalCount})</p>
               {renderCategory("Mesures à relever", "text-cyan-700 dark:text-cyan-300", "bg-cyan-50 dark:bg-cyan-900/20", mesuresProjects, "Reçue le", "dateMesuresRecue", true)}
               {renderCategory("Montages à planifier", "text-orange-700 dark:text-orange-300", "bg-orange-50 dark:bg-orange-900/20", pureMontageProjets, "Arrivage", "arrivageTM")}
               {renderCategory("Services à planifier", "text-emerald-700 dark:text-emerald-300", "bg-emerald-50 dark:bg-emerald-900/20", servicesProjects, "Reçue le", "dateDemandeProjet")}
               {renderCategory("SAV à contacter", "text-red-700 dark:text-red-300", "bg-red-50 dark:bg-red-900/20", savAFixerProjects, "SAV reçu le", "dateSAVRecu", true)}
-              {totalCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet{rdvLocaliteFilter ? ` à ${rdvLocaliteFilter}` : ""}</p>}
+              {totalCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
             </div>
           );
         } else if (showSummaryPanel === "rdv-fixe") {
