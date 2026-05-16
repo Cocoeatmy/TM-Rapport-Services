@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { notion } from "@/lib/notion";
+import { cachedOrFetchLong } from "@/lib/server-cache";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 const DB_ID = "17e1895b9179818281b2ec39f258a516";
 
@@ -32,8 +33,7 @@ function yearVal(prop: any): number | null {
   return null;
 }
 
-export async function GET() {
-  try {
+async function fetchData() {
     const allResults: any[] = [];
     let cursor: string | undefined = undefined;
     do {
@@ -134,6 +134,12 @@ export async function GET() {
       };
     });
 
+    return rows;
+}
+
+export async function GET() {
+  try {
+    const rows = await cachedOrFetchLong("stats-services", fetchData);
     return NextResponse.json(rows);
   } catch (error: any) {
     console.error("Error fetching stats services:", error);

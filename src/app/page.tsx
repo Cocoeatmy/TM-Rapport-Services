@@ -826,7 +826,41 @@ function HomePage() {
     });
   };
   const statsLoadedRef = useRef(false);
+  const statsPrefetchedRef = useRef(false);
   const [cabineAttributions, setCabineAttributions] = useState<Record<string, string[]>>({});
+
+  // Pré-chargement silencieux des stats au montage de la page.
+  // Lance le fetch en arrière-plan (après 5 s pour ne pas concurrencer les
+  // fetch principaux), uniquement si le cache localStorage est périmé.
+  // Quand l'utilisateur clique "Stats", les données sont déjà disponibles.
+  useEffect(() => {
+    const LS_DATA = "tm-stats-data-v1";
+    const LS_TS   = "tm-stats-ts-v1";
+    const FRESH_MS = 60 * 60 * 1000; // 1 h
+
+    const timer = setTimeout(() => {
+      try {
+        const ts = Number(localStorage.getItem(LS_TS) || "0");
+        if (Date.now() - ts < FRESH_MS) return; // cache encore frais
+      } catch { /* localStorage inaccessible */ }
+
+      Promise.all([
+        fetch("/api/stats/services").then((r) => r.json()).catch(() => []),
+        fetch("/api/stats/clients").then((r) => r.json()).catch(() => []),
+        fetch("/api/stats/marques").then((r) => r.json()).catch(() => []),
+        fetch("/api/stats/series").then((r) => r.json()).catch(() => []),
+        fetch("/api/cabine-attribution").then((r) => r.json()).catch(() => []),
+        fetch("/api/stats/consultations").then((r) => r.ok ? r.json() : null).catch(() => null),
+      ]).then((results) => {
+        try {
+          localStorage.setItem(LS_DATA, JSON.stringify(results));
+          localStorage.setItem(LS_TS, String(Date.now()));
+        } catch { /* quota dépassé */ }
+      });
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (mode !== "stats" || statsLoadedRef.current) return;

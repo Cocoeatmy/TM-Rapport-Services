@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { notion } from "@/lib/notion";
+import { cachedOrFetchLong } from "@/lib/server-cache";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 const DB_ID = "17e1895b91798130bd39e0a3a5302b80";
 
@@ -43,36 +44,36 @@ function yearVal(prop: any): number | null {
 
 const MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
+async function fetchData() {
+  const allResults: any[] = [];
+  let cursor: string | undefined = undefined;
+  do {
+    const response: any = await notion.databases.query({
+      database_id: DB_ID,
+      page_size: 100,
+      start_cursor: cursor,
+    });
+    allResults.push(...response.results);
+    cursor = response.has_more ? response.next_cursor : undefined;
+  } while (cursor);
+
+  return allResults.map((page: any) => {
+    const p = page.properties;
+    const monthly: Record<string, number> = {};
+    MOIS.forEach((m) => { monthly[m] = num(p[m]); });
+    return {
+      id: page.id,
+      marque: txt(p["Marque"]),
+      annee: yearVal(p["Année"]),
+      monthly,
+      total: formulaNum(p["Total"]),
+    };
+  });
+}
+
 export async function GET() {
   try {
-    const allResults: any[] = [];
-    let cursor: string | undefined = undefined;
-    do {
-      const response: any = await notion.databases.query({
-        database_id: DB_ID,
-        page_size: 100,
-        start_cursor: cursor,
-      });
-      allResults.push(...response.results);
-      cursor = response.has_more ? response.next_cursor : undefined;
-    } while (cursor);
-
-    const rows = allResults.map((page: any) => {
-      const p = page.properties;
-      const anneeRaw = dateVal(p["Année"]);
-      const monthly: Record<string, number> = {};
-      MOIS.forEach((m) => {
-        monthly[m] = num(p[m]);
-      });
-      return {
-        id: page.id,
-        marque: txt(p["Marque"]),
-        annee: yearVal(p["Année"]),
-        monthly,
-        total: formulaNum(p["Total"]),
-      };
-    });
-
+    const rows = await cachedOrFetchLong("stats-marques", fetchData);
     return NextResponse.json(rows);
   } catch (error: any) {
     console.error("Error fetching stats marques:", error);

@@ -165,6 +165,45 @@ export async function cachedOrFetch<T>(
   return p;
 }
 
+/**
+ * Variante longue durée de cachedOrFetch.
+ * Utilisée pour les données peu volatiles (stats Notion) :
+ * TTL 2h, fraîcheur 10 min, thundering-herd + fallback stale inclus.
+ */
+export async function cachedOrFetchLong<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  const entry = getCachedWithStale<T>(key);
+  if (entry) {
+    if (entry.stale) revalidateInBackground(key, fetcher);
+    return entry.data;
+  }
+
+  const existing = inflightFetch.get(key);
+  if (existing) return existing as Promise<T>;
+
+  const p = (async () => {
+    try {
+      const data = await fetcher();
+      setCacheLong(key, data);   // TTL 2h au lieu de 5 min
+      return data;
+    } catch (err: any) {
+      const fallback = getFallback<T>(key);
+      if (fallback !== null) {
+        console.warn(`[server-cache] Notion error, serving stale fallback for "${key}"`);
+        return fallback;
+      }
+      throw err;
+    } finally {
+      inflightFetch.delete(key);
+    }
+  })();
+
+  inflightFetch.set(key, p);
+  return p;
+}
+
 export function invalidateCache(key?: string) {
   if (key) {
     cache.delete(key);

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { notion } from "@/lib/notion";
+import { cachedOrFetchLong } from "@/lib/server-cache";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 const DB_ID = "17e1895b9179812093cfca36bba18aba";
 
@@ -48,37 +49,37 @@ function yearVal(prop: any): number | null {
 
 const MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
+async function fetchData() {
+  const allResults: any[] = [];
+  let cursor: string | undefined = undefined;
+  do {
+    const response: any = await notion.databases.query({
+      database_id: DB_ID,
+      page_size: 100,
+      start_cursor: cursor,
+    });
+    allResults.push(...response.results);
+    cursor = response.has_more ? response.next_cursor : undefined;
+  } while (cursor);
+
+  return allResults.map((page: any) => {
+    const p = page.properties;
+    const monthly: Record<string, number> = {};
+    MOIS.forEach((m) => { monthly[m] = num(p[m]); });
+    return {
+      id: page.id,
+      client: txt(p["Client"]),
+      annee: yearVal(p["Année"]),
+      typeClient: sel(p["Type client"]),
+      monthly,
+      total: formulaNum(p["Total"]),
+    };
+  });
+}
+
 export async function GET() {
   try {
-    const allResults: any[] = [];
-    let cursor: string | undefined = undefined;
-    do {
-      const response: any = await notion.databases.query({
-        database_id: DB_ID,
-        page_size: 100,
-        start_cursor: cursor,
-      });
-      allResults.push(...response.results);
-      cursor = response.has_more ? response.next_cursor : undefined;
-    } while (cursor);
-
-    const rows = allResults.map((page: any) => {
-      const p = page.properties;
-      const anneeRaw = dateVal(p["Année"]);
-      const monthly: Record<string, number> = {};
-      MOIS.forEach((m) => {
-        monthly[m] = num(p[m]);
-      });
-      return {
-        id: page.id,
-        client: txt(p["Client"]),
-        annee: yearVal(p["Année"]),
-        typeClient: sel(p["Type client"]),
-        monthly,
-        total: formulaNum(p["Total"]),
-      };
-    });
-
+    const rows = await cachedOrFetchLong("stats-clients", fetchData);
     return NextResponse.json(rows);
   } catch (error: any) {
     console.error("Error fetching stats clients:", error);
