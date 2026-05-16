@@ -1470,6 +1470,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     ? `${todayParts.join(" · ")} prévu${totalProjectsToday > 1 ? "s" : ""} aujourd'hui`
     : "Aucun projet prévu aujourd'hui";
   const totalCabinesWeek = uniqueWeekProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+  // Tous les projets futurs (sans limite des 14 jours) — pour le panel "à venir"
+  const allFutureProjects = projects
+    .filter((p) => projectActiveDuringRange(p, todayStr, "2099-12-31"))
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+    .sort((a, b) =>
+      ((a.dateMontage || a.dateMesures || "").split("T")[0])
+        .localeCompare((b.dateMontage || b.dateMesures || "").split("T")[0])
+    );
+  // Cabines au-delà des 14 prochains jours (semaines à venir)
+  const totalCabinesFutureWeeks = allFutureProjects
+    .filter((p) => ((p.dateMontage || p.dateMesures || "").split("T")[0]) > weekEndStr)
+    .reduce((s, p) => s + (p.nbCabines || 0), 0);
   // Agrégation par source de projet (montage/mesures/services/sav)
   // depuis la liste dédupliquée — évite de compter une Team N fois.
   const allWeekCabinesBySource: Record<string, number> = {};
@@ -1861,7 +1873,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-emerald-100/80 dark:bg-emerald-900/30 flex items-center justify-center"><Box className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalCabinesWeek}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Cabines cette semaine</p>
-                <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+                {totalCabinesFutureWeeks > 0
+                  ? <p className="text-[7px] sm:text-[9px] text-emerald-500 dark:text-emerald-400 mt-0.5 font-medium">+{totalCabinesFutureWeeks} à venir</p>
+                  : <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+                }
               </button>
             );
             case "active": return (
@@ -2333,11 +2348,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             .flatMap((c) => c.todayProjects)
             .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
         } else if (showSummaryPanel === "week") {
-          panelTitle = "Cabines cette semaine";
-          panelProjects = collabData
-            .flatMap((c) => [...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects])
-            .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
-            .sort((a, b) => ((a.dateMontage || a.dateMesures || "").split("T")[0]).localeCompare((b.dateMontage || b.dateMesures || "").split("T")[0]));
+          panelTitle = "RDV à venir";
+          panelProjects = allFutureProjects;
         } else if (showSummaryPanel === "active") {
           return (
             <div className="space-y-3">
