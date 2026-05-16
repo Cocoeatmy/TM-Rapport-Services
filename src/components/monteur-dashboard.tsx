@@ -2771,14 +2771,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           panelTitle = "À facturer";
           panelProjects = aFacturerProjects;
         } else if (showSummaryPanel === "rdv-a-fixer") {
-          // Extrait la ville depuis "... à 1234 Ville" ou retourne l'adresse brute
-          const extractCity = (addr: string): string => {
-            if (!addr) return "";
-            const m = addr.match(/\bà\s+\d{4}\s+(.+)$/i);
-            if (m) return m[1].trim();
-            // fallback: dernier mot
-            const words = addr.trim().split(/\s+/);
-            return words[words.length - 1] || addr;
+          /**
+           * Extrait la ville depuis "... à 1234 Ville" ou "... 1234 Ville".
+           * Cherche d'abord dans adresseChantier, puis dans le nom du projet
+           * (car l'adresse est souvent intégrée au nom : "Duka - Getaz Bulle - … à 1752 Villars-sur-Glâne").
+           */
+          const extractCity = (addr: string, projectName?: string): string => {
+            for (const text of [addr, projectName]) {
+              if (!text) continue;
+              // Pattern: "à 1234 Ville" ou juste "1234 Ville" en fin de chaîne
+              const m = text.match(/\d{4}\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s\-\.]+?)(?:\s*[-–(].*)?$/);
+              if (m) return m[1].trim();
+            }
+            // Dernier mot de l'adresse comme ultime fallback
+            if (addr) {
+              const words = addr.trim().split(/\s+/);
+              return words[words.length - 1] || "";
+            }
+            return "";
           };
 
           // Split into 3 categories
@@ -2812,11 +2822,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           // ── Filtre par localité ────────────────────────────────────────────────
           const allRdvProjects = [...montageProjectsAll, ...mesuresProjectsAll, ...servicesProjectsAll, ...savAFixerProjectsAll];
           const localites = Array.from(
-            new Set(allRdvProjects.map((p) => extractCity(p.adresseChantier)).filter(Boolean))
+            new Set(allRdvProjects.map((p) => extractCity(p.adresseChantier, p.projet)).filter(Boolean))
           ).sort((a, b) => a.localeCompare(b, "fr"));
 
           const applyLocalite = (list: Project[]) =>
-            rdvLocaliteFilter ? list.filter((p) => extractCity(p.adresseChantier) === rdvLocaliteFilter) : list;
+            rdvLocaliteFilter ? list.filter((p) => extractCity(p.adresseChantier, p.projet) === rdvLocaliteFilter) : list;
 
           const montageProjects = applyLocalite(montageProjectsAll);
           const mesuresProjects = applyLocalite(mesuresProjectsAll);
@@ -2884,7 +2894,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       return (
                         <button
                           key={key}
-                          onClick={(e) => { e.stopPropagation(); toggleRdvSort(title, key); }}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleRdvSort(title, key); }}
                           className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-md transition-colors whitespace-nowrap ${
                             active
                               ? "bg-white/80 dark:bg-white/20 shadow-sm " + color
@@ -3074,7 +3084,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     Toutes
                   </button>
                   {localites.map((loc) => {
-                    const count = allRdvProjects.filter((p) => extractCity(p.adresseChantier) === loc).length;
+                    const count = allRdvProjects.filter((p) => extractCity(p.adresseChantier, p.projet) === loc).length;
                     return (
                       <button
                         key={loc}
