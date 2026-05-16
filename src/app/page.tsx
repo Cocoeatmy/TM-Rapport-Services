@@ -4845,16 +4845,98 @@ function HomePage() {
               </div>
             )}
 
-            <div className="space-y-3">
-              {displayedFiltered.map((project) => (
-                <ProjectCard key={project.id} project={project} mode={mode} isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
-              ))}
-              {displayedFiltered.length === 0 && !error && (
-                <div className="text-center py-12 text-gray-400">
-                  <p className="text-lg">Aucun projet trouvé</p>
-                </div>
-              )}
-            </div>
+            {mode === "mesures" ? (() => {
+              /* ── Vue Mesures : groupement par mois de dateMesures ── */
+              const MONTH_NMS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+              const fmtMoisKey = (k: string) => {
+                if (k === "Sans date") return k;
+                const [y, m] = k.split("-");
+                return `${MONTH_NMS[parseInt(m, 10) - 1]} ${y}`;
+              };
+              const mGroups: Record<string, Project[]> = {};
+              displayedFiltered.forEach((p) => {
+                const key = p.dateMesures ? p.dateMesures.slice(0, 7) : "Sans date";
+                (mGroups[key] ??= []).push(p);
+              });
+              const sortedMonths = Object.keys(mGroups).sort((a, b) =>
+                a === "Sans date" ? 1 : b === "Sans date" ? -1 : a.localeCompare(b)
+              );
+              if (sortedMonths.length === 0) return (
+                <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet trouvé</p></div>
+              );
+              return (
+                <>
+                  {sortedMonths.map((monthKey) => (
+                    <div key={monthKey} className="mb-6">
+                      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <CalendarDays className="w-4 h-4" />
+                        {fmtMoisKey(monthKey)} ({mGroups[monthKey].length})
+                      </h3>
+                      <div className="space-y-3">
+                        {mGroups[monthKey].map((p) => (
+                          <div key={p.id} className="relative group">
+                            <Link
+                              href={`/projet/${p.id}?mode=mesures`}
+                              prefetch={true}
+                              onMouseEnter={() => prefetchProject(p.id)}
+                              onTouchStart={() => prefetchProject(p.id)}
+                              className="block glass-card rounded-2xl p-4 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2 break-words leading-tight">
+                                    {p.projet || "Sans nom"}
+                                  </h4>
+                                  {p.ofrTM && (
+                                    <p className="text-xs text-gray-500 mt-0.5">OFR {p.ofrTM}</p>
+                                  )}
+                                  <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                    <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                    <span>{p.dateMesures ? formatDateFR(p.dateMesures) : "---"}</span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {(p.mesuresTraiteePar || "").split(" & ").filter(Boolean).map((name) => (
+                                      <span key={name} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full"
+                                        style={{ backgroundColor: getCollaboratorColor(name.trim()).bg, color: getCollaboratorColor(name.trim()).text }}>
+                                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getCollaboratorColor(name.trim()).dot }} />
+                                        {name.trim()}
+                                      </span>
+                                    ))}
+                                    {p.fournisseurs?.slice(0, 2).map((f) => (
+                                      <Badge key={f} variant="secondary" className="text-xs">{f}</Badge>
+                                    ))}
+                                    {p.nbCabines ? (
+                                      <Badge variant="outline" className="text-xs">{p.nbCabines} cabine{p.nbCabines > 1 ? "s" : ""}</Badge>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-2 shrink-0">
+                                  <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap glass-status ${STATUS_MESURES_COLORS[p.etatMesures] || "bg-gray-100 text-gray-700"}`}>
+                                    {p.etatMesures || "---"}
+                                  </span>
+                                  <ChevronRight className="w-5 h-5 text-gray-300" />
+                                </div>
+                              </div>
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              );
+            })() : (
+              <div className="space-y-3">
+                {displayedFiltered.map((project) => (
+                  <ProjectCard key={project.id} project={project} mode={mode} isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
+                ))}
+                {displayedFiltered.length === 0 && !error && (
+                  <div className="text-center py-12 text-gray-400">
+                    <p className="text-lg">Aucun projet trouvé</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       ) : null}
