@@ -421,6 +421,21 @@ function getClientLogo(projectName: string): string | null {
   return match ? match.logo : null;
 }
 
+/** Cherche un logo depuis le tableau p.fournisseurs (fallback quand le nom du projet ne matche pas). */
+function getFournisseurLogo(fournisseurs: string[]): string | null {
+  for (const f of fournisseurs || []) {
+    const lower = f.toLowerCase();
+    const match = CLIENT_LOGOS.find((c) => lower.includes(c.prefix) || c.prefix.includes(lower));
+    if (match) return match.logo;
+  }
+  return null;
+}
+
+/** Retourne le meilleur logo disponible : nom du projet en priorité, sinon fournisseurs. */
+function getBestLogo(projectName: string, fournisseurs: string[]): string | null {
+  return getClientLogo(projectName) || getFournisseurLogo(fournisseurs);
+}
+
 // Get all working days (Mon-Fri) between start and end dates
 function formatLocalDate(d: Date): string {
   const y = d.getFullYear();
@@ -3999,12 +4014,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     </span>
                   </div>
                   {group.projects.map((p, idx) => {
-                    const isMesure = p.etatMesures === "RDV - Fixé";
+                    const isMesure = showSummaryPanel === "mesures-today" || (p as any)._source === "mesures" || p.etatMesures === "RDV - Fixé";
                     const collabField = isMesure ? (p.mesuresTraiteePar || p.collaborateurs || "") : (p.collaborateurs || "");
                     const names = collabField.split(" & ").map((n) => n.trim()).filter(Boolean);
                     const rowBg = idx % 2 === 0
                       ? "bg-white/60 dark:bg-slate-800/40"
                       : "bg-blue-50/40 dark:bg-blue-950/15";
+                    const bestLogo = getBestLogo(p.projet, p.fournisseurs || []);
                     return (
                       <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                         className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
@@ -4061,9 +4077,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             )}
                           </span>
                         )}
-                        {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                          <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
-                        ) : null; })()}
+                        {/* Logo fournisseur/grossiste — placé avant les initiales */}
+                        {bestLogo && (
+                          <img src={bestLogo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                        )}
                         {/* Initiales collaborateurs — visibles sur toutes les vues du rendu générique */}
                         {(showSummaryPanel === "week" || showSummaryPanel === "today" || showSummaryPanel === "mesures-today" || showSummaryPanel === "sav-today" || showSummaryPanel === "services-today") && names.length > 0 && (
                           <div className="flex -space-x-1 shrink-0">
