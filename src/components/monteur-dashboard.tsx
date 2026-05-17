@@ -421,19 +421,13 @@ function getClientLogo(projectName: string): string | null {
   return match ? match.logo : null;
 }
 
-/** Cherche un logo depuis le tableau p.fournisseurs (fallback quand le nom du projet ne matche pas). */
-function getFournisseurLogo(fournisseurs: string[]): string | null {
-  for (const f of fournisseurs || []) {
-    const lower = f.toLowerCase();
-    const match = CLIENT_LOGOS.find((c) => lower.includes(c.prefix) || c.prefix.includes(lower));
-    if (match) return match.logo;
-  }
-  return null;
-}
-
-/** Retourne le meilleur logo disponible : nom du projet en priorité, sinon fournisseurs. */
-function getBestLogo(projectName: string, fournisseurs: string[]): string | null {
-  return getClientLogo(projectName) || getFournisseurLogo(fournisseurs);
+/**
+ * Retourne le logo uniquement si le titre du projet COMMENCE par un préfixe connu
+ * (grossiste ou fournisseur). Les clients finaux et sanitaires n'ont pas de logo.
+ * Le tableau fournisseurs[] n'est PAS utilisé : seul le début du titre fait foi.
+ */
+function getBestLogo(projectName: string, _fournisseurs?: string[]): string | null {
+  return getClientLogo(projectName);
 }
 
 // Get all working days (Mon-Fri) between start and end dates
