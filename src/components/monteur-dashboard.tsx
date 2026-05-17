@@ -3243,9 +3243,30 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </div>
               )}
 
-              {/* Rows */}
+              {/* Rows groupés par mois avec séparateur */}
               <div className="space-y-0.5">
-                {displayList.map(renderMesureRow)}
+                {(() => {
+                  let lastMonthKey = "";
+                  return displayList.flatMap((p) => {
+                    const monthKey = (p.dateMesures || "").split("T")[0].slice(0, 7);
+                    const items: React.ReactNode[] = [];
+                    if (monthKey !== lastMonthKey) {
+                      const monthLabel = monthKey
+                        ? new Date(monthKey + "-15T12:00:00").toLocaleDateString("fr-CH", { month: "long", year: "numeric" })
+                        : "Sans date";
+                      items.push(
+                        <div key={`sep-${monthKey || "none"}-${p.id}`} className="flex items-center gap-2 pt-2 pb-0.5">
+                          <div className="flex-1 h-px bg-cyan-200/70 dark:bg-cyan-700/40" />
+                          <span className="text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 shrink-0 px-1.5 capitalize">{monthLabel}</span>
+                          <div className="flex-1 h-px bg-cyan-200/70 dark:bg-cyan-700/40" />
+                        </div>
+                      );
+                      lastMonthKey = monthKey;
+                    }
+                    items.push(renderMesureRow(p));
+                    return items;
+                  });
+                })()}
               </div>
 
               {displayList.length === 0 && !displayLoading && (
