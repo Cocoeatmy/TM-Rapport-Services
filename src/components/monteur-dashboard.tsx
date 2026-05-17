@@ -3132,7 +3132,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const arrowClass    = isAnnulees ? "group-hover:text-red-400" : "group-hover:text-cyan-400";
           const dateClass     = isAnnulees ? "text-red-600 dark:text-red-400" : "text-cyan-700 dark:text-cyan-300";
 
-          const renderMesureRow = (p: Project) => {
+          const renderMesureRow = (p: Project, idx: number) => {
             const dateStr    = (p.dateMesures || "").split("T")[0];
             const traitePar  = p.mesuresTraiteePar || "";
             const traitColors = traitePar ? getCollaboratorColor(traitePar) : null;
@@ -3143,10 +3143,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             const tmNums = parseTMNumbers(p.ofrTM || "");
             const title = p.projet || p.nomChantier || "—";
             const subtitle = p.nomChantier && p.nomChantier !== p.projet ? p.nomChantier : null;
+            const rowBg = isAnnulees
+              ? (idx % 2 === 0 ? "bg-red-50/60 dark:bg-red-950/20" : "bg-red-100/50 dark:bg-red-900/15")
+              : (idx % 2 === 0 ? "bg-cyan-50/60 dark:bg-cyan-950/20" : "bg-cyan-100/50 dark:bg-cyan-900/15");
 
             return (
               <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                className={`block sm:flex sm:items-center sm:gap-3 px-2 py-2.5 rounded-xl ${hoverClass} transition-colors group`}>
+                className={`block sm:flex sm:items-center sm:gap-3 px-2 py-2.5 rounded-xl ${rowBg} ${hoverClass} transition-colors group`}>
 
                 {/* ── Mobile : layout bloc ── */}
                 <div className="sm:hidden">
@@ -3278,6 +3281,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               <div className="space-y-0.5">
                 {(() => {
                   let lastMonthKey = "";
+                  let rowIdx = 0;
                   return displayList.flatMap((p) => {
                     const monthKey = (p.dateMesures || "").split("T")[0].slice(0, 7);
                     const items: React.ReactNode[] = [];
@@ -3294,7 +3298,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       );
                       lastMonthKey = monthKey;
                     }
-                    items.push(renderMesureRow(p));
+                    items.push(renderMesureRow(p, rowIdx++));
                     return items;
                   });
                 })()}
