@@ -458,13 +458,15 @@ function getBestLogo(projectName: string, _fournisseurs?: string[]): string | nu
  */
 function LogoImg({ src }: { src: string }) {
   const scale = LOGO_SCALE_MAP[src] ?? 1;
+  // overflow-hidden : le scale() zoome dans le centre de l'image (whitespace rogné)
+  // sans déborder sur les éléments adjacents (cercle d'initiales).
   return (
-    <span className="w-14 h-6 shrink-0 flex items-center justify-center overflow-visible">
+    <span className="w-14 h-6 shrink-0 flex items-center justify-center overflow-hidden rounded">
       <img
         src={src}
         alt=""
         style={scale !== 1 ? { transform: `scale(${scale})`, transformOrigin: "center" } : undefined}
-        className="max-w-full max-h-full object-contain rounded mix-blend-multiply dark:mix-blend-normal dark:invert"
+        className="max-w-full max-h-full object-contain mix-blend-multiply dark:mix-blend-normal dark:invert"
       />
     </span>
   );
