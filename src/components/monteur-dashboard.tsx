@@ -400,19 +400,23 @@ function getDailyQuote(firstName: string): string {
 }
 // ────────────────────────────────────────────────────────────────────────────
 
-const CLIENT_LOGOS: { prefix: string; logo: string }[] = [
-  { prefix: "getaz", logo: "/logos/fournisseurs/BMS-Logo.png" },
-  { prefix: "gétaz", logo: "/logos/fournisseurs/BMS-Logo.png" },
-  { prefix: "duka", logo: "/logos/fournisseurs/duka.ch-logo.png" },
-  { prefix: "duscholux", logo: "/logos/fournisseurs/Duscholux-logo.png" },
-  { prefix: "ronal", logo: "/logos/fournisseurs/ronal-logo-v2.png" },
-  { prefix: "nelo", logo: "/logos/fournisseurs/Nelo-logo.jpg" },
-  { prefix: "novellini", logo: "/logos/fournisseurs/Novellini-logo.png" },
-  { prefix: "samo", logo: "/logos/fournisseurs/Samo-logo.jpg" },
-  { prefix: "dubat", logo: "/logos/fournisseurs/Dubat-Logo.png" },
-  { prefix: "tema", logo: "/logos/fournisseurs/Tema-Logo.png" },
-  { prefix: "matway", logo: "/logos/fournisseurs/Matway-Logo.png" },
-  { prefix: "bringhen", logo: "/logos/fournisseurs/Bringhen-logo.jpg" },
+// scale : facteur d'agrandissement CSS pour compenser le whitespace natif du fichier.
+// BMS (418×120, ratio 3.5:1) = référence visuelle → scale 1.
+// Dubat (1200×675) et Duka (1200×630) ont beaucoup de marge → scale 1.8.
+// Logos carrés (Matway, Nelo, Samo, Ronal) → scale 1.5.
+const CLIENT_LOGOS: { prefix: string; logo: string; scale?: number }[] = [
+  { prefix: "getaz",      logo: "/logos/fournisseurs/BMS-Logo.png" },
+  { prefix: "gétaz",      logo: "/logos/fournisseurs/BMS-Logo.png" },
+  { prefix: "duka",       logo: "/logos/fournisseurs/duka.ch-logo.png",    scale: 1.8 },
+  { prefix: "duscholux",  logo: "/logos/fournisseurs/Duscholux-logo.png",  scale: 1.3 },
+  { prefix: "ronal",      logo: "/logos/fournisseurs/ronal-logo-v2.png",   scale: 1.5 },
+  { prefix: "nelo",       logo: "/logos/fournisseurs/Nelo-logo.jpg",       scale: 1.5 },
+  { prefix: "novellini",  logo: "/logos/fournisseurs/Novellini-logo.png",  scale: 1.2 },
+  { prefix: "samo",       logo: "/logos/fournisseurs/Samo-logo.jpg",       scale: 1.5 },
+  { prefix: "dubat",      logo: "/logos/fournisseurs/Dubat-Logo.png",      scale: 1.8 },
+  { prefix: "tema",       logo: "/logos/fournisseurs/Tema-Logo.png",       scale: 1.4 },
+  { prefix: "matway",     logo: "/logos/fournisseurs/Matway-Logo.png",     scale: 1.5 },
+  { prefix: "bringhen",   logo: "/logos/fournisseurs/Bringhen-logo.jpg" },
 ];
 
 /** Supprime les accents pour comparaison tolérante (Gétaz ↔ getaz). */
@@ -420,10 +424,14 @@ function stripAccents(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
+// Table de scale indexée par chemin de logo.
+// Calculée une seule fois à partir de CLIENT_LOGOS.scale.
+const LOGO_SCALE_MAP: Record<string, number> = Object.fromEntries(
+  CLIENT_LOGOS.filter((c) => c.scale).map((c) => [c.logo, c.scale as number])
+);
+
 function getClientLogo(projectName: string): string | null {
   // Double normalisation : NFC (forme précomposée) ET sans accents.
-  // Notion peut renvoyer "Gétaz" sous forme décomposée (e + combining ´)
-  // qui ne matche pas le prefix codé en dur → on compare sans accents.
   const lowerNFC = projectName.toLowerCase().normalize("NFC");
   const lowerStripped = stripAccents(projectName.toLowerCase());
   const match = CLIENT_LOGOS.find((c) => {
@@ -435,25 +443,27 @@ function getClientLogo(projectName: string): string | null {
 }
 
 /**
- * Retourne le logo uniquement si le titre du projet COMMENCE par un préfixe connu
- * (grossiste ou fournisseur). Les clients finaux et sanitaires n'ont pas de logo.
- * Le tableau fournisseurs[] n'est PAS utilisé : seul le début du titre fait foi.
+ * Retourne le logo uniquement si le titre du projet COMMENCE par un préfixe connu.
+ * Les clients finaux et sanitaires n'ont pas de logo.
  */
 function getBestLogo(projectName: string, _fournisseurs?: string[]): string | null {
   return getClientLogo(projectName);
 }
 
 /**
- * Boîte uniforme pour tous les logos fournisseurs/grossistes.
- * Conteneur fixe w-14 × h-5 avec object-contain : BMS (3.5:1), Bringhen (6:1),
- * Dubat (1.78:1) et Duka (1.9:1) s'affichent tous dans le même espace visuel.
+ * Boîte uniforme pour tous les logos.
+ * Le scale par logo (LOGO_SCALE_MAP) compense le whitespace natif de chaque fichier
+ * image pour que tous les logos paraissent visuellement de la même taille.
+ * overflow-visible : le zoom n'est pas clipé par le conteneur.
  */
 function LogoImg({ src }: { src: string }) {
+  const scale = LOGO_SCALE_MAP[src] ?? 1;
   return (
-    <span className="w-14 h-5 shrink-0 flex items-center justify-center overflow-hidden">
+    <span className="w-14 h-6 shrink-0 flex items-center justify-center overflow-visible">
       <img
         src={src}
         alt=""
+        style={scale !== 1 ? { transform: `scale(${scale})`, transformOrigin: "center" } : undefined}
         className="max-w-full max-h-full object-contain rounded mix-blend-multiply dark:mix-blend-normal dark:invert"
       />
     </span>
