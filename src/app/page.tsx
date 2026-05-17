@@ -52,7 +52,7 @@ const DestockageView = dynamic(() => import("@/components/destockage-view").then
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
-function ProjectCard({ project, mode, isAdmin, onDelete, compact }: { project: Project; mode: string; isAdmin?: boolean; onDelete?: (id: string) => void; compact?: boolean }) {
+function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch }: { project: Project; mode: string; isAdmin?: boolean; onDelete?: (id: string) => void; compact?: boolean; noPrefetch?: boolean }) {
   const statusColors = mode.startsWith("mesures") ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
   const statusValue = mode.startsWith("mesures") ? project.etatMesures : project.etatCMD;
   const statusColor = statusColors[statusValue] || "bg-gray-100 text-gray-700";
@@ -61,10 +61,10 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact }: { project: P
     <div className="relative group">
       <Link
         href={`/projet/${project.id}?mode=${mode}`}
-        prefetch={true}
-        onMouseEnter={() => prefetchProject(project.id)}
-        onTouchStart={() => prefetchProject(project.id)}
-        onFocus={() => prefetchProject(project.id)}
+        prefetch={!noPrefetch}
+        onMouseEnter={() => !noPrefetch && prefetchProject(project.id)}
+        onTouchStart={() => !noPrefetch && prefetchProject(project.id)}
+        onFocus={() => !noPrefetch && prefetchProject(project.id)}
         className="block glass-card rounded-2xl p-4"
       >
         <div className="flex items-start justify-between gap-3">
@@ -658,6 +658,8 @@ function HomePage() {
   const router = useRouter();
   const collaborateurParam = searchParams.get("collaborateur");
   const modeParam = searchParams.get("mode");
+  // Fenêtre flottante : désactive tous les prefetch pour éviter de doubler les appels API
+  const isFloatingWindow = searchParams.get("_fw") === "1";
   const statusParam = searchParams.get("status");
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
@@ -775,7 +777,7 @@ function HomePage() {
         if (p?.id && !seen.has(p.id)) { seen.add(p.id); all.push(p); }
       }
     }
-    if (all.length > 0) {
+    if (all.length > 0 && !isFloatingWindow) {
       prefetchTodaysProjects(all, currentUser.name).catch(() => {});
     }
   }, [projectsData, currentUser]);
@@ -1710,8 +1712,8 @@ function HomePage() {
                         <div className="flex items-start justify-between gap-3">
                           <Link
                             href={`/projet/${p.id}?mode=rapport`}
-                            onMouseEnter={() => prefetchProject(p.id)}
-                            onTouchStart={() => prefetchProject(p.id)}
+                            onMouseEnter={() => !isFloatingWindow && prefetchProject(p.id)}
+                            onTouchStart={() => !isFloatingWindow && prefetchProject(p.id)}
                             className="flex-1 min-w-0"
                           >
                             {/* Date de montage — badge proéminent, première info visible */}
@@ -1879,7 +1881,7 @@ function HomePage() {
                 {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
                 <div className="space-y-3">
                   {grossistesFiltered.map((project) => (
-                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact />
+                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
                   ))}
                   {grossistesFiltered.length === 0 && !loading && (
                     <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet</p></div>
@@ -2232,7 +2234,7 @@ function HomePage() {
                 {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
                 <div className="space-y-3">
                   {fournisseursFiltered.map((project) => (
-                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact />
+                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
                   ))}
                   {fournisseursFiltered.length === 0 && !loading && (
                     <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet</p></div>
@@ -2590,7 +2592,7 @@ function HomePage() {
                 {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
                 <div className="space-y-3">
                   {sanitairesFiltered.map((project) => (
-                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact />
+                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
                   ))}
                   {sanitairesFiltered.length === 0 && !loading && (
                     <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet sanitaire</p></div>
@@ -4963,7 +4965,7 @@ function HomePage() {
             })() : (
               <div className="space-y-3">
                 {displayedFiltered.map((project) => (
-                  <ProjectCard key={project.id} project={project} mode={mode} isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} />
+                  <ProjectCard key={project.id} project={project} mode={mode} isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} noPrefetch={isFloatingWindow} />
                 ))}
                 {displayedFiltered.length === 0 && !error && (
                   <div className="text-center py-12 text-gray-400">
