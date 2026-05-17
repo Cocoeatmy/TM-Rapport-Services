@@ -1708,6 +1708,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           </div>
           <div className="flex-1">
             <p className="font-semibold text-gray-900 dark:text-gray-100">Bonjour {firstName} 👋</p>
+            <p className="text-xs font-medium text-blue-500 dark:text-blue-400 capitalize">
+              {new Date().toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {totalProjectsToday > 0
                 ? `${todayLabel} · ${busyToday} monteur${busyToday > 1 ? "s" : ""} actif${busyToday > 1 ? "s" : ""}`
@@ -4480,6 +4483,9 @@ function CollaborateurDashboard({ userName, projects }: { userName: string; proj
           </div>
           <div className="flex-1">
             <p className="font-semibold text-gray-900 dark:text-gray-100">Bonjour {firstName} 👋</p>
+            <p className="text-xs font-medium text-blue-500 dark:text-blue-400 capitalize">
+              {new Date().toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {todayProjects.length > 0
                 ? `${todayProjects.length} intervention${todayProjects.length > 1 ? "s" : ""} aujourd'hui`
