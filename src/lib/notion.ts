@@ -251,7 +251,7 @@ export function mapPageToProject(page: any): Project {
     dateOffre: extractDate(p["Date Offre"]),
     dateCMDRecue: extractDate(p["CMD reçue le"]),
     dateCMDUsine: extractDate(p["Date CMD – Usine"]),
-    collaborateurs: extractSelect(p["Collaborateurs montages"]),
+    collaborateurs: extractMultiSelect(p["Collaborateurs montages"]).join(" & "),
     documentsMontagee: extractFiles(p["Documents pour Montage"]),
     documentsMesures: extractFiles(p["Documents pour prise de mesures"]),
     heureArrivee: extractText(p["Heure arrivée"]),
@@ -894,9 +894,12 @@ export async function updateProject(
     // Si le champ n'existe pas → pas d'erreur, les autres champs sont quand même sauvegardés
   }
   if (data.collaborateurs !== undefined) {
-    properties["Collaborateurs montages"] = {
-      select: data.collaborateurs ? { name: data.collaborateurs } : null,
-    };
+    // "Collaborateurs montages" est un multi_select dans Notion.
+    // Le champ collaborateurs est stocké en string "Nom1 & Nom2" → on éclate par " & ".
+    const collabNames = data.collaborateurs
+      ? data.collaborateurs.split(" & ").map((n) => n.trim()).filter(Boolean).map((name) => ({ name }))
+      : [];
+    properties["Collaborateurs montages"] = { multi_select: collabNames };
   }
   if (data.mesuresTraiteePar !== undefined) {
     properties["Mesures traitée par"] = {
@@ -1172,9 +1175,9 @@ export async function createProject(data: {
     };
   }
   if (data.collaborateurs) {
-    properties["Collaborateurs montages"] = {
-      select: { name: data.collaborateurs },
-    };
+    const collabNames = data.collaborateurs
+      .split(" & ").map((n: string) => n.trim()).filter(Boolean).map((name: string) => ({ name }));
+    properties["Collaborateurs montages"] = { multi_select: collabNames };
   }
   if (data.mesuresTraiteePar) {
     properties["Mesures traitée par"] = {
