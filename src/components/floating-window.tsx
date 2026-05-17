@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Minus, ExternalLink, GripVertical, RefreshCw } from "lucide-react";
 
 const MODES: { label: string; value: string }[] = [
@@ -21,26 +22,39 @@ const MODES: { label: string; value: string }[] = [
 
 interface Props {
   initialMode?: string;
+  initialPos?: { x: number; y: number };
+  zIndex?: number;
   onClose: () => void;
+  onFocus: () => void;
 }
 
-export function FloatingWindow({ initialMode = "dashboard", onClose }: Props) {
+export function FloatingWindow({
+  initialMode = "dashboard",
+  initialPos,
+  zIndex = 9999,
+  onClose,
+  onFocus,
+}: Props) {
   const [mode, setMode] = useState(initialMode);
   const [minimized, setMinimized] = useState(false);
-  const [pos, setPos] = useState({ x: 80, y: 90 });
-  const [size, setSize] = useState({ w: 520, h: 640 });
+  const [pos, setPos] = useState(initialPos ?? { x: 20, y: 80 });
+  const [size, setSize] = useState({ w: 500, h: 620 });
   const [reloadKey, setReloadKey] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
-  /* ── Drag ── */
+  useEffect(() => { setMounted(true); }, []);
+
+  /* ── Drag souris ── */
   const dragging = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
 
   const onHeaderMouseDown = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("button,select,a")) return;
     e.preventDefault();
+    onFocus();
     dragging.current = true;
     dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y };
-  }, [pos]);
+  }, [pos, onFocus]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -53,16 +67,20 @@ export function FloatingWindow({ initialMode = "dashboard", onClose }: Props) {
     const onUp = () => { dragging.current = false; };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
   }, []);
 
-  /* ── Touch drag ── */
+  /* ── Drag touch ── */
   const onHeaderTouchStart = useCallback((e: React.TouchEvent) => {
     if ((e.target as HTMLElement).closest("button,select,a")) return;
+    onFocus();
     const t = e.touches[0];
     dragging.current = true;
     dragStart.current = { mx: t.clientX, my: t.clientY, px: pos.x, py: pos.y };
-  }, [pos]);
+  }, [pos, onFocus]);
 
   useEffect(() => {
     const onMove = (e: TouchEvent) => {
@@ -76,7 +94,10 @@ export function FloatingWindow({ initialMode = "dashboard", onClose }: Props) {
     const onEnd = () => { dragging.current = false; };
     window.addEventListener("touchmove", onMove, { passive: true });
     window.addEventListener("touchend", onEnd);
-    return () => { window.removeEventListener("touchmove", onMove); window.removeEventListener("touchend", onEnd); };
+    return () => {
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+    };
   }, []);
 
   /* ── Resize ── */
@@ -86,36 +107,40 @@ export function FloatingWindow({ initialMode = "dashboard", onClose }: Props) {
   const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    onFocus();
     resizing.current = true;
     resizeStart.current = { mx: e.clientX, my: e.clientY, w: size.w, h: size.h };
-  }, [size]);
+  }, [size, onFocus]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!resizing.current) return;
       setSize({
-        w: Math.max(340, resizeStart.current.w + e.clientX - resizeStart.current.mx),
-        h: Math.max(260, resizeStart.current.h + e.clientY - resizeStart.current.my),
+        w: Math.max(320, resizeStart.current.w + e.clientX - resizeStart.current.mx),
+        h: Math.max(240, resizeStart.current.h + e.clientY - resizeStart.current.my),
       });
     };
     const onUp = () => { resizing.current = false; };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
   }, []);
 
-  const iframeSrc = `/?mode=${mode}&_fw=1`;
-
-  return (
+  const window_ = (
     <div
-      className="fixed z-[9999] flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-slate-900"
+      onMouseDown={onFocus}
+      className="fixed flex flex-col rounded-2xl overflow-hidden shadow-2xl border border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-slate-900"
       style={{
         left: pos.x,
         top: pos.y,
         width: size.w,
         height: minimized ? "auto" : size.h,
-        minWidth: 340,
-        minHeight: minimized ? "auto" : 260,
+        minWidth: 320,
+        minHeight: minimized ? "auto" : 240,
+        zIndex,
       }}
     >
       {/* ── Barre de titre ── */}
@@ -124,7 +149,7 @@ export function FloatingWindow({ initialMode = "dashboard", onClose }: Props) {
         onMouseDown={onHeaderMouseDown}
         onTouchStart={onHeaderTouchStart}
       >
-        {/* Boutons traffic-light macOS */}
+        {/* Traffic lights macOS */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={onClose}
@@ -153,7 +178,6 @@ export function FloatingWindow({ initialMode = "dashboard", onClose }: Props) {
           </a>
         </div>
 
-        {/* Grip icon */}
         <GripVertical className="w-3.5 h-3.5 text-gray-400 shrink-0" />
 
         {/* Sélecteur de vue */}
@@ -185,7 +209,7 @@ export function FloatingWindow({ initialMode = "dashboard", onClose }: Props) {
         <div className="flex-1 min-h-0 relative">
           <iframe
             key={`${mode}-${reloadKey}`}
-            src={iframeSrc}
+            src={`/?mode=${mode}&_fw=1`}
             className="w-full h-full border-none"
             title="Vue secondaire"
             loading="lazy"
@@ -193,12 +217,11 @@ export function FloatingWindow({ initialMode = "dashboard", onClose }: Props) {
         </div>
       )}
 
-      {/* ── Poignée de resize (coin bas-droit) ── */}
+      {/* ── Poignée resize bas-droit ── */}
       {!minimized && (
         <div
           onMouseDown={onResizeMouseDown}
           className="absolute bottom-0 right-0 w-5 h-5 cursor-se-resize z-10 flex items-end justify-end p-1"
-          title="Redimensionner"
         >
           <svg width="10" height="10" viewBox="0 0 10 10" className="text-gray-400 dark:text-gray-600">
             <line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -208,4 +231,8 @@ export function FloatingWindow({ initialMode = "dashboard", onClose }: Props) {
       )}
     </div>
   );
+
+  // Portal vers document.body — contourne tout overflow/transform parent
+  if (!mounted) return null;
+  return createPortal(window_, document.body);
 }

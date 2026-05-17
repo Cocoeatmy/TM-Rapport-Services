@@ -797,7 +797,22 @@ function HomePage() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [conflictFilter, setConflictFilter] = useState<string | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
-  const [showFloating, setShowFloating] = useState(false);
+  // Fenêtres flottantes : max 2, chacune avec id unique + mode initial + z-index
+  const [floatingWindows, setFloatingWindows] = useState<{ id: number; mode: string; z: number }[]>([]);
+  const topZ = useRef(9999);
+  const bringToFront = useCallback((id: number) => {
+    topZ.current += 1;
+    setFloatingWindows((prev) => prev.map((w) => w.id === id ? { ...w, z: topZ.current } : w));
+  }, []);
+  const openFloatingWindow = useCallback(() => {
+    if (floatingWindows.length >= 2) return;
+    topZ.current += 1;
+    const newMode = mode !== "dashboard" ? mode : "mesures";
+    setFloatingWindows((prev) => [...prev, { id: Date.now(), mode: newMode, z: topZ.current }]);
+  }, [floatingWindows.length, mode]);
+  const closeFloatingWindow = useCallback((id: number) => {
+    setFloatingWindows((prev) => prev.filter((w) => w.id !== id));
+  }, []);
   const [statsExpandedSections, setStatsExpandedSections] = useState<Set<string>>(new Set(["kpis", "monthly"]));
 
   // Stats from dedicated Notion databases
@@ -1435,17 +1450,27 @@ function HomePage() {
           }} />
         </div>
         <div className="flex items-center gap-1.5 shrink-0 mt-1.5">
-          {/* Bouton fenêtre flottante */}
+          {/* Bouton fenêtre flottante — max 2 */}
           <button
-            onClick={() => setShowFloating((v) => !v)}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-md active:scale-95 ${
-              showFloating
+            onClick={openFloatingWindow}
+            disabled={floatingWindows.length >= 2}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-md active:scale-95 relative ${
+              floatingWindows.length > 0
                 ? "bg-cyan-600 text-white hover:bg-cyan-700"
                 : "bg-white/80 dark:bg-slate-700 text-gray-500 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-600 border border-gray-200 dark:border-gray-600"
-            }`}
-            title={showFloating ? "Fermer la 2ème fenêtre" : "Ouvrir une 2ème fenêtre"}
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
+            title={
+              floatingWindows.length === 0 ? "Ouvrir une fenêtre secondaire" :
+              floatingWindows.length === 1 ? "Ouvrir une 2ème fenêtre" :
+              "2 fenêtres ouvertes (maximum)"
+            }
           >
-            <PanelRightOpen className="w-4.5 h-4.5" />
+            <PanelRightOpen className="w-4 h-4" />
+            {floatingWindows.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white text-cyan-700 text-[9px] font-bold flex items-center justify-center shadow">
+                {floatingWindows.length}
+              </span>
+            )}
           </button>
 
           {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
@@ -1461,13 +1486,17 @@ function HomePage() {
       </div>
       </div>
 
-      {/* Fenêtre flottante secondaire */}
-      {showFloating && (
+      {/* Fenêtres flottantes — rendues via portal dans document.body */}
+      {floatingWindows.map((w, idx) => (
         <FloatingWindow
-          initialMode={mode !== "dashboard" ? mode : "mesures"}
-          onClose={() => setShowFloating(false)}
+          key={w.id}
+          initialMode={w.mode}
+          initialPos={{ x: 20 + idx * 40, y: 80 + idx * 30 }}
+          zIndex={w.z}
+          onClose={() => closeFloatingWindow(w.id)}
+          onFocus={() => bringToFront(w.id)}
         />
-      )}
+      ))}
 
       {/* Modal nouveau projet */}
       <NewProjectModal
