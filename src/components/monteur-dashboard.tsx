@@ -443,6 +443,23 @@ function getBestLogo(projectName: string, _fournisseurs?: string[]): string | nu
   return getClientLogo(projectName);
 }
 
+/**
+ * Boîte uniforme pour tous les logos fournisseurs/grossistes.
+ * Conteneur fixe w-14 × h-5 avec object-contain : BMS (3.5:1), Bringhen (6:1),
+ * Dubat (1.78:1) et Duka (1.9:1) s'affichent tous dans le même espace visuel.
+ */
+function LogoImg({ src }: { src: string }) {
+  return (
+    <span className="w-14 h-5 shrink-0 flex items-center justify-center overflow-hidden">
+      <img
+        src={src}
+        alt=""
+        className="max-w-full max-h-full object-contain rounded mix-blend-multiply dark:mix-blend-normal dark:invert"
+      />
+    </span>
+  );
+}
+
 // Get all working days (Mon-Fri) between start and end dates
 function formatLocalDate(d: Date): string {
   const y = d.getFullYear();
@@ -1036,7 +1053,7 @@ function ProjectRow({ project, colors }: { project: Project; colors: { bg: strin
               ))}
             </div>
           )}
-          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+          {logo && <LogoImg src={logo} />}
         </div>
       </div>
       <Badge variant="outline" className="text-[10px] shrink-0">{project.nbCabines || 0} cab.</Badge>
@@ -1123,7 +1140,7 @@ function WeekProjectRow({ project }: { project: Project }) {
               ))}
             </div>
           )}
-          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+          {logo && <LogoImg src={logo} />}
         </div>
       </div>
       <Badge variant="outline" className="text-[10px] shrink-0">{project.nbCabines || 0} cab.</Badge>
@@ -1806,7 +1823,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</p>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           {typeBadge}
-                          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                          {logo && <LogoImg src={logo} />}
                           <div className="flex -space-x-1 shrink-0">
                             {names.slice(0, 3).map((n) => (
                               <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
@@ -1829,7 +1846,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         </div>
                         <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</p>
                       </div>
-                      {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                      {logo && <LogoImg src={logo} />}
                       <div className="flex -space-x-1 shrink-0">
                         {names.slice(0, 3).map((n) => (
                           <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
@@ -2350,7 +2367,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             </div>
                             <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1">{p.projet}</p>
                           </div>
-                          {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                          {logo && <LogoImg src={logo} />}
                           <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
                           <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
                         </Link>
@@ -2627,7 +2644,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       }
                     </span>
                     <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
-                    {logo && <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                    {logo && <LogoImg src={logo} />}
                     <div className="flex -space-x-1 shrink-0">
                       {names.slice(0, 3).map((n: string) => (
                         <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
@@ -2758,7 +2775,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         <span key={ts} className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 hidden sm:inline-flex">{ts}</span>
                       ))}
                       {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                        <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                        <LogoImg src={logo} />
                       ) : null; })()}
                       <div className="flex -space-x-1 shrink-0">
                         {names.slice(0, 3).map((n: string) => (
@@ -2952,7 +2969,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     ts.includes("+") ? ts.split("+").map((s) => s.trim()) : [ts]
                   ).filter(Boolean);
                   const logoImg = (() => { const logo = getClientLogo(p.projet); return logo ? (
-                    <img src={logo} alt="" className="w-7 h-5 object-contain rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                    <LogoImg src={logo} />
                   ) : null; })();
 
                   // Badge J+x (uniquement si showDaysBadge et date de référence connue)
@@ -3131,7 +3148,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400 truncate block">{tmNums[0]}</span>
                       ) : <span className="font-mono text-[10px] text-gray-300">—</span>}
                     </span>
-                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                    {logo && <LogoImg src={logo} />}
                     {traitePar && traitColors && (
                       <span className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center shrink-0"
                         style={{ backgroundColor: traitColors.bg, color: traitColors.text }}>
@@ -3170,7 +3187,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     </div>
                   </div>
                   <div className="shrink-0 flex items-center gap-1.5 justify-end">
-                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                    {logo && <LogoImg src={logo} />}
                     {traitePar && traitColors && (
                       <span className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center shrink-0"
                         style={{ backgroundColor: traitColors.bg, color: traitColors.text }}>
@@ -3361,7 +3378,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1 font-medium">{p.projet}</p>
                   {p.causeSAV && <p className="text-[10px] text-gray-400 mt-0.5">Cause SAV : {p.causeSAV}</p>}
                 </div>
-                {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                {logo && <LogoImg src={logo} />}
                 <span className={`text-[9px] font-semibold px-2 py-1 rounded-full shrink-0 whitespace-nowrap ${ETAT_SAV_COLORS[statusLabel] || "bg-gray-100 text-gray-500"}`}>
                   {statusLabel}
                 </span>
@@ -3531,7 +3548,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   <p className="text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1 font-medium">{p.projet}</p>
                   {p.causeSoucis && <p className="text-[10px] text-gray-400 mt-0.5">Cause : {p.causeSoucis}</p>}
                 </div>
-                {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
+                {logo && <LogoImg src={logo} />}
                 {p.causeSoucis && (
                   <span className={`text-[9px] font-semibold px-2 py-1 rounded-full shrink-0 whitespace-nowrap hidden sm:inline-flex ${CAUSE_COLORS[p.causeSoucis] || "bg-orange-100 text-orange-700"}`}>{p.causeSoucis}</span>
                 )}
@@ -3689,7 +3706,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                     <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1">{p.projet}</span>
                     {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                      <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                      <LogoImg src={logo} />
                     ) : null; })()}
                     <div className="flex -space-x-1 shrink-0">
                       {names.slice(0, 3).map((n) => (
@@ -3768,7 +3785,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     </span>
                     <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-1">{p.projet}</span>
                     {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                      <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                      <LogoImg src={logo} />
                     ) : null; })()}
                     <div className="flex -space-x-1 shrink-0">
                       {names.slice(0, 3).map((n) => (
@@ -3823,7 +3840,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     });
                   })}
                   {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                    <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                    <LogoImg src={logo} />
                   ) : null; })()}
                   {p.dateMontageEnd && (() => { const days = getWorkingDays(p.dateMontage || "", p.dateMontageEnd); return days.length > 1 ? (
                     <span className="shrink-0 text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{days.length}j</span>
@@ -3926,7 +3943,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           </span>
                           <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
                           {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                            <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                            <LogoImg src={logo} />
                           ) : null; })()}
                           <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
                         </Link>
@@ -4078,7 +4095,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         )}
                         {/* Logo fournisseur/grossiste — placé avant les initiales */}
                         {bestLogo && (
-                          <img src={bestLogo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                          <LogoImg src={bestLogo} />
                         )}
                         {/* Initiales collaborateurs — visibles sur toutes les vues du rendu générique */}
                         {(showSummaryPanel === "week" || showSummaryPanel === "today" || showSummaryPanel === "mesures-today" || showSummaryPanel === "sav-today" || showSummaryPanel === "services-today") && names.length > 0 && (
@@ -4744,7 +4761,7 @@ function CollaborateurDashboard({ userName, projects }: { userName: string; proj
                                 </span>
                                 <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-2">{p.projet}</span>
                                 {(() => { const logo = getClientLogo(p.projet); return logo ? (
-                                  <img src={logo} alt="" className="w-7 h-5 object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />
+                                  <LogoImg src={logo} />
                                 ) : null; })()}
                                 <span className="text-[10px] border border-gray-200 dark:border-gray-600 rounded-full px-1.5 py-0.5 shrink-0 text-gray-600 dark:text-gray-300">
                                   {p.nbCabines || 0} cab.
