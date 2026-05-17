@@ -7,7 +7,8 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen } from "lucide-react";
+import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
@@ -794,6 +795,7 @@ function HomePage() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [conflictFilter, setConflictFilter] = useState<string | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
+  const [showFloating, setShowFloating] = useState(false);
   const [statsExpandedSections, setStatsExpandedSections] = useState<Set<string>>(new Set(["kpis", "monthly"]));
 
   // Stats from dedicated Notion databases
@@ -1430,17 +1432,40 @@ function HomePage() {
             }
           }} />
         </div>
-        {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
+        <div className="flex items-center gap-1.5 shrink-0 mt-1.5">
+          {/* Bouton fenêtre flottante */}
           <button
-            onClick={() => setShowNewProject(true)}
-            className="shrink-0 mt-1.5 w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
-            title="Nouveau projet"
+            onClick={() => setShowFloating((v) => !v)}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-md active:scale-95 ${
+              showFloating
+                ? "bg-cyan-600 text-white hover:bg-cyan-700"
+                : "bg-white/80 dark:bg-slate-700 text-gray-500 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-600 border border-gray-200 dark:border-gray-600"
+            }`}
+            title={showFloating ? "Fermer la 2ème fenêtre" : "Ouvrir une 2ème fenêtre"}
           >
-            <Plus className="w-5 h-5" />
+            <PanelRightOpen className="w-4.5 h-4.5" />
           </button>
-        )}
+
+          {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
+            <button
+              onClick={() => setShowNewProject(true)}
+              className="w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
+              title="Nouveau projet"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
       </div>
+
+      {/* Fenêtre flottante secondaire */}
+      {showFloating && (
+        <FloatingWindow
+          initialMode={mode !== "dashboard" ? mode : "mesures"}
+          onClose={() => setShowFloating(false)}
+        />
+      )}
 
       {/* Modal nouveau projet */}
       <NewProjectModal
