@@ -415,9 +415,22 @@ const CLIENT_LOGOS: { prefix: string; logo: string }[] = [
   { prefix: "bringhen", logo: "/logos/fournisseurs/Bringhen-logo.jpg" },
 ];
 
+/** Supprime les accents pour comparaison tolérante (Gétaz ↔ getaz). */
+function stripAccents(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
 function getClientLogo(projectName: string): string | null {
-  const lower = projectName.toLowerCase();
-  const match = CLIENT_LOGOS.find((c) => lower.startsWith(c.prefix));
+  // Double normalisation : NFC (forme précomposée) ET sans accents.
+  // Notion peut renvoyer "Gétaz" sous forme décomposée (e + combining ´)
+  // qui ne matche pas le prefix codé en dur → on compare sans accents.
+  const lowerNFC = projectName.toLowerCase().normalize("NFC");
+  const lowerStripped = stripAccents(projectName.toLowerCase());
+  const match = CLIENT_LOGOS.find((c) => {
+    const prefixNFC = c.prefix.normalize("NFC");
+    const prefixStripped = stripAccents(c.prefix);
+    return lowerNFC.startsWith(prefixNFC) || lowerStripped.startsWith(prefixStripped);
+  });
   return match ? match.logo : null;
 }
 
