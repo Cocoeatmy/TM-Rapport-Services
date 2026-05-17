@@ -3102,7 +3102,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             const dateStr    = (p.dateMesures || "").split("T")[0];
             const traitePar  = p.mesuresTraiteePar || "";
             const traitColors = traitePar ? getCollaboratorColor(traitePar) : null;
-            const logo       = getClientLogo(p.projet);
+            const logo       = getBestLogo(p.projet, p.fournisseurs || []);
             const dateLabel  = dateStr
               ? new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })
               : "—";
@@ -3116,7 +3116,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
                 {/* ── Mobile : layout bloc ── */}
                 <div className="sm:hidden">
-                  {/* Ligne 1 : date + OFR + avatar + chevron */}
+                  {/* Ligne 1 : date + OFR + logo + avatar + chevron */}
                   <div className="flex items-center gap-2">
                     <span className={`text-[11px] font-semibold tabular-nums shrink-0 ${dateClass}`}>{dateLabel}</span>
                     <span className="flex-1 min-w-0">
@@ -3124,6 +3124,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400 truncate block">{tmNums[0]}</span>
                       ) : <span className="font-mono text-[10px] text-gray-300">—</span>}
                     </span>
+                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
                     {traitePar && traitColors && (
                       <span className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center shrink-0"
                         style={{ backgroundColor: traitColors.bg, color: traitColors.text }}>
@@ -3132,9 +3133,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     )}
                     <ChevronRight className={`w-3.5 h-3.5 text-gray-300 ${arrowClass} transition-colors shrink-0`} />
                   </div>
-                  {/* Ligne 2 : titre sur 3 lignes */}
+                  {/* Ligne 2 : titre */}
                   <div className="flex items-center gap-1.5 mt-1">
-                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3">{title}</p>
                       {subtitle && <p className="text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1">{subtitle}</p>}
@@ -3157,20 +3157,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     ) : <span className="font-mono text-[10px] text-gray-300">—</span>}
                   </div>
                   <div className="flex-1 min-w-0 flex items-center gap-2">
-                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">{title}</p>
                       {subtitle && <p className="text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1">{subtitle}</p>}
                     </div>
                   </div>
-                  <div className="w-28 shrink-0 flex justify-end">
+                  <div className="shrink-0 flex items-center gap-1.5 justify-end">
+                    {logo && <img src={logo} alt="" className="h-4 w-auto object-contain shrink-0 rounded mix-blend-multiply dark:mix-blend-normal dark:invert" />}
                     {traitePar && traitColors && (
-                      <span className="flex items-center gap-1">
-                        <span className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center"
-                          style={{ backgroundColor: traitColors.bg, color: traitColors.text }}>
-                          {getCollaboratorInitials(traitePar)}
-                        </span>
-                        <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{traitePar}</span>
+                      <span className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: traitColors.bg, color: traitColors.text }}>
+                        {getCollaboratorInitials(traitePar)}
                       </span>
                     )}
                   </div>
