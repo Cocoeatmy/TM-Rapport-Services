@@ -71,6 +71,7 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
 
   const lc = entityName.toLowerCase();
   const related = projects.filter((p) =>
+    p.etatCMD === "Terminé" &&
     Array.isArray(p[nameField]) && p[nameField].some((n: string) => n.toLowerCase() === lc)
   );
 
@@ -127,10 +128,11 @@ const BAR_PALETTES = [
   { bar: "bg-teal-500",    label: "text-teal-700 dark:text-teal-300"    },
 ];
 
-function StatBar({ label, count, total, cabines, colorIdx }: {
-  label: string; count: number; total: number; cabines: number; colorIdx: number;
+function StatBar({ label, count, totalCabines, cabines, colorIdx }: {
+  label: string; count: number; totalCabines: number; cabines: number; colorIdx: number;
 }) {
-  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  // Pourcentage basé sur les cabines (pas les projets)
+  const pct = totalCabines > 0 ? Math.round((cabines / totalCabines) * 100) : 0;
   const pal = BAR_PALETTES[colorIdx % BAR_PALETTES.length];
   return (
     <div className="space-y-1">
@@ -212,7 +214,7 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
             <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fournisseurs cabines</p>
           </div>
           {stats.fournisseurs.map((f, i) => (
-            <StatBar key={f.name} label={f.name} count={f.projects} total={stats.totalProjects} cabines={f.cabines} colorIdx={i} />
+            <StatBar key={f.name} label={f.name} count={f.projects} totalCabines={stats.totalCabines} cabines={f.cabines} colorIdx={i} />
           ))}
         </div>
       )}
@@ -225,7 +227,7 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
             <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Séries / Modèles</p>
           </div>
           {stats.series.map((s, i) => (
-            <StatBar key={s.name} label={s.name} count={s.projects} total={stats.totalProjects} cabines={s.cabines} colorIdx={i + 2} />
+            <StatBar key={s.name} label={s.name} count={s.projects} totalCabines={stats.totalCabines} cabines={s.cabines} colorIdx={i + 2} />
           ))}
         </div>
       )}
@@ -238,7 +240,7 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
             <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Top clients</p>
           </div>
           {stats.topClients.map((c, i) => (
-            <StatBar key={c.name} label={c.name} count={c.projects} total={stats.totalProjects} cabines={c.cabines} colorIdx={i + 4} />
+            <StatBar key={c.name} label={c.name} count={c.projects} totalCabines={stats.totalCabines} cabines={c.cabines} colorIdx={i + 4} />
           ))}
         </div>
       )}
