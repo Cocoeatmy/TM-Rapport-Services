@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Tag, Pencil, Trash2, Plus, Check, X, Globe, MapPin, Hash, Camera } from "lucide-react";
+import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Tag, Pencil, Trash2, Plus, Check, X, Globe, MapPin, Hash, Camera, BarChart3, TrendingUp, Package, Layers } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 
 interface CRMEntry {
@@ -31,6 +31,220 @@ const POSTE_COLORS: Record<string, string> = {
   "Responsable site": "bg-indigo-100 text-indigo-700",
   "Architecte": "bg-orange-100 text-orange-700",
 };
+
+// ─── Cache global des projets pour les stats (chargé une seule fois) ─────────
+let _projectsCache: any[] | null = null;
+let _projectsCachePromise: Promise<any[]> | null = null;
+
+function fetchAllProjectsCached(): Promise<any[]> {
+  if (_projectsCache !== null) return Promise.resolve(_projectsCache);
+  if (!_projectsCachePromise) {
+    _projectsCachePromise = fetch("/api/projects/all")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => { _projectsCache = Array.isArray(data) ? data : []; return _projectsCache!; })
+      .catch(() => { _projectsCache = []; return []; });
+  }
+  return _projectsCachePromise;
+}
+
+// Type de stats calculé pour une entité CRM
+interface EntityStats {
+  totalProjects: number;
+  totalCabines: number;
+  mesuresCount: number;
+  montagesCount: number;
+  fournisseurs: { name: string; projects: number; cabines: number }[];
+  series: { name: string; projects: number; cabines: number }[];
+  topClients: { name: string; projects: number; cabines: number }[];
+}
+
+// Champ de filtre selon le type d'entité CRM
+const ENTITY_NAMEFIELD: Record<string, string> = {
+  entreprises: "sanitaireNames",
+  fournisseurs: "fournisseursNames",
+  grossistes:   "grossistesNames",
+};
+
+function computeEntityStats(projects: any[], entityName: string, entityType: string): EntityStats {
+  const nameField = ENTITY_NAMEFIELD[entityType];
+  if (!nameField) return { totalProjects: 0, totalCabines: 0, mesuresCount: 0, montagesCount: 0, fournisseurs: [], series: [], topClients: [] };
+
+  const lc = entityName.toLowerCase();
+  const related = projects.filter((p) =>
+    Array.isArray(p[nameField]) && p[nameField].some((n: string) => n.toLowerCase() === lc)
+  );
+
+  const fMap: Record<string, { projects: number; cabines: number }> = {};
+  const sMap: Record<string, { projects: number; cabines: number }> = {};
+  const cMap: Record<string, { projects: number; cabines: number }> = {};
+  let totalCabines = 0, mesuresCount = 0, montagesCount = 0;
+
+  for (const p of related) {
+    const cab = p.nbCabines || 0;
+    totalCabines += cab;
+    const types: string[] = p.typeServices || [];
+    if (types.some((t: string) => t.toLowerCase().includes("mesure")))  mesuresCount++;
+    if (types.some((t: string) => t.toLowerCase().includes("montage"))) montagesCount++;
+
+    for (const f of (p.fournisseurs || [])) {
+      if (!fMap[f]) fMap[f] = { projects: 0, cabines: 0 };
+      fMap[f].projects++; fMap[f].cabines += cab;
+    }
+    for (const s of (p.seriesCabines || [])) {
+      if (!sMap[s]) sMap[s] = { projects: 0, cabines: 0 };
+      sMap[s].projects++; sMap[s].cabines += cab;
+    }
+    // Pour fournisseurs/grossistes → top clients entreprises
+    for (const n of (p.sanitaireNames || [])) {
+      if (!cMap[n]) cMap[n] = { projects: 0, cabines: 0 };
+      cMap[n].projects++; cMap[n].cabines += cab;
+    }
+  }
+
+  const sortDesc = (map: Record<string, { projects: number; cabines: number }>) =>
+    Object.entries(map).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.projects - a.projects);
+
+  return {
+    totalProjects: related.length,
+    totalCabines,
+    mesuresCount,
+    montagesCount,
+    fournisseurs: sortDesc(fMap),
+    series:       sortDesc(sMap),
+    topClients:   entityType !== "entreprises" ? sortDesc(cMap).slice(0, 8) : [],
+  };
+}
+
+// ─── Couleurs pour les barres ─────────────────────────────────────────────────
+const BAR_PALETTES = [
+  { bar: "bg-blue-500",    label: "text-blue-700 dark:text-blue-300"    },
+  { bar: "bg-violet-500",  label: "text-violet-700 dark:text-violet-300" },
+  { bar: "bg-emerald-500", label: "text-emerald-700 dark:text-emerald-300" },
+  { bar: "bg-amber-500",   label: "text-amber-700 dark:text-amber-300"  },
+  { bar: "bg-rose-500",    label: "text-rose-700 dark:text-rose-300"    },
+  { bar: "bg-cyan-500",    label: "text-cyan-700 dark:text-cyan-300"    },
+  { bar: "bg-orange-500",  label: "text-orange-700 dark:text-orange-300" },
+  { bar: "bg-teal-500",    label: "text-teal-700 dark:text-teal-300"    },
+];
+
+function StatBar({ label, count, total, cabines, colorIdx }: {
+  label: string; count: number; total: number; cabines: number; colorIdx: number;
+}) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  const pal = BAR_PALETTES[colorIdx % BAR_PALETTES.length];
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 truncate flex-1">{label}</span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] text-gray-400">{count} proj.</span>
+          {cabines > 0 && <span className="text-[10px] text-gray-400">{cabines} cab.</span>}
+          <span className={`text-[11px] font-bold tabular-nums w-8 text-right ${pal.label}`}>{pct}%</span>
+        </div>
+      </div>
+      <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div className={`h-full ${pal.bar} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function StatsPanel({ entityName, entityType }: { entityName: string; entityType: string }) {
+  const [stats, setStats] = useState<EntityStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAllProjectsCached().then((projects) => {
+      if (!cancelled) {
+        setStats(computeEntityStats(projects, entityName, entityType));
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [entityName, entityType]);
+
+  if (loading) {
+    return (
+      <div className="py-6 flex items-center justify-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+        <span className="text-xs text-gray-400">Calcul des statistiques…</span>
+      </div>
+    );
+  }
+
+  if (!stats || stats.totalProjects === 0) {
+    return (
+      <div className="py-5 text-center">
+        <BarChart3 className="w-7 h-7 mx-auto mb-2 text-gray-200 dark:text-gray-700" />
+        <p className="text-xs text-gray-400">Aucun projet lié trouvé</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 mt-2">
+      {/* ── Résumé ── */}
+      <div className="grid grid-cols-3 gap-1.5">
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-2.5 text-center">
+          <p className="text-xl font-bold text-blue-700 dark:text-blue-300 leading-none">{stats.totalProjects}</p>
+          <p className="text-[9px] text-blue-500 mt-1">Projets</p>
+        </div>
+        <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-2.5 text-center">
+          <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300 leading-none">{stats.totalCabines}</p>
+          <p className="text-[9px] text-emerald-500 mt-1">Cabines</p>
+        </div>
+        <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-2.5 text-center">
+          <p className="text-[13px] font-bold text-violet-700 dark:text-violet-300 leading-none tabular-nums">
+            {stats.mesuresCount}<span className="text-[9px] font-medium text-violet-400 ml-0.5">M</span>{" "}
+            /{" "}
+            {stats.montagesCount}<span className="text-[9px] font-medium text-violet-400 ml-0.5">I</span>
+          </p>
+          <p className="text-[9px] text-violet-500 mt-1">Mes. / Inst.</p>
+        </div>
+      </div>
+
+      {/* ── Fournisseurs de cabines ── */}
+      {stats.fournisseurs.length > 0 && (
+        <div className="bg-white/70 dark:bg-white/5 border border-gray-100 dark:border-gray-700/50 rounded-xl p-3 space-y-2.5">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Package className="w-3 h-3 text-gray-400" />
+            <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fournisseurs cabines</p>
+          </div>
+          {stats.fournisseurs.map((f, i) => (
+            <StatBar key={f.name} label={f.name} count={f.projects} total={stats.totalProjects} cabines={f.cabines} colorIdx={i} />
+          ))}
+        </div>
+      )}
+
+      {/* ── Séries / Modèles ── */}
+      {stats.series.length > 0 && (
+        <div className="bg-white/70 dark:bg-white/5 border border-gray-100 dark:border-gray-700/50 rounded-xl p-3 space-y-2.5">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Layers className="w-3 h-3 text-gray-400" />
+            <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Séries / Modèles</p>
+          </div>
+          {stats.series.map((s, i) => (
+            <StatBar key={s.name} label={s.name} count={s.projects} total={stats.totalProjects} cabines={s.cabines} colorIdx={i + 2} />
+          ))}
+        </div>
+      )}
+
+      {/* ── Top clients (fournisseurs/grossistes seulement) ── */}
+      {stats.topClients.length > 0 && (
+        <div className="bg-white/70 dark:bg-white/5 border border-gray-100 dark:border-gray-700/50 rounded-xl p-3 space-y-2.5">
+          <div className="flex items-center gap-1.5 mb-1">
+            <TrendingUp className="w-3 h-3 text-gray-400" />
+            <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Top clients</p>
+          </div>
+          {stats.topClients.map((c, i) => (
+            <StatBar key={c.name} label={c.name} count={c.projects} total={stats.totalProjects} cabines={c.cabines} colorIdx={i + 4} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Keys to skip in display/edit (internal, read-only, or relation IDs)
 const SKIP_KEYS = new Set(["__entryName"]);
@@ -201,21 +415,20 @@ function LogoImage({ src, name }: { src: string; name: string }) {
   );
 }
 
-function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAdmin: boolean; onEdit: (e: CRMEntry) => void; onDelete: (e: CRMEntry) => void }) {
+function EntryCard({ entry, mode, isAdmin, onEdit, onDelete }: {
+  entry: CRMEntry; mode: string; isAdmin: boolean;
+  onEdit: (e: CRMEntry) => void; onDelete: (e: CRMEntry) => void;
+}) {
   const p = entry.properties;
   const poste = p["Poste"] || "";
   const etiquettes = Array.isArray(p["Étiquettes"]) ? p["Étiquettes"] : [];
   const isEmoji = entry.icon && !entry.icon.startsWith("http");
   const isImage = entry.icon && entry.icon.startsWith("http");
 
-  // Get the title key (first property that equals entry.name)
   const titleKey = Object.entries(p).find(([, v]) => v === entry.name)?.[0] || "";
-
-  // Properties to show (excluding title, already shown)
   const displayProps = Object.entries(p)
     .filter(([k, v]) => k !== titleKey && !SKIP_KEYS.has(k) && !HIDDEN_KEYS.has(k) && !isRelationIdArray(v) && v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0))
     .sort(([a], [b]) => {
-      // Prioritize key fields
       const priority = (k: string) => {
         const l = k.toLowerCase();
         if (l.includes("adresse")) return 0;
@@ -230,11 +443,17 @@ function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAd
     });
 
   const [expanded, setExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<"infos" | "stats">("infos");
+
+  // Stats disponibles pour tous sauf contacts
+  const entityType = MODE_TO_TYPE[mode as ClientMode];
+  const hasStats = entityType && entityType !== "contacts";
 
   return (
     <div className="glass-card rounded-2xl p-4 hover:shadow-lg transition-shadow">
-      <div className="flex items-start justify-between gap-2" onClick={() => setExpanded(!expanded)}>
-        <div className="flex items-center gap-2 mb-2 min-w-0">
+      {/* ── En-tête : toujours visible ── */}
+      <div className="flex items-start justify-between gap-2 cursor-pointer" onClick={() => setExpanded((v) => !v)}>
+        <div className="flex items-center gap-2 mb-1 min-w-0">
           {isImage ? (
             <LogoImage src={entry.icon} name={entry.name} />
           ) : isEmoji ? (
@@ -255,25 +474,61 @@ function EntryCard({ entry, isAdmin, onEdit, onDelete }: { entry: CRMEntry; isAd
           </div>
         </div>
         <div className="flex gap-1 shrink-0">
-          <button onClick={() => onEdit(entry)} className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center">
+          <button onClick={(e) => { e.stopPropagation(); onEdit(entry); }} className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center">
             <Pencil className="w-3 h-3 text-gray-400" />
           </button>
           {isAdmin && (
-            <button onClick={() => onDelete(entry)} className="w-7 h-7 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center">
+            <button onClick={(e) => { e.stopPropagation(); onDelete(entry); }} className="w-7 h-7 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center">
               <Trash2 className="w-3 h-3 text-red-400" />
             </button>
           )}
         </div>
       </div>
 
-      <div className="space-y-1.5 mt-1">
-        {(expanded ? displayProps : displayProps.slice(0, 4)).map(([k, v]) => (
-          <PropertyValue key={k} label={k} value={v} />
-        ))}
-        {!expanded && displayProps.length > 4 && (
-          <p className="text-[10px] text-blue-500 cursor-pointer" onClick={() => setExpanded(true)}>Voir {displayProps.length - 4} champs de plus…</p>
-        )}
-      </div>
+      {/* ── Contenu expansible ── */}
+      {expanded && (
+        <div className="mt-2">
+          {/* Onglets Infos / Statistiques */}
+          {hasStats && (
+            <div className="flex gap-1 mb-3 border-b border-gray-100 dark:border-gray-700/60 pb-2">
+              <button
+                onClick={() => setActiveTab("infos")}
+                className={`flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full font-semibold transition-colors ${activeTab === "infos" ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"}`}
+              >
+                Infos
+              </button>
+              <button
+                onClick={() => setActiveTab("stats")}
+                className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full font-semibold transition-colors ${activeTab === "stats" ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"}`}
+              >
+                <BarChart3 className="w-3 h-3" />
+                Statistiques
+              </button>
+            </div>
+          )}
+
+          {/* Contenu de l'onglet actif */}
+          {(!hasStats || activeTab === "infos") ? (
+            <div className="space-y-1.5">
+              {displayProps.map(([k, v]) => (
+                <PropertyValue key={k} label={k} value={v} />
+              ))}
+              {displayProps.length === 0 && (
+                <p className="text-[10px] text-gray-400 italic">Aucune information disponible</p>
+              )}
+            </div>
+          ) : (
+            <StatsPanel entityName={entry.name} entityType={entityType} />
+          )}
+        </div>
+      )}
+
+      {/* Indicateur "cliquer pour voir" si pas encore ouvert */}
+      {!expanded && displayProps.length > 0 && (
+        <p className="text-[10px] text-gray-400 mt-1 cursor-pointer hover:text-blue-500 transition-colors" onClick={() => setExpanded(true)}>
+          Voir les détails…
+        </p>
+      )}
     </div>
   );
 }
@@ -650,7 +905,7 @@ export function CRMClients({ mode, isAdmin }: { mode: ClientMode; isAdmin?: bool
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((e) => (
-          <EntryCard key={e.id} entry={e} isAdmin={!!isAdmin} onEdit={setEditEntry} onDelete={setDeleteEntry} />
+          <EntryCard key={e.id} entry={e} mode={mode} isAdmin={!!isAdmin} onEdit={setEditEntry} onDelete={setDeleteEntry} />
         ))}
         {filtered.length === 0 && (
           <p className="col-span-full text-center text-sm text-gray-400 py-8">Aucun résultat</p>
