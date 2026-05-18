@@ -101,18 +101,42 @@ async function fetchDatabase(type: string): Promise<CRMEntry[]> {
   } while (cursor);
 
   const entries = allResults.map((page) => {
-    // Extract page icon (logo)
+    // 1. Icône de page Notion (emoji, fichier externe ou fichier interne)
     let icon = "";
     if (page.icon) {
       if (page.icon.type === "external") icon = page.icon.external?.url || "";
       else if (page.icon.type === "file") icon = page.icon.file?.url || "";
       else if (page.icon.type === "emoji") icon = page.icon.emoji || "";
     }
+
+    const properties = extractAllProperties(page.properties);
+
+    // 2. Fallback : si pas d'icône de page, chercher la première propriété
+    //    de type fichier/URL qui contient une image (Logo, Image, Photo…)
+    if (!icon) {
+      for (const [key, val] of Object.entries(properties)) {
+        const isLogoKey = /logo|image|photo|cover|fichier/i.test(key);
+        if (isLogoKey && Array.isArray(val) && val.length > 0 && typeof val[0] === "string" && val[0].startsWith("http")) {
+          icon = val[0];
+          break;
+        }
+      }
+      // Dernier recours : n'importe quelle propriété files avec une URL http
+      if (!icon) {
+        for (const val of Object.values(properties)) {
+          if (Array.isArray(val) && val.length > 0 && typeof val[0] === "string" && val[0].startsWith("http")) {
+            icon = val[0];
+            break;
+          }
+        }
+      }
+    }
+
     return {
       id: page.id,
       name: extractTitle(page.properties),
       icon,
-      properties: extractAllProperties(page.properties),
+      properties,
     };
   }).filter((e) => e.name.trim() !== "").sort((a, b) => a.name.localeCompare(b.name));
 
