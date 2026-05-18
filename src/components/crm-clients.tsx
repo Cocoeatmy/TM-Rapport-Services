@@ -360,12 +360,10 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
           <p className="text-[9px] text-emerald-500 mt-1">Cabines</p>
         </div>
         <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-2.5 text-center">
-          <p className="text-[13px] font-bold text-violet-700 dark:text-violet-300 leading-none tabular-nums">
-            {stats.mesuresCount}<span className="text-[9px] font-medium text-violet-400 ml-0.5">M</span>{" "}
-            /{" "}
-            {stats.montagesCount}<span className="text-[9px] font-medium text-violet-400 ml-0.5">I</span>
+          <p className="text-xl font-bold text-violet-700 dark:text-violet-300 leading-none">
+            {stats.totalProjects > 0 ? (stats.totalCabines / stats.totalProjects).toFixed(1) : "—"}
           </p>
-          <p className="text-[9px] text-violet-500 mt-1">Mes. / Inst.</p>
+          <p className="text-[9px] text-violet-500 mt-1">Moy. cab./projet</p>
         </div>
       </div>
 
