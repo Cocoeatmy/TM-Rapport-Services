@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Tag, Pencil, Trash2, Plus, Check, X, Globe, MapPin, Hash, Camera, BarChart3, TrendingUp, Package, Layers } from "lucide-react";
+import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Tag, Pencil, Trash2, Plus, Check, X, Globe, MapPin, Hash, Camera, BarChart3, TrendingUp, Package, Layers, Filter, ChevronDown } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 
 interface CRMEntry {
@@ -65,14 +65,46 @@ const ENTITY_NAMEFIELD: Record<string, string> = {
   grossistes:   "grossistesNames",
 };
 
-function computeEntityStats(projects: any[], entityName: string, entityType: string): EntityStats {
+interface StatsFilter {
+  year: number | null;
+  month: number | null; // 1–12
+  from: string;         // "YYYY-MM" ou ""
+  to: string;           // "YYYY-MM" ou ""
+}
+
+/** Retourne la date de référence d'un projet terminé (date montage > CMD reçue). */
+function projectRefDate(p: any): string {
+  return p.dateMontage || p.dateMontageEnd || p.dateCMDRecue || "";
+}
+
+function projectMatchesFilter(p: any, f: StatsFilter): boolean {
+  const dateStr = projectRefDate(p);
+  if (!dateStr) return !f.year && !f.month && !f.from && !f.to; // pas de date → exclure si filtre actif
+  const [y, m] = dateStr.split("-").map(Number);
+  if (f.year  && y !== f.year)  return false;
+  if (f.month && m !== f.month) return false;
+  if (f.from) {
+    const [fy, fm] = f.from.split("-").map(Number);
+    if (y < fy || (y === fy && m < fm)) return false;
+  }
+  if (f.to) {
+    const [ty, tm] = f.to.split("-").map(Number);
+    if (y > ty || (y === ty && m > tm)) return false;
+  }
+  return true;
+}
+
+function computeEntityStats(projects: any[], entityName: string, entityType: string, filter?: StatsFilter): EntityStats {
   const nameField = ENTITY_NAMEFIELD[entityType];
   if (!nameField) return { totalProjects: 0, totalCabines: 0, mesuresCount: 0, montagesCount: 0, fournisseurs: [], series: [], topClients: [] };
 
   const lc = entityName.toLowerCase();
+  const noFilter = !filter || (!filter.year && !filter.month && !filter.from && !filter.to);
+
   const related = projects.filter((p) =>
     p.etatCMD === "Terminé" &&
-    Array.isArray(p[nameField]) && p[nameField].some((n: string) => n.toLowerCase() === lc)
+    Array.isArray(p[nameField]) && p[nameField].some((n: string) => n.toLowerCase() === lc) &&
+    (noFilter || projectMatchesFilter(p, filter!))
   );
 
   const fMap: Record<string, { projects: number; cabines: number }> = {};
@@ -182,20 +214,51 @@ function StatBar({ label, count, totalCabines, cabines, colorIdx }: {
   );
 }
 
+const MONTHS_FR = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+
 function StatsPanel({ entityName, entityType }: { entityName: string; entityType: string }) {
-  const [stats, setStats] = useState<EntityStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [allProjects, setAllProjects] = useState<any[] | null>(null);
+  const [loading, setLoading]         = useState(true);
+
+  // Filtres
+  const [filterYear,  setFilterYear]  = useState<number | null>(null);
+  const [filterMonth, setFilterMonth] = useState<number | null>(null);
+  const [filterFrom,  setFilterFrom]  = useState("");
+  const [filterTo,    setFilterTo]    = useState("");
+  const [showRange,   setShowRange]   = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     fetchAllProjectsCached().then((projects) => {
-      if (!cancelled) {
-        setStats(computeEntityStats(projects, entityName, entityType));
-        setLoading(false);
-      }
+      if (!cancelled) { setAllProjects(projects); setLoading(false); }
     });
     return () => { cancelled = true; };
   }, [entityName, entityType]);
+
+  // Années disponibles (depuis les projets liés terminés)
+  const availableYears = useMemo(() => {
+    if (!allProjects) return [];
+    const lc = entityName.toLowerCase();
+    const nf = ENTITY_NAMEFIELD[entityType];
+    const years = new Set<number>();
+    allProjects.forEach((p) => {
+      if (p.etatCMD !== "Terminé") return;
+      if (!Array.isArray(p[nf]) || !p[nf].some((n: string) => n.toLowerCase() === lc)) return;
+      const d = projectRefDate(p);
+      if (d) years.add(parseInt(d.slice(0, 4)));
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [allProjects, entityName, entityType]);
+
+  const filter: StatsFilter = { year: filterYear, month: filterMonth, from: filterFrom, to: filterTo };
+  const hasFilter = !!(filterYear || filterMonth || filterFrom || filterTo);
+
+  const stats = useMemo(() => {
+    if (!allProjects) return null;
+    return computeEntityStats(allProjects, entityName, entityType, hasFilter ? filter : undefined);
+  }, [allProjects, entityName, entityType, filterYear, filterMonth, filterFrom, filterTo]);
+
+  const resetFilter = () => { setFilterYear(null); setFilterMonth(null); setFilterFrom(""); setFilterTo(""); setShowRange(false); };
 
   if (loading) {
     return (
@@ -206,17 +269,86 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
     );
   }
 
+  // ── UI Filtres ────────────────────────────────────────────────────────────────
+  const filterBar = (
+    <div className="space-y-2 mb-3">
+      {/* Ligne 1 : années rapides + toggle range */}
+      <div className="flex flex-wrap items-center gap-1">
+        <Filter className="w-3 h-3 text-gray-400 shrink-0" />
+        {/* Tout */}
+        <button
+          onClick={() => { setFilterYear(null); setFilterMonth(null); setShowRange(false); setFilterFrom(""); setFilterTo(""); }}
+          className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${!hasFilter ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-400"}`}
+        >Tout</button>
+        {/* Années */}
+        {availableYears.map((y) => (
+          <button
+            key={y}
+            onClick={() => { setFilterYear(filterYear === y ? null : y); setFilterMonth(null); setShowRange(false); setFilterFrom(""); setFilterTo(""); }}
+            className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${filterYear === y ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-400"}`}
+          >{y}</button>
+        ))}
+        {/* Toggle range */}
+        <button
+          onClick={() => { setShowRange((v) => !v); setFilterYear(null); setFilterMonth(null); }}
+          className={`ml-auto text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-0.5 transition-colors ${showRange ? "bg-violet-600 text-white border-violet-600" : "border-gray-300 dark:border-gray-600 text-gray-500 hover:border-violet-400"}`}
+        >
+          <ChevronDown className="w-2.5 h-2.5" /> Période
+        </button>
+      </div>
+
+      {/* Ligne 2 : mois (si année sélectionnée) */}
+      {filterYear && !showRange && (
+        <div className="flex flex-wrap gap-1 pl-4">
+          <button
+            onClick={() => setFilterMonth(null)}
+            className={`text-[9px] px-1.5 py-0.5 rounded-full border transition-colors ${!filterMonth ? "bg-blue-500 text-white border-blue-500" : "border-gray-200 dark:border-gray-700 text-gray-400 hover:border-blue-300"}`}
+          >Tous</button>
+          {MONTHS_FR.map((m, i) => (
+            <button
+              key={i}
+              onClick={() => setFilterMonth(filterMonth === i + 1 ? null : i + 1)}
+              className={`text-[9px] px-1.5 py-0.5 rounded-full border transition-colors ${filterMonth === i + 1 ? "bg-blue-500 text-white border-blue-500" : "border-gray-200 dark:border-gray-700 text-gray-400 hover:border-blue-300"}`}
+            >{m}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Ligne 3 : range de/à */}
+      {showRange && (
+        <div className="flex items-center gap-1.5 pl-4 flex-wrap">
+          <span className="text-[10px] text-gray-500">De</span>
+          <input type="month" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)}
+            className="text-[10px] h-6 px-1.5 rounded border border-gray-300 dark:border-gray-600 dark:bg-slate-800 dark:text-gray-100 focus:outline-none focus:border-blue-400" />
+          <span className="text-[10px] text-gray-500">à</span>
+          <input type="month" value={filterTo} onChange={(e) => setFilterTo(e.target.value)}
+            className="text-[10px] h-6 px-1.5 rounded border border-gray-300 dark:border-gray-600 dark:bg-slate-800 dark:text-gray-100 focus:outline-none focus:border-blue-400" />
+          {hasFilter && (
+            <button onClick={resetFilter} className="text-[9px] text-red-400 hover:text-red-500 ml-1">
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   if (!stats || stats.totalProjects === 0) {
     return (
-      <div className="py-5 text-center">
-        <BarChart3 className="w-7 h-7 mx-auto mb-2 text-gray-200 dark:text-gray-700" />
-        <p className="text-xs text-gray-400">Aucun projet lié trouvé</p>
+      <div>
+        {filterBar}
+        <div className="py-5 text-center">
+          <BarChart3 className="w-7 h-7 mx-auto mb-2 text-gray-200 dark:text-gray-700" />
+          <p className="text-xs text-gray-400">{hasFilter ? "Aucun projet pour cette période" : "Aucun projet lié trouvé"}</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-3 mt-2">
+      {filterBar}
+
       {/* ── Résumé ── */}
       <div className="grid grid-cols-3 gap-1.5">
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-2.5 text-center">
