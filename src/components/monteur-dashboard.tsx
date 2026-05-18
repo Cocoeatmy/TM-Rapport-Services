@@ -402,18 +402,18 @@ function getDailyQuote(firstName: string): string {
 
 // scale : facteur d'agrandissement CSS pour compenser le whitespace natif du fichier.
 // BMS (418×120, ratio 3.5:1) = référence visuelle → scale 1.
-// Dubat (1200×675) et Duka (1200×630) ont beaucoup de marge → scale 1.8.
+// Dubat (1200×675) et Duka (1200×630) ont beaucoup de marge → scale 1.7.
 // Logos carrés (Matway, Nelo, Samo, Ronal) → scale 1.5.
 const CLIENT_LOGOS: { prefix: string; logo: string; scale?: number }[] = [
   { prefix: "getaz",      logo: "/logos/fournisseurs/BMS-Logo.png" },
   { prefix: "gétaz",      logo: "/logos/fournisseurs/BMS-Logo.png" },
-  { prefix: "duka",       logo: "/logos/fournisseurs/duka.ch-logo.png",    scale: 2.3 },
+  { prefix: "duka",       logo: "/logos/fournisseurs/duka.ch-logo.png",    scale: 1.3 },
   { prefix: "duscholux",  logo: "/logos/fournisseurs/Duscholux-logo.png",  scale: 1.3 },
   { prefix: "ronal",      logo: "/logos/fournisseurs/ronal-logo-v2.png",   scale: 1.5 },
   { prefix: "nelo",       logo: "/logos/fournisseurs/Nelo-logo.jpg",       scale: 1.5 },
   { prefix: "novellini",  logo: "/logos/fournisseurs/Novellini-logo.png",  scale: 1.2 },
   { prefix: "samo",       logo: "/logos/fournisseurs/Samo-logo.jpg",       scale: 1.5 },
-  { prefix: "dubat",      logo: "/logos/fournisseurs/Dubat-Logo.png",      scale: 2.3 },
+  { prefix: "dubat",      logo: "/logos/fournisseurs/Dubat-Logo.png",      scale: 1.3 },
   { prefix: "tema",       logo: "/logos/fournisseurs/Tema-Logo.png",       scale: 1.4 },
   { prefix: "matway",     logo: "/logos/fournisseurs/Matway-Logo.png",     scale: 1.5 },
   { prefix: "bringhen",   logo: "/logos/fournisseurs/Bringhen-logo.jpg" },
@@ -452,16 +452,19 @@ function getBestLogo(projectName: string, _fournisseurs?: string[]): string | nu
 
 /**
  * Boîte uniforme pour tous les logos.
- * Le scale par logo (LOGO_SCALE_MAP) compense le whitespace natif de chaque fichier
- * image pour que tous les logos paraissent visuellement de la même taille.
- * overflow-visible : le zoom n'est pas clipé par le conteneur.
+ * overflow-visible : garantit que le logo n'est jamais coupé.
+ * Le scale compense le whitespace natif de chaque fichier image.
+ * marginRight dynamique : évite que le logo zoomé empiète sur le cercle d'initiales.
  */
 function LogoImg({ src }: { src: string }) {
   const scale = LOGO_SCALE_MAP[src] ?? 1;
-  // overflow-hidden : le scale() zoome dans le centre de l'image (whitespace rogné)
-  // sans déborder sur les éléments adjacents (cercle d'initiales).
+  // Décalage droit pour compenser le débordement visuel du zoom sans clipper.
+  const extraRight = scale > 1 ? Math.round((scale - 1) * 8) : 0;
   return (
-    <span className="w-14 h-6 shrink-0 flex items-center justify-center overflow-hidden rounded">
+    <span
+      className="w-14 h-6 shrink-0 flex items-center justify-center overflow-visible"
+      style={extraRight ? { marginRight: extraRight } : undefined}
+    >
       <img
         src={src}
         alt=""
@@ -3130,7 +3133,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             rawList.map(p => (p.dateMesures || "").split("T")[0].slice(0, 4)).filter(Boolean)
           )).sort((a, b) => b.localeCompare(a));
           const hasMesuresFilter = !!(mesuresFilterYear || mesuresFilterFrom || mesuresFilterTo);
-          const hoverClass    = isAnnulees ? "hover:bg-red-50 dark:hover:bg-red-900/10" : "hover:bg-cyan-50 dark:hover:bg-cyan-900/20";
+          const hoverClass    = isAnnulees ? "hover:bg-red-200/60 dark:hover:bg-red-800/30" : "hover:bg-blue-200/60 dark:hover:bg-blue-800/30";
           const arrowClass    = isAnnulees ? "group-hover:text-red-400" : "group-hover:text-cyan-400";
           const dateClass     = isAnnulees ? "text-red-600 dark:text-red-400" : "text-cyan-700 dark:text-cyan-300";
 
@@ -3146,12 +3149,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             const title = p.projet || p.nomChantier || "—";
             const subtitle = p.nomChantier && p.nomChantier !== p.projet ? p.nomChantier : null;
             const rowBg = isAnnulees
-              ? (idx % 2 === 0 ? "bg-red-50/60 dark:bg-red-950/20" : "bg-red-100/50 dark:bg-red-900/15")
-              : (idx % 2 === 0 ? "bg-cyan-50/60 dark:bg-cyan-950/20" : "bg-cyan-100/50 dark:bg-cyan-900/15");
+              ? (idx % 2 === 0 ? "bg-red-50/50 dark:bg-red-950/20" : "bg-red-100/40 dark:bg-red-900/15")
+              : (idx % 2 === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "bg-blue-100/60 dark:bg-blue-900/20");
 
             return (
               <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                className={`block sm:flex sm:items-center sm:gap-3 px-2 py-2.5 rounded-xl ${rowBg} ${hoverClass} transition-colors group`}>
+                className={`block sm:flex sm:items-center sm:gap-3 px-2 py-1.5 rounded-lg ${rowBg} ${hoverClass} transition-colors group`}>
 
                 {/* ── Mobile : layout bloc ── */}
                 <div className="sm:hidden">
