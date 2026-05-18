@@ -52,7 +52,6 @@ interface EntityStats {
   totalProjects: number;
   totalCabines: number;
   mesuresCount: number;
-  montagesCount: number;
   fournisseurs: { name: string; projects: number; cabines: number }[];
   series: { name: string; projects: number; cabines: number }[];
   topClients: { name: string; projects: number; cabines: number }[];
@@ -96,7 +95,7 @@ function projectMatchesFilter(p: any, f: StatsFilter): boolean {
 
 function computeEntityStats(projects: any[], entityName: string, entityType: string, filter?: StatsFilter): EntityStats {
   const nameField = ENTITY_NAMEFIELD[entityType];
-  if (!nameField) return { totalProjects: 0, totalCabines: 0, mesuresCount: 0, montagesCount: 0, fournisseurs: [], series: [], topClients: [] };
+  if (!nameField) return { totalProjects: 0, totalCabines: 0, mesuresCount: 0, fournisseurs: [], series: [], topClients: [] };
 
   const lc = entityName.toLowerCase();
   const noFilter = !filter || (!filter.year && !filter.month && !filter.from && !filter.to);
@@ -110,16 +109,19 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
   const fMap: Record<string, { projects: number; cabines: number }> = {};
   const sMap: Record<string, { projects: number; cabines: number }> = {};
   const cMap: Record<string, { projects: number; cabines: number }> = {};
-  let totalCabines = 0, mesuresCount = 0, montagesCount = 0;
+  let totalCabines = 0;
   let cabinesSansFournisseur = 0, cabinesSansSerie = 0;
   let projsSansFournisseur = 0, projsSansSerie = 0;
+
+  // Mesures : tous les projets liés (pas uniquement Terminé) ayant une date de mesure
+  const allRelated = projects.filter((p) =>
+    Array.isArray(p[nameField]) && p[nameField].some((n: string) => n.toLowerCase() === lc)
+  );
+  const mesuresCount = allRelated.filter((p) => !!p.dateMesures).length;
 
   for (const p of related) {
     const cab = p.nbCabines || 0;
     totalCabines += cab;
-    const types: string[] = p.typeServices || [];
-    if (types.some((t: string) => t.toLowerCase().includes("mesure")))  mesuresCount++;
-    if (types.some((t: string) => t.toLowerCase().includes("montage"))) montagesCount++;
 
     const fList: string[] = p.fournisseurs || [];
     const sList: string[] = p.seriesCabines || [];
@@ -170,7 +172,6 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
     totalProjects: related.length,
     totalCabines,
     mesuresCount,
-    montagesCount,
     fournisseurs: fournisseursList,
     series:       seriesList,
     topClients:   entityType !== "entreprises" ? sortDesc(cMap).slice(0, 8) : [],
@@ -360,10 +361,8 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
           <p className="text-[9px] text-emerald-500 mt-1">Cabines</p>
         </div>
         <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-2.5 text-center">
-          <p className="text-xl font-bold text-violet-700 dark:text-violet-300 leading-none">
-            {stats.totalProjects > 0 ? (stats.totalCabines / stats.totalProjects).toFixed(1) : "—"}
-          </p>
-          <p className="text-[9px] text-violet-500 mt-1">Moy. cab./projet</p>
+          <p className="text-xl font-bold text-violet-700 dark:text-violet-300 leading-none">{stats.mesuresCount}</p>
+          <p className="text-[9px] text-violet-500 mt-1">Mesures faites</p>
         </div>
       </div>
 
