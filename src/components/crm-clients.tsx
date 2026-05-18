@@ -79,6 +79,8 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
   const sMap: Record<string, { projects: number; cabines: number }> = {};
   const cMap: Record<string, { projects: number; cabines: number }> = {};
   let totalCabines = 0, mesuresCount = 0, montagesCount = 0;
+  let cabinesSansFournisseur = 0, cabinesSansSerie = 0;
+  let projsSansFournisseur = 0, projsSansSerie = 0;
 
   for (const p of related) {
     const cab = p.nbCabines || 0;
@@ -87,14 +89,34 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
     if (types.some((t: string) => t.toLowerCase().includes("mesure")))  mesuresCount++;
     if (types.some((t: string) => t.toLowerCase().includes("montage"))) montagesCount++;
 
-    for (const f of (p.fournisseurs || [])) {
-      if (!fMap[f]) fMap[f] = { projects: 0, cabines: 0 };
-      fMap[f].projects++; fMap[f].cabines += cab;
+    const fList: string[] = p.fournisseurs || [];
+    const sList: string[] = p.seriesCabines || [];
+
+    // Distribuer les cabines équitablement entre fournisseurs (évite double-comptage)
+    if (fList.length > 0) {
+      const cabPerF = cab / fList.length;
+      for (const f of fList) {
+        if (!fMap[f]) fMap[f] = { projects: 0, cabines: 0 };
+        fMap[f].projects++;
+        fMap[f].cabines += cabPerF;
+      }
+    } else {
+      cabinesSansFournisseur += cab;
+      projsSansFournisseur++;
     }
-    for (const s of (p.seriesCabines || [])) {
-      if (!sMap[s]) sMap[s] = { projects: 0, cabines: 0 };
-      sMap[s].projects++; sMap[s].cabines += cab;
+
+    if (sList.length > 0) {
+      const cabPerS = cab / sList.length;
+      for (const s of sList) {
+        if (!sMap[s]) sMap[s] = { projects: 0, cabines: 0 };
+        sMap[s].projects++;
+        sMap[s].cabines += cabPerS;
+      }
+    } else {
+      cabinesSansSerie += cab;
+      projsSansSerie++;
     }
+
     // Pour fournisseurs/grossistes → top clients entreprises
     for (const n of (p.sanitaireNames || [])) {
       if (!cMap[n]) cMap[n] = { projects: 0, cabines: 0 };
@@ -103,15 +125,22 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
   }
 
   const sortDesc = (map: Record<string, { projects: number; cabines: number }>) =>
-    Object.entries(map).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.projects - a.projects);
+    Object.entries(map).map(([name, v]) => ({ name, projects: v.projects, cabines: Math.round(v.cabines) }))
+      .sort((a, b) => b.cabines - a.cabines);
+
+  const fournisseursList = sortDesc(fMap);
+  if (cabinesSansFournisseur > 0) fournisseursList.push({ name: "Non renseigné", projects: projsSansFournisseur, cabines: cabinesSansFournisseur });
+
+  const seriesList = sortDesc(sMap);
+  if (cabinesSansSerie > 0) seriesList.push({ name: "Non renseigné", projects: projsSansSerie, cabines: cabinesSansSerie });
 
   return {
     totalProjects: related.length,
     totalCabines,
     mesuresCount,
     montagesCount,
-    fournisseurs: sortDesc(fMap),
-    series:       sortDesc(sMap),
+    fournisseurs: fournisseursList,
+    series:       seriesList,
     topClients:   entityType !== "entreprises" ? sortDesc(cMap).slice(0, 8) : [],
   };
 }
@@ -131,13 +160,15 @@ const BAR_PALETTES = [
 function StatBar({ label, count, totalCabines, cabines, colorIdx }: {
   label: string; count: number; totalCabines: number; cabines: number; colorIdx: number;
 }) {
-  // Pourcentage basé sur les cabines (pas les projets)
   const pct = totalCabines > 0 ? Math.round((cabines / totalCabines) * 100) : 0;
-  const pal = BAR_PALETTES[colorIdx % BAR_PALETTES.length];
+  const isUnknown = label === "Non renseigné";
+  const pal = isUnknown
+    ? { bar: "bg-gray-300 dark:bg-gray-600", label: "text-gray-400" }
+    : BAR_PALETTES[colorIdx % BAR_PALETTES.length];
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 truncate flex-1">{label}</span>
+        <span className={`text-[11px] font-medium truncate flex-1 ${isUnknown ? "text-gray-400 dark:text-gray-500 italic" : "text-gray-700 dark:text-gray-300"}`}>{label}</span>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-[10px] text-gray-400">{count} proj.</span>
           {cabines > 0 && <span className="text-[10px] text-gray-400">{cabines} cab.</span>}
