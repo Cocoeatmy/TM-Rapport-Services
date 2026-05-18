@@ -111,23 +111,33 @@ async function fetchDatabase(type: string): Promise<CRMEntry[]> {
 
     const properties = extractAllProperties(page.properties);
 
-    // 2. Fallback : si pas d'icône de page, chercher la première propriété
-    //    de type fichier/URL qui contient une image (Logo, Image, Photo…)
+    // 2. Fallback cover Notion (bannière de page)
+    if (!icon && page.cover) {
+      if (page.cover.type === "external") icon = page.cover.external?.url || "";
+      else if (page.cover.type === "file") icon = page.cover.file?.url || "";
+    }
+
+    // 3. Fallback propriétés : chercher logo/image dans les propriétés nommées
     if (!icon) {
       for (const [key, val] of Object.entries(properties)) {
         const isLogoKey = /logo|image|photo|cover|fichier/i.test(key);
-        if (isLogoKey && Array.isArray(val) && val.length > 0 && typeof val[0] === "string" && val[0].startsWith("http")) {
-          icon = val[0];
-          break;
+        if (!isLogoKey) continue;
+        // Propriété files (tableau d'URLs)
+        if (Array.isArray(val) && val.length > 0 && typeof val[0] === "string" && val[0].startsWith("http")) {
+          icon = val[0]; break;
+        }
+        // Propriété url (string directe)
+        if (typeof val === "string" && val.startsWith("http")) {
+          icon = val; break;
         }
       }
-      // Dernier recours : n'importe quelle propriété files avec une URL http
-      if (!icon) {
-        for (const val of Object.values(properties)) {
-          if (Array.isArray(val) && val.length > 0 && typeof val[0] === "string" && val[0].startsWith("http")) {
-            icon = val[0];
-            break;
-          }
+    }
+
+    // 4. Dernier recours : première propriété files avec une URL http
+    if (!icon) {
+      for (const val of Object.values(properties)) {
+        if (Array.isArray(val) && val.length > 0 && typeof val[0] === "string" && val[0].startsWith("http")) {
+          icon = val[0]; break;
         }
       }
     }

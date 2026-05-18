@@ -937,6 +937,13 @@ export function CRMClients({ mode, isAdmin }: { mode: ClientMode; isAdmin?: bool
   const type = MODE_TO_TYPE[mode];
 
   const fetchEntries = (refresh = false) => {
+    if (refresh) {
+      // Purge du localStorage pour forcer le rechargement des logos/données
+      try { localStorage.removeItem(`tm-crm-${type}`); } catch {}
+      // Aussi vider le cache global des projets pour les stats
+      _projectsCache = null;
+      _projectsCachePromise = null;
+    }
     fetch(`/api/crm?type=${type}${refresh ? "&refresh=1" : ""}`)
       .then((r) => r.json())
       .then((data) => {
@@ -1057,6 +1064,16 @@ export function CRMClients({ mode, isAdmin }: { mode: ClientMode; isAdmin?: bool
             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-gray-200 dark:border-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           />
         </div>
+        {/* Rafraîchir — purge localStorage + re-fetch Notion */}
+        <button
+          onClick={() => { setLoading(true); fetchEntries(true); }}
+          title="Rafraîchir depuis Notion (logos, données)"
+          className="shrink-0 h-10 w-10 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        >
+          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
         <button
           onClick={() => setShowCreate(true)}
           className="shrink-0 h-10 px-4 rounded-xl bg-blue-600 text-white text-sm font-medium flex items-center gap-1.5 hover:bg-blue-700 active:scale-95 transition-all"
