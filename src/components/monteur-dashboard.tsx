@@ -2107,11 +2107,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         };
 
         return (
-          // Wrapper : s'efface (opacity) quand un panneau est ouvert — sans collapse
+          // Wrapper : efface + replie simultanément — pas de séquence décalée
           <div
-            className="space-y-2 transition-opacity duration-150 ease-in-out"
+            className="space-y-2 overflow-hidden"
             style={{
               opacity: showSummaryPanel && !isEditMode ? 0 : 1,
+              maxHeight: showSummaryPanel && !isEditMode ? 0 : 9999,
+              transition: "opacity 180ms ease, max-height 260ms ease",
               pointerEvents: showSummaryPanel && !isEditMode ? "none" : undefined,
             }}
           >
@@ -2221,14 +2223,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         );
       })()}
 
-      {/* RDV buttons — masqués quand un panneau est ouvert */}
+      {/* RDV buttons — masqués + repliés quand un panneau est ouvert */}
       <div
-        className="grid grid-cols-2 gap-3 transition-opacity duration-150 ease-in-out"
+        className="overflow-hidden"
         style={{
           opacity: showSummaryPanel ? 0 : 1,
+          maxHeight: showSummaryPanel ? 0 : 9999,
+          transition: "opacity 180ms ease, max-height 260ms ease",
           pointerEvents: showSummaryPanel ? "none" : undefined,
         }}
       >
+      <div className="grid grid-cols-2 gap-3">
         {(() => {
           const rdvAFixerStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
           const mesuresAFixerStatuses = ["Pas contacté", "Contact sans réponse"];
@@ -2272,6 +2277,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </button>
           );
         })()}
+      </div>
       </div>
 
       {/* ── En-tête panneau actif ─────────────────────────────────────────── */}
