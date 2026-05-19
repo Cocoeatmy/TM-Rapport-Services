@@ -22,11 +22,13 @@ const DEFAUT_TYPES = [
 interface DefautFormProps {
   projectId: string;
   projectName: string;
+  /** Liste des noms de cabines pour le sélecteur (uniquement si > 1 cabine). */
+  cabineOptions?: string[];
   /** Appelé après soumission réussie avec les URLs des photos uploadées. */
   onSubmitted?: (photoUrls: string[]) => void;
 }
 
-export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormProps) {
+export function DefautForm({ projectId, projectName, cabineOptions, onSubmitted }: DefautFormProps) {
   const [open, setOpen] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [description, setDescription] = useState("");
@@ -35,6 +37,7 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
   const [sending, setSending] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [displayInRapport, setDisplayInRapport] = useState(true);
+  const [selectedCabine, setSelectedCabine] = useState<string>("");
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
@@ -77,6 +80,7 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
     photoPreviews.forEach((p) => URL.revokeObjectURL(p));
     setPhotos([]);
     setPhotoPreviews([]);
+    setSelectedCabine("");
     if (cameraRef.current) cameraRef.current.value = "";
     if (galleryRef.current) galleryRef.current.value = "";
   };
@@ -140,6 +144,7 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
           description,
           photoUrls,
           displayInRapport,
+          cabineLabel: selectedCabine || undefined,
         }),
       });
       if (res.ok) {
@@ -199,6 +204,30 @@ export function DefautForm({ projectId, projectName, onSubmitted }: DefautFormPr
           })}
         </div>
       </div>
+
+      {/* Cabine concernée — affiché uniquement si projet multi-cabine */}
+      {cabineOptions && cabineOptions.length > 1 && (
+        <div>
+          <Label className="text-xs">Cabine concernée</Label>
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {cabineOptions.map((nom, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setSelectedCabine(selectedCabine === nom ? "" : nom)}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  selectedCabine === nom
+                    ? "bg-blue-100 text-blue-700 border border-blue-300"
+                    : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
+                }`}
+              >
+                {selectedCabine === nom && <Check className="w-3 h-3" />}
+                {nom}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Description libre */}
       <div>

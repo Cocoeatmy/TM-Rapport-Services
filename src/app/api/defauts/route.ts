@@ -26,6 +26,7 @@ interface DefautRequest {
   // au client. Par défaut true (rétro-compat : les anciens défauts
   // sans ce champ sont traités comme "à afficher").
   displayInRapport?: boolean;
+  cabineLabel?: string;
 }
 
 const KEY = "defauts";

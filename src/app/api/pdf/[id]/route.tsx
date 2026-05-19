@@ -50,6 +50,7 @@ interface DefautRequest {
   status: "signale" | "en-cours" | "resolu";
   timestamp: number;
   displayInRapport?: boolean;
+  cabineLabel?: string;
 }
 
 function parsePiecesFromNotion(text: string): PieceRequest[] {
@@ -210,17 +211,17 @@ const styles = StyleSheet.create({
   timeBox: {
     flex: 1,
     backgroundColor: "#f0f4f8",
-    padding: 10,
+    padding: 6,
     borderRadius: 4,
     alignItems: "center",
   },
   timeLabel: {
-    fontSize: 8,
+    fontSize: 7,
     color: "#666",
     marginBottom: 2,
   },
   timeValue: {
-    fontSize: 14,
+    fontSize: 11,
     fontFamily: "Helvetica-Bold",
     color: "#1e3a5f",
   },
@@ -382,8 +383,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   defautPhoto: {
-    width: 120,
-    height: 90,
+    width: 220,
+    height: 165,
     objectFit: "contain",
     borderRadius: 3,
   },
@@ -626,7 +627,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                     const cabLabel = (customNom && customNom !== `Cabine ${i + 1}`) ? customNom : `Cabine ${i + 1}`;
                     return (
                     <View key={i} wrap={false} style={{ flexDirection: "row", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                      <Text style={{ width: 70, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>
+                      <Text style={{ width: 70, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f", alignSelf: "center" }}>
                         {cabLabel}
                       </Text>
                       {dateMap[i] ? (
@@ -682,11 +683,9 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                 </Text>
                 {lines.map((line: string, i: number) => {
                   if (!line.trim()) {
-                    // Ligne vide → léger espace vertical
                     return <View key={i} style={{ height: 4 }} />;
                   }
-                  // Détecte les lignes avec identifiant numérique : "5.101 : texte"
-                  // Accepte avec ou sans espace autour du ":"
+                  // Identifiant numérique : "5.101 : texte"
                   const m = line.match(/^(\d[\d.]*)\s*:?\s+(.*)/);
                   if (m) {
                     return (
@@ -700,8 +699,18 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                       </View>
                     );
                   }
-                  // Ligne sans identifiant (note, "DT informée", etc.) → indentée
-                  // dans la colonne de texte, sans rien à gauche
+                  // Ligne débutant par une majuscule = titre de cabine/section
+                  // (ex: "SDD VIP", "Cabine standard") → bold, pleine largeur
+                  if (/^[A-ZÀÂÇÉÈÊËÎÏÔÙÛÜŸÆŒ]/.test(line.trim())) {
+                    return (
+                      <View key={i} style={{ marginBottom: 3, marginTop: i > 0 ? 5 : 0 }}>
+                        <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>
+                          {line.trim()}
+                        </Text>
+                      </View>
+                    );
+                  }
+                  // Continuation / note (indentée sous la colonne texte)
                   return (
                     <View key={i} style={{ flexDirection: "row", marginBottom: 3 }}>
                       <View style={{ width: IDENT_WIDTH, flexShrink: 0 }} />
@@ -767,27 +776,18 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
         </View>
       </Page>
 
-      {/* Photos pages */}
+      {/* Photos pages — une Page par cabine pour éviter les pages vides
+          et permettre un header fixe par cabine */}
       {(project.photosAvant?.length > 0 ||
         project.photosMontage?.length > 0 ||
         project.photosQRCode?.length > 0 ||
         project.photosGaranties?.length > 0) && (() => {
-        // Sous-bucket de chaque photo basé sur le préfixe du fichier,
-        // puis groupement par cabine. Ordre d'affichage des sous-buckets
-        // imposé par la spec client (avant intervention → avant montage →
-        // montage gauche/centre/droite → après intervention → QR Code →
-        // Garantie).
         const nbCab = project.nbCabines || 0;
         const isMultiCabine = nbCab > 1;
 
         type Photo = { name: string; url: string };
 
-        // groups[cabine][bucket] = liste de photos
         const groups: Record<number, Partial<Record<PhotoBucketKey, Photo[]>>> = {};
-        // Dédup global par URL : si la même photo se retrouve dans deux
-        // champs Notion différents (suite à un retry réseau, une race
-        // condition entre instances Vercel ou un ancien bug de migration),
-        // elle n'est rendue qu'une seule fois dans le PDF.
         const seenPdfUrls = new Set<string>();
         const dispatchList = (list: Photo[], notionFieldKey: "photosAvant" | "photosMontage" | "photosQRCode" | "photosGaranties") => {
           const fallback = defaultBucketForField(notionFieldKey);
@@ -806,17 +806,10 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
         dispatchList(project.photosQRCode || [], "photosQRCode");
         dispatchList(project.photosGaranties || [], "photosGaranties");
 
-        // Ordre des cabines : 1..N, puis Général (clé 0), puis orphelines.
         const orderedCabKeys: number[] = [];
-        for (let i = 1; i <= nbCab; i++) {
-          if (groups[i]) orderedCabKeys.push(i);
-        }
+        for (let i = 1; i <= nbCab; i++) { if (groups[i]) orderedCabKeys.push(i); }
         if (groups[0]) orderedCabKeys.push(0);
-        Object.keys(groups)
-          .map(Number)
-          .filter((k) => k !== 0 && k > nbCab)
-          .sort((a, b) => a - b)
-          .forEach((k) => orderedCabKeys.push(k));
+        Object.keys(groups).map(Number).filter((k) => k !== 0 && k > nbCab).sort((a, b) => a - b).forEach((k) => orderedCabKeys.push(k));
 
         const renderBucketGrid = (label: string, photos: Photo[], keyPrefix: string) => (
           <View key={keyPrefix} style={styles.section} wrap={false}>
@@ -831,22 +824,15 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
           </View>
         );
 
-        // QR Code et Garanties :
-        // - Les deux présents → layout compact côte à côte sur une ligne
-        // - Un seul présent  → layout normal identique aux autres sections
         const renderQrGarantieRow = (qrPhotos: Photo[], garPhotos: Photo[], keyPrefix: string) => {
           const hasQr = qrPhotos.length > 0;
           const hasGar = garPhotos.length > 0;
           if (!hasQr && !hasGar) return null;
           const both = hasQr && hasGar;
-
-          // Un seul côté : layout normal (taille pleine, aligné à gauche)
           if (!both) {
             if (hasQr) return renderBucketGrid("QR Code", qrPhotos, `${keyPrefix}-qr`);
             return renderBucketGrid("Garanties", garPhotos, `${keyPrefix}-gar`);
           }
-
-          // Les deux présents : colonnes compactes côte à côte
           const renderColumn = (label: string, photos: Photo[]) => {
             const n = photos.length;
             const rowHeight = 120;
@@ -855,25 +841,14 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                 <Text style={{ ...styles.label, marginBottom: 6 }}>{label}</Text>
                 <View style={{ flexDirection: "row", gap: 4, flexWrap: "nowrap" }}>
                   {photos.map((p, i) => (
-                    <View
-                      key={i}
-                      style={{
-                        flex: 1,
-                        height: rowHeight,
-                        minWidth: Math.max(40, Math.floor(220 / Math.max(n, 1))),
-                      }}
-                    >
-                      <Image
-                        src={optimizeImageUrl(p.url)}
-                        style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 4 }}
-                      />
+                    <View key={i} style={{ flex: 1, height: rowHeight, minWidth: Math.max(40, Math.floor(220 / Math.max(n, 1))) }}>
+                      <Image src={optimizeImageUrl(p.url)} style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 4 }} />
                     </View>
                   ))}
                 </View>
               </View>
             );
           };
-
           return (
             <View key={keyPrefix} style={styles.section} wrap={false}>
               <View style={{ flexDirection: "row", gap: 12 }}>
@@ -884,65 +859,47 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
           );
         };
 
-        const renderCabine = (cabKey: number, isFirstCab: boolean) => {
-          const buckets = groups[cabKey] || {};
-          // Nom personnalisé : si cabineAttribution contient un nom pour cette cabine, on l'utilise.
-          // Sinon on tombe sur "Cabine N" par défaut.
-          const cabIdx = cabKey - 1; // attribution/noms sont 0-indexés
-          const customNom = cabKey > 0 ? cabineAttribution?.noms?.[cabIdx] : null;
-          const monteurNom = cabKey > 0 ? cabineAttribution?.attribution?.[cabIdx] : null;
-          const defaultLabel = cabKey === 0 ? "Général" : `Cabine ${cabKey}`;
-          const nomPart = (customNom && customNom !== `Cabine ${cabKey}`) ? customNom : defaultLabel;
-          const cabineLabel = monteurNom
-            ? `${nomPart} — ${monteurNom}`
-            : nomPart;
-
-          // AVANT / APRES : sections séparées avec leur propre titre
-          const avantPhotos = [
-            ...(buckets.AVANT_INTERVENTION || []),
-            ...(buckets.AVANT_MONTAGE || []),
-          ];
-          const apresPhotos = buckets.APRES_INTERVENTION || [];
-
-          // MONTAGE : gauche + centre + droite regroupés sous un seul titre
-          const montagePhotos = [
-            ...(buckets.MONTAGE_GAUCHE || []),
-            ...(buckets.MONTAGE_CENTRE || []),
-            ...(buckets.MONTAGE_DROITE || []),
-          ];
-
-          const qrPhotos = buckets.QR_CODE || [];
-          const garPhotos = buckets.GARANTIE || [];
-
-          const hasAny = avantPhotos.length > 0 || montagePhotos.length > 0 || apresPhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0;
-          if (!hasAny) return null;
-
-          // Chaque cabine démarre sur une nouvelle page (sauf la première qui
-          // suit directement le titre "Photos du chantier").
-          return (
-            <View key={`cab-${cabKey}`} break={!isFirstCab}>
-              {isMultiCabine && (
-                <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 4, marginBottom: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 3 }}>
-                  {cabineLabel}
-                </Text>
-              )}
-              {avantPhotos.length > 0 && renderBucketGrid("Photos avant intervention", avantPhotos, `cab-${cabKey}-avant`)}
-              {montagePhotos.length > 0 && renderBucketGrid("Photos montage", montagePhotos, `cab-${cabKey}-montage`)}
-              {apresPhotos.length > 0 && renderBucketGrid("Photos après intervention", apresPhotos, `cab-${cabKey}-apres`)}
-              {renderQrGarantieRow(qrPhotos, garPhotos, `cab-${cabKey}-qrgar`)}
-            </View>
-          );
-        };
-
         return (
-          <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
-            <Text style={styles.sectionTitle} fixed>Photos du chantier</Text>
-            {orderedCabKeys.map((cabKey, cabIdx) => renderCabine(cabKey, cabIdx === 0))}
-            <View style={styles.footer} fixed>
-              <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
-              <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
-            </View>
-          </Page>
+          <>
+            {orderedCabKeys.map((cabKey) => {
+              const buckets = groups[cabKey] || {};
+              const cabIdx = cabKey - 1;
+              const customNom = cabKey > 0 ? cabineAttribution?.noms?.[cabIdx] : null;
+              const monteurNom = cabKey > 0 ? cabineAttribution?.attribution?.[cabIdx] : null;
+              const defaultLabel = cabKey === 0 ? "Général" : `Cabine ${cabKey}`;
+              const nomPart = (customNom && customNom !== `Cabine ${cabKey}`) ? customNom : defaultLabel;
+              const cabineLabel = monteurNom ? `${nomPart} — ${monteurNom}` : nomPart;
+              const headerText = isMultiCabine ? cabineLabel : "Photos du chantier";
+
+              const avantPhotos = [...(buckets.AVANT_INTERVENTION || []), ...(buckets.AVANT_MONTAGE || [])];
+              const apresPhotos = buckets.APRES_INTERVENTION || [];
+              const montagePhotos = [...(buckets.MONTAGE_GAUCHE || []), ...(buckets.MONTAGE_CENTRE || []), ...(buckets.MONTAGE_DROITE || [])];
+              const qrPhotos = buckets.QR_CODE || [];
+              const garPhotos = buckets.GARANTIE || [];
+
+              const hasAny = avantPhotos.length > 0 || montagePhotos.length > 0 || apresPhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0;
+              if (!hasAny) return null;
+
+              return (
+                <Page key={`page-cab-${cabKey}`} size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
+                  {/* Header fixe sombre — répété sur chaque page de cette cabine */}
+                  <View fixed style={{ backgroundColor: "#1e3a5f", borderRadius: 4, paddingVertical: 7, paddingHorizontal: 10, marginBottom: 10 }}>
+                    <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#ffffff" }}>
+                      {headerText}
+                    </Text>
+                  </View>
+                  {avantPhotos.length > 0 && renderBucketGrid("Photos avant intervention", avantPhotos, `cab-${cabKey}-avant`)}
+                  {montagePhotos.length > 0 && renderBucketGrid("Photos montage", montagePhotos, `cab-${cabKey}-montage`)}
+                  {apresPhotos.length > 0 && renderBucketGrid("Photos après intervention", apresPhotos, `cab-${cabKey}-apres`)}
+                  {renderQrGarantieRow(qrPhotos, garPhotos, `cab-${cabKey}-qrgar`)}
+                  <View style={styles.footer} fixed>
+                    <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
+                    <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+                  </View>
+                </Page>
+              );
+            })}
+          </>
         );
       })()}
 
@@ -1012,7 +969,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
       {/* Défauts signalés */}
       {defauts.length > 0 && (
         <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
-          <Text style={styles.sectionTitle} fixed>Défauts signalés</Text>
+          <Text style={{ ...styles.sectionTitle, color: "#b91c1c", borderBottomColor: "#fecaca" }} fixed>Défauts signalés</Text>
 
           {defauts.map((defaut, idx) => (
             <View key={defaut.id} style={styles.defautCard} wrap={false}>
@@ -1020,6 +977,11 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#b91c1c", marginBottom: 4 }}>
                 Défaut n°{idx + 1}
               </Text>
+              {defaut.cabineLabel && (
+                <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 4 }}>
+                  Cabine : {defaut.cabineLabel}
+                </Text>
+              )}
 
               <View style={styles.defautHeader}>
                 <View style={styles.defautTypes}>

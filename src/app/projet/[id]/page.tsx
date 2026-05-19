@@ -4243,7 +4243,11 @@ function ProjectPageContent({ id }: { id: string }) {
             }} />
 
             {/* Signaler un défaut */}
-            <DefautForm projectId={id} projectName={project.projet} onSubmitted={() => {
+            <DefautForm
+              projectId={id}
+              projectName={project.projet}
+              cabineOptions={cabines.length > 1 ? cabines.map((c, i) => c.nom || `Cabine ${i + 1}`) : undefined}
+              onSubmitted={() => {
               // Les photos du défaut sont stockées dans le KV store par défaut (per-defaut).
               // DefautsList les lit directement → on force son rechargement via refreshKey.
               // On ne touche PAS à photosDefautsSignale (qui est un champ agrégat legacy).
@@ -4267,7 +4271,8 @@ function ProjectPageContent({ id }: { id: string }) {
                   });
                 }).catch(() => {});
               }, 2000);
-            }} />
+            }}
+            />
 
             {/* Consommables utilisés */}
             <StockUsage projectId={id} />
