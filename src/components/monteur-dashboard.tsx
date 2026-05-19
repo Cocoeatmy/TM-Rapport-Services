@@ -1242,6 +1242,35 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [terminatedLoading, setTerminatedLoading] = useState(false);
   const [archivesCount, setArchivesCount] = useState<number | null>(null);
 
+  // ── Animation ouverture/fermeture panneau ─────────────────────────────────
+  // gridFaded  : opacity 0 (CSS transition immédiate)
+  // gridCollapsed : height 0 + overflow-hidden (appliqué après le fade, 280ms)
+  const [gridFaded, setGridFaded] = useState(false);
+  const [gridCollapsed, setGridCollapsed] = useState(false);
+  // Swipe-to-close
+  const swipeTouchStartY = useRef<number>(0);
+
+  const openPanel = (id: typeof showSummaryPanel) => {
+    if (isEditMode) return;
+    if (showSummaryPanel === id) {
+      closePanel();
+      return;
+    }
+    setShowSummaryPanel(id);
+    setGridFaded(true);
+    const t = setTimeout(() => setGridCollapsed(true), 280);
+    return () => clearTimeout(t);
+  };
+
+  const closePanel = () => {
+    setGridCollapsed(false);
+    // Two rAF to ensure the DOM height is restored before the fade-in starts
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => setGridFaded(false))
+    );
+    setShowSummaryPanel(null);
+  };
+
   // ── Réorganisation boutons style iOS ──────────────────────────────────────
   const [isEditMode, setIsEditMode] = useState(false);
   // On initialise avec l'ordre par défaut pour éviter un écart SSR/client.
@@ -1892,17 +1921,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
       {/* Summary cards — réorganisables style iOS */}
       {(() => {
-        const dim = (!isEditMode && showSummaryPanel !== null) ? "opacity-40 scale-[0.97]" : "";
-        const activeBtn = (panel: string, ring: string) =>
-          showSummaryPanel === panel && !isEditMode
-            ? `ring-2 ring-offset-2 ${ring} shadow-xl scale-[1.04] z-10`
-            : dim;
+        // Quand un panneau est ouvert, la grille entière se masque via gridFaded/gridCollapsed
+        // → on ne dim plus les boutons individuellement
+        const dim = "";
+        const activeBtn = (_panel: string, _ring: string) => dim;
 
         // Rendu d'un bouton par son ID
         const renderCard = (id: string): React.ReactNode => {
           switch (id) {
             case "mesures-today": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "mesures-today" ? null : "mesures-today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("mesures-today", "ring-cyan-400")}`}>
+              <button onClick={() => openPanel("mesures-today")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center"><Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresTodayCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures aujourd'hui</p>
@@ -1910,7 +1938,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "today": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "today" ? null : "today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("today", "ring-blue-400")}`}>
+              <button onClick={() => openPanel("today")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-blue-100/80 dark:bg-blue-900/30 flex items-center justify-center"><Wrench className="w-4 h-4 text-blue-500 dark:text-blue-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{todayMontages}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Montages aujourd'hui</p>
@@ -1918,7 +1946,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "services-today": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "services-today" ? null : "services-today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("services-today", "ring-violet-400")}`}>
+              <button onClick={() => openPanel("services-today")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center"><Settings className="w-4 h-4 text-violet-500 dark:text-violet-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{servicesTodayCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Services aujourd'hui</p>
@@ -1926,7 +1954,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "sav-today": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "sav-today" ? null : "sav-today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("sav-today", "ring-red-400")}`}>
+              <button onClick={() => openPanel("sav-today")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{savTodayCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV aujourd'hui</p>
@@ -1934,7 +1962,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "week": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "week" ? null : "week")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("week", "ring-emerald-400")}`}>
+              <button onClick={() => openPanel("week")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-emerald-100/80 dark:bg-emerald-900/30 flex items-center justify-center"><Box className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalCabinesWeek}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Cabines cette semaine</p>
@@ -1945,7 +1973,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "active": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "active" ? null : "active")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("active", "ring-amber-400")}`}>
+              <button onClick={() => openPanel("active")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-amber-100/80 dark:bg-amber-900/30 flex items-center justify-center"><Users className="w-4 h-4 text-amber-500 dark:text-amber-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{busyToday}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Monteurs actifs</p>
@@ -1953,7 +1981,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "emplacement-cabines": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "emplacement-cabines" ? null : "emplacement-cabines")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("emplacement-cabines", "ring-sky-400")}`}>
+              <button onClick={() => openPanel("emplacement-cabines")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-sky-100/80 dark:bg-sky-900/30 flex items-center justify-center"><MapPin className="w-4 h-4 text-sky-500 dark:text-sky-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400">{emplacementCabinesCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Emplacement cabines</p>
@@ -1965,7 +1993,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "rapports-attente": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "rapports-attente" ? null : "rapports-attente")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("rapports-attente", "ring-orange-400")}`}>
+              <button onClick={() => openPanel("rapports-attente")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center"><Clock className="w-4 h-4 text-orange-500 dark:text-orange-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{rapportsAttenteCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Rapports en attente</p>
@@ -1973,7 +2001,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "sav-non-traites": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "sav-non-traites" ? null : "sav-non-traites")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("sav-non-traites", "ring-rose-400")}`}>
+              <button onClick={() => openPanel("sav-non-traites")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-rose-100/80 dark:bg-rose-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-rose-500 dark:text-rose-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{savNonTraitesCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV non traités</p>
@@ -1981,7 +2009,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "soucis-en-cours": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "soucis-en-cours" ? null : "soucis-en-cours")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("soucis-en-cours", "ring-red-400")}`}>
+              <button onClick={() => openPanel("soucis-en-cours")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-red-700 dark:text-red-400">{soucisEnCoursCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis en cours</p>
@@ -1989,7 +2017,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "dossiers-en-cours": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "dossiers-en-cours" ? null : "dossiers-en-cours")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("dossiers-en-cours", "ring-indigo-400")}`}>
+              <button onClick={() => openPanel("dossiers-en-cours")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-indigo-100/80 dark:bg-indigo-900/30 flex items-center justify-center"><FolderOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400">{dossiersEnCoursCount || "…"}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Projets en cours</p>
@@ -1997,7 +2025,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "a-facturer": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "a-facturer" ? null : "a-facturer")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("a-facturer", "ring-yellow-400")}`}>
+              <button onClick={() => openPanel("a-facturer")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-yellow-100/80 dark:bg-yellow-900/30 flex items-center justify-center"><Receipt className="w-4 h-4 text-yellow-600 dark:text-yellow-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-yellow-600 dark:text-yellow-400">{aFacturerCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">À facturer</p>
@@ -2005,7 +2033,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "calendrier": return (
-              <button onClick={() => { if (isEditMode) return; setShowSummaryPanel(showSummaryPanel === "calendrier" ? null : "calendrier"); setCalendarSelectedDay(null); }} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("calendrier", "ring-violet-400")}`}>
+              <button onClick={() => { if (isEditMode) return; openPanel("calendrier"); setCalendarSelectedDay(null); }} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full`}>
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center"><CalendarDays className="w-4 h-4 text-violet-500 dark:text-violet-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{collabData.flatMap(c => [...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects]).filter((p, i, a) => a.findIndex(x => x.id === p.id) === i).length}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Calendrier</p>
@@ -2023,7 +2051,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "sav-historique": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "sav-historique" ? null : "sav-historique")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("sav-historique", "ring-red-400")}`}>
+              <button onClick={() => openPanel("sav-historique")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-red-500 dark:text-red-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{terminatedLoading ? <span className="animate-pulse text-base">…</span> : allSavCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV</p>
@@ -2031,7 +2059,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "soucis-historique": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "soucis-historique" ? null : "soucis-historique")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("soucis-historique", "ring-orange-400")}`}>
+              <button onClick={() => openPanel("soucis-historique")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{terminatedLoading ? <span className="animate-pulse text-base">…</span> : allSoucisCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis montage</p>
@@ -2039,7 +2067,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "mesures-sans-commande": return (
-              <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "mesures-sans-commande" ? null : "mesures-sans-commande")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("mesures-sans-commande", "ring-cyan-400")}`}>
+              <button onClick={() => openPanel("mesures-sans-commande")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center"><Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresSansCommandeLoading ? <span className="animate-pulse text-base">…</span> : mesuresSansCommandeCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures</p>
@@ -2056,7 +2084,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         };
 
         return (
-          <div className="space-y-2">
+          // Wrapper animé : se masque quand un panneau est ouvert
+          <div
+            className="space-y-2 transition-opacity duration-250 ease-in-out"
+            style={{
+              opacity: gridFaded && !isEditMode ? 0 : 1,
+              height: gridCollapsed && !isEditMode ? 0 : undefined,
+              overflow: gridCollapsed && !isEditMode ? "hidden" : undefined,
+              pointerEvents: gridFaded && !isEditMode ? "none" : undefined,
+            }}
+          >
             {/* Barre mode édition */}
             {isEditMode && (
               <div className="flex items-center justify-between px-1 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
@@ -2163,7 +2200,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         );
       })()}
 
-      <div className="grid grid-cols-2 gap-3">
+      {/* RDV buttons — masqués quand un panneau est ouvert */}
+      <div
+        className="grid grid-cols-2 gap-3 transition-opacity duration-250 ease-in-out"
+        style={{
+          opacity: gridFaded ? 0 : 1,
+          height: gridCollapsed ? 0 : undefined,
+          overflow: gridCollapsed ? "hidden" : undefined,
+          pointerEvents: gridFaded ? "none" : undefined,
+        }}
+      >
         {(() => {
           const rdvAFixerStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
           const mesuresAFixerStatuses = ["Pas contacté", "Contact sans réponse"];
@@ -2178,7 +2224,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const servicesRdvCab = rdvAFixerProjects.filter((p) => (p as any)._source === "services").reduce((s, p) => s + (p.nbCabines || 0), 0);
           const savRdvCab = rdvAFixerProjects.filter((p) => (p as any)._source === "sav").reduce((s, p) => s + (p.nbCabines || 0), 0);
           return (
-            <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rdv-a-fixer" ? null : "rdv-a-fixer")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
+            <button onClick={() => openPanel("rdv-a-fixer")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
               <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{rdvAFixerProjects.length}</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV à fixer</p>
               <div className="text-center mt-1.5 space-y-0.5">
@@ -2196,7 +2242,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const mesuresFixeCab = rdvFixeProjects.filter((p) => (p as any)._source === "mesures").reduce((s, p) => s + (p.nbCabines || 0), 0);
           const servicesFixeCab = rdvFixeProjects.filter((p) => (p as any)._source === "services" || (p as any)._source === "sav").reduce((s, p) => s + (p.nbCabines || 0), 0);
           return (
-            <button onClick={() => setShowSummaryPanel(showSummaryPanel === "rdv-fixe" ? null : "rdv-fixe")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
+            <button onClick={() => openPanel("rdv-fixe")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
               <p className="text-2xl font-bold text-green-600 dark:text-green-400">{rdvFixeProjects.length}</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV fixé</p>
               <div className="text-center mt-1.5 space-y-0.5">
@@ -2208,6 +2254,51 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           );
         })()}
       </div>
+
+      {/* ── En-tête panneau actif ─────────────────────────────────────────── */}
+      {/* Apparaît quand un panneau est ouvert : bouton compact "retour" + label */}
+      {showSummaryPanel && (() => {
+        const panelMeta: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+          "mesures-today":        { label: "Mesures aujourd'hui",    color: "text-cyan-600 dark:text-cyan-400",     bg: "bg-cyan-100/80 dark:bg-cyan-900/30",     icon: <Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /> },
+          "today":                { label: "Montages aujourd'hui",   color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-100/80 dark:bg-blue-900/30",     icon: <Wrench className="w-4 h-4 text-blue-500 dark:text-blue-400" /> },
+          "services-today":       { label: "Services aujourd'hui",   color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-100/80 dark:bg-violet-900/30", icon: <Settings className="w-4 h-4 text-violet-500 dark:text-violet-400" /> },
+          "sav-today":            { label: "SAV aujourd'hui",        color: "text-red-600 dark:text-red-400",       bg: "bg-red-100/80 dark:bg-red-900/30",       icon: <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" /> },
+          "week":                 { label: "Cabines cette semaine",  color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100/80 dark:bg-emerald-900/30", icon: <Box className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> },
+          "active":               { label: "Monteurs actifs",        color: "text-amber-600 dark:text-amber-400",   bg: "bg-amber-100/80 dark:bg-amber-900/30",   icon: <Users className="w-4 h-4 text-amber-500 dark:text-amber-400" /> },
+          "emplacement-cabines":  { label: "Emplacement cabines",    color: "text-sky-600 dark:text-sky-400",       bg: "bg-sky-100/80 dark:bg-sky-900/30",       icon: <MapPin className="w-4 h-4 text-sky-500 dark:text-sky-400" /> },
+          "rapports-attente":     { label: "Rapports en attente",    color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-100/80 dark:bg-orange-900/30", icon: <Clock className="w-4 h-4 text-orange-500 dark:text-orange-400" /> },
+          "sav-non-traites":      { label: "SAV non traités",        color: "text-rose-600 dark:text-rose-400",     bg: "bg-rose-100/80 dark:bg-rose-900/30",     icon: <ShieldAlert className="w-4 h-4 text-rose-500 dark:text-rose-400" /> },
+          "soucis-en-cours":      { label: "Soucis en cours",        color: "text-red-700 dark:text-red-400",       bg: "bg-red-100/80 dark:bg-red-900/30",       icon: <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" /> },
+          "dossiers-en-cours":    { label: "Projets en cours",       color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-100/80 dark:bg-indigo-900/30", icon: <FolderOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" /> },
+          "a-facturer":           { label: "À facturer",             color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-100/80 dark:bg-yellow-900/30", icon: <Receipt className="w-4 h-4 text-yellow-600 dark:text-yellow-400" /> },
+          "calendrier":           { label: "Calendrier",             color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-100/80 dark:bg-violet-900/30", icon: <CalendarDays className="w-4 h-4 text-violet-500 dark:text-violet-400" /> },
+          "sav-historique":       { label: "SAV — Tous",             color: "text-red-600 dark:text-red-400",       bg: "bg-red-100/80 dark:bg-red-900/30",       icon: <ShieldAlert className="w-4 h-4 text-red-500 dark:text-red-400" /> },
+          "soucis-historique":    { label: "Soucis montage — Tous",  color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-100/80 dark:bg-orange-900/30", icon: <AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-400" /> },
+          "mesures-sans-commande":{ label: "Mesures non commandées", color: "text-cyan-600 dark:text-cyan-400",     bg: "bg-cyan-100/80 dark:bg-cyan-900/30",     icon: <Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /> },
+          "rdv-a-fixer":          { label: "RDV à fixer",            color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-100/80 dark:bg-orange-900/30", icon: <Calendar className="w-4 h-4 text-orange-500 dark:text-orange-400" /> },
+          "rdv-fixe":             { label: "RDV fixé",               color: "text-green-600 dark:text-green-400",   bg: "bg-green-100/80 dark:bg-green-900/30",   icon: <Calendar className="w-4 h-4 text-green-500 dark:text-green-400" /> },
+        };
+        const meta = panelMeta[showSummaryPanel];
+        if (!meta) return null;
+        return (
+          <button
+            onClick={closePanel}
+            onTouchStart={(e) => { swipeTouchStartY.current = e.touches[0].clientY; }}
+            onTouchEnd={(e) => {
+              const dy = e.changedTouches[0].clientY - swipeTouchStartY.current;
+              if (dy > 60) closePanel();
+            }}
+            className="w-full glass-card rounded-2xl px-4 py-3 flex items-center gap-3 hover:shadow-md active:scale-[0.99] transition-all animate-in slide-in-from-top-3 fade-in duration-300"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
+            <span className={`w-8 h-8 rounded-xl ${meta.bg} flex items-center justify-center shrink-0`}>
+              {meta.icon}
+            </span>
+            <span className={`text-sm font-semibold ${meta.color} flex-1 text-left truncate`}>{meta.label}</span>
+            <X className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+          </button>
+        );
+      })()}
 
       {/* Summary panel */}
       {showSummaryPanel && (() => {
