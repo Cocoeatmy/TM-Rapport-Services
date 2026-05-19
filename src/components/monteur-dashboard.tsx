@@ -1243,56 +1243,21 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [archivesCount, setArchivesCount] = useState<number | null>(null);
 
   // ── Animation ouverture/fermeture panneau ─────────────────────────────────
-  // Technique FLIP : on capture la position Y du bouton cliqué, puis on
-  // fait partir le header depuis cet endroit avec une translation CSS.
-  // Les autres boutons s'effacent par opacity (sans collapse de hauteur).
-  const [panelSourceY, setPanelSourceY] = useState(0);
-  const headerButtonRef = useRef<HTMLButtonElement>(null);
+  // Les boutons s'effacent + se replient (opacity + max-height simultanés).
+  // Le header apparaît en simple fondu — pas de déplacement.
   // Swipe-to-close
   const swipeTouchStartY = useRef<number>(0);
+  const headerButtonRef = useRef<HTMLButtonElement>(null);
 
   const openPanel = (id: typeof showSummaryPanel, e?: React.MouseEvent<HTMLButtonElement>) => {
     if (isEditMode) return;
-    if (showSummaryPanel === id) {
-      closePanel();
-      return;
-    }
-    if (e) {
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      setPanelSourceY(rect.top + window.scrollY);
-    }
+    if (showSummaryPanel === id) { closePanel(); return; }
     setShowSummaryPanel(id);
   };
 
   const closePanel = () => {
     setShowSummaryPanel(null);
   };
-
-  // Animation FLIP : fait "rouler" le bouton header depuis la position du
-  // bouton cliqué jusqu'en haut. Léger rebond via le bezier 1.4 sur Y.
-  useEffect(() => {
-    if (!showSummaryPanel || !headerButtonRef.current) return;
-    const el = headerButtonRef.current;
-    const headerRect = el.getBoundingClientRect();
-    const headerY = headerRect.top + window.scrollY;
-    const dy = panelSourceY - headerY;
-
-    // Positionne le header à l'endroit du bouton source (sans transition)
-    el.style.transition = "none";
-    el.style.transform = `translateY(${dy}px)`;
-    el.style.opacity = "0.3";
-
-    // Lance l'animation vers la position finale (avec léger rebond)
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        el.style.transition =
-          "transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1), opacity 180ms ease";
-        el.style.transform = "translateY(0)";
-        el.style.opacity = "1";
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showSummaryPanel]);
 
   // ── Réorganisation boutons style iOS ──────────────────────────────────────
   const [isEditMode, setIsEditMode] = useState(false);
@@ -2314,7 +2279,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               const dy = e.changedTouches[0].clientY - swipeTouchStartY.current;
               if (dy > 60) closePanel();
             }}
-            className="w-full glass-card rounded-2xl px-4 py-3 flex items-center gap-3 hover:shadow-md active:scale-[0.99] transition-all"
+            className="w-full glass-card rounded-2xl px-4 py-3 flex items-center gap-3 hover:shadow-md active:scale-[0.99] transition-all animate-in fade-in duration-200"
           >
             <ChevronLeft className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
             <span className={`w-8 h-8 rounded-xl ${meta.bg} flex items-center justify-center shrink-0`}>
