@@ -1243,33 +1243,56 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [archivesCount, setArchivesCount] = useState<number | null>(null);
 
   // ── Animation ouverture/fermeture panneau ─────────────────────────────────
-  // gridFaded  : opacity 0 (CSS transition immédiate)
-  // gridCollapsed : height 0 + overflow-hidden (appliqué après le fade, 280ms)
-  const [gridFaded, setGridFaded] = useState(false);
-  const [gridCollapsed, setGridCollapsed] = useState(false);
+  // Technique FLIP : on capture la position Y du bouton cliqué, puis on
+  // fait partir le header depuis cet endroit avec une translation CSS.
+  // Les autres boutons s'effacent par opacity (sans collapse de hauteur).
+  const [panelSourceY, setPanelSourceY] = useState(0);
+  const headerButtonRef = useRef<HTMLButtonElement>(null);
   // Swipe-to-close
   const swipeTouchStartY = useRef<number>(0);
 
-  const openPanel = (id: typeof showSummaryPanel) => {
+  const openPanel = (id: typeof showSummaryPanel, e?: React.MouseEvent<HTMLButtonElement>) => {
     if (isEditMode) return;
     if (showSummaryPanel === id) {
       closePanel();
       return;
     }
+    if (e) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setPanelSourceY(rect.top + window.scrollY);
+    }
     setShowSummaryPanel(id);
-    setGridFaded(true);
-    const t = setTimeout(() => setGridCollapsed(true), 280);
-    return () => clearTimeout(t);
   };
 
   const closePanel = () => {
-    setGridCollapsed(false);
-    // Two rAF to ensure the DOM height is restored before the fade-in starts
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => setGridFaded(false))
-    );
     setShowSummaryPanel(null);
   };
+
+  // Animation FLIP : fait "rouler" le bouton header depuis la position du
+  // bouton cliqué jusqu'en haut. Léger rebond via le bezier 1.4 sur Y.
+  useEffect(() => {
+    if (!showSummaryPanel || !headerButtonRef.current) return;
+    const el = headerButtonRef.current;
+    const headerRect = el.getBoundingClientRect();
+    const headerY = headerRect.top + window.scrollY;
+    const dy = panelSourceY - headerY;
+
+    // Positionne le header à l'endroit du bouton source (sans transition)
+    el.style.transition = "none";
+    el.style.transform = `translateY(${dy}px)`;
+    el.style.opacity = "0.3";
+
+    // Lance l'animation vers la position finale (avec léger rebond)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.style.transition =
+          "transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1), opacity 180ms ease";
+        el.style.transform = "translateY(0)";
+        el.style.opacity = "1";
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSummaryPanel]);
 
   // ── Réorganisation boutons style iOS ──────────────────────────────────────
   const [isEditMode, setIsEditMode] = useState(false);
@@ -1930,7 +1953,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         const renderCard = (id: string): React.ReactNode => {
           switch (id) {
             case "mesures-today": return (
-              <button onClick={() => openPanel("mesures-today")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("mesures-today", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center"><Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresTodayCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures aujourd'hui</p>
@@ -1938,7 +1961,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "today": return (
-              <button onClick={() => openPanel("today")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("today", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-blue-100/80 dark:bg-blue-900/30 flex items-center justify-center"><Wrench className="w-4 h-4 text-blue-500 dark:text-blue-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{todayMontages}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Montages aujourd'hui</p>
@@ -1946,7 +1969,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "services-today": return (
-              <button onClick={() => openPanel("services-today")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("services-today", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center"><Settings className="w-4 h-4 text-violet-500 dark:text-violet-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{servicesTodayCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Services aujourd'hui</p>
@@ -1954,7 +1977,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "sav-today": return (
-              <button onClick={() => openPanel("sav-today")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("sav-today", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{savTodayCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV aujourd'hui</p>
@@ -1962,7 +1985,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "week": return (
-              <button onClick={() => openPanel("week")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("week", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-emerald-100/80 dark:bg-emerald-900/30 flex items-center justify-center"><Box className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{totalCabinesWeek}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Cabines cette semaine</p>
@@ -1973,7 +1996,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "active": return (
-              <button onClick={() => openPanel("active")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("active", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-amber-100/80 dark:bg-amber-900/30 flex items-center justify-center"><Users className="w-4 h-4 text-amber-500 dark:text-amber-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{busyToday}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Monteurs actifs</p>
@@ -1981,7 +2004,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "emplacement-cabines": return (
-              <button onClick={() => openPanel("emplacement-cabines")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("emplacement-cabines", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-sky-100/80 dark:bg-sky-900/30 flex items-center justify-center"><MapPin className="w-4 h-4 text-sky-500 dark:text-sky-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400">{emplacementCabinesCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Emplacement cabines</p>
@@ -1993,7 +2016,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "rapports-attente": return (
-              <button onClick={() => openPanel("rapports-attente")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("rapports-attente", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center"><Clock className="w-4 h-4 text-orange-500 dark:text-orange-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{rapportsAttenteCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Rapports en attente</p>
@@ -2001,7 +2024,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "sav-non-traites": return (
-              <button onClick={() => openPanel("sav-non-traites")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("sav-non-traites", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-rose-100/80 dark:bg-rose-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-rose-500 dark:text-rose-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{savNonTraitesCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV non traités</p>
@@ -2009,7 +2032,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "soucis-en-cours": return (
-              <button onClick={() => openPanel("soucis-en-cours")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("soucis-en-cours", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-red-700 dark:text-red-400">{soucisEnCoursCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis en cours</p>
@@ -2017,7 +2040,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "dossiers-en-cours": return (
-              <button onClick={() => openPanel("dossiers-en-cours")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("dossiers-en-cours", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-indigo-100/80 dark:bg-indigo-900/30 flex items-center justify-center"><FolderOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400">{dossiersEnCoursCount || "…"}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Projets en cours</p>
@@ -2025,7 +2048,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "a-facturer": return (
-              <button onClick={() => openPanel("a-facturer")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("a-facturer", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-yellow-100/80 dark:bg-yellow-900/30 flex items-center justify-center"><Receipt className="w-4 h-4 text-yellow-600 dark:text-yellow-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-yellow-600 dark:text-yellow-400">{aFacturerCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">À facturer</p>
@@ -2033,7 +2056,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "calendrier": return (
-              <button onClick={() => { if (isEditMode) return; openPanel("calendrier"); setCalendarSelectedDay(null); }} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full`}>
+              <button onClick={(e) => { if (isEditMode) return; openPanel("calendrier", e); setCalendarSelectedDay(null); }} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full`}>
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center"><CalendarDays className="w-4 h-4 text-violet-500 dark:text-violet-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{collabData.flatMap(c => [...c.todayProjects, ...c.thisWeekProjects, ...c.nextWeekProjects]).filter((p, i, a) => a.findIndex(x => x.id === p.id) === i).length}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Calendrier</p>
@@ -2051,7 +2074,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "sav-historique": return (
-              <button onClick={() => openPanel("sav-historique")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("sav-historique", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-red-500 dark:text-red-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400">{terminatedLoading ? <span className="animate-pulse text-base">…</span> : allSavCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">SAV</p>
@@ -2059,7 +2082,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "soucis-historique": return (
-              <button onClick={() => openPanel("soucis-historique")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("soucis-historique", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{terminatedLoading ? <span className="animate-pulse text-base">…</span> : allSoucisCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Soucis montage</p>
@@ -2067,7 +2090,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             );
             case "mesures-sans-commande": return (
-              <button onClick={() => openPanel("mesures-sans-commande")} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+              <button onClick={(e) => openPanel("mesures-sans-commande", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center"><Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /></span>
                 <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresSansCommandeLoading ? <span className="animate-pulse text-base">…</span> : mesuresSansCommandeCount}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures</p>
@@ -2084,14 +2107,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         };
 
         return (
-          // Wrapper animé : se masque quand un panneau est ouvert
+          // Wrapper : s'efface (opacity) quand un panneau est ouvert — sans collapse
           <div
-            className="space-y-2 transition-opacity duration-250 ease-in-out"
+            className="space-y-2 transition-opacity duration-150 ease-in-out"
             style={{
-              opacity: gridFaded && !isEditMode ? 0 : 1,
-              height: gridCollapsed && !isEditMode ? 0 : undefined,
-              overflow: gridCollapsed && !isEditMode ? "hidden" : undefined,
-              pointerEvents: gridFaded && !isEditMode ? "none" : undefined,
+              opacity: showSummaryPanel && !isEditMode ? 0 : 1,
+              pointerEvents: showSummaryPanel && !isEditMode ? "none" : undefined,
             }}
           >
             {/* Barre mode édition */}
@@ -2202,12 +2223,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
       {/* RDV buttons — masqués quand un panneau est ouvert */}
       <div
-        className="grid grid-cols-2 gap-3 transition-opacity duration-250 ease-in-out"
+        className="grid grid-cols-2 gap-3 transition-opacity duration-150 ease-in-out"
         style={{
-          opacity: gridFaded ? 0 : 1,
-          height: gridCollapsed ? 0 : undefined,
-          overflow: gridCollapsed ? "hidden" : undefined,
-          pointerEvents: gridFaded ? "none" : undefined,
+          opacity: showSummaryPanel ? 0 : 1,
+          pointerEvents: showSummaryPanel ? "none" : undefined,
         }}
       >
         {(() => {
@@ -2224,7 +2243,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const servicesRdvCab = rdvAFixerProjects.filter((p) => (p as any)._source === "services").reduce((s, p) => s + (p.nbCabines || 0), 0);
           const savRdvCab = rdvAFixerProjects.filter((p) => (p as any)._source === "sav").reduce((s, p) => s + (p.nbCabines || 0), 0);
           return (
-            <button onClick={() => openPanel("rdv-a-fixer")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
+            <button onClick={(e) => openPanel("rdv-a-fixer", e)} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
               <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{rdvAFixerProjects.length}</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV à fixer</p>
               <div className="text-center mt-1.5 space-y-0.5">
@@ -2242,7 +2261,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const mesuresFixeCab = rdvFixeProjects.filter((p) => (p as any)._source === "mesures").reduce((s, p) => s + (p.nbCabines || 0), 0);
           const servicesFixeCab = rdvFixeProjects.filter((p) => (p as any)._source === "services" || (p as any)._source === "sav").reduce((s, p) => s + (p.nbCabines || 0), 0);
           return (
-            <button onClick={() => openPanel("rdv-fixe")} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
+            <button onClick={(e) => openPanel("rdv-fixe", e)} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
               <p className="text-2xl font-bold text-green-600 dark:text-green-400">{rdvFixeProjects.length}</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV fixé</p>
               <div className="text-center mt-1.5 space-y-0.5">
@@ -2282,13 +2301,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         if (!meta) return null;
         return (
           <button
+            ref={headerButtonRef}
             onClick={closePanel}
             onTouchStart={(e) => { swipeTouchStartY.current = e.touches[0].clientY; }}
             onTouchEnd={(e) => {
               const dy = e.changedTouches[0].clientY - swipeTouchStartY.current;
               if (dy > 60) closePanel();
             }}
-            className="w-full glass-card rounded-2xl px-4 py-3 flex items-center gap-3 hover:shadow-md active:scale-[0.99] transition-all animate-in slide-in-from-top-3 fade-in duration-300"
+            className="w-full glass-card rounded-2xl px-4 py-3 flex items-center gap-3 hover:shadow-md active:scale-[0.99] transition-all"
           >
             <ChevronLeft className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" />
             <span className={`w-8 h-8 rounded-xl ${meta.bg} flex items-center justify-center shrink-0`}>
