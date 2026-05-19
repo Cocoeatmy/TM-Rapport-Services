@@ -53,6 +53,11 @@ function parseProjectHours(
   const entries: TimeEntry[] = [];
   const ha = project.heureArrivee || "";
   const hd = project.heureDepart || "";
+  // Date effective : dateMontage en priorité, sinon dateMesures (projets services/mesures)
+  const effectiveDate =
+    project.dateMontage?.split("T")[0] ||
+    project.dateMesures?.split("T")[0] ||
+    "";
 
   // ── Format 3 : Multi-cabine "Cab1:date:HH:MM | Cab2:…" ──────────────────
   // Détecté par la présence de "CabN:" au début d'un segment.
@@ -87,10 +92,25 @@ function parseProjectHours(
       ...Object.keys(depTimes).map(Number),
     ]);
 
+    // Si aucune heure extraite (format Cab sans temps valide), on crée
+    // une entrée zéro-minute pour que le projet reste visible dans le mois.
+    if (cabineIndices.size === 0 && effectiveDate) {
+      entries.push({
+        date: effectiveDate,
+        collaborateur: project.collaborateurs || "",
+        arrivee: "",
+        depart: "",
+        minutes: 0,
+        projectName: project.projet,
+        projectId:   project.id,
+      });
+      return entries;
+    }
+
     for (const i of cabineIndices) {
       const arrTime = arrTimes[i] || "";
       const depTime = depTimes[i] || "";
-      const date    = dates[i] || project.dateMontage?.split("T")[0] || "";
+      const date    = dates[i] || effectiveDate;
       // Priorité : attribution KV → champ collaborateurs du projet
       const collab  = cabineAttribution?.[i] || project.collaborateurs || "";
 
@@ -142,7 +162,7 @@ function parseProjectHours(
     for (let i = 0; i < maxLen; i++) {
       const arr  = arrivals[i]   || { date: "", collaborateur: "", time: "" };
       const dep  = departures[i] || { date: "", collaborateur: "", time: "" };
-      const date   = arr.date || dep.date || project.dateMontage?.split("T")[0] || "";
+      const date   = arr.date || dep.date || effectiveDate;
       const collab = arr.collaborateur || dep.collaborateur || project.collaborateurs || "";
       const arrMin = parseTimeString(arr.time);
       const depMin = parseTimeString(dep.time);
@@ -161,19 +181,23 @@ function parseProjectHours(
     return entries;
   }
 
-  // ── Format 1 : Simple "HH:MM" ────────────────────────────────────────────
-  if (!ha && !hd) return entries;
+  // ── Format 1 : Simple "HH:MM" — ou projet sans heures ──────────────────
+  // On crée toujours une entrée si le projet a une date effective,
+  // même si les heures sont vides (arrivee/depart = "" → minutes = 0).
+  // Cela permet d'afficher les projets "sans heures renseignées" dans
+  // la section Non assigné / À compléter plutôt que de les masquer.
+  if (!ha && !hd && !effectiveDate) return entries;
   const arrMin = parseTimeString(ha);
   const depMin = parseTimeString(hd);
   const diff   = arrMin >= 0 && depMin >= 0 ? depMin - arrMin : 0;
   entries.push({
-    date:         project.dateMontage?.split("T")[0] || "",
+    date:          effectiveDate,
     collaborateur: project.collaborateurs || "",
-    arrivee:  ha,
-    depart:   hd,
-    minutes:  diff > 0 ? diff : 0,
-    projectName: project.projet,
-    projectId:   project.id,
+    arrivee:       ha,
+    depart:        hd,
+    minutes:       diff > 0 ? diff : 0,
+    projectName:   project.projet,
+    projectId:     project.id,
   });
 
   return entries;
