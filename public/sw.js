@@ -109,8 +109,10 @@ self.addEventListener("fetch", (event) => {
           // Échec réseau total : cache, sinon JSON vide (UI reste fonctionnelle).
           const cached = await cache.match(request);
           if (cached) return cached;
+          // Fallback hors-ligne : retourne [] avec header pour que le client
+          // sache qu'il ne doit PAS écraser son cache localStorage avec ces données vides.
           return new Response(JSON.stringify([]), {
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "X-SW-Offline": "1" },
             status: 200,
           });
         }

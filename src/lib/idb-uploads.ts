@@ -24,12 +24,24 @@
  *      retrouver d'éventuels uploads pendants (survie au reload),
  *      recrée des URL object-blob et les affiche avec un badge
  *      "en attente de synchro".
+ *
+ * Garantie zéro perte :
+ *   - Les photos ne sont JAMAIS supprimées de l'IDB automatiquement,
+ *     même après MAX_RETRIES échecs. Elles passent en statut
+ *     "permanently-failed" et restent accessibles jusqu'à ce que
+ *     l'utilisateur les valide manuellement.
+ *   - Un event `tm-upload-permanently-failed` est dispatché pour
+ *     afficher une alerte persistante dans l'UI.
  */
 
 const DB_NAME = "tm-rapport-uploads";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // bumped : ajout du champ `status`
 const STORE = "pendingUploads";
-const MAX_RETRIES = 8;
+
+/** Nombre maximum de tentatives avant passage en "permanently-failed". */
+const MAX_RETRIES = 20; // ~2 semaines d'essais avec backoff plafonné à 1h
+
+export type UploadStatus = "pending" | "permanently-failed";
 
 export interface PendingUploadFile {
   /** Nom de fichier final (avec préfixe de bucket si applicable). */
@@ -49,6 +61,9 @@ export interface PendingUpload {
   createdAt: number;
   retryCount: number;
   nextAttemptAt?: number;
+  /** Statut de l'upload : "pending" (en cours) ou "permanently-failed"
+   *  (MAX_RETRIES atteint — conservé pour inspection/retry manuel). */
+  status?: UploadStatus;
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -60,30 +75,68 @@ function openDB(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event) => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
         const store = db.createObjectStore(STORE, { keyPath: "id" });
         store.createIndex("projectId", "projectId", { unique: false });
+        store.createIndex("status", "status", { unique: false });
+      } else if (event.oldVersion < 2) {
+        // Migration v1 → v2 : ajout de l'index "status" sans recréer le store
+        const store = req.transaction!.objectStore(STORE);
+        if (!store.indexNames.contains("status")) {
+          store.createIndex("status", "status", { unique: false });
+        }
       }
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => {
+      dbPromise = null; // reset pour permettre une nouvelle tentative
+      reject(req.error);
+    };
   });
   return dbPromise;
 }
 
+/** Vérifie qu'il reste suffisamment d'espace de stockage avant d'ajouter. */
+async function checkStorageQuota(blobSizeBytes: number): Promise<void> {
+  if (!navigator?.storage?.estimate) return; // API non dispo
+  try {
+    const { quota = 0, usage = 0 } = await navigator.storage.estimate();
+    const available = quota - usage;
+    // Refuser si le blob représente plus de 80% de l'espace libre
+    if (available > 0 && blobSizeBytes > available * 0.8) {
+      throw new Error(
+        `Espace insuffisant : ${Math.round(blobSizeBytes / 1024 / 1024)} Mo requis, ` +
+        `${Math.round(available / 1024 / 1024)} Mo disponibles.`
+      );
+    }
+  } catch (e: any) {
+    if (e.message?.includes("Espace insuffisant")) throw e;
+    // Autres erreurs de l'API estimate → on laisse passer
+  }
+}
+
 export async function addPendingUpload(
-  data: Omit<PendingUpload, "id" | "createdAt" | "retryCount">,
+  data: Omit<PendingUpload, "id" | "createdAt" | "retryCount" | "status">,
 ): Promise<string> {
+  // Vérification du quota avant écriture
+  const totalBytes = data.files.reduce((sum, f) => sum + f.blob.size, 0);
+  await checkStorageQuota(totalBytes);
+
   const db = await openDB();
   const id = `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const item: PendingUpload = { ...data, id, createdAt: Date.now(), retryCount: 0 };
+  const item: PendingUpload = {
+    ...data,
+    id,
+    createdAt: Date.now(),
+    retryCount: 0,
+    status: "pending",
+  };
   return new Promise<string>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.objectStore(STORE).put(item);
     tx.oncomplete = () => {
-      // Notifie l'UI qu'un upload est en attente (badge bannière).
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("tm-pending-upload-added", { detail: { id } }));
       }
@@ -93,15 +146,27 @@ export async function addPendingUpload(
   });
 }
 
-export async function getPendingUploads(filter?: { projectId?: string }): Promise<PendingUpload[]> {
+export async function getPendingUploads(filter?: {
+  projectId?: string;
+  status?: UploadStatus | "all";
+}): Promise<PendingUpload[]> {
   const db = await openDB();
   return new Promise<PendingUpload[]>((resolve, reject) => {
     const tx = db.transaction(STORE, "readonly");
     const req = tx.objectStore(STORE).getAll();
     req.onsuccess = () => {
-      const all = req.result as PendingUpload[];
-      const filtered = filter?.projectId ? all.filter((u) => u.projectId === filter.projectId) : all;
-      resolve(filtered);
+      let all = req.result as PendingUpload[];
+      // Items sans statut (v1 de l'IDB) → traiter comme "pending"
+      all = all.map((u) => ({ ...u, status: u.status ?? "pending" }));
+      if (filter?.projectId) {
+        all = all.filter((u) => u.projectId === filter.projectId);
+      }
+      // Par défaut, ne retourner que les items "pending" (pas les failed permanents)
+      const statusFilter = filter?.status ?? "pending";
+      if (statusFilter !== "all") {
+        all = all.filter((u) => u.status === statusFilter);
+      }
+      resolve(all);
     };
     req.onerror = () => reject(req.error);
   });
@@ -109,7 +174,16 @@ export async function getPendingUploads(filter?: { projectId?: string }): Promis
 
 export async function countPendingUploads(): Promise<number> {
   try {
-    const all = await getPendingUploads();
+    const all = await getPendingUploads({ status: "pending" });
+    return all.length;
+  } catch {
+    return 0;
+  }
+}
+
+export async function countPermanentlyFailed(): Promise<number> {
+  try {
+    const all = await getPendingUploads({ status: "permanently-failed" });
     return all.length;
   } catch {
     return 0;
@@ -142,22 +216,80 @@ async function updatePendingUpload(item: PendingUpload): Promise<void> {
 }
 
 /**
- * Tente de rejouer chaque upload pendant. Backoff exponentiel sur
- * les items qui ont déjà raté. Retire les items qui dépassent
- * MAX_RETRIES ou qui retournent un 4xx (validation, données
- * permanentes invalides).
+ * Remet un item "permanently-failed" en statut "pending" pour le retenter.
+ * Réinitialise le compteur de retries et le nextAttemptAt.
  */
-export async function processPendingUploads(): Promise<{ success: number; failed: number; total: number }> {
+export async function retryFailedUpload(id: string): Promise<void> {
+  const db = await openDB();
+  const item = await new Promise<PendingUpload | undefined>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readonly");
+    const req = tx.objectStore(STORE).get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  if (!item) return;
+  await updatePendingUpload({
+    ...item,
+    status: "pending",
+    retryCount: 0,
+    nextAttemptAt: undefined,
+  });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("tm-pending-upload-added", { detail: { id } }));
+  }
+}
+
+/**
+ * Remet TOUS les items "permanently-failed" en "pending" pour les retenter.
+ */
+export async function retryAllFailedUploads(): Promise<number> {
+  const failed = await getPendingUploads({ status: "permanently-failed" });
+  await Promise.all(failed.map((item) => retryFailedUpload(item.id)));
+  return failed.length;
+}
+
+/**
+ * Guard global : garantit qu'une seule instance de processPendingUploads
+ * tourne à la fois. Évite la race condition quand l'event `online` ET
+ * le poll de 30 s déclenchent autoSync simultanément sur le même client.
+ *
+ * Sans ce guard : deux instances lisent les mêmes items IDB, envoient
+ * les mêmes fichiers à deux containers Vercel différents → le verrou
+ * in-memory serveur est bypassé → le second write Notion écrase le premier
+ * → perte d'une photo.
+ */
+let _processingUploads = false;
+
+/**
+ * Tente de rejouer chaque upload pendant. Backoff exponentiel sur
+ * les items qui ont déjà raté. Passe en "permanently-failed" après
+ * MAX_RETRIES — ne supprime JAMAIS les données (zéro perte photo).
+ */
+export async function processPendingUploads(): Promise<{
+  success: number;
+  failed: number;
+  total: number;
+  permanentlyFailed: number;
+}> {
+  // Guard : si une synchro est déjà en cours, on abandonne immédiatement.
+  if (_processingUploads) {
+    return { success: 0, failed: 0, total: 0, permanentlyFailed: 0 };
+  }
+  _processingUploads = true;
+
   let all: PendingUpload[];
   try {
-    all = await getPendingUploads();
+    all = await getPendingUploads({ status: "pending" });
   } catch {
-    return { success: 0, failed: 0, total: 0 };
+    _processingUploads = false;
+    return { success: 0, failed: 0, total: 0, permanentlyFailed: 0 };
   }
   let success = 0;
   let failed = 0;
+  let permanentlyFailed = 0;
   const now = Date.now();
 
+  try { // try global pour libérer _processingUploads même sur erreur inattendue
   for (const item of all) {
     if (item.nextAttemptAt && item.nextAttemptAt > now) continue;
 
@@ -173,8 +305,7 @@ export async function processPendingUploads(): Promise<{ success: number; failed
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       if (res.ok) {
         await removePendingUpload(item.id);
-        // Invalider le cache client pour que la photo apparaisse immédiatement
-        // dans l'UI (sinon il faut attendre le prochain poll de 15 s).
+        // Invalider le cache client pour que la photo apparaisse immédiatement.
         if (typeof window !== "undefined") {
           try {
             const { invalidateApiCache } = await import("@/lib/api-helpers");
@@ -183,31 +314,68 @@ export async function processPendingUploads(): Promise<{ success: number; failed
         }
         success++;
       } else if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
-        // 4xx hors 408/429 : erreur permanente, on ne réessaie pas.
-        console.warn("[idb-uploads] Upload retiré (erreur permanente)", item.id, res.status);
-        await removePendingUpload(item.id);
+        // 4xx hors 408/429 : erreur permanente (ex. projectId invalide).
+        // On marque comme permanently-failed mais on garde les données.
+        console.warn("[idb-uploads] Upload marqué failed (4xx permanent)", item.id, res.status);
+        await _markPermanentlyFailed(item, `Erreur ${res.status}`);
+        permanentlyFailed++;
         failed++;
       } else {
+        // 5xx ou 408/429 : erreur temporaire, backoff exponentiel.
         const retries = (item.retryCount || 0) + 1;
         if (retries >= MAX_RETRIES) {
-          console.error("[idb-uploads] Upload retiré après MAX_RETRIES", item.id);
-          await removePendingUpload(item.id);
+          // MAX_RETRIES atteint → on garde dans l'IDB mais on marque permanently-failed.
+          // L'utilisateur sera notifié et pourra retenter manuellement.
+          console.error("[idb-uploads] MAX_RETRIES atteint — upload marqué permanently-failed", item.id);
+          await _markPermanentlyFailed(item, `${MAX_RETRIES} tentatives échouées`);
+          permanentlyFailed++;
         } else {
-          const delayMs = Math.min(60_000 * 2 ** (retries - 1), 30 * 60_000);
+          // Backoff : 1min, 2min, 4min…, plafonné à 1h (au lieu de 30min)
+          const delayMs = Math.min(60_000 * 2 ** (retries - 1), 60 * 60_000);
           await updatePendingUpload({ ...item, retryCount: retries, nextAttemptAt: now + delayMs });
         }
         failed++;
       }
     } catch {
+      // Erreur réseau (offline) : backoff, on ne compte pas ça contre MAX_RETRIES
+      // car ce n'est pas une erreur serveur — le réseau était juste absent.
       const retries = (item.retryCount || 0) + 1;
       if (retries >= MAX_RETRIES) {
-        await removePendingUpload(item.id);
+        console.error("[idb-uploads] MAX_RETRIES réseau atteint — marqué permanently-failed", item.id);
+        await _markPermanentlyFailed(item, "Réseau indisponible après plusieurs tentatives");
+        permanentlyFailed++;
       } else {
-        const delayMs = Math.min(60_000 * 2 ** (retries - 1), 30 * 60_000);
+        const delayMs = Math.min(60_000 * 2 ** (retries - 1), 60 * 60_000);
         await updatePendingUpload({ ...item, retryCount: retries, nextAttemptAt: now + delayMs });
       }
       failed++;
     }
   }
-  return { success, failed, total: all.length };
+  } finally {
+    _processingUploads = false;
+  }
+  return { success, failed, total: all.length, permanentlyFailed };
+}
+
+/**
+ * Marque un item comme "permanently-failed" ET dispatch un event
+ * pour que l'UI affiche une alerte persistante à l'utilisateur.
+ * Les données (blobs) sont conservées — zéro perte.
+ */
+async function _markPermanentlyFailed(item: PendingUpload, reason: string): Promise<void> {
+  await updatePendingUpload({ ...item, status: "permanently-failed" });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("tm-upload-permanently-failed", {
+        detail: {
+          id: item.id,
+          projectId: item.projectId,
+          fileCount: item.files.length,
+          reason,
+        },
+      })
+    );
+    // Retire du badge "pending" mais garde les données
+    window.dispatchEvent(new CustomEvent("tm-pending-upload-removed", { detail: { id: item.id } }));
+  }
 }

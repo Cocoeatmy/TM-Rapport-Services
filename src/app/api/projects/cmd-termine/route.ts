@@ -7,7 +7,7 @@ export const revalidate = 30;
 export async function GET() {
   try {
     const projects = await cachedOrFetch("projects-cmd-termine", getProjectsCmdTermine);
-    return cachedJson(projects, { sMaxAge: 60, swr: 300 });
+    return cachedJson(projects);
   } catch (error) {
     return errorResponse(error);
   }

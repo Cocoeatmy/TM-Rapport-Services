@@ -2637,7 +2637,7 @@ function ProjectPageContent({ id }: { id: string }) {
         if (conflict) setCollabUpdateToast(true);
       } catch {}
     };
-    const interval = setInterval(refetch, 15000);
+    const interval = setInterval(refetch, 8000);
     // Refetch immédiat quand l'onglet redevient visible : "instant
     // fresh" au retour sur l'app sans attendre le prochain tick.
     const onVisible = () => {

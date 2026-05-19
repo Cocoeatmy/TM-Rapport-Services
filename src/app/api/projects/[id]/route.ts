@@ -13,11 +13,8 @@ export async function GET(
   try {
     const { id } = await params;
     const project = await cachedOrFetch(`project-${id}`, () => getProject(id));
-    // Edge cache 90 s : réduit les invocations serverless quand un
-    // utilisateur navigue rapidement entre plusieurs fiches projet.
-    // SWR 300 s : le CDN continue à servir en stale pendant 5 min
-    // le temps du re-fetch en arrière-plan.
-    return cachedJson(project, { sMaxAge: 90, swr: 300 });
+    // Edge cache 5 s : aligne avec le serveur SWR pour une sync Notion rapide.
+    return cachedJson(project);
   } catch (error: any) {
     console.error("Error fetching project:", error);
     return NextResponse.json(

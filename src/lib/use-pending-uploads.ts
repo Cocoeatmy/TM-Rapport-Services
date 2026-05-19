@@ -38,7 +38,9 @@ export function usePendingUploads(projectId: string | undefined): PendingPreview
 
     const refresh = async () => {
       try {
-        const items = await getPendingUploads({ projectId });
+        // N'afficher que les "pending" — les "permanently-failed" ont leur
+        // propre alerte dans OfflineBanner avec bouton "Renvoyer".
+        const items = await getPendingUploads({ projectId, status: "pending" });
         if (cancelled) return;
         // Révoque les anciennes URLs avant d'en recréer pour ne pas
         // accumuler en mémoire.

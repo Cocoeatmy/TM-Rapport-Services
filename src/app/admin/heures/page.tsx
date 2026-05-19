@@ -35,79 +35,146 @@ interface TimeEntry {
   projectId: string;
 }
 
-function parseProjectHours(project: Project): TimeEntry[] {
+/**
+ * Extrait les entrées de temps d'un projet.
+ *
+ * Trois formats possibles dans heureArrivee / heureDepart :
+ *
+ * 1. Simple          "08:30"
+ * 2. Multi-journée   "2026-04-07 Claudio 08:30 | 2026-04-08 Claudio 07:00"
+ * 3. Multi-cabine    "Cab1:2026-05-07:08:30 | Cab2:2026-05-07:09:00 | …"
+ *    → le collaborateur N'EST PAS dans la chaîne ; il est dans la KV store
+ *      (cabine-attribution). On le reçoit via le paramètre `cabineAttribution`.
+ */
+function parseProjectHours(
+  project: Project,
+  cabineAttribution?: string[], // index 0 = Cab1, valeur = "Jacobo" ou "Jacobo & Claudio"
+): TimeEntry[] {
   const entries: TimeEntry[] = [];
   const ha = project.heureArrivee || "";
   const hd = project.heureDepart || "";
 
-  // Check for multi-day format: "2026-04-07 Claudio 08:30 | 2026-04-08 Claudio 07:00"
+  // ── Format 3 : Multi-cabine "Cab1:date:HH:MM | Cab2:…" ──────────────────
+  // Détecté par la présence de "CabN:" au début d'un segment.
+  const isCabineFormat = /Cab\d+\s*:/.test(ha) || /Cab\d+\s*:/.test(hd);
+
+  if (isCabineFormat) {
+    // Regex : capture l'index de cabine, la date optionnelle, et l'heure
+    const reTime = /Cab(\d+)\s*:(?:(\d{4}-\d{2}-\d{2}):)?(\d{1,2}:\d{2})/g;
+
+    const arrTimes: Record<number, string> = {};
+    const depTimes: Record<number, string> = {};
+    const dates:    Record<number, string> = {};
+
+    let m: RegExpExecArray | null;
+    const haClean = ha; const hdClean = hd;
+
+    const reA = new RegExp(reTime.source, "g");
+    while ((m = reA.exec(haClean))) {
+      const idx = parseInt(m[1], 10) - 1;
+      arrTimes[idx] = m[3];
+      if (m[2]) dates[idx] = m[2];
+    }
+    const reD = new RegExp(reTime.source, "g");
+    while ((m = reD.exec(hdClean))) {
+      const idx = parseInt(m[1], 10) - 1;
+      depTimes[idx] = m[3];
+      if (m[2] && !dates[idx]) dates[idx] = m[2];
+    }
+
+    const cabineIndices = new Set([
+      ...Object.keys(arrTimes).map(Number),
+      ...Object.keys(depTimes).map(Number),
+    ]);
+
+    for (const i of cabineIndices) {
+      const arrTime = arrTimes[i] || "";
+      const depTime = depTimes[i] || "";
+      const date    = dates[i] || project.dateMontage?.split("T")[0] || "";
+      // Priorité : attribution KV → champ collaborateurs du projet
+      const collab  = cabineAttribution?.[i] || project.collaborateurs || "";
+
+      const arrMin  = parseTimeString(arrTime);
+      const depMin  = parseTimeString(depTime);
+      const diff    = arrMin >= 0 && depMin >= 0 ? depMin - arrMin : 0;
+
+      entries.push({
+        date,
+        collaborateur: collab,
+        arrivee: arrTime,
+        depart:  depTime,
+        minutes: diff > 0 ? diff : 0,
+        projectName: project.projet,
+        projectId:   project.id,
+      });
+    }
+    return entries;
+  }
+
+  // ── Format 2 : Multi-journée "date [collab] HH:MM | …" ──────────────────
   const isMultiArrival = ha.includes("|");
-  const isMultiDepart = hd.includes("|");
+  const isMultiDepart  = hd.includes("|");
 
   if (isMultiArrival || isMultiDepart) {
     const arrParts = ha.split("|").map((s) => s.trim()).filter(Boolean);
     const depParts = hd.split("|").map((s) => s.trim()).filter(Boolean);
 
-    // Parse multi entries: "2026-04-07 Claudio 08:30"
     const parseMulti = (parts: string[]) =>
       parts.map((part) => {
         const tokens = part.trim().split(/\s+/);
-        // format: date [collaborateur] time
         if (tokens.length >= 3) {
           return { date: tokens[0], collaborateur: tokens.slice(1, -1).join(" "), time: tokens[tokens.length - 1] };
         }
         if (tokens.length === 2) {
-          // could be "date time" or "collaborateur time"
           if (tokens[0].match(/^\d{4}-\d{2}-\d{2}$/)) {
             return { date: tokens[0], collaborateur: "", time: tokens[1] };
           }
           return { date: "", collaborateur: tokens[0], time: tokens[1] };
         }
-        if (tokens.length === 1) {
-          return { date: "", collaborateur: "", time: tokens[0] };
-        }
+        if (tokens.length === 1) return { date: "", collaborateur: "", time: tokens[0] };
         return { date: "", collaborateur: "", time: "" };
       });
 
-    const arrivals = parseMulti(arrParts);
+    const arrivals   = parseMulti(arrParts);
     const departures = parseMulti(depParts);
+    const maxLen     = Math.max(arrivals.length, departures.length);
 
-    const maxLen = Math.max(arrivals.length, departures.length);
     for (let i = 0; i < maxLen; i++) {
-      const arr = arrivals[i] || { date: "", collaborateur: "", time: "" };
-      const dep = departures[i] || { date: "", collaborateur: "", time: "" };
-      const date = arr.date || dep.date || project.dateMontage?.split("T")[0] || "";
-      const collab = arr.collaborateur || dep.collaborateur || "";
+      const arr  = arrivals[i]   || { date: "", collaborateur: "", time: "" };
+      const dep  = departures[i] || { date: "", collaborateur: "", time: "" };
+      const date   = arr.date || dep.date || project.dateMontage?.split("T")[0] || "";
+      const collab = arr.collaborateur || dep.collaborateur || project.collaborateurs || "";
       const arrMin = parseTimeString(arr.time);
       const depMin = parseTimeString(dep.time);
-      const diff = arrMin >= 0 && depMin >= 0 ? depMin - arrMin : 0;
+      const diff   = arrMin >= 0 && depMin >= 0 ? depMin - arrMin : 0;
 
       entries.push({
         date,
         collaborateur: collab,
-        arrivee: arr.time || "",
-        depart: dep.time || "",
-        minutes: diff > 0 ? diff : 0,
+        arrivee:  arr.time || "",
+        depart:   dep.time || "",
+        minutes:  diff > 0 ? diff : 0,
         projectName: project.projet,
-        projectId: project.id,
+        projectId:   project.id,
       });
     }
-  } else {
-    // Simple format: just "HH:MM"
-    if (!ha && !hd) return entries;
-    const arrMin = parseTimeString(ha);
-    const depMin = parseTimeString(hd);
-    const diff = arrMin >= 0 && depMin >= 0 ? depMin - arrMin : 0;
-    entries.push({
-      date: project.dateMontage?.split("T")[0] || "",
-      collaborateur: project.collaborateurs || "",
-      arrivee: ha,
-      depart: hd,
-      minutes: diff > 0 ? diff : 0,
-      projectName: project.projet,
-      projectId: project.id,
-    });
+    return entries;
   }
+
+  // ── Format 1 : Simple "HH:MM" ────────────────────────────────────────────
+  if (!ha && !hd) return entries;
+  const arrMin = parseTimeString(ha);
+  const depMin = parseTimeString(hd);
+  const diff   = arrMin >= 0 && depMin >= 0 ? depMin - arrMin : 0;
+  entries.push({
+    date:         project.dateMontage?.split("T")[0] || "",
+    collaborateur: project.collaborateurs || "",
+    arrivee:  ha,
+    depart:   hd,
+    minutes:  diff > 0 ? diff : 0,
+    projectName: project.projet,
+    projectId:   project.id,
+  });
 
   return entries;
 }
@@ -148,6 +215,8 @@ export default function HeuresPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [monthOffset, setMonthOffset] = useState(0);
+  // Map projectId → attribution[] (index = cabine - 1, valeur = monteur)
+  const [attributionMap, setAttributionMap] = useState<Map<string, string[]>>(new Map());
 
   const selectedMonth = getMonthStr(monthOffset);
 
@@ -165,12 +234,23 @@ export default function HeuresPage() {
     Promise.all([
       fetch("/api/projects").then((r) => r.json()),
       fetch("/api/projects/cmd-termine").then((r) => r.json()),
-    ]).then(([enCours, termines]) => {
+      fetch("/api/cabine-attribution").then((r) => r.json()).catch(() => []),
+    ]).then(([enCours, termines, attributions]) => {
       const all = [
         ...(Array.isArray(enCours) ? enCours : []),
         ...(Array.isArray(termines) ? termines : []),
       ];
       setProjects(all);
+      // Construire la map projectId → attribution[]
+      const map = new Map<string, string[]>();
+      if (Array.isArray(attributions)) {
+        for (const attr of attributions) {
+          if (attr?.projectId && Array.isArray(attr.attribution)) {
+            map.set(attr.projectId, attr.attribution);
+          }
+        }
+      }
+      setAttributionMap(map);
     }).finally(() => setLoading(false));
   }, [router]);
 
@@ -183,7 +263,10 @@ export default function HeuresPage() {
   }
 
   // Parse all time entries from projects
-  const allEntries = projects.flatMap(parseProjectHours);
+  // Chaque projet multi-cabine reçoit son attribution KV pour résoudre le collaborateur
+  const allEntries = projects.flatMap((p) =>
+    parseProjectHours(p, attributionMap.get(p.id))
+  );
 
   // Filter entries for selected month
   const monthEntries = allEntries.filter((e) => e.date.startsWith(selectedMonth));

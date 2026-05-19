@@ -10,7 +10,7 @@ export async function GET() {
       "projects-mesures-annulees",
       getProjectsMesuresAnnulees,
     );
-    return cachedJson(projects, { sMaxAge: 60, swr: 300 });
+    return cachedJson(projects);
   } catch (error) {
     return errorResponse(error);
   }

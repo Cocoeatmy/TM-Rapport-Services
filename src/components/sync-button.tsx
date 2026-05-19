@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   CloudOff,
   Cloud,
@@ -12,7 +12,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { saveToCache, getCacheTimestamp, getQueue, processQueue, isOnline } from "@/lib/offline";
-import { processPendingUploads, countPendingUploads } from "@/lib/idb-uploads";
+import { processPendingUploads, countPendingUploads, retryAllFailedUploads } from "@/lib/idb-uploads";
 import { toast } from "sonner";
 
 export function SyncButton() {
@@ -74,10 +74,21 @@ export function SyncButton() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const autoSyncingRef = useRef(false);
   const autoSync = async () => {
+    // Guard : une seule synchro auto à la fois.
+    // Sans ça, l'event `online` + le poll 30 s peuvent déclencher deux
+    // autoSync simultanés → deux processPendingUploads en parallèle →
+    // race condition sur l'écriture Notion → perte d'une photo.
+    if (autoSyncingRef.current) return;
+    autoSyncingRef.current = true;
+
     const jsonQueue = getQueue();
     const uploadCount = await countPendingUploads();
-    if (jsonQueue.length === 0 && uploadCount === 0) return;
+    if (jsonQueue.length === 0 && uploadCount === 0) {
+      autoSyncingRef.current = false;
+      return;
+    }
 
     let totalSuccess = 0;
     if (jsonQueue.length > 0) {
@@ -92,6 +103,7 @@ export function SyncButton() {
       toast.success(`${totalSuccess} opération(s) synchronisée(s)`);
       setQueueCount(getQueue().length + (await countPendingUploads()));
     }
+    autoSyncingRef.current = false;
   };
 
   const handleSync = useCallback(async () => {
@@ -154,19 +166,29 @@ export function SyncButton() {
         cached += results.reduce((s: number, n: number) => s + n, 0);
       }
 
-      // 3. Traiter la file d'attente
+      // 3. Traiter la file d'attente JSON (mutations texte)
       const queue = getQueue();
       let queueResult = { success: 0, failed: 0 };
       if (queue.length > 0) {
         queueResult = await processQueue();
       }
 
-      setLastSync(Date.now());
-      setQueueCount(getQueue().length);
+      // 4. Uploader les photos en attente dans l'IDB (uploads binaires)
+      //    — inclut les items marqués permanently-failed pour une 2e chance manuelle.
+      await retryAllFailedUploads(); // remet les "failed" en "pending"
+      const uploadResult = await processPendingUploads();
 
+      setLastSync(Date.now());
+      setQueueCount(getQueue().length + (await countPendingUploads()));
+
+      const parts: string[] = [];
+      if (cached > 0) parts.push(`${cached} projets cachés`);
+      if (queueResult.success > 0) parts.push(`${queueResult.success} opération(s)`);
+      if (uploadResult.success > 0) parts.push(`${uploadResult.success} photo(s) envoyée(s)`);
       toast.success(
-        `Synchronisation terminée : ${cached} projets cachés` +
-        (queueResult.success > 0 ? `, ${queueResult.success} envoi(s)` : "")
+        parts.length > 0
+          ? `Synchronisation terminée : ${parts.join(", ")}`
+          : "Synchronisation terminée"
       );
     } catch (e) {
       toast.error("Erreur de synchronisation");

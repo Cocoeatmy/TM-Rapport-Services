@@ -1346,13 +1346,21 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [dossiersFilterFrom, setDossiersFilterFrom] = useState("");
   const [dossiersFilterTo, setDossiersFilterTo] = useState("");
 
+  // Guard offline : le SW retourne [] comme fallback quand il n'a pas de cache.
+  // On refuse d'écraser un state existant avec un tableau vide quand on est hors-ligne.
+  const safeSetData = <T,>(setter: React.Dispatch<React.SetStateAction<T[]>>, data: unknown) => {
+    if (!Array.isArray(data)) return;
+    if (data.length === 0 && !navigator.onLine) return;
+    setter(data as T[]);
+  };
+
   // Tous les projets actifs (non-Terminé, non-Annulé) pour les stats globales
   // (ex. "Projets en cours" = 209 projets, pas seulement les 80 de l'onglet CMD).
   const [allActiveProjects, setAllActiveProjects] = useState<Project[]>([]);
   useEffect(() => {
     fetch("/api/projects/all-active")
       .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setAllActiveProjects(data); })
+      .then((data) => safeSetData(setAllActiveProjects, data))
       .catch(() => {});
   }, []);
 
@@ -1363,7 +1371,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     setMesuresSansCommandeLoading(true);
     fetch("/api/projects/mesures-sans-commande")
       .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setMesuresSansCommandeData(data); })
+      .then(data => safeSetData(setMesuresSansCommandeData, data))
       .catch(() => {})
       .finally(() => setMesuresSansCommandeLoading(false));
   }, []);
@@ -1375,7 +1383,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     setMesuresAnnuleesLoading(true);
     fetch("/api/projects/mesures-annulees")
       .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setMesuresAnnuleesData(data); })
+      .then(data => safeSetData(setMesuresAnnuleesData, data))
       .catch(() => {})
       .finally(() => setMesuresAnnuleesLoading(false));
   }, []);
@@ -1904,7 +1912,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             case "today": return (
               <button onClick={() => !isEditMode && setShowSummaryPanel(showSummaryPanel === "today" ? null : "today")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${activeBtn("today", "ring-blue-400")}`}>
                 <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-blue-100/80 dark:bg-blue-900/30 flex items-center justify-center"><Wrench className="w-4 h-4 text-blue-500 dark:text-blue-400" /></span>
-                <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{totalProjectsToday}</p>
+                <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{todayMontages}</p>
                 <p className="text-[8px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Montages aujourd'hui</p>
                 <p className="text-[7px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
               </button>
@@ -2403,7 +2411,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           panelTitle = "Montages aujourd'hui";
           panelProjects = collabData
             .flatMap((c) => c.todayProjects)
-            .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+            .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+            .filter((p) => {
+              const src = (p as any)._source || "montage";
+              // Exclure les mesures et les SAV — ils ont leurs propres boutons
+              return src !== "mesures" && src !== "sav";
+            });
         } else if (showSummaryPanel === "week") {
           panelTitle = "RDV à venir";
           panelProjects = allFutureProjects;

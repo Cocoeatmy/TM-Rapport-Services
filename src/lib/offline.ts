@@ -17,6 +17,75 @@
 const CACHE_KEY = "tm-rapport-cache";
 const QUEUE_KEY = "tm-rapport-queue";
 const MAX_RETRIES = 8;
+const WARM_TS_KEY = "tm-cache-warm-ts";
+
+// Endpoints à préchauffer pour que le collaborateur ait des données hors-ligne.
+// Ce sont TOUTES les URLs utilisées par MODE_API dans page.tsx + monteur-dashboard.
+const WARM_ENDPOINTS = [
+  "/api/projects",
+  "/api/projects/all-active",
+  "/api/projects/all",
+  "/api/projects/mesures",
+  "/api/projects/mesures-termine",
+  "/api/projects/mesures-sans-commande",
+  "/api/projects/mesures-annulees",
+  "/api/projects/cmd-termine",
+  "/api/projects/services",
+  "/api/projects/services-termine",
+  "/api/projects/sav",
+  "/api/projects/sav-termine",
+  "/api/projects/snapshot",
+];
+
+// Préchauffage minimum entre deux warms automatiques (15 min)
+const WARM_COOLDOWN_MS = 15 * 60 * 1000;
+
+/**
+ * Télécharge les endpoints clés en arrière-plan (priority low) pour que
+ * le service worker les mette en cache. Silencieux, non bloquant.
+ * Cooldown de 15 min pour ne pas spam Notion à chaque refresh de page.
+ */
+export async function warmOfflineCache(force = false): Promise<number> {
+  if (typeof window === "undefined" || !isOnline()) return 0;
+  const lastWarm = parseInt(localStorage.getItem(WARM_TS_KEY) || "0");
+  if (!force && Date.now() - lastWarm < WARM_COOLDOWN_MS) return 0;
+
+  let warmed = 0;
+
+  // Double stratégie :
+  //   1. Le SW intercepte chaque fetch et met la réponse en cache SW (Cache Storage).
+  //   2. On parse aussi la réponse et on la sauvegarde en localStorage via saveToCache()
+  //      pour avoir un fallback si le cache SW est purgé par l'OS (fréquent sur iOS).
+  await Promise.allSettled(
+    WARM_ENDPOINTS.map(async (url) => {
+      try {
+        const r = await fetch(url, { credentials: "include" });
+        if (!r.ok) return;
+        warmed++;
+        // Sauvegarder en localStorage pour double couverture offline.
+        const data = await r.clone().json().catch(() => null);
+        if (data && Array.isArray(data) && data.length > 0) {
+          // Clé calquée sur tm-projects-cache utilisé par page.tsx
+          const cacheKey = url.replace(/^\/api\/projects\/?/, "") || "projects";
+          saveToCache(`warm-${cacheKey}`, data);
+        } else if (data && data.ok && data.data) {
+          // Format snapshot ({ ok, data: {...} })
+          saveToCache("warm-snapshot", data.data);
+        }
+      } catch {}
+    })
+  );
+
+  localStorage.setItem(WARM_TS_KEY, String(Date.now()));
+  window.dispatchEvent(new CustomEvent("tm-cache-warmed", { detail: { warmed } }));
+  return warmed;
+}
+
+/** Retourne le timestamp du dernier préchauffage réussi (ms epoch, 0 si jamais fait). */
+export function getLastCacheWarmTs(): number {
+  if (typeof window === "undefined") return 0;
+  return parseInt(localStorage.getItem(WARM_TS_KEY) || "0");
+}
 
 export interface CachedData {
   projects: any[];

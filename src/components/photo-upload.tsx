@@ -42,6 +42,11 @@ export function PhotoUpload({
   // pendant que le 1er est en cours. setUploading() est trop lent à
   // s'appliquer pour bloquer un double-fire iOS.
   const uploadingRef = useRef(false);
+  // Nombre de fichiers actuellement en IDB (photos hors-ligne en attente).
+  // Mis à jour à chaque render via pendingCountRef.current = pending.length.
+  // Utilisé dans handleFiles pour calculer l'index de nommage correct
+  // même quand des photos sont déjà dans la queue IDB mais pas encore dans Notion.
+  const pendingCountRef = useRef(0);
 
   // Nettoyage : révoque tous les blob URLs encore en mémoire au démontage
   // (sinon le navigateur les garde indéfiniment et on a des fuites).
@@ -83,16 +88,31 @@ export function PhotoUpload({
     setPreviews((prev) => [...prev, ...newPreviews]);
 
     setUploading(true);
-    // Pré-renomme les fichiers (préfixe de bucket pour photos rapport)
-    // — ce nom est aussi celui qu'on stockera en IDB si on tombe en
-    // mode offline, pour que la détection de bucket (CartonPhotos
-    // → Avant intervention.Cab1, etc.) reste cohérente après la
-    // synchro tardive.
-    const currentCount = existingPhotos.length;
+    // Pré-renomme les fichiers (préfixe de bucket pour photos rapport).
+    //
+    // IMPORTANT — index incluant les photos en IDB :
+    //   `existingPhotos` = photos déjà dans Notion (synchro OK)
+    //   `pendingCountRef.current` = photos en IDB (en attente de synchro)
+    //
+    // Sans `pendingCountRef`, si le monteur prend 2 photos hors-ligne :
+    //   - Photo 1 → IDB → "Avant intervention.Cab1.1.jpg"
+    //   - Photo 2 → existingPhotos encore vide → "Avant intervention.Cab1.1.jpg" (COLLISION!)
+    //   → Au sync, la 2e est vue comme doublon et SUPPRIMÉE silencieusement.
+    //
+    // IMPORTANT — suffixe timestamp pour l'unicité cross-device :
+    //   Deux appareils différents pourraient calculer le même index simultanément.
+    //   Le suffixe `Date.now()` rend le nom globalement unique.
+    //   Le suffixe ne casse pas la détection de bucket (`detectBucket` vérifie le PRÉFIXE)
+    //   ni l'extraction de cabine (`extractCabine` cherche `.Cab(\d+).` en regex).
+    //   Format final : `Avant intervention.Cab1.2.1716792001234.jpg`
+    const currentCount = existingPhotos.length + pendingCountRef.current;
+    const ts = Date.now();
     const renamed: File[] = originals.map((file, i) => {
       const idx = currentCount + i + 1;
       const ext = file.name.split(".").pop() || "jpg";
-      const newName = filePrefix ? `${filePrefix}.${idx}.${ext}` : file.name;
+      const newName = filePrefix
+        ? `${filePrefix}.${idx}.${ts}.${ext}`
+        : file.name;
       return new File([file], newName, { type: file.type });
     });
 
@@ -107,11 +127,14 @@ export function PhotoUpload({
     // hook usePendingUploads les redessine en attendant la synchro.
     const queueOffline = async (reason: "offline" | "error") => {
       try {
+        // IMPORTANT : on utilise `compressed` (déjà calculé) et non `renamed`
+        // (version originale ~10 Mo). L'IDB stocke des blobs — stocker 10 Mo
+        // par photo remplirait le quota en quelques clichés sur mobile.
         await addPendingUpload({
           projectId,
           category,
           notionField,
-          files: renamed.map((f) => ({ name: f.name, type: f.type, blob: f })),
+          files: compressed.map((f) => ({ name: f.name, type: f.type, blob: f })),
         });
         toast.info(
           reason === "offline"
@@ -208,6 +231,9 @@ export function PhotoUpload({
       p.category === category &&
       (notionField ? p.notionField === notionField : !p.notionField),
   );
+  // Mettre à jour la ref à chaque render pour que handleFiles utilise
+  // le bon nombre de photos en attente lors du prochain appel.
+  pendingCountRef.current = pending.length;
 
   const allImages: { src: string; isPreview: boolean; pendingId?: string; isPending?: boolean }[] = [
     ...validExisting.map((p) => ({ src: p.url, isPreview: false })),

@@ -21,6 +21,7 @@ import { showRetryToast } from "@/components/error-toast";
 import { StatsDateFilter, filterByStatsDate, type StatsDateMode } from "@/components/stats-date-filter";
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
+import { getCache } from "@/lib/offline";
 
 const MonteurDashboard = dynamic(() => import("@/components/monteur-dashboard").then(m => ({ default: m.MonteurDashboard })), {
   ssr: false,
@@ -986,11 +987,40 @@ function HomePage() {
       const cachedTs = localStorage.getItem("tm-projects-cache-ts");
       if (cached) {
         const parsed = JSON.parse(cached);
-        setProjectsData(parsed);
-        setLoading(false);
-        localCacheAge = cachedTs ? (Date.now() - Number(cachedTs)) / (1000 * 60 * 60) : Infinity;
+        // Vérifier que le cache contient des données réelles (pas des [] vides corrompus)
+        const hasRealData = Object.values(parsed).some((v) => Array.isArray(v) && (v as any[]).length > 0);
+        if (hasRealData) {
+          setProjectsData(parsed);
+          setLoading(false);
+          localCacheAge = cachedTs ? (Date.now() - Number(cachedTs)) / (1000 * 60 * 60) : Infinity;
+        }
       }
     } catch {}
+
+    // 1b. Fallback : données du warm hors-ligne si le cache principal est vide/corrompu
+    if (localCacheAge === Infinity) {
+      try {
+        const offlineCache = getCache(); // { "warm-projects": [...], ... }
+        const warmData: Record<string, any> = {};
+        const warmKeys: Record<string, string> = {
+          "warm-projects": "dashboard",
+          "warm-all-active": "grossistes",
+          "warm-all": "projets-tous",
+          "warm-mesures": "mesures",
+          "warm-mesures-termine": "mesures-termine",
+          "warm-mesures-sans-commande": "mesures-sans-commande",
+          "warm-cmd-termine": "cmd-termine",
+          "warm-services": "services",
+          "warm-sav": "sav",
+        };
+        let found = false;
+        for (const [cacheKey, modeKey] of Object.entries(warmKeys)) {
+          const d = offlineCache[cacheKey];
+          if (Array.isArray(d) && d.length > 0) { warmData[modeKey] = d; found = true; }
+        }
+        if (found) { setProjectsData(warmData); setLoading(false); }
+      } catch {}
+    }
 
     // Charger l'utilisateur connecté
     fetch("/api/auth").then((r) => r.json()).then((d) => {
@@ -1029,7 +1059,9 @@ function HomePage() {
 
     uniqueUrls.forEach((url) => {
       fetch(url).then((r) => r.json()).then((data) => {
-        if (!Array.isArray(data)) return;
+        // Ne pas écraser le cache avec un tableau vide :
+        // le SW retourne [] comme fallback quand il n'a pas de données hors-ligne.
+        if (!Array.isArray(data) || data.length === 0) return;
         const modesForUrl = allModes.filter(([, u]) => u === url);
         setProjectsData((prev) => {
           const updated = { ...prev };
@@ -1073,7 +1105,8 @@ function HomePage() {
       const newData: Record<string, any> = {};
       allModes.forEach(([key, url]) => {
         const data = urlDataMap[url];
-        if (Array.isArray(data)) newData[key] = data;
+        // Ne pas écraser avec [] : le SW retourne [] hors ligne sans cache.
+        if (Array.isArray(data) && (data.length > 0 || navigator.onLine)) newData[key] = data;
       });
       setProjectsData((prev) => {
         const merged = { ...prev, ...newData };
@@ -1108,9 +1141,9 @@ function HomePage() {
   // ── Polling arrière-plan : toutes les 30 s, rafraîchit l'endpoint du
   // mode courant (uniquement si la page est visible). Silencieux — aucune
   // interruption UI. Garantit que les changements Notion apparaissent en
-  // ≤ 30 s sans aucune action de l'utilisateur.
+  // ≤ 10 s sans aucune action de l'utilisateur.
   useEffect(() => {
-    const POLL_MS = 30_000; // 30 s
+    const POLL_MS = 10_000; // 10 s
     const poll = () => {
       if (typeof document !== "undefined" && document.hidden) return; // page en arrière-plan : skip
       const url = MODE_API[mode];
@@ -1118,7 +1151,8 @@ function HomePage() {
       fetch(url)
         .then((r) => r.json())
         .then((data) => {
-          if (!Array.isArray(data)) return;
+          // Hors ligne : le SW retourne [] comme fallback → ignorer pour garder le cache local.
+          if (!Array.isArray(data) || (data.length === 0 && !navigator.onLine)) return;
           setProjectsData((prev) => {
             // Met à jour toutes les clés qui pointent vers cette URL
             const updated = { ...prev };
@@ -3501,19 +3535,24 @@ function HomePage() {
             </div>
 
             {/* Binômes */}
-            {binomeStats.length > 0 && (() => {
+            {(binomeStats.length > 0 || teamTMStats.projects > 0) && (() => {
               const ct = chartTypePrefs["binomes"] || "bar-h";
-              const distribData = binomeStats.map((bs) => {
-                const names = bs.label.split(" & ");
-                const c1 = getCollaboratorColor(names[0] || "");
-                return { label: names[0]?.split(" ")[0] + (names[1] ? " & " + names[1].split(" ")[0] : ""), value: bs.cabines, color: c1.dot };
-              });
+              const tmColors = getCollaboratorColor("Team TM");
+              const distribData = [
+                ...binomeStats.map((bs) => {
+                  const names = bs.label.split(" & ");
+                  const c1 = getCollaboratorColor(names[0] || "");
+                  return { label: names[0]?.split(" ")[0] + (names[1] ? " & " + names[1].split(" ")[0] : ""), value: bs.cabines, color: c1.dot };
+                }),
+                ...(teamTMStats.projects > 0 ? [{ label: "Team TM", value: teamTMStats.cabines, color: tmColors.dot }] : []),
+              ];
+              const totalEquipes = binomeStats.length + (teamTMStats.projects > 0 ? 1 : 0);
               return (
                 <div>
                   <button onClick={() => toggleSection("binomes")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
                     {expandedSections.has("binomes") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     Par équipe
-                    <span className="text-[10px] font-bold text-indigo-500 normal-case tracking-normal">{binomeStats.length} paire{binomeStats.length > 1 ? "s" : ""}</span>
+                    <span className="text-[10px] font-bold text-indigo-500 normal-case tracking-normal">{totalEquipes} équipe{totalEquipes > 1 ? "s" : ""}</span>
                     <ChartTypeSelector value={ct} onChange={(t) => setChartType("binomes", t)} types={["bar-h", "bar-v", "donut", "pie", "treemap", "radar"]} />
                   </button>
                   {expandedSections.has("binomes") && (() => {
@@ -3528,7 +3567,7 @@ function HomePage() {
                           const names = bs.label.split(" & ");
                           const c1 = getCollaboratorColor(names[0] || "");
                           const c2 = getCollaboratorColor(names[1] || "");
-                          const maxProjects = Math.max(...binomeStats.map((b) => b.projects), 1);
+                          const maxProjects = Math.max(...binomeStats.map((b) => b.projects), teamTMStats.projects, 1);
                           const bsB = statsCompare ? (binomeStatsB.find((b) => b.label === bs.label) ?? { projects: 0, cabines: 0, soucisCount: 0, soucisRate: 0, savCount: 0, savFournisseurCount: 0, savFournisseurPct: 0, savPersonnelCount: 0 }) : null;
                           return (
                             <div key={bs.label} className="glass-card rounded-2xl p-4">
@@ -3555,76 +3594,36 @@ function HomePage() {
                             </div>
                           );
                         })}
+                        {/* Team TM — intégré dans Par équipe */}
+                        {teamTMStats.projects > 0 && (() => {
+                          const ts = teamTMStats;
+                          const tsB = statsCompare ? teamTMStatsB : null;
+                          const maxProjects = Math.max(...binomeStats.map((b) => b.projects), ts.projects, 1);
+                          return (
+                            <div className="glass-card rounded-2xl p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="w-4 h-4 rounded-full border-2 border-white dark:border-slate-800 shrink-0" style={{ backgroundColor: tmColors.dot }} />
+                                <span className="text-sm font-semibold truncate">Team TM</span>
+                                <span className="ml-auto text-xs text-gray-500 shrink-0">
+                                  {statsCompare && tsB ? <><span className="text-blue-500 font-bold">{ts.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{tsB.projects}B</span> projets</> : <>{ts.projects} projet{ts.projects > 1 ? "s" : ""}</>}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-5 gap-2 text-center mb-2">
+                                <div>{statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{ts.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.cabines}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.cabines}</p>)}<p className="text-[10px] text-gray-400">cabines</p></div>
+                                <div>{statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className="text-lg font-bold text-blue-600">{ts.soucisCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.soucisCount}</p></div>) : (<p className="text-lg font-bold text-[#1e3a5f] dark:text-white">{ts.soucisCount}</p>)}<p className="text-[10px] text-gray-400">soucis</p></div>
+                                <div>{statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p>)}<p className="text-[10px] text-gray-400">taux soucis</p></div>
+                                <div>{statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${ts.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{ts.savCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.savCount}</p></div>) : (<p className={`text-lg font-bold ${ts.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{ts.savCount}</p>)}<p className="text-[10px] text-gray-400">SAV</p></div>
+                                <div><p className={`text-sm font-bold ${ts.savFournisseurPct > 50 ? "text-orange-500" : "text-gray-500"}`}>{ts.savCount > 0 ? `${ts.savFournisseurPct}% fo.` : "—"}</p><p className={`text-sm font-bold ${ts.savPersonnelCount > 0 ? "text-red-500" : "text-gray-400"}`}>{ts.savCount > 0 ? `${ts.savPersonnelCount} TM` : ""}</p><p className="text-[10px] text-gray-400">erreurs</p></div>
+                              </div>
+                              <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all" style={{ width: `${(ts.projects / maxProjects) * 100}%`, backgroundColor: tmColors.dot }} />
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })()}
-                </div>
-              );
-            })()}
-
-            {/* Team TM */}
-            {(() => {
-              const ts = teamTMStats;
-              const tsB = statsCompare ? teamTMStatsB : null;
-              const savRateColor = ts.savRate > 10 ? "text-red-500" : ts.savRate > 5 ? "text-orange-500" : ts.savRate > 0 ? "text-yellow-500" : "text-gray-400";
-              const colors = getCollaboratorColor("Team TM");
-              return (
-                <div>
-                  <button onClick={() => toggleSection("teamtm")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
-                    {expandedSections.has("teamtm") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    Team TM
-                    <span className="text-[10px] font-bold text-indigo-500 normal-case tracking-normal">{ts.projects} projet{ts.projects > 1 ? "s" : ""}</span>
-                  </button>
-                  {expandedSections.has("teamtm") && (
-                    <div className="glass-card rounded-2xl p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: colors.dot }} />
-                        <span className="text-sm font-semibold">Team TM</span>
-                        <span className="ml-auto text-xs text-gray-500">
-                          {statsCompare && tsB
-                            ? <><span className="text-blue-500 font-bold">{ts.projects}A</span> <span className="text-gray-300">|</span> <span className="text-orange-400 font-bold">{tsB.projects}B</span> projets</>
-                            : <>{ts.projects} projet{ts.projects > 1 ? "s" : ""}</>}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3 text-center mb-3">
-                        <div className="space-y-2">
-                          <div>
-                            {statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{ts.cabines}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.cabines}</p></div>) : (<p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{ts.cabines}</p>)}
-                            <p className="text-[10px] text-gray-400">cabines</p>
-                          </div>
-                        </div>
-                        <div className="space-y-2 border-x border-gray-100 dark:border-gray-700">
-                          <div>
-                            {statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{ts.soucisCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.soucisCount}</p></div>) : (<p className="text-xl font-bold text-[#1e3a5f] dark:text-white">{ts.soucisCount}</p>)}
-                            <p className="text-[10px] text-gray-400">soucis</p>
-                          </div>
-                          <div>
-                            {statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.soucisRate}%</p></div>) : (<p className={`text-lg font-bold ${ts.soucisRate > 20 ? "text-red-500" : ts.soucisRate > 10 ? "text-yellow-500" : "text-green-500"}`}>{ts.soucisRate}%</p>)}
-                            <p className="text-[10px] text-gray-400">taux soucis</p>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <div>
-                            {statsCompare && tsB ? (<div className="flex items-end justify-center gap-1"><p className={`text-xl font-bold ${ts.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{ts.savCount}</p><p className="text-sm font-semibold text-orange-400 mb-0.5">/{tsB.savCount}</p></div>) : (<p className={`text-xl font-bold ${ts.savCount > 0 ? "text-red-500" : "text-gray-400"}`}>{ts.savCount}</p>)}
-                            <p className="text-[10px] text-gray-400">SAV</p>
-                          </div>
-                          <div>
-                            <p className={`text-lg font-bold ${savRateColor}`}>{ts.projects > 0 ? `${ts.savRate}%` : "—"}</p>
-                            <p className="text-[10px] text-gray-400">taux SAV</p>
-                            {ts.savCount > 0 && (
-                              <p className="text-[9px] text-gray-400 mt-0.5 leading-tight">
-                                {ts.savFournisseurPct > 0 && <span className="text-orange-500">{ts.savFournisseurPct}% fo. </span>}
-                                {ts.savPersonnelCount > 0 && <span className="text-red-500">{ts.savPersonnelCount} TM</span>}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all" style={{ width: ts.projects > 0 ? "100%" : "0%", backgroundColor: colors.dot }} />
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })()}
