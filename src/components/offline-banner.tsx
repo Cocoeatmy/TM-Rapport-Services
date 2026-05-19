@@ -138,43 +138,10 @@ export function OfflineBanner() {
     );
   }
 
-  // En ligne, queue vide : bandeau discret de statut cache.
+  // En ligne, queue vide, aucun échec : rien à afficher.
+  // La barre ne s'affiche que si quelque chose requiert l'attention.
   if (online && queueCount === 0) {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="sticky top-0 z-[55] w-full px-3 py-1 text-[10px] flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700"
-      >
-        {showWarmOk ? (
-          <>
-            <CloudUpload className="w-3 h-3 text-green-500 shrink-0" aria-hidden />
-            <span className="text-green-600 dark:text-green-400 font-medium">Cache hors-ligne mis à jour</span>
-          </>
-        ) : (
-          <>
-            <CloudOff className="w-3 h-3 shrink-0 opacity-60" aria-hidden />
-            <span>
-              Données hors-ligne{" "}
-              {lastWarm ? (
-                <span className="opacity-75">— mises à jour {formatWarmAge(lastWarm)}</span>
-              ) : (
-                <span className="opacity-60 italic">— jamais téléchargées</span>
-              )}
-            </span>
-            <button
-              onClick={handleManualWarm}
-              disabled={warming}
-              title="Télécharger les données pour un accès hors-ligne"
-              className="ml-1 flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 transition-colors"
-            >
-              <RefreshCw className={`w-2.5 h-2.5 ${warming ? "animate-spin" : ""}`} aria-hidden />
-              {warming ? "Téléchargement…" : "Actualiser"}
-            </button>
-          </>
-        )}
-      </div>
-    );
+    return null;
   }
 
   let cls = "";
