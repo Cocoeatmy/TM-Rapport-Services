@@ -684,6 +684,132 @@ function CmmMobileDrawer({ mode, projectsData, onSwitchMode, isAdmin }: {
   );
 }
 
+/* ====================================================================
+   CmmSectionLanding — page d'accueil style CleanMyMac pour un mode
+   Grande icône à gauche avec parallaxe souris + boutons d'action à droite
+   ==================================================================== */
+function CmmSectionLanding({ icon: Icon, title, actions, onAction }: {
+  icon: React.ElementType;
+  title: string;
+  actions: { id: string; icon: React.ElementType; label: string; sublabel?: string }[];
+  onAction: (id: string) => void;
+}) {
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Parallaxe souris — amplitude ±18px horizontal, ±12px vertical
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const el = containerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setOffset({
+        x: ((e.clientX - (r.left + r.width  / 2)) / (r.width  / 2)) * 18,
+        y: ((e.clientY - (r.top  + r.height / 2)) / (r.height / 2)) * 12,
+      });
+    };
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => window.removeEventListener("mousemove", onMove);
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-24 min-h-[62vh] px-4 select-none"
+    >
+      {/* ---- Icône + titre (gauche) ---- */}
+      <div className="flex flex-col items-center gap-5">
+        <div
+          style={{
+            transform: `translate(${offset.x}px, ${offset.y}px)`,
+            transition: "transform 0.14s cubic-bezier(0.25,0.46,0.45,0.94)",
+          }}
+        >
+          <div className="relative">
+            {/* Halo extérieur */}
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background: "radial-gradient(circle, rgba(124,58,237,0.55) 0%, transparent 70%)",
+                transform: "scale(2.2)",
+                filter: "blur(28px)",
+                pointerEvents: "none",
+              }}
+            />
+            {/* Cercle principal */}
+            <div
+              className="relative w-48 h-48 rounded-full flex items-center justify-center"
+              style={{
+                background: "linear-gradient(150deg, rgba(140,70,255,0.22) 0%, rgba(14,5,40,0.65) 100%)",
+                border: "1px solid rgba(210,190,255,0.18)",
+                boxShadow: "0 0 70px rgba(124,58,237,0.22), inset 0 1px 0 rgba(255,255,255,0.07)",
+              }}
+            >
+              <Icon
+                style={{ width: 96, height: 96, color: "rgba(210,190,255,0.88)", strokeWidth: 1.2 }}
+              />
+            </div>
+          </div>
+        </div>
+        <h2 className="text-2xl font-semibold tracking-tight" style={{ color: "rgba(255,255,255,0.90)" }}>
+          {title}
+        </h2>
+      </div>
+
+      {/* ---- Boutons d'action (droite) ---- */}
+      <div className="flex flex-col gap-3 w-full max-w-[300px]">
+        {actions.map((action) => (
+          <button
+            key={action.id}
+            onClick={() => onAction(action.id)}
+            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-left transition-all duration-150 active:scale-[0.97]"
+            style={{
+              background: "rgba(255,255,255,0.07)",
+              border: "1px solid rgba(255,255,255,0.11)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+            }}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget;
+              el.style.background = "rgba(255,255,255,0.12)";
+              el.style.borderColor = "rgba(210,190,255,0.24)";
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget;
+              el.style.background = "rgba(255,255,255,0.07)";
+              el.style.borderColor = "rgba(255,255,255,0.11)";
+            }}
+          >
+            {/* Icône action */}
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{
+                background: "rgba(124,58,237,0.28)",
+                border: "1px solid rgba(210,190,255,0.18)",
+              }}
+            >
+              <action.icon style={{ width: 17, height: 17, color: "rgba(210,190,255,0.85)" }} />
+            </div>
+            {/* Texte */}
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.90)" }}>
+                {action.label}
+              </div>
+              {action.sublabel && (
+                <div className="text-xs mt-0.5 truncate" style={{ color: "rgba(210,190,255,0.42)" }}>
+                  {action.sublabel}
+                </div>
+              )}
+            </div>
+            {/* Chevron */}
+            <ChevronRight style={{ width: 15, height: 15, color: "rgba(210,190,255,0.38)", flexShrink: 0 }} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SkeletonCard() {
   return (
     <div className="glass-card rounded-2xl p-4 animate-pulse">
@@ -995,6 +1121,8 @@ function HomePage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(statusParam);
   const [collabFilter, setCollabFilter] = useState<string | null>(collabParam || collaborateurParam);
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
+  // CleanMyMac : contrôle l'affichage du hero par mode (null = liste normale)
+  const [cmmHeroMode, setCmmHeroMode] = useState<string | null>(null);
   const [subView, setSubView] = useState<"projets" | "stats">("projets");
   const [statsDateMode, setStatsDateMode] = useState<StatsDateMode>("all");
   const [statsDateFrom, setStatsDateFrom] = useState("");
@@ -1536,6 +1664,10 @@ function HomePage() {
     if (quickFilter === "rdv-a-fixer" && p.etatCMD !== "Cabine à aller chercher" && p.etatCMD !== "Récéptionné - RDV à fixer") {
       return false;
     }
+    // ---- Filtres CMM Mesures ----
+    if (quickFilter === "mesures-today" && p.dateMesures !== formatLocalDate(new Date())) return false;
+    if (quickFilter === "mesures-rdv" && !p.dateMesures) return false;
+    if (quickFilter === "mesures-non-cmd" && !(p.etatMesures === "Terminé" && p.etatCMD === "Cabines mesurées")) return false;
     return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
   }).sort((a, b) => {
     if (mode.startsWith("mesures")) {
@@ -1747,6 +1879,7 @@ function HomePage() {
           isAdmin={currentUser?.role === "admin" || false}
           onSwitchMode={(m: string) => {
             setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
+            setCmmHeroMode(isCmm && m === "mesures" ? "mesures" : null);
           }}
         />
       )}
@@ -1764,6 +1897,8 @@ function HomePage() {
         <div className="flex-1 min-w-0">
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
+            // CMM : afficher le hero pour les modes qui en ont un
+            setCmmHeroMode(isCmm && m === "mesures" ? "mesures" : null);
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
               fetch("/api/projects/all").then((r) => r.json()).then((data) => {
@@ -4923,7 +5058,49 @@ function HomePage() {
       )}
 
 
-      {mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (<>
+      {/* ======================================================== */}
+      {/* CleanMyMac Hero — Mesures (affiché à la place de la liste)  */}
+      {/* ======================================================== */}
+      {isCmm && mode === "mesures" && cmmHeroMode === "mesures" && (
+        <>
+          <CmmSectionLanding
+            icon={Ruler}
+            title="Mesures"
+            actions={[
+              { id: "today",   icon: CalendarDays, label: "Mesures aujourd'hui",    sublabel: "Rendez-vous du jour"     },
+              { id: "rdv",     icon: Calendar,     label: "RDV Mesures",            sublabel: "Tous les rendez-vous"    },
+              { id: "non-cmd", icon: AlertCircle,  label: "Mesures non commandées", sublabel: "Mesures terminées — à commander" },
+            ]}
+            onAction={(id) => {
+              setCmmHeroMode(null);
+              setQuickFilter(
+                id === "today"   ? "mesures-today"   :
+                id === "rdv"     ? "mesures-rdv"     :
+                "mesures-non-cmd"
+              );
+            }}
+          />
+        </>
+      )}
+
+      {/* ======================================================== */}
+      {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
+      {/* et sauf quand un hero CMM est affiché)                   */}
+      {/* ======================================================== */}
+      {mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && !(isCmm && mode === "mesures" && cmmHeroMode === "mesures") && (<>
+        {/* Bouton retour vers hero CMM (visible après avoir cliqué un bouton) */}
+        {isCmm && mode === "mesures" && cmmHeroMode === null && (
+          <button
+            onClick={() => { setCmmHeroMode("mesures"); setQuickFilter(null); }}
+            className="mb-4 flex items-center gap-1.5 text-sm transition-all duration-150"
+            style={{ color: "rgba(210,190,255,0.60)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.90)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.60)"; }}
+          >
+            <ChevronLeft style={{ width: 15, height: 15 }} />
+            Mesures
+          </button>
+        )}
       {/* Favoris */}
       {viewMode === "list" && (() => {
         const favIds = typeof window !== "undefined" ? getFavorites() : [];
