@@ -7,7 +7,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, ShieldCheck } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, ShieldCheck, Compass } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -756,7 +756,7 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
       </div>
 
       {/* ---- Titre + sous-titre + boutons (droite) ---- */}
-      <div className="flex flex-col w-full max-w-[300px]">
+      <div className={`flex flex-col w-full ${actions.length > 5 ? "max-w-[420px]" : "max-w-[300px]"}`}>
         {/* Titre en haut */}
         <h2
           className="text-3xl font-bold tracking-tight mb-1"
@@ -769,8 +769,8 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
             {subtitle}
           </p>
         )}
-        {/* Boutons */}
-        <div className="flex flex-col gap-2.5">
+        {/* Boutons — 1 colonne si ≤5 actions, grille 2×N sinon */}
+        <div className={actions.length > 5 ? "grid grid-cols-2 gap-2" : "flex flex-col gap-2.5"}>
           {actions.map((action) => (
             <button
               key={action.id}
@@ -1132,6 +1132,7 @@ function HomePage() {
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
   // CleanMyMac : contrôle l'affichage du hero par mode (null = liste normale)
   const [cmmHeroMode, setCmmHeroMode] = useState<string | null>(null);
+  const [crmTagFilter, setCrmTagFilter] = useState<string | null>(null);
   const [subView, setSubView] = useState<"projets" | "stats">("projets");
   const [statsDateMode, setStatsDateMode] = useState<StatsDateMode>("all");
   const [statsDateFrom, setStatsDateFrom] = useState("");
@@ -1901,8 +1902,8 @@ function HomePage() {
           projectsData={projectsData}
           isAdmin={currentUser?.role === "admin" || false}
           onSwitchMode={(m: string) => {
-            setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties"];
+            setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
           }}
         />
@@ -1920,9 +1921,9 @@ function HomePage() {
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} onSwitchMode={(m: Mode) => {
-            setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
+            setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             // CMM : afficher le hero pour les modes qui en ont un
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
@@ -2010,8 +2011,8 @@ function HomePage() {
                 projects={tagged}
                 isAdmin={currentUser?.role === "admin"}
                 onNavigate={(m) => {
-                  setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
-                  const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties"];
+                  setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
+                  const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises"];
                   setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
                 }}
                 terminatedProjectsInit={projectsData["cmd-termine"] || []}
@@ -2301,8 +2302,28 @@ function HomePage() {
       })()}
 
       {/* VUE CLIENTS - CRM Notion */}
-      {mode.startsWith("clients-") && (
-        <CRMClients mode={mode as "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes"} isAdmin={currentUser?.role === "admin"} />
+      {mode.startsWith("clients-") && !(isCmm && (mode === "clients-contacts" || mode === "clients-entreprises") && cmmHeroMode === mode) && (
+        <>
+          {/* Bouton retour vers hero CMM Contacts / Entreprises */}
+          {isCmm && (mode === "clients-contacts" || mode === "clients-entreprises") && cmmHeroMode === null && (
+            <button
+              onClick={() => { setCmmHeroMode(mode); setCrmTagFilter(null); }}
+              className="mb-4 flex items-center gap-1.5 text-sm transition-all duration-150"
+              style={{ color: "rgba(210,190,255,0.60)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.90)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.60)"; }}
+            >
+              <ChevronLeft style={{ width: 15, height: 15 }} />
+              {mode === "clients-contacts" ? "Contacts" : "Entreprises"}
+              {crmTagFilter && <span className="ml-1 text-xs opacity-70">— {crmTagFilter}</span>}
+            </button>
+          )}
+          <CRMClients
+            mode={mode as "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes"}
+            isAdmin={currentUser?.role === "admin"}
+            filterTag={isCmm ? crmTagFilter : null}
+          />
+        </>
       )}
 
       {/* VUE GROSSISTES */}
@@ -5182,11 +5203,59 @@ function HomePage() {
       )}
 
       {/* ======================================================== */}
+      {/* CleanMyMac Hero — Contacts                               */}
+      {/* ======================================================== */}
+      {isCmm && mode === "clients-contacts" && cmmHeroMode === "clients-contacts" && (
+        <CmmSectionLanding
+          icon={UsersIcon}
+          title="Contacts"
+          subtitle="Vos contacts classés par type de relation"
+          actions={[
+            { id: "Grossistes",           icon: ShoppingBag, label: "Grossistes"           },
+            { id: "Fournisseurs",          icon: Package,     label: "Fournisseurs"          },
+            { id: "Sanitaires",            icon: Droplets,    label: "Sanitaires"            },
+            { id: "Architectes",           icon: Compass,     label: "Architectes"           },
+            { id: "Entreprises générales", icon: Building,    label: "Entreprises générales" },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setCrmTagFilter(id);
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* CleanMyMac Hero — Entreprises                            */}
+      {/* ======================================================== */}
+      {isCmm && mode === "clients-entreprises" && cmmHeroMode === "clients-entreprises" && (
+        <CmmSectionLanding
+          icon={Building}
+          title="Entreprises"
+          subtitle="Vos entreprises partenaires et clientes"
+          actions={[
+            { id: "Grossistes",              icon: ShoppingBag, label: "Grossistes"              },
+            { id: "Fournisseurs",            icon: Package,     label: "Fournisseurs"            },
+            { id: "Sanitaires",              icon: Droplets,    label: "Sanitaires"              },
+            { id: "Bureau d'études sanitaire", icon: FileText,  label: "Bureau d'études"         },
+            { id: "Carreleurs",              icon: LayoutGrid,  label: "Carreleurs"              },
+            { id: "Entreprises générales",   icon: Building,    label: "Entreprises générales"   },
+            { id: "Architectes",             icon: Compass,     label: "Architectes"             },
+            { id: "Ingénieurs",              icon: Wrench,      label: "Ingénieurs"              },
+            { id: "Agences immobilières",    icon: Home,        label: "Agences immobilières"    },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setCrmTagFilter(id);
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
       {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
       {/* et sauf quand un hero CMM est affiché)                   */}
       {/* ======================================================== */}
       {(() => {
-        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties"];
+        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises"];
         const cmmHeroActive = isCmm && cmmHeroModes.includes(mode) && cmmHeroMode === mode;
         return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && !cmmHeroActive;
       })() && (<>

@@ -921,7 +921,7 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
   );
 }
 
-export function CRMClients({ mode, isAdmin }: { mode: ClientMode; isAdmin?: boolean }) {
+export function CRMClients({ mode, isAdmin, filterTag }: { mode: ClientMode; isAdmin?: boolean; filterTag?: string | null }) {
   const [entries, setEntries] = useState<CRMEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -973,15 +973,23 @@ export function CRMClients({ mode, isAdmin }: { mode: ClientMode; isAdmin?: bool
   }, [type]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return entries;
+    let result = entries;
+    // Filtre par étiquette (depuis hero CMM)
+    if (filterTag) {
+      result = result.filter((e) => {
+        const etiquettes = Array.isArray(e.properties["Étiquettes"]) ? e.properties["Étiquettes"] : [];
+        return etiquettes.some((t: string) => t.toLowerCase() === filterTag.toLowerCase());
+      });
+    }
+    if (!search.trim()) return result;
     const q = search.toLowerCase();
-    return entries.filter((e) => {
+    return result.filter((e) => {
       const allValues = Object.values(e.properties).flatMap((v) =>
         Array.isArray(v) ? v : typeof v === "string" ? [v] : []
       );
       return e.name.toLowerCase().includes(q) || allValues.some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [entries, search]);
+  }, [entries, search, filterTag]);
 
   const handleCreate = async (properties: Record<string, any>, icon?: string | null) => {
     setMutating(true);
