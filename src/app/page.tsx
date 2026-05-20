@@ -245,7 +245,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
         <CmmSidebarContent mode={mode} projectsData={projectsData} onSwitchMode={handleSelect} isAdmin={isAdmin} />
       </div>
     )}
-    <div className={`mb-4 space-y-1.5${isCmm ? " lg:hidden" : ""}`}>
+    {/* Sur mobile CleanMyMac : les onglets horizontaux sont entièrement masqués
+        (remplacés par le CmmMobileDrawer rendu au niveau HomePage). */}
+    <div className={`mb-4 space-y-1.5${isCmm ? " hidden" : ""}`}>
       {/* Ligne principale */}
       <div className="p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain">
         <div className="flex gap-1">
@@ -556,6 +558,129 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
       <SideItem m="destockage" Icon={Archive} label="Déstockage" showCount={false} />
       {isAdmin && <SideItem m="stats" Icon={BarChart2} label="Stats" showCount={false} />}
     </nav>
+  );
+}
+
+/* ---- Drawer mobile CleanMyMac (iOS) ---- */
+/* Visible uniquement sur mobile (< lg). Activé par swipe depuis le bord   */
+/* gauche ou tap sur l'onglet triangulaire. Contient CmmSidebarContent.    */
+function CmmMobileDrawer({ mode, projectsData, onSwitchMode, isAdmin }: {
+  mode: string;
+  projectsData: Record<string, any[]>;
+  onSwitchMode: (m: string) => void;
+  isAdmin: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const DRAWER_W = 252;
+
+  // Détection swipe bord gauche → ouvrir, swipe gauche sur drawer → fermer
+  useEffect(() => {
+    const onStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (touchStartX.current === null || touchStartY.current === null) return;
+      const dx = e.changedTouches[0].clientX - touchStartX.current;
+      const dy = Math.abs(e.changedTouches[0].clientY - (touchStartY.current ?? 0));
+      // Ignorer les swipes principalement verticaux
+      if (dy > Math.abs(dx) * 1.2) { touchStartX.current = null; touchStartY.current = null; return; }
+      if (dx > 45 && (touchStartX.current ?? 999) < 40 && !open) setOpen(true);
+      else if (dx < -45 && open) setOpen(false);
+      touchStartX.current = null;
+      touchStartY.current = null;
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchend", onEnd);
+    };
+  }, [open]);
+
+  // Ferme le drawer et navigue
+  const handleNav = (m: string) => { onSwitchMode(m); setOpen(false); };
+
+  return (
+    <>
+      {/* ---- Onglet déclencheur (handle) ---- */}
+      {/* Se déplace avec le drawer pour rester visible sur le bord */}
+      <div
+        className="fixed z-[45] lg:hidden transition-[left] duration-300"
+        style={{
+          left: open ? DRAWER_W : 0,
+          top: "50%",
+          transform: "translateY(-50%)",
+          pointerEvents: "auto",
+        }}
+      >
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
+          style={{
+            background: "linear-gradient(135deg, rgba(90,40,180,0.85) 0%, rgba(30,10,64,0.90) 100%)",
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+            border: "1px solid rgba(210,190,255,0.22)",
+            borderLeft: "none",
+            borderRadius: "0 10px 10px 0",
+            padding: "16px 7px 16px 5px",
+            display: "flex",
+            alignItems: "center",
+            cursor: "pointer",
+            boxShadow: "3px 0 16px rgba(120,60,220,0.35)",
+          }}
+        >
+          {/* Triangle SVG : pointe à droite quand fermé, à gauche quand ouvert */}
+          <svg width="9" height="18" viewBox="0 0 9 18" fill="none">
+            {open
+              ? <path d="M9 0L0 9L9 18V0Z" fill="rgba(210,190,255,0.90)" />
+              : <path d="M0 0L9 9L0 18V0Z" fill="rgba(210,190,255,0.90)" />
+            }
+          </svg>
+        </button>
+      </div>
+
+      {/* ---- Backdrop semi-transparent ---- */}
+      <div
+        className="fixed inset-0 z-[43] lg:hidden transition-all duration-300"
+        style={{
+          background: open ? "rgba(4,1,14,0.60)" : "transparent",
+          backdropFilter: open ? "blur(2px)" : "none",
+          WebkitBackdropFilter: open ? "blur(2px)" : "none",
+          pointerEvents: open ? "auto" : "none",
+        }}
+        onClick={() => setOpen(false)}
+      />
+
+      {/* ---- Drawer panel ---- */}
+      <div
+        className="fixed top-0 bottom-0 left-0 z-[44] lg:hidden"
+        style={{
+          width: DRAWER_W,
+          transform: open ? "translateX(0)" : `translateX(-${DRAWER_W}px)`,
+          transition: "transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)",
+          background: "rgba(7,2,20,0.97)",
+          backdropFilter: "blur(40px) saturate(200%)",
+          WebkitBackdropFilter: "blur(40px) saturate(200%)",
+          borderRight: "1px solid rgba(255,255,255,0.07)",
+          boxShadow: open ? "8px 0 40px rgba(0,0,0,0.65)" : "none",
+          paddingTop: "var(--header-h, 56px)",
+          overflowY: "auto",
+          overflowX: "hidden",
+          WebkitOverflowScrolling: "touch",
+        } as React.CSSProperties}
+      >
+        <CmmSidebarContent
+          mode={mode}
+          projectsData={projectsData}
+          onSwitchMode={handleNav}
+          isAdmin={isAdmin}
+        />
+      </div>
+    </>
   );
 }
 
@@ -1614,6 +1739,17 @@ function HomePage() {
     <div className="px-4 py-4 max-w-7xl mx-auto w-full">
       <PullToRefresh />
       <Onboarding />
+      {/* Drawer mobile CleanMyMac — rendu en dehors du flux normal car position:fixed */}
+      {isCmm && (
+        <CmmMobileDrawer
+          mode={mode}
+          projectsData={projectsData}
+          isAdmin={currentUser?.role === "admin" || false}
+          onSwitchMode={(m: string) => {
+            setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
+          }}
+        />
+      )}
       {/* Toast notification */}
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
