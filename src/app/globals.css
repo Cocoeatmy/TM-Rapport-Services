@@ -1329,93 +1329,138 @@ html[data-ui="ocean"] #main-header a.flex:hover {
   html[data-ui="ocean"] #main-header a.flex { transition: none; }
 }
 /* ============================================================ */
-/*                    CLEANMYMAC THEME                          */
+/*                  CLEANMYMAC THEME  v2                        */
 /* ============================================================ */
-/* Activé par html[data-ui="cleanmymac"]. Inspiré de l'UI de    */
-/* l'app CleanMyMac : fond spatial quasi-noir, glassmorphism     */
-/* sombre, gradient violet→teal signature, halos lumineux.       */
-/*                                                               */
-/* Ce thème est DARK-FIRST : le fond est toujours sombre, même   */
-/* en mode "light". Les variables shadcn et les utilitaires       */
-/* Tailwind `text-gray-*` / `bg-*` sont surchargés pour garantir */
-/* la lisibilité sur fond quasi-noir dans les deux modes.         */
-/* Le toggle dark/light alterne entre midnight-indigo (light)    */
-/* et deep-space (dark).                                         */
+/* Refonte totale inspirée de l'app CleanMyMac :                */
+/*  - Fond violet vivace (pas near-black) avec bloom dynamique  */
+/*  - Sidebar verticale fixe sur desktop (≥1024px)             */
+/*  - Couleurs qui changent par section via CSS :has()          */
+/*  - Glassmorphisme clair translucide sur fond coloré          */
+/*  - Texte blanc sur toute la surface                          */
+/*  - Mobile : navbar horizontale maintenue                     */
 
-/* ---- Surcharge des variables shadcn (mode light = midnight) ---- */
-html[data-ui="cleanmymac"] {
-  --background:         #0c0a20;
-  --foreground:         #f0edff;
-  --card:               #14122c;
-  --card-foreground:    #f0edff;
-  --popover:            #16142e;
-  --popover-foreground: #f0edff;
-  --primary:            #8b5cf6;
-  --primary-foreground: #ffffff;
-  --secondary:          #201d3c;
-  --secondary-foreground: #c4bfe8;
-  --muted:              #1c1a35;
-  --muted-foreground:   #9490b8;
+/* ---- Variables shadcn (même valeurs light + dark) ---------- */
+html[data-ui="cleanmymac"],
+html[data-ui="cleanmymac"].dark {
+  --background:         #1e0a40;
+  --foreground:         #f5f0ff;
+  --card:               rgba(255,255,255,0.10);
+  --card-foreground:    #f5f0ff;
+  --popover:            #1a0835;
+  --popover-foreground: #f5f0ff;
+  --primary:            #c084fc;
+  --primary-foreground: #1a0835;
+  --secondary:          rgba(255,255,255,0.10);
+  --secondary-foreground: #e9d5ff;
+  --muted:              rgba(255,255,255,0.08);
+  --muted-foreground:   rgba(220,200,255,0.65);
   --accent:             #00c6a2;
   --accent-foreground:  #ffffff;
-  --destructive:        #f43f5e;
-  --border:             rgba(139, 92, 246, 0.20);
-  --input:              rgba(139, 92, 246, 0.16);
-  --ring:               #7c3aed;
-  color-scheme:         dark;
+  --destructive:        #f87171;
+  --border:             rgba(255,255,255,0.16);
+  --input:              rgba(255,255,255,0.10);
+  --ring:               #a855f7;
+  color-scheme: dark;
 }
 
-/* ---- deep-space (mode dark) ---- */
-html[data-ui="cleanmymac"].dark {
-  --background:         #04030e;
-  --foreground:         #f5f3ff;
-  --card:               #0a0820;
-  --card-foreground:    #f5f3ff;
-  --popover:            #0c0a22;
-  --popover-foreground: #f5f3ff;
-  --primary:            #a78bfa;
-  --primary-foreground: #030014;
-  --secondary:          #130f28;
-  --secondary-foreground: #c4bfe8;
-  --muted:              #0f0d22;
-  --muted-foreground:   #8b85b0;
-  --accent:             #00c6a2;
-  --accent-foreground:  #000000;
-  --destructive:        #f43f5e;
-  --border:             rgba(109, 40, 217, 0.22);
-  --input:              rgba(109, 40, 217, 0.16);
-  --ring:               #8b5cf6;
-  color-scheme:         dark;
-}
+/* ============================================================ */
+/*          FONDS  PAR  SECTION (CSS :has() + nth-child)        */
+/* ============================================================ */
+/* Les <button> de navigation sont frères dans div.flex.gap-1.  */
+/* L'onglet actif reçoit la classe glass-tab-active.            */
+/* Rapport a ses propres classes (bg-green-100).                */
 
-/* ---------- Background : nébuleuse violette (light = midnight) --------- */
-html[data-ui="cleanmymac"] .lg-bg {
-  background:
-    radial-gradient(ellipse 75% 55% at 50% -5%,  rgba(109, 40, 217, 0.65) 0%, transparent 62%),
-    radial-gradient(ellipse 45% 38% at 90% 88%,  rgba(0, 198, 162, 0.24) 0%, transparent 55%),
-    radial-gradient(ellipse 50% 42% at 5%  75%,  rgba(124, 58, 237, 0.20) 0%, transparent 55%),
-    radial-gradient(ellipse 35% 30% at 72% 40%,  rgba(168, 85, 247, 0.12) 0%, transparent 50%),
-    linear-gradient(180deg, #0f0c26 0%, #090720 50%, #0b0a1e 100%);
-  animation: cmmNebula 22s ease-in-out infinite;
-}
-
+/* ---- Dashboard (1er) / état par défaut : violet CMM --------- */
+html[data-ui="cleanmymac"] .lg-bg,
 html[data-ui="cleanmymac"].dark .lg-bg {
   background:
-    radial-gradient(ellipse 70% 52% at 50% -8%,  rgba(88, 28, 200, 0.82) 0%, transparent 63%),
-    radial-gradient(ellipse 40% 32% at 92% 90%,  rgba(0, 198, 162, 0.30) 0%, transparent 55%),
-    radial-gradient(ellipse 45% 36% at 5%  78%,  rgba(109, 40, 217, 0.24) 0%, transparent 55%),
-    radial-gradient(ellipse 30% 28% at 70% 38%,  rgba(139, 92, 246, 0.10) 0%, transparent 50%),
-    linear-gradient(180deg, #060416 0%, #040212 50%, #060418 100%);
+    radial-gradient(ellipse 80% 75% at 68% 38%, rgba(124,58,237,0.92) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 55% at 18% 72%, rgba(88,28,200,0.65)  0%, transparent 55%),
+    radial-gradient(ellipse 40% 35% at 88% 88%, rgba(0,198,162,0.28)  0%, transparent 55%),
+    linear-gradient(135deg,#1a0838 0%,#2d1265 40%,#1e0a42 70%,#150830 100%);
   animation: cmmNebula 22s ease-in-out infinite;
+  transition: background 0.7s ease;
+}
+
+/* ---- Services (2e) : bleu ----------------------------------- */
+html[data-ui="cleanmymac"]:has(#main-navbar button:nth-child(2).glass-tab-active) .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 75% at 68% 38%, rgba(29,78,216,0.92)  0%, transparent 60%),
+    radial-gradient(ellipse 50% 55% at 18% 72%, rgba(14,48,160,0.65)  0%, transparent 55%),
+    radial-gradient(ellipse 40% 35% at 88% 88%, rgba(56,189,248,0.28) 0%, transparent 55%),
+    linear-gradient(135deg,#08142e 0%,#0d2a64 40%,#091c48 70%,#071228 100%);
+}
+
+/* ---- CRM (3e) : émeraude ----------------------------------- */
+html[data-ui="cleanmymac"]:has(#main-navbar button:nth-child(3).glass-tab-active) .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 75% at 68% 38%, rgba(4,120,87,0.90)   0%, transparent 60%),
+    radial-gradient(ellipse 50% 55% at 18% 72%, rgba(6,78,59,0.65)    0%, transparent 55%),
+    radial-gradient(ellipse 40% 35% at 88% 88%, rgba(52,211,153,0.28) 0%, transparent 55%),
+    linear-gradient(135deg,#041f15 0%,#0b3d28 40%,#072e1e 70%,#031510 100%);
+}
+
+/* ---- Grossistes (4e) : ambre chaud -------------------------- */
+html[data-ui="cleanmymac"]:has(#main-navbar button:nth-child(4).glass-tab-active) .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 75% at 68% 38%, rgba(180,83,9,0.90)   0%, transparent 60%),
+    radial-gradient(ellipse 50% 55% at 18% 72%, rgba(120,53,6,0.65)   0%, transparent 55%),
+    radial-gradient(ellipse 40% 35% at 88% 88%, rgba(251,191,36,0.28) 0%, transparent 55%),
+    linear-gradient(135deg,#1c0d02 0%,#3d1d04 40%,#2a1303 70%,#120800 100%);
+}
+
+/* ---- Fournisseurs (5e) : rose-crimson ----------------------- */
+html[data-ui="cleanmymac"]:has(#main-navbar button:nth-child(5).glass-tab-active) .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 75% at 68% 38%, rgba(190,18,60,0.90)   0%, transparent 60%),
+    radial-gradient(ellipse 50% 55% at 18% 72%, rgba(136,12,43,0.65)   0%, transparent 55%),
+    radial-gradient(ellipse 40% 35% at 88% 88%, rgba(251,113,133,0.28) 0%, transparent 55%),
+    linear-gradient(135deg,#1e0410 0%,#420b20 40%,#2e0717 70%,#150310 100%);
+}
+
+/* ---- Sanitaires (6e) : indigo ------------------------------ */
+html[data-ui="cleanmymac"]:has(#main-navbar button:nth-child(6).glass-tab-active) .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 75% at 68% 38%, rgba(55,48,163,0.92)   0%, transparent 60%),
+    radial-gradient(ellipse 50% 55% at 18% 72%, rgba(30,27,120,0.65)   0%, transparent 55%),
+    radial-gradient(ellipse 40% 35% at 88% 88%, rgba(129,140,248,0.28) 0%, transparent 55%),
+    linear-gradient(135deg,#0a091e 0%,#1a1860 40%,#10103e 70%,#080718 100%);
+}
+
+/* ---- Rapport (bouton actif bg-green-100) : vert forêt ------- */
+html[data-ui="cleanmymac"]:has(#main-navbar button.bg-green-100) .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 75% at 68% 38%, rgba(21,128,61,0.90)  0%, transparent 60%),
+    radial-gradient(ellipse 50% 55% at 18% 72%, rgba(14,80,40,0.65)   0%, transparent 55%),
+    radial-gradient(ellipse 40% 35% at 88% 88%, rgba(74,222,128,0.28) 0%, transparent 55%),
+    linear-gradient(135deg,#041a0c 0%,#0d3d1c 40%,#082914 70%,#021006 100%);
+}
+
+/* ---- Déstockage (8e) : orange vif -------------------------- */
+html[data-ui="cleanmymac"]:has(#main-navbar button:nth-child(8).glass-tab-active) .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 75% at 68% 38%, rgba(194,65,12,0.90)  0%, transparent 60%),
+    radial-gradient(ellipse 50% 55% at 18% 72%, rgba(140,45,8,0.65)   0%, transparent 55%),
+    radial-gradient(ellipse 40% 35% at 88% 88%, rgba(251,146,60,0.28) 0%, transparent 55%),
+    linear-gradient(135deg,#1e0c02 0%,#3f1a04 40%,#2a1002 70%,#140600 100%);
+}
+
+/* ---- Stats (9e, admin) : cyan ------------------------------ */
+html[data-ui="cleanmymac"]:has(#main-navbar button:nth-child(9).glass-tab-active) .lg-bg {
+  background:
+    radial-gradient(ellipse 80% 75% at 68% 38%, rgba(14,116,144,0.90)  0%, transparent 60%),
+    radial-gradient(ellipse 50% 55% at 18% 72%, rgba(8,80,100,0.65)    0%, transparent 55%),
+    radial-gradient(ellipse 40% 35% at 88% 88%, rgba(103,232,249,0.28) 0%, transparent 55%),
+    linear-gradient(135deg,#031520 0%,#082d3d 40%,#051e28 70%,#021018 100%);
 }
 
 @keyframes cmmNebula {
-  0%, 100% { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%; }
-  35%      { background-position: 0% 0%, 4% -4%, -4%  4%, 2% -2%, 0% 0%; }
-  70%      { background-position: 0% 0%, -3%  3%,  3% -3%, -2%  2%, 0% 0%; }
+  0%,100% { background-position: 0% 0%,0% 0%,0% 0%,0% 0%; }
+  35%     { background-position: 3% -3%,4% -4%,-2% 3%,0% 0%; }
+  70%     { background-position:-2% 2%,-3% 3%, 3%-2%,0% 0%; }
 }
 
-/* Texture étoiles / grain très subtil */
+/* Texture étoiles très subtile */
 html[data-ui="cleanmymac"] .lg-bg::before {
   content: "";
   position: fixed;
@@ -1423,44 +1468,224 @@ html[data-ui="cleanmymac"] .lg-bg::before {
   pointer-events: none;
   z-index: 0;
   background-image:
-    radial-gradient(circle at 18% 38%, rgba(200, 180, 255, 0.07) 1px, transparent 1px),
-    radial-gradient(circle at 62% 72%, rgba(0, 198, 162, 0.05) 1px, transparent 1px),
-    radial-gradient(circle at 85% 20%, rgba(168, 85, 247, 0.06) 1px, transparent 1px),
-    radial-gradient(circle at 40% 90%, rgba(200, 180, 255, 0.04) 1px, transparent 1px);
-  background-size: 42px 42px, 68px 68px, 55px 55px, 80px 80px;
-  opacity: 0.9;
+    radial-gradient(circle at 22% 35%, rgba(255,255,255,0.08) 1px, transparent 1px),
+    radial-gradient(circle at 78% 62%, rgba(255,255,255,0.06) 1px, transparent 1px),
+    radial-gradient(circle at 55% 85%, rgba(255,255,255,0.05) 1px, transparent 1px),
+    radial-gradient(circle at 10% 90%, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 40px 40px, 65px 65px, 52px 52px, 80px 80px;
   mix-blend-mode: screen;
 }
 
-/* ---------- Cartes : glassmorphism sombre ---------- */
+/* ============================================================ */
+/*              SIDEBAR VERTICALE — desktop ≥1024px             */
+/* ============================================================ */
+
+@media (min-width: 1024px) {
+
+  /* Décale tout le contenu principal à droite de 220px */
+  html[data-ui="cleanmymac"] main {
+    padding-left: 220px !important;
+  }
+
+  /* ---- Navbar → sidebar fixe gauche ---- */
+  html[data-ui="cleanmymac"] #main-navbar {
+    position: fixed !important;
+    left: 0 !important;
+    top: 52px !important;         /* hauteur du header */
+    bottom: 0 !important;
+    width: 220px !important;
+    height: calc(100vh - 52px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 14px 10px 18px !important;
+    margin: 0 !important;
+    background: rgba(8,3,22,0.80) !important;
+    backdrop-filter: blur(40px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(40px) saturate(180%) !important;
+    border-right: 1px solid rgba(255,255,255,0.07) !important;
+    box-shadow: 4px 0 28px rgba(0,0,0,0.35) !important;
+    z-index: 40 !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Wrapper interne → colonne full height */
+  html[data-ui="cleanmymac"] #main-navbar > div {
+    flex-direction: column !important;
+    height: 100% !important;
+    gap: 0 !important;
+    align-items: stretch !important;
+  }
+
+  /* Zone tabs prend tout l'espace */
+  html[data-ui="cleanmymac"] #main-navbar > div > div:first-child {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  /* Boutons d'action → bas de la sidebar */
+  html[data-ui="cleanmymac"] #main-navbar > div > div:last-child {
+    margin-top: auto !important;
+    padding-top: 12px !important;
+    border-top: 1px solid rgba(255,255,255,0.07) !important;
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  /* Container NavBar → no overflow-x */
+  html[data-ui="cleanmymac"] #main-navbar .mb-4 { margin-bottom: 0 !important; }
+
+  html[data-ui="cleanmymac"] #main-navbar .overflow-x-auto {
+    overflow: visible !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Rangée des onglets → colonne */
+  html[data-ui="cleanmymac"] #main-navbar .flex.gap-1 {
+    flex-direction: column !important;
+    gap: 2px !important;
+  }
+
+  /* ---- Chaque bouton de navigation (inactif) ---- */
+  html[data-ui="cleanmymac"] #main-navbar .flex.gap-1 > button {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    padding: 9px 14px !important;
+    border-radius: 9px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: rgba(230,220,255,0.65) !important;
+    background: transparent !important;
+    border: none !important;
+    border-left: 3px solid transparent !important;
+    box-shadow: none !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    transition: background 0.16s ease, color 0.16s ease !important;
+  }
+
+  html[data-ui="cleanmymac"] #main-navbar .flex.gap-1 > button:hover {
+    background: rgba(255,255,255,0.08) !important;
+    color: rgba(255,255,255,0.92) !important;
+  }
+
+  /* ---- Onglet actif : highlight blanc + liseré gauche ---- */
+  html[data-ui="cleanmymac"] #main-navbar .flex.gap-1 > button.glass-tab-active {
+    background: rgba(255,255,255,0.13) !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    border-left: 3px solid rgba(210,190,255,0.75) !important;
+    padding-left: 11px !important;
+    box-shadow: none !important;
+  }
+
+  /* ---- Onglet Rapport (classes spéciales) actif ---- */
+  html[data-ui="cleanmymac"] #main-navbar .flex.gap-1 > button.bg-green-100 {
+    background: rgba(255,255,255,0.13) !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    border-left: 3px solid rgba(134,239,172,0.80) !important;
+    padding-left: 11px !important;
+  }
+
+  /* ---- Sous-menus (Services, CRM…) → colonne indentée ---- */
+  html[data-ui="cleanmymac"] #main-navbar .space-y-1\.5 > div + div {
+    flex-direction: column !important;
+    gap: 2px !important;
+    flex-wrap: nowrap !important;
+    padding-left: 10px !important;
+    margin-top: 2px !important;
+  }
+
+  html[data-ui="cleanmymac"] #main-navbar .space-y-1\.5 > div + div > button {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    padding: 7px 10px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    color: rgba(210,200,250,0.72) !important;
+  }
+
+  /* Logos grossistes/fournisseurs → petite taille */
+  html[data-ui="cleanmymac"] #main-navbar .space-y-1\.5 > div + div img {
+    max-height: 20px !important;
+    max-width: 50px !important;
+    object-fit: contain !important;
+  }
+
+} /* end @media min-width 1024px */
+
+/* ============================================================ */
+/*     COMPOSANTS  VISUELS  (toutes tailles d'écran)           */
+/* ============================================================ */
+
+/* ---------- Header : barre macOS sombre -------------------- */
+/* ⚠ Pas de position:relative ni overflow:hidden → menus      */
+/*   dropdown ne doivent pas être clippés. Cf. Ocean header.   */
+html[data-ui="cleanmymac"] #main-header {
+  background: rgba(7,2,20,0.96) !important;
+  backdrop-filter: blur(50px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(50px) saturate(200%) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.05) inset,
+    0 4px 24px rgba(0,0,0,0.45) !important;
+}
+
+html[data-ui="cleanmymac"] #main-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 35% 100% at 50% 50%, rgba(109,40,217,0.10) 0%, transparent 65%);
+  animation: cmmHeaderPulse 8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+html[data-ui="cleanmymac"] #main-header > * { position: relative; z-index: 1; }
+
+@keyframes cmmHeaderPulse {
+  0%,100% { opacity: 0.5; }
+  50%     { opacity: 1.0; }
+}
+
+/* ---------- Cards : verre translucide sur fond vivace ------- */
 html[data-ui="cleanmymac"] .glass-card {
   position: relative;
-  background: linear-gradient(180deg, rgba(26, 22, 58, 0.80) 0%, rgba(18, 15, 42, 0.72) 100%);
-  backdrop-filter: blur(22px) saturate(150%);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
-  border: 1px solid rgba(139, 92, 246, 0.20);
+  background: rgba(255,255,255,0.10);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.18);
   border-radius: 1.25rem;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
-    0 1px 0  rgba(255, 255, 255, 0.06) inset,
-    0 14px 36px -16px rgba(88, 28, 200, 0.55),
-    0  4px 16px  -6px rgba(0, 0, 0, 0.60);
+    0 1px 0 rgba(255,255,255,0.14) inset,
+    0 14px 36px -16px rgba(0,0,0,0.45),
+    0  4px 16px  -6px rgba(0,0,0,0.30);
   transition:
-    border-color 0.28s ease,
-    box-shadow   0.28s ease,
-    transform    0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    background  0.22s ease,
+    border-color 0.22s ease,
+    box-shadow  0.22s ease,
+    transform   0.30s cubic-bezier(0.34,1.56,0.64,1);
   isolation: isolate;
   overflow: hidden;
 }
 
 html[data-ui="cleanmymac"] .glass-card:hover {
-  border-color: rgba(139, 92, 246, 0.42);
+  background: rgba(255,255,255,0.16);
+  border-color: rgba(255,255,255,0.28);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
-    0 1px 0  rgba(255, 255, 255, 0.08) inset,
-    0 22px 50px -18px rgba(109, 40, 217, 0.72),
-    0  6px 20px  -6px rgba(0, 0, 0, 0.65),
-    0  0   42px -12px rgba(139, 92, 246, 0.36);
+    0 1px 0 rgba(255,255,255,0.20) inset,
+    0 22px 50px -18px rgba(0,0,0,0.55),
+    0  6px 22px  -6px rgba(0,0,0,0.35);
   transform: translateY(-2px);
 }
 
@@ -1469,428 +1694,302 @@ html[data-ui="cleanmymac"] .glass-card:active {
   transition-duration: 0.10s;
 }
 
-html[data-ui="cleanmymac"].dark .glass-card {
-  background: linear-gradient(180deg, rgba(16, 12, 38, 0.88) 0%, rgba(10, 8, 28, 0.82) 100%);
-  border-color: rgba(109, 40, 217, 0.26);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
-    0 1px 0  rgba(255, 255, 255, 0.05) inset,
-    0 16px 42px -18px rgba(88, 28, 200, 0.75),
-    0  4px 18px  -6px rgba(0, 0, 0, 0.80);
-}
+html[data-ui="cleanmymac"] .glass-card > * { position: relative; z-index: 1; }
 
-html[data-ui="cleanmymac"].dark .glass-card:hover {
-  border-color: rgba(139, 92, 246, 0.55);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
-    0 1px 0  rgba(255, 255, 255, 0.07) inset,
-    0 26px 58px -20px rgba(109, 40, 217, 0.90),
-    0  8px 26px  -8px rgba(0, 0, 0, 0.85),
-    0  0   52px -14px rgba(139, 92, 246, 0.48);
-}
-
-html[data-ui="cleanmymac"] .glass-card > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* ---------- Header : barre de navigation sombre ---------- */
-/* ⚠️  Pas de position:relative ni overflow:hidden → les menus
-   dropdown ne doivent pas être clippés. Cf. Ocean header. */
-html[data-ui="cleanmymac"] .glass-header {
-  background: linear-gradient(180deg, rgba(10, 8, 24, 0.96) 0%, rgba(8, 6, 20, 0.94) 100%);
-  backdrop-filter: blur(48px) saturate(180%);
-  -webkit-backdrop-filter: blur(48px) saturate(180%);
-  border-bottom: 1px solid rgba(139, 92, 246, 0.24);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 0 0  1px rgba(139, 92, 246, 0.08) inset,
-    0 8px 32px rgba(6, 4, 18, 0.65),
-    0 0  60px -16px rgba(109, 40, 217, 0.38);
-}
-
-/* Halo central pulsant — contenu via inset:0 (sticky = containing block) */
-html[data-ui="cleanmymac"] .glass-header::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 45% 100% at 50% 50%, rgba(109, 40, 217, 0.18) 0%, transparent 65%);
-  animation: cmmHeaderPulse 8s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 0;
-}
-
-html[data-ui="cleanmymac"] .glass-header > * {
-  position: relative;
-  z-index: 1;
-}
-
-@keyframes cmmHeaderPulse {
-  0%, 100% { opacity: 0.55; }
-  50%      { opacity: 1.00; }
-}
-
-html[data-ui="cleanmymac"].dark .glass-header {
-  background: linear-gradient(180deg, rgba(4, 3, 12, 0.98) 0%, rgba(6, 4, 18, 0.96) 100%);
-  border-bottom-color: rgba(109, 40, 217, 0.32);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.05) inset,
-    0 0 0  1px rgba(109, 40, 217, 0.10) inset,
-    0 8px 32px rgba(3, 2, 10, 0.80),
-    0 0  70px -18px rgba(88, 28, 200, 0.45);
-}
-
-/* ---------- Tabs ---------- */
+/* ---------- Tabs container ---------------------------------- */
 html[data-ui="cleanmymac"] .glass-tabs {
-  background: rgba(20, 17, 45, 0.68);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border: 1px solid rgba(139, 92, 246, 0.20);
+  background: rgba(255,255,255,0.10);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.16);
   border-radius: 1rem;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 4px 14px -6px rgba(88, 28, 200, 0.28);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset;
 }
 
 html[data-ui="cleanmymac"] .glass-tab-active {
-  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 50%, #00c6a2 100%);
+  background: rgba(255,255,255,0.22) !important;
   color: #ffffff !important;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.22) inset,
-    0 4px 14px -3px rgba(109, 40, 217, 0.62),
-    0 0   22px -6px rgba(0, 198, 162, 0.38);
+    0 1px 0 rgba(255,255,255,0.28) inset,
+    0 3px 10px -3px rgba(0,0,0,0.25) !important;
 }
 
 html[data-ui="cleanmymac"] .glass-tab-active,
-html[data-ui="cleanmymac"] .glass-tab-active * {
-  color: #ffffff !important;
+html[data-ui="cleanmymac"] .glass-tab-active * { color: #ffffff !important; }
+
+/* Navbar mobile (styles de base hors sidebar) */
+html[data-ui="cleanmymac"] .glass-navbar {
+  background: rgba(8,3,22,0.88) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+  backdrop-filter: blur(30px) !important;
+  -webkit-backdrop-filter: blur(30px) !important;
 }
 
-html[data-ui="cleanmymac"].dark .glass-tabs {
-  background: rgba(12, 9, 28, 0.75);
-  border-color: rgba(109, 40, 217, 0.26);
+/* ---------- Sticky title bars ------------------------------- */
+html[data-ui="cleanmymac"] .sticky.glass-card {
+  background: rgba(255,255,255,0.12) !important;
+  border-color: rgba(255,255,255,0.20) !important;
+  backdrop-filter: blur(30px) !important;
+  -webkit-backdrop-filter: blur(30px) !important;
 }
 
-/* ---------- Inputs ---------- */
+/* ---------- Inputs ------------------------------------------ */
 html[data-ui="cleanmymac"] .glass-input {
-  background: rgba(20, 17, 44, 0.72) !important;
-  border: 1px solid rgba(139, 92, 246, 0.24) !important;
+  background: rgba(255,255,255,0.10) !important;
+  border: 1px solid rgba(255,255,255,0.20) !important;
   border-radius: 0.875rem !important;
-  color: #f0edff !important;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.05) inset,
-    0 2px 8px -2px rgba(88, 28, 200, 0.18) !important;
+  color: #f5f0ff !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset !important;
 }
 
 html[data-ui="cleanmymac"] .glass-input:focus {
-  background: rgba(26, 22, 52, 0.88) !important;
-  border-color: rgba(139, 92, 246, 0.58) !important;
+  background: rgba(255,255,255,0.16) !important;
+  border-color: rgba(200,180,255,0.52) !important;
   box-shadow:
-    0 0 0 4px rgba(109, 40, 217, 0.22),
-    0 2px 14px -2px rgba(109, 40, 217, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    0 0 0 4px rgba(139,92,246,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.12) !important;
 }
 
 html[data-ui="cleanmymac"] .glass-input::placeholder {
-  color: rgba(148, 144, 184, 0.55) !important;
+  color: rgba(220,200,255,0.42) !important;
 }
 
-/* ---------- Boutons primaires : gradient violet → teal ---------- */
+/* ---------- Boutons primaires ------------------------------- */
 html[data-ui="cleanmymac"] .glass-btn {
-  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 50%, #00c6a2 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255,255,255,0.20);
+  border: 1px solid rgba(255,255,255,0.28);
   color: #ffffff;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.20) inset,
-    0 6px 22px -4px rgba(109, 40, 217, 0.58),
-    0 0   30px -8px rgba(0, 198, 162, 0.42);
-  transition: all 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    0 1px 0 rgba(255,255,255,0.28) inset,
+    0 6px 20px -4px rgba(0,0,0,0.28);
+  transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
 }
 
 html[data-ui="cleanmymac"] .glass-btn:hover {
-  transform: translateY(-2px);
+  background: rgba(255,255,255,0.28);
+  transform: translateY(-1px);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.30) inset,
-    0 10px 32px -4px rgba(109, 40, 217, 0.78),
-    0 0   44px -8px rgba(0, 198, 162, 0.58);
+    0 1px 0 rgba(255,255,255,0.38) inset,
+    0 10px 28px -4px rgba(0,0,0,0.38);
 }
 
-html[data-ui="cleanmymac"] .glass-btn:active {
-  transform: translateY(0) scale(0.97);
-}
+html[data-ui="cleanmymac"] .glass-btn:active { transform: translateY(0) scale(0.97); }
 
-/* ---------- Panel ---------- */
+/* ---------- Panel ------------------------------------------- */
 html[data-ui="cleanmymac"] .glass-panel {
-  background: rgba(16, 13, 36, 0.78);
-  backdrop-filter: blur(28px) saturate(150%);
-  -webkit-backdrop-filter: blur(28px) saturate(150%);
-  border: 1px solid rgba(139, 92, 246, 0.18);
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255,255,255,0.14);
   border-radius: 1.25rem;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 10px 30px -12px rgba(88, 28, 200, 0.42);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset;
 }
 
-html[data-ui="cleanmymac"].dark .glass-panel {
-  background: rgba(8, 6, 22, 0.85);
-  border-color: rgba(109, 40, 217, 0.22);
-}
-
-/* ---------- Status badges ---------- */
+/* ---------- Status badges ----------------------------------- */
 html[data-ui="cleanmymac"] .glass-status {
-  backdrop-filter: blur(10px) saturate(140%);
-  -webkit-backdrop-filter: blur(10px) saturate(140%);
-  border: 1px solid rgba(139, 92, 246, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.22);
   border-radius: 0.75rem;
-  box-shadow:
-    0 1px 2px rgba(255, 255, 255, 0.06) inset,
-    0 2px 8px -2px rgba(88, 28, 200, 0.28);
   font-weight: 600;
-  letter-spacing: 0.01em;
+  box-shadow: 0 1px 2px rgba(255,255,255,0.06) inset;
 }
 
-/* ---------- Sticky title bars (project detail) ---------- */
-html[data-ui="cleanmymac"] .sticky.glass-card {
-  background: rgba(12, 10, 28, 0.92) !important;
-  border-color: rgba(139, 92, 246, 0.24) !important;
-  backdrop-filter: blur(30px) saturate(160%) !important;
-  -webkit-backdrop-filter: blur(30px) saturate(160%) !important;
-}
+/* ============================================================ */
+/*            OVERRIDES TAILWIND (texte + fond + bords)         */
+/* ============================================================ */
 
-/* ---------- Tailwind text-gray-* → teintes claires ----------- */
-/* Sans ce bloc, `text-gray-900` donne du texte quasi-noir sur   */
-/* fond quasi-noir → illisible dans les deux modes du thème.     */
-html[data-ui="cleanmymac"] .text-gray-900  { color: #f0edff !important; }
-html[data-ui="cleanmymac"] .text-gray-800  { color: #e2deff !important; }
-html[data-ui="cleanmymac"] .text-gray-700  { color: #c4bfe8 !important; }
-html[data-ui="cleanmymac"] .text-gray-600  { color: #9490b8 !important; }
-html[data-ui="cleanmymac"] .text-gray-500  { color: #7874a0 !important; }
-html[data-ui="cleanmymac"] .text-gray-400  { color: #5e5a80 !important; }
-html[data-ui="cleanmymac"] .text-slate-900 { color: #f0edff !important; }
-html[data-ui="cleanmymac"] .text-slate-800 { color: #e2deff !important; }
-html[data-ui="cleanmymac"] .text-slate-700 { color: #c4bfe8 !important; }
-html[data-ui="cleanmymac"] .text-slate-600 { color: #9490b8 !important; }
-html[data-ui="cleanmymac"] .text-slate-500 { color: #7874a0 !important; }
-html[data-ui="cleanmymac"] .text-slate-400 { color: #5e5a80 !important; }
-/* Couleur brand #1e3a5f → violet doux */
-html[data-ui="cleanmymac"] .text-\[\#1e3a5f\] { color: #c4bfe8 !important; }
+/* Texte gris → blanc / lavande sur fond vivace */
+html[data-ui="cleanmymac"] .text-gray-900  { color: #f5f0ff !important; }
+html[data-ui="cleanmymac"] .text-gray-800  { color: #ede8ff !important; }
+html[data-ui="cleanmymac"] .text-gray-700  { color: #d8d0f5 !important; }
+html[data-ui="cleanmymac"] .text-gray-600  { color: rgba(220,210,255,0.80) !important; }
+html[data-ui="cleanmymac"] .text-gray-500  { color: rgba(200,190,240,0.65) !important; }
+html[data-ui="cleanmymac"] .text-gray-400  { color: rgba(180,168,220,0.55) !important; }
+html[data-ui="cleanmymac"] .text-slate-900 { color: #f5f0ff !important; }
+html[data-ui="cleanmymac"] .text-slate-800 { color: #ede8ff !important; }
+html[data-ui="cleanmymac"] .text-slate-700 { color: #d8d0f5 !important; }
+html[data-ui="cleanmymac"] .text-slate-600 { color: rgba(220,210,255,0.80) !important; }
+html[data-ui="cleanmymac"] .text-slate-500 { color: rgba(200,190,240,0.65) !important; }
+html[data-ui="cleanmymac"] .text-\[\#1e3a5f\] { color: rgba(220,210,255,0.90) !important; }
 
-/* ---------- Tailwind bg-white / bg-gray-* → noirs/sombres ----- */
-html[data-ui="cleanmymac"] .bg-white            { background-color: rgba(20, 17, 44, 0.82) !important; }
-html[data-ui="cleanmymac"] .bg-gray-50          { background-color: rgba(18, 15, 40, 0.60) !important; }
-html[data-ui="cleanmymac"] .bg-gray-100         { background-color: rgba(24, 20, 52, 0.72) !important; }
-html[data-ui="cleanmymac"] .bg-gray-200         { background-color: rgba(30, 25, 62, 0.72) !important; }
+/* Fonds blancs/gris → verre translucide */
+html[data-ui="cleanmymac"] .bg-white,
+html[data-ui="cleanmymac"] .bg-gray-50         { background-color: rgba(255,255,255,0.10) !important; }
+html[data-ui="cleanmymac"] .bg-gray-100        { background-color: rgba(255,255,255,0.12) !important; }
+html[data-ui="cleanmymac"] .bg-gray-200        { background-color: rgba(255,255,255,0.16) !important; }
 html[data-ui="cleanmymac"] .dark\:bg-gray-800,
-html[data-ui="cleanmymac"] .bg-gray-800         { background-color: rgba(22, 18, 48, 0.85) !important; }
+html[data-ui="cleanmymac"] .dark\:bg-slate-800 { background-color: rgba(255,255,255,0.08) !important; }
 html[data-ui="cleanmymac"] .dark\:bg-gray-700,
-html[data-ui="cleanmymac"] .bg-gray-700         { background-color: rgba(28, 24, 58, 0.85) !important; }
-html[data-ui="cleanmymac"] .dark\:bg-slate-800  { background-color: rgba(20, 17, 46, 0.85) !important; }
-html[data-ui="cleanmymac"] .dark\:bg-slate-700  { background-color: rgba(26, 22, 56, 0.85) !important; }
-/* Brand bg #1e3a5f → dégradé violet */
+html[data-ui="cleanmymac"] .dark\:bg-slate-700 { background-color: rgba(255,255,255,0.10) !important; }
 html[data-ui="cleanmymac"] .bg-\[\#1e3a5f\] {
-  background: linear-gradient(135deg, #7c3aed 0%, #00c6a2 100%) !important;
+  background: rgba(255,255,255,0.20) !important;
   color: #ffffff !important;
-  box-shadow: 0 4px 14px -2px rgba(109, 40, 217, 0.52);
 }
 
-/* ---------- Bordures grises → teinture violet ---------- */
+/* Bordures */
 html[data-ui="cleanmymac"] .border-gray-100,
 html[data-ui="cleanmymac"] .border-gray-200,
 html[data-ui="cleanmymac"] .dark\:border-gray-700,
 html[data-ui="cleanmymac"] .dark\:border-gray-800,
 html[data-ui="cleanmymac"] .dark\:border-slate-700,
 html[data-ui="cleanmymac"] .dark\:border-slate-800 {
-  border-color: rgba(139, 92, 246, 0.20) !important;
+  border-color: rgba(255,255,255,0.14) !important;
 }
 
-/* ---------- Couleurs sémantiques (statuts, badges) ----------- */
-/* Jaune / ambre */
+/* Couleurs sémantiques adaptées sur fond vivace */
 html[data-ui="cleanmymac"] .bg-yellow-50,
 html[data-ui="cleanmymac"] .bg-yellow-100,
 html[data-ui="cleanmymac"] .bg-amber-50,
-html[data-ui="cleanmymac"] .bg-amber-100  { background-color: rgba(234, 179, 8, 0.18) !important; }
+html[data-ui="cleanmymac"] .bg-amber-100  { background-color: rgba(255,255,255,0.11) !important; }
 html[data-ui="cleanmymac"] .text-yellow-700,
 html[data-ui="cleanmymac"] .text-yellow-800,
 html[data-ui="cleanmymac"] .text-amber-700,
 html[data-ui="cleanmymac"] .text-amber-800 { color: #fde68a !important; }
 html[data-ui="cleanmymac"] .border-yellow-200,
-html[data-ui="cleanmymac"] .border-amber-200 { border-color: rgba(234, 179, 8, 0.30) !important; }
+html[data-ui="cleanmymac"] .border-amber-200 { border-color: rgba(253,230,138,0.35) !important; }
 
-/* Orange */
 html[data-ui="cleanmymac"] .bg-orange-50,
-html[data-ui="cleanmymac"] .bg-orange-100  { background-color: rgba(249, 115, 22, 0.18) !important; }
+html[data-ui="cleanmymac"] .bg-orange-100  { background-color: rgba(255,255,255,0.11) !important; }
 html[data-ui="cleanmymac"] .text-orange-700,
 html[data-ui="cleanmymac"] .text-orange-800 { color: #fed7aa !important; }
-html[data-ui="cleanmymac"] .border-orange-200 { border-color: rgba(249, 115, 22, 0.30) !important; }
+html[data-ui="cleanmymac"] .border-orange-200 { border-color: rgba(254,215,170,0.35) !important; }
 
-/* Rouge */
 html[data-ui="cleanmymac"] .bg-red-50,
-html[data-ui="cleanmymac"] .bg-red-100   { background-color: rgba(239, 68, 68, 0.18) !important; }
+html[data-ui="cleanmymac"] .bg-red-100   { background-color: rgba(255,255,255,0.11) !important; }
 html[data-ui="cleanmymac"] .text-red-600,
 html[data-ui="cleanmymac"] .text-red-700,
 html[data-ui="cleanmymac"] .text-red-800  { color: #fca5a5 !important; }
-html[data-ui="cleanmymac"] .border-red-200 { border-color: rgba(239, 68, 68, 0.30) !important; }
+html[data-ui="cleanmymac"] .border-red-200 { border-color: rgba(252,165,165,0.35) !important; }
 
-/* Vert */
 html[data-ui="cleanmymac"] .bg-green-50,
-html[data-ui="cleanmymac"] .bg-green-100  { background-color: rgba(34, 197, 94, 0.18) !important; }
+html[data-ui="cleanmymac"] .bg-green-100  { background-color: rgba(255,255,255,0.11) !important; }
 html[data-ui="cleanmymac"] .text-green-600,
 html[data-ui="cleanmymac"] .text-green-700,
 html[data-ui="cleanmymac"] .text-green-800 { color: #bbf7d0 !important; }
-html[data-ui="cleanmymac"] .border-green-200 { border-color: rgba(34, 197, 94, 0.30) !important; }
+html[data-ui="cleanmymac"] .border-green-200 { border-color: rgba(187,247,208,0.35) !important; }
 
-/* Bleu */
 html[data-ui="cleanmymac"] .bg-blue-50,
-html[data-ui="cleanmymac"] .bg-blue-100   { background-color: rgba(59, 130, 246, 0.18) !important; }
+html[data-ui="cleanmymac"] .bg-blue-100   { background-color: rgba(255,255,255,0.11) !important; }
 html[data-ui="cleanmymac"] .text-blue-600,
 html[data-ui="cleanmymac"] .text-blue-700,
-html[data-ui="cleanmymac"] .text-blue-800  { color: #93c5fd !important; }
-html[data-ui="cleanmymac"] .border-blue-200 { border-color: rgba(59, 130, 246, 0.30) !important; }
+html[data-ui="cleanmymac"] .text-blue-800  { color: #bfdbfe !important; }
+html[data-ui="cleanmymac"] .border-blue-200 { border-color: rgba(191,219,254,0.35) !important; }
 
-/* Cyan (teal) — en harmonie avec l'accent CMM */
 html[data-ui="cleanmymac"] .bg-cyan-50,
-html[data-ui="cleanmymac"] .bg-cyan-100   { background-color: rgba(0, 198, 162, 0.18) !important; }
+html[data-ui="cleanmymac"] .bg-cyan-100   { background-color: rgba(255,255,255,0.11) !important; }
 html[data-ui="cleanmymac"] .text-cyan-600,
 html[data-ui="cleanmymac"] .text-cyan-700,
-html[data-ui="cleanmymac"] .text-cyan-800  { color: #99f6e4 !important; }
-html[data-ui="cleanmymac"] .border-cyan-200 { border-color: rgba(0, 198, 162, 0.30) !important; }
+html[data-ui="cleanmymac"] .text-cyan-800  { color: #a5f3fc !important; }
+html[data-ui="cleanmymac"] .border-cyan-200 { border-color: rgba(165,243,252,0.35) !important; }
 
-/* Violet / purple */
 html[data-ui="cleanmymac"] .bg-purple-50,
 html[data-ui="cleanmymac"] .bg-purple-100,
 html[data-ui="cleanmymac"] .bg-violet-50,
-html[data-ui="cleanmymac"] .bg-violet-100  { background-color: rgba(139, 92, 246, 0.20) !important; }
+html[data-ui="cleanmymac"] .bg-violet-100  { background-color: rgba(255,255,255,0.14) !important; }
 html[data-ui="cleanmymac"] .text-purple-600,
 html[data-ui="cleanmymac"] .text-purple-700,
 html[data-ui="cleanmymac"] .text-purple-800,
 html[data-ui="cleanmymac"] .text-violet-600,
 html[data-ui="cleanmymac"] .text-violet-700,
-html[data-ui="cleanmymac"] .text-violet-800 { color: #ddd6fe !important; }
+html[data-ui="cleanmymac"] .text-violet-800 { color: #e9d5ff !important; }
 html[data-ui="cleanmymac"] .border-purple-200,
-html[data-ui="cleanmymac"] .border-violet-200 { border-color: rgba(139, 92, 246, 0.32) !important; }
+html[data-ui="cleanmymac"] .border-violet-200 { border-color: rgba(233,213,255,0.35) !important; }
 
-/* Gris neutre → violet très doux */
-html[data-ui="cleanmymac"] .bg-gray-100.dark\:bg-gray-800 {
-  background-color: rgba(22, 18, 50, 0.70) !important;
-}
-
-/* ---------- Boutons collaborateurs (panel de filtres) ---------- */
+/* ---------- Boutons collaborateurs (panel filtres) ----------- */
 html[data-ui="cleanmymac"] .glass-panel button.flex.items-center.gap-2 {
-  background-color: rgba(22, 18, 50, 0.68) !important;
-  color: #c4bfe8 !important;
-  border: 1px solid rgba(139, 92, 246, 0.16);
-  transition: background-color 0.2s ease, transform 0.15s ease;
+  background-color: rgba(255,255,255,0.10) !important;
+  color: rgba(220,210,255,0.85) !important;
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  transition: background-color 0.18s ease !important;
 }
 
 html[data-ui="cleanmymac"] .glass-panel button.flex.items-center.gap-2:hover {
-  background-color: rgba(32, 26, 68, 0.82) !important;
-  border-color: rgba(139, 92, 246, 0.38);
+  background-color: rgba(255,255,255,0.17) !important;
 }
 
-/* Bouton actif (collaborateur sélectionné) → gradient CMM */
 html[data-ui="cleanmymac"] .glass-panel button.flex.items-center.gap-2[style*="rgb(30, 58, 95)"],
 html[data-ui="cleanmymac"] .glass-panel button.flex.items-center.gap-2[style*="#1e3a5f"] {
-  background: linear-gradient(135deg, #7c3aed 0%, #00c6a2 100%) !important;
-  background-color: #7c3aed !important;
+  background: rgba(255,255,255,0.24) !important;
   color: #ffffff !important;
-  border-color: rgba(0, 198, 162, 0.42) !important;
-  box-shadow: 0 4px 14px -2px rgba(109, 40, 217, 0.52);
+  border-color: rgba(255,255,255,0.32) !important;
 }
 
-/* Boutons de statut actifs (barre latérale) */
 html[data-ui="cleanmymac"] .glass-panel .bg-\[\#1e3a5f\] {
-  background: linear-gradient(135deg, #7c3aed 0%, #00c6a2 100%) !important;
-  background-color: #7c3aed !important;
+  background: rgba(255,255,255,0.22) !important;
   color: #ffffff !important;
-  box-shadow: 0 4px 14px -2px rgba(109, 40, 217, 0.50);
 }
 
-/* ---------- Chiffres KPI : gradient violet → teal ------------ */
+/* ---------- Chiffres KPI : blanc lumineux ------------------- */
 html[data-ui="cleanmymac"] .glass-card p.text-lg,
 html[data-ui="cleanmymac"] .glass-card p.text-2xl {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
   font-weight: 800;
-  background: linear-gradient(135deg, #c4b5fd 0%, #8b5cf6 45%, #00c6a2 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 1px 4px rgba(109, 40, 217, 0.30));
-}
-
-/* Chiffres déjà colorés : garder leur teinte */
-html[data-ui="cleanmymac"] .glass-card p.text-lg.text-cyan-600,
-html[data-ui="cleanmymac"] .glass-card p.text-2xl.text-cyan-600,
-html[data-ui="cleanmymac"] .glass-card p.text-lg.text-blue-600,
-html[data-ui="cleanmymac"] .glass-card p.text-2xl.text-blue-600,
-html[data-ui="cleanmymac"] .glass-card p.text-lg.text-violet-600,
-html[data-ui="cleanmymac"] .glass-card p.text-2xl.text-violet-600,
-html[data-ui="cleanmymac"] .glass-card p.text-lg.text-emerald-600,
-html[data-ui="cleanmymac"] .glass-card p.text-2xl.text-emerald-600,
-html[data-ui="cleanmymac"] .glass-card p.text-lg.text-amber-600,
-html[data-ui="cleanmymac"] .glass-card p.text-2xl.text-amber-600 {
+  color: #ffffff !important;
+  text-shadow: 0 0 18px rgba(255,255,255,0.30);
+  -webkit-text-fill-color: unset !important;
   background: none !important;
-  -webkit-text-fill-color: currentColor !important;
-  filter: drop-shadow(0 1px 4px rgba(109, 40, 217, 0.22));
+  filter: none !important;
 }
 
-/* ---------- Badges shadcn ---------- */
+/* ---------- Badges shadcn ----------------------------------- */
 html[data-ui="cleanmymac"] [data-slot="badge"] {
   border-radius: 0.625rem;
   font-weight: 600;
+  background: rgba(255,255,255,0.16) !important;
+  color: #ffffff !important;
+  border-color: rgba(255,255,255,0.22) !important;
 }
 
-/* ---------- Cartes cliquables ---------- */
+/* ---------- Cartes cliquables ------------------------------- */
 html[data-ui="cleanmymac"] a.glass-card:hover,
 html[data-ui="cleanmymac"] button.glass-card:hover {
   transform: translateY(-2px) scale(1.004);
 }
 
-/* ---------- Boutons du header : glow violet au survol ---------- */
+/* ---------- Boutons du header ------------------------------- */
 html[data-ui="cleanmymac"] #main-header button,
 html[data-ui="cleanmymac"] #main-header a.flex {
-  color: rgba(228, 224, 255, 0.88);
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+  color: rgba(228,220,255,0.90);
+  transition: filter 0.18s ease, transform 0.18s ease;
 }
 
 html[data-ui="cleanmymac"] #main-header button:hover,
 html[data-ui="cleanmymac"] #main-header a.flex:hover {
+  filter: drop-shadow(0 2px 8px rgba(200,170,255,0.70));
   transform: translateY(-1px);
-  filter: drop-shadow(0 2px 8px rgba(139, 92, 246, 0.70));
 }
 
-/* ---------- Logo pop à l'ouverture ---------- */
+/* ---------- Logo pop --------------------------------------- */
 @keyframes cmmLogoPop {
-  0%   { transform: scale(0.5) rotate(-10deg); opacity: 0; filter: blur(4px); }
-  65%  { transform: scale(1.10) rotate(2deg);  opacity: 1; filter: blur(0); }
+  0%   { transform: scale(0.5) rotate(-8deg); opacity: 0; }
+  65%  { transform: scale(1.08) rotate(2deg); opacity: 1; }
   100% { transform: scale(1) rotate(0); }
 }
 
 html[data-ui="cleanmymac"] #main-header img[alt="TM"] {
-  animation: cmmLogoPop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: cmmLogoPop 0.60s cubic-bezier(0.34,1.56,0.64,1) both;
 }
 
-/* ---------- Entrée en scène (cascade) ---------- */
+/* ---------- Entrée en scène --------------------------------- */
 @keyframes cmmFadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 
-html[data-ui="cleanmymac"] main > * {
-  animation: cmmFadeIn 0.42s ease-out both;
-}
+html[data-ui="cleanmymac"] main > * { animation: cmmFadeIn 0.38s ease-out both; }
 html[data-ui="cleanmymac"] main > *:nth-child(1) { animation-delay: 0.00s; }
 html[data-ui="cleanmymac"] main > *:nth-child(2) { animation-delay: 0.07s; }
 html[data-ui="cleanmymac"] main > *:nth-child(3) { animation-delay: 0.14s; }
 html[data-ui="cleanmymac"] main > *:nth-child(4) { animation-delay: 0.21s; }
 html[data-ui="cleanmymac"] main > *:nth-child(5) { animation-delay: 0.28s; }
-html[data-ui="cleanmymac"] main > *:nth-child(6) { animation-delay: 0.35s; }
 
-/* ---------- Respecte prefers-reduced-motion ---------- */
+/* ---------- prefers-reduced-motion -------------------------- */
 @media (prefers-reduced-motion: reduce) {
   html[data-ui="cleanmymac"] .lg-bg,
   html[data-ui="cleanmymac"] .lg-bg::before,
-  html[data-ui="cleanmymac"] .glass-header::before { animation: none; }
+  html[data-ui="cleanmymac"] #main-header::before { animation: none; }
   html[data-ui="cleanmymac"] main > *,
   html[data-ui="cleanmymac"] #main-header img[alt="TM"] { animation: none; }
   html[data-ui="cleanmymac"] .glass-card,
