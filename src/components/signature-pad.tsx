@@ -40,9 +40,9 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
 
     const dpr = window.devicePixelRatio || 1;
     canvas.width = rect.width * dpr;
-    canvas.height = 160 * dpr;
+    canvas.height = 200 * dpr;
     canvas.style.width = `${rect.width}px`;
-    canvas.style.height = "160px";
+    canvas.style.height = "200px";
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -72,7 +72,7 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
       }
       img.onload = () => {
         try {
-          ctx.drawImage(img, 0, 0, rect.width, 160);
+          ctx.drawImage(img, 0, 0, rect.width, 200);
         } catch {
           // Si jamais l'image n'est pas chargeable en CORS, on tombe
           // dans ce catch — on ne dessine rien plutôt que de tainter
@@ -220,6 +220,17 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
     const canvas = canvasRef.current;
     if (!canvas) return;
     try {
+      // Pose un fond blanc avant l'export pour éviter que la transparence
+      // du PNG ne donne un fond noir ou invisible une fois converti en JPG
+      // par Cloudinary ou affiché dans le PDF.
+      const ctx2 = canvas.getContext("2d");
+      if (ctx2) {
+        ctx2.save();
+        ctx2.globalCompositeOperation = "destination-over";
+        ctx2.fillStyle = "#ffffff";
+        ctx2.fillRect(0, 0, canvas.width, canvas.height);
+        ctx2.restore();
+      }
       const dataUrl = canvas.toDataURL("image/png");
       onSave(dataUrl);
       setSaved(true);
@@ -247,7 +258,7 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
         <canvas
           ref={canvasRef}
           className="block touch-none"
-          style={{ height: 160, width: "100%" }}
+          style={{ height: 200, width: "100%" }}
         />
         {!hasSignature && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

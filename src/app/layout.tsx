@@ -58,7 +58,7 @@ export default function RootLayout({
             de style au chargement. Lit `tm-ui-mode` (classic|aurora|ocean). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='aurora'||m==='ocean'){document.documentElement.setAttribute('data-ui',m);}}catch(e){}})();`,
+            __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='aurora'||m==='ocean'||m==='cleanmymac'){document.documentElement.setAttribute('data-ui',m);}}catch(e){}})();`,
           }}
         />
       </head>

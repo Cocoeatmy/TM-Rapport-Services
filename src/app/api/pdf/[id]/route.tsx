@@ -765,7 +765,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
         {project.signatureUrl && (
           <View style={{ marginTop: 16, padding: 10, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 6 }} wrap={false}>
             <Text style={{ fontSize: 9, color: "#6b7280", marginBottom: 6 }}>Signature du client</Text>
-            <Image src={optimizeImageUrl(project.signatureUrl)} style={{ width: 220, height: 90, objectFit: "contain" }} />
+            <Image src={project.signatureUrl.includes("res.cloudinary.com") && project.signatureUrl.includes("/upload/") ? project.signatureUrl.replace("/upload/", "/upload/w_900,q_90,f_png/") : project.signatureUrl} style={{ width: 300, height: 120, objectFit: "contain" }} />
           </View>
         )}
 

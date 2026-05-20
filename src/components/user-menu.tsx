@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette, Image as ImageIcon } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette, Image as ImageIcon, Monitor } from "lucide-react";
 import { getCollaboratorInitials } from "@/lib/collaborators";
 import { isSaveToGalleryEnabled, setSaveToGalleryEnabled } from "@/lib/save-to-gallery";
 import { toast } from "sonner";
@@ -13,7 +13,7 @@ interface UserData {
   role: "admin" | "monteur";
 }
 
-type UiMode = "classic" | "aurora" | "ocean";
+type UiMode = "classic" | "aurora" | "ocean" | "cleanmymac";
 
 export function UserMenu() {
   const router = useRouter();
@@ -67,7 +67,7 @@ export function UserMenu() {
     // Le script pré-hydration (dans layout) a déjà posé l'attribut si besoin.
     // On synchronise juste le state React avec ce qui est déjà sur le DOM.
     const savedUi = localStorage.getItem("tm-ui-mode");
-    if (savedUi === "aurora" || savedUi === "ocean") {
+    if (savedUi === "aurora" || savedUi === "ocean" || savedUi === "cleanmymac") {
       setUiMode(savedUi);
     }
     setSaveToPhotos(isSaveToGalleryEnabled());
@@ -268,6 +268,22 @@ export function UserMenu() {
               <span className="flex-1">Océan</span>
               {uiMode === "ocean" && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-blue-500 to-cyan-400 text-white">
+                  ON
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => selectUiMode("cleanmymac")}
+              className={`w-full text-left text-sm px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                uiMode === "cleanmymac"
+                  ? "bg-gradient-to-r from-violet-900/40 to-teal-900/30 text-gray-100 font-medium ring-1 ring-violet-500/30"
+                  : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              }`}
+            >
+              <Monitor className={`w-4 h-4 ${uiMode === "cleanmymac" ? "text-violet-400" : ""}`} />
+              <span className="flex-1">CleanMyMac</span>
+              {uiMode === "cleanmymac" && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-violet-600 to-teal-500 text-white">
                   ON
                 </span>
               )}

@@ -43,7 +43,7 @@ import { SiteTimer } from "@/components/site-timer";
 import { StockUsage } from "@/components/stock-usage";
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
-import { Star, Share2, RefreshCw, PenLine } from "lucide-react";
+import { Star, Share2, RefreshCw, PenLine, ImageDown } from "lucide-react";
 import { toggleFavorite, isFavorite } from "@/lib/favorites";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2352,6 +2352,7 @@ function ProjectPageContent({ id }: { id: string }) {
   }, [project?.signatureUrl]);
   const [fav, setFav] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [downloadingPhotos, setDownloadingPhotos] = useState(false);
   const [historyCount, setHistoryCount] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(60);
 
@@ -2952,6 +2953,16 @@ function ProjectPageContent({ id }: { id: string }) {
   }
 
   const isAdmin = currentUser?.role === "admin";
+
+  // Cabines dont au moins une photo "montage" ou "après intervention" a été uploadée.
+  // Les noms de fichiers multi-cabine encodent l'index via `.Cab{N}.` (1-based).
+  // On se base sur project.photosMontage qui contient les buckets MONTAGE_* et APRES_INTERVENTION.
+  const installedCabineIndices = new Set<number>(
+    (project.photosMontage || [])
+      .map((f) => { const m = f.name.match(/\.Cab(\d+)\./); return m ? parseInt(m[1], 10) - 1 : null; })
+      .filter((n): n is number => n !== null)
+  );
+  const installedCabineCount = installedCabineIndices.size;
 
   return (
     <div className="max-w-4xl mx-auto w-full pb-8 px-4">
@@ -3603,7 +3614,9 @@ function ProjectPageContent({ id }: { id: string }) {
               </div>
               <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
                 {done}/{total} étapes validées
-                {isCabineMode && ` · ${cabines.length} cabines`}
+                {isCabineMode && (installedCabineCount > 0
+                  ? ` · ${installedCabineCount}/${cabines.length} cabine${cabines.length > 1 ? "s" : ""}`
+                  : ` · ${cabines.length} cabine${cabines.length > 1 ? "s" : ""}`)}
               </p>
             </div>
           );
@@ -3900,7 +3913,10 @@ function ProjectPageContent({ id }: { id: string }) {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-gray-700">
-                      {cabines.length} cabines
+                      {installedCabineCount > 0
+                        ? <><span className="text-green-600">{installedCabineCount}</span>/{cabines.length} cabine{cabines.length > 1 ? "s" : ""}</>
+                        : <>{cabines.length} cabine{cabines.length > 1 ? "s" : ""}</>
+                      }
                     </h3>
                     <div className="flex items-center gap-2">
                       {cabineDragMode ? (
@@ -3977,7 +3993,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           {cabineDragMode ? (
                             <GripVertical className="w-4 h-4 text-gray-400 shrink-0" />
                           ) : (
-                            <span className="w-8 h-8 rounded-full bg-[#1e3a5f] text-white text-sm font-bold flex items-center justify-center shrink-0">
+                            <span className={`w-8 h-8 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0 transition-colors ${installedCabineIndices.has(idx) ? "bg-green-600" : "bg-[#1e3a5f]"}`}>
                               {idx + 1}
                             </span>
                           )}
@@ -4365,6 +4381,45 @@ function ProjectPageContent({ id }: { id: string }) {
               </a>
               <p className="text-[10px] text-gray-400 text-center -mt-2">
                 Régénère le rapport avec toutes les dernières photos et données
+              </p>
+
+              {/* Téléchargement de toutes les photos en ZIP */}
+              <button
+                type="button"
+                disabled={downloadingPhotos}
+                onClick={async () => {
+                  setDownloadingPhotos(true);
+                  try {
+                    const res = await fetch(`/api/photos/${id}/download`);
+                    if (!res.ok) throw new Error("Erreur serveur");
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${project.nomChantier || id} - Photos.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                  } catch {
+                    alert("Impossible de télécharger les photos. Veuillez réessayer.");
+                  } finally {
+                    setDownloadingPhotos(false);
+                  }
+                }}
+                className="w-full h-12 rounded-xl text-base font-medium flex items-center justify-center gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all border border-blue-200 dark:border-blue-800 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {downloadingPhotos ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <ImageDown className="w-5 h-5" />
+                )}
+                {downloadingPhotos ? "Préparation du ZIP…" : "Télécharger toutes les photos"}
+              </button>
+              <p className="text-[10px] text-gray-400 text-center -mt-2">
+                {isCabineMode
+                  ? "Toutes les photos regroupées par cabine en ZIP"
+                  : "Toutes les photos du projet en ZIP"}
               </p>
 
               {/* Suivi consultations rapport */}
