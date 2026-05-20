@@ -7,7 +7,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -175,7 +175,7 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch }: 
   );
 }
 
-function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean }) {
+function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isCmm?: boolean }) {
   const [open, setOpen] = useState<string | null>(
     mode.startsWith("grossistes") ? "grossistes" :
     mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
@@ -238,7 +238,14 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
   };
 
   return (
-    <div className="mb-4 space-y-1.5">
+    <>
+    {/* Sidebar CMM desktop — uniquement rendu quand isCmm est actif */}
+    {isCmm && (
+      <div className="hidden lg:flex flex-col h-full">
+        <CmmSidebarContent mode={mode} projectsData={projectsData} onSwitchMode={handleSelect} isAdmin={isAdmin} />
+      </div>
+    )}
+    <div className={`mb-4 space-y-1.5${isCmm ? " lg:hidden" : ""}`}>
       {/* Ligne principale */}
       <div className="p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain">
         <div className="flex gap-1">
@@ -409,6 +416,146 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin }: { mode: string; p
         </div>
       )}
     </div>
+    </>
+  );
+}
+
+/* ---- Sidebar de navigation pour le thème CleanMyMac (desktop ≥ lg) ---- */
+function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
+  mode: string;
+  projectsData: Record<string, any[]>;
+  onSwitchMode: (m: string) => void;
+  isAdmin: boolean;
+}) {
+  const [expandedSection, setExpandedSection] = useState<string | null>(
+    mode.startsWith("grossistes") ? "grossistes" :
+    mode.startsWith("fournisseurs") ? "fournisseurs" : null
+  );
+
+  const count = (m: string): number | null => {
+    const v = projectsData[m];
+    return Array.isArray(v) ? v.length : null;
+  };
+  const isActive = (m: string) => mode === m || mode === `${m}-termine`;
+
+  const activeSection =
+    (["mesures", "cmd", "services", "sav"].some(m => isActive(m))) ? "services" :
+    mode.startsWith("clients-") ? "crm" :
+    mode.startsWith("grossistes") ? "grossistes" :
+    mode.startsWith("fournisseurs") ? "fournisseurs" :
+    mode === "sanitaires" ? "sanitaires" :
+    mode === "rapport" ? "rapport" :
+    mode === "destockage" ? "destockage" :
+    mode === "stats" ? "stats" : "dashboard";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const SideItem = ({ m, Icon, label, showCount = true }: { m: string; Icon: any; label: string; showCount?: boolean }) => {
+    const active = isActive(m);
+    const cnt = showCount ? count(m) : null;
+    return (
+      <button
+        onClick={() => onSwitchMode(m)}
+        className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center gap-2.5 transition-all duration-150 ${
+          active
+            ? "bg-white/[0.13] text-white font-semibold"
+            : "text-white/55 hover:text-white/85 hover:bg-white/[0.07]"
+        }`}
+        style={active ? { borderLeft: "3px solid rgba(210,190,255,0.80)", paddingLeft: "calc(0.75rem - 3px)" } : {}}
+      >
+        <Icon className={`w-4 h-4 shrink-0 ${active ? "text-violet-300" : ""}`} />
+        <span className="flex-1 truncate">{label}</span>
+        {cnt !== null && (
+          <span className={`text-xs tabular-nums ${active ? "text-white/60" : "text-white/30"}`}>{cnt}</span>
+        )}
+      </button>
+    );
+  };
+
+  const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+    <div className="px-2.5 pt-5 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white/25 select-none">
+      {children}
+    </div>
+  );
+
+  const grossistesModes = ["grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen"];
+  const grossistesLabels: Record<string, string> = { grossistes: "Tous", "grossistes-bms": "BMS", "grossistes-dubat": "Dubat", "grossistes-tema": "Tema Sàrl", "grossistes-matway": "MatWay", "grossistes-bringhen": "Bringhen" };
+  const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo"];
+  const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-ronal": "Ronal", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-samo": "Samo" };
+
+  const SubItem = ({ m, label }: { m: string; label: string }) => {
+    const active = mode === m;
+    return (
+      <button
+        onClick={() => onSwitchMode(m)}
+        className={`w-full text-left py-1.5 pl-8 pr-3 rounded-lg text-xs flex items-center gap-2 transition-all duration-150 ${
+          active ? "text-white bg-white/10 font-medium" : "text-white/45 hover:text-white/75 hover:bg-white/[0.05]"
+        }`}
+      >
+        <span className={`w-1 h-1 rounded-full shrink-0 ${active ? "bg-violet-300" : "bg-white/25"}`} />
+        {label}
+      </button>
+    );
+  };
+
+  return (
+    <nav
+      data-cmm-active-section={activeSection}
+      className="flex flex-col gap-0.5 py-2 px-1.5 overflow-y-auto h-full"
+    >
+      <SideItem m="dashboard" Icon={Home} label="Accueil" showCount={false} />
+
+      <SectionLabel>Services</SectionLabel>
+      <SideItem m="mesures" Icon={Ruler} label="Mesures" />
+      <SideItem m="cmd" Icon={Wrench} label="Montages" />
+      <SideItem m="services" Icon={Settings} label="Services" />
+      <SideItem m="sav" Icon={AlertCircle} label="SAV" />
+
+      <SectionLabel>CRM</SectionLabel>
+      <SideItem m="clients-contacts" Icon={UsersIcon} label="Contacts" showCount={false} />
+      <SideItem m="clients-entreprises" Icon={Building} label="Entreprises" showCount={false} />
+
+      <SectionLabel>Catalogues</SectionLabel>
+
+      {/* Grossistes — expandable */}
+      <button
+        onClick={() => setExpandedSection(expandedSection === "grossistes" ? null : "grossistes")}
+        className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center gap-2.5 transition-all duration-150 ${
+          mode.startsWith("grossistes") ? "text-white/90" : "text-white/55 hover:text-white/85 hover:bg-white/[0.07]"
+        }`}
+      >
+        <ShoppingBag className="w-4 h-4 shrink-0" />
+        <span className="flex-1">Grossistes</span>
+        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${expandedSection === "grossistes" ? "rotate-180" : ""}`} />
+      </button>
+      {expandedSection === "grossistes" && (
+        <div className="flex flex-col gap-0.5">
+          {grossistesModes.map((m) => <SubItem key={m} m={m} label={grossistesLabels[m]} />)}
+        </div>
+      )}
+
+      {/* Fournisseurs — expandable */}
+      <button
+        onClick={() => setExpandedSection(expandedSection === "fournisseurs" ? null : "fournisseurs")}
+        className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center gap-2.5 transition-all duration-150 ${
+          mode.startsWith("fournisseurs") ? "text-white/90" : "text-white/55 hover:text-white/85 hover:bg-white/[0.07]"
+        }`}
+      >
+        <Package className="w-4 h-4 shrink-0" />
+        <span className="flex-1">Fournisseurs</span>
+        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${expandedSection === "fournisseurs" ? "rotate-180" : ""}`} />
+      </button>
+      {expandedSection === "fournisseurs" && (
+        <div className="flex flex-col gap-0.5">
+          {fournisseursModes.map((m) => <SubItem key={m} m={m} label={fournisseursLabels[m]} />)}
+        </div>
+      )}
+
+      <SectionLabel>Autres</SectionLabel>
+      <SideItem m="sanitaires" Icon={Droplets} label="Sanitaires" showCount={false} />
+      <SideItem m="rapport" Icon={FileText} label="Rapport" showCount={false} />
+      <SideItem m="destockage" Icon={Archive} label="Déstockage" showCount={false} />
+      {isAdmin && <SideItem m="stats" Icon={BarChart2} label="Stats" showCount={false} />}
+    </nav>
   );
 }
 
@@ -670,6 +817,17 @@ function HomePage() {
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
+
+  // Détecte si le thème CleanMyMac est actif (attribut data-ui sur <html>)
+  // Réagit aux changements via MutationObserver (ex: basculement depuis UserMenu)
+  const [isCmm, setIsCmm] = useState(false);
+  useEffect(() => {
+    const check = () => setIsCmm(document.documentElement.getAttribute("data-ui") === "cleanmymac");
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-ui"] });
+    return () => obs.disconnect();
+  }, []);
   const [search, setSearch] = useState(qParam || "");
   // useDeferredValue : l'input répond immédiatement, le filtrage (coûteux)
   // est décalé en tâche de priorité basse → recherche instantanée.
@@ -1468,7 +1626,7 @@ function HomePage() {
       <div id="main-navbar" className="sticky z-40 -mx-4 px-4 pb-2 pt-1 glass-navbar" style={{top: `var(--header-h, 60px)`}}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} onSwitchMode={(m: Mode) => {
+          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
@@ -1543,28 +1701,45 @@ function HomePage() {
       {/* VUE DASHBOARD */}
       {mode === "dashboard" && (
         <div>
-          {currentUser && (() => {
-            const tagged = [
-              ...(projectsData["cmd"] || []).map((p) => ({ ...p, _source: "montage" as const })),
-              ...(projectsData["mesures"] || []).map((p) => ({ ...p, _source: "mesures" as const })),
-              ...(projectsData["services"] || []).map((p) => ({ ...p, _source: "services" as const })),
-              ...(projectsData["sav"] || []).map((p) => ({ ...p, _source: "sav" as const })),
-            ].filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
-            return (
-              <MonteurDashboard
-                userName={currentUser.name}
-                projects={tagged}
-                isAdmin={currentUser?.role === "admin"}
-                onNavigate={(m) => { setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }}
-                terminatedProjectsInit={projectsData["cmd-termine"] || []}
-              />
-            );
-          })()}
-          {/* Stats monteur déplacé dans le panel Monteurs actifs */}
-          {loading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          {/* Thème CleanMyMac → écran d'accueil minimaliste */}
+          {isCmm ? (
+            <div className="flex flex-col items-start py-20 px-4 lg:px-10 select-none">
+              <p className="text-sm font-medium uppercase tracking-widest mb-3" style={{ color: "rgba(210,190,255,0.45)" }}>
+                {new Date().toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              </p>
+              <h1 className="text-4xl lg:text-5xl font-bold text-white mb-3 leading-tight">
+                Bonjour{currentUser ? `, ${currentUser.name.split(" ")[0]}` : ""}&nbsp;👋
+              </h1>
+              <p style={{ color: "rgba(210,190,255,0.50)" }} className="text-lg">
+                Sélectionnez une section dans le menu à gauche.
+              </p>
             </div>
+          ) : (
+            <>
+              {currentUser && (() => {
+                const tagged = [
+                  ...(projectsData["cmd"] || []).map((p) => ({ ...p, _source: "montage" as const })),
+                  ...(projectsData["mesures"] || []).map((p) => ({ ...p, _source: "mesures" as const })),
+                  ...(projectsData["services"] || []).map((p) => ({ ...p, _source: "services" as const })),
+                  ...(projectsData["sav"] || []).map((p) => ({ ...p, _source: "sav" as const })),
+                ].filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+                return (
+                  <MonteurDashboard
+                    userName={currentUser.name}
+                    projects={tagged}
+                    isAdmin={currentUser?.role === "admin"}
+                    onNavigate={(m) => { setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }}
+                    terminatedProjectsInit={projectsData["cmd-termine"] || []}
+                  />
+                );
+              })()}
+              {/* Stats monteur déplacé dans le panel Monteurs actifs */}
+              {loading && (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

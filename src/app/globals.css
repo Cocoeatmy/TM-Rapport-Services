@@ -1622,6 +1622,102 @@ html[data-ui="cleanmymac"] .lg-bg::before {
     object-fit: contain !important;
   }
 
+  /* ================================================================ */
+  /* Couleurs de section desktop (sidebar) via data-cmm-active-section */
+  /* Ces règles priment sur les :has(nth-child) mobile car elles       */
+  /* viennent en dernier dans la cascade du même @media block.         */
+  /* ================================================================ */
+
+  /* Dashboard → violet vif (défaut) */
+  html[data-ui="cleanmymac"]:has([data-cmm-active-section="dashboard"]) .lg-bg {
+    background:
+      radial-gradient(ellipse 80% 75% at 68% 38%, rgba(124,58,237,0.92) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 55% at 18% 72%, rgba(88,28,200,0.65)  0%, transparent 55%),
+      radial-gradient(ellipse 40% 35% at 88% 88%, rgba(0,198,162,0.28)  0%, transparent 55%),
+      linear-gradient(135deg,#1a0838 0%,#2d1265 40%,#1e0a42 70%,#150830 100%);
+    animation: cmmNebula 22s ease-in-out infinite;
+  }
+
+  /* Services → bleu électrique */
+  html[data-ui="cleanmymac"]:has([data-cmm-active-section="services"]) .lg-bg {
+    background:
+      radial-gradient(ellipse 80% 75% at 68% 38%, rgba(29,78,216,0.92)  0%, transparent 60%),
+      radial-gradient(ellipse 50% 55% at 18% 72%, rgba(14,48,160,0.65)  0%, transparent 55%),
+      radial-gradient(ellipse 40% 35% at 88% 88%, rgba(56,189,248,0.28) 0%, transparent 55%),
+      linear-gradient(135deg,#08142e 0%,#0d2a64 40%,#091c48 70%,#071228 100%);
+    animation: none;
+  }
+
+  /* CRM → émeraude */
+  html[data-ui="cleanmymac"]:has([data-cmm-active-section="crm"]) .lg-bg {
+    background:
+      radial-gradient(ellipse 80% 75% at 68% 38%, rgba(4,120,87,0.90)   0%, transparent 60%),
+      radial-gradient(ellipse 50% 55% at 18% 72%, rgba(6,78,59,0.65)    0%, transparent 55%),
+      radial-gradient(ellipse 40% 35% at 88% 88%, rgba(52,211,153,0.28) 0%, transparent 55%),
+      linear-gradient(135deg,#041f15 0%,#0b3d28 40%,#072e1e 70%,#031510 100%);
+    animation: none;
+  }
+
+  /* Grossistes → ambre chaud */
+  html[data-ui="cleanmymac"]:has([data-cmm-active-section="grossistes"]) .lg-bg {
+    background:
+      radial-gradient(ellipse 80% 75% at 68% 38%, rgba(180,83,9,0.90)   0%, transparent 60%),
+      radial-gradient(ellipse 50% 55% at 18% 72%, rgba(120,53,6,0.65)   0%, transparent 55%),
+      radial-gradient(ellipse 40% 35% at 88% 88%, rgba(251,191,36,0.28) 0%, transparent 55%),
+      linear-gradient(135deg,#1c0d02 0%,#3d1d04 40%,#2a1303 70%,#120800 100%);
+    animation: none;
+  }
+
+  /* Fournisseurs → rose-crimson */
+  html[data-ui="cleanmymac"]:has([data-cmm-active-section="fournisseurs"]) .lg-bg {
+    background:
+      radial-gradient(ellipse 80% 75% at 68% 38%, rgba(190,18,60,0.90)   0%, transparent 60%),
+      radial-gradient(ellipse 50% 55% at 18% 72%, rgba(136,12,43,0.65)   0%, transparent 55%),
+      radial-gradient(ellipse 40% 35% at 88% 88%, rgba(251,113,133,0.28) 0%, transparent 55%),
+      linear-gradient(135deg,#1e0410 0%,#420b20 40%,#2e0717 70%,#150310 100%);
+    animation: none;
+  }
+
+  /* Sanitaires → indigo */
+  html[data-ui="cleanmymac"]:has([data-cmm-active-section="sanitaires"]) .lg-bg {
+    background:
+      radial-gradient(ellipse 80% 75% at 68% 38%, rgba(55,48,163,0.92)   0%, transparent 60%),
+      radial-gradient(ellipse 50% 55% at 18% 72%, rgba(30,27,120,0.65)   0%, transparent 55%),
+      radial-gradient(ellipse 40% 35% at 88% 88%, rgba(129,140,248,0.28) 0%, transparent 55%),
+      linear-gradient(135deg,#0a091e 0%,#1a1860 40%,#10103e 70%,#080718 100%);
+    animation: none;
+  }
+
+  /* Rapport → vert forêt */
+  html[data-ui="cleanmymac"]:has([data-cmm-active-section="rapport"]) .lg-bg {
+    background:
+      radial-gradient(ellipse 80% 75% at 68% 38%, rgba(21,128,61,0.90)  0%, transparent 60%),
+      radial-gradient(ellipse 50% 55% at 18% 72%, rgba(14,80,40,0.65)   0%, transparent 55%),
+      radial-gradient(ellipse 40% 35% at 88% 88%, rgba(74,222,128,0.28) 0%, transparent 55%),
+      linear-gradient(135deg,#041a0c 0%,#0d3d1c 40%,#082914 70%,#021006 100%);
+    animation: none;
+  }
+
+  /* Déstockage → orange vif */
+  html[data-ui="cleanmymac"]:has([data-cmm-active-section="destockage"]) .lg-bg {
+    background:
+      radial-gradient(ellipse 80% 75% at 68% 38%, rgba(194,65,12,0.90)  0%, transparent 60%),
+      radial-gradient(ellipse 50% 55% at 18% 72%, rgba(140,45,8,0.65)   0%, transparent 55%),
+      radial-gradient(ellipse 40% 35% at 88% 88%, rgba(251,146,60,0.28) 0%, transparent 55%),
+      linear-gradient(135deg,#1e0c02 0%,#3f1a04 40%,#2a1002 70%,#140600 100%);
+    animation: none;
+  }
+
+  /* Stats → cyan profond */
+  html[data-ui="cleanmymac"]:has([data-cmm-active-section="stats"]) .lg-bg {
+    background:
+      radial-gradient(ellipse 80% 75% at 68% 38%, rgba(14,116,144,0.90)  0%, transparent 60%),
+      radial-gradient(ellipse 50% 55% at 18% 72%, rgba(8,80,100,0.65)    0%, transparent 55%),
+      radial-gradient(ellipse 40% 35% at 88% 88%, rgba(103,232,249,0.28) 0%, transparent 55%),
+      linear-gradient(135deg,#031520 0%,#082d3d 40%,#051e28 70%,#021018 100%);
+    animation: none;
+  }
+
 } /* end @media min-width 1024px */
 
 /* ============================================================ */
