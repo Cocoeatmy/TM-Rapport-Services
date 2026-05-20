@@ -7,7 +7,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, ShieldCheck } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -441,7 +441,7 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
   const isActive = (m: string) => mode === m || mode === `${m}-termine`;
 
   const activeSection =
-    (["mesures", "cmd", "services", "sav"].some(m => isActive(m))) ? "services" :
+    (["mesures", "cmd", "services", "sav", "garanties"].some(m => isActive(m))) ? "services" :
     mode.startsWith("clients-") ? "crm" :
     mode.startsWith("grossistes") ? "grossistes" :
     mode.startsWith("fournisseurs") ? "fournisseurs" :
@@ -511,6 +511,7 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
       <SideItem m="cmd" Icon={Wrench} label="Montages" />
       <SideItem m="services" Icon={Settings} label="Services" />
       <SideItem m="sav" Icon={AlertCircle} label="SAV" />
+      <SideItem m="garanties" Icon={ShieldCheck} label="Garanties" showCount={false} />
 
       <SectionLabel>CRM</SectionLabel>
       <SideItem m="clients-contacts" Icon={UsersIcon} label="Contacts" showCount={false} />
@@ -688,9 +689,10 @@ function CmmMobileDrawer({ mode, projectsData, onSwitchMode, isAdmin }: {
    CmmSectionLanding — page d'accueil style CleanMyMac pour un mode
    Grande icône à gauche avec parallaxe souris + boutons d'action à droite
    ==================================================================== */
-function CmmSectionLanding({ icon: Icon, title, actions, onAction }: {
+function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
   icon: React.ElementType;
   title: string;
+  subtitle?: string;
   actions: { id: string; icon: React.ElementType; label: string; sublabel?: string }[];
   onAction: (id: string) => void;
 }) {
@@ -715,10 +717,10 @@ function CmmSectionLanding({ icon: Icon, title, actions, onAction }: {
   return (
     <div
       ref={containerRef}
-      className="flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-24 min-h-[62vh] px-4 select-none"
+      className="flex flex-col lg:flex-row items-center justify-center gap-10 lg:gap-20 min-h-[62vh] px-6 select-none"
     >
-      {/* ---- Icône + titre (gauche) ---- */}
-      <div className="flex flex-col items-center gap-5">
+      {/* ---- Icône seule (gauche) — sans titre en dessous ---- */}
+      <div className="flex items-center justify-center">
         <div
           style={{
             transform: `translate(${offset.x}px, ${offset.y}px)`,
@@ -738,7 +740,7 @@ function CmmSectionLanding({ icon: Icon, title, actions, onAction }: {
             />
             {/* Cercle principal */}
             <div
-              className="relative w-48 h-48 rounded-full flex items-center justify-center"
+              className="relative w-52 h-52 rounded-full flex items-center justify-center"
               style={{
                 background: "linear-gradient(150deg, rgba(140,70,255,0.22) 0%, rgba(14,5,40,0.65) 100%)",
                 border: "1px solid rgba(210,190,255,0.18)",
@@ -746,65 +748,72 @@ function CmmSectionLanding({ icon: Icon, title, actions, onAction }: {
               }}
             >
               <Icon
-                style={{ width: 96, height: 96, color: "rgba(210,190,255,0.88)", strokeWidth: 1.2 }}
+                style={{ width: 104, height: 104, color: "rgba(210,190,255,0.88)", strokeWidth: 1.2 }}
               />
             </div>
           </div>
         </div>
-        <h2 className="text-2xl font-semibold tracking-tight" style={{ color: "rgba(255,255,255,0.90)" }}>
-          {title}
-        </h2>
       </div>
 
-      {/* ---- Boutons d'action (droite) ---- */}
-      <div className="flex flex-col gap-3 w-full max-w-[300px]">
-        {actions.map((action) => (
-          <button
-            key={action.id}
-            onClick={() => onAction(action.id)}
-            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-left transition-all duration-150 active:scale-[0.97]"
-            style={{
-              background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.11)",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
-            }}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget;
-              el.style.background = "rgba(255,255,255,0.12)";
-              el.style.borderColor = "rgba(210,190,255,0.24)";
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget;
-              el.style.background = "rgba(255,255,255,0.07)";
-              el.style.borderColor = "rgba(255,255,255,0.11)";
-            }}
-          >
-            {/* Icône action */}
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+      {/* ---- Titre + sous-titre + boutons (droite) ---- */}
+      <div className="flex flex-col w-full max-w-[300px]">
+        {/* Titre en haut */}
+        <h2
+          className="text-3xl font-bold tracking-tight mb-1"
+          style={{ color: "rgba(255,255,255,0.95)" }}
+        >
+          {title}
+        </h2>
+        {subtitle && (
+          <p className="text-sm mb-8" style={{ color: "rgba(210,190,255,0.50)" }}>
+            {subtitle}
+          </p>
+        )}
+        {/* Boutons */}
+        <div className="flex flex-col gap-2.5">
+          {actions.map((action) => (
+            <button
+              key={action.id}
+              onClick={() => onAction(action.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-150 active:scale-[0.97]"
               style={{
-                background: "rgba(124,58,237,0.28)",
-                border: "1px solid rgba(210,190,255,0.18)",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+              onMouseEnter={(e) => {
+                const el = e.currentTarget;
+                el.style.background = "rgba(255,255,255,0.10)";
+                el.style.borderColor = "rgba(210,190,255,0.18)";
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget;
+                el.style.background = "rgba(255,255,255,0.06)";
+                el.style.borderColor = "rgba(255,255,255,0.08)";
               }}
             >
-              <action.icon style={{ width: 17, height: 17, color: "rgba(210,190,255,0.85)" }} />
-            </div>
-            {/* Texte */}
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.90)" }}>
-                {action.label}
+              {/* Icône action */}
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: "rgba(124,58,237,0.25)" }}
+              >
+                <action.icon style={{ width: 15, height: 15, color: "rgba(210,190,255,0.85)" }} />
               </div>
-              {action.sublabel && (
-                <div className="text-xs mt-0.5 truncate" style={{ color: "rgba(210,190,255,0.42)" }}>
-                  {action.sublabel}
+              {/* Texte */}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.90)" }}>
+                  {action.label}
                 </div>
-              )}
-            </div>
-            {/* Chevron */}
-            <ChevronRight style={{ width: 15, height: 15, color: "rgba(210,190,255,0.38)", flexShrink: 0 }} />
-          </button>
-        ))}
+                {action.sublabel && (
+                  <div className="text-xs mt-0.5 truncate" style={{ color: "rgba(210,190,255,0.38)" }}>
+                    {action.sublabel}
+                  </div>
+                )}
+              </div>
+              {/* Chevron */}
+              <ChevronRight style={{ width: 14, height: 14, color: "rgba(210,190,255,0.30)", flexShrink: 0 }} />
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1063,8 +1072,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "stats", "archives", "projets-tous", "destockage", "sanitaires"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "stats", "archives", "projets-tous", "destockage", "sanitaires"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -1668,6 +1677,20 @@ function HomePage() {
     if (quickFilter === "mesures-today" && p.dateMesures !== formatLocalDate(new Date())) return false;
     if (quickFilter === "mesures-rdv" && !p.dateMesures) return false;
     if (quickFilter === "mesures-non-cmd" && !(p.etatMesures === "Terminé" && p.etatCMD === "Cabines mesurées")) return false;
+    // ---- Filtres CMM Montages ----
+    if (quickFilter === "cmd-today" && p.dateMontage !== formatLocalDate(new Date())) return false;
+    if (quickFilter === "cmd-rdv-a-fixer" && p.etatCMD !== "Cabine à aller chercher" && p.etatCMD !== "Récéptionné - RDV à fixer") return false;
+    // ---- Filtres CMM Services ----
+    if (quickFilter === "services-today" && p.dateMontage !== formatLocalDate(new Date())) return false;
+    if (quickFilter === "services-rdv-a-fixer" && p.etatCMD !== "Cabine à aller chercher" && p.etatCMD !== "Récéptionné - RDV à fixer") return false;
+    // ---- Filtres CMM SAV ----
+    if (quickFilter === "sav-today" && p.dateSAVRecu !== formatLocalDate(new Date())) return false;
+    if (quickFilter === "sav-rdv-a-fixer" && !!p.dateSAVRecu) return false;
+    if (quickFilter === "sav-cloture" && p.etatSAV !== "Terminé") return false;
+    // ---- Filtres CMM Garanties ----
+    if (quickFilter === "garanties-today" && p.dateMontage !== formatLocalDate(new Date())) return false;
+    if (quickFilter === "garanties-rdv-a-fixer" && !!p.dateMontage) return false;
+    if (quickFilter === "garanties-cloture" && p.etatCMD !== "Terminé") return false;
     return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
   }).sort((a, b) => {
     if (mode.startsWith("mesures")) {
@@ -1879,7 +1902,8 @@ function HomePage() {
           isAdmin={currentUser?.role === "admin" || false}
           onSwitchMode={(m: string) => {
             setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
-            setCmmHeroMode(isCmm && m === "mesures" ? "mesures" : null);
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties"];
+            setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
           }}
         />
       )}
@@ -1898,7 +1922,8 @@ function HomePage() {
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
             // CMM : afficher le hero pour les modes qui en ont un
-            setCmmHeroMode(isCmm && m === "mesures" ? "mesures" : null);
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties"];
+            setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
               fetch("/api/projects/all").then((r) => r.json()).then((data) => {
@@ -1972,45 +1997,31 @@ function HomePage() {
       {/* VUE DASHBOARD */}
       {mode === "dashboard" && (
         <div>
-          {/* Thème CleanMyMac → écran d'accueil minimaliste */}
-          {isCmm ? (
-            <div className="flex flex-col items-start py-20 px-4 lg:px-10 select-none">
-              <p className="text-sm font-medium uppercase tracking-widest mb-3" style={{ color: "rgba(210,190,255,0.45)" }}>
-                {new Date().toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-              </p>
-              <h1 className="text-4xl lg:text-5xl font-bold text-white mb-3 leading-tight">
-                Bonjour{currentUser ? `, ${currentUser.name.split(" ")[0]}` : ""}&nbsp;👋
-              </h1>
-              <p style={{ color: "rgba(210,190,255,0.50)" }} className="text-lg">
-                Sélectionnez une section dans le menu à gauche.
-              </p>
+          {currentUser && (() => {
+            const tagged = [
+              ...(projectsData["cmd"] || []).map((p) => ({ ...p, _source: "montage" as const })),
+              ...(projectsData["mesures"] || []).map((p) => ({ ...p, _source: "mesures" as const })),
+              ...(projectsData["services"] || []).map((p) => ({ ...p, _source: "services" as const })),
+              ...(projectsData["sav"] || []).map((p) => ({ ...p, _source: "sav" as const })),
+            ].filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+            return (
+              <MonteurDashboard
+                userName={currentUser.name}
+                projects={tagged}
+                isAdmin={currentUser?.role === "admin"}
+                onNavigate={(m) => {
+                  setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets");
+                  const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties"];
+                  setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
+                }}
+                terminatedProjectsInit={projectsData["cmd-termine"] || []}
+              />
+            );
+          })()}
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
-          ) : (
-            <>
-              {currentUser && (() => {
-                const tagged = [
-                  ...(projectsData["cmd"] || []).map((p) => ({ ...p, _source: "montage" as const })),
-                  ...(projectsData["mesures"] || []).map((p) => ({ ...p, _source: "mesures" as const })),
-                  ...(projectsData["services"] || []).map((p) => ({ ...p, _source: "services" as const })),
-                  ...(projectsData["sav"] || []).map((p) => ({ ...p, _source: "sav" as const })),
-                ].filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
-                return (
-                  <MonteurDashboard
-                    userName={currentUser.name}
-                    projects={tagged}
-                    isAdmin={currentUser?.role === "admin"}
-                    onNavigate={(m) => { setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setViewMode("list"); setSubView("projets"); }}
-                    terminatedProjectsInit={projectsData["cmd-termine"] || []}
-                  />
-                );
-              })()}
-              {/* Stats monteur déplacé dans le panel Monteurs actifs */}
-              {loading && (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                </div>
-              )}
-            </>
           )}
         </div>
       )}
@@ -5066,6 +5077,7 @@ function HomePage() {
           <CmmSectionLanding
             icon={Ruler}
             title="Mesures"
+            subtitle="Gérez et suivez vos rendez-vous de mesure"
             actions={[
               { id: "today",   icon: CalendarDays, label: "Mesures aujourd'hui",    sublabel: "Rendez-vous du jour"     },
               { id: "rdv",     icon: Calendar,     label: "RDV Mesures",            sublabel: "Tous les rendez-vous"    },
@@ -5084,21 +5096,111 @@ function HomePage() {
       )}
 
       {/* ======================================================== */}
+      {/* CleanMyMac Hero — Montages                               */}
+      {/* ======================================================== */}
+      {isCmm && mode === "cmd" && cmmHeroMode === "cmd" && (
+        <CmmSectionLanding
+          icon={Wrench}
+          title="Montages"
+          subtitle="Suivez et planifiez vos chantiers de montage"
+          actions={[
+            { id: "today",       icon: CalendarDays, label: "Montage aujourd'hui",      sublabel: "Chantiers du jour"            },
+            { id: "rdv-a-fixer", icon: Calendar,     label: "RDV à fixer Montages",     sublabel: "Réception — date à planifier" },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setQuickFilter(id === "today" ? "cmd-today" : "cmd-rdv-a-fixer");
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* CleanMyMac Hero — Services                               */}
+      {/* ======================================================== */}
+      {isCmm && mode === "services" && cmmHeroMode === "services" && (
+        <CmmSectionLanding
+          icon={Settings}
+          title="Services"
+          subtitle="Gérez vos interventions et services clients"
+          actions={[
+            { id: "today",       icon: CalendarDays, label: "Services aujourd'hui",     sublabel: "Interventions du jour"        },
+            { id: "rdv-a-fixer", icon: Calendar,     label: "RDV à fixer Services",     sublabel: "Interventions — date à fixer" },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setQuickFilter(id === "today" ? "services-today" : "services-rdv-a-fixer");
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* CleanMyMac Hero — SAV                                    */}
+      {/* ======================================================== */}
+      {isCmm && mode === "sav" && cmmHeroMode === "sav" && (
+        <CmmSectionLanding
+          icon={AlertCircle}
+          title="SAV"
+          subtitle="Suivi des retours et interventions SAV"
+          actions={[
+            { id: "today",   icon: CalendarDays, label: "SAV aujourd'hui",   sublabel: "SAV reçus aujourd'hui"  },
+            { id: "rdv",     icon: Calendar,     label: "RDV à fixer SAV",   sublabel: "SAV sans date planifiée" },
+            { id: "cloture", icon: Archive,      label: "SAV clôturé",       sublabel: "Dossiers terminés"       },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setQuickFilter(
+              id === "today"   ? "sav-today"       :
+              id === "rdv"     ? "sav-rdv-a-fixer" :
+              "sav-cloture"
+            );
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* CleanMyMac Hero — Garanties                              */}
+      {/* ======================================================== */}
+      {isCmm && mode === "garanties" && cmmHeroMode === "garanties" && (
+        <CmmSectionLanding
+          icon={ShieldCheck}
+          title="Garanties"
+          subtitle="Gestion des dossiers de garantie"
+          actions={[
+            { id: "today",   icon: CalendarDays, label: "Garantie aujourd'hui",    sublabel: "Échéances du jour"     },
+            { id: "rdv",     icon: Calendar,     label: "RDV à fixer garantie",    sublabel: "Dossiers sans RDV"     },
+            { id: "cloture", icon: Archive,      label: "Garantie clôturé",        sublabel: "Dossiers terminés"     },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setQuickFilter(
+              id === "today"   ? "garanties-today"       :
+              id === "rdv"     ? "garanties-rdv-a-fixer" :
+              "garanties-cloture"
+            );
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
       {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
       {/* et sauf quand un hero CMM est affiché)                   */}
       {/* ======================================================== */}
-      {mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && !(isCmm && mode === "mesures" && cmmHeroMode === "mesures") && (<>
-        {/* Bouton retour vers hero CMM (visible après avoir cliqué un bouton) */}
-        {isCmm && mode === "mesures" && cmmHeroMode === null && (
+      {(() => {
+        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties"];
+        const cmmHeroActive = isCmm && cmmHeroModes.includes(mode) && cmmHeroMode === mode;
+        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && !cmmHeroActive;
+      })() && (<>
+        {/* Bouton retour vers hero CMM (visible après avoir cliqué un bouton d'action) */}
+        {isCmm && ["mesures","cmd","services","sav"].includes(mode) && cmmHeroMode === null && (
           <button
-            onClick={() => { setCmmHeroMode("mesures"); setQuickFilter(null); }}
+            onClick={() => { setCmmHeroMode(mode); setQuickFilter(null); }}
             className="mb-4 flex items-center gap-1.5 text-sm transition-all duration-150"
             style={{ color: "rgba(210,190,255,0.60)" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.90)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.60)"; }}
           >
             <ChevronLeft style={{ width: 15, height: 15 }} />
-            Mesures
+            {mode === "mesures" ? "Mesures" : mode === "cmd" ? "Montages" : mode === "services" ? "Services" : "SAV"}
           </button>
         )}
       {/* Favoris */}

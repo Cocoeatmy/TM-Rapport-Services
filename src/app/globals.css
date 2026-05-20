@@ -1718,6 +1718,70 @@ html[data-ui="cleanmymac"] .lg-bg::before {
     animation: none;
   }
 
+  /* ── Fenêtre arrondie style macOS/CleanMyMac ──────────────────────────── */
+  /*
+   * clip-path sur body coupe le rendu de TOUS les enfants (y compris
+   * position:fixed) à l'intérieur du rectangle à bords arrondis.
+   * Le fond de html (#040010) transparaît dans les 4 coins taillés.
+   * html::before pose un fin filet lumineux au-dessus du contenu,
+   * simulant le liseré de cadre de fenêtre macOS.
+   */
+  html[data-ui="cleanmymac"] {
+    background: #040010; /* fond visible dans les coins arrondis */
+  }
+
+  html[data-ui="cleanmymac"] body {
+    clip-path: inset(0 0 0 0 round 13px);
+  }
+
+  /* Filet lumineux de cadre de fenêtre (au-dessus de tout) */
+  html[data-ui="cleanmymac"]::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    border-radius: 13px;
+    pointer-events: none;
+    z-index: 2147483647;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.13),    /* bord lumineux intérieur */
+      inset 0 1px 0   rgba(255,255,255,0.22);    /* reflet haut de fenêtre  */
+  }
+
+  /* ── Feux de signalisation macOS (traffic lights) ─────────────────────── */
+  /*
+   * html::after = les 3 points rouge / jaune / vert dans le coin
+   * supérieur gauche de la fenêtre, comme dans toute app macOS native.
+   * Le box-shadow crée le point jaune (+20 px) et vert (+40 px) à partir
+   * du point rouge (l'élément lui-même). z-index juste sous l'anneau de
+   * fenêtre (2147483647) pour qu'ils apparaissent bien à l'intérieur.
+   */
+  html[data-ui="cleanmymac"]::after {
+    content: '';
+    position: fixed;
+    top: 18px;
+    left: 20px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #FF5F57;                    /* rouge — fermer       */
+    box-shadow:
+      0 0 0 0.5px rgba(0,0,0,0.18),        /* contour léger rouge  */
+      20px 0 0 #FEBC2E,                    /* jaune — réduire      */
+      20px 0 0 0.5px rgba(0,0,0,0.12),     /* contour léger jaune  */
+      40px 0 0 #28C840,                    /* vert  — agrandir     */
+      40px 0 0 0.5px rgba(0,0,0,0.12);    /* contour léger vert   */
+    pointer-events: none;
+    z-index: 2147483646;
+  }
+
+  /* Cache le bouton Accueil (home-badge) du header en mode CMM desktop :
+     il est remplacé visuellement par les feux de signalisation ci-dessus.
+     La navigation Accueil reste accessible via l'item « Accueil » de la sidebar. */
+  html[data-ui="cleanmymac"] #main-header .home-badge {
+    opacity: 0;
+    pointer-events: none;
+  }
+
 } /* end @media min-width 1024px */
 
 /* ============================================================ */
@@ -1947,9 +2011,22 @@ html[data-ui="cleanmymac"] .border-amber-200 { border-color: rgba(253,230,138,0.
 
 html[data-ui="cleanmymac"] .bg-orange-50,
 html[data-ui="cleanmymac"] .bg-orange-100  { background-color: rgba(255,255,255,0.11) !important; }
+html[data-ui="cleanmymac"] .text-orange-500 { color: #fdba74 !important; }
+html[data-ui="cleanmymac"] .text-orange-600,
 html[data-ui="cleanmymac"] .text-orange-700,
 html[data-ui="cleanmymac"] .text-orange-800 { color: #fed7aa !important; }
 html[data-ui="cleanmymac"] .border-orange-200 { border-color: rgba(254,215,170,0.35) !important; }
+
+/* Emerald — absent des overrides précédents, utilisé dans MonteurDashboard */
+html[data-ui="cleanmymac"] .bg-emerald-50,
+html[data-ui="cleanmymac"] .bg-emerald-100  { background-color: rgba(255,255,255,0.11) !important; }
+html[data-ui="cleanmymac"] .text-emerald-500 { color: #6ee7b7 !important; }
+html[data-ui="cleanmymac"] .text-emerald-600,
+html[data-ui="cleanmymac"] .text-emerald-700 { color: #a7f3d0 !important; }
+html[data-ui="cleanmymac"] .border-emerald-200 { border-color: rgba(167,243,208,0.35) !important; }
+
+/* Violet-500 — label Services dans StatCell */
+html[data-ui="cleanmymac"] .text-violet-500 { color: #c4b5fd !important; }
 
 html[data-ui="cleanmymac"] .bg-red-50,
 html[data-ui="cleanmymac"] .bg-red-100   { background-color: rgba(255,255,255,0.11) !important; }
