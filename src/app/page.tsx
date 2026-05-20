@@ -7,7 +7,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, ShieldCheck, Compass } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, ShieldCheck, Compass } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -441,6 +441,7 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
   const isActive = (m: string) => mode === m || mode === `${m}-termine`;
 
   const activeSection =
+    (mode === "projets-tous" || mode === "archives") ? "suivi" :
     (["mesures", "cmd", "services", "sav", "garanties"].some(m => isActive(m))) ? "services" :
     mode.startsWith("clients-") ? "crm" :
     mode.startsWith("grossistes") ? "grossistes" :
@@ -505,6 +506,10 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
       className="flex flex-col gap-0.5 py-2 px-1.5 overflow-y-auto h-full"
     >
       <SideItem m="dashboard" Icon={Home} label="Accueil" showCount={false} />
+
+      <SectionLabel>Suivi</SectionLabel>
+      <SideItem m="projets-tous" Icon={FolderOpen} label="Projets en cours" showCount={false} />
+      <SideItem m="archives" Icon={Archive} label="Archives" showCount={false} />
 
       <SectionLabel>Services</SectionLabel>
       <SideItem m="mesures" Icon={Ruler} label="Mesures" />
@@ -717,10 +722,10 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
   return (
     <div
       ref={containerRef}
-      className="flex flex-col lg:flex-row items-center justify-center gap-10 lg:gap-20 min-h-[62vh] px-6 select-none"
+      className="flex flex-col lg:flex-row items-center justify-center gap-4 sm:gap-8 lg:gap-20 pt-6 pb-8 sm:pt-8 lg:min-h-[62vh] px-3 sm:px-6 select-none"
     >
       {/* ---- Icône seule (gauche) — sans titre en dessous ---- */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-center flex-shrink-0">
         <div
           style={{
             transform: `translate(${offset.x}px, ${offset.y}px)`,
@@ -740,7 +745,7 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
             />
             {/* Cercle principal */}
             <div
-              className="relative w-52 h-52 rounded-full flex items-center justify-center"
+              className="relative w-36 h-36 sm:w-44 sm:h-44 lg:w-52 lg:h-52 rounded-full flex items-center justify-center"
               style={{
                 background: "linear-gradient(150deg, rgba(140,70,255,0.22) 0%, rgba(14,5,40,0.65) 100%)",
                 border: "1px solid rgba(210,190,255,0.18)",
@@ -748,7 +753,8 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
               }}
             >
               <Icon
-                style={{ width: 104, height: 104, color: "rgba(210,190,255,0.88)", strokeWidth: 1.2 }}
+                className="w-16 h-16 sm:w-20 sm:h-20 lg:w-[104px] lg:h-[104px]"
+                style={{ color: "rgba(210,190,255,0.88)", strokeWidth: 1.2 }}
               />
             </div>
           </div>
@@ -756,26 +762,26 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
       </div>
 
       {/* ---- Titre + sous-titre + boutons (droite) ---- */}
-      <div className={`flex flex-col w-full ${actions.length > 5 ? "max-w-[420px]" : "max-w-[300px]"}`}>
+      <div className={`flex flex-col w-full ${actions.length > 5 ? "sm:max-w-[420px]" : "sm:max-w-[320px]"}`}>
         {/* Titre en haut */}
         <h2
-          className="text-3xl font-bold tracking-tight mb-1"
+          className="text-2xl sm:text-3xl font-bold tracking-tight mb-1"
           style={{ color: "rgba(255,255,255,0.95)" }}
         >
           {title}
         </h2>
         {subtitle && (
-          <p className="text-sm mb-8" style={{ color: "rgba(210,190,255,0.50)" }}>
+          <p className="text-sm mb-4 sm:mb-8" style={{ color: "rgba(210,190,255,0.50)" }}>
             {subtitle}
           </p>
         )}
-        {/* Boutons — 1 colonne si ≤5 actions, grille 2×N sinon */}
-        <div className={actions.length > 5 ? "grid grid-cols-2 gap-2" : "flex flex-col gap-2.5"}>
+        {/* Boutons — 1 colonne mobile si ≤5 actions, grille 2×N si >5 */}
+        <div className={actions.length > 5 ? "grid grid-cols-1 sm:grid-cols-2 gap-2" : "flex flex-col gap-2"}>
           {actions.map((action) => (
             <button
               key={action.id}
               onClick={() => onAction(action.id)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-150 active:scale-[0.97]"
+              className="w-full flex items-center gap-3 px-4 py-3.5 sm:py-3 rounded-xl text-left transition-all duration-150 active:scale-[0.97]"
               style={{
                 background: "rgba(255,255,255,0.06)",
                 border: "1px solid rgba(255,255,255,0.08)",
@@ -1892,7 +1898,7 @@ function HomePage() {
     : filtered;
 
   return (
-    <div className="px-4 py-4 max-w-7xl mx-auto w-full">
+    <div className="px-3 sm:px-4 py-3 sm:py-4 max-w-7xl mx-auto w-full">
       <PullToRefresh />
       <Onboarding />
       {/* Drawer mobile CleanMyMac — rendu en dehors du flux normal car position:fixed */}
@@ -1903,7 +1909,7 @@ function HomePage() {
           isAdmin={currentUser?.role === "admin" || false}
           onSwitchMode={(m: string) => {
             setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
           }}
         />
@@ -1923,7 +1929,7 @@ function HomePage() {
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             // CMM : afficher le hero pour les modes qui en ont un
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
@@ -2010,9 +2016,10 @@ function HomePage() {
                 userName={currentUser.name}
                 projects={tagged}
                 isAdmin={currentUser?.role === "admin"}
+                cmmMode={isCmm}
                 onNavigate={(m) => {
                   setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
-                  const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises"];
+                  const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives"];
                   setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
                 }}
                 terminatedProjectsInit={projectsData["cmd-termine"] || []}
@@ -5251,16 +5258,54 @@ function HomePage() {
       )}
 
       {/* ======================================================== */}
+      {/* CleanMyMac Hero — Projets en cours                        */}
+      {/* ======================================================== */}
+      {isCmm && mode === "projets-tous" && cmmHeroMode === "projets-tous" && (
+        <CmmSectionLanding
+          icon={FolderOpen}
+          title="Projets en cours"
+          subtitle="Vue d'ensemble de tous vos dossiers actifs"
+          actions={[
+            { id: "all",    icon: FolderOpen,   label: "Tous les projets actifs",  sublabel: "Accéder à la liste complète"   },
+            { id: "sav",    icon: AlertCircle,  label: "Projets avec SAV",         sublabel: "Dossiers concernés par un SAV" },
+            { id: "soucis", icon: Archive,      label: "Projets avec soucis",      sublabel: "Dossiers signalés"             },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            if (id === "sav")    setPAllSAV(true);
+            if (id === "soucis") setPAllSoucis(true);
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* CleanMyMac Hero — Archives                                */}
+      {/* ======================================================== */}
+      {isCmm && mode === "archives" && cmmHeroMode === "archives" && (
+        <CmmSectionLanding
+          icon={Archive}
+          title="Archives"
+          subtitle="Historique de vos projets terminés et clôturés"
+          actions={[
+            { id: "all", icon: CalendarDays, label: "Voir les archives",    sublabel: "Tous les projets terminés" },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
       {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
       {/* et sauf quand un hero CMM est affiché)                   */}
       {/* ======================================================== */}
       {(() => {
-        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises"];
+        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives"];
         const cmmHeroActive = isCmm && cmmHeroModes.includes(mode) && cmmHeroMode === mode;
         return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && !cmmHeroActive;
       })() && (<>
         {/* Bouton retour vers hero CMM (visible après avoir cliqué un bouton d'action) */}
-        {isCmm && ["mesures","cmd","services","sav"].includes(mode) && cmmHeroMode === null && (
+        {isCmm && ["mesures","cmd","services","sav","projets-tous","archives"].includes(mode) && cmmHeroMode === null && (
           <button
             onClick={() => { setCmmHeroMode(mode); setQuickFilter(null); }}
             className="mb-4 flex items-center gap-1.5 text-sm transition-all duration-150"
@@ -5269,7 +5314,7 @@ function HomePage() {
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.60)"; }}
           >
             <ChevronLeft style={{ width: 15, height: 15 }} />
-            {mode === "mesures" ? "Mesures" : mode === "cmd" ? "Montages" : mode === "services" ? "Services" : "SAV"}
+            {mode === "mesures" ? "Mesures" : mode === "cmd" ? "Montages" : mode === "services" ? "Services" : mode === "projets-tous" ? "Projets en cours" : mode === "archives" ? "Archives" : "SAV"}
           </button>
         )}
       {/* Favoris */}
