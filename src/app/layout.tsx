@@ -10,6 +10,7 @@ import { CreateProjectButton } from "@/components/create-project-button";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineBanner } from "@/components/offline-banner";
 import { GlobalSearch } from "@/components/global-search";
+import { CmmWindowCorners } from "@/components/cmm-window-corners";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -95,6 +96,7 @@ export default function RootLayout({
             </div>
           </div>
         </header>
+        <CmmWindowCorners />
         <OfflineBanner />
         <main className="flex-1">
           <ErrorBoundary>{children}</ErrorBoundary>

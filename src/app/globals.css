@@ -1730,16 +1730,12 @@ html[data-ui="cleanmymac"] .lg-bg::before {
     background: #040010; /* fond visible dans les coins arrondis */
   }
 
-  html[data-ui="cleanmymac"] body {
-    clip-path: inset(0 0 0 0 round 13px);
-  }
-
-  /* Filet lumineux de cadre de fenêtre (au-dessus de tout) */
+  /* Filet lumineux de cadre de fenêtre (au-dessus du contenu, sous les coins) */
   html[data-ui="cleanmymac"]::before {
     content: '';
     position: fixed;
     inset: 0;
-    border-radius: 13px;
+    border-radius: 16px;
     pointer-events: none;
     z-index: 2147483647;
     box-shadow:
