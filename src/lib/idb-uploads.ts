@@ -249,6 +249,26 @@ export async function retryAllFailedUploads(): Promise<number> {
 }
 
 /**
+ * Réinitialise les timers de backoff pour TOUS les uploads en attente.
+ * Appelé quand l'admin demande une synchro forcée ou quand l'app
+ * revient au premier plan — permet de retenter immédiatement sans
+ * attendre l'expiration du backoff (jusqu'à 1h).
+ */
+export async function resetBackoffForAll(): Promise<number> {
+  try {
+    const items = await getPendingUploads({ status: "pending" });
+    await Promise.all(
+      items
+        .filter((item) => item.nextAttemptAt && item.nextAttemptAt > Date.now())
+        .map((item) => updatePendingUpload({ ...item, nextAttemptAt: 0 }))
+    );
+    return items.length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Guard global : garantit qu'une seule instance de processPendingUploads
  * tourne à la fois. Évite la race condition quand l'event `online` ET
  * le poll de 30 s déclenchent autoSync simultanément sur le même client.

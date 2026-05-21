@@ -12,7 +12,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { saveToCache, getCacheTimestamp, getQueue, processQueue, isOnline } from "@/lib/offline";
-import { processPendingUploads, countPendingUploads, retryAllFailedUploads } from "@/lib/idb-uploads";
+import { processPendingUploads, countPendingUploads, retryAllFailedUploads, resetBackoffForAll } from "@/lib/idb-uploads";
 import { toast } from "sonner";
 
 export function SyncButton() {
@@ -21,6 +21,9 @@ export function SyncButton() {
   const [lastSync, setLastSync] = useState<number>(0);
   const [serverSyncTime, setServerSyncTime] = useState<string | null>(null);
   const [queueCount, setQueueCount] = useState(0);
+  const [forceSyncCheckedAt, setForceSyncCheckedAt] = useState(0);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [forceSyncing, setForceSyncing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,6 +43,28 @@ export function SyncButton() {
       })
       .catch(() => {});
 
+    // Charger le rôle utilisateur
+    fetch("/api/auth")
+      .then((r) => r.json())
+      .then((d) => { if (d.user?.role) setUserRole(d.user.role); })
+      .catch(() => {});
+
+    // Vérifier le signal force-sync au démarrage
+    const checkForceSync = async () => {
+      try {
+        const res = await fetch("/api/force-sync");
+        const data = await res.json();
+        if (data.requestedAt && data.requestedAt > forceSyncCheckedAt) {
+          setForceSyncCheckedAt(data.requestedAt);
+          const count = await resetBackoffForAll();
+          if (count > 0) {
+            await autoSync();
+          }
+        }
+      } catch {}
+    };
+    checkForceSync();
+
     const handleOnline = () => {
       setOnline(true);
       autoSync();
@@ -53,6 +78,15 @@ export function SyncButton() {
     window.addEventListener("tm-pending-upload-removed", onPendingChange);
     window.addEventListener("tm-offline-queued", onPendingChange);
 
+    // Auto-sync au retour au premier plan (bypass backoff)
+    const handleVisibility = async () => {
+      if (document.visibilityState === "visible") {
+        await resetBackoffForAll();
+        autoSync();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     const interval = setInterval(async () => {
       await refreshCount();
       const upCount = await countPendingUploads();
@@ -60,6 +94,16 @@ export function SyncButton() {
       if (isOnline() && totalQueued > 0) {
         autoSync();
       }
+      // Vérifier le signal force-sync depuis le serveur
+      try {
+        const res = await fetch("/api/force-sync");
+        const data = await res.json();
+        if (data.requestedAt && data.requestedAt > forceSyncCheckedAt) {
+          setForceSyncCheckedAt(data.requestedAt);
+          await resetBackoffForAll();
+          autoSync();
+        }
+      } catch {}
     }, 30000);
 
     return () => {
@@ -69,6 +113,7 @@ export function SyncButton() {
       window.removeEventListener("tm-pending-upload-added", onPendingChange);
       window.removeEventListener("tm-pending-upload-removed", onPendingChange);
       window.removeEventListener("tm-offline-queued", onPendingChange);
+      document.removeEventListener("visibilitychange", handleVisibility);
       clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -197,6 +242,25 @@ export function SyncButton() {
     }
   }, []);
 
+  const handleForceSync = useCallback(async () => {
+    setForceSyncing(true);
+    try {
+      const res = await fetch("/api/force-sync", { method: "POST" });
+      if (res.ok) {
+        toast.success("Signal envoyé — les applis des monteurs vont se synchroniser dans ~30 s");
+        // Se synchronise aussi soi-même immédiatement
+        await resetBackoffForAll();
+        await autoSync();
+      } else {
+        toast.error("Erreur lors de l'envoi du signal");
+      }
+    } catch {
+      toast.error("Impossible d'envoyer le signal");
+    } finally {
+      setForceSyncing(false);
+    }
+  }, []);
+
   const formatLastSync = () => {
     // Use the most recent sync: client or server
     const serverTs = serverSyncTime ? new Date(serverSyncTime).getTime() : 0;
@@ -221,35 +285,53 @@ export function SyncButton() {
   };
 
   return (
-    <button
-      onClick={handleSync}
-      disabled={syncing}
-      className="relative shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/15 border border-white/20 hover:bg-white/25 transition-all active:scale-95 text-sm"
-    >
-      {syncing ? (
-        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-      ) : online ? (
-        <Cloud className="w-4 h-4 text-green-500" />
-      ) : (
-        <CloudOff className="w-4 h-4 text-orange-500" />
+    <>
+      <button
+        onClick={handleSync}
+        disabled={syncing}
+        className="relative shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/15 border border-white/20 hover:bg-white/25 transition-all active:scale-95 text-sm"
+      >
+        {syncing ? (
+          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+        ) : online ? (
+          <Cloud className="w-4 h-4 text-green-500" />
+        ) : (
+          <CloudOff className="w-4 h-4 text-orange-500" />
+        )}
+
+        <div className="text-left whitespace-nowrap">
+          <p className="text-xs font-medium text-white">
+            {syncing ? "Sync..." : online ? "Sync" : "Hors ligne"}
+          </p>
+          <p className="text-[10px] text-white/60">{formatLastSync()}</p>
+        </div>
+
+        {/* Badge file d'attente */}
+        {queueCount > 0 && (
+          <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            {queueCount}
+          </span>
+        )}
+
+        {/* Indicateur réseau mobile */}
+        {!online && <WifiOff className="w-3 h-3 text-orange-500 absolute -bottom-0.5 -right-0.5" />}
+      </button>
+
+      {userRole === "admin" && (
+        <button
+          onClick={handleForceSync}
+          disabled={forceSyncing}
+          title="Forcer la synchronisation de tous les monteurs"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-500 hover:bg-orange-600 text-white transition-colors disabled:opacity-60"
+        >
+          {forceSyncing ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="w-3.5 h-3.5" />
+          )}
+          Force sync
+        </button>
       )}
-
-      <div className="text-left whitespace-nowrap">
-        <p className="text-xs font-medium text-white">
-          {syncing ? "Sync..." : online ? "Sync" : "Hors ligne"}
-        </p>
-        <p className="text-[10px] text-white/60">{formatLastSync()}</p>
-      </div>
-
-      {/* Badge file d'attente */}
-      {queueCount > 0 && (
-        <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-          {queueCount}
-        </span>
-      )}
-
-      {/* Indicateur réseau mobile */}
-      {!online && <WifiOff className="w-3 h-3 text-orange-500 absolute -bottom-0.5 -right-0.5" />}
-    </button>
+    </>
   );
 }
