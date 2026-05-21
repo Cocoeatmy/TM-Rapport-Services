@@ -1388,7 +1388,7 @@ function HomePage() {
     "fournisseurs-samo": "/api/projects/all-active",
     "fournisseurs-vismaravetro": "/api/projects/all-active",
     stats: "/api/projects/all-active",
-    archives: "/api/projects/cmd-termine", // overridden by combined fetch below
+    archives: "/api/projects/all",
     "projets-tous": "/api/projects/all",
     sanitaires: "/api/projects/all-active",
   };
@@ -1901,6 +1901,16 @@ function HomePage() {
             setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
+            if (m === "archives") {
+              fetch("/api/projects/all").then((r) => r.json()).then((data) => {
+                const all = Array.isArray(data) ? data : [];
+                setProjectsData((prev) => {
+                  const updated = { ...prev, archives: all };
+                  try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+                  return updated;
+                });
+              }).catch(() => {});
+            }
           }}
         />
       )}
