@@ -5349,10 +5349,10 @@ function HomePage() {
           subtitle="Accédez aux projets par grossiste partenaire"
           actions={[
             { id: "grossistes-bms",      icon: ShoppingBag, label: "BMS",       logoSrc: "/logos/fournisseurs/BMS-Logo-cmm.png",      logoH: 32 },
-            { id: "grossistes-dubat",     icon: ShoppingBag, label: "Dubat",     logoSrc: "/logos/fournisseurs/Dubat-Logo.png",         logoH: 26 },
-            { id: "grossistes-matway",    icon: ShoppingBag, label: "Matway",    logoSrc: "/logos/fournisseurs/Matway-Logo.png",        logoH: 52 },
-            { id: "grossistes-tema",      icon: ShoppingBag, label: "Tema Sàrl", logoSrc: "/logos/fournisseurs/Tema-Logo.png",          logoH: 44 },
-            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen",  logoSrc: "/logos/fournisseurs/Bringhen-logo-cmm.png",  logoH: 26 },
+            { id: "grossistes-dubat",     icon: ShoppingBag, label: "Dubat",     logoSrc: "/logos/fournisseurs/Dubat-Logo.png",         logoH: 28 },
+            { id: "grossistes-matway",    icon: ShoppingBag, label: "Matway",    logoSrc: "/logos/fournisseurs/Matway-Logo.png",        logoH: 60 },
+            { id: "grossistes-tema",      icon: ShoppingBag, label: "Tema Sàrl", logoSrc: "/logos/fournisseurs/Tema-Logo.png",          logoH: 46 },
+            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen",  logoSrc: "/logos/fournisseurs/Bringhen-logo-cmm.png",  logoH: 25 },
           ]}
           onAction={(id) => {
             setCmmHeroMode(null);
@@ -5370,15 +5370,15 @@ function HomePage() {
           title="Fournisseurs"
           subtitle="Accédez aux projets par fournisseur de produits"
           actions={[
-            { id: "fournisseurs-duka",         icon: Package, label: "Duka.ch",      logoSrc: "/logos/fournisseurs/Duka-logo-cmm.png"         },
-            { id: "fournisseurs-duscholux",     icon: Package, label: "Duscholux",    logoSrc: "/logos/fournisseurs/Duscholux-logo-cmm.png"     },
-            { id: "fournisseurs-kermi",         icon: Package, label: "Kermi",        logoSrc: "/logos/fournisseurs/Kermi-logo-cmm.png"         },
-            { id: "fournisseurs-koralle",       icon: Package, label: "Koralle",      logoSrc: "/logos/fournisseurs/Koralle-logo-cmm.png"       },
-            { id: "fournisseurs-nelo",          icon: Package, label: "Nelo",         logoSrc: "/logos/fournisseurs/Nelo-logo-cmm.png"          },
-            { id: "fournisseurs-novellini",     icon: Package, label: "Novellini",    logoSrc: "/logos/fournisseurs/Novellini-logo-cmm.png"      },
-            { id: "fournisseurs-ronal",         icon: Package, label: "Ronal",        logoSrc: "/logos/fournisseurs/Ronal-logo-cmm.png"         },
-            { id: "fournisseurs-samo",          icon: Package, label: "Samo",         logoSrc: "/logos/fournisseurs/Samo-logo-cmm.png"          },
-            { id: "fournisseurs-vismaravetro",  icon: Package, label: "Vismaravetro", logoSrc: "/logos/fournisseurs/Vismaravetro-logo-cmm.png"  },
+            { id: "fournisseurs-duka",         icon: Package, label: "Duka.ch",      logoSrc: "/logos/fournisseurs/Duka-logo-cmm.png",         logoH: 33 },
+            { id: "fournisseurs-duscholux",     icon: Package, label: "Duscholux",    logoSrc: "/logos/fournisseurs/Duscholux-logo-cmm.png",     logoH: 24 },
+            { id: "fournisseurs-kermi",         icon: Package, label: "Kermi",        logoSrc: "/logos/fournisseurs/Kermi-logo-cmm.png",         logoH: 36 },
+            { id: "fournisseurs-koralle",       icon: Package, label: "Koralle",      logoSrc: "/logos/fournisseurs/Koralle-logo-cmm.png",       logoH: 37 },
+            { id: "fournisseurs-nelo",          icon: Package, label: "Nelo",         logoSrc: "/logos/fournisseurs/Nelo-logo-cmm.png",          logoH: 44 },
+            { id: "fournisseurs-novellini",     icon: Package, label: "Novellini",    logoSrc: "/logos/fournisseurs/Novellini-logo-cmm.png",     logoH: 26 },
+            { id: "fournisseurs-ronal",         icon: Package, label: "Ronal",        logoSrc: "/logos/fournisseurs/Ronal-logo-cmm.png",         logoH: 25 },
+            { id: "fournisseurs-samo",          icon: Package, label: "Samo",         logoSrc: "/logos/fournisseurs/Samo-logo-cmm.png",          logoH: 36 },
+            { id: "fournisseurs-vismaravetro",  icon: Package, label: "Vismaravetro", logoSrc: "/logos/fournisseurs/Vismaravetro-logo-cmm.png",  logoH: 40 },
           ]}
           onAction={(id) => {
             setCmmHeroMode(null);
