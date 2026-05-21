@@ -5370,15 +5370,15 @@ function HomePage() {
           title="Fournisseurs"
           subtitle="Accédez aux projets par fournisseur de produits"
           actions={[
-            { id: "fournisseurs-duka",         icon: Package, label: "Duka.ch",      logoSrc: "/logos/fournisseurs/Duka-logo-cmm.png",         logoH: 33 },
+            { id: "fournisseurs-duka",         icon: Package, label: "Duka.ch",      logoSrc: "/logos/fournisseurs/Duka-cmm.png",              logoH: 33 },
             { id: "fournisseurs-duscholux",     icon: Package, label: "Duscholux",    logoSrc: "/logos/fournisseurs/Duscholux-logo-cmm.png",     logoH: 24 },
             { id: "fournisseurs-kermi",         icon: Package, label: "Kermi",        logoSrc: "/logos/fournisseurs/Kermi-logo-cmm.png",         logoH: 36 },
             { id: "fournisseurs-koralle",       icon: Package, label: "Koralle",      logoSrc: "/logos/fournisseurs/Koralle-logo-cmm.png",       logoH: 37 },
             { id: "fournisseurs-nelo",          icon: Package, label: "Nelo",         logoSrc: "/logos/fournisseurs/Nelo-logo-cmm.png",          logoH: 44 },
             { id: "fournisseurs-novellini",     icon: Package, label: "Novellini",    logoSrc: "/logos/fournisseurs/Novellini-logo-cmm.png",     logoH: 26 },
-            { id: "fournisseurs-ronal",         icon: Package, label: "Ronal",        logoSrc: "/logos/fournisseurs/Ronal-logo-cmm.png",         logoH: 25 },
+            { id: "fournisseurs-ronal",         icon: Package, label: "Ronal",        logoSrc: "/logos/fournisseurs/Ronal-cmm.png",              logoH: 25 },
             { id: "fournisseurs-samo",          icon: Package, label: "Samo",         logoSrc: "/logos/fournisseurs/Samo-logo-cmm.png",          logoH: 36 },
-            { id: "fournisseurs-vismaravetro",  icon: Package, label: "Vismaravetro", logoSrc: "/logos/fournisseurs/Vismaravetro-logo-cmm.png",  logoH: 40 },
+            { id: "fournisseurs-vismaravetro",  icon: Package, label: "Vismaravetro", logoSrc: "/logos/fournisseurs/Vismaravetro-cmm.png",       logoH: 48 },
           ]}
           onAction={(id) => {
             setCmmHeroMode(null);
