@@ -265,13 +265,13 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
             CRM
             <ChevronDown className={`w-3 h-3 transition-transform ${open === "clients" ? "rotate-180" : ""}`} />
           </button>
-          <button onClick={() => setOpen(open === "grossistes" ? null : "grossistes")} className={tabCls(isGrossisteActive || open === "grossistes")}>
+          <button onClick={() => isCmm ? (onSwitchMode("grossistes"), setOpen(null)) : setOpen(open === "grossistes" ? null : "grossistes")} className={tabCls(isGrossisteActive || open === "grossistes")}>
             {isGrossisteActive && grossisteActiveLabel && grossisteActiveLabel !== "Tous" ? `Grossistes · ${grossisteActiveLabel}` : "Grossistes"}
-            <ChevronDown className={`w-3 h-3 transition-transform ${open === "grossistes" ? "rotate-180" : ""}`} />
+            {!isCmm && <ChevronDown className={`w-3 h-3 transition-transform ${open === "grossistes" ? "rotate-180" : ""}`} />}
           </button>
-          <button onClick={() => setOpen(open === "fournisseurs-menu" ? null : "fournisseurs-menu")} className={tabCls(isFournisseursActive || open === "fournisseurs-menu")}>
+          <button onClick={() => isCmm ? (onSwitchMode("fournisseurs"), setOpen(null)) : setOpen(open === "fournisseurs-menu" ? null : "fournisseurs-menu")} className={tabCls(isFournisseursActive || open === "fournisseurs-menu")}>
             {isFournisseursActive && fournisseurActiveLabel && fournisseurActiveLabel !== "Tous" ? `Fournisseurs · ${fournisseurActiveLabel}` : "Fournisseurs"}
-            <ChevronDown className={`w-3 h-3 transition-transform ${open === "fournisseurs-menu" ? "rotate-180" : ""}`} />
+            {!isCmm && <ChevronDown className={`w-3 h-3 transition-transform ${open === "fournisseurs-menu" ? "rotate-180" : ""}`} />}
           </button>
           <button onClick={() => { handleSelect("sanitaires"); setOpen(null); }} className={tabCls(mode === "sanitaires")}>
             Sanitaires
@@ -325,7 +325,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
       )}
 
       {/* Sous-menu Grossistes */}
-      {open === "grossistes" && (
+      {open === "grossistes" && !isCmm && (
         <div className="flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center touch-pan-x overscroll-x-contain">
           {grossistesModes.map((m) => {
             const logo = grossistesLogos[m];
@@ -376,7 +376,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
       )}
 
       {/* Sous-menu Fournisseurs */}
-      {open === "fournisseurs-menu" && (
+      {open === "fournisseurs-menu" && !isCmm && (
         <div className="flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center touch-pan-x overscroll-x-contain">
           {fournisseursModes.map((m) => {
             const logo = fournisseursLogos[m];
