@@ -2202,7 +2202,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         );
       })()}
 
-      {/* RDV buttons — masqués + repliés quand un panneau est ouvert */}
+      {/* RDV buttons — thèmes normaux uniquement (non-CMM) */}
+      {!cmmMode && (
       <div
         className="overflow-hidden"
         style={{
@@ -2258,6 +2259,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         })()}
       </div>
       </div>
+      )}
 
       {/* ── Widgets configurables CleanMyMac ─────────────────────────────────
           Uniquement visibles en cmmMode. L'utilisateur choisit quels widgets
@@ -2368,63 +2370,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           </div>
         );
       })()}
-
-      {/* RDV buttons — masqués + repliés quand un panneau est ouvert */}
-      <div
-        className="overflow-hidden"
-        style={{
-          opacity: showSummaryPanel ? 0 : 1,
-          maxHeight: showSummaryPanel ? 0 : 9999,
-          transition: "opacity 180ms ease, max-height 260ms ease",
-          pointerEvents: showSummaryPanel ? "none" : undefined,
-        }}
-      >
-      <div className="grid grid-cols-2 gap-3">
-        {(() => {
-          const rdvAFixerStatuses = ["Livraison partielle", "Cabine à aller chercher", "Récéptionné - RDV à fixer", "Montage partiel"];
-          const mesuresAFixerStatuses = ["Pas contacté", "Contact sans réponse"];
-          const savAFixerStatuses = ["A contacter", "Contact sans réponse", "Attente news", "En cours de traitement"];
-          const rdvAFixerProjects = projects.filter((p) =>
-            rdvAFixerStatuses.includes(p.etatCMD) ||
-            (p.etatCMD === "En attente de mesures" && mesuresAFixerStatuses.includes(p.etatMesures)) ||
-            ((p as any)._source === "sav" && savAFixerStatuses.includes(p.etatSAV))
-          );
-          const montagesRdvCab = rdvAFixerProjects.filter((p) => { const src = (p as any)._source; return src === "cmd" || src === "montage" || !src; }).reduce((s, p) => s + (p.nbCabines || 0), 0);
-          const mesuresRdvCab = rdvAFixerProjects.filter((p) => (p as any)._source === "mesures").reduce((s, p) => s + (p.nbCabines || 0), 0);
-          const servicesRdvCab = rdvAFixerProjects.filter((p) => (p as any)._source === "services").reduce((s, p) => s + (p.nbCabines || 0), 0);
-          const savRdvCab = rdvAFixerProjects.filter((p) => (p as any)._source === "sav").reduce((s, p) => s + (p.nbCabines || 0), 0);
-          return (
-            <button onClick={(e) => openPanel("rdv-a-fixer", e)} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
-              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{rdvAFixerProjects.length}</p>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV à fixer</p>
-              <div className="text-center mt-1.5 space-y-0.5">
-                {montagesRdvCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Montages: {montagesRdvCab} cab.</p>}
-                {mesuresRdvCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Mesures: {mesuresRdvCab} cab.</p>}
-                {servicesRdvCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Services: {servicesRdvCab} cab.</p>}
-                {savRdvCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">SAV: {savRdvCab} cab.</p>}
-              </div>
-            </button>
-          );
-        })()}
-        {(() => {
-          const rdvFixeProjects = projects.filter((p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé");
-          const montagesFixeCab = rdvFixeProjects.filter((p) => { const src = (p as any)._source; return src === "cmd" || src === "montage" || !src; }).reduce((s, p) => s + (p.nbCabines || 0), 0);
-          const mesuresFixeCab = rdvFixeProjects.filter((p) => (p as any)._source === "mesures").reduce((s, p) => s + (p.nbCabines || 0), 0);
-          const servicesFixeCab = rdvFixeProjects.filter((p) => (p as any)._source === "services" || (p as any)._source === "sav").reduce((s, p) => s + (p.nbCabines || 0), 0);
-          return (
-            <button onClick={(e) => openPanel("rdv-fixe", e)} className="glass-card rounded-2xl p-4 text-center hover:shadow-lg active:scale-95 transition-all">
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{rdvFixeProjects.length}</p>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">RDV fixé</p>
-              <div className="text-center mt-1.5 space-y-0.5">
-                {montagesFixeCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Montages: {montagesFixeCab} cab.</p>}
-                {mesuresFixeCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Mesures: {mesuresFixeCab} cab.</p>}
-                {servicesFixeCab > 0 && <p className="text-[9px] text-gray-400 dark:text-gray-500">Services: {servicesFixeCab} cab.</p>}
-              </div>
-            </button>
-          );
-        })()}
-      </div>
-      </div>
 
       {/* ── En-tête panneau actif ─────────────────────────────────────────── */}
       {/* Apparaît quand un panneau est ouvert : bouton compact "retour" + label */}
