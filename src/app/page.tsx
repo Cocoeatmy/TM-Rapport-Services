@@ -5352,7 +5352,7 @@ function HomePage() {
             { id: "grossistes-dubat",     icon: ShoppingBag, label: "Dubat",     logoSrc: "/logos/fournisseurs/Dubat-Logo.png",         logoH: 50 },
             { id: "grossistes-matway",    icon: ShoppingBag, label: "Matway",    logoSrc: "/logos/fournisseurs/Matway-Logo.png",        logoH: 60 },
             { id: "grossistes-tema",      icon: ShoppingBag, label: "Tema Sàrl", logoSrc: "/logos/fournisseurs/Tema-Logo.png",          logoH: 46 },
-            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen",  logoSrc: "/logos/fournisseurs/Bringhen-cmm.png",  logoH: 50 },
+            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen",  logoSrc: "/logos/fournisseurs/Bringhen-cmm.png",  logoH: 25 },
           ]}
           onAction={(id) => {
             setCmmHeroMode(null);
