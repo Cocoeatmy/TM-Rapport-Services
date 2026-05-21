@@ -808,7 +808,7 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
                 <img
                   src={action.logoSrc}
                   alt={action.label}
-                  className="w-auto max-w-[220px] object-contain"
+                  className="w-auto max-w-[280px] object-contain"
                   style={{ height: `${action.logoH ?? 32}px`, filter: "drop-shadow(0 0 4px rgba(255,255,255,0.08))" }}
                 />
               ) : (
@@ -5349,10 +5349,10 @@ function HomePage() {
           subtitle="Accédez aux projets par grossiste partenaire"
           actions={[
             { id: "grossistes-bms",      icon: ShoppingBag, label: "BMS",       logoSrc: "/logos/fournisseurs/BMS-Logo-cmm.png",      logoH: 32 },
-            { id: "grossistes-dubat",     icon: ShoppingBag, label: "Dubat",     logoSrc: "/logos/fournisseurs/Dubat-Logo.png",         logoH: 28 },
+            { id: "grossistes-dubat",     icon: ShoppingBag, label: "Dubat",     logoSrc: "/logos/fournisseurs/Dubat-Logo.png",         logoH: 50 },
             { id: "grossistes-matway",    icon: ShoppingBag, label: "Matway",    logoSrc: "/logos/fournisseurs/Matway-Logo.png",        logoH: 60 },
             { id: "grossistes-tema",      icon: ShoppingBag, label: "Tema Sàrl", logoSrc: "/logos/fournisseurs/Tema-Logo.png",          logoH: 46 },
-            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen",  logoSrc: "/logos/fournisseurs/Bringhen-logo-cmm.png",  logoH: 25 },
+            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen",  logoSrc: "/logos/fournisseurs/Bringhen-logo-cmm.png",  logoH: 44 },
           ]}
           onAction={(id) => {
             setCmmHeroMode(null);
