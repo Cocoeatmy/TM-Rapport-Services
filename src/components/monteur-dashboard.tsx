@@ -1230,6 +1230,70 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
   }, []);
 
+  // ── Météo (Open-Meteo, géolocalisation) ──────────────────────────────────
+  const [weather, setWeather] = useState<{
+    temp: number;
+    code: number;
+    desc: string;
+    icon: string;
+    city: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const WMO_ICON: Record<number, string> = {
+      0: "☀️", 1: "🌤️", 2: "⛅", 3: "🌥️",
+      45: "🌫️", 48: "🌫️",
+      51: "🌦️", 53: "🌦️", 55: "🌧️",
+      61: "🌧️", 63: "🌧️", 65: "🌧️",
+      71: "❄️", 73: "❄️", 75: "❄️", 77: "❄️",
+      80: "🌦️", 81: "🌦️", 82: "⛈️",
+      85: "❄️", 86: "❄️",
+      95: "⛈️", 96: "⛈️", 99: "⛈️",
+    };
+    const WMO_DESC: Record<number, string> = {
+      0: "Ciel dégagé", 1: "Peu nuageux", 2: "Partiellement nuageux", 3: "Couvert",
+      45: "Brouillard", 48: "Brouillard givrant",
+      51: "Bruine légère", 53: "Bruine", 55: "Bruine forte",
+      61: "Pluie légère", 63: "Pluie", 65: "Forte pluie",
+      71: "Neige légère", 73: "Neige", 75: "Forte neige", 77: "Grésil",
+      80: "Averses légères", 81: "Averses", 82: "Fortes averses",
+      85: "Averses de neige", 86: "Fortes averses de neige",
+      95: "Orage", 96: "Orage avec grêle", 99: "Orage violent",
+    };
+    const getReverseGeoCity = async (lat: number, lon: number): Promise<string> => {
+      try {
+        const r = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=fr`,
+          { headers: { "Accept-Language": "fr" } }
+        );
+        const d = await r.json();
+        return d?.address?.city || d?.address?.town || d?.address?.village || d?.address?.municipality || "";
+      } catch { return ""; }
+    };
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        try {
+          const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode&timezone=auto`;
+          const r = await fetch(url);
+          const d = await r.json();
+          const temp = Math.round(d.current?.temperature_2m ?? 0);
+          const code = d.current?.weathercode ?? 0;
+          const city = await getReverseGeoCity(lat, lon);
+          setWeather({
+            temp,
+            code,
+            desc: WMO_DESC[code] ?? "–",
+            icon: WMO_ICON[code] ?? "🌡️",
+            city,
+          });
+        } catch {}
+      },
+      () => {}
+    );
+  }, []);
+
   // Heures de travail — filtre et projets terminés
   const [selectedMonteurStats, setSelectedMonteurStats] = useState<string>("");
   const [workFilter, setWorkFilter] = useState<"semaine" | "mois" | "annee" | "custom">("semaine");
@@ -1553,6 +1617,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const todayMesures = uniqueTodayProjects.filter((p) => getProjectSource(p) === "mesures").length;
   const todayServices = uniqueTodayProjects.filter((p) =>
     (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"))
+  ).length;
+  const todayGaranties = uniqueTodayProjects.filter((p) =>
+    (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"))
   ).length;
   // Texte composite ex: "2 mesures · 1 montage · 1 service prévu(s) aujourd'hui"
   const todayParts: string[] = [];
@@ -1935,26 +2002,61 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       {/* En-tête de bienvenue */}
       <div className="glass-card rounded-2xl p-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-lg font-bold text-blue-600 dark:text-blue-400">
+          <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-lg font-bold text-blue-600 dark:text-blue-400 shrink-0">
             {getCollaboratorInitials(firstName)}
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-900 dark:text-gray-100">Bonjour {firstName} 👋</p>
             <p className="text-xs font-medium text-blue-500 dark:text-blue-400 capitalize">
               {new Date().toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {totalProjectsToday > 0
-                ? `${todayLabel} · ${busyToday} monteur${busyToday > 1 ? "s" : ""} actif${busyToday > 1 ? "s" : ""}`
-                : "Aucun projet prévu aujourd'hui"}
-            </p>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500 italic mt-0.5 leading-tight">"{getDailyQuote(firstName)}"</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 italic mt-0.5 leading-snug">&quot;{getDailyQuote(firstName)}&quot;</p>
           </div>
-          <button onClick={() => setShowWeekProjects(!showWeekProjects)} className="text-right hover:opacity-70 transition-opacity">
+          <button onClick={() => setShowWeekProjects(!showWeekProjects)} className="text-right hover:opacity-70 transition-opacity shrink-0">
             <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCabinesWeek}</p>
             <p className="text-[10px] text-gray-400 dark:text-gray-500">cab. cette sem. ▾</p>
             {weekSummary && <p className="text-[9px] text-gray-400 mt-0.5">{weekSummary}</p>}
           </button>
+        </div>
+
+        {/* ── Résumé du jour + Météo ── */}
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex gap-3 items-start">
+          {/* Liste verticale services du jour */}
+          <div className="flex-1 space-y-1.5">
+            {([
+              { label: "Montage",  count: todayMontages,  color: "text-orange-500 dark:text-orange-400",       panel: "today" as const },
+              { label: "Mesure",   count: todayMesures,   color: "text-cyan-600 dark:text-cyan-400",           panel: "mesures-today" as const },
+              { label: "SAV",      count: savTodayCount,  color: "text-red-600 dark:text-red-400",             panel: "sav-today" as const },
+              { label: "Service",  count: todayServices,  color: "text-violet-600 dark:text-violet-400",       panel: "services-today" as const },
+              { label: "Garantie", count: todayGaranties, color: "text-emerald-600 dark:text-emerald-400",     panel: null as null },
+            ]).map(({ label, count, color, panel }) => (
+              <button
+                key={label}
+                onClick={panel ? (e) => openPanel(panel, e as React.MouseEvent<HTMLButtonElement>) : undefined}
+                className={`flex items-center justify-between w-full ${panel ? "hover:opacity-70 active:scale-95 transition-all" : "cursor-default"}`}
+              >
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  <span className={`font-bold ${count > 0 ? color : "text-gray-300 dark:text-gray-600"} mr-1`}>{count}</span>
+                  {label}{count !== 1 ? "s" : ""} prévu{count !== 1 ? "s" : ""} aujourd&apos;hui
+                </span>
+                {panel && count > 0 && <span className="text-[9px] text-gray-300 dark:text-gray-600">›</span>}
+              </button>
+            ))}
+          </div>
+
+          {/* Widget météo */}
+          {weather ? (
+            <div className="shrink-0 text-right">
+              <p className="text-2xl leading-none">{weather.icon}</p>
+              <p className="text-lg font-bold text-gray-800 dark:text-gray-100 leading-tight mt-0.5">{weather.temp}°</p>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-tight max-w-[80px] text-right">{weather.desc}</p>
+              {weather.city && <p className="text-[9px] text-gray-300 dark:text-gray-600 leading-tight">{weather.city}</p>}
+            </div>
+          ) : (
+            <div className="shrink-0 w-12 flex items-center justify-center">
+              <span className="text-xl animate-pulse">🌡️</span>
+            </div>
+          )}
         </div>
 
         {/* ── Barre stats hebdomadaires ── */}
