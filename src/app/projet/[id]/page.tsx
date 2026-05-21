@@ -3993,7 +3993,13 @@ function ProjectPageContent({ id }: { id: string }) {
                           {cabineDragMode ? (
                             <GripVertical className="w-4 h-4 text-gray-400 shrink-0" />
                           ) : (
-                            <span className={`w-8 h-8 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0 transition-colors ${installedCabineIndices.has(idx) ? "bg-green-600" : "bg-[#1e3a5f]"}`}>
+                            <span className={`w-8 h-8 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0 transition-colors ${
+                              installedCabineIndices.has(idx)
+                                ? "bg-green-600"
+                                : (!!cabine.arrivee || (project?.photosAvant || []).some(f => new RegExp(`\\.Cab${idx + 1}\\.`).test(f.name || "")))
+                                ? "bg-orange-500"
+                                : "bg-[#1e3a5f]"
+                            }`}>
                               {idx + 1}
                             </span>
                           )}
