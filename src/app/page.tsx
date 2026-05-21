@@ -435,16 +435,13 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
   onSwitchMode: (m: string) => void;
   isAdmin: boolean;
 }) {
-  const [expandedSection, setExpandedSection] = useState<string | null>(
-    mode.startsWith("grossistes") ? "grossistes" :
-    mode.startsWith("fournisseurs") ? "fournisseurs" : null
-  );
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const count = (m: string): number | null => {
     const v = projectsData[m];
     return Array.isArray(v) ? v.length : null;
   };
-  const isActive = (m: string) => mode === m || mode === `${m}-termine`;
+  const isActive = (m: string) => mode === m || mode === `${m}-termine` || ((m === "grossistes" || m === "fournisseurs") && mode.startsWith(`${m}-`));
 
   const activeSection =
     (mode === "projets-tous" || mode === "archives") ? "suivi" :
@@ -530,39 +527,11 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
 
       <SectionLabel>Catalogues</SectionLabel>
 
-      {/* Grossistes — expandable */}
-      <button
-        onClick={() => setExpandedSection(expandedSection === "grossistes" ? null : "grossistes")}
-        className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center gap-2.5 transition-all duration-150 ${
-          mode.startsWith("grossistes") ? "text-white/90" : "text-white/55 hover:text-white/85 hover:bg-white/[0.07]"
-        }`}
-      >
-        <ShoppingBag className="w-4 h-4 shrink-0" />
-        <span className="flex-1">Grossistes</span>
-        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${expandedSection === "grossistes" ? "rotate-180" : ""}`} />
-      </button>
-      {expandedSection === "grossistes" && (
-        <div className="flex flex-col gap-0.5">
-          {grossistesModes.map((m) => <SubItem key={m} m={m} label={grossistesLabels[m]} />)}
-        </div>
-      )}
+      {/* Grossistes — navigation directe (thème CMM) */}
+      <SideItem m="grossistes" Icon={ShoppingBag} label="Grossistes" showCount={false} />
 
-      {/* Fournisseurs — expandable */}
-      <button
-        onClick={() => setExpandedSection(expandedSection === "fournisseurs" ? null : "fournisseurs")}
-        className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center gap-2.5 transition-all duration-150 ${
-          mode.startsWith("fournisseurs") ? "text-white/90" : "text-white/55 hover:text-white/85 hover:bg-white/[0.07]"
-        }`}
-      >
-        <Package className="w-4 h-4 shrink-0" />
-        <span className="flex-1">Fournisseurs</span>
-        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${expandedSection === "fournisseurs" ? "rotate-180" : ""}`} />
-      </button>
-      {expandedSection === "fournisseurs" && (
-        <div className="flex flex-col gap-0.5">
-          {fournisseursModes.map((m) => <SubItem key={m} m={m} label={fournisseursLabels[m]} />)}
-        </div>
-      )}
+      {/* Fournisseurs — navigation directe (thème CMM) */}
+      <SideItem m="fournisseurs" Icon={Package} label="Fournisseurs" showCount={false} />
 
       <SectionLabel>Autres</SectionLabel>
       <SideItem m="sanitaires" Icon={Droplets} label="Sanitaires" showCount={false} />
