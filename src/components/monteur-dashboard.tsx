@@ -2012,14 +2012,29 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </p>
             <p className="text-[10px] text-gray-400 dark:text-gray-500 italic mt-0.5 leading-snug">&quot;{getDailyQuote(firstName)}&quot;</p>
           </div>
-          <button onClick={() => setShowWeekProjects(!showWeekProjects)} className="text-right hover:opacity-70 transition-opacity shrink-0">
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCabinesWeek}</p>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500">cab. cette sem. ▾</p>
-            {weekSummary && <p className="text-[9px] text-gray-400 mt-0.5">{weekSummary}</p>}
-          </button>
+          {/* Météo + cabines — colonne droite */}
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            {/* Widget météo */}
+            {weather ? (
+              <div className="text-right">
+                <p className="text-xl leading-none">{weather.icon}</p>
+                <p className="text-base font-bold text-gray-800 dark:text-gray-100 leading-tight">{weather.temp}°</p>
+                <p className="text-[9px] text-gray-400 dark:text-gray-500 leading-tight max-w-[72px] text-right">{weather.desc}</p>
+                {weather.city && <p className="text-[8px] text-gray-300 dark:text-gray-600 leading-tight">{weather.city}</p>}
+              </div>
+            ) : (
+              <span className="text-xl animate-pulse">🌡️</span>
+            )}
+            {/* Cabines semaine */}
+            <button onClick={() => setShowWeekProjects(!showWeekProjects)} className="text-right hover:opacity-70 transition-opacity">
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCabinesWeek}</p>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500">cab. cette sem. ▾</p>
+              {weekSummary && <p className="text-[9px] text-gray-400 mt-0.5">{weekSummary}</p>}
+            </button>
+          </div>
         </div>
 
-        {/* ── Résumé du jour + Météo ── */}
+        {/* ── Résumé du jour ── */}
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex gap-3 items-start">
           {/* Liste verticale services du jour */}
           <div className="flex-1 space-y-1.5">
@@ -2043,20 +2058,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </button>
             ))}
           </div>
-
-          {/* Widget météo */}
-          {weather ? (
-            <div className="shrink-0 text-right">
-              <p className="text-2xl leading-none">{weather.icon}</p>
-              <p className="text-lg font-bold text-gray-800 dark:text-gray-100 leading-tight mt-0.5">{weather.temp}°</p>
-              <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-tight max-w-[80px] text-right">{weather.desc}</p>
-              {weather.city && <p className="text-[9px] text-gray-300 dark:text-gray-600 leading-tight">{weather.city}</p>}
-            </div>
-          ) : (
-            <div className="shrink-0 w-12 flex items-center justify-center">
-              <span className="text-xl animate-pulse">🌡️</span>
-            </div>
-          )}
         </div>
 
         {/* ── Barre stats hebdomadaires ── */}

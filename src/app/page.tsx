@@ -783,7 +783,7 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
             <button
               key={action.id}
               onClick={() => onAction(action.id)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 sm:py-3 rounded-xl text-left transition-all duration-150 active:scale-[0.97]"
+              className={`w-full flex items-center rounded-xl text-left transition-all duration-150 active:scale-[0.97] ${action.logoSrc ? "justify-center py-4 px-6 gap-0" : "gap-3 px-4 py-3.5 sm:py-3"}`}
               style={{
                 background: "rgba(255,255,255,0.06)",
                 border: "1px solid rgba(255,255,255,0.08)",
@@ -791,7 +791,7 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
               onMouseEnter={(e) => {
                 const el = e.currentTarget;
                 el.style.background = "rgba(255,255,255,0.10)";
-                el.style.borderColor = "rgba(210,190,255,0.18)";
+                el.style.borderColor = "rgba(210,190,255,0.25)";
               }}
               onMouseLeave={(e) => {
                 const el = e.currentTarget;
@@ -799,32 +799,38 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
                 el.style.borderColor = "rgba(255,255,255,0.08)";
               }}
             >
-              {/* Icône ou logo action */}
               {action.logoSrc ? (
-                <div className="w-16 h-8 flex items-center justify-center shrink-0">
-                  <img src={action.logoSrc} alt={action.label} className="max-w-full max-h-full object-contain" />
-                </div>
+                /* Mode logo : image centrée grande, pas de texte */
+                <img
+                  src={action.logoSrc}
+                  alt={action.label}
+                  className="h-8 w-auto max-w-[160px] object-contain"
+                  style={{ filter: "drop-shadow(0 0 4px rgba(255,255,255,0.08))" }}
+                />
               ) : (
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(124,58,237,0.25)" }}
-                >
-                  <action.icon style={{ width: 15, height: 15, color: "rgba(210,190,255,0.85)" }} />
-                </div>
-              )}
-              {/* Texte */}
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.90)" }}>
-                  {action.label}
-                </div>
-                {action.sublabel && (
-                  <div className="text-xs mt-0.5 truncate" style={{ color: "rgba(210,190,255,0.38)" }}>
-                    {action.sublabel}
+                <>
+                  {/* Icône action */}
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: "rgba(124,58,237,0.25)" }}
+                  >
+                    <action.icon style={{ width: 15, height: 15, color: "rgba(210,190,255,0.85)" }} />
                   </div>
-                )}
-              </div>
-              {/* Chevron */}
-              <ChevronRight style={{ width: 14, height: 14, color: "rgba(210,190,255,0.30)", flexShrink: 0 }} />
+                  {/* Texte */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.90)" }}>
+                      {action.label}
+                    </div>
+                    {action.sublabel && (
+                      <div className="text-xs mt-0.5 truncate" style={{ color: "rgba(210,190,255,0.38)" }}>
+                        {action.sublabel}
+                      </div>
+                    )}
+                  </div>
+                  {/* Chevron */}
+                  <ChevronRight style={{ width: 14, height: 14, color: "rgba(210,190,255,0.30)", flexShrink: 0 }} />
+                </>
+              )}
             </button>
           ))}
         </div>
@@ -5357,14 +5363,14 @@ function HomePage() {
           title="Fournisseurs"
           subtitle="Accédez aux projets par fournisseur de produits"
           actions={[
-            { id: "fournisseurs-duka",         icon: Package, label: "Duka.ch"       },
-            { id: "fournisseurs-duscholux",     icon: Package, label: "Duscholux"     },
-            { id: "fournisseurs-kermi",         icon: Package, label: "Kermi"         },
-            { id: "fournisseurs-nelo",          icon: Package, label: "Nelo"          },
-            { id: "fournisseurs-novellini",     icon: Package, label: "Novellini"     },
-            { id: "fournisseurs-ronal",         icon: Package, label: "Ronal"         },
-            { id: "fournisseurs-samo",          icon: Package, label: "Samo"          },
-            { id: "fournisseurs-vismaravetro",  icon: Package, label: "Vismaravetro"  },
+            { id: "fournisseurs-duka",         icon: Package, label: "Duka.ch",      logoSrc: "/logos/fournisseurs/duka.ch-logo.png"    },
+            { id: "fournisseurs-duscholux",     icon: Package, label: "Duscholux",    logoSrc: "/logos/fournisseurs/Duscholux-logo.png"  },
+            { id: "fournisseurs-kermi",         icon: Package, label: "Kermi"                                                            },
+            { id: "fournisseurs-nelo",          icon: Package, label: "Nelo",         logoSrc: "/logos/fournisseurs/Nelo-logo.png"       },
+            { id: "fournisseurs-novellini",     icon: Package, label: "Novellini",    logoSrc: "/logos/fournisseurs/Novellini-logo.png"  },
+            { id: "fournisseurs-ronal",         icon: Package, label: "Ronal",        logoSrc: "/logos/fournisseurs/ronal-logo-v2.png"   },
+            { id: "fournisseurs-samo",          icon: Package, label: "Samo",         logoSrc: "/logos/fournisseurs/Samo-logo.png"       },
+            { id: "fournisseurs-vismaravetro",  icon: Package, label: "Vismaravetro"                                                     },
           ]}
           onAction={(id) => {
             setCmmHeroMode(null);
