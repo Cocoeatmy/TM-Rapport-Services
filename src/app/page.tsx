@@ -202,7 +202,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
     "grossistes-dubat": "/logos/fournisseurs/Dubat-Logo.png",
     "grossistes-tema": "/logos/fournisseurs/Tema-Logo.png",
     "grossistes-matway": "/logos/fournisseurs/Matway-Logo.png",
-    "grossistes-bringhen": "/logos/fournisseurs/Bringhen-logo.jpg",
+    "grossistes-bringhen": "/logos/fournisseurs/Bringhen-logo.png",
   };
   const isGrossisteActive = grossistesModes.includes(mode);
   const grossisteActiveLabel = grossistesLabels[mode] || "";
@@ -700,7 +700,7 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
   icon: React.ElementType;
   title: string;
   subtitle?: string;
-  actions: { id: string; icon: React.ElementType; label: string; sublabel?: string }[];
+  actions: { id: string; icon: React.ElementType; label: string; sublabel?: string; logoSrc?: string }[];
   onAction: (id: string) => void;
 }) {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -799,13 +799,19 @@ function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
                 el.style.borderColor = "rgba(255,255,255,0.08)";
               }}
             >
-              {/* Icône action */}
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                style={{ background: "rgba(124,58,237,0.25)" }}
-              >
-                <action.icon style={{ width: 15, height: 15, color: "rgba(210,190,255,0.85)" }} />
-              </div>
+              {/* Icône ou logo action */}
+              {action.logoSrc ? (
+                <div className="w-16 h-8 flex items-center justify-center shrink-0">
+                  <img src={action.logoSrc} alt={action.label} className="max-w-full max-h-full object-contain" />
+                </div>
+              ) : (
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(124,58,237,0.25)" }}
+                >
+                  <action.icon style={{ width: 15, height: 15, color: "rgba(210,190,255,0.85)" }} />
+                </div>
+              )}
               {/* Texte */}
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.90)" }}>
@@ -5329,11 +5335,11 @@ function HomePage() {
           title="Grossistes"
           subtitle="Accédez aux projets par grossiste partenaire"
           actions={[
-            { id: "grossistes-bms",      icon: ShoppingBag, label: "BMS"       },
-            { id: "grossistes-dubat",     icon: ShoppingBag, label: "Dubat"     },
-            { id: "grossistes-matway",    icon: ShoppingBag, label: "Matway"    },
-            { id: "grossistes-tema",      icon: ShoppingBag, label: "Tema Sàrl" },
-            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen"  },
+            { id: "grossistes-bms",      icon: ShoppingBag, label: "BMS",       logoSrc: "/logos/fournisseurs/BMS-Logo.png"      },
+            { id: "grossistes-dubat",     icon: ShoppingBag, label: "Dubat",     logoSrc: "/logos/fournisseurs/Dubat-Logo.png"     },
+            { id: "grossistes-matway",    icon: ShoppingBag, label: "Matway",    logoSrc: "/logos/fournisseurs/Matway-Logo.png"    },
+            { id: "grossistes-tema",      icon: ShoppingBag, label: "Tema Sàrl", logoSrc: "/logos/fournisseurs/Tema-Logo.png"      },
+            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen",  logoSrc: "/logos/fournisseurs/Bringhen-logo.png"  },
           ]}
           onAction={(id) => {
             setCmmHeroMode(null);
