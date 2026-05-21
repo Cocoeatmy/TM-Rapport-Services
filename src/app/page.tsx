@@ -5157,31 +5157,101 @@ function HomePage() {
 
       {/* VUE EMPLACEMENT CABINES */}
       {mode === "emplacement-cabines" && !(isCmm && cmmHeroMode === "emplacement-cabines") && (() => {
+        const EMPL_COLORS: Record<string, { badge: string; header: string }> = {
+          "Dépôt TM":                { badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",         header: "bg-amber-600 dark:bg-amber-700"    },
+          "Getaz Yverdon":           { badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",             header: "bg-blue-700 dark:bg-blue-800"      },
+          "Getaz Bussigny":          { badge: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",     header: "bg-indigo-700 dark:bg-indigo-800"  },
+          "Getaz Payerne":           { badge: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",                 header: "bg-sky-700 dark:bg-sky-800"        },
+          "Dubat Villars-ste-Croix": { badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",    header: "bg-purple-700 dark:bg-purple-800"  },
+          "Dubat Yverdon":           { badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",    header: "bg-violet-700 dark:bg-violet-800"  },
+          "Sanitas Villars-sur-Glâne":{ badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",           header: "bg-rose-700 dark:bg-rose-800"      },
+        };
+        const getEmplColor = (e: string) => {
+          if (EMPL_COLORS[e]) return EMPL_COLORS[e];
+          if (e.startsWith("Bringhen")) return { badge: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300", header: "bg-orange-600 dark:bg-orange-700" };
+          if (e.startsWith("Sanitas")) return { badge: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300", header: "bg-rose-700 dark:bg-rose-800" };
+          return { badge: "bg-gray-100 text-gray-600 dark:bg-gray-700/40 dark:text-gray-300", header: "bg-[#1e3a5f]" };
+        };
+
         const allActive = projectsData["emplacement-cabines"] || projectsData["all-active"] || [];
-        const q = deferredSearch.toLowerCase();
-        const emplacementProjects = allActive.filter((p: any) => {
-          if (quickFilter === "emplacement-a-placer" && p.emplacement) return false;
-          if (quickFilter === "emplacement-places" && !p.emplacement) return false;
-          return matchesSearch(p, q, searchIndex.get(p.id));
+        // Garder uniquement les projets avec un emplacement défini
+        const withEmplacement = allActive.filter((p: any) => !!p.emplacementCabine);
+
+        // Filtrer par quickFilter
+        const emplacementFiltered = withEmplacement.filter((p: any) => {
+          const e = (p.emplacementCabine || "").toLowerCase();
+          if (quickFilter === "emplacement-depot")   return e.includes("dépôt tm") || e.includes("depot tm");
+          if (quickFilter === "emplacement-getaz")   return e.includes("getaz");
+          if (quickFilter === "emplacement-dubat")   return e.includes("dubat");
+          if (quickFilter === "emplacement-bringhen")return e.includes("bringhen");
+          if (quickFilter === "emplacement-sanitas") return e.includes("sanitas");
+          return true;
         });
+
+        // Grouper par emplacement
+        const emplacementMap: Record<string, any[]> = {};
+        emplacementFiltered.forEach((p: any) => {
+          const keys = p.emplacementCabine ? p.emplacementCabine.split(", ") : ["Sans emplacement"];
+          keys.forEach((k: string) => {
+            if (!emplacementMap[k]) emplacementMap[k] = [];
+            emplacementMap[k].push(p);
+          });
+        });
+        const sortedKeys = Object.keys(emplacementMap).sort((a, b) => {
+          if (a === "Dépôt TM") return 1;
+          if (b === "Dépôt TM") return -1;
+          return a.localeCompare(b);
+        });
+
+        const totalCabines = emplacementFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
+
         return (
           <div>
             <div className="relative mb-4 max-w-lg">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input placeholder="Rechercher (nom, OFR...)" className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            <p className="text-sm text-gray-500 mb-3">
-              {emplacementProjects.length} cabine{emplacementProjects.length !== 1 ? "s" : ""}
+            <p className="text-sm text-gray-500 mb-4">
+              {emplacementFiltered.length} projet{emplacementFiltered.length !== 1 ? "s" : ""} · {totalCabines} cabine{totalCabines !== 1 ? "s" : ""}
             </p>
             {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
-            <div className="space-y-3">
-              {emplacementProjects.map((project: any) => (
-                <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
-              ))}
-              {emplacementProjects.length === 0 && !loading && (
-                <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun emplacement</p></div>
-              )}
-            </div>
+            {sortedKeys.length === 0 && !loading && (
+              <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucune cabine à afficher</p></div>
+            )}
+            {sortedKeys.map((empl) => {
+              const groupProjects = emplacementMap[empl];
+              const { header } = getEmplColor(empl);
+              const groupCab = groupProjects.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
+              return (
+                <div key={empl} className="mb-3">
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-xl shadow-sm mb-1 ${header}`}>
+                    <MapPin className="w-3.5 h-3.5 text-white/80 shrink-0" />
+                    <span className="text-sm font-bold text-white truncate">{empl}</span>
+                    <span className="ml-auto text-xs px-2 py-0.5 rounded-full font-semibold bg-white/20 text-white shrink-0">
+                      {groupProjects.length} projet{groupProjects.length > 1 ? "s" : ""} · {groupCab} cab.
+                    </span>
+                  </div>
+                  <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
+                    {groupProjects.map((p: any, idx: number) => {
+                      const rowBg = idx % 2 === 0 ? "bg-white dark:bg-slate-800/60" : "bg-gray-50 dark:bg-slate-900/40";
+                      return (
+                        <a key={p.id} href={`/projet/${p.id}?mode=dashboard`}
+                          className={`flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-sm ${rowBg}`}>
+                          <span className="font-mono text-xs text-gray-500 dark:text-gray-400 w-24 shrink-0 truncate">{p.ofrTM || "---"}</span>
+                          <span className="flex-1 min-w-0 font-medium text-gray-800 dark:text-gray-100 truncate">{p.projet}</span>
+                          {p.nbCabines > 0 && (
+                            <span className="shrink-0 text-xs font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                              {p.nbCabines} cab.
+                            </span>
+                          )}
+                          <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         );
       })()}
@@ -5512,9 +5582,12 @@ function HomePage() {
           title="Emplacement cabines"
           subtitle="Localisation et suivi des cabines installées"
           actions={[
-            { id: "all",      icon: MapPin,        label: "Tous les emplacements", sublabel: "Vue complète"                       },
-            { id: "a-placer", icon: AlertCircle,   label: "À placer",              sublabel: "Cabines sans emplacement défini"    },
-            { id: "places",   icon: ShieldCheck,   label: "Placées",               sublabel: "Cabines avec emplacement renseigné" },
+            { id: "all",     icon: MapPin,      label: "Tous les emplacements", sublabel: "Vue complète"                         },
+            { id: "depot",   icon: Archive,     label: "Dépôt TM",              sublabel: "Cabines stockées chez TM"             },
+            { id: "getaz",   icon: ShoppingBag, label: "Getaz",                 sublabel: "Getaz Yverdon · Bussigny · Payerne"   },
+            { id: "dubat",   icon: ShoppingBag, label: "Dubat",                 sublabel: "Dubat Villars-ste-Croix · Yverdon"    },
+            { id: "bringhen",icon: ShoppingBag, label: "Bringhen",              sublabel: "Dépôt Bringhen"                       },
+            { id: "sanitas", icon: ShoppingBag, label: "Sanitas Troesch",       sublabel: "Dépôt Sanitas"                        },
           ]}
           onAction={(id) => {
             setCmmHeroMode(null);
