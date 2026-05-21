@@ -5348,11 +5348,11 @@ function HomePage() {
           title="Grossistes"
           subtitle="Accédez aux projets par grossiste partenaire"
           actions={[
-            { id: "grossistes-bms",      icon: ShoppingBag, label: "BMS",       logoSrc: "/logos/fournisseurs/BMS-Logo.png"      },
-            { id: "grossistes-dubat",     icon: ShoppingBag, label: "Dubat",     logoSrc: "/logos/fournisseurs/Dubat-Logo.png"     },
-            { id: "grossistes-matway",    icon: ShoppingBag, label: "Matway",    logoSrc: "/logos/fournisseurs/Matway-Logo.png"    },
-            { id: "grossistes-tema",      icon: ShoppingBag, label: "Tema Sàrl", logoSrc: "/logos/fournisseurs/Tema-Logo.png"      },
-            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen",  logoSrc: "/logos/fournisseurs/Bringhen-logo.png"  },
+            { id: "grossistes-bms",      icon: ShoppingBag, label: "BMS",       logoSrc: "/logos/fournisseurs/BMS-Logo-cmm.png"      },
+            { id: "grossistes-dubat",     icon: ShoppingBag, label: "Dubat",     logoSrc: "/logos/fournisseurs/Dubat-Logo.png"         },
+            { id: "grossistes-matway",    icon: ShoppingBag, label: "Matway",    logoSrc: "/logos/fournisseurs/Matway-Logo.png"        },
+            { id: "grossistes-tema",      icon: ShoppingBag, label: "Tema Sàrl", logoSrc: "/logos/fournisseurs/Tema-Logo.png"          },
+            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen",  logoSrc: "/logos/fournisseurs/Bringhen-logo-cmm.png"  },
           ]}
           onAction={(id) => {
             setCmmHeroMode(null);
