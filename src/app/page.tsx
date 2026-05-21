@@ -207,16 +207,17 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
   const isGrossisteActive = grossistesModes.includes(mode);
   const grossisteActiveLabel = grossistesLabels[mode] || "";
 
-  const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-kermi", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-ronal", "fournisseurs-samo", "fournisseurs-vismaravetro"];
-  const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-kermi": "Kermi", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-ronal": "Ronal", "fournisseurs-samo": "Samo", "fournisseurs-vismaravetro": "Vismaravetro" };
+  const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-kermi", "fournisseurs-koralle", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-ronal", "fournisseurs-samo", "fournisseurs-vismaravetro"];
+  const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-kermi": "Kermi", "fournisseurs-koralle": "Koralle", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-ronal": "Ronal", "fournisseurs-samo": "Samo", "fournisseurs-vismaravetro": "Vismaravetro" };
   const fournisseursLogos: Record<string, string> = {
-    "fournisseurs-duka": "/logos/fournisseurs/duka.ch-logo.png",
+    "fournisseurs-duka": "/logos/fournisseurs/Duka-logo.png",
     "fournisseurs-duscholux": "/logos/fournisseurs/Duscholux-logo.png",
     "fournisseurs-kermi": "/logos/fournisseurs/Kermi-logo.png",
-    "fournisseurs-nelo": "/logos/fournisseurs/Nelo-logo.jpg",
+    "fournisseurs-koralle": "/logos/fournisseurs/Koralle-logo.png",
+    "fournisseurs-nelo": "/logos/fournisseurs/Nelo-logo.png",
     "fournisseurs-novellini": "/logos/fournisseurs/Novellini-logo.png",
-    "fournisseurs-ronal": "/logos/fournisseurs/ronal-logo-v2.png",
-    "fournisseurs-samo": "/logos/fournisseurs/Samo-logo.jpg",
+    "fournisseurs-ronal": "/logos/fournisseurs/Ronal-logo.png",
+    "fournisseurs-samo": "/logos/fournisseurs/Samo-logo.png",
     "fournisseurs-vismaravetro": "/logos/fournisseurs/Vismaravetro-logo.png",
   };
   const isFournisseursActive = fournisseursModes.includes(mode);
@@ -382,11 +383,14 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
             const isActive = mode === m;
             const logoScale: Record<string, number> = {
               "fournisseurs-duka": 1.8,
-              "fournisseurs-duscholux": 1.6,
+              "fournisseurs-duscholux": 2,
+              "fournisseurs-kermi": 1.6,
+              "fournisseurs-koralle": 1.8,
               "fournisseurs-ronal": 2.2,
               "fournisseurs-nelo": 2,
               "fournisseurs-novellini": 1,
-              "fournisseurs-samo": 2.2,
+              "fournisseurs-samo": 1.8,
+              "fournisseurs-vismaravetro": 1.6,
             };
             const scale = logoScale[m] || 1;
             const w = Math.round(104 * scale);
@@ -484,8 +488,8 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
 
   const grossistesModes = ["grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen"];
   const grossistesLabels: Record<string, string> = { grossistes: "Tous", "grossistes-bms": "BMS", "grossistes-dubat": "Dubat", "grossistes-tema": "Tema Sàrl", "grossistes-matway": "MatWay", "grossistes-bringhen": "Bringhen" };
-  const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo"];
-  const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-ronal": "Ronal", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-samo": "Samo" };
+  const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-kermi", "fournisseurs-koralle", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-ronal", "fournisseurs-samo", "fournisseurs-vismaravetro"];
+  const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-kermi": "Kermi", "fournisseurs-koralle": "Koralle", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-ronal": "Ronal", "fournisseurs-samo": "Samo", "fournisseurs-vismaravetro": "Vismaravetro" };
 
   const SubItem = ({ m, label }: { m: string; label: string }) => {
     const active = mode === m;
@@ -1092,8 +1096,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "stats", "archives", "projets-tous", "destockage", "sanitaires"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -1408,9 +1412,12 @@ function HomePage() {
     "fournisseurs-duka": "/api/projects/all-active",
     "fournisseurs-duscholux": "/api/projects/all-active",
     "fournisseurs-ronal": "/api/projects/all-active",
+    "fournisseurs-kermi": "/api/projects/all-active",
+    "fournisseurs-koralle": "/api/projects/all-active",
     "fournisseurs-nelo": "/api/projects/all-active",
     "fournisseurs-novellini": "/api/projects/all-active",
     "fournisseurs-samo": "/api/projects/all-active",
+    "fournisseurs-vismaravetro": "/api/projects/all-active",
     stats: "/api/projects/all-active",
     archives: "/api/projects/cmd-termine", // overridden by combined fetch below
     "projets-tous": "/api/projects/all",
@@ -2710,8 +2717,8 @@ function HomePage() {
         const allCmd = projectsData[mode] || projectsData["fournisseurs"] || [];
         const fournisseurNameFilter: Record<string, string> = {
           "fournisseurs-duka": "Duka", "fournisseurs-duscholux": "Duscholux", "fournisseurs-kermi": "Kermi",
-          "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-ronal": "Ronal",
-          "fournisseurs-samo": "Samo", "fournisseurs-vismaravetro": "Vismaravetro",
+          "fournisseurs-koralle": "Koralle", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini",
+          "fournisseurs-ronal": "Ronal", "fournisseurs-samo": "Samo", "fournisseurs-vismaravetro": "Vismaravetro",
         };
         const nameFilter = fournisseurNameFilter[mode];
         const fournisseursProjects = allCmd.filter((p) => {
@@ -5363,14 +5370,15 @@ function HomePage() {
           title="Fournisseurs"
           subtitle="Accédez aux projets par fournisseur de produits"
           actions={[
-            { id: "fournisseurs-duka",         icon: Package, label: "Duka.ch",      logoSrc: "/logos/fournisseurs/duka.ch-logo.png"    },
-            { id: "fournisseurs-duscholux",     icon: Package, label: "Duscholux",    logoSrc: "/logos/fournisseurs/Duscholux-logo.png"  },
-            { id: "fournisseurs-kermi",         icon: Package, label: "Kermi"                                                            },
-            { id: "fournisseurs-nelo",          icon: Package, label: "Nelo",         logoSrc: "/logos/fournisseurs/Nelo-logo.png"       },
-            { id: "fournisseurs-novellini",     icon: Package, label: "Novellini",    logoSrc: "/logos/fournisseurs/Novellini-logo.png"  },
-            { id: "fournisseurs-ronal",         icon: Package, label: "Ronal",        logoSrc: "/logos/fournisseurs/ronal-logo-v2.png"   },
-            { id: "fournisseurs-samo",          icon: Package, label: "Samo",         logoSrc: "/logos/fournisseurs/Samo-logo.png"       },
-            { id: "fournisseurs-vismaravetro",  icon: Package, label: "Vismaravetro"                                                     },
+            { id: "fournisseurs-duka",         icon: Package, label: "Duka.ch",      logoSrc: "/logos/fournisseurs/Duka-logo-cmm.png"         },
+            { id: "fournisseurs-duscholux",     icon: Package, label: "Duscholux",    logoSrc: "/logos/fournisseurs/Duscholux-logo-cmm.png"     },
+            { id: "fournisseurs-kermi",         icon: Package, label: "Kermi",        logoSrc: "/logos/fournisseurs/Kermi-logo-cmm.png"         },
+            { id: "fournisseurs-koralle",       icon: Package, label: "Koralle",      logoSrc: "/logos/fournisseurs/Koralle-logo-cmm.png"       },
+            { id: "fournisseurs-nelo",          icon: Package, label: "Nelo",         logoSrc: "/logos/fournisseurs/Nelo-logo.png"              },
+            { id: "fournisseurs-novellini",     icon: Package, label: "Novellini",    logoSrc: "/logos/fournisseurs/Novellini-logo.png"         },
+            { id: "fournisseurs-ronal",         icon: Package, label: "Ronal",        logoSrc: "/logos/fournisseurs/Ronal-logo-cmm.png"         },
+            { id: "fournisseurs-samo",          icon: Package, label: "Samo",         logoSrc: "/logos/fournisseurs/Samo-logo-cmm.png"          },
+            { id: "fournisseurs-vismaravetro",  icon: Package, label: "Vismaravetro", logoSrc: "/logos/fournisseurs/Vismaravetro-logo-cmm.png"  },
           ]}
           onAction={(id) => {
             setCmmHeroMode(null);
