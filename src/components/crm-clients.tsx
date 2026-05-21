@@ -975,11 +975,17 @@ export function CRMClients({ mode, isAdmin, filterTag }: { mode: ClientMode; isA
   const filtered = useMemo(() => {
     let result = entries;
     // Filtre par étiquette (depuis hero CMM)
+    // Cherche dans TOUTES les propriétés (multi_select, select, text…) pour
+    // être compatible quel que soit le nom de champ utilisé dans Notion.
     if (filterTag) {
-      result = result.filter((e) => {
-        const etiquettes = Array.isArray(e.properties["Étiquettes"]) ? e.properties["Étiquettes"] : [];
-        return etiquettes.some((t: string) => t.toLowerCase() === filterTag.toLowerCase());
-      });
+      const lc = filterTag.toLowerCase();
+      result = result.filter((e) =>
+        Object.values(e.properties).some((v) => {
+          if (Array.isArray(v)) return v.some((item: unknown) => typeof item === "string" && item.toLowerCase() === lc);
+          if (typeof v === "string") return v.toLowerCase() === lc;
+          return false;
+        })
+      );
     }
     if (!search.trim()) return result;
     const q = search.toLowerCase();
