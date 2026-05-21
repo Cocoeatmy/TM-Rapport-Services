@@ -113,12 +113,14 @@ function BucketPhotoUpload({
   projectId,
   project,
   setProject,
+  onAutoFill,
 }: {
   bucket: PhotoBucketKey;
   cabineIdx?: number;
   projectId: string;
   project: Project | null;
   setProject: React.Dispatch<React.SetStateAction<Project | null>>;
+  onAutoFill?: (bucket: PhotoBucketKey, captureTime: string, cabineIdx?: number) => void;
 }) {
   if (!project) return null;
   const notionFieldKey = BUCKET_NOTION_FIELD[bucket];
@@ -197,6 +199,14 @@ function BucketPhotoUpload({
         existingPhotos={existingPhotos}
         onUpload={handleUpload}
         onDelete={handleDelete}
+        onFilesSelected={(files) => {
+          if (onAutoFill && files.length > 0) {
+            const t = new Date(files[0].lastModified);
+            const hh = String(t.getHours()).padStart(2, "0");
+            const mm = String(t.getMinutes()).padStart(2, "0");
+            onAutoFill(bucket, `${hh}:${mm}`, cabineIdx);
+          }
+        }}
       />
     </div>
   );
@@ -213,11 +223,13 @@ function CombinedMontageUpload({
   projectId,
   project,
   setProject,
+  onAutoFill,
 }: {
   cabineIdx?: number;
   projectId: string;
   project: Project | null;
   setProject: React.Dispatch<React.SetStateAction<Project | null>>;
+  onAutoFill?: (bucket: PhotoBucketKey, captureTime: string, cabineIdx?: number) => void;
 }) {
   if (!project) return null;
   const fieldDefault = defaultBucketForField("photosMontage");
@@ -273,6 +285,14 @@ function CombinedMontageUpload({
         existingPhotos={existingPhotos}
         onUpload={handleUpload}
         onDelete={handleDelete}
+        onFilesSelected={(files) => {
+          if (onAutoFill && files.length > 0) {
+            const t = new Date(files[0].lastModified);
+            const hh = String(t.getHours()).padStart(2, "0");
+            const mm = String(t.getMinutes()).padStart(2, "0");
+            onAutoFill("MONTAGE_GAUCHE", `${hh}:${mm}`, cabineIdx);
+          }
+        }}
       />
     </div>
   );
@@ -2259,7 +2279,7 @@ function ProjectPageContent({ id }: { id: string }) {
   }>({ rapport: "", commentaires: "", heureArrivee: "", heureDepart: "" });
   // Notif discret si on n'a pas pu fusionner automatiquement (conflit).
   const [collabUpdateToast, setCollabUpdateToast] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email?: string } | null>(null);
   const [showRapport, setShowRapport] = useState(false);
   // Clé de rafraîchissement pour DefautsList : incrémentée à chaque
   // nouveau défaut soumis pour forcer le rechargement des données KV.
@@ -2301,6 +2321,17 @@ function ProjectPageContent({ id }: { id: string }) {
   const [rapport, setRapport] = useState("");
   const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
+
+  // ── Auto-fill depuis email connecté (hors admin) ──────────────────────────
+  const EMAIL_TO_COLLAB: Record<string, string> = {
+    "tm.douche.montage.1@gmail.com": "Claudio",
+    "tm.douche.montage.2@gmail.com": "Jean-Marc",
+    "tm.douche.montage.3@gmail.com": "Jacobo",
+    "tm.douche.montage.4@gmail.com": "Miguel",
+    "tm.douche.montage.5@gmail.com": "Loïc",
+  };
+  const autoCollab = currentUser?.email ? (EMAIL_TO_COLLAB[currentUser.email] ?? null) : null;
+
   // ── Drag-and-drop reorder cabines ────────────────────────────────────────
   const [cabineDragMode, setCabineDragMode] = useState(false);
   const [dragCabSrc, setDragCabSrc] = useState<number | null>(null);
@@ -2373,6 +2404,97 @@ function ProjectPageContent({ id }: { id: string }) {
   const today = new Date().toISOString().split("T")[0];
   const [pointages, setPointages] = useState<PointageEntry[]>([]);
   const [isMultiDay, setIsMultiDay] = useState(false);
+
+  // ── Auto-remplissage depuis la prise de photo ─────────────────────────────
+  // Déclenché dès que l'utilisateur sélectionne des fichiers dans un champ
+  // photo du rapport. Ne remplace jamais une valeur déjà saisie manuellement.
+  // Ignoré si l'utilisateur connecté est ferreira.micael@gmail.com.
+  const handleAutoFill = useCallback((
+    bucket: PhotoBucketKey,
+    captureTime: string,
+    cabineIdx?: number,
+  ) => {
+    const userCollab = autoCollab;
+    const todayStr = new Date().toISOString().split("T")[0];
+    const isMontageOrAfter = (b: string) =>
+      ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE", "APRES_INTERVENTION"].includes(b);
+
+    if (isCabineMode && cabineIdx !== undefined) {
+      const idx0 = cabineIdx - 1; // cabineIdx est 1-based
+      const next = cabines.map((c, i) => {
+        if (i !== idx0) return c;
+        const u = { ...c };
+        // Jour du montage : toujours rempli avec aujourd'hui si vide
+        if (!u.date) u.date = todayStr;
+        // Heure d'arrivée : photos avant intervention
+        if (bucket === "AVANT_INTERVENTION" && !u.arrivee) u.arrivee = captureTime;
+        // Heure de départ : photos montage ou après intervention
+        if (isMontageOrAfter(bucket) && !u.depart) u.depart = captureTime;
+        // Monteur responsable : utilisateur actuel (si non admin)
+        if (userCollab && !u.monteur) u.monteur = userCollab;
+        return u;
+      });
+      const changed = next.some((c, i) =>
+        c.date !== cabines[i].date ||
+        c.arrivee !== cabines[i].arrivee ||
+        c.depart !== cabines[i].depart ||
+        c.monteur !== cabines[i].monteur
+      );
+      if (!changed) return;
+      setCabines(next);
+      // PATCH heures immédiatement
+      const arriveeStr = next
+        .map((c, i) => (!c.arrivee && !c.date ? "" : `Cab${i + 1}:${c.date ? `${c.date}:` : ""}${c.arrivee}`))
+        .filter(Boolean).join(" | ");
+      const departStr = next
+        .map((c, i) => (!c.depart && !c.date ? "" : `Cab${i + 1}:${c.date ? `${c.date}:` : ""}${c.depart}`))
+        .filter(Boolean).join(" | ");
+      offlineFetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ heureArrivee: arriveeStr, heureDepart: departStr }),
+      }).catch(console.error);
+      // PATCH attribution si monteur auto-assigné
+      if (userCollab && next[idx0].monteur !== cabines[idx0].monteur) {
+        offlineFetch("/api/cabine-attribution", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: id,
+            attribution: next.map((c) => c.monteur),
+            noms: next.map((c, i) => c.nom || `Cabine ${i + 1}`),
+          }),
+        }).catch(console.error);
+      }
+    } else {
+      // Mode simple (1 cabine) ou multi-jour
+      if (bucket === "AVANT_INTERVENTION" && !heureArrivee) {
+        setHeureArrivee(captureTime);
+        offlineFetch(`/api/projects/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ heureArrivee: captureTime }),
+        }).catch(console.error);
+      }
+      if (isMontageOrAfter(bucket) && !heureDepart) {
+        setHeureDepart(captureTime);
+        offlineFetch(`/api/projects/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ heureDepart: captureTime }),
+        }).catch(console.error);
+      }
+      // Collaborateur (field "collaborateurs" in Notion)
+      if (userCollab && !project?.collaborateurs) {
+        setProject((prev) => prev ? { ...prev, collaborateurs: userCollab } : prev);
+        offlineFetch(`/api/projects/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ collaborateurs: userCollab }),
+        }).catch(console.error);
+      }
+    }
+  }, [isCabineMode, cabines, autoCollab, heureArrivee, heureDepart, project?.collaborateurs, id]);
 
   const addPointage = () => {
     setPointages((prev) => [...prev, { date: today, collaborateur: "", arrivee: "", depart: "" }]);
@@ -3884,10 +4006,10 @@ function ProjectPageContent({ id }: { id: string }) {
                       </div>
                     </div>
                     <Separator />
-                    <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} />
-                    <BucketPhotoUpload bucket="DEMONTAGE" projectId={id} project={project} setProject={setProject} />
-                    <CombinedMontageUpload projectId={id} project={project} setProject={setProject} />
-                    <BucketPhotoUpload bucket="APRES_INTERVENTION" projectId={id} project={project} setProject={setProject} />
+                    <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+                    <BucketPhotoUpload bucket="DEMONTAGE" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+                    <CombinedMontageUpload projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+                    <BucketPhotoUpload bucket="APRES_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
                     <BucketPhotoUpload bucket="QR_CODE" projectId={id} project={project} setProject={setProject} />
                     <BucketPhotoUpload bucket="GARANTIE" projectId={id} project={project} setProject={setProject} />
                     <Separator />
@@ -4170,10 +4292,10 @@ function ProjectPageContent({ id }: { id: string }) {
                           </div>
 
                           {/* Photos cabine */}
-                          <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
                           <BucketPhotoUpload bucket="DEMONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                          <CombinedMontageUpload cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                          <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                          <CombinedMontageUpload cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+                          <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
                           <BucketPhotoUpload bucket="QR_CODE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                           <BucketPhotoUpload bucket="GARANTIE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
                         </CardContent>

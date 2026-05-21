@@ -22,6 +22,8 @@ interface PhotoUploadProps {
   onUpload?: (files: { name: string; url: string }[]) => void;
   /** Appelé après une suppression (le parent doit PATCH Notion avec la liste mise à jour) */
   onDelete?: (files: { name: string; url: string }[]) => void;
+  /** Appelé dès que l'utilisateur sélectionne des fichiers (avant upload/compression) */
+  onFilesSelected?: (files: File[]) => void;
 }
 
 export function PhotoUpload({
@@ -33,6 +35,7 @@ export function PhotoUpload({
   existingPhotos = [],
   onUpload,
   onDelete,
+  onFilesSelected,
 }: PhotoUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -80,6 +83,7 @@ export function PhotoUpload({
     uploadingRef.current = true;
 
     const originals: File[] = Array.from(files);
+    onFilesSelected?.(originals);
 
     const newPreviews: string[] = [];
     for (const file of originals) {
