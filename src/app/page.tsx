@@ -536,6 +536,9 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
 
       <SectionLabel>Autres</SectionLabel>
       <SideItem m="a-facturer" Icon={Receipt} label="À facturer" showCount={false} />
+      <SideItem m="collaborateurs" Icon={UsersIcon} label="Collaborateurs" showCount={false} />
+      <SideItem m="emplacement-cabines" Icon={MapPin} label="Emplacement cabines" showCount={false} />
+      <SideItem m="calendrier" Icon={Calendar} label="Calendrier" showCount={false} />
       <SideItem m="rapport" Icon={FileText} label="Rapport" showCount={false} />
       <SideItem m="destockage" Icon={Archive} label="Déstockage" showCount={false} />
       {isAdmin && <SideItem m="stats" Icon={BarChart2} label="Stats" showCount={false} />}
@@ -1066,8 +1069,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -1124,6 +1127,7 @@ function HomePage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(statusParam);
   const [collabFilter, setCollabFilter] = useState<string | null>(collabParam || collaborateurParam);
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
+  const [rapportSubFilter, setRapportSubFilter] = useState<"en-cours" | "en-attente" | "cloture" | null>(null);
   // CleanMyMac : contrôle l'affichage du hero par mode (null = liste normale)
   const [cmmHeroMode, setCmmHeroMode] = useState<string | null>(null);
   const [crmTagFilter, setCrmTagFilter] = useState<string | null>(null);
@@ -1372,6 +1376,9 @@ function HomePage() {
     sav: "/api/projects/sav",
     "sav-termine": "/api/projects/sav-termine",
     rapport: "/api/projects/cmd-termine",
+    "collaborateurs": "/api/projects/all-active",
+    "emplacement-cabines": "/api/projects/all-active",
+    "calendrier": "/api/projects/all-active",
     grossistes: "/api/projects/all-active",
     "grossistes-bms": "/api/projects/all-active",
     "grossistes-dubat": "/api/projects/all-active",
@@ -1659,7 +1666,9 @@ function HomePage() {
   const rdvAFixerCount = mode === "cmd" ? projects.filter((p) => p.etatCMD === "Cabine à aller chercher" || p.etatCMD === "Récéptionné - RDV à fixer").length : 0;
 
   const filtered = projects.filter((p) => {
-    if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) {
+    if (collabFilter === "Binôme") {
+      if (!p.collaborateurs.includes(",")) return false;
+    } else if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) {
       return false;
     }
     const statusVal = getStatusVal(p);
@@ -1901,7 +1910,7 @@ function HomePage() {
           isAdmin={currentUser?.role === "admin" || false}
           onSwitchMode={(m: string) => {
             setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               fetch("/api/projects/all").then((r) => r.json()).then((data) => {
@@ -1931,7 +1940,7 @@ function HomePage() {
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             // CMM : afficher le hero pour les modes qui en ont un
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
@@ -1970,7 +1979,7 @@ function HomePage() {
             )}
           </button>
 
-          {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
+          {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
             <button
               onClick={() => setShowNewProject(true)}
               className="w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
@@ -2058,16 +2067,29 @@ function HomePage() {
           return dB.localeCompare(dA);
         });
 
+        // Filtrage par sous-catégorie CMM
+        const rapportBase = rapportSubFilter
+          ? sorted.filter((p) => {
+              const isTermine = ["cmd-termine", "services-termine", "sav-termine"].some((k) =>
+                (projectsData[k] || []).some((r: any) => r.id === p.id)
+              );
+              if (rapportSubFilter === "en-cours") return !isTermine;
+              if (rapportSubFilter === "en-attente") return isTermine && !p.rapportMonteur;
+              if (rapportSubFilter === "cloture") return isTermine && !!p.rapportMonteur;
+              return true;
+            })
+          : sorted;
+
         // Filter by search
         const q = rapportSearch.toLowerCase();
         const rapportFiltered = q
-          ? sorted.filter((p) =>
+          ? rapportBase.filter((p) =>
               p.projet.toLowerCase().includes(q) ||
               p.ofrTM.toLowerCase().includes(q) ||
               p.collaborateurs.toLowerCase().includes(q) ||
               p.nomChantier.toLowerCase().includes(q)
             )
-          : sorted;
+          : rapportBase;
 
         // Group by month
         const grouped: Record<string, Project[]> = {};
@@ -2087,6 +2109,17 @@ function HomePage() {
 
         return (
           <div>
+            {/* Chip sous-filtre CMM Rapport */}
+            {rapportSubFilter && (
+              <div className="mb-4 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-sm font-medium">
+                  {rapportSubFilter === "en-cours" ? "Rapport en cours" : rapportSubFilter === "en-attente" ? "Rapport en attente" : "Rapport clôturé"}
+                  <button onClick={() => setRapportSubFilter(null)} className="ml-1 hover:text-purple-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              </div>
+            )}
             {/* Consultation des rapports — déplacé depuis Stats */}
             {consultationsData && (
               <div className="mb-5">
@@ -4322,7 +4355,7 @@ function HomePage() {
       })()}
 
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && mode !== "a-facturer" && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && viewMode === "list" && (
         <div className="flex gap-3 mb-4">
           <button
             onClick={() => setViewMode("calendar")}
@@ -5122,6 +5155,80 @@ function HomePage() {
         );
       })()}
 
+      {/* VUE EMPLACEMENT CABINES */}
+      {mode === "emplacement-cabines" && !(isCmm && cmmHeroMode === "emplacement-cabines") && (() => {
+        const allActive = projectsData["emplacement-cabines"] || projectsData["all-active"] || [];
+        const q = deferredSearch.toLowerCase();
+        const emplacementProjects = allActive.filter((p: any) => {
+          if (quickFilter === "emplacement-a-placer" && p.emplacement) return false;
+          if (quickFilter === "emplacement-places" && !p.emplacement) return false;
+          return matchesSearch(p, q, searchIndex.get(p.id));
+        });
+        return (
+          <div>
+            <div className="relative mb-4 max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input placeholder="Rechercher (nom, OFR...)" className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <p className="text-sm text-gray-500 mb-3">
+              {emplacementProjects.length} cabine{emplacementProjects.length !== 1 ? "s" : ""}
+            </p>
+            {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
+            <div className="space-y-3">
+              {emplacementProjects.map((project: any) => (
+                <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
+              ))}
+              {emplacementProjects.length === 0 && !loading && (
+                <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun emplacement</p></div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* VUE CALENDRIER */}
+      {mode === "calendrier" && !(isCmm && cmmHeroMode === "calendrier") && (() => {
+        const today = formatLocalDate(new Date());
+        const allActive = projectsData["calendrier"] || projectsData["all-active"] || [];
+        const q = deferredSearch.toLowerCase();
+        const calProjects = allActive.filter((p: any) => {
+          const date = p.dateMontage || p.dateMesures;
+          if (quickFilter === "calendrier-today" && date !== today) return false;
+          if (quickFilter === "calendrier-week") {
+            if (!date) return false;
+            const d = new Date(date);
+            const now = new Date();
+            const in7 = new Date(now); in7.setDate(now.getDate() + 7);
+            if (d < now || d > in7) return false;
+          }
+          return matchesSearch(p, q, searchIndex.get(p.id));
+        }).sort((a: any, b: any) => {
+          const dA = a.dateMontage || a.dateMesures || "";
+          const dB = b.dateMontage || b.dateMesures || "";
+          return dA.localeCompare(dB);
+        });
+        return (
+          <div>
+            <div className="relative mb-4 max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input placeholder="Rechercher (nom, OFR...)" className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <p className="text-sm text-gray-500 mb-3">
+              {calProjects.length} intervention{calProjects.length !== 1 ? "s" : ""}
+            </p>
+            {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
+            <div className="space-y-3">
+              {calProjects.map((project: any) => (
+                <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
+              ))}
+              {calProjects.length === 0 && !loading && (
+                <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucune intervention planifiée</p></div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* VUE DÉSTOCKAGE — inventaire des cabines en stock + action déstocker */}
       {mode === "destockage" && (
         <DestockageView isAdmin={currentUser?.role === "admin"} />
@@ -5349,6 +5456,94 @@ function HomePage() {
       )}
 
       {/* ======================================================== */}
+      {/* CleanMyMac Hero — Rapport                                */}
+      {/* ======================================================== */}
+      {isCmm && mode === "rapport" && cmmHeroMode === "rapport" && (
+        <CmmSectionLanding
+          icon={FileText}
+          title="Rapport"
+          subtitle="Suivi et envoi des rapports de montage"
+          actions={[
+            { id: "en-cours",   icon: FolderOpen,   label: "Rapport en cours",   sublabel: "Montages débutés — cabines manquantes" },
+            { id: "en-attente", icon: AlertCircle,  label: "Rapport en attente", sublabel: "Montage terminé — rapport non envoyé"  },
+            { id: "cloture",    icon: Archive,      label: "Rapport clôturé",    sublabel: "Rapport envoyé au client"              },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setRapportSubFilter(id as "en-cours" | "en-attente" | "cloture");
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* CleanMyMac Hero — Collaborateurs                         */}
+      {/* ======================================================== */}
+      {isCmm && mode === "collaborateurs" && cmmHeroMode === "collaborateurs" && (
+        <CmmSectionLanding
+          icon={UsersIcon}
+          title="Collaborateurs"
+          subtitle="Projets par collaborateur"
+          actions={[
+            { id: "Claudio",   icon: UsersIcon, label: "Claudio"   },
+            { id: "Jean-Marc", icon: UsersIcon, label: "Jean-Marc" },
+            { id: "Jacobo",    icon: UsersIcon, label: "Jacobo"    },
+            { id: "Miguel",    icon: UsersIcon, label: "Miguel"     },
+            { id: "Loïc",      icon: UsersIcon, label: "Loïc"      },
+            { id: "binome",    icon: UsersIcon, label: "Binôme",   sublabel: "Projets à plusieurs collaborateurs" },
+            { id: "Team TM",   icon: UsersIcon, label: "Team",     sublabel: "Projets assignés à toute l'équipe"  },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            if (id === "binome") {
+              setCollabFilter("Binôme");
+            } else {
+              setCollabFilter(id);
+            }
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* CleanMyMac Hero — Emplacement cabines                    */}
+      {/* ======================================================== */}
+      {isCmm && mode === "emplacement-cabines" && cmmHeroMode === "emplacement-cabines" && (
+        <CmmSectionLanding
+          icon={MapPin}
+          title="Emplacement cabines"
+          subtitle="Localisation et suivi des cabines installées"
+          actions={[
+            { id: "all",      icon: MapPin,        label: "Tous les emplacements", sublabel: "Vue complète"                       },
+            { id: "a-placer", icon: AlertCircle,   label: "À placer",              sublabel: "Cabines sans emplacement défini"    },
+            { id: "places",   icon: ShieldCheck,   label: "Placées",               sublabel: "Cabines avec emplacement renseigné" },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setQuickFilter(id === "all" ? null : `emplacement-${id}`);
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* CleanMyMac Hero — Calendrier                             */}
+      {/* ======================================================== */}
+      {isCmm && mode === "calendrier" && cmmHeroMode === "calendrier" && (
+        <CmmSectionLanding
+          icon={Calendar}
+          title="Calendrier"
+          subtitle="Planning et agenda des interventions"
+          actions={[
+            { id: "today", icon: CalendarDays, label: "Aujourd'hui",      sublabel: "Interventions du jour"          },
+            { id: "week",  icon: Calendar,     label: "Cette semaine",    sublabel: "Planning des 7 prochains jours" },
+            { id: "all",   icon: FolderOpen,   label: "Tout le planning", sublabel: "Vue complète du calendrier"     },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setQuickFilter(id === "all" ? null : `calendrier-${id}`);
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
       {/* CleanMyMac Hero — Grossistes                              */}
       {/* ======================================================== */}
       {isCmm && mode === "grossistes" && cmmHeroMode === "grossistes" && (
@@ -5401,12 +5596,12 @@ function HomePage() {
       {/* et sauf quand un hero CMM est affiché)                   */}
       {/* ======================================================== */}
       {(() => {
-        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs"];
+        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier"];
         const cmmHeroActive = isCmm && cmmHeroModes.includes(mode) && cmmHeroMode === mode;
-        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && !cmmHeroActive;
+        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && !cmmHeroActive;
       })() && (<>
         {/* Bouton retour vers hero CMM (visible après avoir cliqué un bouton d'action) */}
-        {isCmm && ["mesures","cmd","services","sav","projets-tous","archives"].includes(mode) && cmmHeroMode === null && (
+        {isCmm && ["mesures","cmd","services","sav","projets-tous","archives","rapport","collaborateurs","emplacement-cabines","calendrier"].includes(mode) && cmmHeroMode === null && (
           <button
             onClick={() => { setCmmHeroMode(mode); setQuickFilter(null); }}
             className="mb-4 flex items-center gap-1.5 text-sm transition-all duration-150"
@@ -5415,7 +5610,7 @@ function HomePage() {
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.60)"; }}
           >
             <ChevronLeft style={{ width: 15, height: 15 }} />
-            {mode === "mesures" ? "Mesures" : mode === "cmd" ? "Montages" : mode === "services" ? "Services" : mode === "projets-tous" ? "Projets en cours" : mode === "archives" ? "Archives" : "SAV"}
+            {mode === "mesures" ? "Mesures" : mode === "cmd" ? "Montages" : mode === "services" ? "Services" : mode === "projets-tous" ? "Projets en cours" : mode === "archives" ? "Archives" : mode === "rapport" ? "Rapport" : mode === "collaborateurs" ? "Collaborateurs" : mode === "emplacement-cabines" ? "Emplacement cabines" : mode === "calendrier" ? "Calendrier" : "SAV"}
           </button>
         )}
       {/* Favoris */}
