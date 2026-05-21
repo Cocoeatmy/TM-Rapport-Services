@@ -2321,6 +2321,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [rapport, setRapport] = useState("");
   const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
+  const [expandedCabineDate, setExpandedCabineDate] = useState<string | null>(null);
 
   // ── Auto-fill depuis email connecté (hors admin) ──────────────────────────
   const EMAIL_TO_COLLAB: Record<string, string> = {
@@ -3679,67 +3680,135 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* Colonne droite - Rapport (visible uniquement quand showRapport) */}
         <div className={`space-y-4 ${!showRapport ? "hidden" : ""}`}>
         {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (() => {
-          // Barre de progression du montage — 5 critères par cabine.
-          // Mise à jour en direct : au fur et à mesure que le monteur
-          // remplit arrivée/départ/rapport/photos, la barre avance.
-          const countPhotosForCab = (photos: { name: string; url: string }[] | undefined, cab: number | null): number => {
-            if (!photos) return 0;
-            if (cab === null) return photos.length;
-            return photos.filter((p) => new RegExp(`\\.Cab${cab}\\.`).test(p.name || "")).length;
-          };
-          const checklist: { label: string; done: boolean }[] = [];
+          // ── Progression ──────────────────────────────────────────────────
+          // Multi-cabine : % basé uniquement sur les cabines installées (photosMontage présentes)
+          // Simple : % basé sur la checklist 5 critères
+          let percent: number;
+          let progressLabel: React.ReactNode;
+
           if (isCabineMode) {
-            cabines.forEach((c, i) => {
-              const cabNum = i + 1;
-              const prefix = `Cabine ${cabNum}`;
-              checklist.push({ label: `${prefix} · arrivée`, done: !!c.arrivee });
-              checklist.push({ label: `${prefix} · départ`, done: !!c.depart });
-              checklist.push({ label: `${prefix} · rapport`, done: c.rapport.trim().length > 0 });
-              checklist.push({ label: `${prefix} · photos avant`, done: countPhotosForCab(project?.photosAvant, cabNum) > 0 });
-              checklist.push({ label: `${prefix} · photos montage`, done: countPhotosForCab(project?.photosMontage, cabNum) > 0 });
-            });
+            percent = cabines.length === 0 ? 0 : Math.round((installedCabineCount / cabines.length) * 100);
+            progressLabel = (
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
+                {installedCabineCount}/{cabines.length} cabine{cabines.length > 1 ? "s" : ""} installée{cabines.length > 1 ? "s" : ""}
+              </p>
+            );
           } else {
-            checklist.push({ label: "Heure d'arrivée", done: !!heureArrivee });
-            checklist.push({ label: "Heure de départ", done: !!heureDepart });
-            checklist.push({ label: "Rapport rempli", done: rapport.trim().length > 0 });
-            checklist.push({ label: "Photos avant montage", done: (project?.photosAvant?.length || 0) > 0 });
-            checklist.push({ label: "Photos montage terminé", done: (project?.photosMontage?.length || 0) > 0 });
-          }
-          const done = checklist.filter((c) => c.done).length;
-          const total = checklist.length;
-          const percent = total === 0 ? 0 : Math.round((done / total) * 100);
-          return (
-            <div className="glass-card rounded-2xl p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Progression du montage</span>
-                  {percent === 100 && (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
-                      Terminé
-                    </span>
-                  )}
-                </div>
-                <span className={`text-sm font-bold ${percent === 100 ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-cyan-300"}`}>
-                  {percent}%
-                </span>
-              </div>
-              <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${percent}%`,
-                    background: percent === 100
-                      ? "linear-gradient(to right, #10b981, #22c55e)"
-                      : "linear-gradient(to right, #2563eb, #06b6d4)",
-                  }}
-                />
-              </div>
+            const countPhotosForCab = (photos: { name: string; url: string }[] | undefined, cab: number | null): number => {
+              if (!photos) return 0;
+              if (cab === null) return photos.length;
+              return photos.filter((p) => new RegExp(`\\.Cab${cab}\\.`).test(p.name || "")).length;
+            };
+            const checklist: { label: string; done: boolean }[] = [
+              { label: "Heure d'arrivée",        done: !!heureArrivee },
+              { label: "Heure de départ",         done: !!heureDepart },
+              { label: "Rapport rempli",           done: rapport.trim().length > 0 },
+              { label: "Photos avant montage",     done: countPhotosForCab(project?.photosAvant, null) > 0 },
+              { label: "Photos montage terminé",   done: countPhotosForCab(project?.photosMontage, null) > 0 },
+            ];
+            const done = checklist.filter((c) => c.done).length;
+            const total = checklist.length;
+            percent = total === 0 ? 0 : Math.round((done / total) * 100);
+            progressLabel = (
               <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
                 {done}/{total} étapes validées
-                {isCabineMode && (installedCabineCount > 0
-                  ? ` · ${installedCabineCount}/${cabines.length} cabine${cabines.length > 1 ? "s" : ""}`
-                  : ` · ${cabines.length} cabine${cabines.length > 1 ? "s" : ""}`)}
               </p>
+            );
+          }
+
+          // ── Cabines installées groupées par date ──────────────────────────
+          // N'affiche que les cabines avec photos montage (= installées), groupées par date
+          const cabinesByDate: Record<string, { nom: string; monteur: string }[]> = {};
+          if (isCabineMode) {
+            cabines.forEach((c, i) => {
+              if (!installedCabineIndices.has(i)) return;
+              const key = c.date || "__nodate__";
+              if (!cabinesByDate[key]) cabinesByDate[key] = [];
+              cabinesByDate[key].push({ nom: c.nom || `Cabine ${i + 1}`, monteur: c.monteur || "" });
+            });
+          }
+          const sortedDates = Object.keys(cabinesByDate).sort((a, b) =>
+            a === "__nodate__" ? 1 : b === "__nodate__" ? -1 : a.localeCompare(b)
+          );
+
+          const fmtDate = (d: string) => {
+            if (d === "__nodate__") return "Date inconnue";
+            try {
+              return new Date(d + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "2-digit" });
+            } catch { return d; }
+          };
+
+          return (
+            <div className="space-y-1.5">
+              {/* Barre de progression */}
+              <div className="glass-card rounded-2xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Progression du montage</span>
+                    {percent === 100 && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                        Terminé
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-sm font-bold ${percent === 100 ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-cyan-300"}`}>
+                    {percent}%
+                  </span>
+                </div>
+                <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${percent}%`,
+                      background: percent === 100
+                        ? "linear-gradient(to right, #10b981, #22c55e)"
+                        : "linear-gradient(to right, #2563eb, #06b6d4)",
+                    }}
+                  />
+                </div>
+                {progressLabel}
+              </div>
+
+              {/* Cabines installées par date — uniquement en mode multi-cabine */}
+              {isCabineMode && sortedDates.length > 0 && (
+                <div className="glass-card rounded-2xl overflow-hidden divide-y divide-gray-100 dark:divide-slate-700/60">
+                  {sortedDates.map((dateKey) => {
+                    const items = cabinesByDate[dateKey];
+                    const isOpen = expandedCabineDate === dateKey;
+                    return (
+                      <div key={dateKey}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedCabineDate(isOpen ? null : dateKey)}
+                          className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-white/5 active:bg-gray-100 dark:active:bg-white/10 transition-colors text-left"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                            <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                              {items.length} cabine{items.length > 1 ? "s" : ""} installée{items.length > 1 ? "s" : ""} le {fmtDate(dateKey)}
+                            </span>
+                          </div>
+                          {isOpen
+                            ? <ChevronUp className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            : <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
+                        </button>
+                        {isOpen && (
+                          <div className="px-3 pb-3 pt-1 space-y-1.5">
+                            {items.map((item, j) => (
+                              <div key={j} className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] text-gray-700 dark:text-gray-300 font-medium">{item.nom}</span>
+                                {item.monteur && (
+                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">{item.monteur}</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })()}
