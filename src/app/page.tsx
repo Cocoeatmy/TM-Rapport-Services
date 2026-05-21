@@ -532,9 +532,9 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
 
       {/* Fournisseurs — navigation directe (thème CMM) */}
       <SideItem m="fournisseurs" Icon={Package} label="Fournisseurs" showCount={false} />
+      <SideItem m="sanitaires" Icon={Droplets} label="Sanitaires" showCount={false} />
 
       <SectionLabel>Autres</SectionLabel>
-      <SideItem m="sanitaires" Icon={Droplets} label="Sanitaires" showCount={false} />
       <SideItem m="rapport" Icon={FileText} label="Rapport" showCount={false} />
       <SideItem m="destockage" Icon={Archive} label="Déstockage" showCount={false} />
       {isAdmin && <SideItem m="stats" Icon={BarChart2} label="Stats" showCount={false} />}
