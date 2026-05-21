@@ -207,15 +207,17 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
   const isGrossisteActive = grossistesModes.includes(mode);
   const grossisteActiveLabel = grossistesLabels[mode] || "";
 
-  const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo"];
-  const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-ronal": "Ronal", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-samo": "Samo" };
+  const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-kermi", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-ronal", "fournisseurs-samo", "fournisseurs-vismaravetro"];
+  const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-kermi": "Kermi", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-ronal": "Ronal", "fournisseurs-samo": "Samo", "fournisseurs-vismaravetro": "Vismaravetro" };
   const fournisseursLogos: Record<string, string> = {
     "fournisseurs-duka": "/logos/fournisseurs/duka.ch-logo.png",
     "fournisseurs-duscholux": "/logos/fournisseurs/Duscholux-logo.png",
-    "fournisseurs-ronal": "/logos/fournisseurs/ronal-logo-v2.png",
+    "fournisseurs-kermi": "/logos/fournisseurs/Kermi-logo.png",
     "fournisseurs-nelo": "/logos/fournisseurs/Nelo-logo.jpg",
     "fournisseurs-novellini": "/logos/fournisseurs/Novellini-logo.png",
+    "fournisseurs-ronal": "/logos/fournisseurs/ronal-logo-v2.png",
     "fournisseurs-samo": "/logos/fournisseurs/Samo-logo.jpg",
+    "fournisseurs-vismaravetro": "/logos/fournisseurs/Vismaravetro-logo.png",
   };
   const isFournisseursActive = fournisseursModes.includes(mode);
   const fournisseurActiveLabel = fournisseursLabels[mode] || "";
@@ -1078,8 +1080,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "stats", "archives", "projets-tous", "destockage", "sanitaires"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rapport", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "stats", "archives", "projets-tous", "destockage", "sanitaires"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -1909,7 +1911,7 @@ function HomePage() {
           isAdmin={currentUser?.role === "admin" || false}
           onSwitchMode={(m: string) => {
             setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
           }}
         />
@@ -1929,7 +1931,7 @@ function HomePage() {
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             // CMM : afficher le hero pour les modes qui en ont un
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
@@ -2019,7 +2021,7 @@ function HomePage() {
                 cmmMode={isCmm}
                 onNavigate={(m) => {
                   setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
-                  const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives"];
+                  const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs"];
                   setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
                 }}
                 terminatedProjectsInit={projectsData["cmd-termine"] || []}
@@ -2334,7 +2336,7 @@ function HomePage() {
       )}
 
       {/* VUE GROSSISTES */}
-      {mode.startsWith("grossistes") && (() => {
+      {mode.startsWith("grossistes") && !(isCmm && mode === "grossistes" && cmmHeroMode === "grossistes") && (() => {
         // Utiliser les données all-active qui contiennent TOUS les projets non terminés/non annulés
         const allCmd = projectsData[mode] || projectsData["grossistes"] || [];
 
@@ -2692,11 +2694,12 @@ function HomePage() {
       })()}
 
       {/* VUE FOURNISSEURS */}
-      {mode.startsWith("fournisseurs") && !mode.startsWith("fournisseurs-menu") && (() => {
+      {mode.startsWith("fournisseurs") && !mode.startsWith("fournisseurs-menu") && !(isCmm && mode === "fournisseurs" && cmmHeroMode === "fournisseurs") && (() => {
         const allCmd = projectsData[mode] || projectsData["fournisseurs"] || [];
         const fournisseurNameFilter: Record<string, string> = {
-          "fournisseurs-duka": "Duka", "fournisseurs-duscholux": "Duscholux", "fournisseurs-ronal": "Ronal",
-          "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-samo": "Samo",
+          "fournisseurs-duka": "Duka", "fournisseurs-duscholux": "Duscholux", "fournisseurs-kermi": "Kermi",
+          "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-ronal": "Ronal",
+          "fournisseurs-samo": "Samo", "fournisseurs-vismaravetro": "Vismaravetro",
         };
         const nameFilter = fournisseurNameFilter[mode];
         const fournisseursProjects = allCmd.filter((p) => {
@@ -4726,7 +4729,7 @@ function HomePage() {
       })()}
 
       {/* VUE PROJETS (admin) — absolument tous les projets, statut inclus */}
-      {mode === "projets-tous" && (() => {
+      {mode === "projets-tous" && !(isCmm && cmmHeroMode === "projets-tous") && (() => {
         const allProjects = (projectsData["projets-tous"] || [])
           .slice()
           .sort((a: any, b: any) => ((b.dateMontage || "").localeCompare(a.dateMontage || "")));
@@ -5266,14 +5269,36 @@ function HomePage() {
           title="Projets en cours"
           subtitle="Vue d'ensemble de tous vos dossiers actifs"
           actions={[
-            { id: "all",    icon: FolderOpen,   label: "Tous les projets actifs",  sublabel: "Accéder à la liste complète"   },
-            { id: "sav",    icon: AlertCircle,  label: "Projets avec SAV",         sublabel: "Dossiers concernés par un SAV" },
-            { id: "soucis", icon: Archive,      label: "Projets avec soucis",      sublabel: "Dossiers signalés"             },
+            { id: "en-attente-mesures",  icon: Ruler,        label: "En attente de mesures",          sublabel: "Projets sans mesures effectuées"        },
+            { id: "cabines-mesurees",    icon: ShieldCheck,  label: "Cabines mesurées",               sublabel: "Mesurées — non encore commandées"        },
+            { id: "ofr-sans-mesures",    icon: FileText,     label: "OFR envoyées sans mesures",      sublabel: "Offre envoyée avant mesures"             },
+            { id: "cabines-cmd",         icon: Package,      label: "Cabines en CMD",                 sublabel: "Commandes en cours"                      },
+            { id: "cabines-recevoir",    icon: Archive,      label: "Cabines à recevoir",             sublabel: "Livraison attendue"                      },
+            { id: "cabines-aller",       icon: Wrench,       label: "Cabines à aller chercher",       sublabel: "Marchandise prête — à récupérer"         },
+            { id: "receptionne-rdv",     icon: CalendarDays, label: "Réceptionné – RDV à fixer",      sublabel: "Reçu — date de montage à planifier"      },
+            { id: "rdv-attendre",        icon: AlertCircle,  label: "RDV – Attendre NEWS",            sublabel: "En attente de nouvelles du client"       },
+            { id: "rdv-fixe",            icon: Calendar,     label: "RDV – Fixé",                     sublabel: "Date de montage confirmée"               },
+            { id: "montages-partiel",    icon: Settings,     label: "Montages partiel",               sublabel: "Montage partiellement effectué"          },
+            { id: "soucis-montages",     icon: AlertCircle,  label: "Soucis montages",                sublabel: "Dossiers avec problème de montage"       },
           ]}
           onAction={(id) => {
             setCmmHeroMode(null);
-            if (id === "sav")    setPAllSAV(true);
-            if (id === "soucis") setPAllSoucis(true);
+            setPAllSAV(false);
+            setPAllSoucis(false);
+            setPAllStatusCMD(
+              id === "en-attente-mesures" ? ["En attente de mesures"] :
+              id === "cabines-mesurees"   ? ["Cabines mesurées"] :
+              id === "ofr-sans-mesures"   ? ["OFR envoyées sans mesures"] :
+              id === "cabines-cmd"        ? ["Cabines en CMD"] :
+              id === "cabines-recevoir"   ? ["Cabines à recevoir"] :
+              id === "cabines-aller"      ? ["Cabine à aller chercher"] :
+              id === "receptionne-rdv"    ? ["Récéptionné - RDV à fixer"] :
+              id === "rdv-attendre"       ? ["RDV - Attendre news"] :
+              id === "rdv-fixe"           ? ["RDV - fixé"] :
+              id === "montages-partiel"   ? ["Montage partiel"] :
+              id === "soucis-montages"    ? ["Soucis montage"] :
+              []
+            );
           }}
         />
       )}
@@ -5296,11 +5321,58 @@ function HomePage() {
       )}
 
       {/* ======================================================== */}
+      {/* CleanMyMac Hero — Grossistes                              */}
+      {/* ======================================================== */}
+      {isCmm && mode === "grossistes" && cmmHeroMode === "grossistes" && (
+        <CmmSectionLanding
+          icon={ShoppingBag}
+          title="Grossistes"
+          subtitle="Accédez aux projets par grossiste partenaire"
+          actions={[
+            { id: "grossistes-bms",      icon: ShoppingBag, label: "BMS"       },
+            { id: "grossistes-dubat",     icon: ShoppingBag, label: "Dubat"     },
+            { id: "grossistes-matway",    icon: ShoppingBag, label: "Matway"    },
+            { id: "grossistes-tema",      icon: ShoppingBag, label: "Tema Sàrl" },
+            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen"  },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setMode(id as Mode);
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* CleanMyMac Hero — Fournisseurs                            */}
+      {/* ======================================================== */}
+      {isCmm && mode === "fournisseurs" && cmmHeroMode === "fournisseurs" && (
+        <CmmSectionLanding
+          icon={Package}
+          title="Fournisseurs"
+          subtitle="Accédez aux projets par fournisseur de produits"
+          actions={[
+            { id: "fournisseurs-duka",         icon: Package, label: "Duka.ch"       },
+            { id: "fournisseurs-duscholux",     icon: Package, label: "Duscholux"     },
+            { id: "fournisseurs-kermi",         icon: Package, label: "Kermi"         },
+            { id: "fournisseurs-nelo",          icon: Package, label: "Nelo"          },
+            { id: "fournisseurs-novellini",     icon: Package, label: "Novellini"     },
+            { id: "fournisseurs-ronal",         icon: Package, label: "Ronal"         },
+            { id: "fournisseurs-samo",          icon: Package, label: "Samo"          },
+            { id: "fournisseurs-vismaravetro",  icon: Package, label: "Vismaravetro"  },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setMode(id as Mode);
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
       {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
       {/* et sauf quand un hero CMM est affiché)                   */}
       {/* ======================================================== */}
       {(() => {
-        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives"];
+        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs"];
         const cmmHeroActive = isCmm && cmmHeroModes.includes(mode) && cmmHeroMode === mode;
         return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && !cmmHeroActive;
       })() && (<>
