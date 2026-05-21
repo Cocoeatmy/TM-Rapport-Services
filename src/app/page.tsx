@@ -525,7 +525,7 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
       <SideItem m="clients-contacts" Icon={UsersIcon} label="Contacts" showCount={false} />
       <SideItem m="clients-entreprises" Icon={Building} label="Entreprises" showCount={false} />
 
-      <SectionLabel>Catalogues</SectionLabel>
+      <SectionLabel>Clients</SectionLabel>
 
       {/* Grossistes — navigation directe (thème CMM) */}
       <SideItem m="grossistes" Icon={ShoppingBag} label="Grossistes" showCount={false} />
