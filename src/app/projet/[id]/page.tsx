@@ -2319,9 +2319,12 @@ function ProjectPageContent({ id }: { id: string }) {
   const [heureDepart, setHeureDepart] = useState("");
   const [commentaires, setCommentaires] = useState("");
   const [rapport, setRapport] = useState("");
-  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string }[]>([]);
+  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string; activeTab: "infos" | "photos"; qrEnabled: boolean; garantieEnabled: boolean }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [expandedCabineDate, setExpandedCabineDate] = useState<string | null>(null);
+  const [rapportModalCabineIdx, setRapportModalCabineIdx] = useState<number | null>(null);
+  const [showRapportRequiredModal, setShowRapportRequiredModal] = useState(false);
+  const [monoActiveTab, setMonoActiveTab] = useState<"rapport" | "photos">("rapport");
 
   // ── Auto-fill depuis email connecté (hors admin) ──────────────────────────
   const EMAIL_TO_COLLAB: Record<string, string> = {
@@ -2444,6 +2447,10 @@ function ProjectPageContent({ id }: { id: string }) {
       );
       if (!changed) return;
       setCabines(next);
+      // Ouvrir le modal rapport après upload montage/après (uniquement si pas déjà rempli)
+      if (isMontageOrAfter(bucket) && !cabines[idx0]?.rapport) {
+        setRapportModalCabineIdx(idx0);
+      }
       // PATCH heures immédiatement
       const arriveeStr = next
         .map((c, i) => (!c.arrivee && !c.date ? "" : `Cab${i + 1}:${c.date ? `${c.date}:` : ""}${c.arrivee}`))
@@ -2573,6 +2580,9 @@ function ProjectPageContent({ id }: { id: string }) {
           arrivee: arriveeMap[i] || "",
           depart: departMap[i] || "",
           date: dateMap[i] || "",
+          activeTab: "infos" as const,
+          qrEnabled: false,
+          garantieEnabled: false,
         }))
       );
 
@@ -4006,94 +4016,136 @@ function ProjectPageContent({ id }: { id: string }) {
             {!isCabineMode && (
               <>
                 <Card>
-                  <CardHeader className="pb-2">
+                  <CardHeader className="pb-0">
                     <CardTitle className="text-base">Rapport & Photos</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label>Rapport du monteur</Label>
-                      <div className="mt-2 space-y-2">
-                        {[
-                          "L'installation s'est déroulée sans encombre.",
-                          "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",
-                          "Client présent lors du montage, travaux validés par client.",
-                          "Personne sur site lors du montage.",
-                        ].map((option) => {
-                          const isSelected = rapport.includes(option);
-                          return (
+                  {/* ── Onglets Rapport / Photos (mono-cabine) ── */}
+                  <div className="flex border-b border-gray-100 dark:border-slate-700 mx-6">
+                    <button
+                      type="button"
+                      onClick={() => setMonoActiveTab("rapport")}
+                      className={`flex-1 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                        monoActiveTab === "rapport"
+                          ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300"
+                          : "text-gray-400 hover:text-gray-600"
+                      }`}
+                    >
+                      Rapport
+                      {!rapport.trim() && <span className="w-2 h-2 rounded-full bg-red-400 dark:bg-red-500" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMonoActiveTab("photos")}
+                      className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                        monoActiveTab === "photos"
+                          ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300"
+                          : "text-gray-400 hover:text-gray-600"
+                      }`}
+                    >
+                      Photos
+                    </button>
+                  </div>
+                  <CardContent className="space-y-4 pt-4">
+                    {monoActiveTab === "rapport" && (
+                      <>
+                        <div>
+                          <Label>Rapport du monteur <span className="text-red-500">*</span></Label>
+                          <div className="mt-2 space-y-2">
+                            {[
+                              "L'installation s'est déroulée sans encombre.",
+                              "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",
+                              "Client présent lors du montage, travaux validés par client.",
+                              "Personne sur site lors du montage.",
+                            ].map((option) => {
+                              const isSelected = rapport.includes(option);
+                              return (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setRapport(rapport.replace(option, "").replace(/\n{2,}/g, "\n").trim());
+                                    } else {
+                                      setRapport((rapport ? rapport + "\n" : "") + option);
+                                    }
+                                  }}
+                                  className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${
+                                    isSelected
+                                      ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200 font-medium"
+                                      : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 active:bg-gray-50 dark:active:bg-slate-700"
+                                  }`}
+                                >
+                                  <span className="flex items-center gap-2">
+                                    <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${
+                                      isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"
+                                    }`}>
+                                      {isSelected && <span className="text-white text-xs">✓</span>}
+                                    </span>
+                                    {option}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <Textarea
+                            placeholder="Précisions supplémentaires..."
+                            value={rapport}
+                            onChange={(e) => setRapport(e.target.value)}
+                            rows={3}
+                            className="mt-3"
+                          />
+                          {rapport.trim().length > 10 && (
                             <button
-                              key={option}
                               type="button"
-                              onClick={() => {
-                                if (isSelected) {
-                                  setRapport(rapport.replace(option, "").replace(/\n{2,}/g, "\n").trim());
-                                } else {
-                                  setRapport((rapport ? rapport + "\n" : "") + option);
-                                }
-                              }}
-                              className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${
-                                isSelected
-                                  ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200 font-medium"
-                                  : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 active:bg-gray-50 dark:active:bg-slate-700"
-                              }`}
+                              onClick={handleReformulate}
+                              disabled={reformulating}
+                              className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50"
                             >
-                              <span className="flex items-center gap-2">
-                                <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${
-                                  isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"
-                                }`}>
-                                  {isSelected && <span className="text-white text-xs">✓</span>}
-                                </span>
-                                {option}
-                              </span>
+                              {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                              {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
                             </button>
-                          );
-                        })}
-                      </div>
-                      <Textarea
-                        placeholder="Précisions supplémentaires..."
-                        value={rapport}
-                        onChange={(e) => setRapport(e.target.value)}
-                        rows={3}
-                        className="mt-3"
-                      />
-                      {rapport.trim().length > 10 && (
-                        <button
-                          type="button"
-                          onClick={handleReformulate}
-                          disabled={reformulating}
-                          className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50"
-                        >
-                          {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                          {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
-                        </button>
-                      )}
-                      <div className="mt-3">
-                        <VoiceRecorder
-                          onTranscript={(text) =>
-                            setRapport((prev) => (prev ? prev + "\n" + text : text))
-                          }
+                          )}
+                          <div className="mt-3">
+                            <VoiceRecorder
+                              onTranscript={(text) =>
+                                setRapport((prev) => (prev ? prev + "\n" + text : text))
+                              }
+                            />
+                          </div>
+                        </div>
+                        {rapport.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => setMonoActiveTab("photos")}
+                            className="w-full py-2.5 rounded-xl bg-[#1e3a5f] text-white text-sm font-medium active:opacity-80 transition-opacity"
+                          >
+                            Continuer → Photos
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {monoActiveTab === "photos" && (
+                      <>
+                        <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+                        <BucketPhotoUpload bucket="DEMONTAGE" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+                        <CombinedMontageUpload projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+                        <BucketPhotoUpload bucket="APRES_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+                        <BucketPhotoUpload bucket="QR_CODE" projectId={id} project={project} setProject={setProject} />
+                        <BucketPhotoUpload bucket="GARANTIE" projectId={id} project={project} setProject={setProject} />
+                        <Separator />
+                        <BeforeAfterPhotos
+                          projectId={id}
+                          projectName={project.projet}
+                          initialBefore={filterByBucket(project.photosAvant, "AVANT_INTERVENTION")}
+                          initialAfter={[
+                            ...filterByBucket(project.photosMontage, "MONTAGE_GAUCHE"),
+                            ...filterByBucket(project.photosMontage, "MONTAGE_CENTRE"),
+                            ...filterByBucket(project.photosMontage, "MONTAGE_DROITE"),
+                            ...filterByBucket(project.photosMontage, "APRES_INTERVENTION"),
+                          ]}
                         />
-                      </div>
-                    </div>
-                    <Separator />
-                    <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                    <BucketPhotoUpload bucket="DEMONTAGE" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                    <CombinedMontageUpload projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                    <BucketPhotoUpload bucket="APRES_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                    <BucketPhotoUpload bucket="QR_CODE" projectId={id} project={project} setProject={setProject} />
-                    <BucketPhotoUpload bucket="GARANTIE" projectId={id} project={project} setProject={setProject} />
-                    <Separator />
-                    <BeforeAfterPhotos
-                      projectId={id}
-                      projectName={project.projet}
-                      initialBefore={filterByBucket(project.photosAvant, "AVANT_INTERVENTION")}
-                      initialAfter={[
-                        ...filterByBucket(project.photosMontage, "MONTAGE_GAUCHE"),
-                        ...filterByBucket(project.photosMontage, "MONTAGE_CENTRE"),
-                        ...filterByBucket(project.photosMontage, "MONTAGE_DROITE"),
-                        ...filterByBucket(project.photosMontage, "APRES_INTERVENTION"),
-                      ]}
-                    />
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </>
@@ -4205,183 +4257,294 @@ function ProjectPageContent({ id }: { id: string }) {
                       </button>
 
                       {cabine.open && (
-                        <CardContent className="space-y-4 border-t pt-4">
-                          {/* Nom de la cabine */}
-                          <div>
-                            <Label>Nom / Emplacement</Label>
-                            <Input
-                              value={cabine.nom}
-                              onChange={(e) => {
-                                const newNom = e.target.value;
-                                setCabines((prev) => {
-                                  const next = prev.map((c, i) => (i === idx ? { ...c, nom: newNom } : c));
-                                  // Sauvegarde immédiate dans localStorage à chaque frappe
-                                  try {
-                                    localStorage.setItem(
-                                      `tm-cabin-noms-${id}`,
-                                      JSON.stringify(next.map((c) => c.nom))
-                                    );
-                                  } catch {}
-                                  // Debounce-save dans le KV — source de vérité serveur
-                                  // pour que tous les appareils voient les noms corrects.
-                                  if (nomKvDebounceRef.current) clearTimeout(nomKvDebounceRef.current);
-                                  nomKvDebounceRef.current = setTimeout(() => {
-                                    offlineFetch("/api/cabine-attribution", {
-                                      method: "POST",
-                                      headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({
-                                        projectId: id,
-                                        attribution: next.map((c) => c.monteur),
-                                        noms: next.map((c, i) => c.nom || `Cabine ${i + 1}`),
-                                      }),
-                                    }).catch(console.error);
-                                  }, 600);
-                                  return next;
-                                });
+                        <CardContent className="border-t pt-0 pb-4 px-0">
+                          {/* ── Onglets Infos / Photos ─────────────────────────── */}
+                          <div className="flex border-b border-gray-100 dark:border-slate-700 mb-4">
+                            <button
+                              type="button"
+                              onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "infos" } : c))}
+                              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                                cabine.activeTab !== "photos"
+                                  ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300"
+                                  : "text-gray-400 hover:text-gray-600"
+                              }`}
+                            >
+                              Infos
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const missing: string[] = [];
+                                if (!cabine.monteur) missing.push("monteur responsable");
+                                if (!cabine.date) missing.push("jour de montage");
+                                if (!cabine.arrivee) missing.push("heure d'arrivée");
+                                if (missing.length > 0) {
+                                  toast.error(`Renseignez d'abord : ${missing.join(", ")}`);
+                                  return;
+                                }
+                                setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "photos" } : c));
                               }}
-                              placeholder="Ex: SDD Parental, Lot 3..."
-                              className="mt-1 h-11"
-                            />
+                              className={`flex-1 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+                                cabine.activeTab === "photos"
+                                  ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300"
+                                  : "text-gray-400 hover:text-gray-600"
+                              }`}
+                            >
+                              Photos
+                              {(!cabine.monteur || !cabine.date || !cabine.arrivee) && (
+                                <span className="text-[11px] text-gray-300 dark:text-slate-500">🔒</span>
+                              )}
+                            </button>
                           </div>
 
-                          {/* Monteur responsable de cette cabine */}
-                          <div>
-                            <Label className="text-xs text-gray-600 dark:text-gray-300">Monteur responsable</Label>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {COLLABORATEURS_LIST.map((name) => {
-                                const selected = (cabine.monteur || "").split(" & ").map((s) => s.trim()).includes(name);
-                                return (
-                                  <button
-                                    key={name}
-                                    type="button"
-                                    onClick={() => setCabines((prev) => prev.map((c, i) => {
-                                      if (i !== idx) return c;
-                                      const current = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
-                                      const next = selected
-                                        ? current.filter((n) => n !== name)
-                                        : [...current, name];
-                                      return { ...c, monteur: next.join(" & ") };
-                                    }))}
-                                    className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
-                                      selected
-                                        ? "border-blue-600 bg-blue-600 text-white"
-                                        : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
-                                    }`}
-                                  >
-                                    {name}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
+                          {/* ── Onglet Infos ────────────────────────────────── */}
+                          {cabine.activeTab !== "photos" && (
+                            <div className="space-y-4 px-4">
+                              {/* Nom de la cabine */}
+                              <div>
+                                <Label>Nom / Emplacement</Label>
+                                <Input
+                                  value={cabine.nom}
+                                  onChange={(e) => {
+                                    const newNom = e.target.value;
+                                    setCabines((prev) => {
+                                      const next = prev.map((c, i) => (i === idx ? { ...c, nom: newNom } : c));
+                                      try {
+                                        localStorage.setItem(
+                                          `tm-cabin-noms-${id}`,
+                                          JSON.stringify(next.map((c) => c.nom))
+                                        );
+                                      } catch {}
+                                      if (nomKvDebounceRef.current) clearTimeout(nomKvDebounceRef.current);
+                                      nomKvDebounceRef.current = setTimeout(() => {
+                                        offlineFetch("/api/cabine-attribution", {
+                                          method: "POST",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({
+                                            projectId: id,
+                                            attribution: next.map((c) => c.monteur),
+                                            noms: next.map((c, i) => c.nom || `Cabine ${i + 1}`),
+                                          }),
+                                        }).catch(console.error);
+                                      }, 600);
+                                      return next;
+                                    });
+                                  }}
+                                  placeholder="Ex: SDD Parental, Lot 3..."
+                                  className="mt-1 h-11"
+                                />
+                              </div>
 
-                          {/* Jour de montage pour cette cabine */}
-                          <div>
-                            <Label className="text-xs text-gray-600 dark:text-gray-300">Jour de montage</Label>
-                            <Input
-                              type="date"
-                              value={cabine.date}
-                              onChange={(e) =>
-                                setCabines((prev) =>
-                                  prev.map((c, i) => (i === idx ? { ...c, date: e.target.value } : c))
-                                )
-                              }
-                              className="mt-1 h-11 glass-input"
-                            />
-                          </div>
-
-                          {/* Heures arrivée / départ pour cette cabine */}
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <Label className="text-xs text-gray-600 dark:text-gray-300">Heure d&apos;arrivée</Label>
-                              <Input
-                                type="time"
-                                value={cabine.arrivee}
-                                onChange={(e) =>
-                                  setCabines((prev) =>
-                                    prev.map((c, i) => (i === idx ? { ...c, arrivee: e.target.value } : c))
-                                  )
-                                }
-                                className="mt-1 h-11 glass-input"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-xs text-gray-600 dark:text-gray-300">Heure de départ</Label>
-                              <Input
-                                type="time"
-                                value={cabine.depart}
-                                onChange={(e) =>
-                                  setCabines((prev) =>
-                                    prev.map((c, i) => (i === idx ? { ...c, depart: e.target.value } : c))
-                                  )
-                                }
-                                className="mt-1 h-11 glass-input"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Rapport cabine */}
-                          <div>
-                            <Label>Rapport</Label>
-                            <div className="mt-2 space-y-1.5">
-                              {[
-                                "L'installation s'est déroulée sans encombre.",
-                                "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",
-                              ].map((option) => {
-                                const isSelected = cabine.rapport.includes(option);
-                                return (
-                                  <button
-                                    key={option}
-                                    type="button"
-                                    onClick={() => {
-                                      setCabines((prev) =>
-                                        prev.map((c, i) => {
+                              {/* Monteur responsable */}
+                              <div>
+                                <Label className="text-xs text-gray-600 dark:text-gray-300">Monteur responsable</Label>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {COLLABORATEURS_LIST.map((name) => {
+                                    const selected = (cabine.monteur || "").split(" & ").map((s) => s.trim()).includes(name);
+                                    return (
+                                      <button
+                                        key={name}
+                                        type="button"
+                                        onClick={() => setCabines((prev) => prev.map((c, i) => {
                                           if (i !== idx) return c;
-                                          const newRapport = isSelected
-                                            ? c.rapport.replace(option, "").replace(/\n{2,}/g, "\n").trim()
-                                            : (c.rapport ? c.rapport + "\n" : "") + option;
-                                          return { ...c, rapport: newRapport };
-                                        })
-                                      );
-                                    }}
-                                    className={`w-full text-left text-xs px-2.5 py-2 rounded-lg border-2 transition-colors ${
-                                      isSelected
-                                        ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200 font-medium"
-                                        : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 active:bg-gray-50 dark:active:bg-slate-700"
-                                    }`}
-                                  >
-                                    <span className="flex items-center gap-2">
-                                      <span className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 ${
-                                        isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"
-                                      }`}>
-                                        {isSelected && <span className="text-white text-[10px]">✓</span>}
-                                      </span>
-                                      {option}
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            <Textarea
-                              placeholder="Précisions pour cette cabine..."
-                              value={cabine.rapport}
-                              onChange={(e) =>
-                                setCabines((prev) =>
-                                  prev.map((c, i) => (i === idx ? { ...c, rapport: e.target.value } : c))
-                                )
-                              }
-                              rows={2}
-                              className="mt-2"
-                            />
-                          </div>
+                                          const current = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
+                                          const next = selected
+                                            ? current.filter((n) => n !== name)
+                                            : [...current, name];
+                                          return { ...c, monteur: next.join(" & ") };
+                                        }))}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
+                                          selected
+                                            ? "border-blue-600 bg-blue-600 text-white"
+                                            : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
+                                        }`}
+                                      >
+                                        {name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
 
-                          {/* Photos cabine */}
-                          <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                          <BucketPhotoUpload bucket="DEMONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                          <CombinedMontageUpload cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                          <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                          <BucketPhotoUpload bucket="QR_CODE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                          <BucketPhotoUpload bucket="GARANTIE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                              {/* Jour de montage */}
+                              <div>
+                                <Label className="text-xs text-gray-600 dark:text-gray-300">Jour de montage</Label>
+                                <Input
+                                  type="date"
+                                  value={cabine.date}
+                                  onChange={(e) =>
+                                    setCabines((prev) =>
+                                      prev.map((c, i) => (i === idx ? { ...c, date: e.target.value } : c))
+                                    )
+                                  }
+                                  className="mt-1 h-11 glass-input"
+                                />
+                              </div>
+
+                              {/* Heures arrivée / départ */}
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <Label className="text-xs text-gray-600 dark:text-gray-300">Heure d&apos;arrivée</Label>
+                                  <Input
+                                    type="time"
+                                    value={cabine.arrivee}
+                                    onChange={(e) =>
+                                      setCabines((prev) =>
+                                        prev.map((c, i) => (i === idx ? { ...c, arrivee: e.target.value } : c))
+                                      )
+                                    }
+                                    className="mt-1 h-11 glass-input"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-gray-600 dark:text-gray-300">Heure de départ</Label>
+                                  <Input
+                                    type="time"
+                                    value={cabine.depart}
+                                    onChange={(e) =>
+                                      setCabines((prev) =>
+                                        prev.map((c, i) => (i === idx ? { ...c, depart: e.target.value } : c))
+                                      )
+                                    }
+                                    className="mt-1 h-11 glass-input"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Bouton accès rapide Photos si tout est rempli */}
+                              {cabine.monteur && cabine.date && cabine.arrivee && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "photos" } : c))}
+                                  className="w-full py-2.5 rounded-xl bg-[#1e3a5f] text-white text-sm font-medium active:opacity-80 transition-opacity"
+                                >
+                                  Continuer → Photos
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* ── Onglet Photos ────────────────────────────────── */}
+                          {cabine.activeTab === "photos" && (
+                            <div className="space-y-4 px-4">
+                              <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+                              <BucketPhotoUpload bucket="DEMONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                              <CombinedMontageUpload cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+                              <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+
+                              {/* QR Code toggle */}
+                              <div className="space-y-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, qrEnabled: !c.qrEnabled } : c))}
+                                  className={`flex items-center gap-2 w-full px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+                                    cabine.qrEnabled
+                                      ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/20 text-[#1e3a5f] dark:text-blue-300"
+                                      : "border-gray-200 dark:border-slate-600 text-gray-500 dark:text-gray-400"
+                                  }`}
+                                >
+                                  <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                                    cabine.qrEnabled ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-500"
+                                  }`}>
+                                    {cabine.qrEnabled && <span className="text-white text-[10px]">✓</span>}
+                                  </span>
+                                  QR Code présent
+                                </button>
+                                {cabine.qrEnabled && (
+                                  <BucketPhotoUpload bucket="QR_CODE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                                )}
+                              </div>
+
+                              {/* Garantie toggle */}
+                              <div className="space-y-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, garantieEnabled: !c.garantieEnabled } : c))}
+                                  className={`flex items-center gap-2 w-full px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+                                    cabine.garantieEnabled
+                                      ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/20 text-[#1e3a5f] dark:text-blue-300"
+                                      : "border-gray-200 dark:border-slate-600 text-gray-500 dark:text-gray-400"
+                                  }`}
+                                >
+                                  <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                                    cabine.garantieEnabled ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-500"
+                                  }`}>
+                                    {cabine.garantieEnabled && <span className="text-white text-[10px]">✓</span>}
+                                  </span>
+                                  Garantie présente
+                                </button>
+                                {cabine.garantieEnabled && (
+                                  <BucketPhotoUpload bucket="GARANTIE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                                )}
+                              </div>
+
+                              {/* Signalement par cabine */}
+                              <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
+                                <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 mb-2">Signalement — {cabine.nom}</p>
+                                <DefautForm
+                                  projectId={id}
+                                  projectName={project.projet}
+                                  cabineOptions={[cabine.nom]}
+                                  onSubmitted={() => setDefautRefreshKey((k) => k + 1)}
+                                />
+                              </div>
+
+                              {/* Rapport cabine */}
+                              <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
+                                <Label>Rapport cabine</Label>
+                                <div className="mt-2 space-y-1.5">
+                                  {[
+                                    "L'installation s'est déroulée sans encombre.",
+                                    "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",
+                                  ].map((option) => {
+                                    const isSelected = cabine.rapport.includes(option);
+                                    return (
+                                      <button
+                                        key={option}
+                                        type="button"
+                                        onClick={() => {
+                                          setCabines((prev) =>
+                                            prev.map((c, i) => {
+                                              if (i !== idx) return c;
+                                              const newRapport = isSelected
+                                                ? c.rapport.replace(option, "").replace(/\n{2,}/g, "\n").trim()
+                                                : (c.rapport ? c.rapport + "\n" : "") + option;
+                                              return { ...c, rapport: newRapport };
+                                            })
+                                          );
+                                        }}
+                                        className={`w-full text-left text-xs px-2.5 py-2 rounded-lg border-2 transition-colors ${
+                                          isSelected
+                                            ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200 font-medium"
+                                            : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 active:bg-gray-50 dark:active:bg-slate-700"
+                                        }`}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          <span className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 ${
+                                            isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"
+                                          }`}>
+                                            {isSelected && <span className="text-white text-[10px]">✓</span>}
+                                          </span>
+                                          {option}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <Textarea
+                                  placeholder="Précisions pour cette cabine..."
+                                  value={cabine.rapport}
+                                  onChange={(e) =>
+                                    setCabines((prev) =>
+                                      prev.map((c, i) => (i === idx ? { ...c, rapport: e.target.value } : c))
+                                    )
+                                  }
+                                  rows={2}
+                                  className="mt-2"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </CardContent>
                       )}
                     </Card>
@@ -4452,6 +4615,157 @@ function ProjectPageContent({ id }: { id: string }) {
                   </CardContent>
                 </Card>
               </>
+            )}
+
+            {/* ── Modal rapport cabine (après upload photo montage/après) ── */}
+            {rapportModalCabineIdx !== null && cabines[rapportModalCabineIdx] && createPortal(
+              <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm p-4 pb-8">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+                  <div className="px-5 pt-5 pb-2">
+                    <p className="text-sm font-semibold text-[#1e3a5f] dark:text-blue-200 mb-1">
+                      Rapport — {cabines[rapportModalCabineIdx].nom}
+                    </p>
+                    <p className="text-xs text-gray-400 mb-4">Comment s&apos;est déroulé le montage ?</p>
+                    <div className="space-y-2">
+                      {[
+                        "L'installation s'est déroulée sans encombre.",
+                        "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",
+                      ].map((option) => {
+                        const idx = rapportModalCabineIdx;
+                        const isSelected = cabines[idx].rapport.includes(option);
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => {
+                              setCabines((prev) =>
+                                prev.map((c, i) => {
+                                  if (i !== idx) return c;
+                                  const newRapport = isSelected
+                                    ? c.rapport.replace(option, "").replace(/\n{2,}/g, "\n").trim()
+                                    : (c.rapport ? c.rapport + "\n" : "") + option;
+                                  return { ...c, rapport: newRapport };
+                                })
+                              );
+                            }}
+                            className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${
+                              isSelected
+                                ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200 font-medium"
+                                : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${
+                                isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"
+                              }`}>
+                                {isSelected && <span className="text-white text-xs">✓</span>}
+                              </span>
+                              {option}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <Textarea
+                      placeholder="Précisions supplémentaires..."
+                      value={cabines[rapportModalCabineIdx].rapport}
+                      onChange={(e) => {
+                        const idx = rapportModalCabineIdx;
+                        setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, rapport: e.target.value } : c));
+                      }}
+                      rows={2}
+                      className="mt-3"
+                    />
+                  </div>
+                  <div className="px-5 pt-2 pb-5">
+                    <button
+                      type="button"
+                      onClick={() => setRapportModalCabineIdx(null)}
+                      className="w-full py-3 rounded-xl bg-[#1e3a5f] text-white text-sm font-semibold active:opacity-80 transition-opacity"
+                    >
+                      Fermer
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+
+            {/* ── Modal rapport général obligatoire (mono-cabine) ── */}
+            {showRapportRequiredModal && createPortal(
+              <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm p-4 pb-8">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+                  <div className="px-5 pt-5 pb-2">
+                    <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-1">Rapport général manquant</p>
+                    <p className="text-xs text-gray-500 mb-4">Veuillez renseigner le rapport avant d&apos;enregistrer.</p>
+                    <div className="space-y-2">
+                      {[
+                        "L'installation s'est déroulée sans encombre.",
+                        "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",
+                        "Client présent lors des montages, travaux validés par client.",
+                        "Personne sur site lors du montage.",
+                      ].map((option) => {
+                        const isSelected = rapport.includes(option);
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setRapport(rapport.replace(option, "").replace(/\n{2,}/g, "\n").trim());
+                              } else {
+                                setRapport((rapport ? rapport + "\n" : "") + option);
+                              }
+                            }}
+                            className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${
+                              isSelected
+                                ? "border-[#1e3a5f] bg-blue-50 text-[#1e3a5f] font-medium"
+                                : "border-gray-200 bg-white text-gray-700 active:bg-gray-50"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${
+                                isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300"
+                              }`}>
+                                {isSelected && <span className="text-white text-xs">✓</span>}
+                              </span>
+                              {option}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <Textarea
+                      placeholder="Précisions supplémentaires..."
+                      value={rapport}
+                      onChange={(e) => setRapport(e.target.value)}
+                      rows={3}
+                      className="mt-3"
+                    />
+                  </div>
+                  <div className="px-5 pt-2 pb-5 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowRapportRequiredModal(false)}
+                      className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium active:opacity-80 transition-opacity"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowRapportRequiredModal(false);
+                        if (rapport.trim()) handleSave();
+                      }}
+                      disabled={!rapport.trim()}
+                      className="flex-1 py-3 rounded-xl bg-[#1e3a5f] text-white text-sm font-semibold disabled:opacity-40 active:opacity-80 transition-opacity"
+                    >
+                      Enregistrer
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
             )}
 
             {/* Signalements enregistrés — pièces et défauts depuis le KV store */}
@@ -4556,7 +4870,13 @@ function ProjectPageContent({ id }: { id: string }) {
             {/* Actions CMD */}
             <div className="space-y-3 pt-2">
               <Button
-                onClick={() => handleSave()}
+                onClick={() => {
+                  if (!isCabineMode && !rapport.trim()) {
+                    setShowRapportRequiredModal(true);
+                    return;
+                  }
+                  handleSave();
+                }}
                 disabled={saving}
                 className="w-full h-12 rounded-xl text-base font-medium glass-btn text-white"
               >
