@@ -13,9 +13,18 @@ export async function GET(
   try {
     const { id } = await params;
     const project = await cachedOrFetch(`project-${id}`, () => getProject(id));
-    // Edge cache 5 s : aligne avec le serveur SWR pour une sync Notion rapide.
-    return cachedJson(project);
+    // CDN : 60 s frais → 300 s stale-while-revalidate.
+    // Réduit drastiquement les appels Notion lors des pics de trafic.
+    return cachedJson(project, { sMaxAge: 60, swr: 300 });
   } catch (error: any) {
+    const isRateLimit = error?.status === 429 || error?.code === "rate_limited";
+    if (isRateLimit) {
+      console.warn("[GET /api/projects/[id]] Notion rate limit, retrying later");
+      return NextResponse.json(
+        { error: "Service temporairement surchargé. Réessayez dans quelques secondes." },
+        { status: 503, headers: { "Retry-After": "15", "Cache-Control": "no-store" } }
+      );
+    }
     console.error("Error fetching project:", error);
     return NextResponse.json(
       { error: error.message || "Projet introuvable" },
