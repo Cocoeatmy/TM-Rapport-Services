@@ -39,22 +39,34 @@ export async function POST(request: NextRequest) {
   const idx = all.findIndex((a) => a.projectId === projectId);
   const existing = idx >= 0 ? all[idx] : null;
 
-  // Protection : ne jamais écraser un nom personnalisé par la valeur par défaut
-  // "Cabine N". Si le client envoie un nom par défaut, on conserve l'ancien nom
-  // personnalisé. Cela évite que la race-condition (save avant attribution-fetch)
-  // efface des noms saisis manuellement.
+  // ── Merge attribution ────────────────────────────────────────────────────
+  // Problème : quand un collaborateur envoie depuis un état cache incomplet,
+  // son tableau attribution contient des chaînes vides pour les cabines qu'il
+  // ne connaît pas. Sans merge, cela écrase les monteurs des autres cabines.
+  // Règle : pour chaque cabine, conserver la valeur KV existante si le client
+  // envoie une chaîne vide — le client ne "désassigne" jamais une cabine qu'il
+  // ne touche pas.
+  const maxLen = Math.max(attribution.length, existing?.attribution?.length || 0);
+  const mergedAttribution = Array.from({ length: maxLen }, (_, i) => {
+    const inVal = attribution[i] || "";
+    const exVal = existing?.attribution?.[i] || "";
+    return inVal || exVal; // incoming prend le dessus seulement s'il est non vide
+  });
+
+  // ── Merge noms ──────────────────────────────────────────────────────────
+  // Protection identique : ne jamais écraser un nom personnalisé par "Cabine N".
   const incomingNoms = Array.isArray(noms) ? noms : attribution.map((_, i) => `Cabine ${i + 1}`);
-  const mergedNoms = incomingNoms.map((n: string, i: number) => {
-    const isDefault = !n || n === `Cabine ${i + 1}`;
+  const mergedNoms = Array.from({ length: maxLen }, (_, i) => {
+    const n = incomingNoms[i] || `Cabine ${i + 1}`;
+    const isDefault = n === `Cabine ${i + 1}`;
     const existingNom = existing?.noms?.[i];
     const existingIsCustom = existingNom && existingNom !== `Cabine ${i + 1}`;
-    // Si le nom entrant est par défaut et qu'on a un nom personnalisé en base, on garde l'ancien
-    return (isDefault && existingIsCustom) ? existingNom : (n || `Cabine ${i + 1}`);
+    return (isDefault && existingIsCustom) ? existingNom : n;
   });
 
   const entry: CabineAttribution = {
     projectId,
-    attribution,
+    attribution: mergedAttribution,
     noms: mergedNoms,
     updatedAt: Date.now(),
   };
