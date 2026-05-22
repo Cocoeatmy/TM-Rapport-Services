@@ -508,8 +508,6 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
       data-cmm-active-section={activeSection}
       className="flex flex-col gap-0.5 py-2 px-1.5 overflow-y-auto h-full"
     >
-      <SideItem m="dashboard" Icon={Home} label="Accueil" showCount={false} />
-
       <SectionLabel>Suivi</SectionLabel>
       <SideItem m="projets-tous" Icon={FolderOpen} label="Projets en cours" showCount={false} />
       <SideItem m="archives" Icon={Archive} label="Archives" showCount={false} />

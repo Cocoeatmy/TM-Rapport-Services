@@ -287,6 +287,17 @@ html[data-ui="ocean"] .home-badge {
   border-color: rgba(255, 255, 255, 0.22);
 }
 
+/* Bouton retour arrière dans le header */
+.back-btn {
+  transition: background 120ms ease, color 120ms ease;
+}
+.back-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.back-btn:active {
+  background: rgba(255, 255, 255, 0.18);
+}
+
 /* Glass tabs */
 .glass-tabs {
   background: rgba(255, 255, 255, 0.4);
@@ -1770,12 +1781,32 @@ html[data-ui="cleanmymac"] .lg-bg::before {
     z-index: 2147483646;
   }
 
-  /* Cache le bouton Accueil (home-badge) du header en mode CMM desktop :
-     il est remplacé visuellement par les feux de signalisation ci-dessus.
-     La navigation Accueil reste accessible via l'item « Accueil » de la sidebar. */
+  /* Repositionne le groupe home+back après les feux de signalisation (72px).
+     Les feux sont fixed à left:20px, le 3e dot finit à left:72px. */
+  html[data-ui="cleanmymac"] #main-header .cmm-header-left {
+    margin-left: 62px;
+  }
+
+  /* Home badge visible en CMM desktop — style discret assorti au thème */
   html[data-ui="cleanmymac"] #main-header .home-badge {
-    opacity: 0;
-    pointer-events: none;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    background: rgba(139,92,246,0.18) !important;
+    border: 1px solid rgba(139,92,246,0.30) !important;
+    box-shadow: none !important;
+  }
+  html[data-ui="cleanmymac"] #main-header .home-badge:hover {
+    background: rgba(139,92,246,0.30) !important;
+  }
+
+  /* Back button — même style discret */
+  html[data-ui="cleanmymac"] #main-header .back-btn {
+    background: rgba(255,255,255,0.06);
+    border-radius: 10px;
+  }
+  html[data-ui="cleanmymac"] #main-header .back-btn:hover {
+    background: rgba(255,255,255,0.12);
+    color: white;
   }
 
 } /* end @media min-width 1024px */
