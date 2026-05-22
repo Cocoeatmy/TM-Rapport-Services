@@ -2035,6 +2035,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         </div>
 
         {/* ── Résumé du jour ── */}
+        {!cmmMode && (
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex gap-3 items-start">
           {/* Liste verticale services du jour */}
           <div className="flex-1 space-y-1.5">
@@ -2059,6 +2060,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             ))}
           </div>
         </div>
+        )}
 
         {/* ── Barre stats hebdomadaires ── */}
         {(() => {
@@ -2176,145 +2178,150 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </div>
           );
         })()}
-      </div>
 
-      {/* ── CMM Planning Row ──────────────────────────────────────────────── */}
-      {cmmMode && (() => {
-        const tomorrowD = new Date(); tomorrowD.setDate(tomorrowD.getDate() + 1);
-        const tomorrowStr = tomorrowD.toISOString().split("T")[0];
-        const afterTomorrowD = new Date(); afterTomorrowD.setDate(afterTomorrowD.getDate() + 2);
-        const afterTomorrowStr = afterTomorrowD.toISOString().split("T")[0];
+        {/* ── CMM Planning Row ─────────────────────────────────────────────── */}
+        {cmmMode && (() => {
+          const tomorrowD = new Date(); tomorrowD.setDate(tomorrowD.getDate() + 1);
+          const tomorrowStr = tomorrowD.toISOString().split("T")[0];
+          const afterTomorrowD = new Date(); afterTomorrowD.setDate(afterTomorrowD.getDate() + 2);
+          const afterTomorrowStr = afterTomorrowD.toISOString().split("T")[0];
 
-        const micaelData = collabData.find(c => c.name === firstName);
-        const micaelTomorrowProjects = micaelData
-          ? micaelData.myProjects.filter(p => projectSpansDate(p, tomorrowStr))
-          : [];
+          const micaelData = collabData.find(c => c.name === firstName);
+          const micaelTomorrowProjects = micaelData
+            ? micaelData.myProjects.filter(p => projectSpansDate(p, tomorrowStr))
+            : [];
 
-        const collabTodayList = collabData.filter(c => c.todayProjects.length > 0);
-        const collabTomorrowList = collabData
-          .map(c => ({ ...c, tomorrowProjects: c.myProjects.filter(p => projectSpansDate(p, tomorrowStr)) }))
-          .filter(c => c.tomorrowProjects.length > 0);
-        const collabAfterList = collabData
-          .map(c => ({
-            ...c,
-            futureProjects: c.myProjects
-              .filter(p => projectActiveDuringRange(p, afterTomorrowStr, "2099-12-31"))
-              .sort((a, b) => (a.dateMontage || a.dateMesures || "").localeCompare(b.dateMontage || b.dateMesures || "")),
-          }))
-          .filter(c => c.futureProjects.length > 0);
+          const collabTodayList = collabData.filter(c => c.todayProjects.length > 0);
+          const collabTomorrowList = collabData
+            .map(c => ({ ...c, tomorrowProjects: c.myProjects.filter(p => projectSpansDate(p, tomorrowStr)) }))
+            .filter(c => c.tomorrowProjects.length > 0);
+          const collabAfterList = collabData
+            .map(c => ({
+              ...c,
+              futureProjects: c.myProjects
+                .filter(p => projectActiveDuringRange(p, afterTomorrowStr, "2099-12-31"))
+                .sort((a, b) => (a.dateMontage || a.dateMesures || "").localeCompare(b.dateMontage || b.dateMesures || "")),
+            }))
+            .filter(c => c.futureProjects.length > 0);
 
-        const tomorrowLabel = new Date(tomorrowStr + "T12:00").toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" });
+          const tomorrowLabel = new Date(tomorrowStr + "T12:00").toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" });
 
-        const cardCls = "flex-shrink-0 min-w-[160px] flex-1 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 space-y-2";
-        const titleCls = "text-[10px] font-semibold uppercase tracking-widest text-white/40";
-        const subtitleCls = "text-[9px] text-white/25 -mt-1";
-        const emptyMsg = (msg: string) => <p className="text-[10px] text-white/20 italic">{msg}</p>;
+          const cardCls = "flex-shrink-0 min-w-[160px] flex-1 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 space-y-2";
+          const titleCls = "text-[10px] font-semibold uppercase tracking-widest text-white/40";
+          const subtitleCls = "text-[9px] text-white/25 -mt-1";
+          const emptyMsg = (msg: string) => <p className="text-[10px] text-white/20 italic">{msg}</p>;
 
-        const svcItems = [
-          { label: "Montage",  count: todayMontages,  color: "text-orange-400" },
-          { label: "Mesure",   count: todayMesures,   color: "text-cyan-400"   },
-          { label: "SAV",      count: savTodayCount,  color: "text-red-400"    },
-          { label: "Service",  count: todayServices,  color: "text-violet-400" },
-          { label: "Garantie", count: todayGaranties, color: "text-emerald-400"},
-        ];
+          const svcItems = [
+            { label: "Montage",  count: todayMontages,  color: "text-orange-400",  panel: "today" as const },
+            { label: "Mesure",   count: todayMesures,   color: "text-cyan-400",    panel: "mesures-today" as const },
+            { label: "SAV",      count: savTodayCount,  color: "text-red-400",     panel: "sav-today" as const },
+            { label: "Service",  count: todayServices,  color: "text-violet-400",  panel: "services-today" as const },
+            { label: "Garantie", count: todayGaranties, color: "text-emerald-400", panel: null as null },
+          ];
 
-        return (
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {/* 1 – Services Micael */}
-            <div className={cardCls}>
-              <p className={titleCls}>Services Micael</p>
-              <div className="space-y-0.5">
-                {svcItems.map(({ label, count, color }) => (
-                  <div key={label} className="flex items-center gap-1.5">
-                    <span className={`text-xs font-bold ${count > 0 ? color : "text-white/20"}`}>{count}</span>
-                    <span className="text-[10px] text-white/50">
-                      {`${label}${label !== "SAV" && count !== 1 ? "s" : ""} prévu${count !== 1 ? "s" : ""} aujourd'hui`}
-                    </span>
-                  </div>
-                ))}
+          return (
+            <div className="mt-3 pt-3 border-t border-white/10 flex gap-2 overflow-x-auto pb-1">
+              {/* 1 – Services Micael */}
+              <div className={cardCls}>
+                <p className={titleCls}>Services Micael</p>
+                <div className="space-y-0.5">
+                  {svcItems.map(({ label, count, color, panel }) => (
+                    <button
+                      key={label}
+                      onClick={panel ? (e) => openPanel(panel, e as React.MouseEvent<HTMLButtonElement>) : undefined}
+                      className={`flex items-center gap-1.5 w-full text-left ${panel && count > 0 ? "hover:opacity-70 active:scale-95 transition-all" : "cursor-default"}`}
+                    >
+                      <span className={`text-xs font-bold ${count > 0 ? color : "text-white/20"}`}>{count}</span>
+                      <span className="text-[10px] text-white/50">
+                        {`${label}${label !== "SAV" && count !== 1 ? "s" : ""} prévu${count !== 1 ? "s" : ""} aujourd'hui`}
+                      </span>
+                      {panel && count > 0 && <span className="text-white/30 ml-auto text-xs">›</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2 – Planning Micael J+1 */}
+              <div className={cardCls}>
+                <p className={titleCls}>Planning Micael J+1</p>
+                <p className={subtitleCls}>{tomorrowLabel}</p>
+                {micaelTomorrowProjects.length === 0
+                  ? emptyMsg("Aucun projet demain")
+                  : <div className="space-y-1">
+                      {micaelTomorrowProjects.map(p => (
+                        <p key={p.id} className="text-[10px] text-white/60 truncate">
+                          {p.nomChantier || p.projet}
+                        </p>
+                      ))}
+                    </div>
+                }
+              </div>
+
+              {/* 3 – Planning Collaborateurs Aujourd'hui */}
+              <div className={cardCls}>
+                <p className={titleCls}>Planning Collaborateurs</p>
+                <p className={subtitleCls}>Aujourd'hui</p>
+                {collabTodayList.length === 0
+                  ? emptyMsg("Personne planifié")
+                  : <div className="space-y-1">
+                      {collabTodayList.map(c => (
+                        <div key={c.name} className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colors.dot }} />
+                          <span className="text-[10px] font-medium text-white/65 truncate">{c.name}</span>
+                          <span className="text-[9px] text-white/30 ml-auto flex-shrink-0">{c.todayProjects.length}p</span>
+                        </div>
+                      ))}
+                    </div>
+                }
+              </div>
+
+              {/* 4 – Planning Collaborateurs J+1 */}
+              <div className={cardCls}>
+                <p className={titleCls}>Planning Collaborateurs</p>
+                <p className={subtitleCls}>{tomorrowLabel}</p>
+                {collabTomorrowList.length === 0
+                  ? emptyMsg("Aucun RDV demain")
+                  : <div className="space-y-1">
+                      {collabTomorrowList.map(c => (
+                        <div key={c.name} className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colors.dot }} />
+                          <span className="text-[10px] font-medium text-white/65 truncate">{c.name}</span>
+                          <span className="text-[9px] text-white/30 ml-auto flex-shrink-0">{c.tomorrowProjects.length}p</span>
+                        </div>
+                      ))}
+                    </div>
+                }
+              </div>
+
+              {/* 5 – Planning Collaborateurs Après J+1 */}
+              <div className={cardCls}>
+                <p className={titleCls}>Après J+1</p>
+                <p className={subtitleCls}>Tous les RDV fixés</p>
+                {collabAfterList.length === 0
+                  ? emptyMsg("Aucun RDV à venir")
+                  : <div className="space-y-1 max-h-28 overflow-y-auto">
+                      {collabAfterList.flatMap(c =>
+                        c.futureProjects.slice(0, 4).map(p => {
+                          const dateStr = (p.dateMontage || p.dateMesures || "").split("T")[0];
+                          const dateLbl = dateStr
+                            ? new Date(dateStr + "T12:00").toLocaleDateString("fr-CH", { day: "numeric", month: "short" })
+                            : "";
+                          return (
+                            <div key={`${c.name}-${p.id}`} className="flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.colors.dot }} />
+                              <span className="text-[9px] text-white/35 flex-shrink-0 w-10">{dateLbl}</span>
+                              <span className="text-[9px] text-white/50 truncate">{c.name}</span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                }
               </div>
             </div>
-
-            {/* 2 – Planning Micael J+1 */}
-            <div className={cardCls}>
-              <p className={titleCls}>Planning Micael J+1</p>
-              <p className={subtitleCls}>{tomorrowLabel}</p>
-              {micaelTomorrowProjects.length === 0
-                ? emptyMsg("Aucun projet demain")
-                : <div className="space-y-1">
-                    {micaelTomorrowProjects.map(p => (
-                      <p key={p.id} className="text-[10px] text-white/60 truncate">
-                        {p.nomChantier || p.projet}
-                      </p>
-                    ))}
-                  </div>
-              }
-            </div>
-
-            {/* 3 – Planning Collaborateurs Aujourd'hui */}
-            <div className={cardCls}>
-              <p className={titleCls}>Planning Collaborateurs</p>
-              <p className={subtitleCls}>Aujourd'hui</p>
-              {collabTodayList.length === 0
-                ? emptyMsg("Personne planifié")
-                : <div className="space-y-1">
-                    {collabTodayList.map(c => (
-                      <div key={c.name} className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colors.dot }} />
-                        <span className="text-[10px] font-medium text-white/65 truncate">{c.name}</span>
-                        <span className="text-[9px] text-white/30 ml-auto flex-shrink-0">{c.todayProjects.length}p</span>
-                      </div>
-                    ))}
-                  </div>
-              }
-            </div>
-
-            {/* 4 – Planning Collaborateurs J+1 */}
-            <div className={cardCls}>
-              <p className={titleCls}>Planning Collaborateurs</p>
-              <p className={subtitleCls}>{tomorrowLabel}</p>
-              {collabTomorrowList.length === 0
-                ? emptyMsg("Aucun RDV demain")
-                : <div className="space-y-1">
-                    {collabTomorrowList.map(c => (
-                      <div key={c.name} className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colors.dot }} />
-                        <span className="text-[10px] font-medium text-white/65 truncate">{c.name}</span>
-                        <span className="text-[9px] text-white/30 ml-auto flex-shrink-0">{c.tomorrowProjects.length}p</span>
-                      </div>
-                    ))}
-                  </div>
-              }
-            </div>
-
-            {/* 5 – Planning Collaborateurs Après J+1 */}
-            <div className={cardCls}>
-              <p className={titleCls}>Après J+1</p>
-              <p className={subtitleCls}>Tous les RDV fixés</p>
-              {collabAfterList.length === 0
-                ? emptyMsg("Aucun RDV à venir")
-                : <div className="space-y-1 max-h-28 overflow-y-auto">
-                    {collabAfterList.flatMap(c =>
-                      c.futureProjects.slice(0, 4).map(p => {
-                        const dateStr = (p.dateMontage || p.dateMesures || "").split("T")[0];
-                        const dateLbl = dateStr
-                          ? new Date(dateStr + "T12:00").toLocaleDateString("fr-CH", { day: "numeric", month: "short" })
-                          : "";
-                        return (
-                          <div key={`${c.name}-${p.id}`} className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.colors.dot }} />
-                            <span className="text-[9px] text-white/35 flex-shrink-0 w-10">{dateLbl}</span>
-                            <span className="text-[9px] text-white/50 truncate">{c.name}</span>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-              }
-            </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
+      </div>
 
       {/* Summary cards — réorganisables style iOS (masquées en mode CMM) */}
       {!cmmMode && (() => {
