@@ -4481,6 +4481,11 @@ function ProjectPageContent({ id }: { id: string }) {
                               {/* Signalement par cabine */}
                               <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
                                 <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 mb-2">Signalement — {cabine.nom}</p>
+                                <PiecesForm
+                                  projectId={id}
+                                  projectName={project.projet}
+                                  onSubmitted={() => setPieceRefreshKey((k) => k + 1)}
+                                />
                                 <DefautForm
                                   projectId={id}
                                   projectName={project.projet}
