@@ -625,11 +625,17 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                     // Utilise le nom personnalisé si défini et différent du défaut
                     const customNom = cabineAttribution?.noms?.[i];
                     const cabLabel = (customNom && customNom !== `Cabine ${i + 1}`) ? customNom : `Cabine ${i + 1}`;
+                    const monteurNom = cabineAttribution?.attribution?.[i] || null;
                     return (
                     <View key={i} wrap={false} style={{ flexDirection: "row", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                      <Text style={{ width: 70, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f", alignSelf: "center" }}>
-                        {cabLabel}
-                      </Text>
+                      <View style={{ width: 80, alignSelf: "center" }}>
+                        <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>
+                          {cabLabel}
+                        </Text>
+                        {monteurNom ? (
+                          <Text style={{ fontSize: 7, color: "#888", marginTop: 1 }}>{monteurNom}</Text>
+                        ) : null}
+                      </View>
                       {dateMap[i] ? (
                         <View style={{ ...styles.timeBox, flex: 1.5, marginRight: 4 }}>
                           <Text style={styles.timeLabel}>Date</Text>
