@@ -7,7 +7,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, ShieldCheck, Compass, Receipt } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, ShieldCheck, Compass, Receipt, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -441,7 +441,7 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
     const v = projectsData[m];
     return Array.isArray(v) ? v.length : null;
   };
-  const isActive = (m: string) => mode === m || mode === `${m}-termine` || ((m === "grossistes" || m === "fournisseurs") && mode.startsWith(`${m}-`));
+  const isActive = (m: string) => mode === m || mode === `${m}-termine` || ((m === "grossistes" || m === "fournisseurs") && mode.startsWith(`${m}-`)) || (m === "signalements" && mode.startsWith("signalements"));
 
   const activeSection =
     (mode === "projets-tous" || mode === "archives") ? "suivi" :
@@ -452,7 +452,8 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
     mode === "sanitaires" ? "sanitaires" :
     mode === "rapport" ? "rapport" :
     mode === "destockage" ? "destockage" :
-    mode === "stats" ? "stats" : "dashboard";
+    mode === "stats" ? "stats" :
+    mode.startsWith("signalements") ? "signalements" : "dashboard";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SideItem = ({ m, Icon, label, showCount = true }: { m: string; Icon: any; label: string; showCount?: boolean }) => {
@@ -533,6 +534,7 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
       <SideItem m="sanitaires" Icon={Droplets} label="Sanitaires" showCount={false} />
 
       <SectionLabel>Autres</SectionLabel>
+      <SideItem m="signalements" Icon={AlertTriangle} label="Signalements" showCount={false} />
       <SideItem m="a-facturer" Icon={Receipt} label="À facturer" showCount={false} />
       <SideItem m="collaborateurs" Icon={UsersIcon} label="Collaborateurs" showCount={false} />
       <SideItem m="emplacement-cabines" Icon={MapPin} label="Emplacement cabines" showCount={false} />
@@ -664,6 +666,140 @@ function CmmMobileDrawer({ mode, projectsData, onSwitchMode, isAdmin }: {
         />
       </div>
     </>
+  );
+}
+
+/* ====================================================================
+   SignalementListView — liste pièces manquantes ou défauts depuis KV
+   ==================================================================== */
+function SignalementListView({ subMode }: { subMode: "pieces" | "defauts" }) {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    const url = subMode === "pieces" ? "/api/pieces" : "/api/defauts";
+    fetch(url).then((r) => r.ok ? r.json() : []).then((data) => {
+      setItems(Array.isArray(data) ? data.sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0)) : []);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [subMode]);
+
+  const q = search.toLowerCase();
+  const filtered = items.filter((it) =>
+    !q ||
+    (it.projectName || "").toLowerCase().includes(q) ||
+    (it.description || "").toLowerCase().includes(q) ||
+    (it.reference || "").toLowerCase().includes(q) ||
+    (it.cabineLabel || "").toLowerCase().includes(q)
+  );
+
+  const isPieces = subMode === "pieces";
+  const isClosed = (it: any) => isPieces ? it.status === "recu" : it.status === "resolu";
+  const open   = filtered.filter((it) => !isClosed(it));
+  const closed = filtered.filter((it) => isClosed(it));
+
+  const statusLabel = (it: any): { label: string; cls: string } => {
+    if (isPieces) {
+      if (it.status === "recu")     return { label: "Reçue",      cls: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" };
+      if (it.status === "commande") return { label: "Commandée",  cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" };
+      return { label: "Demandée", cls: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300" };
+    } else {
+      if (it.status === "resolu")   return { label: "Résolu",    cls: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" };
+      if (it.status === "en-cours") return { label: "En cours",  cls: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300" };
+      return { label: "Signalé", cls: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" };
+    }
+  };
+
+  const Card = ({ it }: { it: any }) => {
+    const st = statusLabel(it);
+    const photos: string[] = it.photoUrls?.length ? it.photoUrls : (it.photoUrl ? [it.photoUrl] : []);
+    const date = it.timestamp ? new Date(it.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" }) : null;
+    return (
+      <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-4 space-y-2 hover:shadow-sm transition-shadow">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-[#1e3a5f] dark:text-blue-300 truncate">{it.projectName || "Projet inconnu"}</p>
+            {it.cabineLabel && <p className="text-[11px] text-purple-600 dark:text-purple-400">{it.cabineLabel}</p>}
+          </div>
+          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${st.cls}`}>{st.label}</span>
+        </div>
+        {it.description && <p className="text-sm text-gray-700 dark:text-gray-300 leading-snug">{it.description}</p>}
+        {it.reference && <p className="text-xs text-gray-400">Réf : {it.reference}</p>}
+        {it.typesLabel && <p className="text-xs text-gray-500 dark:text-gray-400">{it.typesLabel}</p>}
+        {photos.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {photos.map((url: string, i: number) => (
+              <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                <img src={url.replace("/upload/", "/upload/w_80,h_80,c_fill/")} alt="" className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-slate-600" loading="lazy" />
+              </a>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-2 pt-0.5">
+          {it.user && <span className="text-[11px] text-gray-400">{it.user}</span>}
+          {date && <span className="text-[11px] text-gray-300 dark:text-gray-600">· {date}</span>}
+        </div>
+      </div>
+    );
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-16">
+      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      {/* Barre de recherche */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          placeholder="Rechercher (projet, description…)"
+          className="w-full pl-9 pr-4 h-11 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {/* Ouverts */}
+      {open.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Clock className="w-4 h-4 text-orange-500" />
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              En cours <span className="text-gray-400 font-normal">({open.length})</span>
+            </h3>
+          </div>
+          <div className="space-y-3">
+            {open.map((it: any) => <Card key={it.id} it={it} />)}
+          </div>
+        </section>
+      )}
+
+      {/* Clôturés */}
+      {closed.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Clôturés <span className="text-gray-400 font-normal">({closed.length})</span>
+            </h3>
+          </div>
+          <div className="space-y-3 opacity-70">
+            {closed.map((it: any) => <Card key={it.id} it={it} />)}
+          </div>
+        </section>
+      )}
+
+      {filtered.length === 0 && (
+        <div className="text-center py-16 text-gray-400">
+          <AlertTriangle className="w-8 h-8 mx-auto mb-3 opacity-40" />
+          <p className="text-sm">Aucun signalement trouvé</p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1067,8 +1203,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -1908,7 +2044,7 @@ function HomePage() {
           isAdmin={currentUser?.role === "admin" || false}
           onSwitchMode={(m: string) => {
             setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               fetch("/api/projects/all").then((r) => r.json()).then((data) => {
@@ -1938,7 +2074,7 @@ function HomePage() {
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             // CMM : afficher le hero pour les modes qui en ont un
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
@@ -5302,6 +5438,29 @@ function HomePage() {
         <DestockageView isAdmin={currentUser?.role === "admin"} />
       )}
 
+      {/* ======================================================== */}
+      {/* VUE SIGNALEMENTS — pièces manquantes ou défauts (KV)     */}
+      {/* ======================================================== */}
+      {mode === "signalements-pieces" && !(isCmm && cmmHeroMode === "signalements") && (
+        <div>
+          <div className="flex items-center gap-2 mb-5">
+            <Package className="w-5 h-5 text-orange-500" />
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Pièces manquantes</h2>
+          </div>
+          <SignalementListView subMode="pieces" />
+        </div>
+      )}
+
+      {mode === "signalements-defauts" && !(isCmm && cmmHeroMode === "signalements") && (
+        <div>
+          <div className="flex items-center gap-2 mb-5">
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Défauts signalés</h2>
+          </div>
+          <SignalementListView subMode="defauts" />
+        </div>
+      )}
+
 
       {/* ======================================================== */}
       {/* CleanMyMac Hero — Mesures (affiché à la place de la liste)  */}
@@ -5411,6 +5570,25 @@ function HomePage() {
               id === "rdv"     ? "garanties-rdv-a-fixer" :
               "garanties-cloture"
             );
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* CleanMyMac Hero — Signalements                           */}
+      {/* ======================================================== */}
+      {isCmm && mode === "signalements" && cmmHeroMode === "signalements" && (
+        <CmmSectionLanding
+          icon={AlertTriangle}
+          title="Signalements"
+          subtitle="Pièces manquantes et défauts signalés sur les projets"
+          actions={[
+            { id: "pieces",  icon: Package,        label: "Pièces manquantes", sublabel: "Articles commandés ou en attente" },
+            { id: "defauts", icon: AlertCircle,    label: "Défauts signalés",  sublabel: "Problèmes en cours ou résolus"    },
+          ]}
+          onAction={(id) => {
+            setCmmHeroMode(null);
+            setMode(id === "pieces" ? "signalements-pieces" : "signalements-defauts");
           }}
         />
       )}
@@ -5667,7 +5845,7 @@ function HomePage() {
       {/* et sauf quand un hero CMM est affiché)                   */}
       {/* ======================================================== */}
       {(() => {
-        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier"];
+        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
         const cmmHeroActive = isCmm && cmmHeroModes.includes(mode) && cmmHeroMode === mode;
         return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && !cmmHeroActive;
       })() && (<>
