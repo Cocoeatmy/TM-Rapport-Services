@@ -882,12 +882,38 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
 
               return (
                 <Page key={`page-cab-${cabKey}`} size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
-                  {/* Header fixe sombre — répété sur chaque page de cette cabine */}
-                  <View fixed style={{ backgroundColor: "#1e3a5f", borderRadius: 4, paddingVertical: 7, paddingHorizontal: 10, marginBottom: 10 }}>
-                    <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#ffffff" }}>
-                      {headerText}
-                    </Text>
-                  </View>
+                  {/* Header adaptatif par page :
+                      - 1ʳᵉ page de la cabine → fond bleu, texte blanc
+                      - Pages suivantes        → fond blanc, texte bleu (bordure)
+                      La closure firstPageNum capture la page globale du 1ᵉʳ rendu
+                      de cet élément fixe, ce qui correspond toujours à la 1ʳᵉ page
+                      physique de la cabine. */}
+                  {(() => {
+                    let firstPageNum: number | undefined;
+                    return (
+                      <View
+                        fixed
+                        style={{ marginBottom: 10 }}
+                        render={({ pageNumber }) => {
+                          if (firstPageNum === undefined) firstPageNum = pageNumber;
+                          const isFirst = pageNumber === firstPageNum;
+                          return isFirst ? (
+                            <View style={{ backgroundColor: "#1e3a5f", borderRadius: 4, paddingVertical: 7, paddingHorizontal: 10 }}>
+                              <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#ffffff" }}>
+                                {headerText}
+                              </Text>
+                            </View>
+                          ) : (
+                            <View style={{ borderWidth: 1, borderColor: "#1e3a5f", borderRadius: 4, paddingVertical: 7, paddingHorizontal: 10 }}>
+                              <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>
+                                {headerText}
+                              </Text>
+                            </View>
+                          );
+                        }}
+                      />
+                    );
+                  })()}
                   {avantPhotos.length > 0 && renderBucketGrid("Photos avant intervention", avantPhotos, `cab-${cabKey}-avant`)}
                   {montagePhotos.length > 0 && renderBucketGrid("Photos montage", montagePhotos, `cab-${cabKey}-montage`)}
                   {apresPhotos.length > 0 && renderBucketGrid("Photos après intervention", apresPhotos, `cab-${cabKey}-apres`)}
