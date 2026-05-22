@@ -14,10 +14,11 @@ const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m
 interface PiecesFormProps {
   projectId: string;
   projectName: string;
+  cabineLabel?: string;
   onSubmitted?: (photoUrls: string[]) => void;
 }
 
-export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormProps) {
+export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted }: PiecesFormProps) {
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [reference, setReference] = useState("");
@@ -102,7 +103,7 @@ export function PiecesForm({ projectId, projectName, onSubmitted }: PiecesFormPr
       const res = await offlineFetch("/api/pieces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, projectName, description, reference, photoUrls }),
+        body: JSON.stringify({ projectId, projectName, description, reference, photoUrls, ...(cabineLabel ? { cabineLabel } : {}) }),
       });
       if (res.ok) {
         toast.success("Demande de pièce envoyée");

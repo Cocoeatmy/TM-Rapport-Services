@@ -22,6 +22,7 @@ interface PieceRequest {
   status: "demande" | "commande" | "recu";
   timestamp: number;
   comments: PieceComment[];
+  cabineLabel?: string;
 }
 
 const KEY = "pieces";

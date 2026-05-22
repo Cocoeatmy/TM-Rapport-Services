@@ -2285,6 +2285,10 @@ function ProjectPageContent({ id }: { id: string }) {
   // nouveau défaut soumis pour forcer le rechargement des données KV.
   const [defautRefreshKey, setDefautRefreshKey] = useState(0);
   const [pieceRefreshKey, setPieceRefreshKey] = useState(0);
+  const [cabineSignalements, setCabineSignalements] = useState<{
+    pieces: { id: string; cabineLabel?: string }[];
+    defauts: { id: string; cabineLabel?: string }[];
+  }>({ pieces: [], defauts: [] });
   const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
@@ -2292,6 +2296,17 @@ function ProjectPageContent({ id }: { id: string }) {
       if (d.user) setCurrentUser(d.user);
     }).catch(() => {});
   }, []);
+
+  // Charge les signalements (pièces + défauts) pour afficher les icônes dans les en-têtes de cabine
+  useEffect(() => {
+    if (!id) return;
+    Promise.all([
+      fetch(`/api/pieces?projectId=${id}`).then((r) => r.ok ? r.json() : []).catch(() => []),
+      fetch(`/api/defauts?projectId=${id}`).then((r) => r.ok ? r.json() : []).catch(() => []),
+    ]).then(([pieces, defauts]) => {
+      setCabineSignalements({ pieces: Array.isArray(pieces) ? pieces : [], defauts: Array.isArray(defauts) ? defauts : [] });
+    });
+  }, [id, pieceRefreshKey, defautRefreshKey]);
 
   const handleReformulate = async () => {
     if (!rapport.trim()) return;
@@ -4248,6 +4263,13 @@ function ProjectPageContent({ id }: { id: string }) {
                             </span>
                           )}
                           <span className="font-medium text-sm">{cabine.nom}</span>
+                          {/* Icônes signalement : pièce manquante (orange) + défaut (rouge) */}
+                          {cabineSignalements.pieces.some((p) => p.cabineLabel === cabine.nom) && (
+                            <Package className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                          )}
+                          {cabineSignalements.defauts.some((d) => d.cabineLabel === cabine.nom) && (
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                          )}
                         </div>
                         {!cabineDragMode && (cabine.open ? (
                           <ChevronUp className="w-4 h-4 text-gray-400" />
@@ -4484,6 +4506,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <PiecesForm
                                   projectId={id}
                                   projectName={project.projet}
+                                  cabineLabel={cabine.nom}
                                   onSubmitted={() => setPieceRefreshKey((k) => k + 1)}
                                 />
                                 <DefautForm
