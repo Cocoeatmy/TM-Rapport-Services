@@ -1746,45 +1746,44 @@ html[data-ui="cleanmymac"] .lg-bg::before {
     content: '';
     position: fixed;
     inset: 0;
-    border-radius: 16px;
+    border-radius: 20px;
     pointer-events: none;
     z-index: 2147483647;
     box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,0.13),    /* bord lumineux intérieur */
-      inset 0 1px 0   rgba(255,255,255,0.22);    /* reflet haut de fenêtre  */
+      inset 0 0 0 1px rgba(255,255,255,0.13),
+      inset 0 1px 0   rgba(255,255,255,0.22);
   }
 
-  /* ── Feux de signalisation macOS (traffic lights) ─────────────────────── */
-  /*
-   * html::after = les 3 points rouge / jaune / vert dans le coin
-   * supérieur gauche de la fenêtre, comme dans toute app macOS native.
-   * Le box-shadow crée le point jaune (+20 px) et vert (+40 px) à partir
-   * du point rouge (l'élément lui-même). z-index juste sous l'anneau de
-   * fenêtre (2147483647) pour qu'ils apparaissent bien à l'intérieur.
-   */
-  html[data-ui="cleanmymac"]::after {
-    content: '';
-    position: fixed;
-    top: 18px;
-    left: 20px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #FF5F57;                    /* rouge — fermer       */
-    box-shadow:
-      0 0 0 0.5px rgba(0,0,0,0.18),        /* contour léger rouge  */
-      20px 0 0 #FEBC2E,                    /* jaune — réduire      */
-      20px 0 0 0.5px rgba(0,0,0,0.12),     /* contour léger jaune  */
-      40px 0 0 #28C840,                    /* vert  — agrandir     */
-      40px 0 0 0.5px rgba(0,0,0,0.12);    /* contour léger vert   */
-    pointer-events: none;
-    z-index: 2147483646;
+  /* Feux de signalisation remplacés par des boutons DOM cliquables dans CmmWindowCorners.
+     Le ::after est supprimé pour éviter le doublon visuel. */
+  html[data-ui="cleanmymac"]::after { display: none; }
+
+  /* En mode Window Controls Overlay (PWA installée) :
+     les feux natifs macOS sont actifs → on masque nos boutons DOM.
+     L'en-tête se décale en dessous de la zone titlebar. */
+  @media (display-mode: window-controls-overlay) {
+    .cmm-traffic-btn { display: none !important; }
+
+    html[data-ui="cleanmymac"] #main-header {
+      padding-top: env(titlebar-area-height, 0px);
+      -webkit-app-region: drag;
+    }
+    html[data-ui="cleanmymac"] #main-header * {
+      -webkit-app-region: no-drag;
+    }
+    html[data-ui="cleanmymac"] #main-navbar {
+      top: calc(52px + env(titlebar-area-height, 0px)) !important;
+      height: calc(100vh - 52px - env(titlebar-area-height, 0px)) !important;
+    }
+    html[data-ui="cleanmymac"] main {
+      padding-top: env(titlebar-area-height, 0px);
+    }
   }
 
-  /* Repositionne le groupe home+back après les feux de signalisation (72px).
-     Les feux sont fixed à left:20px, le 3e dot finit à left:72px. */
+  /* Repositionne le groupe home+back après les feux (rouge 20px + 2×20px gap + largeur 12px = 72px).
+     Marge légèrement augmentée pour laisser de l'air. */
   html[data-ui="cleanmymac"] #main-header .cmm-header-left {
-    margin-left: 62px;
+    margin-left: 84px;
   }
 
   /* Home badge visible en CMM desktop — style discret assorti au thème */
