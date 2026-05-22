@@ -2339,6 +2339,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [dragCabOver, setDragCabOver] = useState<number | null>(null);
   const cabineLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cabineTouchSrcRef = useRef<number | null>(null);
+  const nomKvDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reorderCabines = (srcIdx: number, dstIdx: number) => {
     if (srcIdx === dstIdx) return;
     setCabines(prev => {
@@ -4221,6 +4222,20 @@ function ProjectPageContent({ id }: { id: string }) {
                                       JSON.stringify(next.map((c) => c.nom))
                                     );
                                   } catch {}
+                                  // Debounce-save dans le KV — source de vérité serveur
+                                  // pour que tous les appareils voient les noms corrects.
+                                  if (nomKvDebounceRef.current) clearTimeout(nomKvDebounceRef.current);
+                                  nomKvDebounceRef.current = setTimeout(() => {
+                                    offlineFetch("/api/cabine-attribution", {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({
+                                        projectId: id,
+                                        attribution: next.map((c) => c.monteur),
+                                        noms: next.map((c, i) => c.nom || `Cabine ${i + 1}`),
+                                      }),
+                                    }).catch(console.error);
+                                  }, 600);
                                   return next;
                                 });
                               }}
