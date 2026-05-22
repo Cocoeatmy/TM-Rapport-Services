@@ -5,8 +5,8 @@
   "start_url": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone"],
-  "background_color": "#040010",
-  "theme_color": "#040010",
+  "background_color": "#070214",
+  "theme_color": "#070214",
   "orientation": "portrait",
   "icons": [
     {

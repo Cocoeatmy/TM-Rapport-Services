@@ -1760,11 +1760,22 @@ html[data-ui="cleanmymac"] .lg-bg::before {
 
   /* En mode Window Controls Overlay (PWA installée) :
      les feux natifs macOS sont actifs → on masque nos boutons DOM.
-     L'en-tête se décale en dessous de la zone titlebar. */
+     Le header s'étend dans la zone titlebar pour une continuité visuelle parfaite.
+     #070214 = équivalent opaque de rgba(7,2,20,0.96) sur fond #040010. */
   @media (display-mode: window-controls-overlay) {
     .cmm-traffic-btn { display: none !important; }
 
+    /* html fond = même couleur que le header → zone derrière les feux natifs */
+    html[data-ui="cleanmymac"] {
+      background: #070214 !important;
+    }
+
+    /* Header s'étend vers le haut pour couvrir la zone titlebar —
+       backdrop-filter retiré (inutile : on rend la couleur pleinement opaque). */
     html[data-ui="cleanmymac"] #main-header {
+      background: #070214 !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
       padding-top: env(titlebar-area-height, 0px);
       -webkit-app-region: drag;
     }
