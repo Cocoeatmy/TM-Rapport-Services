@@ -88,6 +88,11 @@ function formatSwissDateFromISO(iso: string): string {
 // ─── Notion fetch ─────────────────────────────────────────────────────────────
 
 async function fetchWeekMontages(): Promise<Project[]> {
+  // Cover yesterday (cron runs at 07:00 — covers the previous calendar day)
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const iso = yesterday.toISOString().slice(0, 10); // "YYYY-MM-DD"
+
   const allResults: any[] = [];
   let cursor: string | undefined;
 
@@ -95,8 +100,10 @@ async function fetchWeekMontages(): Promise<Project[]> {
     const res: any = await notion.databases.query({
       database_id: databaseId,
       filter: {
-        property: "Date Montage",
-        date: { past_week: {} },
+        and: [
+          { property: "Date Montage", date: { on_or_after: iso } },
+          { property: "Date Montage", date: { on_or_before: iso } },
+        ],
       },
       sorts: [{ property: "Date Montage", direction: "descending" }],
       page_size: 100,
@@ -117,7 +124,7 @@ async function fetchWeekMontages(): Promise<Project[]> {
 
 // ─── HTML Email ───────────────────────────────────────────────────────────────
 
-function buildEmail(projects: Project[], weekLabel: string): string {
+function buildEmail(projects: Project[], dayLabel: string): string {
   const rows = projects
     .map((p) => {
       const entries = parseEntries(p.heureArrivee, p.heureDepart);
@@ -196,7 +203,7 @@ function buildEmail(projects: Project[], weekLabel: string): string {
 
   return `<!DOCTYPE html>
 <html lang="fr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rapport hebdomadaire — TM Douche Montage</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rapport quotidien — TM Douche Montage</title></head>
 <body style="margin:0;padding:0;background:#0a0118;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0118;min-height:100vh;">
     <tr><td align="center" style="padding:32px 16px;">
@@ -206,8 +213,8 @@ function buildEmail(projects: Project[], weekLabel: string): string {
         <tr><td style="background:linear-gradient(135deg,#1a0533 0%,#2d0a5e 50%,#1a0533 100%);border-radius:16px 16px 0 0;padding:32px 32px 24px;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
-              <div style="font-size:22px;font-weight:800;color:#e9d5ff;letter-spacing:-0.5px;">📊 Rapport hebdomadaire</div>
-              <div style="font-size:14px;color:#a78bfa;margin-top:4px;">${weekLabel}</div>
+              <div style="font-size:22px;font-weight:800;color:#e9d5ff;letter-spacing:-0.5px;">📊 Rapport quotidien</div>
+              <div style="font-size:14px;color:#a78bfa;margin-top:4px;">${dayLabel}</div>
             </div>
             <div style="text-align:right;">
               <div style="font-size:13px;color:#6b7280;">TM Douche Montage Sàrl</div>
@@ -236,7 +243,7 @@ function buildEmail(projects: Project[], weekLabel: string): string {
         <!-- Table -->
         <tr><td style="background:#100225;padding:0 32px 32px;">
           ${projects.length === 0
-            ? `<div style="text-align:center;padding:40px;color:#6b7280;font-size:14px;">Aucun montage exécuté cette semaine.</div>`
+            ? `<div style="text-align:center;padding:40px;color:#6b7280;font-size:14px;">Aucun montage exécuté aujourd'hui.</div>`
             : `<table width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
                 <thead>
                   <tr style="background:rgba(139,92,246,0.20);">
@@ -255,7 +262,7 @@ function buildEmail(projects: Project[], weekLabel: string): string {
 
         <!-- Footer -->
         <tr><td style="background:#0a0118;border-top:1px solid rgba(255,255,255,0.06);border-radius:0 0 16px 16px;padding:20px 32px;text-align:center;">
-          <div style="font-size:12px;color:#4b5563;">TM Douche Montage Sàrl · Rapport généré automatiquement chaque lundi matin</div>
+          <div style="font-size:12px;color:#4b5563;">TM Douche Montage Sàrl · Rapport généré automatiquement chaque matin à 07h00</div>
         </td></tr>
 
       </table>
@@ -267,7 +274,7 @@ function buildEmail(projects: Project[], weekLabel: string): string {
 
 // ─── Telegram summary ─────────────────────────────────────────────────────────
 
-function buildTelegramMessage(projects: Project[], weekLabel: string): string {
+function buildTelegramMessage(projects: Project[], dayLabel: string): string {
   const totalH = projects.reduce(
     (s, p) => s + totalHours(parseEntries(p.heureArrivee, p.heureDepart)),
     0
@@ -275,13 +282,13 @@ function buildTelegramMessage(projects: Project[], weekLabel: string): string {
   const totalCab = projects.reduce((s, p) => s + (p.nbCabines || 0), 0);
   const soucis = projects.filter((p) => p.soucisMontage).length;
 
-  let msg = `📊 <b>Rapport hebdomadaire</b> — ${weekLabel}\n\n`;
+  let msg = `📊 <b>Rapport quotidien</b> — ${dayLabel}\n\n`;
   msg += `<b>${projects.length}</b> montage${projects.length > 1 ? "s" : ""}   <b>${formatH(totalH)}</b> heures   <b>${totalCab}</b> cabines`;
   if (soucis > 0) msg += `   ⚠ <b>${soucis}</b> soucis`;
   msg += "\n\n";
 
   if (projects.length === 0) {
-    msg += "Aucun montage exécuté cette semaine.";
+    msg += "Aucun montage exécuté aujourd'hui.";
     return msg;
   }
 
@@ -303,16 +310,13 @@ function buildTelegramMessage(projects: Project[], weekLabel: string): string {
 
 // ─── Week label ───────────────────────────────────────────────────────────────
 
-function weekLabel(): string {
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((day + 6) % 7) - 7); // last Monday
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  const fmt = (d: Date) =>
-    `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
-  return `Semaine du ${fmt(monday)} au ${fmt(sunday)}`;
+function dayLabel(): string {
+  // Report runs at 07:00 — covers the previous calendar day
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const days = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+  const months = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+  return `${days[yesterday.getDay()]} ${yesterday.getDate()} ${months[yesterday.getMonth()]} ${yesterday.getFullYear()}`;
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -326,7 +330,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const projects = await fetchWeekMontages();
-    const label = weekLabel();
+    const label = dayLabel();
 
     const results: Record<string, unknown> = { projects: projects.length, label };
 
@@ -336,7 +340,7 @@ export async function GET(request: NextRequest) {
       const emailRes = await resend.emails.send({
         from: "TM Rapport Services <onboarding@resend.dev>",
         to: [ADMIN_EMAIL],
-        subject: `📊 Rapport hebdomadaire — ${label} (${projects.length} montage${projects.length !== 1 ? "s" : ""})`,
+        subject: `📊 Rapport du ${label} — ${projects.length} montage${projects.length !== 1 ? "s" : ""}`,
         html,
       });
       results.email = emailRes.data?.id ? "sent" : "error";
@@ -359,7 +363,7 @@ export async function GET(request: NextRequest) {
     try {
       const summary =
         projects.length === 0
-          ? "Aucun montage cette semaine."
+          ? "Aucun montage aujourd'hui."
           : `${projects.length} montage${projects.length > 1 ? "s" : ""} · ${formatH(
               projects.reduce(
                 (s, p) => s + totalHours(parseEntries(p.heureArrivee, p.heureDepart)),
@@ -368,7 +372,7 @@ export async function GET(request: NextRequest) {
             )} · ${projects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.`;
 
       await sendPushToUser(ADMIN_EMAIL, {
-        title: `📊 Rapport semaine — ${projects.length} montage${projects.length !== 1 ? "s" : ""}`,
+        title: `📊 Rapport du jour — ${projects.length} montage${projects.length !== 1 ? "s" : ""}`,
         message: summary,
         url: "/",
       });
@@ -383,8 +387,8 @@ export async function GET(request: NextRequest) {
       await createNotification(
         ADMIN_EMAIL,
         "rdv",
-        `Rapport semaine — ${label}`,
-        `${projects.length} montage${projects.length !== 1 ? "s" : ""} exécuté${projects.length !== 1 ? "s" : ""} cette semaine.`
+        `Rapport du ${label}`,
+        `${projects.length} montage${projects.length !== 1 ? "s" : ""} exécuté${projects.length !== 1 ? "s" : ""} hier.`
       );
       results.inApp = "created";
     } catch (e: any) {
