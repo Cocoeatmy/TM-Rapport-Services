@@ -445,7 +445,7 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
 
   const activeSection =
     (mode === "projets-tous" || mode === "archives") ? "suivi" :
-    (["mesures", "cmd", "services", "sav", "garanties"].some(m => isActive(m))) ? "services" :
+    (["mesures", "cmd", "services", "sav", "garanties", "rdv"].some(m => isActive(m))) ? "services" :
     mode.startsWith("clients-") ? "crm" :
     mode.startsWith("grossistes") ? "grossistes" :
     mode.startsWith("fournisseurs") ? "fournisseurs" :
@@ -519,6 +519,7 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
       <SideItem m="services" Icon={Settings} label="Services" />
       <SideItem m="sav" Icon={AlertCircle} label="SAV" />
       <SideItem m="garanties" Icon={ShieldCheck} label="Garanties" showCount={false} />
+      <SideItem m="rdv" Icon={CalendarDays} label="RDV" showCount={false} />
 
       <SectionLabel>CRM</SectionLabel>
       <SideItem m="clients-contacts" Icon={UsersIcon} label="Contacts" showCount={false} />
@@ -1203,8 +1204,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -1818,20 +1819,25 @@ function HomePage() {
     // ---- Filtres CMM Mesures ----
     if (quickFilter === "mesures-today" && p.dateMesures !== formatLocalDate(new Date())) return false;
     if (quickFilter === "mesures-rdv" && !p.dateMesures) return false;
+    if (quickFilter === "mesures-rdv-a-fixer" && !!p.dateMesures) return false;
     if (quickFilter === "mesures-non-cmd" && !(p.etatMesures === "Terminé" && p.etatCMD === "Cabines mesurées")) return false;
     // ---- Filtres CMM Montages ----
     if (quickFilter === "cmd-today" && p.dateMontage !== formatLocalDate(new Date())) return false;
     if (quickFilter === "cmd-rdv-a-fixer" && p.etatCMD !== "Cabine à aller chercher" && p.etatCMD !== "Récéptionné - RDV à fixer") return false;
+    if (quickFilter === "cmd-rdv-etablis" && !p.dateMontage) return false;
     // ---- Filtres CMM Services ----
     if (quickFilter === "services-today" && p.dateMontage !== formatLocalDate(new Date())) return false;
     if (quickFilter === "services-rdv-a-fixer" && p.etatCMD !== "Cabine à aller chercher" && p.etatCMD !== "Récéptionné - RDV à fixer") return false;
+    if (quickFilter === "services-rdv-etablis" && !p.dateMontage) return false;
     // ---- Filtres CMM SAV ----
     if (quickFilter === "sav-today" && p.dateSAVRecu !== formatLocalDate(new Date())) return false;
     if (quickFilter === "sav-rdv-a-fixer" && !!p.dateSAVRecu) return false;
+    if (quickFilter === "sav-rdv-etablis" && !p.dateSAVRecu) return false;
     if (quickFilter === "sav-cloture" && p.etatSAV !== "Terminé") return false;
     // ---- Filtres CMM Garanties ----
     if (quickFilter === "garanties-today" && p.dateMontage !== formatLocalDate(new Date())) return false;
     if (quickFilter === "garanties-rdv-a-fixer" && !!p.dateMontage) return false;
+    if (quickFilter === "garanties-rdv-etablis" && !p.dateMontage) return false;
     if (quickFilter === "garanties-cloture" && p.etatCMD !== "Terminé") return false;
     return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
   }).sort((a, b) => {
@@ -2044,7 +2050,7 @@ function HomePage() {
           isAdmin={currentUser?.role === "admin" || false}
           onSwitchMode={(m: string) => {
             setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               fetch("/api/projects/all").then((r) => r.json()).then((data) => {
@@ -2074,7 +2080,7 @@ function HomePage() {
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             // CMM : afficher le hero pour les modes qui en ont un
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
@@ -5575,6 +5581,35 @@ function HomePage() {
       )}
 
       {/* ======================================================== */}
+      {/* CleanMyMac Hero — RDV                                    */}
+      {/* ======================================================== */}
+      {isCmm && mode === "rdv" && cmmHeroMode === "rdv" && (
+        <CmmSectionLanding
+          icon={CalendarDays}
+          title="RDV"
+          subtitle="Vue d'ensemble des rendez-vous par service"
+          actions={[
+            { id: "mesures:mesures-rdv-a-fixer",       icon: Ruler,        label: "Mesures",   sublabel: "RDV à fixer"  },
+            { id: "mesures:mesures-rdv",               icon: Ruler,        label: "Mesures",   sublabel: "RDV établis"  },
+            { id: "cmd:cmd-rdv-a-fixer",               icon: Wrench,       label: "Montages",  sublabel: "RDV à fixer"  },
+            { id: "cmd:cmd-rdv-etablis",               icon: Wrench,       label: "Montages",  sublabel: "RDV établis"  },
+            { id: "services:services-rdv-a-fixer",     icon: Settings,     label: "Services",  sublabel: "RDV à fixer"  },
+            { id: "services:services-rdv-etablis",     icon: Settings,     label: "Services",  sublabel: "RDV établis"  },
+            { id: "sav:sav-rdv-a-fixer",               icon: AlertCircle,  label: "SAV",       sublabel: "RDV à fixer"  },
+            { id: "sav:sav-rdv-etablis",               icon: AlertCircle,  label: "SAV",       sublabel: "RDV établis"  },
+            { id: "garanties:garanties-rdv-a-fixer",   icon: ShieldCheck,  label: "Garanties", sublabel: "RDV à fixer"  },
+            { id: "garanties:garanties-rdv-etablis",   icon: ShieldCheck,  label: "Garanties", sublabel: "RDV établis"  },
+          ]}
+          onAction={(id) => {
+            const [targetMode, filter] = id.split(":");
+            setCmmHeroMode(null);
+            setMode(targetMode as Mode);
+            setQuickFilter(filter);
+          }}
+        />
+      )}
+
+      {/* ======================================================== */}
       {/* CleanMyMac Hero — Signalements                           */}
       {/* ======================================================== */}
       {isCmm && mode === "signalements" && cmmHeroMode === "signalements" && (
@@ -5845,7 +5880,7 @@ function HomePage() {
       {/* et sauf quand un hero CMM est affiché)                   */}
       {/* ======================================================== */}
       {(() => {
-        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
+        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
         const cmmHeroActive = isCmm && cmmHeroModes.includes(mode) && cmmHeroMode === mode;
         return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && !cmmHeroActive;
       })() && (<>
