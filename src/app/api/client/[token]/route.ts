@@ -43,6 +43,7 @@ export async function GET(
 
     // Return only public-safe data (no hours, comments, prices)
     const publicData = {
+      id: projectId,             // Notion page ID (pour le lien collaborateur)
       projet: project.projet,
       nomChantier: project.nomChantier,
       adresseChantier: project.adresseChantier,

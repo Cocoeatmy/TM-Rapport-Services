@@ -11,10 +11,14 @@ import {
   Image as ImageIcon,
   ChevronDown,
   ChevronUp,
+  Hash,
+  ClipboardList,
+  LogIn,
 } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 
 interface PublicProject {
+  id: string;
   projet: string;
   nomChantier: string;
   adresseChantier: string;
@@ -65,12 +69,20 @@ function getStatusStyle(status: string) {
   return STATUS_COLORS[status] || { bg: "bg-gray-100", text: "text-gray-700" };
 }
 
+/** Extrait le numéro TM-XXXXXX depuis le titre du projet, si présent. */
+function extractTmNumber(projet: string): string | null {
+  const match = projet.match(/TM-\d+/);
+  return match ? match[0] : null;
+}
+
 export default function ClientPortalPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
   const [project, setProject] = useState<PublicProject | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [photosOpen, setPhotosOpen] = useState(false);
+  /** null = vérification en cours, false = non connecté, true = connecté */
+  const [isCollab, setIsCollab] = useState<boolean | null>(null);
 
   useEffect(() => {
     async function fetchProject() {
@@ -95,7 +107,18 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
         setLoading(false);
       }
     }
+
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/auth", { cache: "no-store" });
+        setIsCollab(res.ok);
+      } catch {
+        setIsCollab(false);
+      }
+    }
+
     fetchProject();
+    checkAuth();
   }, [token]);
 
   if (loading) {
@@ -123,6 +146,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
 
   const statusStyle = getStatusStyle(project.etatCMD);
   const allPhotos = [...(project.photosAvant || []), ...(project.photosMontage || [])];
+  const tmNumber = extractTmNumber(project.projet);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -147,14 +171,15 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <h2 className="text-xl font-bold text-gray-900 truncate">
+              {/* Titre complet — autorise le retour à la ligne */}
+              <h2 className="text-xl font-bold text-gray-900 leading-snug">
                 {project.projet}
               </h2>
               {project.nomChantier && project.nomChantier !== project.projet && (
                 <p className="text-sm text-gray-500 mt-0.5">{project.nomChantier}</p>
               )}
             </div>
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium shrink-0 ${statusStyle.bg} ${statusStyle.text}`}>
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium shrink-0 mt-0.5 ${statusStyle.bg} ${statusStyle.text}`}>
               {project.etatCMD}
             </span>
           </div>
@@ -162,6 +187,23 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
 
         {/* Details Grid */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+
+          {/* Numéro de projet */}
+          {tmNumber && (
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                <Hash className="w-4 h-4 text-slate-500" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">N° Projet</p>
+                <p className="text-sm font-semibold text-gray-800 mt-0.5">{tmNumber}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Séparateur si numéro présent */}
+          {tmNumber && <div className="border-t border-gray-100" />}
+
           {/* Address */}
           {project.adresseChantier && (
             <div className="flex items-start gap-3">
@@ -221,7 +263,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
         {/* Rapport PDF */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <a
-            href={`/api/pdf/${(() => { try { return atob(token.replace(/-/g,"+").replace(/_/g,"/")); } catch { return token; } })()}`}
+            href={`/api/pdf/${project.id}`}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => {
@@ -246,6 +288,55 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
               <polyline points="9 18 15 12 9 6"/>
             </svg>
           </a>
+        </div>
+
+        {/* ── Accès Collaborateur ─────────────────────────────────────────── */}
+        <div className={`rounded-2xl shadow-sm border p-5 transition-colors ${
+          isCollab
+            ? "bg-[#1e3a5f] border-[#1e3a5f]"
+            : "bg-white border-gray-100"
+        }`}>
+          {isCollab === null ? (
+            /* Vérification en cours */
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+              <p className="text-sm text-gray-400">Vérification accès...</p>
+            </div>
+          ) : isCollab ? (
+            /* Collaborateur connecté → lien vers le rapport */
+            <a
+              href={`/projet/${project.id}`}
+              className="flex items-center gap-3 w-full group"
+            >
+              <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0 group-hover:bg-white/25 transition-colors">
+                <ClipboardList className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-white">Saisir le rapport de montage</p>
+                <p className="text-xs text-blue-200">Heures, photos, rapport — accès collaborateur</p>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white/50 group-hover:text-white transition-colors">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </a>
+          ) : (
+            /* Non connecté → invitation à se connecter */
+            <a
+              href={`/login?redirect=/client/${token}`}
+              className="flex items-center gap-3 w-full group"
+            >
+              <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
+                <LogIn className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-colors" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-700 group-hover:text-blue-700 transition-colors">Accès collaborateur</p>
+                <p className="text-xs text-gray-400">Connectez-vous pour saisir le rapport</p>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-gray-300 group-hover:text-blue-400 transition-colors">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </a>
+          )}
         </div>
 
         {/* Photos */}
