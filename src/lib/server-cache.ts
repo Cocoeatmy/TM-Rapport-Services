@@ -42,7 +42,11 @@ export function getCached<T>(key: string): T | null {
 
 export function setCache(key: string, data: unknown) {
   const now = Date.now();
-  cache.set(key, { data, expires: now + TTL, staleAt: now + FRESH_MS });
+  // Les clés "project-<id>" (données temps réel) ont une fraîcheur courte (10 s)
+  // pour que le background-refresh propage les changements rapidement entre instances.
+  // Les clés de listes ("projects", "projects-mesures", …) gardent 5 s.
+  const freshMs = key.startsWith("project-") ? 10_000 : FRESH_MS;
+  cache.set(key, { data, expires: now + TTL, staleAt: now + freshMs });
   // Met à jour également le fallback (durée de vie plus longue).
   fallbackCache.set(key, { data, storedAt: now });
 }

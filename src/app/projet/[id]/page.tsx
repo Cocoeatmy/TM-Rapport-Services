@@ -2888,7 +2888,7 @@ function ProjectPageContent({ id }: { id: string }) {
         if (conflict) setCollabUpdateToast(true);
       } catch {}
     };
-    const interval = setInterval(refetch, 45_000); // 45 s — réduit les ISR Writes Vercel
+    const interval = setInterval(refetch, 15_000); // 15 s — sans cache CDN, pas d'ISR Writes
     // Refetch immédiat quand l'onglet redevient visible : "instant
     // fresh" au retour sur l'app sans attendre le prochain tick.
     const onVisible = () => {

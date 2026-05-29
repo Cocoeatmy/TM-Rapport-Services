@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProject, updateProject } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
-import { cachedJson } from "@/lib/edge-cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -61,9 +60,12 @@ export async function GET(
   try {
     const { id } = await params;
     const project = await cachedOrFetch(`project-${id}`, () => getProject(id));
-    // CDN : 60 s frais → 300 s stale-while-revalidate.
-    // Le merge côté PATCH protège contre les pertes de données liées au cache.
-    return cachedJson(project, { sMaxAge: 60, swr: 300 });
+    // Pas de cache CDN sur cette route — les données projet changent en temps réel
+    // (photos, heures, rapport). Le cache mémoire serveur (background-refresh 5 s)
+    // protège déjà Notion contre les appels répétés sans bloquer la propagation.
+    return NextResponse.json(project, {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (error: any) {
     const isRateLimit = error?.status === 429 || error?.code === "rate_limited";
     if (isRateLimit) {
