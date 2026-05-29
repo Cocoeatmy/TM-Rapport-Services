@@ -19,6 +19,7 @@ import { thumbnailUrl } from "@/lib/image-url";
 
 interface PublicProject {
   id: string;
+  ofrTM: string;
   projet: string;
   nomChantier: string;
   adresseChantier: string;
@@ -146,7 +147,8 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
 
   const statusStyle = getStatusStyle(project.etatCMD);
   const allPhotos = [...(project.photosAvant || []), ...(project.photosMontage || [])];
-  const tmNumber = extractTmNumber(project.projet);
+  // Priorité : champ dédié ofrTM → regex dans le titre → rien
+  const tmNumber = project.ofrTM || extractTmNumber(project.projet);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
