@@ -2498,13 +2498,28 @@ function ProjectPageContent({ id }: { id: string }) {
       }).catch(console.error);
       // PATCH attribution si monteur auto-assigné
       if (userCollab && next[idx0].monteur !== cabines[idx0].monteur) {
+        // Toujours utiliser localStorage comme référence des noms pour ne jamais
+        // écraser un nom personnalisé par un défaut issu de l'état mémoire.
+        let nomsToSend = next.map((c, i) => c.nom || `Cabine ${i + 1}`);
+        try {
+          const stored = localStorage.getItem(`tm-cabin-noms-${id}`);
+          if (stored) {
+            const localNoms: string[] = JSON.parse(stored);
+            nomsToSend = nomsToSend.map((n, i) => {
+              const local = localNoms[i];
+              const localIsCustom = local && local !== `Cabine ${i + 1}`;
+              const currentIsDefault = n === `Cabine ${i + 1}`;
+              return (localIsCustom && currentIsDefault) ? local : n;
+            });
+          }
+        } catch {}
         offlineFetch("/api/cabine-attribution", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             projectId: id,
             attribution: next.map((c) => c.monteur),
-            noms: next.map((c, i) => c.nom || `Cabine ${i + 1}`),
+            noms: nomsToSend,
           }),
         }).catch(console.error);
       }
@@ -2642,39 +2657,71 @@ function ProjectPageContent({ id }: { id: string }) {
       fetch(`/api/cabine-attribution?projectId=${data.id}`)
         .then((r) => r.json())
         .then((attr) => {
-          if (!attr) {
-            // Aucune entrée KV : si localStorage contient des noms personnalisés,
-            // on les pousse immédiatement dans le KV pour les sécuriser côté serveur.
-            const hasCustom = storedNoms?.some((n, i) => n && n !== `Cabine ${i + 1}`);
-            if (hasCustom && storedNoms) {
+          // ── Règle fondamentale : "le nom le plus personnalisé gagne toujours" ──
+          // localStorage   KV serveur   → résultat
+          // custom         default      → custom  (et push vers KV immédiatement)
+          // custom         custom       → KV (le serveur est la source partagée)
+          // default        custom       → KV custom
+          // default        default      → default
+
+          // Détecter les slots où localStorage a un nom custom mais le KV a un défaut
+          // (ou n'existe pas) → on doit pousser vers le KV pour que TOUS les
+          // collaborateurs voient le bon nom, pas seulement l'appareil qui l'a tapé.
+          const localHasCustom = storedNoms?.some((n, i) => n && n !== `Cabine ${i + 1}`);
+          const kvNeedsUpdate = localHasCustom && storedNoms && storedNoms.some((sn, i) => {
+            const isLocalCustom = sn && sn !== `Cabine ${i + 1}`;
+            const apiNom = attr?.noms?.[i];
+            const isApiDefault = !apiNom || apiNom === `Cabine ${i + 1}`;
+            return isLocalCustom && isApiDefault; // local a mieux que le KV
+          });
+
+          if (!attr || kvNeedsUpdate) {
+            // KV absent ou incomplet : on pousse les noms custom du localStorage
+            // vers le serveur pour que tous les collaborateurs en bénéficient.
+            if (localHasCustom && storedNoms) {
+              // Fusion : on garde le meilleur de chaque source
+              const mergedNoms = Array.from({ length: Math.max(storedNoms.length, attr?.noms?.length || 0, nb) }, (_, i) => {
+                const local = storedNoms[i];
+                const api   = attr?.noms?.[i];
+                const isLocalCustom = local && local !== `Cabine ${i + 1}`;
+                const isApiCustom   = api   && api   !== `Cabine ${i + 1}`;
+                if (isLocalCustom) return local; // localStorage prime si custom
+                if (isApiCustom)   return api;   // sinon KV si custom
+                return `Cabine ${i + 1}`;        // sinon défaut
+              });
               offlineFetch("/api/cabine-attribution", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   projectId: data.id,
-                  attribution: [],
-                  noms: storedNoms,
+                  attribution: attr?.attribution || [],
+                  noms: mergedNoms,
                 }),
               }).catch(() => {});
             }
-            return;
+            if (!attr) return; // pas d'entrée KV du tout → rien à merger dans l'état
           }
+
           setCabines((prev) => {
             const next = prev.map((c, i) => {
-              // Nom : règle de priorité stricte — ne jamais écraser un nom
-              // personnalisé (état courant ≠ "Cabine N") par la valeur par défaut.
-              const apiNom = attr.noms?.[i];
-              const isApiDefault = !apiNom || apiNom === `Cabine ${i + 1}`;
-              const currentIsCustom = c.nom && c.nom !== `Cabine ${i + 1}`;
-              // Prendre API si personnalisé, sinon conserver l'état courant
-              const nom = (!isApiDefault) ? apiNom : (currentIsCustom ? c.nom : `Cabine ${i + 1}`);
+              const apiNom   = attr.noms?.[i];
+              const localNom = storedNoms?.[i];
+              const isApiDefault   = !apiNom   || apiNom   === `Cabine ${i + 1}`;
+              const isLocalCustom  = localNom  && localNom !== `Cabine ${i + 1}`;
+              const isCurrentCustom = c.nom    && c.nom    !== `Cabine ${i + 1}`;
+              // Priorité : API custom > local custom > état courant custom > défaut
+              let nom: string;
+              if (!isApiDefault)      nom = apiNom!;
+              else if (isLocalCustom) nom = localNom!;
+              else if (isCurrentCustom) nom = c.nom;
+              else                    nom = `Cabine ${i + 1}`;
               return {
                 ...c,
                 monteur: attr.attribution?.[i] ?? c.monteur,
                 nom,
               };
             });
-            // Persiste les noms frais dans localStorage pour le prochain chargement
+            // Persiste les noms définitifs dans localStorage pour le prochain chargement
             try {
               localStorage.setItem(
                 `tm-cabin-noms-${data.id}`,
