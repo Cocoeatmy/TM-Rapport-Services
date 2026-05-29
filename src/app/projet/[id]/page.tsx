@@ -2358,12 +2358,30 @@ function ProjectPageContent({ id }: { id: string }) {
   const cabineLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cabineTouchSrcRef = useRef<number | null>(null);
   const nomKvDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Garde-fou : stocke l'id du projet dont les noms ont déjà été initialisés.
+   *  Empêche le 2e appel initProject (données fraîches Notion) d'écraser les
+   *  noms personnalisés déjà chargés depuis localStorage ou l'API KV. */
+  const cabinesInitializedRef = useRef<string | null>(null);
+
   const reorderCabines = (srcIdx: number, dstIdx: number) => {
     if (srcIdx === dstIdx) return;
     setCabines(prev => {
       const arr = [...prev];
       const [moved] = arr.splice(srcIdx, 1);
       arr.splice(dstIdx, 0, moved);
+      // Persiste le nouvel ordre des noms immédiatement dans localStorage + KV
+      try {
+        localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(arr.map((c) => c.nom)));
+      } catch {}
+      offlineFetch("/api/cabine-attribution", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: id,
+          attribution: arr.map((c) => c.monteur),
+          noms: arr.map((c, i) => c.nom || `Cabine ${i + 1}`),
+        }),
+      }).catch(() => {});
       return arr;
     });
   };
@@ -2577,43 +2595,79 @@ function ProjectPageContent({ id }: { id: string }) {
       const departMap = parseCabineTimes(data.heureDepart || "");
       const dateMap = parseCabineDates(data.heureArrivee || "");
 
-      // Restauration instantanée depuis localStorage — évite le flash des noms
-      // par défaut pendant que le fetch API d'attribution est en cours.
+      // ── Restauration des noms depuis localStorage ──────────────────────────
+      // Utilisé immédiatement pour éviter le flash « Cabine N » pendant le
+      // fetch API. Lire AVANT le guard alreadyInit car on en a besoin dans
+      // la closure du fetch.
       let storedNoms: string[] | null = null;
       try {
         const s = localStorage.getItem(`tm-cabin-noms-${data.id}`);
         if (s) storedNoms = JSON.parse(s);
       } catch {}
 
-      setCabines(
-        Array.from({ length: nb }, (_, i) => ({
-          // Priorité : localStorage → sinon valeur par défaut
-          nom: storedNoms?.[i] || `Cabine ${i + 1}`,
-          rapport: "",
-          open: i === 0,
-          monteur: "",
-          arrivee: arriveeMap[i] || "",
-          depart: departMap[i] || "",
-          date: dateMap[i] || "",
-          activeTab: "infos" as const,
-          qrEnabled: false,
-          garantieEnabled: false,
-        }))
-      );
+      const alreadyInit = cabinesInitializedRef.current === data.id;
+
+      if (!alreadyInit) {
+        // Premier appel pour ce projet (données du cache) — initialisation complète.
+        cabinesInitializedRef.current = data.id;
+        setCabines(
+          Array.from({ length: nb }, (_, i) => ({
+            // Priorité : localStorage → sinon valeur par défaut
+            nom: storedNoms?.[i] || `Cabine ${i + 1}`,
+            rapport: "",
+            open: i === 0,
+            monteur: "",
+            arrivee: arriveeMap[i] || "",
+            depart: departMap[i] || "",
+            date: dateMap[i] || "",
+            activeTab: "infos" as const,
+            qrEnabled: false,
+            garantieEnabled: false,
+          }))
+        );
+      } else {
+        // Second appel (données fraîches Notion) — ne jamais écraser les noms
+        // déjà chargés. On met à jour uniquement les champs temporels.
+        setCabines((prev) =>
+          prev.map((c, i) => ({
+            ...c,
+            arrivee: arriveeMap[i] !== undefined ? arriveeMap[i] : c.arrivee,
+            depart: departMap[i] !== undefined ? departMap[i] : c.depart,
+            date: dateMap[i] !== undefined ? dateMap[i] : c.date,
+          }))
+        );
+      }
 
       // Load existing attribution depuis l'API (source de vérité serveur)
       fetch(`/api/cabine-attribution?projectId=${data.id}`)
         .then((r) => r.json())
         .then((attr) => {
-          if (!attr) return;
+          if (!attr) {
+            // Aucune entrée KV : si localStorage contient des noms personnalisés,
+            // on les pousse immédiatement dans le KV pour les sécuriser côté serveur.
+            const hasCustom = storedNoms?.some((n, i) => n && n !== `Cabine ${i + 1}`);
+            if (hasCustom && storedNoms) {
+              offlineFetch("/api/cabine-attribution", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  projectId: data.id,
+                  attribution: [],
+                  noms: storedNoms,
+                }),
+              }).catch(() => {});
+            }
+            return;
+          }
           setCabines((prev) => {
             const next = prev.map((c, i) => {
-              // Nom : on prend la valeur la plus "custom" disponible :
-              // API > localStorage > état actuel (jamais "Cabine N" par défaut
-              // n'écrase une valeur personnalisée déjà en place).
+              // Nom : règle de priorité stricte — ne jamais écraser un nom
+              // personnalisé (état courant ≠ "Cabine N") par la valeur par défaut.
               const apiNom = attr.noms?.[i];
               const isApiDefault = !apiNom || apiNom === `Cabine ${i + 1}`;
-              const nom = isApiDefault ? c.nom : apiNom;
+              const currentIsCustom = c.nom && c.nom !== `Cabine ${i + 1}`;
+              // Prendre API si personnalisé, sinon conserver l'état courant
+              const nom = (!isApiDefault) ? apiNom : (currentIsCustom ? c.nom : `Cabine ${i + 1}`);
               return {
                 ...c,
                 monteur: attr.attribution?.[i] ?? c.monteur,
@@ -2787,7 +2841,7 @@ function ProjectPageContent({ id }: { id: string }) {
         if (conflict) setCollabUpdateToast(true);
       } catch {}
     };
-    const interval = setInterval(refetch, 8000);
+    const interval = setInterval(refetch, 45_000); // 45 s — réduit les ISR Writes Vercel
     // Refetch immédiat quand l'onglet redevient visible : "instant
     // fresh" au retour sur l'app sans attendre le prochain tick.
     const onVisible = () => {
@@ -4331,12 +4385,14 @@ function ProjectPageContent({ id }: { id: string }) {
                                     const newNom = e.target.value;
                                     setCabines((prev) => {
                                       const next = prev.map((c, i) => (i === idx ? { ...c, nom: newNom } : c));
+                                      // ── Sauvegarde locale immédiate ──────────────────────────────
                                       try {
                                         localStorage.setItem(
                                           `tm-cabin-noms-${id}`,
                                           JSON.stringify(next.map((c) => c.nom))
                                         );
                                       } catch {}
+                                      // ── Sauvegarde KV (debounce court pour grouper la frappe) ───
                                       if (nomKvDebounceRef.current) clearTimeout(nomKvDebounceRef.current);
                                       nomKvDebounceRef.current = setTimeout(() => {
                                         offlineFetch("/api/cabine-attribution", {
@@ -4348,7 +4404,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                             noms: next.map((c, i) => c.nom || `Cabine ${i + 1}`),
                                           }),
                                         }).catch(console.error);
-                                      }, 600);
+                                      }, 150); // 150 ms — assez court pour survivre à une fermeture d'onglet rapide
                                       return next;
                                     });
                                   }}

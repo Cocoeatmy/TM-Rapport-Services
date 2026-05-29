@@ -44,24 +44,22 @@ export function errorResponse(error: unknown): NextResponse {
  *     que le navigateur cache (le service worker fait ça mieux), juste
  *     le CDN partagé.
  *
- * Valeurs par défaut conservatrices :
- *   - sMaxAge = 10 s   : aligne avec le polling client (15 s) et le
- *                        cache serveur SWR (30 s frais), donc une
- *                        modification mise en cache serveur sera visible
- *                        au CDN au pire 10 s après.
- *   - swr      = 60 s  : sur réseau dégradé, on évite que l'utilisateur
- *                        attende un re-compute si le edge a expiré.
+ * Valeurs par défaut :
+ *   - sMaxAge = 30 s   : réduit les ISR Writes Vercel tout en gardant
+ *                        une fraîcheur acceptable pour les listes.
+ *   - swr      = 120 s : fenêtre stale-while-revalidate généreuse pour
+ *                        éviter les blocages sur réseau dégradé.
  */
 export interface EdgeCacheOptions {
-  /** Durée de cache CDN avant revalidation (secondes). Défaut 10. */
+  /** Durée de cache CDN avant revalidation (secondes). Défaut 30. */
   sMaxAge?: number;
-  /** Fenêtre stale-while-revalidate (secondes). Défaut 60. */
+  /** Fenêtre stale-while-revalidate (secondes). Défaut 120. */
   swr?: number;
 }
 
 export function cachedJson<T>(data: T, options: EdgeCacheOptions = {}): NextResponse {
-  const sMaxAge = options.sMaxAge ?? 5;   // réduit de 10→5 s pour une sync Notion plus rapide
-  const swr = options.swr ?? 30;          // réduit de 60→30 s
+  const sMaxAge = options.sMaxAge ?? 30;  // 30 s — limite les ISR Writes CDN
+  const swr = options.swr ?? 120;         // 120 s stale-while-revalidate
   return NextResponse.json(data, {
     headers: {
       "Cache-Control": `public, max-age=0, must-revalidate, s-maxage=${sMaxAge}, stale-while-revalidate=${swr}`,
