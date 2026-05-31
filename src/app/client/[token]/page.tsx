@@ -315,14 +315,21 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
               <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
                 <Package className="w-4 h-4 text-amber-600" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Cabines</p>
-                <p className="text-sm text-gray-800 mt-0.5">
-                  {project.nbCabines} cabine{project.nbCabines > 1 ? "s" : ""}
-                  {project.fournisseurs.length > 0 && (
-                    <span className="text-gray-400"> — {project.fournisseurs.join(", ")}</span>
+                <div className="flex items-center flex-wrap gap-2 mt-0.5">
+                  <p className="text-sm text-gray-800">
+                    {project.nbCabines} cabine{project.nbCabines > 1 ? "s" : ""}
+                    {project.fournisseurs.length > 0 && (
+                      <span className="text-gray-400"> — {project.fournisseurs.join(", ")}</span>
+                    )}
+                  </p>
+                  {project.seriesCabines && project.seriesCabines.length > 0 && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                      {project.seriesCabines.join(", ")}
+                    </span>
                   )}
-                </p>
+                </div>
               </div>
             </div>
           )}
