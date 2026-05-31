@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Truck, ChevronDown, ChevronUp, Loader2, Package, Camera, X, AlertCircle } from "lucide-react";
+import { Truck, ChevronDown, ChevronUp, Loader2, Package, Camera, X, AlertCircle, Search } from "lucide-react";
 import { STATUS_CMD_COLORS } from "@/lib/constants";
 
 interface FileItem {
@@ -71,6 +71,7 @@ export default function ArrivagePage() {
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   // Per-project form state
   const [forms, setForms] = useState<Record<string, Partial<Project & { photosCartonsUrls: string[] }>>>({});
@@ -110,9 +111,43 @@ export default function ArrivagePage() {
       .catch(() => {});
   }, []);
 
-  const filteredProjects = showAll
+  const baseProjects = showAll
     ? projects
     : projects.filter((p) => ARRIVAGE_STATUTS.includes(p.etatCMD));
+
+  const filteredProjects = search.trim()
+    ? (() => {
+        const q = search.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+        const normalize = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+        return baseProjects.filter((p) =>
+          // Titre complet du projet
+          normalize(p.projet).includes(q) ||
+          // N° OFR TM
+          normalize(p.ofrTM).includes(q) ||
+          // État CMD
+          normalize(p.etatCMD).includes(q) ||
+          // Fournisseurs
+          p.fournisseurs.some((f) => normalize(f).includes(q)) ||
+          // Séries
+          p.seriesCabines.some((s) => normalize(s).includes(q)) ||
+          // Emplacement cabine
+          normalize(p.emplacementCabine).includes(q) ||
+          // N° CMD Fournisseurs
+          normalize(p.servCmdFournisseurs).includes(q) ||
+          // N° CMD Grossiste
+          normalize(p.cmdGrossiste).includes(q) ||
+          // N° CMD TM
+          normalize(p.cmdTMUsine).includes(q) ||
+          // Dates arrivage
+          normalize(p.arrivageTM || "").includes(q) ||
+          normalize(p.arrivageGrossiste || "").includes(q) ||
+          // Bon de livraison
+          normalize(p.bonLivraison).includes(q) ||
+          // Nombre de cartons
+          String(p.nbCartons ?? "").includes(q)
+        );
+      })()
+    : baseProjects;
 
   const getForm = useCallback(
     (p: Project) => {
@@ -310,19 +345,41 @@ export default function ArrivagePage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Truck className="w-5 h-5 text-blue-500" />
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Arrivage cabines</h2>
-          <span className="text-xs text-gray-400 dark:text-gray-500">
-            {filteredProjects.length} projet{filteredProjects.length !== 1 ? "s" : ""}
-          </span>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Truck className="w-5 h-5 text-sky-500 shrink-0" />
+        <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Arrivage cabines</h2>
+        <span className="text-xs text-gray-400 dark:text-gray-500">
+          {filteredProjects.length} projet{filteredProjects.length !== 1 ? "s" : ""}
+        </span>
+        {/* Barre de recherche */}
+        <div className="relative flex-1 min-w-[200px] max-w-lg">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher projet, N° OFR, fournisseur, état, emplacement…"
+            className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-400/60"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
+        {/* Toggle tout afficher */}
         <button
           onClick={() => setShowAll((v) => !v)}
-          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors shrink-0 ${
+            showAll
+              ? "border-sky-400 text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20"
+              : "border-gray-200 dark:border-slate-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700"
+          }`}
         >
-          {showAll ? "Filtrés uniquement" : "Tout afficher"}
+          {showAll ? "Tous les projets" : "Tout afficher"}
         </button>
       </div>
 
