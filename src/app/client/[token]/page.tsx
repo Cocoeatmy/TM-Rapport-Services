@@ -171,14 +171,38 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
       .then((r) => r.json())
       .then((data) => {
         if (!data?.id) return;
+        const docs: { name: string; url: string }[] = data.documentsMontagee || [];
         setCollabData({
           contactsRDV: data.contactsRDV || "",
           emplacementCabine: data.emplacementCabine || "",
           nbCartons: data.nbCartons ?? null,
-          documentsMontagee: data.documentsMontagee || [],
+          // Remplace les URLs Notion (expirantes) par des URLs proxy stables
+          documentsMontagee: docs.map((doc, i) => ({
+            name: doc.name,
+            url: `/api/file-proxy?${new URLSearchParams({
+              projectId: project.id,
+              field: "Documents pour Montage",
+              index: String(i),
+            })}`,
+          })),
           commentairesMontages: data.commentairesMontages || "",
           cmdFournisseurs: data.cmdFournisseurs || "",
         });
+
+        // Pré-cache les documents via le SW dès qu'ils sont connus
+        if (docs.length > 0 && "serviceWorker" in navigator) {
+          const sw = navigator.serviceWorker.controller;
+          if (sw) {
+            const docUrls = docs.map((_, i) =>
+              `/api/file-proxy?${new URLSearchParams({
+                projectId: project.id,
+                field: "Documents pour Montage",
+                index: String(i),
+              })}`
+            );
+            sw.postMessage({ type: "PRECACHE_URLS", urls: docUrls });
+          }
+        }
       })
       .catch(() => {});
   }, [isCollab, project?.id]);
