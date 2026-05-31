@@ -20,6 +20,8 @@ import {
   MessageSquare,
   FileText,
   ExternalLink,
+  WifiOff,
+  CheckCircle2,
 } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 
@@ -97,6 +99,8 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
   const [isCollab, setIsCollab] = useState<boolean | null>(null);
   /** Données sensibles chargées uniquement si collaborateur authentifié */
   const [collabData, setCollabData] = useState<CollabData | null>(null);
+  /** État du pré-cache hors-ligne : null=inconnu, false=en cours, true=prêt */
+  const [offlineReady, setOfflineReady] = useState<boolean | null>(null);
 
   useEffect(() => {
     async function fetchProject() {
@@ -133,6 +137,32 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
     fetchProject();
     checkAuth();
   }, [token]);
+
+  // Pré-cache automatique pour consultation hors-ligne dès que les données sont chargées
+  useEffect(() => {
+    if (!project?.id || typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator)) return;
+
+    const urlsToCache = [
+      `/api/client/${token}`,
+      `/api/projects/${project.id}`,
+    ];
+
+    const sw = navigator.serviceWorker.controller;
+    if (!sw) return;
+
+    setOfflineReady(false);
+
+    // Écoute la confirmation du SW que le pré-cache est terminé
+    const handler = (evt: MessageEvent) => {
+      if (evt.data?.type === "PRECACHE_DONE") setOfflineReady(true);
+    };
+    navigator.serviceWorker.addEventListener("message", handler);
+
+    sw.postMessage({ type: "PRECACHE_URLS", urls: urlsToCache });
+
+    return () => navigator.serviceWorker.removeEventListener("message", handler);
+  }, [project?.id, token]);
 
   // Charger les données collaborateur dès que l'authentification est confirmée
   useEffect(() => {
@@ -186,10 +216,23 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
       <header className="bg-[#1e3a5f] text-white">
         <div className="max-w-2xl mx-auto px-4 py-5 flex items-center gap-3">
           <img src="/icons/logo-app.png?v=4" alt="TM" className="w-10 h-10 rounded-xl shadow-lg" />
-          <div>
+          <div className="flex-1">
             <h1 className="font-semibold text-lg leading-tight">Suivi de votre projet</h1>
             <p className="text-blue-200 text-xs">TM Douche Montage</p>
           </div>
+          {/* Indicateur hors-ligne */}
+          {offlineReady === true && (
+            <div className="flex items-center gap-1 bg-white/10 rounded-full px-2.5 py-1" title="Consultable sans réseau">
+              <WifiOff className="w-3 h-3 text-green-300" />
+              <span className="text-[10px] font-medium text-green-300">Hors-ligne OK</span>
+            </div>
+          )}
+          {offlineReady === false && (
+            <div className="flex items-center gap-1 bg-white/10 rounded-full px-2.5 py-1">
+              <Loader2 className="w-3 h-3 text-blue-200 animate-spin" />
+              <span className="text-[10px] text-blue-200">Sauvegarde…</span>
+            </div>
+          )}
         </div>
       </header>
 

@@ -1,12 +1,13 @@
-// Service worker TM Rapport — v10
+// Service worker TM Rapport — v11
 // Stratégies :
 //   - Statique (_next/static, icons, logos, manifest) : cache-first (permanent).
 //   - API GET : network-first avec timeout 400 ms → si réseau lent/absent, sert le cache.
 //   - Pages HTML : network-first avec timeout 6 s → si timeout ou échec, sert le cache,
-//     sinon page offline. On ne retombe PLUS sur "/" (confond le routeur RSC Next.js).
-//   v10 : timeout HTML 6 s (vs attente infinie), pré-cache étendu aux 7 prochains jours.
+//     sinon page offline.
+//   v11 : pré-cache explicite des pages /client/ et /projet/ + leurs données API
+//         via message PRECACHE_URLS — permet consultation hors-ligne garantie.
 
-const VERSION = "v10";
+const VERSION = "v11";
 const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;
@@ -222,11 +223,45 @@ self.addEventListener("notificationclick", function (event) {
   );
 });
 
-// === Message handler : purge cache API sur demande ===
+// === Message handler ===
 self.addEventListener("message", (event) => {
+  // Purge du cache API sur demande (ex: sync manuelle)
   if (event.data?.type === "INVALIDATE_API_CACHE") {
     event.waitUntil(
       caches.delete(API_CACHE).then(() => caches.open(API_CACHE))
+    );
+  }
+
+  // Pré-cache explicite d'une liste d'URLs pour consultation hors-ligne.
+  // Appelé depuis le client quand la page est visitée en ligne :
+  //   navigator.serviceWorker.controller.postMessage({ type: "PRECACHE_URLS", urls: [...] })
+  if (event.data?.type === "PRECACHE_URLS") {
+    const urls = event.data.urls || [];
+    event.waitUntil(
+      Promise.all(
+        urls.map(async (url) => {
+          try {
+            const isApi = url.includes("/api/");
+            const cacheName = isApi ? API_CACHE : CACHE_NAME;
+            const cache = await caches.open(cacheName);
+            // Vérifie si déjà en cache récent (moins de 2 min) — évite un fetch inutile.
+            const existing = await cache.match(url);
+            if (existing) {
+              const dateHeader = existing.headers.get("date");
+              if (dateHeader && Date.now() - new Date(dateHeader).getTime() < 120_000) return;
+            }
+            const response = await fetch(url, { credentials: "include" });
+            if (response && response.ok) {
+              await cache.put(url, response);
+            }
+          } catch {
+            // Silencieux : pas de réseau ou URL invalide
+          }
+        })
+      ).then(() => {
+        // Notifie le client que le pré-cache est terminé
+        event.source?.postMessage({ type: "PRECACHE_DONE" });
+      })
     );
   }
 });
