@@ -111,43 +111,31 @@ export default function ArrivagePage() {
       .catch(() => {});
   }, []);
 
-  const baseProjects = showAll
-    ? projects
-    : projects.filter((p) => ARRIVAGE_STATUTS.includes(p.etatCMD));
+  const normalize = (s: string) =>
+    (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
+  // Aucun projet affiché sans recherche active
   const filteredProjects = search.trim()
     ? (() => {
-        const q = search.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-        const normalize = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-        return baseProjects.filter((p) =>
-          // Titre complet du projet
+        const q = normalize(search.trim());
+        const pool = showAll ? projects : projects.filter((p) => ARRIVAGE_STATUTS.includes(p.etatCMD));
+        return pool.filter((p) =>
           normalize(p.projet).includes(q) ||
-          // N° OFR TM
           normalize(p.ofrTM).includes(q) ||
-          // État CMD
           normalize(p.etatCMD).includes(q) ||
-          // Fournisseurs
           p.fournisseurs.some((f) => normalize(f).includes(q)) ||
-          // Séries
           p.seriesCabines.some((s) => normalize(s).includes(q)) ||
-          // Emplacement cabine
           normalize(p.emplacementCabine).includes(q) ||
-          // N° CMD Fournisseurs
           normalize(p.servCmdFournisseurs).includes(q) ||
-          // N° CMD Grossiste
           normalize(p.cmdGrossiste).includes(q) ||
-          // N° CMD TM
           normalize(p.cmdTMUsine).includes(q) ||
-          // Dates arrivage
           normalize(p.arrivageTM || "").includes(q) ||
           normalize(p.arrivageGrossiste || "").includes(q) ||
-          // Bon de livraison
           normalize(p.bonLivraison).includes(q) ||
-          // Nombre de cartons
           String(p.nbCartons ?? "").includes(q)
         );
       })()
-    : baseProjects;
+    : [];
 
   const getForm = useCallback(
     (p: Project) => {
@@ -383,11 +371,21 @@ export default function ArrivagePage() {
         </button>
       </div>
 
-      {filteredProjects.length === 0 && (
-        <div className="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">
-          Aucun projet en cours d&apos;arrivage.
+      {!search.trim() ? (
+        <div className="py-20 text-center space-y-3">
+          <Search className="w-10 h-10 text-gray-200 dark:text-slate-600 mx-auto" />
+          <p className="text-sm text-gray-400 dark:text-gray-500">
+            Recherchez un projet pour enregistrer un arrivage
+          </p>
+          <p className="text-xs text-gray-300 dark:text-gray-600">
+            N° OFR, nom du projet, fournisseur, N° CMD…
+          </p>
         </div>
-      )}
+      ) : filteredProjects.length === 0 ? (
+        <div className="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">
+          Aucun projet trouvé pour «&nbsp;{search}&nbsp;»
+        </div>
+      ) : null}
 
       {/* Project cards */}
       {filteredProjects.map((p) => {
