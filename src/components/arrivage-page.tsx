@@ -27,13 +27,16 @@ interface Project {
   nbCartons: number | null;
 }
 
-const ARRIVAGE_STATUTS = [
-  "Cabines en CMD",
-  "Cabines à recevoir",
-  "Livraison partielle",
-  "Cabine à aller chercher",
+// Statuts exclus de la recherche Arrivage — projets déjà planifiés/terminés
+// qui n'ont plus besoin de suivi d'arrivage.
+const EXCLUDED_STATUTS = new Set([
   "Récéptionné - RDV à fixer",
-];
+  "RDV - fixé",
+  "RDV - Attendre news",
+  "Montage partiel",
+  "Annulé",
+  "Terminé",
+]);
 
 const ALL_STATUTS = [
   "En attente de mesures",
@@ -116,12 +119,14 @@ export default function ArrivagePage() {
     (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
   // Aucun projet affiché sans recherche active.
-  // Avec recherche : cherche dans TOUS les projets (pas de filtre de statut),
-  // pour ne jamais rater un projet peu importe son état CMD.
+  // Avec recherche : cherche dans tous les projets SAUF ceux dont le statut
+  // indique que l'arrivage est déjà passé ou le projet annulé/terminé.
+  const searchableProjects = projects.filter((p) => !EXCLUDED_STATUTS.has(p.etatCMD));
+
   const filteredProjects = search.trim()
     ? (() => {
         const q = normalize(search.trim());
-        return projects.filter((p) =>
+        return searchableProjects.filter((p) =>
           normalize(p.projet).includes(q) ||
           normalize(p.ofrTM).includes(q) ||
           normalize(p.etatCMD).includes(q) ||
