@@ -547,44 +547,50 @@ export default function ArrivagePage() {
                     />
                   </div>
 
-                  {/* N° CMD Fournisseurs */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      N° CMD Fournisseurs
-                    </label>
-                    <input
-                      type="text"
-                      value={(f?.servCmdFournisseurs as string) ?? p.servCmdFournisseurs}
-                      onChange={(e) => setFormField(p.id, "servCmdFournisseurs", e.target.value)}
-                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
+                  {/* N° CMD Fournisseurs — affiché uniquement si renseigné */}
+                  {p.servCmdFournisseurs && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                        N° CMD Fournisseurs
+                      </label>
+                      <input
+                        type="text"
+                        value={(f?.servCmdFournisseurs as string) ?? p.servCmdFournisseurs}
+                        onChange={(e) => setFormField(p.id, "servCmdFournisseurs", e.target.value)}
+                        className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
 
-                  {/* N° CMD Grossiste */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      N° CMD Grossiste
-                    </label>
-                    <input
-                      type="text"
-                      value={(f?.cmdGrossiste as string) ?? p.cmdGrossiste}
-                      onChange={(e) => setFormField(p.id, "cmdGrossiste", e.target.value)}
-                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
+                  {/* N° CMD Grossiste — affiché uniquement si renseigné */}
+                  {p.cmdGrossiste && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                        N° CMD Grossiste
+                      </label>
+                      <input
+                        type="text"
+                        value={(f?.cmdGrossiste as string) ?? p.cmdGrossiste}
+                        onChange={(e) => setFormField(p.id, "cmdGrossiste", e.target.value)}
+                        className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
 
-                  {/* N° CMD TM – Usine */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      N° CMD TM – Usine
-                    </label>
-                    <input
-                      type="text"
-                      value={(f?.cmdTMUsine as string) ?? p.cmdTMUsine}
-                      onChange={(e) => setFormField(p.id, "cmdTMUsine", e.target.value)}
-                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
+                  {/* N° CMD TM – Usine — affiché uniquement si renseigné */}
+                  {p.cmdTMUsine && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                        N° CMD TM – Usine
+                      </label>
+                      <input
+                        type="text"
+                        value={(f?.cmdTMUsine as string) ?? p.cmdTMUsine}
+                        onChange={(e) => setFormField(p.id, "cmdTMUsine", e.target.value)}
+                        className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
 
                   {/* Bon de livraison */}
                   <div>
