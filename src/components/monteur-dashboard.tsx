@@ -404,14 +404,16 @@ function getDailyQuote(firstName: string): string {
 // BMS (418×120, ratio 3.5:1) = référence visuelle → scale 1.
 // Dubat (1200×675) et Duka (1200×630) ont beaucoup de marge → scale 1.7.
 // Logos carrés (Matway, Nelo, Samo, Ronal) → scale 1.5.
-const CLIENT_LOGOS: { prefix: string; logo: string; scale?: number }[] = [
+// whiteOnTransparent : logo blanc sur fond transparent → invisible avec mix-blend-multiply.
+//   En mode clair : brightness(0) le rend noir. En dark : invert(1) le garde blanc.
+const CLIENT_LOGOS: { prefix: string; logo: string; scale?: number; whiteOnTransparent?: boolean }[] = [
   { prefix: "getaz",      logo: "/logos/fournisseurs/BMS-Logo.png" },
   { prefix: "gétaz",      logo: "/logos/fournisseurs/BMS-Logo.png" },
   { prefix: "duka",       logo: "/logos/fournisseurs/duka.ch-logo.png",    scale: 1.3 },
   { prefix: "duscholux",  logo: "/logos/fournisseurs/Duscholux-logo.png",  scale: 1.3 },
   { prefix: "ronal",      logo: "/logos/fournisseurs/ronal-logo-v2.png",   scale: 1.5 },
   { prefix: "nelo",       logo: "/logos/fournisseurs/Nelo-logo.jpg",       scale: 1.5 },
-  { prefix: "novellini",  logo: "/logos/fournisseurs/Novellini-logo.png",  scale: 1.2 },
+  { prefix: "novellini",  logo: "/logos/fournisseurs/Novellini-logo.png",  scale: 1.2, whiteOnTransparent: true },
   { prefix: "samo",       logo: "/logos/fournisseurs/Samo-logo.jpg",       scale: 1.5 },
   { prefix: "dubat",      logo: "/logos/fournisseurs/Dubat-Logo.png",      scale: 1.3 },
   { prefix: "tema",       logo: "/logos/fournisseurs/Tema-Logo.png",       scale: 1.4 },
@@ -428,6 +430,11 @@ function stripAccents(s: string): string {
 // Calculée une seule fois à partir de CLIENT_LOGOS.scale.
 const LOGO_SCALE_MAP: Record<string, number> = Object.fromEntries(
   CLIENT_LOGOS.filter((c) => c.scale).map((c) => [c.logo, c.scale as number])
+);
+
+// Logos blancs sur fond transparent : nécessitent un filtre pour être visibles sur fond clair.
+const LOGO_WHITE_SET = new Set(
+  CLIENT_LOGOS.filter((c) => c.whiteOnTransparent).map((c) => c.logo)
 );
 
 function getClientLogo(projectName: string): string | null {
@@ -458,6 +465,7 @@ function getBestLogo(projectName: string, _fournisseurs?: string[]): string | nu
  */
 function LogoImg({ src }: { src: string }) {
   const scale = LOGO_SCALE_MAP[src] ?? 1;
+  const isWhite = LOGO_WHITE_SET.has(src);
   // Décalage droit pour compenser le débordement visuel du zoom sans clipper.
   const extraRight = scale > 1 ? Math.round((scale - 1) * 8) : 0;
   return (
@@ -469,7 +477,13 @@ function LogoImg({ src }: { src: string }) {
         src={src}
         alt=""
         style={scale !== 1 ? { transform: `scale(${scale})`, transformOrigin: "center" } : undefined}
-        className="max-w-full max-h-full object-contain mix-blend-multiply dark:mix-blend-normal dark:invert"
+        className={
+          isWhite
+            // Logo blanc : brightness(0) en mode clair (→ noir), invert en dark (→ blanc)
+            ? "max-w-full max-h-full object-contain brightness-0 dark:brightness-100 dark:invert-0"
+            // Logo coloré normal : multiply pour ignorer le fond blanc natif
+            : "max-w-full max-h-full object-contain mix-blend-multiply dark:mix-blend-normal dark:invert"
+        }
       />
     </span>
   );
