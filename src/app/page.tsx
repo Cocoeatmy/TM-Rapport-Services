@@ -7,7 +7,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, ShieldCheck, Compass, Receipt, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, ShieldCheck, Compass, Receipt, AlertTriangle, CheckCircle2, Clock, Truck } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,11 @@ const CRMClients = dynamic(() => import("@/components/crm-clients").then(m => ({
 });
 
 const DestockageView = dynamic(() => import("@/components/destockage-view").then(m => ({ default: m.DestockageView })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const ArrivagePage = dynamic(() => import("@/components/arrivage-page"), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
@@ -445,7 +450,7 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
 
   const activeSection =
     (mode === "projets-tous" || mode === "archives") ? "suivi" :
-    (["mesures", "cmd", "services", "sav", "garanties", "rdv"].some(m => isActive(m))) ? "services" :
+    (["mesures", "cmd", "arrivage", "services", "sav", "garanties", "rdv"].some(m => isActive(m))) ? "services" :
     mode.startsWith("clients-") ? "crm" :
     mode.startsWith("grossistes") ? "grossistes" :
     mode.startsWith("fournisseurs") ? "fournisseurs" :
@@ -516,6 +521,7 @@ function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
       <SectionLabel>Services</SectionLabel>
       <SideItem m="mesures" Icon={Ruler} label="Mesures" />
       <SideItem m="cmd" Icon={Wrench} label="Montages" />
+      <SideItem m="arrivage" Icon={Truck} label="Arrivage" showCount={false} />
       <SideItem m="services" Icon={Settings} label="Services" />
       <SideItem m="sav" Icon={AlertCircle} label="SAV" />
       <SideItem m="garanties" Icon={ShieldCheck} label="Garanties" showCount={false} />
@@ -1204,8 +1210,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv" | "arrivage";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts", "arrivage"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -2050,7 +2056,7 @@ function HomePage() {
           isAdmin={currentUser?.role === "admin" || false}
           onSwitchMode={(m: string) => {
             setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements", "arrivage"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               fetch("/api/projects/all").then((r) => r.json()).then((data) => {
@@ -2080,7 +2086,7 @@ function HomePage() {
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             // CMM : afficher le hero pour les modes qui en ont un
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
+            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements", "arrivage"];
             setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
@@ -5469,6 +5475,11 @@ function HomePage() {
 
 
       {/* ======================================================== */}
+      {/* VUE ARRIVAGE — suivi de l'arrivage des cabines             */}
+      {/* ======================================================== */}
+      {mode === "arrivage" && <ArrivagePage />}
+
+      {/* ======================================================== */}
       {/* CleanMyMac Hero — Mesures (affiché à la place de la liste)  */}
       {/* ======================================================== */}
       {isCmm && mode === "mesures" && cmmHeroMode === "mesures" && (
@@ -5880,7 +5891,7 @@ function HomePage() {
       {/* et sauf quand un hero CMM est affiché)                   */}
       {/* ======================================================== */}
       {(() => {
-        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements"];
+        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements", "arrivage"];
         const cmmHeroActive = isCmm && cmmHeroModes.includes(mode) && cmmHeroMode === mode;
         return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && !cmmHeroActive;
       })() && (<>
