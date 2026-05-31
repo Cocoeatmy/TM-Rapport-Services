@@ -418,6 +418,15 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                       </div>
                     )}
                   </div>
+
+                  {/* CTA — Démarrer le rapport */}
+                  <a
+                    href={`/projet/${project.id}`}
+                    className="flex items-center justify-center gap-2 w-full mt-2 py-3 px-4 bg-white text-[#1e3a5f] rounded-xl font-semibold text-sm hover:bg-blue-50 active:bg-blue-100 transition-colors shadow-sm"
+                  >
+                    <ClipboardList className="w-4 h-4" />
+                    Démarrer rapport de montage
+                  </a>
                 </div>
               ) : (
                 <div className="px-5 pb-5 flex items-center gap-2">
