@@ -1172,7 +1172,7 @@ const DEFAULT_DASH_ORDER = [
   "mesures-today", "today", "services-today", "sav-today",
   "week", "active", "emplacement-cabines", "rapports-attente",
   "sav-non-traites", "soucis-en-cours", "dossiers-en-cours", "a-facturer",
-  "calendrier", "archives", "sav-historique", "soucis-historique", "mesures-sans-commande",
+  "calendrier", "archives", "arrivage", "sav-historique", "soucis-historique", "mesures-sans-commande",
   "__empty__", // Case vide — taquin pour faciliter les déplacements
 ];
 
@@ -1969,6 +1969,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           <p className="text-[9px] sm:text-[10px] text-amber-400 dark:text-amber-500 mt-0.5">Clôturés</p>
         </button>
       );
+      case "arrivage": return (
+        <button onClick={() => onNavigate?.("arrivage")} className={`relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full ${showSummaryPanel !== null ? "opacity-40 scale-[0.97]" : ""}`}>
+          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-sky-100/80 dark:bg-sky-900/30 flex items-center justify-center"><Truck className="w-4 h-4 text-sky-600 dark:text-sky-400" /></span>
+          <p className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400">
+            {(projects.filter(p => ["Cabines à recevoir","Livraison partielle","Cabine à aller chercher"].includes((p as any).etatCMD || ""))).length || "—"}
+          </p>
+          <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Arrivage</p>
+          <p className="text-[9px] sm:text-[10px] text-sky-400 dark:text-sky-500 mt-0.5">Cabines</p>
+        </button>
+      );
       case "sav-historique": return (
         <button onClick={(e) => openPanel("sav-historique", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
           <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-red-500 dark:text-red-400" /></span>
@@ -2528,6 +2538,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           "a-facturer":          "À facturer",
           "calendrier":          "Calendrier",
           "archives":            "Archives",
+          "arrivage":            "Arrivage cabines",
           "sav-historique":      "Historique SAV",
           "soucis-historique":   "Historique soucis",
           "mesures-sans-commande": "Mesures non commandées",
@@ -2639,6 +2650,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           "sav-historique":       { label: "SAV — Tous",             color: "text-red-600 dark:text-red-400",       bg: "bg-red-100/80 dark:bg-red-900/30",       icon: <ShieldAlert className="w-4 h-4 text-red-500 dark:text-red-400" /> },
           "soucis-historique":    { label: "Soucis montage — Tous",  color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-100/80 dark:bg-orange-900/30", icon: <AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-400" /> },
           "mesures-sans-commande":{ label: "Mesures non commandées", color: "text-cyan-600 dark:text-cyan-400",     bg: "bg-cyan-100/80 dark:bg-cyan-900/30",     icon: <Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /> },
+          "arrivage":             { label: "Arrivage cabines",       color: "text-sky-600 dark:text-sky-400",       bg: "bg-sky-100/80 dark:bg-sky-900/30",       icon: <Truck className="w-4 h-4 text-sky-600 dark:text-sky-400" /> },
           "rdv-a-fixer":          { label: "RDV à fixer",            color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-100/80 dark:bg-orange-900/30", icon: <Calendar className="w-4 h-4 text-orange-500 dark:text-orange-400" /> },
           "rdv-fixe":             { label: "RDV fixé",               color: "text-green-600 dark:text-green-400",   bg: "bg-green-100/80 dark:bg-green-900/30",   icon: <Calendar className="w-4 h-4 text-green-500 dark:text-green-400" /> },
         };
