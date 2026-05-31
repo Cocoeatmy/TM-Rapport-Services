@@ -25,6 +25,8 @@ interface Project {
   bonLivraison: string;
   photosCartons: FileItem[];
   nbCartons: number | null;
+  nbCabines: number | null;
+  commentairesMontages: string;
 }
 
 // Statuts exclus de la recherche Arrivage — projets déjà planifiés/terminés
@@ -157,6 +159,7 @@ export default function ArrivagePage() {
         cmdTMUsine: p.cmdTMUsine,
         bonLivraison: p.bonLivraison,
         nbCartons: p.nbCartons,
+        commentairesMontages: p.commentairesMontages || "",
         photosCartonsUrls: p.photosCartons.map((f) => f.url),
       };
     },
@@ -194,6 +197,7 @@ export default function ArrivagePage() {
           cmdTMUsine: p.cmdTMUsine,
           bonLivraison: p.bonLivraison,
           nbCartons: p.nbCartons,
+          commentairesMontages: p.commentairesMontages || "",
           photosCartonsUrls: p.photosCartons.map((f) => f.url),
         },
       }));
@@ -215,6 +219,7 @@ export default function ArrivagePage() {
       if (f.cmdTMUsine !== undefined) body.cmdTMUsine = f.cmdTMUsine;
       if (f.bonLivraison !== undefined) body.bonLivraison = f.bonLivraison;
       if (f.nbCartons !== undefined) body.nbCartons = f.nbCartons;
+      if ((f as any).commentairesMontages !== undefined) body.commentairesMontages = (f as any).commentairesMontages;
       if ((f as any).photosCartonsUrls !== undefined) {
         body.photosCartons = ((f as any).photosCartonsUrls as string[]).map((url, i) => ({
           name: `carton-${i + 1}`,
@@ -244,6 +249,7 @@ export default function ArrivagePage() {
                 cmdTMUsine: (f.cmdTMUsine as string) ?? proj.cmdTMUsine,
                 bonLivraison: (f.bonLivraison as string) ?? proj.bonLivraison,
                 nbCartons: f.nbCartons !== undefined ? (f.nbCartons as number | null) : proj.nbCartons,
+                commentairesMontages: (f as any).commentairesMontages !== undefined ? (f as any).commentairesMontages as string : proj.commentairesMontages,
                 photosCartons: ((f as any).photosCartonsUrls as string[] | undefined)?.map((url, i) => ({
                   name: `carton-${i + 1}`,
                   url,
@@ -422,25 +428,24 @@ export default function ArrivagePage() {
                   )}
                 </div>
 
-                {/* Fournisseurs + séries */}
-                {(p.fournisseurs.length > 0 || p.seriesCabines.length > 0) && (
+                {/* Fournisseurs + séries + nb cabines */}
+                {(p.fournisseurs.length > 0 || p.seriesCabines.length > 0 || p.nbCabines) && (
                   <div className="flex flex-wrap gap-1 mt-1.5">
                     {p.fournisseurs.map((f) => (
-                      <span
-                        key={f}
-                        className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium"
-                      >
+                      <span key={f} className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
                         {f}
                       </span>
                     ))}
                     {p.seriesCabines.map((s) => (
-                      <span
-                        key={s}
-                        className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                      >
+                      <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
                         {s}
                       </span>
                     ))}
+                    {p.nbCabines != null && p.nbCabines > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium">
+                        {p.nbCabines} cabine{p.nbCabines > 1 ? "s" : ""}
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -677,6 +682,20 @@ export default function ArrivagePage() {
                       </div>
                     );
                   })()}
+                </div>
+
+                {/* Commentaires de montage */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    Commentaires montage
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={(forms[p.id] as any)?.commentairesMontages ?? (p.commentairesMontages || "")}
+                    onChange={(e) => setFormField(p.id, "commentairesMontages", e.target.value)}
+                    placeholder="Ex : Livraison partielle — cabines S.01, S.02 et S.03 reçues. S.04 manquante, à relivrer..."
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400/60 resize-none"
+                  />
                 </div>
 
                 {/* Save button */}
