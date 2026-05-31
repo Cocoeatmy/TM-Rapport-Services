@@ -14,6 +14,12 @@ import {
   Hash,
   ClipboardList,
   LogIn,
+  Phone,
+  Box,
+  Ruler,
+  MessageSquare,
+  FileText,
+  ExternalLink,
 } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 
@@ -31,6 +37,15 @@ interface PublicProject {
   nbCabines: number | null;
   photosAvant: { name: string; url: string }[];
   photosMontage: { name: string; url: string }[];
+}
+
+interface CollabData {
+  contactsRDV: string;
+  emplacementCabine: string;
+  nbCartons: number | null;
+  documentsMontagee: { name: string; url: string }[];
+  commentairesMontages: string;
+  cmdFournisseurs: string;
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -51,17 +66,14 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "Non planifie";
+  if (!dateStr) return "Non planifié";
   const d = new Date(dateStr);
   const datePart = d.toLocaleDateString("fr-CH", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
+    weekday: "long", day: "2-digit", month: "long", year: "numeric",
   });
   if (dateStr.includes("T")) {
     const timePart = d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
-    return `${datePart} a ${timePart}`;
+    return `${datePart} à ${timePart}`;
   }
   return datePart;
 }
@@ -70,7 +82,6 @@ function getStatusStyle(status: string) {
   return STATUS_COLORS[status] || { bg: "bg-gray-100", text: "text-gray-700" };
 }
 
-/** Extrait le numéro TM-XXXXXX depuis le titre du projet, si présent. */
 function extractTmNumber(projet: string): string | null {
   const match = projet.match(/TM-\d+/);
   return match ? match[0] : null;
@@ -84,6 +95,8 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
   const [photosOpen, setPhotosOpen] = useState(false);
   /** null = vérification en cours, false = non connecté, true = connecté */
   const [isCollab, setIsCollab] = useState<boolean | null>(null);
+  /** Données sensibles chargées uniquement si collaborateur authentifié */
+  const [collabData, setCollabData] = useState<CollabData | null>(null);
 
   useEffect(() => {
     async function fetchProject() {
@@ -96,7 +109,6 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
         }
         const data = await res.json();
         setProject(data);
-        // Track consultation
         fetch(`/api/client/${token}/track`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -122,6 +134,25 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
     checkAuth();
   }, [token]);
 
+  // Charger les données collaborateur dès que l'authentification est confirmée
+  useEffect(() => {
+    if (!isCollab || !project?.id) return;
+    fetch(`/api/projects/${project.id}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data?.id) return;
+        setCollabData({
+          contactsRDV: data.contactsRDV || "",
+          emplacementCabine: data.emplacementCabine || "",
+          nbCartons: data.nbCartons ?? null,
+          documentsMontagee: data.documentsMontagee || [],
+          commentairesMontages: data.commentairesMontages || "",
+          cmdFournisseurs: data.cmdFournisseurs || "",
+        });
+      })
+      .catch(() => {});
+  }, [isCollab, project?.id]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
@@ -139,7 +170,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
         <div className="bg-white rounded-2xl shadow-lg p-8 max-w-sm w-full text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h2 className="text-lg font-semibold text-gray-800 mb-2">Projet introuvable</h2>
-          <p className="text-sm text-gray-500">{error || "Ce lien n'est plus valide ou le projet a ete supprime."}</p>
+          <p className="text-sm text-gray-500">{error || "Ce lien n'est plus valide ou le projet a été supprimé."}</p>
         </div>
       </div>
     );
@@ -147,7 +178,6 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
 
   const statusStyle = getStatusStyle(project.etatCMD);
   const allPhotos = [...(project.photosAvant || []), ...(project.photosMontage || [])];
-  // Priorité : champ dédié ofrTM → regex dans le titre → rien
   const tmNumber = project.ofrTM || extractTmNumber(project.projet);
 
   return (
@@ -155,11 +185,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
       {/* Header */}
       <header className="bg-[#1e3a5f] text-white">
         <div className="max-w-2xl mx-auto px-4 py-5 flex items-center gap-3">
-          <img
-            src="/icons/logo-app.png?v=4"
-            alt="TM"
-            className="w-10 h-10 rounded-xl shadow-lg"
-          />
+          <img src="/icons/logo-app.png?v=4" alt="TM" className="w-10 h-10 rounded-xl shadow-lg" />
           <div>
             <h1 className="font-semibold text-lg leading-tight">Suivi de votre projet</h1>
             <p className="text-blue-200 text-xs">TM Douche Montage</p>
@@ -167,16 +193,13 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
         </div>
       </header>
 
-      {/* Content */}
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        {/* Project Name & Status */}
+
+        {/* Titre + statut */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              {/* Titre complet — autorise le retour à la ligne */}
-              <h2 className="text-xl font-bold text-gray-900 leading-snug">
-                {project.projet}
-              </h2>
+              <h2 className="text-xl font-bold text-gray-900 leading-snug">{project.projet}</h2>
               {project.nomChantier && project.nomChantier !== project.projet && (
                 <p className="text-sm text-gray-500 mt-0.5">{project.nomChantier}</p>
               )}
@@ -187,30 +210,30 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
           </div>
         </div>
 
-        {/* Details Grid */}
+        {/* Détails publics */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
 
-          {/* Numéro de projet */}
+          {/* N° Projet */}
           {tmNumber && (
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                <Hash className="w-4 h-4 text-slate-500" />
+            <>
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                  <Hash className="w-4 h-4 text-slate-500" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">N° Projet</p>
+                  <p className="text-sm font-semibold text-gray-800 mt-0.5">{tmNumber}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">N° Projet</p>
-                <p className="text-sm font-semibold text-gray-800 mt-0.5">{tmNumber}</p>
-              </div>
-            </div>
+              <div className="border-t border-gray-100" />
+            </>
           )}
 
-          {/* Séparateur si numéro présent */}
-          {tmNumber && <div className="border-t border-gray-100" />}
-
-          {/* Address */}
+          {/* Adresse */}
           {project.adresseChantier && (
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                <MapPin className="w-4.5 h-4.5 text-blue-600" />
+                <MapPin className="w-4 h-4 text-blue-600" />
               </div>
               <div>
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Adresse</p>
@@ -219,22 +242,22 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
             </div>
           )}
 
-          {/* Planned Date */}
+          {/* Date */}
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
-              <Calendar className="w-4.5 h-4.5 text-green-600" />
+              <Calendar className="w-4 h-4 text-green-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Date prevue</p>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Date prévue</p>
               <p className="text-sm text-gray-800 mt-0.5">{formatDate(project.dateMontage)}</p>
             </div>
           </div>
 
-          {/* Collaborator */}
+          {/* Technicien */}
           {project.collaborateurs && (
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
-                <Users className="w-4.5 h-4.5 text-purple-600" />
+                <Users className="w-4 h-4 text-purple-600" />
               </div>
               <div>
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Technicien</p>
@@ -243,18 +266,18 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
             </div>
           )}
 
-          {/* Cabins Info */}
+          {/* Cabines */}
           {(project.nbCabines && project.nbCabines > 0) && (
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-                <Package className="w-4.5 h-4.5 text-amber-600" />
+                <Package className="w-4 h-4 text-amber-600" />
               </div>
               <div>
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Cabines</p>
                 <p className="text-sm text-gray-800 mt-0.5">
                   {project.nbCabines} cabine{project.nbCabines > 1 ? "s" : ""}
                   {project.fournisseurs.length > 0 && (
-                    <span className="text-gray-400"> - {project.fournisseurs.join(", ")}</span>
+                    <span className="text-gray-400"> — {project.fournisseurs.join(", ")}</span>
                   )}
                 </p>
               </div>
@@ -293,48 +316,124 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
         </div>
 
         {/* ── Accès Collaborateur ─────────────────────────────────────────── */}
-        <div className={`rounded-2xl shadow-sm border p-5 transition-colors ${
-          isCollab
-            ? "bg-[#1e3a5f] border-[#1e3a5f]"
-            : "bg-white border-gray-100"
+        <div className={`rounded-2xl shadow-sm border overflow-hidden transition-colors ${
+          isCollab ? "bg-[#1e3a5f] border-[#1e3a5f]" : "bg-white border-gray-100"
         }`}>
           {isCollab === null ? (
-            /* Vérification en cours */
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 p-5">
               <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
               <p className="text-sm text-gray-400">Vérification accès...</p>
             </div>
           ) : isCollab ? (
-            /* Collaborateur connecté → lien vers le rapport */
-            <a
-              href={`/projet/${project.id}`}
-              className="flex items-center gap-3 w-full group"
-            >
-              <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0 group-hover:bg-white/25 transition-colors">
-                <ClipboardList className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-white">Saisir le rapport de montage</p>
-                <p className="text-xs text-blue-200">Heures, photos, rapport — accès collaborateur</p>
-              </div>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white/50 group-hover:text-white transition-colors">
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
-            </a>
+            <>
+              {/* Bouton rapport */}
+              <a href={`/projet/${project.id}`} className="flex items-center gap-3 p-5 w-full group">
+                <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0 group-hover:bg-white/25 transition-colors">
+                  <ClipboardList className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-white">Saisir le rapport de montage</p>
+                  <p className="text-xs text-blue-200">Heures, photos, rapport</p>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white/50 group-hover:text-white transition-colors">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </a>
+
+              {/* ── Infos collaborateur ── */}
+              {collabData ? (
+                <div className="px-4 pb-4 space-y-2">
+                  <div className="border-t border-white/20 pt-4 mb-3">
+                    <p className="text-xs font-semibold text-blue-200 uppercase tracking-wide">Informations du chantier</p>
+                  </div>
+
+                  {/* Grille 2 colonnes pour les infos courtes */}
+                  <div className="grid grid-cols-2 gap-2">
+
+                    {/* Emplacement cabine */}
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Emplacement cabine</p>
+                      <p className="text-sm text-white font-medium leading-snug">
+                        {collabData.emplacementCabine || <span className="text-white/40 font-normal">—</span>}
+                      </p>
+                    </div>
+
+                    {/* Nb. de cartons */}
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Nb. de cartons</p>
+                      <p className="text-sm text-white font-medium">
+                        {collabData.nbCartons !== null ? collabData.nbCartons : <span className="text-white/40 font-normal">—</span>}
+                      </p>
+                    </div>
+
+                    {/* N° CMD fournisseur */}
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° CMD fournisseur</p>
+                      <p className="text-sm text-white font-medium leading-snug break-all">
+                        {collabData.cmdFournisseurs || <span className="text-white/40 font-normal">—</span>}
+                      </p>
+                    </div>
+
+                    {/* Contact RDV */}
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Contact RDV</p>
+                      <p className="text-sm text-white font-medium leading-snug">
+                        {collabData.contactsRDV || <span className="text-white/40 font-normal">—</span>}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Commentaire montage — pleine largeur */}
+                  {collabData.commentairesMontages && (
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Commentaire montage</p>
+                      <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">
+                        {collabData.commentairesMontages}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Mesures — clicable si documents */}
+                  <div className={`rounded-xl p-3 ${collabData.documentsMontagee.length > 0 ? "bg-white/20" : "bg-white/10"}`}>
+                    <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-2">Mesures / Documents montage</p>
+                    {collabData.documentsMontagee.length === 0 ? (
+                      <p className="text-sm text-white/40">—</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {collabData.documentsMontagee.map((doc, i) => (
+                          <a
+                            key={i}
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 group/doc"
+                          >
+                            <FileText className="w-4 h-4 text-blue-200 shrink-0" />
+                            <span className="text-sm text-white underline underline-offset-2 decoration-white/40 group-hover/doc:decoration-white transition-colors truncate">
+                              {doc.name || `Document ${i + 1}`}
+                            </span>
+                            <ExternalLink className="w-3 h-3 text-white/50 shrink-0 group-hover/doc:text-white transition-colors" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="px-5 pb-5 flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-white/50" />
+                  <p className="text-xs text-white/50">Chargement des informations...</p>
+                </div>
+              )}
+            </>
           ) : (
-            /* Non connecté → invitation à se connecter */
-            <a
-              href={`/login?redirect=/client/${token}`}
-              className="flex items-center gap-3 w-full group"
-            >
+            /* Non connecté */
+            <a href={`/login?redirect=/client/${token}`} className="flex items-center gap-3 p-5 w-full group">
               <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
                 <LogIn className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-colors" />
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-gray-700 group-hover:text-blue-700 transition-colors">Accès collaborateur</p>
-                <p className="text-xs text-gray-400">Connectez-vous pour saisir le rapport</p>
-              </div>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-gray-300 group-hover:text-blue-400 transition-colors">
+              <p className="text-sm font-semibold text-gray-700 group-hover:text-blue-700 transition-colors">Accès collaborateur</p>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-gray-300 group-hover:text-blue-400 transition-colors ml-auto">
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
             </a>
@@ -344,42 +443,25 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
         {/* Photos */}
         {allPhotos.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <button
-              onClick={() => setPhotosOpen(!photosOpen)}
-              className="w-full flex items-center justify-between p-5"
-            >
+            <button onClick={() => setPhotosOpen(!photosOpen)} className="w-full flex items-center justify-between p-5">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-                  <ImageIcon className="w-4.5 h-4.5 text-indigo-600" />
+                  <ImageIcon className="w-4 h-4 text-indigo-600" />
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-medium text-gray-800">Photos du projet</p>
                   <p className="text-xs text-gray-400">{allPhotos.length} photo{allPhotos.length > 1 ? "s" : ""}</p>
                 </div>
               </div>
-              {photosOpen ? (
-                <ChevronUp className="w-5 h-5 text-gray-400" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-gray-400" />
-              )}
+              {photosOpen ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
             </button>
             {photosOpen && (
               <div className="px-5 pb-5 grid grid-cols-2 gap-2">
                 {allPhotos.map((photo, idx) => (
-                  <a
-                    key={idx}
-                    href={photo.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow"
-                  >
-                    <img
-                      src={thumbnailUrl(photo.url, 400)}
-                      alt={photo.name || `Photo ${idx + 1}`}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-32 object-cover"
-                    />
+                  <a key={idx} href={photo.url} target="_blank" rel="noopener noreferrer"
+                    className="block rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow">
+                    <img src={thumbnailUrl(photo.url, 400)} alt={photo.name || `Photo ${idx + 1}`}
+                      loading="lazy" decoding="async" className="w-full h-32 object-cover" />
                   </a>
                 ))}
               </div>
@@ -391,12 +473,8 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
       {/* Footer */}
       <footer className="border-t border-gray-200 mt-8">
         <div className="max-w-2xl mx-auto px-4 py-6 text-center">
-          <p className="text-xs text-gray-400">
-            Powered by <span className="font-medium text-gray-500">TM Rapport Services</span>
-          </p>
-          <p className="text-xs text-gray-300 mt-1">
-            TM Douche Montage | Champs-Lovat 13 Box n.16, 1400 Yverdon
-          </p>
+          <p className="text-xs text-gray-400">Powered by <span className="font-medium text-gray-500">TM Rapport Services</span></p>
+          <p className="text-xs text-gray-300 mt-1">TM Douche Montage | Champs-Lovat 13 Box n.16, 1400 Yverdon</p>
         </div>
       </footer>
     </div>
