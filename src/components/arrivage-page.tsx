@@ -82,10 +82,11 @@ export default function ArrivagePage() {
 
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  // Load projects
+  // Load projects — utilise all-active pour avoir TOUS les projets disponibles
+  // (pas uniquement les CMD), sinon la recherche manque les mesures, SAV, etc.
   useEffect(() => {
     setLoading(true);
-    fetch("/api/projects")
+    fetch("/api/projects/all-active")
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -114,17 +115,18 @@ export default function ArrivagePage() {
   const normalize = (s: string) =>
     (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
-  // Aucun projet affiché sans recherche active
+  // Aucun projet affiché sans recherche active.
+  // Avec recherche : cherche dans TOUS les projets (pas de filtre de statut),
+  // pour ne jamais rater un projet peu importe son état CMD.
   const filteredProjects = search.trim()
     ? (() => {
         const q = normalize(search.trim());
-        const pool = showAll ? projects : projects.filter((p) => ARRIVAGE_STATUTS.includes(p.etatCMD));
-        return pool.filter((p) =>
+        return projects.filter((p) =>
           normalize(p.projet).includes(q) ||
           normalize(p.ofrTM).includes(q) ||
           normalize(p.etatCMD).includes(q) ||
-          p.fournisseurs.some((f) => normalize(f).includes(q)) ||
-          p.seriesCabines.some((s) => normalize(s).includes(q)) ||
+          (p.fournisseurs || []).some((f) => normalize(f).includes(q)) ||
+          (p.seriesCabines || []).some((s) => normalize(s).includes(q)) ||
           normalize(p.emplacementCabine).includes(q) ||
           normalize(p.servCmdFournisseurs).includes(q) ||
           normalize(p.cmdGrossiste).includes(q) ||
