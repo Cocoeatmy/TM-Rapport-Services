@@ -454,7 +454,7 @@ function TeamDetailSection({ entries, projects, collabLabel }: {
           <Text style={[s.dtheadCell, s.dcDate]}>Date</Text>
           <Text style={[s.dtheadCell, s.dcProject]}>Projet</Text>
           <Text style={[s.dtheadCell, s.dcSeries]}>Série</Text>
-          <Text style={[s.dtheadCell, { flex: 2 }]}>Avec</Text>
+          <Text style={[s.dtheadCell, { width: 52, flexShrink: 0 }]}>Avec</Text>
           <Text style={[s.dtheadCell, s.dcArrivee]}>Arrivée</Text>
           <Text style={[s.dtheadCell, s.dcDepart]}>Départ</Text>
           <Text style={[s.dtheadCell, s.dcHeures]}>Heures</Text>
@@ -477,7 +477,7 @@ function TeamDetailSection({ entries, projects, collabLabel }: {
               </View>
               <Text style={[s.td, s.dcProject, s.dcProjectText]}>{e.projectName}</Text>
               <Text style={[s.td, s.tdMuted, s.dcSeries]}>{series}</Text>
-              <Text style={[s.td, s.tdPurple, { flex: 2 }]}>{partners}</Text>
+              <Text style={[s.td, s.tdPurple, { width: 52, flexShrink: 0 }]}>{partners}</Text>
               <Text style={[s.td, { textAlign: "center" }, s.dcArrivee]}>{e.arrivee || "—"}</Text>
               <Text style={[s.td, { textAlign: "center" }, s.dcDepart]}>{e.depart || "—"}</Text>
               <Text style={[s.td, s.tdPurple, s.dcHeures]}>{fmt(e.minutes)}</Text>
