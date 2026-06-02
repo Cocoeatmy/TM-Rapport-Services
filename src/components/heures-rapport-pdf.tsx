@@ -180,10 +180,10 @@ const s = StyleSheet.create({
   titleSub:   { fontSize: 9, color: "#93c5fd" },
 
   // KPI cards — taille réduite pour tenir sur 1 ligne même avec 5 cartes
-  kpiRow:     { flexDirection: "row", gap: 6, marginBottom: 20 },
-  kpi:        { flex: 1, borderRadius: 6, borderWidth: 1, borderColor: C.border, paddingHorizontal: 6, paddingVertical: 7, alignItems: "center", justifyContent: "center" },
-  kpiVal:     { fontSize: 12, fontFamily: "Helvetica-Bold", color: C.blue, marginBottom: 1 },
-  kpiLabel:   { fontSize: 6.5, color: C.slate, textAlign: "center" },
+  kpiRow:     { flexDirection: "row", gap: 4, marginBottom: 20 },
+  kpi:        { flex: 1, borderRadius: 5, borderWidth: 1, borderColor: C.border, paddingHorizontal: 4, paddingVertical: 6, alignItems: "center", justifyContent: "center" },
+  kpiVal:     { fontSize: 11, fontFamily: "Helvetica-Bold", color: C.blue, marginBottom: 1 },
+  kpiLabel:   { fontSize: 6, color: C.slate, textAlign: "center" },
   kpiHighlight:{ backgroundColor: C.navy, borderColor: C.navy },
   kpiValH:    { color: C.white },
   kpiLabelH:  { color: "#93c5fd" },
@@ -489,24 +489,25 @@ function RapportDocument({ data }: { data: RapportData }) {
   const teamProjects = new Set(data.teamEntries.filter((e) => e.minutes > 0).map((e) => e.projectId));
   const nbProjects   = new Set([...soloProjects, ...teamProjects]).size;
 
-  // Cabines solo : même règle que computeStats
-  // Multi-cabine → 1 par TimeEntry ; mono-cabine → 1 par projet (pas par jour)
-  const soloCabines = (() => {
+  // Comptage cabines : multi-cabine → 1/TimeEntry ; mono-cabine → 1/projet
+  function countCabines(entries: RapportEntry[]): number {
     let total = 0;
     const singleCounted = new Set<string>();
-    for (const e of data.soloEntries) {
+    for (const e of entries) {
       if (e.minutes <= 0) continue;
       const p = data.projects.find((pr) => pr.id === e.projectId);
       if (!p) continue;
       if ((p.nbCabines ?? 1) > 1) {
-        total += 1; // chaque entrée = 1 cabine pour un projet multi-cabine
+        total += 1;
       } else if (!singleCounted.has(e.projectId)) {
         total += p.nbCabines ?? 1;
         singleCounted.add(e.projectId);
       }
     }
     return total;
-  })();
+  }
+  const soloCabines = countCabines(data.soloEntries);
+  const teamCabines = countCabines(data.teamEntries);
 
   // Stats marque/série basées sur solo uniquement
   const brandStats  = computeStats(data.soloEntries, data.projects, "fournisseurs");
@@ -562,6 +563,10 @@ function RapportDocument({ data }: { data: RapportData }) {
           <View style={s.kpi}>
             <Text style={s.kpiVal}>{soloCabines}</Text>
             <Text style={s.kpiLabel}>Cabines solo</Text>
+          </View>
+          <View style={s.kpi}>
+            <Text style={[s.kpiVal, { color: C.purple }]}>{teamCabines}</Text>
+            <Text style={s.kpiLabel}>Cabines équipe</Text>
           </View>
         </View>
 
