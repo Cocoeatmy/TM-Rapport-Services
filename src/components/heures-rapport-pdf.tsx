@@ -137,11 +137,11 @@ const s = StyleSheet.create({
   titleText:  { fontSize: 14, fontFamily: "Helvetica-Bold", color: C.white, letterSpacing: 0.3 },
   titleSub:   { fontSize: 9, color: "#93c5fd" },
 
-  // KPI cards
-  kpiRow:     { flexDirection: "row", gap: 8, marginBottom: 20 },
-  kpi:        { flex: 1, borderRadius: 6, borderWidth: 1, borderColor: C.border, paddingHorizontal: 10, paddingVertical: 8, alignItems: "center" },
-  kpiVal:     { fontSize: 16, fontFamily: "Helvetica-Bold", color: C.blue, marginBottom: 2 },
-  kpiLabel:   { fontSize: 7.5, color: C.slate, textAlign: "center" },
+  // KPI cards — taille réduite pour tenir sur 1 ligne même avec 5 cartes
+  kpiRow:     { flexDirection: "row", gap: 6, marginBottom: 20 },
+  kpi:        { flex: 1, borderRadius: 6, borderWidth: 1, borderColor: C.border, paddingHorizontal: 6, paddingVertical: 7, alignItems: "center", justifyContent: "center" },
+  kpiVal:     { fontSize: 12, fontFamily: "Helvetica-Bold", color: C.blue, marginBottom: 1 },
+  kpiLabel:   { fontSize: 6.5, color: C.slate, textAlign: "center" },
   kpiHighlight:{ backgroundColor: C.navy, borderColor: C.navy },
   kpiValH:    { color: C.white },
   kpiLabelH:  { color: "#93c5fd" },
@@ -174,13 +174,13 @@ const s = StyleSheet.create({
   drow:       { flexDirection: "row", paddingVertical: 5, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: C.border },
   drowAlt:    { backgroundColor: "#f8fafc" },
 
-  // Detail columns
-  dcDate:     { flex: 2 },
-  dcProject:  { flex: 5 },
-  dcSeries:   { flex: 2 },
-  dcArrivee:  { flex: 1.2, textAlign: "center" },
-  dcDepart:   { flex: 1.2, textAlign: "center" },
-  dcHeures:   { flex: 1.5, textAlign: "right" },
+  // Detail columns — largeurs fixes pour éviter l'overflow du projet sur la série
+  dcDate:     { width: 72, flexShrink: 0 },
+  dcProject:  { flex: 1, paddingRight: 6 },   // flex + paddingRight = espace avant série
+  dcSeries:   { width: 62, flexShrink: 0 },
+  dcArrivee:  { width: 34, textAlign: "center", flexShrink: 0 },
+  dcDepart:   { width: 34, textAlign: "center", flexShrink: 0 },
+  dcHeures:   { width: 44, textAlign: "right", flexShrink: 0 },
 
   // Team section
   teamBand:   { backgroundColor: C.purpleLight, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 6 },
@@ -410,7 +410,7 @@ function RapportDocument({ data }: { data: RapportData }) {
         <View style={s.kpiRow}>
           <View style={[s.kpi, s.kpiHighlight]}>
             <Text style={[s.kpiVal, s.kpiValH]}>{fmt(totalMin)}</Text>
-            <Text style={[s.kpiLabel, s.kpiLabelH]}>Total heures{hasTeam ? " (incl. équipe)" : ""}</Text>
+            <Text style={[s.kpiLabel, s.kpiLabelH]}>{hasTeam ? "Total (solo+équipe)" : "Total heures"}</Text>
           </View>
           <View style={s.kpi}>
             <Text style={s.kpiVal}>{fmt(soloMin)}</Text>
