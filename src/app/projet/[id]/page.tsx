@@ -4470,14 +4470,28 @@ function ProjectPageContent({ id }: { id: string }) {
                                       <button
                                         key={name}
                                         type="button"
-                                        onClick={() => setCabines((prev) => prev.map((c, i) => {
-                                          if (i !== idx) return c;
-                                          const current = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
-                                          const next = selected
-                                            ? current.filter((n) => n !== name)
-                                            : [...current, name];
-                                          return { ...c, monteur: next.join(" & ") };
-                                        }))}
+                                        onClick={() => setCabines((prev) => {
+                                          const next = prev.map((c, i) => {
+                                            if (i !== idx) return c;
+                                            const current = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
+                                            const updated = selected
+                                              ? current.filter((n) => n !== name)
+                                              : [...current, name];
+                                            return { ...c, monteur: updated.join(" & ") };
+                                          });
+                                          // ── Sauvegarde immédiate du Monteur Responsable dans le KV ──
+                                          // Le changement doit persister même sans clic sur Enregistrer.
+                                          offlineFetch("/api/cabine-attribution", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({
+                                              projectId: id,
+                                              attribution: next.map((c) => c.monteur),
+                                              noms: next.map((c, i) => c.nom || `Cabine ${i + 1}`),
+                                            }),
+                                          }).catch(console.error);
+                                          return next;
+                                        })}
                                         className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
                                           selected
                                             ? "border-blue-600 bg-blue-600 text-white"
