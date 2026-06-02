@@ -42,10 +42,13 @@ export function getCached<T>(key: string): T | null {
 
 export function setCache(key: string, data: unknown) {
   const now = Date.now();
-  // Les clés "project-<id>" (données temps réel) ont une fraîcheur courte (10 s)
-  // pour que le background-refresh propage les changements rapidement entre instances.
+  // Les clés "project-<id>" ont une fraîcheur de 30 s.
+  // Le polling client est à 15 s → les deux premiers polls servent le cache,
+  // le Notion fetch n'est déclenché qu'une fois toutes les 30 s par instance.
+  // Évite le rate-limit Notion (3 req/s) quand plusieurs collaborateurs ont
+  // des projets ouverts simultanément.
   // Les clés de listes ("projects", "projects-mesures", …) gardent 5 s.
-  const freshMs = key.startsWith("project-") ? 10_000 : FRESH_MS;
+  const freshMs = key.startsWith("project-") ? 30_000 : FRESH_MS;
   cache.set(key, { data, expires: now + TTL, staleAt: now + freshMs });
   // Met à jour également le fallback (durée de vie plus longue).
   fallbackCache.set(key, { data, storedAt: now });
