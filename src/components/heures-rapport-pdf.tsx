@@ -30,7 +30,10 @@ export interface RapportData {
   label: string;
   /** Période lisible : "Juin 2026" ou "01.05 – 30.06.2026" */
   periode: string;
-  entries: RapportEntry[];
+  /** Entrées solo (collaborateur seul sur le chantier) */
+  soloEntries: RapportEntry[];
+  /** Entrées en équipe (binôme / trihome) — inclut le champ collaborateur complet */
+  teamEntries: RapportEntry[];
   projects: Project[];   // Pour retrouver fournisseurs, séries, nbCabines
 }
 
@@ -96,6 +99,8 @@ const C = {
   black:  "#0f172a",
   green:  "#16a34a",
   muted:  "#94a3b8",
+  purple: "#7c3aed",
+  purpleLight: "#ede9fe",
 };
 
 const s = StyleSheet.create({
@@ -159,6 +164,13 @@ const s = StyleSheet.create({
   dcArrivee:  { flex: 1.2, textAlign: "center" },
   dcDepart:   { flex: 1.2, textAlign: "center" },
   dcHeures:   { flex: 1.5, textAlign: "right" },
+
+  // Team section
+  teamBand:   { backgroundColor: C.purpleLight, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 6 },
+  teamBandText:{ fontSize: 9, fontFamily: "Helvetica-Bold", color: C.purple },
+  teamBandSub: { fontSize: 8, color: C.purple },
+  tdPurple:   { color: C.purple, fontFamily: "Helvetica-Bold" },
+  partnerTag: { backgroundColor: C.purpleLight, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3 },
 
   // Footer
   footer:     { position: "absolute", bottom: 24, left: 44, right: 44, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 1, borderTopColor: C.border, paddingTop: 6 },
@@ -245,16 +257,98 @@ function DetailSection({ entries, projects }: { entries: RapportEntry[]; project
   );
 }
 
+function TeamDetailSection({ entries, projects, collabLabel }: {
+  entries: RapportEntry[];
+  projects: Project[];
+  collabLabel: string;
+}) {
+  const sorted = [...entries].filter((e) => e.minutes > 0).sort((a, b) => {
+    const d = a.date.localeCompare(b.date);
+    return d !== 0 ? d : (a.arrivee || "99:99").localeCompare(b.arrivee || "99:99");
+  });
+  if (sorted.length === 0) return null;
+
+  const totalTeamMin = sorted.reduce((s, e) => s + e.minutes, 0);
+  const teamNbCabines = sorted.reduce((s, e) => {
+    const p = projects.find((pr) => pr.id === e.projectId);
+    return s + (p?.nbCabines ?? 1);
+  }, 0);
+
+  return (
+    <View break>
+      {/* Section title */}
+      <Text style={s.sectionTitle}>Travaux en équipe / binôme</Text>
+      <View style={[s.divider, { borderBottomColor: C.purple }]} />
+
+      {/* Summary line */}
+      <View style={s.teamBand}>
+        <Text style={s.teamBandText}>
+          {fmt(totalTeamMin)} en équipe
+        </Text>
+        <Text style={s.teamBandSub}>
+          · {sorted.length} intervention{sorted.length !== 1 ? "s" : ""} · {teamNbCabines} cabine{teamNbCabines !== 1 ? "s" : ""}
+          {"  "}(heures comptées dans les totaux ci-dessus)
+        </Text>
+      </View>
+
+      {/* Detail table */}
+      <View style={s.detailTable}>
+        <View style={[s.dhead, { backgroundColor: C.purple }]}>
+          <Text style={[s.dtheadCell, s.dcDate]}>Date</Text>
+          <Text style={[s.dtheadCell, s.dcProject]}>Projet</Text>
+          <Text style={[s.dtheadCell, s.dcSeries]}>Série</Text>
+          <Text style={[s.dtheadCell, { flex: 2 }]}>Avec</Text>
+          <Text style={[s.dtheadCell, s.dcArrivee]}>Arrivée</Text>
+          <Text style={[s.dtheadCell, s.dcDepart]}>Départ</Text>
+          <Text style={[s.dtheadCell, s.dcHeures]}>Heures</Text>
+        </View>
+        {sorted.map((e, i) => {
+          const proj = projects.find((p) => p.id === e.projectId);
+          const series = proj?.seriesCabines?.join(", ") || "—";
+          // Partenaires = collaborateurs sauf le sujet du rapport
+          const partners = e.collaborateur
+            .split(/\s*[&+]\s*/)
+            .map((n) => n.trim())
+            .filter((n) => !n.toLowerCase().includes(collabLabel.toLowerCase()))
+            .join(" & ") || e.collaborateur;
+          return (
+            <View key={`team-${e.projectId}-${e.date}-${i}`} style={[s.drow, i % 2 === 1 ? s.drowAlt : {}]}>
+              <Text style={[s.td, s.tdMuted, s.dcDate]}>{fmtDate(e.date)}</Text>
+              <Text style={[s.td, s.dcProject]}>{e.projectName}</Text>
+              <Text style={[s.td, s.tdMuted, s.dcSeries]}>{series}</Text>
+              <Text style={[s.td, s.tdPurple, { flex: 2 }]}>{partners}</Text>
+              <Text style={[s.td, { textAlign: "center" }, s.dcArrivee]}>{e.arrivee || "—"}</Text>
+              <Text style={[s.td, { textAlign: "center" }, s.dcDepart]}>{e.depart || "—"}</Text>
+              <Text style={[s.td, s.tdPurple, s.dcHeures]}>{fmt(e.minutes)}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 function RapportDocument({ data }: { data: RapportData }) {
-  const totalMin  = data.entries.reduce((s, e) => s + e.minutes, 0);
-  const nbProjects= new Set(data.entries.filter((e) => e.minutes > 0).map((e) => e.projectId)).size;
-  const nbCabines = data.entries.filter((e) => e.minutes > 0).reduce((s, e) => {
+  const allEntries = [...data.soloEntries, ...data.teamEntries];
+  const soloMin   = data.soloEntries.reduce((s, e) => s + e.minutes, 0);
+  const teamMin   = data.teamEntries.reduce((s, e) => s + e.minutes, 0);
+  const totalMin  = soloMin + teamMin;
+
+  // KPIs basés sur solo uniquement (montages effectivement réalisés seul)
+  const soloProjects = new Set(data.soloEntries.filter((e) => e.minutes > 0).map((e) => e.projectId));
+  const teamProjects = new Set(data.teamEntries.filter((e) => e.minutes > 0).map((e) => e.projectId));
+  const nbProjects   = new Set([...soloProjects, ...teamProjects]).size;
+
+  const soloCabines = data.soloEntries.filter((e) => e.minutes > 0).reduce((s, e) => {
     const p = data.projects.find((pr) => pr.id === e.projectId);
     return s + (p?.nbCabines ?? 1);
   }, 0);
 
-  const brandStats  = computeStats(data.entries, data.projects, "fournisseurs");
-  const seriesStats = computeStats(data.entries, data.projects, "seriesCabines");
+  // Stats marque/série basées sur solo uniquement
+  const brandStats  = computeStats(data.soloEntries, data.projects, "fournisseurs");
+  const seriesStats = computeStats(data.soloEntries, data.projects, "seriesCabines");
+
+  const hasTeam = data.teamEntries.some((e) => e.minutes > 0);
 
   return (
     <Document title={`Rapport heures — ${data.label} — ${data.periode}`} author="TM Rapport Services">
@@ -281,34 +375,54 @@ function RapportDocument({ data }: { data: RapportData }) {
           <Text style={s.titleSub}>{data.periode}</Text>
         </View>
 
-        {/* KPI cards */}
+        {/* KPI cards — solo uniquement pour les statistiques précises */}
         <View style={s.kpiRow}>
           <View style={[s.kpi, s.kpiHighlight]}>
             <Text style={[s.kpiVal, s.kpiValH]}>{fmt(totalMin)}</Text>
-            <Text style={[s.kpiLabel, s.kpiLabelH]}>Total heures</Text>
+            <Text style={[s.kpiLabel, s.kpiLabelH]}>Total heures{hasTeam ? " (incl. équipe)" : ""}</Text>
           </View>
+          <View style={s.kpi}>
+            <Text style={s.kpiVal}>{fmt(soloMin)}</Text>
+            <Text style={s.kpiLabel}>Heures solo</Text>
+          </View>
+          {hasTeam && (
+            <View style={s.kpi}>
+              <Text style={[s.kpiVal, { color: C.purple }]}>{fmt(teamMin)}</Text>
+              <Text style={s.kpiLabel}>Heures équipe</Text>
+            </View>
+          )}
           <View style={s.kpi}>
             <Text style={s.kpiVal}>{nbProjects}</Text>
             <Text style={s.kpiLabel}>Projet{nbProjects !== 1 ? "s" : ""}</Text>
           </View>
           <View style={s.kpi}>
-            <Text style={s.kpiVal}>{nbCabines}</Text>
-            <Text style={s.kpiLabel}>Cabine{nbCabines !== 1 ? "s" : ""} installée{nbCabines !== 1 ? "s" : ""}</Text>
-          </View>
-          <View style={s.kpi}>
-            <Text style={s.kpiVal}>{nbCabines > 0 ? fmt(Math.round(totalMin / nbCabines)) : "—"}</Text>
-            <Text style={s.kpiLabel}>Moyenne / cabine</Text>
+            <Text style={s.kpiVal}>{soloCabines}</Text>
+            <Text style={s.kpiLabel}>Cabines solo</Text>
           </View>
         </View>
 
-        {/* Stats by brand */}
-        <StatsTable title="Statistiques par Marque" rows={brandStats} />
+        {/* Stats solo — marque + série */}
+        {brandStats.length > 0 && (
+          <>
+            <Text style={[s.sectionTitle, { fontSize: 8, color: C.slate, marginTop: 4 }]}>
+              Statistiques basées sur les interventions solo uniquement
+            </Text>
+            <StatsTable title="Statistiques par Marque" rows={brandStats} />
+            <StatsTable title="Statistiques par Série" rows={seriesStats} />
+          </>
+        )}
 
-        {/* Stats by series */}
-        <StatsTable title="Statistiques par Série" rows={seriesStats} />
+        {/* Détail solo */}
+        <DetailSection entries={data.soloEntries} projects={data.projects} />
 
-        {/* Detail */}
-        <DetailSection entries={data.entries} projects={data.projects} />
+        {/* Section équipe */}
+        {hasTeam && (
+          <TeamDetailSection
+            entries={data.teamEntries}
+            projects={data.projects}
+            collabLabel={data.label}
+          />
+        )}
 
         {/* Footer */}
         <View style={s.footer} fixed>

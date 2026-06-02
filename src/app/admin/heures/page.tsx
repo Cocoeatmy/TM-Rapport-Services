@@ -655,22 +655,25 @@ export default function HeuresPage() {
             const { generateRapportPDF } = await import("@/components/heures-rapport-pdf");
 
             for (const label of pdfSelected) {
-              // Trouver les entrées correspondantes (solo ou team)
-              let entries = collabMap.get(label) ?? teamMap.get(label) ?? [];
-
-              // Pour solo, inclure aussi les entrées en binôme où ce collaborateur participe
               const isTeam = label.includes("&");
-              if (!isTeam) {
-                const teamEnts = Array.from(teamMap.values()).flat().filter((e) =>
-                  e.collaborateur.toLowerCase().includes(label.toLowerCase())
-                );
-                entries = [...entries, ...teamEnts];
-              }
+
+              // Entrées solo : le collaborateur travaille seul
+              const soloEntries = isTeam
+                ? (teamMap.get(label) ?? [])                     // rapport binôme = toutes leurs entrées communes
+                : (collabMap.get(label) ?? []);                  // rapport solo = entrées solo uniquement
+
+              // Entrées en équipe : interventions où ce collaborateur était avec d'autres
+              const teamEnts = isTeam
+                ? []                                              // binôme n'a pas de "sous-équipes"
+                : Array.from(teamMap.values()).flat().filter((e) =>
+                    e.collaborateur.toLowerCase().includes(label.toLowerCase())
+                  );
 
               const blob = await generateRapportPDF({
                 label,
                 periode: monthLabel(selectedMonth),
-                entries,
+                soloEntries,
+                teamEntries: teamEnts,
                 projects,
               });
 
