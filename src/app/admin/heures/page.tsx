@@ -420,7 +420,14 @@ export default function HeuresPage() {
       {/* Per-collaborator tables */}
       {collabEntries.map(([collab, entries]) => {
         const colors = getCollaboratorColor(collab);
-        const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+        const sorted = [...entries].sort((a, b) => {
+          const dateCmp = a.date.localeCompare(b.date);
+          if (dateCmp !== 0) return dateCmp;
+          // Même date → ordre chronologique par heure d'arrivée (vide en dernier)
+          const aTime = a.arrivee || "99:99";
+          const bTime = b.arrivee || "99:99";
+          return aTime.localeCompare(bTime);
+        });
         const collabTotal = entries.reduce((s, e) => s + e.minutes, 0);
         const teamMinutes = collabTeamMinutes.get(collab) || 0;
 
@@ -539,7 +546,14 @@ export default function HeuresPage() {
           </h2>
           {teamEntries.map(([team, entries]) => {
             const names = team.split(" & ");
-            const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+            const sorted = [...entries].sort((a, b) => {
+          const dateCmp = a.date.localeCompare(b.date);
+          if (dateCmp !== 0) return dateCmp;
+          // Même date → ordre chronologique par heure d'arrivée (vide en dernier)
+          const aTime = a.arrivee || "99:99";
+          const bTime = b.arrivee || "99:99";
+          return aTime.localeCompare(bTime);
+        });
             const teamTotal = entries.reduce((s, e) => s + e.minutes, 0);
 
             const weekMap = new Map<number, TimeEntry[]>();
