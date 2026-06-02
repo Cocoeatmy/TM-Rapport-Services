@@ -60,18 +60,15 @@ export async function GET(
   try {
     const { id } = await params;
     const project = await cachedOrFetch(`project-${id}`, () => getProject(id));
-    // Pas de cache CDN sur cette route — les données projet changent en temps réel
-    // (photos, heures, rapport). Le cache mémoire serveur (background-refresh 5 s)
-    // protège déjà Notion contre les appels répétés sans bloquer la propagation.
-    // CDN Vercel ne cache pas (données temps réel), mais le Service Worker PEUT
-    // mettre en cache pour la consultation hors-ligne.
-    // Cache-Control: no-store bloquerait le SW — on utilise Vercel-CDN-Cache-Control
-    // pour cibler uniquement le CDN sans affecter le cache SW du navigateur.
+    // Cache CDN court (15 s frais + 30 s SWR) pour éviter l'amplification inter-instances.
+    // Sans cache CDN, chaque instance Vercel appelle Notion indépendamment lors des pics.
+    // Avec s-maxage=15 : une seule origine CDN appelle Vercel/Notion toutes les 15 s max.
+    // Le SW client peut toujours mettre en cache (Cache-Control navigateur = max-age=0).
     return NextResponse.json(project, {
       headers: {
         "Cache-Control": "public, max-age=0, must-revalidate",
-        "Vercel-CDN-Cache-Control": "no-store",
-        "CDN-Cache-Control": "no-store",
+        "Vercel-CDN-Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
+        "CDN-Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
       },
     });
   } catch (error: any) {
