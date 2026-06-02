@@ -2717,7 +2717,9 @@ function ProjectPageContent({ id }: { id: string }) {
               else                    nom = `Cabine ${i + 1}`;
               return {
                 ...c,
-                monteur: attr.attribution?.[i] ?? c.monteur,
+                // || et non ?? : "" (chaîne vide du KV) doit garder la valeur
+                // existante en mémoire — protège contre les écrasements silencieux.
+                monteur: attr.attribution?.[i] || c.monteur,
                 nom,
               };
             });

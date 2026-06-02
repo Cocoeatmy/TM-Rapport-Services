@@ -40,18 +40,32 @@ export async function POST(request: NextRequest) {
   const existing = idx >= 0 ? all[idx] : null;
 
   // ── Merge attribution ────────────────────────────────────────────────────
-  // Problème : quand un collaborateur envoie depuis un état cache incomplet,
-  // son tableau attribution contient des chaînes vides pour les cabines qu'il
-  // ne connaît pas. Sans merge, cela écrase les monteurs des autres cabines.
-  // Règle : pour chaque cabine, conserver la valeur KV existante si le client
-  // envoie une chaîne vide — le client ne "désassigne" jamais une cabine qu'il
-  // ne touche pas.
+  // Règle fondamentale : un Monteur Responsable assigné NE PEUT PAS être
+  // effacé par un envoi automatique (état cache incomplet, page fraîche, etc.).
+  // Seule une manipulation explicite de l'utilisateur peut changer la valeur.
+  //
+  // Garde-fou supplémentaire : si TOUS les monteurs entrants sont vides alors
+  // que le KV contient des monteurs réels → refus d'écraser (probablement une
+  // écriture depuis un état de page non chargé).
+  const existingHasData = existing?.attribution?.some((a) => a && a.trim().length > 0);
+  const incomingAllEmpty = attribution.every((a) => !a || !a.trim());
+
   const maxLen = Math.max(attribution.length, existing?.attribution?.length || 0);
   const mergedAttribution = Array.from({ length: maxLen }, (_, i) => {
     const inVal = attribution[i] || "";
     const exVal = existing?.attribution?.[i] || "";
-    return inVal || exVal; // incoming prend le dessus seulement s'il est non vide
+    // Si incoming est vide ET existant a une valeur → toujours garder l'existant
+    // Si incoming est vide ET existant est vide → garder vide
+    // Si incoming a une valeur → utiliser incoming (sélection manuelle)
+    return inVal || exVal;
   });
+
+  // Garde-fou global : si tous les monteurs entrants sont vides mais le KV
+  // a des monteurs réels → ignorer le champ attribution, ne mettre à jour
+  // que les noms. Protège contre les écritures depuis état page non initialisé.
+  const finalAttribution = (incomingAllEmpty && existingHasData)
+    ? (existing!.attribution)
+    : mergedAttribution;
 
   // ── Merge noms ──────────────────────────────────────────────────────────
   // Protection identique : ne jamais écraser un nom personnalisé par "Cabine N".
@@ -66,7 +80,7 @@ export async function POST(request: NextRequest) {
 
   const entry: CabineAttribution = {
     projectId,
-    attribution: mergedAttribution,
+    attribution: finalAttribution,
     noms: mergedNoms,
     updatedAt: Date.now(),
   };
