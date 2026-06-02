@@ -116,13 +116,25 @@ function parseProjectHours(
       return entries;
     }
 
+    // Est-ce qu'AU MOINS UNE cabine du projet a un Monteur Responsable assigné ?
+    // Si oui → on est en "mode strict" : seules les cabines avec attribution explicite comptent.
+    // Si non → attribution jamais renseignée → on se fie à project.collaborateurs pour toutes.
+    const hasAnyAssignment = Array.isArray(cabineAttribution) &&
+      cabineAttribution.some((a) => a && a.trim().length > 0);
+
     for (const i of cabineIndices) {
       const arrTime = arrTimes[i] || "";
       const depTime = depTimes[i] || "";
       const date    = dates[i] || effectiveDate;
-      // Priorité : attribution KV (Monteur Responsable explicite) → fallback projet
+
       const explicitAttrib = cabineAttribution?.[i] || "";
       const collab = explicitAttrib || project.collaborateurs || "";
+
+      // fromAttribution :
+      //   • Attribution explicite pour cette cabine → true
+      //   • Aucune attribution sur tout le projet → true (fallback project.collaborateurs accepté)
+      //   • Attribution partielle et cette cabine non assignée → false (ignoré du PDF)
+      const fromAttribution = explicitAttrib.trim().length > 0 || !hasAnyAssignment;
 
       const arrMin  = parseTimeString(arrTime);
       const depMin  = parseTimeString(depTime);
@@ -136,8 +148,7 @@ function parseProjectHours(
         minutes: diff > 0 ? diff : 0,
         projectName: project.projet,
         projectId:   project.id,
-        // true seulement si le Monteur Responsable a été explicitement assigné
-        fromAttribution: explicitAttrib.trim().length > 0,
+        fromAttribution,
       });
     }
     return entries;
