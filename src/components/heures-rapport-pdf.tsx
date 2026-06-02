@@ -30,6 +30,8 @@ export interface RapportData {
   label: string;
   /** Période lisible : "Juin 2026" ou "01.05 – 30.06.2026" */
   periode: string;
+  /** Mois ISO "YYYY-MM" utilisé pour le calendrier (ex: "2026-06") */
+  yearMonth: string;
   /** Entrées solo (collaborateur seul sur le chantier) */
   soloEntries: RapportEntry[];
   /** Entrées en équipe (binôme / trihome) — inclut le champ collaborateur complet */
@@ -60,6 +62,46 @@ function today(): string {
 }
 
 interface StatRow { label: string; cabines: number; minutes: number }
+
+// ─── Calendrier — helpers ──────────────────────────────────────────────────────
+
+/** Compte les cabines par jour, en évitant le double-comptage mono-cabine. */
+function dailyCabines(entries: RapportEntry[], projects: Project[]): Map<string, number> {
+  const map = new Map<string, number>();
+  const counted = new Set<string>(); // "date|projectId" pour mono-cabine
+  for (const e of entries) {
+    if (e.minutes <= 0) continue;
+    const proj = projects.find((p) => p.id === e.projectId);
+    const isMulti = (proj?.nbCabines ?? 1) > 1;
+    if (isMulti) {
+      map.set(e.date, (map.get(e.date) ?? 0) + 1);
+    } else {
+      const ck = `${e.date}|${e.projectId}`;
+      if (!counted.has(ck)) {
+        counted.add(ck);
+        map.set(e.date, (map.get(e.date) ?? 0) + (proj?.nbCabines ?? 1));
+      }
+    }
+  }
+  return map;
+}
+
+/** Génère un tableau [semaine][jour 0-6] de jours du mois (0 = vide). */
+function buildCalendarGrid(yearMonth: string): number[][] {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const firstDay = new Date(y, m - 1, 1);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  // Lundi = 0, Dimanche = 6 (ISO)
+  const startDow = (firstDay.getDay() + 6) % 7;
+  const weeks: number[][] = [];
+  let week = Array(startDow).fill(0);
+  for (let d = 1; d <= daysInMonth; d++) {
+    week.push(d);
+    if (week.length === 7) { weeks.push(week); week = []; }
+  }
+  if (week.length) { while (week.length < 7) week.push(0); weeks.push(week); }
+  return weeks;
+}
 
 function computeStats(entries: RapportEntry[], projects: Project[], field: "fournisseurs" | "seriesCabines"): StatRow[] {
   const map = new Map<string, { cabines: number; minutes: number }>();
@@ -182,6 +224,21 @@ const s = StyleSheet.create({
   dcDepart:   { width: 34, textAlign: "center", flexShrink: 0 },
   dcHeures:   { width: 44, textAlign: "right", flexShrink: 0 },
 
+  // Calendar
+  calGrid:    { marginBottom: 8 },
+  calWeekRow: { flexDirection: "row" },
+  calDowRow:  { flexDirection: "row", marginBottom: 2 },
+  calDow:     { flex: 1, textAlign: "center", fontSize: 7, fontFamily: "Helvetica-Bold", color: C.white, backgroundColor: C.navy, paddingVertical: 3 },
+  calDowWe:   { backgroundColor: "#334f78" }, // week-end légèrement différent
+  calCell:    { flex: 1, borderWidth: 0.5, borderColor: C.border, minHeight: 36, paddingTop: 3, paddingHorizontal: 3, backgroundColor: C.white },
+  calCellWe:  { backgroundColor: "#f8fafc" },
+  calCellEmpty:{ backgroundColor: "#f1f5f9" },
+  calDay:     { fontSize: 7, fontFamily: "Helvetica-Bold", color: C.slate, marginBottom: 2 },
+  calDayActive:{ color: C.navy },
+  calSolo:    { fontSize: 7.5, fontFamily: "Helvetica-Bold", color: C.blue },
+  calTeam:    { fontSize: 7, color: C.purple },
+  calSoloLabel:{ fontSize: 6, color: C.slate },
+
   // Team section
   teamBand:   { backgroundColor: C.purpleLight, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 6 },
   teamBandText:{ fontSize: 9, fontFamily: "Helvetica-Bold", color: C.purple },
@@ -194,6 +251,82 @@ const s = StyleSheet.create({
   footerText: { fontSize: 7, color: C.muted },
   pageNum:    { fontSize: 7, color: C.muted },
 });
+
+// ─── Calendrier mensuel ────────────────────────────────────────────────────────
+
+const DOW_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+function CalendarSection({ yearMonth, soloEntries, teamEntries, projects }: {
+  yearMonth: string;
+  soloEntries: RapportEntry[];
+  teamEntries: RapportEntry[];
+  projects: Project[];
+}) {
+  const soloDays = dailyCabines(soloEntries, projects);
+  const teamDays = dailyCabines(teamEntries, projects);
+  const weeks    = buildCalendarGrid(yearMonth);
+  const [y, m]   = yearMonth.split("-").map(Number);
+
+  return (
+    <View>
+      <Text style={s.sectionTitle}>Calendrier mensuel</Text>
+      <View style={s.divider} />
+
+      {/* En-têtes jours de la semaine */}
+      <View style={s.calDowRow}>
+        {DOW_LABELS.map((d, i) => (
+          <Text key={d} style={[s.calDow, i >= 5 ? s.calDowWe : {}]}>{d}</Text>
+        ))}
+      </View>
+
+      {/* Grille semaines */}
+      <View style={s.calGrid}>
+        {weeks.map((week, wi) => (
+          <View key={wi} style={s.calWeekRow}>
+            {week.map((day, di) => {
+              if (day === 0) {
+                return <View key={di} style={[s.calCell, s.calCellEmpty]} />;
+              }
+              const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+              const solo = soloDays.get(dateStr) ?? 0;
+              const team = teamDays.get(dateStr) ?? 0;
+              const isWe = di >= 5;
+              const hasWork = solo > 0 || team > 0;
+
+              return (
+                <View key={di} style={[s.calCell, isWe ? s.calCellWe : {}]}>
+                  <Text style={[s.calDay, hasWork ? s.calDayActive : {}]}>{day}</Text>
+                  {solo > 0 && (
+                    <Text style={s.calSolo}>
+                      {solo} cab.
+                    </Text>
+                  )}
+                  {team > 0 && (
+                    <Text style={s.calTeam}>
+                      +{team} éq.
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+
+      {/* Légende */}
+      <View style={{ flexDirection: "row", gap: 16, marginTop: 4, marginBottom: 4 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <Text style={[s.calSolo, { fontSize: 8 }]}>■</Text>
+          <Text style={[s.calSoloLabel, { fontSize: 7 }]}>Cabines solo</Text>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <Text style={[s.calTeam, { fontSize: 8 }]}>■</Text>
+          <Text style={[s.calSoloLabel, { fontSize: 7 }]}>Cabines en équipe</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 // ─── PDF Document ─────────────────────────────────────────────────────────────
 
@@ -431,6 +564,14 @@ function RapportDocument({ data }: { data: RapportData }) {
             <Text style={s.kpiLabel}>Cabines solo</Text>
           </View>
         </View>
+
+        {/* Calendrier mensuel */}
+        <CalendarSection
+          yearMonth={data.yearMonth}
+          soloEntries={data.soloEntries}
+          teamEntries={data.teamEntries}
+          projects={data.projects}
+        />
 
         {/* Stats solo — marque + série */}
         {brandStats.length > 0 && (

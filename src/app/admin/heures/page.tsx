@@ -672,6 +672,7 @@ export default function HeuresPage() {
               const blob = await generateRapportPDF({
                 label,
                 periode: monthLabel(selectedMonth),
+                yearMonth: selectedMonth,
                 soloEntries,
                 teamEntries: teamEnts,
                 projects,
