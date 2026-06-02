@@ -217,12 +217,14 @@ const s = StyleSheet.create({
   drowAlt:    { backgroundColor: "#f8fafc" },
 
   // Detail columns — largeurs fixes pour éviter l'overflow du projet sur la série
-  dcDate:     { width: 72, flexShrink: 0 },
-  dcProject:  { flex: 1, paddingRight: 6 },   // flex + paddingRight = espace avant série
-  dcSeries:   { width: 62, flexShrink: 0 },
-  dcArrivee:  { width: 34, textAlign: "center", flexShrink: 0 },
-  dcDepart:   { width: 34, textAlign: "center", flexShrink: 0 },
-  dcHeures:   { width: 44, textAlign: "right", flexShrink: 0 },
+  dcDate:     { width: 68, flexShrink: 0 },
+  dcProject:  { flex: 1, paddingRight: 4 },
+  dcSeries:   { width: 58, flexShrink: 0 },
+  dcArrivee:  { width: 32, textAlign: "center", flexShrink: 0 },
+  dcDepart:   { width: 32, textAlign: "center", flexShrink: 0 },
+  dcHeures:   { width: 42, textAlign: "right", flexShrink: 0 },
+  dcTmNum:    { fontSize: 6, color: C.blue, marginTop: 1 }, // N° TM sous la date
+  dcProjectText: { fontSize: 7.5 }, // titre projet légèrement réduit
 
   // Calendar
   calGrid:    { marginBottom: 8 },
@@ -391,10 +393,15 @@ function DetailSection({ entries, projects }: { entries: RapportEntry[]; project
         {sorted.map((e, i) => {
           const proj = projects.find((p) => p.id === e.projectId);
           const series = proj?.seriesCabines?.join(", ") || "—";
+          const tmNum  = proj?.ofrTM || "";
           return (
             <View key={`${e.projectId}-${e.date}-${i}`} style={[s.drow, i % 2 === 1 ? s.drowAlt : {}]}>
-              <Text style={[s.td, s.tdMuted, s.dcDate]}>{fmtDate(e.date)}</Text>
-              <Text style={[s.td, s.dcProject]}>{e.projectName}</Text>
+              {/* Date + N° TM empilés */}
+              <View style={s.dcDate}>
+                <Text style={[s.td, s.tdMuted]}>{fmtDate(e.date)}</Text>
+                {tmNum ? <Text style={s.dcTmNum}>{tmNum}</Text> : null}
+              </View>
+              <Text style={[s.td, s.dcProject, s.dcProjectText]}>{e.projectName}</Text>
               <Text style={[s.td, s.tdMuted, s.dcSeries]}>{series}</Text>
               <Text style={[s.td, { textAlign: "center" }, s.dcArrivee]}>{e.arrivee || "—"}</Text>
               <Text style={[s.td, { textAlign: "center" }, s.dcDepart]}>{e.depart || "—"}</Text>
@@ -461,10 +468,14 @@ function TeamDetailSection({ entries, projects, collabLabel }: {
             .map((n) => n.trim())
             .filter((n) => !n.toLowerCase().includes(collabLabel.toLowerCase()))
             .join(" & ") || e.collaborateur;
+          const tmNum = proj?.ofrTM || "";
           return (
             <View key={`team-${e.projectId}-${e.date}-${i}`} style={[s.drow, i % 2 === 1 ? s.drowAlt : {}]}>
-              <Text style={[s.td, s.tdMuted, s.dcDate]}>{fmtDate(e.date)}</Text>
-              <Text style={[s.td, s.dcProject]}>{e.projectName}</Text>
+              <View style={s.dcDate}>
+                <Text style={[s.td, s.tdMuted]}>{fmtDate(e.date)}</Text>
+                {tmNum ? <Text style={s.dcTmNum}>{tmNum}</Text> : null}
+              </View>
+              <Text style={[s.td, s.dcProject, s.dcProjectText]}>{e.projectName}</Text>
               <Text style={[s.td, s.tdMuted, s.dcSeries]}>{series}</Text>
               <Text style={[s.td, s.tdPurple, { flex: 2 }]}>{partners}</Text>
               <Text style={[s.td, { textAlign: "center" }, s.dcArrivee]}>{e.arrivee || "—"}</Text>
