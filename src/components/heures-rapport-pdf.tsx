@@ -63,22 +63,39 @@ interface StatRow { label: string; cabines: number; minutes: number }
 
 function computeStats(entries: RapportEntry[], projects: Project[], field: "fournisseurs" | "seriesCabines"): StatRow[] {
   const map = new Map<string, { cabines: number; minutes: number }>();
+  // Pour les projets mono-cabine : évite de compter la même cabine plusieurs fois
+  // si le collaborateur a travaillé sur ce projet sur plusieurs jours.
+  // Clé = projectId + fieldKey pour ne pas mélanger les marques/séries.
+  const singleCabinCounted = new Set<string>();
+
   for (const e of entries) {
     if (e.minutes <= 0) continue;
     const proj = projects.find((p) => p.id === e.projectId);
     if (!proj) continue;
-    const keys: string[] = proj[field] ?? [];
-    const cabines = proj.nbCabines ?? 1;
-    if (keys.length === 0) {
-      const s = map.get("—") ?? { cabines: 0, minutes: 0 };
-      s.minutes += e.minutes; s.cabines += cabines;
-      map.set("—", s);
-    } else {
-      for (const k of keys) {
-        const s = map.get(k) ?? { cabines: 0, minutes: 0 };
-        s.minutes += e.minutes; s.cabines += cabines;
-        map.set(k, s);
+    const keys: string[] = (proj[field] ?? []) as string[];
+    // Multi-cabine (nbCabines > 1) : chaque TimeEntry = 1 cabine distincte installée.
+    // Mono-cabine : 1 cabine pour tout le projet, quel que soit le nombre de jours.
+    const isMultiCabin = (proj.nbCabines ?? 1) > 1;
+
+    const addCabines = (key: string) => {
+      const s = map.get(key) ?? { cabines: 0, minutes: 0 };
+      s.minutes += e.minutes;
+      if (isMultiCabin) {
+        s.cabines += 1; // chaque entrée = 1 cabine pour un projet multi-cabine
+      } else {
+        const ck = `${e.projectId}|${key}`;
+        if (!singleCabinCounted.has(ck)) {
+          s.cabines += proj.nbCabines ?? 1;
+          singleCabinCounted.add(ck);
+        }
       }
+      map.set(key, s);
+    };
+
+    if (keys.length === 0) {
+      addCabines("—");
+    } else {
+      for (const k of keys) addCabines(k);
     }
   }
   return Array.from(map.entries())
@@ -339,10 +356,24 @@ function RapportDocument({ data }: { data: RapportData }) {
   const teamProjects = new Set(data.teamEntries.filter((e) => e.minutes > 0).map((e) => e.projectId));
   const nbProjects   = new Set([...soloProjects, ...teamProjects]).size;
 
-  const soloCabines = data.soloEntries.filter((e) => e.minutes > 0).reduce((s, e) => {
-    const p = data.projects.find((pr) => pr.id === e.projectId);
-    return s + (p?.nbCabines ?? 1);
-  }, 0);
+  // Cabines solo : même règle que computeStats
+  // Multi-cabine → 1 par TimeEntry ; mono-cabine → 1 par projet (pas par jour)
+  const soloCabines = (() => {
+    let total = 0;
+    const singleCounted = new Set<string>();
+    for (const e of data.soloEntries) {
+      if (e.minutes <= 0) continue;
+      const p = data.projects.find((pr) => pr.id === e.projectId);
+      if (!p) continue;
+      if ((p.nbCabines ?? 1) > 1) {
+        total += 1; // chaque entrée = 1 cabine pour un projet multi-cabine
+      } else if (!singleCounted.has(e.projectId)) {
+        total += p.nbCabines ?? 1;
+        singleCounted.add(e.projectId);
+      }
+    }
+    return total;
+  })();
 
   // Stats marque/série basées sur solo uniquement
   const brandStats  = computeStats(data.soloEntries, data.projects, "fournisseurs");
