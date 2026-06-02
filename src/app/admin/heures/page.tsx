@@ -38,6 +38,9 @@ interface TimeEntry {
   minutes: number;
   projectName: string;
   projectId: string;
+  /** true = collaborateur vient du Monteur Responsable explicite (cabineAttribution ou multi-day).
+   *  false = fallback sur project.collaborateurs (cabine sans attribution assignée). */
+  fromAttribution: boolean;
 }
 
 /**
@@ -108,6 +111,7 @@ function parseProjectHours(
         minutes: 0,
         projectName: project.projet,
         projectId:   project.id,
+        fromAttribution: false, // pas d'heures → pas de Monteur Responsable confirmé
       });
       return entries;
     }
@@ -116,8 +120,9 @@ function parseProjectHours(
       const arrTime = arrTimes[i] || "";
       const depTime = depTimes[i] || "";
       const date    = dates[i] || effectiveDate;
-      // Priorité : attribution KV → champ collaborateurs du projet
-      const collab  = cabineAttribution?.[i] || project.collaborateurs || "";
+      // Priorité : attribution KV (Monteur Responsable explicite) → fallback projet
+      const explicitAttrib = cabineAttribution?.[i] || "";
+      const collab = explicitAttrib || project.collaborateurs || "";
 
       const arrMin  = parseTimeString(arrTime);
       const depMin  = parseTimeString(depTime);
@@ -131,6 +136,8 @@ function parseProjectHours(
         minutes: diff > 0 ? diff : 0,
         projectName: project.projet,
         projectId:   project.id,
+        // true seulement si le Monteur Responsable a été explicitement assigné
+        fromAttribution: explicitAttrib.trim().length > 0,
       });
     }
     return entries;
@@ -181,6 +188,7 @@ function parseProjectHours(
         minutes:  diff > 0 ? diff : 0,
         projectName: project.projet,
         projectId:   project.id,
+        fromAttribution: true, // multi-day : collaborateur explicite dans la chaîne
       });
     }
     return entries;
@@ -203,6 +211,7 @@ function parseProjectHours(
     minutes:       diff > 0 ? diff : 0,
     projectName:   project.projet,
     projectId:     project.id,
+    fromAttribution: true, // format simple : project.collaborateurs = monteur assigné
   });
 
   return entries;
@@ -658,15 +667,24 @@ export default function HeuresPage() {
             for (const label of pdfSelected) {
               const isTeam = label.includes("&");
 
-              // Entrées solo : le collaborateur travaille seul
-              const soloEntries = isTeam
-                ? (teamMap.get(label) ?? [])                     // rapport binôme = toutes leurs entrées communes
-                : (collabMap.get(label) ?? []);                  // rapport solo = entrées solo uniquement
+              // Filtre strict : uniquement les entrées où le Monteur Responsable
+              // a été explicitement assigné dans l'app (fromAttribution = true).
+              // Exclut les entrées où l'attribution est un fallback sur project.collaborateurs
+              // (cabines multi-cabine sans Monteur Responsable sélectionné).
+              const onlyConfirmed = (e: TimeEntry) => e.fromAttribution !== false;
 
-              // Entrées en équipe : interventions où ce collaborateur était avec d'autres
+              // Entrées solo : le collaborateur travaille seul
+              const soloEntries = (isTeam
+                ? (teamMap.get(label) ?? [])
+                : (collabMap.get(label) ?? [])
+              ).filter(onlyConfirmed);
+
+              // Entrées en équipe : interventions où ce collaborateur était avec d'autres,
+              // uniquement si explicitement désigné comme Monteur Responsable
               const teamEnts = isTeam
-                ? []                                              // binôme n'a pas de "sous-équipes"
+                ? []
                 : Array.from(teamMap.values()).flat().filter((e) =>
+                    onlyConfirmed(e) &&
                     e.collaborateur.toLowerCase().includes(label.toLowerCase())
                   );
 
