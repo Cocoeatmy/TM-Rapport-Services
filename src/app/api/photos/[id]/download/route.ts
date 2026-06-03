@@ -21,9 +21,13 @@ const BUCKET_DL_LABEL: Record<PhotoBucketKey, string> = {
   GARANTIE:            "Photo garantie",
 };
 
-/** Remplace les caractères interdits dans les noms de fichiers. */
+/** Remplace les caractères interdits + supprime les accents (ASCII pur pour HTTP headers). */
 function sanitize(s: string): string {
-  return s.replace(/[/\\:*?"<>|]/g, "-").trim();
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // supprime les diacritiques (é→e, à→a, etc.)
+    .replace(/[/\\:*?"<>|]/g, "-")
+    .trim();
 }
 
 /** Tente d'extraire l'extension depuis l'URL (jpg par défaut). */
@@ -162,13 +166,15 @@ export async function GET(
     return NextResponse.json({ error: "Aucune photo disponible pour ce projet" }, { status: 404 });
   }
 
+  // sanitize() retourne de l'ASCII pur pour le filename (RFC 7230)
   const projectName = sanitize(project.nomChantier || id);
+  const zipFilename = `${projectName} - Photos.zip`;
 
-  const blob = new Blob([zipUint8], { type: "application/zip" });
-  return new NextResponse(blob, {
+  return new NextResponse(Buffer.from(zipUint8.buffer as ArrayBuffer), {
     headers: {
       "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${projectName} - Photos.zip"`,
+      // filename* (RFC 5987) pour les clients modernes, filename ASCII en fallback
+      "Content-Disposition": `attachment; filename="${zipFilename}"; filename*=UTF-8''${encodeURIComponent(zipFilename)}`,
       "Cache-Control": "no-store",
     },
   });
