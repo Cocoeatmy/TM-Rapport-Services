@@ -63,12 +63,15 @@ export async function GET(
   const nbCabines = project.nbCabines || 1;
   const isMultiCabine = nbCabines > 1;
 
-  // Noms des cabines (source de vérité : kv-store attribution)
-  const allAttr = await getData<{ projectId: string; noms?: string[] }>("cabine-attributions");
-  const attr = allAttr.find((a) => a.projectId === id);
-  const cabineNames: string[] = Array.from({ length: nbCabines }, (_, i) =>
-    attr?.noms?.[i] || `Cabine ${i + 1}`,
-  );
+  // Noms des cabines (optionnel — un échec KV ne doit pas bloquer le ZIP)
+  let cabineNames: string[] = Array.from({ length: nbCabines }, (_, i) => `Cabine ${i + 1}`);
+  try {
+    const allAttr = await getData<{ projectId: string; noms?: string[] }>("cabine-attributions");
+    const attr = allAttr.find((a) => a.projectId === id);
+    if (attr?.noms) {
+      cabineNames = Array.from({ length: nbCabines }, (_, i) => attr.noms?.[i] || `Cabine ${i + 1}`);
+    }
+  } catch { /* noms par défaut utilisés */ }
 
   // Collecte de toutes les photos
   type PhotoEntry = {
@@ -151,7 +154,18 @@ export async function GET(
     );
   }
 
-  const zipUint8 = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 3 } });
+  let zipUint8: Uint8Array;
+  try {
+    zipUint8 = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 3 } });
+  } catch (err) {
+    console.error("[download] ZIP generation failed:", err);
+    return NextResponse.json({ error: "Erreur génération ZIP" }, { status: 500 });
+  }
+
+  if (zipUint8.length === 0) {
+    return NextResponse.json({ error: "Aucune photo disponible pour ce projet" }, { status: 404 });
+  }
+
   const projectName = sanitize(project.nomChantier || id);
 
   return new NextResponse(Buffer.from(zipUint8), {
