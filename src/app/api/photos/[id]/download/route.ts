@@ -164,7 +164,8 @@ export async function GET(
 
   const projectName = sanitize(project.nomChantier || id);
 
-  return new NextResponse(zipUint8, {
+  const blob = new Blob([zipUint8], { type: "application/zip" });
+  return new NextResponse(blob, {
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${projectName} - Photos.zip"`,
