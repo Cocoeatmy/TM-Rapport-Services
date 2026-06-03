@@ -5,6 +5,9 @@ import { getData } from "@/lib/kv-store";
 import { detectBucket, extractCabine, defaultBucketForField, PhotoBucketKey } from "@/lib/photo-buckets";
 import { verifyToken } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Vercel Pro — jusqu'à 5 min possible, 60 s suffit pour un ZIP
+
 // Label court pour les noms de fichiers du ZIP.
 const BUCKET_DL_LABEL: Record<PhotoBucketKey, string> = {
   AVANT_INTERVENTION:  "Photo avant intervention",
@@ -103,12 +106,16 @@ export async function GET(
     groups.get(k)!.push(entry);
   }
 
-  // Construction du ZIP
+  // Construction du ZIP — téléchargements en parallèle (batch de 8)
+  // pour éviter le timeout Vercel avec les projets à nombreuses photos.
   const zip = new JSZip();
+
+  // Aplatir toutes les entrées en une liste de tâches avec leur nom de fichier
+  type ZipTask = { url: string; filename: string };
+  const tasks: ZipTask[] = [];
 
   for (const items of groups.values()) {
     const { cabineIdx, label } = items[0];
-
     const cabineName =
       isMultiCabine && cabineIdx !== null
         ? cabineNames[(cabineIdx as number) - 1] ?? `Cabine ${cabineIdx}`
@@ -118,20 +125,30 @@ export async function GET(
       const { url } = items[i];
       const ext = extFromUrl(url);
       const suffix = i === 0 ? "" : `.${i + 1}`;
-      const name = cabineName
+      const filename = cabineName
         ? `${sanitize(cabineName)} - ${sanitize(label)}${suffix}.${ext}`
         : `${sanitize(label)}${suffix}.${ext}`;
-
-      try {
-        const res = await fetch(url);
-        if (res.ok) {
-          const buf = await res.arrayBuffer();
-          zip.file(name, buf);
-        }
-      } catch {
-        // On ignore les images inaccessibles
-      }
+      tasks.push({ url, filename });
     }
+  }
+
+  // Exécution en batches parallèles de 8
+  const BATCH = 8;
+  for (let i = 0; i < tasks.length; i += BATCH) {
+    const batch = tasks.slice(i, i + BATCH);
+    await Promise.all(
+      batch.map(async ({ url, filename }) => {
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+          if (res.ok) {
+            const buf = await res.arrayBuffer();
+            zip.file(filename, buf);
+          }
+        } catch {
+          // On ignore les images inaccessibles ou expirées
+        }
+      })
+    );
   }
 
   const zipUint8 = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 3 } });
