@@ -135,24 +135,20 @@ export async function GET(
     }
   }
 
-  // Exécution en batches parallèles de 8
-  const BATCH = 8;
-  for (let i = 0; i < tasks.length; i += BATCH) {
-    const batch = tasks.slice(i, i + BATCH);
-    await Promise.all(
-      batch.map(async ({ url, filename }) => {
-        try {
-          const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-          if (res.ok) {
-            const buf = await res.arrayBuffer();
-            zip.file(filename, buf);
-          }
-        } catch {
-          // On ignore les images inaccessibles ou expirées
+  // Exécution en parallèle — fetch sans AbortSignal (compatibilité maximale)
+  await Promise.all(
+    tasks.map(async ({ url, filename }) => {
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (res.ok) {
+          const buf = await res.arrayBuffer();
+          zip.file(filename, buf);
         }
-      })
-    );
-  }
+      } catch {
+        // On ignore les images inaccessibles ou expirées
+      }
+    })
+  );
 
   let zipUint8: Uint8Array;
   try {
@@ -168,7 +164,7 @@ export async function GET(
 
   const projectName = sanitize(project.nomChantier || id);
 
-  return new NextResponse(Buffer.from(zipUint8), {
+  return new NextResponse(zipUint8, {
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${projectName} - Photos.zip"`,
