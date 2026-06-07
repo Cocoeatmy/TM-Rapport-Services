@@ -4919,6 +4919,20 @@ function ProjectPageContent({ id }: { id: string }) {
                                   className="mt-2"
                                 />
                               </div>
+
+                              {/* Bouton Enregistrer — onglet Photos */}
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => handleSaveCabineData(idx)}
+                                className="w-full py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-medium flex items-center justify-center gap-2 active:opacity-80 disabled:opacity-50 transition-all"
+                              >
+                                {saving ? (
+                                  <><Loader2 className="w-4 h-4 animate-spin" />Enregistrement...</>
+                                ) : (
+                                  <><Check className="w-4 h-4" />Enregistrer</>
+                                )}
+                              </button>
                             </div>
                           )}
                         </CardContent>
