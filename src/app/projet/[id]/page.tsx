@@ -1952,7 +1952,7 @@ function StatusDropdown({
   );
 }
 
-/** Parse time from formats: "HH:MM" or "date collab HH:MM | ..." — returns minutes since midnight */
+/** Parse time from formats: "HH:MM" — returns minutes since midnight */
 function parseTimeRaw(raw: string): number | null {
   if (!raw || !raw.trim()) return null;
   const simpleMatch = raw.trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -1966,6 +1966,78 @@ function parseTimeRaw(raw: string): number | null {
     return parseInt(parts[0]) * 60 + parseInt(parts[1]);
   }
   return null;
+}
+
+/**
+ * Extrait la vraie heure HH:MM d'un slot cabine.
+ * Format avec date : "Cab1:2026-06-03:08:30" → prend le DERNIER HH:MM du slot.
+ * Format simple    : "Cab1:08:30"            → idem.
+ * Le "dernier" HH:MM est toujours l'heure réelle (les parties date ne matchent pas).
+ */
+function extractCabineSlotTime(slot: string): number | null {
+  const all = [...slot.matchAll(/(\d{2}):(\d{2})/g)];
+  if (all.length === 0) return null;
+  const last = all[all.length - 1];
+  const h = parseInt(last[1]);
+  const m = parseInt(last[2]);
+  if (h > 23 || m > 59) return null;
+  return h * 60 + m;
+}
+
+/**
+ * Calcule la durée totale (somme de toutes les cabines) et le nombre de
+ * cabines mesurées, pour les deux formats heureArrivee/heureDepart :
+ *  - Multi-cabine : "Cab1:2026-06-03:08:30 | Cab2:2026-06-03:09:00"
+ *  - Simple HH:MM : "08:30"
+ */
+function parseTotalDuration(
+  heureArrivee: string,
+  heureDepart: string,
+): { totalMins: number; cabinesCount: number } | null {
+  if (!heureArrivee || !heureDepart) return null;
+
+  // Format multi-cabine
+  if (heureArrivee.includes("Cab") && heureDepart.includes("Cab")) {
+    const arrSlots = heureArrivee.split("|").map((s) => s.trim());
+    const depSlots = heureDepart.split("|").map((s) => s.trim());
+
+    const toMap = (slots: string[]) => {
+      const map = new Map<number, number>();
+      for (const slot of slots) {
+        const cabMatch = slot.match(/^Cab(\d+):/);
+        if (!cabMatch) continue;
+        const cabNum = parseInt(cabMatch[1]);
+        const mins = extractCabineSlotTime(slot);
+        if (mins !== null) map.set(cabNum, mins);
+      }
+      return map;
+    };
+
+    const arrMap = toMap(arrSlots);
+    const depMap = toMap(depSlots);
+
+    let totalMins = 0;
+    let cabinesCount = 0;
+    for (const [cabNum, arrMins] of arrMap.entries()) {
+      const depMins = depMap.get(cabNum);
+      if (depMins === undefined) continue;
+      let diff = depMins - arrMins;
+      if (diff <= 0) diff += 24 * 60;
+      if (diff > 12 * 60) continue; // sanité : ignorer les durées impossibles (>12h/cabine)
+      totalMins += diff;
+      cabinesCount++;
+    }
+    if (cabinesCount === 0) return null;
+    return { totalMins, cabinesCount };
+  }
+
+  // Format simple HH:MM
+  const arrive = parseTimeRaw(heureArrivee);
+  const depart = parseTimeRaw(heureDepart);
+  if (arrive === null || depart === null) return null;
+  let mins = depart - arrive;
+  if (mins <= 0) mins += 24 * 60;
+  return { totalMins: mins, cabinesCount: 1 };
 }
 
 /** Estimate duration for a project based on supplier + series historical data */
@@ -1984,13 +2056,11 @@ function estimateDuration(
         p.heureDepart.trim() !== "",
     )
     .map((p) => {
-      const arrive = parseTimeRaw(p.heureArrivee);
-      const depart = parseTimeRaw(p.heureDepart);
-      if (arrive === null || depart === null) return null;
-      let mins = depart - arrive;
-      if (mins <= 0) mins += 24 * 60;
-      const cabines = p.nbCabines || 1;
-      const minsPerCabine = mins / cabines;
+      const duration = parseTotalDuration(p.heureArrivee, p.heureDepart);
+      if (!duration) return null;
+      // Utilise le nombre réel de cabines mesurées (ou nbCabines Notion si 1 seul slot)
+      const cabines = Math.max(duration.cabinesCount, p.nbCabines || 1);
+      const minsPerCabine = duration.totalMins / cabines;
       return { project: p, minsPerCabine };
     })
     .filter(Boolean) as { project: Project; minsPerCabine: number }[];
