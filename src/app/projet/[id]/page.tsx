@@ -2575,6 +2575,7 @@ function ProjectPageContent({ id }: { id: string }) {
   }, [project?.signatureUrl]);
   const [fav, setFav] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showHeuresCard, setShowHeuresCard] = useState(true);
   const [downloadingPhotos, setDownloadingPhotos] = useState(false);
   const [historyCount, setHistoryCount] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(60);
@@ -4178,12 +4179,21 @@ function ProjectPageContent({ id }: { id: string }) {
         })()}
         {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
           <>
-            {/* Horaires */}
+            {/* Heures & statistiques */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Rapport de montage</CardTitle>
+                <button
+                  type="button"
+                  onClick={() => setShowHeuresCard((v) => !v)}
+                  className="w-full flex items-center justify-between"
+                >
+                  <CardTitle className="text-base">Suivi des heures</CardTitle>
+                  {showHeuresCard
+                    ? <ChevronUp className="w-4 h-4 text-gray-400" />
+                    : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                </button>
               </CardHeader>
-              <CardContent className="space-y-4">
+              {showHeuresCard && <CardContent className="space-y-4">
                 {/* Mode simple (1 cabine) */}
                 {!isMultiDay && (
                   <>
@@ -4489,7 +4499,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   );
                 })()}
 
-              </CardContent>
+              </CardContent>}
             </Card>
 
             <Separator />
