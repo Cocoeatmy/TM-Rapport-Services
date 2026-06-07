@@ -2260,6 +2260,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [reformulating, setReformulating] = useState(false);
+  const [reformulatingCabineIdx, setReformulatingCabineIdx] = useState<number | null>(null);
   const [missingPhotosPrompt, setMissingPhotosPrompt] = useState<{
     kind: "save" | "send";
     missing: string[];
@@ -2306,6 +2307,32 @@ function ProjectPageContent({ id }: { id: string }) {
       setCabineSignalements({ pieces: Array.isArray(pieces) ? pieces : [], defauts: Array.isArray(defauts) ? defauts : [] });
     });
   }, [id, pieceRefreshKey, defautRefreshKey]);
+
+  const handleReformulateCabine = async (idx: number) => {
+    const text = cabines[idx]?.rapport;
+    if (!text?.trim()) return;
+    setReformulatingCabineIdx(idx);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Reformule ce texte de rapport de montage de cabine de douche de manière professionnelle, claire et concise. Garde le sens exact mais améliore la formulation. Réponds uniquement avec le texte reformulé, sans introduction ni commentaire :\n\n${text}`,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.answer || data.response) {
+          setCabines((prev) =>
+            prev.map((c, i) => i === idx ? { ...c, rapport: (data.answer || data.response).trim() } : c)
+          );
+          scheduleAutoSave();
+        }
+      }
+    } catch {} finally {
+      setReformulatingCabineIdx(null);
+    }
+  };
 
   const handleReformulate = async () => {
     if (!rapport.trim()) return;
@@ -5047,6 +5074,19 @@ function ProjectPageContent({ id }: { id: string }) {
                                   rows={2}
                                   className="mt-2"
                                 />
+                                {cabine.rapport.trim().length > 10 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleReformulateCabine(idx)}
+                                    disabled={reformulatingCabineIdx === idx}
+                                    className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50"
+                                  >
+                                    {reformulatingCabineIdx === idx
+                                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      : <Sparkles className="w-3.5 h-3.5" />}
+                                    {reformulatingCabineIdx === idx ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+                                  </button>
+                                )}
                               </div>
 
                               {/* Bouton Enregistrer — onglet Photos */}
