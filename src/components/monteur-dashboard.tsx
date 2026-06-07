@@ -2061,39 +2061,33 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               <span className="text-xl animate-pulse">🌡️</span>
             )}
             {/* Cabines semaine + mini-stats types */}
-            <button onClick={() => setShowWeekProjects(!showWeekProjects)} className="flex items-center gap-3 hover:opacity-70 transition-opacity">
-              {/* Mini-stats par type (à gauche du 79) */}
-              <div className="flex flex-col items-end gap-0.5">
-                {week14MesuresProj > 0 && (
-                  <p className="text-[9px] font-medium text-cyan-500 dark:text-cyan-400">
-                    {week14MesuresProj} mesure{week14MesuresProj > 1 ? "s" : ""}
-                    {(allWeekCabinesBySource["mesures"] || 0) > 0 && (
-                      <span className="text-gray-400 font-normal"> · {allWeekCabinesBySource["mesures"]} cab.</span>
-                    )}
-                  </p>
-                )}
-                {week14MontagesProj > 0 && (
-                  <p className="text-[9px] font-medium text-orange-500 dark:text-orange-400">
-                    {week14MontagesProj} projet{week14MontagesProj > 1 ? "s" : ""}
-                    {(allWeekCabinesBySource["montage"] || 0) > 0 && (
-                      <span className="text-gray-400 font-normal"> · {allWeekCabinesBySource["montage"]} cab.</span>
-                    )}
-                  </p>
-                )}
-                {week14ServicesProj > 0 && (
-                  <p className="text-[9px] font-medium text-violet-500 dark:text-violet-400">
-                    {week14ServicesProj} service{week14ServicesProj > 1 ? "s" : ""}
-                    {(allWeekCabinesBySource["services"] || 0) > 0 && (
-                      <span className="text-gray-400 font-normal"> · {allWeekCabinesBySource["services"]} cab.</span>
-                    )}
-                  </p>
-                )}
-              </div>
-              {/* Total cabines (à droite) */}
-              <div className="text-right">
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCabinesWeek}</p>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500">cab. cette sem. ▾</p>
-              </div>
+            <button onClick={() => setShowWeekProjects(!showWeekProjects)} className="text-right hover:opacity-70 transition-opacity">
+              {/* Total cabines */}
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCabinesWeek}</p>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500">cab. cette sem. ▾</p>
+              {/* Breakdown par type — chips colorées */}
+              {(week14MontagesProj > 0 || week14MesuresProj > 0 || week14ServicesProj > 0) && (
+                <div className="flex flex-wrap justify-end gap-1 mt-1.5">
+                  {week14MontagesProj > 0 && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-900/30 text-[9px] font-semibold text-orange-600 dark:text-orange-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                      {week14MontagesProj}p · {allWeekCabinesBySource["montage"] || 0}c
+                    </span>
+                  )}
+                  {week14MesuresProj > 0 && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-[9px] font-semibold text-cyan-600 dark:text-cyan-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
+                      {week14MesuresProj}m · {allWeekCabinesBySource["mesures"] || 0}c
+                    </span>
+                  )}
+                  {week14ServicesProj > 0 && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-violet-50 dark:bg-violet-900/30 text-[9px] font-semibold text-violet-600 dark:text-violet-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+                      {week14ServicesProj}s · {allWeekCabinesBySource["services"] || 0}c
+                    </span>
+                  )}
+                </div>
+              )}
             </button>
           </div>
         </div>
