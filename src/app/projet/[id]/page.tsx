@@ -4359,8 +4359,8 @@ function ProjectPageContent({ id }: { id: string }) {
                   </div>
                 )}
 
-                {/* ── Statistiques automatiques (mode multi-cabines) ─────────────── */}
-                {isCabineMode && (() => {
+                {/* ── Statistiques automatiques (mode multi-cabines, admin uniquement) ── */}
+                {isCabineMode && isAdmin && (() => {
                   const fmtMin = (m: number) =>
                     m === 0 ? "—" : `${Math.floor(m / 60)}h${(m % 60).toString().padStart(2, "0")}`;
 
