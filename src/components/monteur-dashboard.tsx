@@ -2113,7 +2113,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               <div className="flex items-stretch gap-2">
                 <StatCell label="Mesures" curVal={cur.mesures} curCab={cur.mesuresCabines} prevVal={prev.mesures} color="text-cyan-600 dark:text-cyan-400" />
                 <div className="w-px bg-gray-100 dark:bg-gray-700 self-stretch" />
-                <StatCell label="Montages" curVal={cur.montages} curCab={cur.montagesCabines} prevVal={prev.montages} color="text-orange-500 dark:text-orange-400" />
+                <StatCell label="Projets" curVal={cur.montages} curCab={0} prevVal={prev.montages} color="text-orange-500 dark:text-orange-400" />
+                <div className="w-px bg-gray-100 dark:bg-gray-700 self-stretch" />
+                <StatCell label="Cabines" curVal={cur.montagesCabines} curCab={0} prevVal={prev.montagesCabines} color="text-orange-400 dark:text-orange-300" />
                 <div className="w-px bg-gray-100 dark:bg-gray-700 self-stretch" />
                 <StatCell label="Services" curVal={cur.services} curCab={cur.servicesCabines} prevVal={prev.services} color="text-violet-500 dark:text-violet-400" />
               </div>
