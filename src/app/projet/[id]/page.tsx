@@ -4180,8 +4180,8 @@ function ProjectPageContent({ id }: { id: string }) {
                   </>
                 )}
 
-                {/* Mode tableau (multi-cabines / multi-jours) */}
-                {isMultiDay && (
+                {/* Mode tableau multi-jours (mono-cabine uniquement) */}
+                {isMultiDay && !isCabineMode && (
                   <div className="space-y-3">
                     <Label>Pointage des heures</Label>
                     {pointages.map((entry, idx) => (
@@ -4266,7 +4266,6 @@ function ProjectPageContent({ id }: { id: string }) {
                       <Plus className="w-4 h-4" />
                       Ajouter une journée
                     </button>
-                    {/* Per-day hours and total */}
                     {pointages.some((e) => e.arrivee && e.depart) && (() => {
                       const dayMinutes = pointages.map((e) => {
                         if (!e.arrivee || !e.depart) return 0;
@@ -4299,6 +4298,136 @@ function ProjectPageContent({ id }: { id: string }) {
                     })()}
                   </div>
                 )}
+
+                {/* ── Statistiques automatiques (mode multi-cabines) ─────────────── */}
+                {isCabineMode && (() => {
+                  const fmtMin = (m: number) =>
+                    m === 0 ? "—" : `${Math.floor(m / 60)}h${(m % 60).toString().padStart(2, "0")}`;
+
+                  // Durée en minutes pour une cabine
+                  const cabMin = (c: typeof cabines[0]) => {
+                    if (!c.arrivee || !c.depart) return 0;
+                    const [ah, am] = c.arrivee.split(":").map(Number);
+                    const [dh, dm] = c.depart.split(":").map(Number);
+                    const diff = (dh * 60 + dm) - (ah * 60 + am);
+                    return diff > 0 ? diff : 0;
+                  };
+
+                  // Regroupement par collaborateur
+                  const byCollab = new Map<string, { count: number; minutes: number }>();
+                  cabines.forEach((c) => {
+                    const monteurs = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
+                    const min = cabMin(c);
+                    monteurs.forEach((m) => {
+                      const cur = byCollab.get(m) || { count: 0, minutes: 0 };
+                      byCollab.set(m, { count: cur.count + 1, minutes: cur.minutes + min });
+                    });
+                  });
+
+                  // Regroupement par date
+                  const byDay = new Map<string, { nom: string; monteur: string; minutes: number }[]>();
+                  cabines.forEach((c, i) => {
+                    if (!c.date) return;
+                    const nom = c.nom || `Cabine ${i + 1}`;
+                    if (!byDay.has(c.date)) byDay.set(c.date, []);
+                    byDay.get(c.date)!.push({ nom, monteur: c.monteur || "", minutes: cabMin(c) });
+                  });
+
+                  const totalMin = cabines.reduce((s, c) => s + cabMin(c), 0);
+                  const hasAnyData = byCollab.size > 0 || byDay.size > 0;
+
+                  if (!hasAnyData) {
+                    return (
+                      <p className="text-xs text-gray-400 text-center py-2">
+                        Les statistiques apparaîtront au fur et à mesure de la saisie des heures par cabine.
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Par collaborateur */}
+                      {byCollab.size > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                            Par collaborateur
+                          </p>
+                          <div className="space-y-1.5">
+                            {[...byCollab.entries()].map(([name, { count, minutes }]) => {
+                              const colors = getCollaboratorColor(name);
+                              return (
+                                <div key={name} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-700/50">
+                                  <span
+                                    className="w-2 h-2 rounded-full shrink-0"
+                                    style={{ backgroundColor: colors.dot }}
+                                  />
+                                  <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{name}</span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {count} cabine{count > 1 ? "s" : ""}
+                                  </span>
+                                  <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 min-w-[52px] text-right">
+                                    {fmtMin(minutes)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Par journée */}
+                      {byDay.size > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                            Par journée
+                          </p>
+                          <div className="space-y-2">
+                            {[...byDay.entries()]
+                              .sort(([a], [b]) => a.localeCompare(b))
+                              .map(([date, items]) => {
+                                const dayTotal = items.reduce((s, i) => s + i.minutes, 0);
+                                const dateLabel = (() => {
+                                  try {
+                                    return new Date(date + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" });
+                                  } catch { return date; }
+                                })();
+                                return (
+                                  <div key={date} className="rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
+                                    <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-slate-700/60">
+                                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{dateLabel}</span>
+                                      <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">{fmtMin(dayTotal)}</span>
+                                    </div>
+                                    <div className="divide-y divide-gray-50 dark:divide-slate-700/50">
+                                      {items.map((item, i) => (
+                                        <div key={i} className="flex items-center gap-2 px-3 py-1.5">
+                                          <span className="flex-1 text-xs text-gray-700 dark:text-gray-300 truncate">{item.nom}</span>
+                                          {item.monteur && (
+                                            <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[90px]">{item.monteur}</span>
+                                          )}
+                                          <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[40px] text-right shrink-0">{fmtMin(item.minutes)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Total général */}
+                      {totalMin > 0 && (
+                        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
+                          <span className="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
+                            <Clock className="w-4 h-4" />
+                            Total projet
+                          </span>
+                          <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{fmtMin(totalMin)}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
               </CardContent>
             </Card>
