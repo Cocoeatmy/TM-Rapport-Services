@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WifiOff, CloudUpload, CloudOff, RefreshCw, AlertTriangle } from "lucide-react";
+import { WifiOff, CloudUpload, RefreshCw, AlertTriangle, ChevronDown } from "lucide-react";
 import { isOnline, getQueue, warmOfflineCache, getLastCacheWarmTs } from "@/lib/offline";
-import { countPendingUploads, countPermanentlyFailed, retryAllFailedUploads, processPendingUploads } from "@/lib/idb-uploads";
+import type { QueueItem } from "@/lib/offline";
+import {
+  countPendingUploads,
+  countPermanentlyFailed,
+  retryAllFailedUploads,
+  processPendingUploads,
+  getPendingUploads,
+} from "@/lib/idb-uploads";
+import type { PendingUpload } from "@/lib/idb-uploads";
 
 /**
  * Bannière globale qui prévient l'utilisateur quand l'app est hors
@@ -17,36 +25,74 @@ import { countPendingUploads, countPermanentlyFailed, retryAllFailedUploads, pro
  *   bandeau bleu "Synchronisation de N opération(s)…", qui disparaît
  *   automatiquement quand la queue est vide.
  *
- * Rendu en `position: fixed` au-dessus du contenu, sous le header.
+ * Au survol du bandeau → tooltip avec le détail de chaque opération.
+ *
+ * Rendu en `position: sticky` au-dessus du contenu, sous le header.
  * Réagit aux événements `online`/`offline` du navigateur et à
  * l'événement custom `tm-offline-queued` envoyé par offlineFetch.
  */
-function formatWarmAge(ts: number): string {
-  if (!ts) return "jamais";
-  const min = Math.round((Date.now() - ts) / 60000);
-  if (min < 1) return "à l'instant";
-  if (min < 60) return `il y a ${min} min`;
-  const h = Math.floor(min / 60);
-  return `il y a ${h}h`;
+
+/** Génère un libellé lisible depuis un QueueItem. */
+function describeQueueItem(item: QueueItem): string {
+  const body = typeof item.body === "string" ? (() => { try { return JSON.parse(item.body); } catch { return {}; } })() : (item.body || {});
+  const projectId = item.url.match(/\/api\/projects\/([^/?]+)/)?.[1] ?? "";
+  const ref = projectId ? ` · ${projectId}` : ` · ${item.url.replace("/api/", "")}`;
+
+  if (item.url.includes("cabine-attribution")) return `Attribution monteurs${ref}`;
+  if (body.rapportMonteur !== undefined && body.heureArrivee !== undefined) return `Rapport + heures${ref}`;
+  if (body.rapportMonteur !== undefined) return `Rapport monteur${ref}`;
+  if (body.heureArrivee !== undefined && body.heureDepart !== undefined) return `Heures d'intervention${ref}`;
+  if (body.heureArrivee !== undefined) return `Heure d'arrivée${ref}`;
+  if (body.heureDepart !== undefined) return `Heure de départ${ref}`;
+  if (body.commentairesMontages !== undefined) return `Commentaires${ref}`;
+  if (body.dateMontage !== undefined || body.dateMesures !== undefined) return `Mise à jour date${ref}`;
+  if (item.url.includes("pdf")) return `Génération PDF${ref}`;
+  if (item.url.includes("logs")) return `Historique${ref}`;
+  if (item.url.includes("notify")) return `Notification${ref}`;
+  if (item.type === "upload") return `Upload photo${ref}`;
+  const keys = Object.keys(body);
+  if (keys.length > 0) return `Mise à jour ${keys.slice(0, 2).join(", ")}${ref}`;
+  return `Mise à jour${ref}`;
+}
+
+/** Génère un libellé lisible depuis un PendingUpload (IDB). */
+function describePendingUpload(up: PendingUpload): string {
+  const nbFiles = up.files?.length ?? 0;
+  const label = up.notionField || up.category || "photo";
+  const suffix = up.retryCount > 0 ? ` (essai ${up.retryCount})` : "";
+  return `${nbFiles} photo${nbFiles > 1 ? "s" : ""} — ${label} · ${up.projectId}${suffix}`;
+}
+
+/** Formate un timestamp en heure lisible. */
+function formatTime(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
 }
 
 export function OfflineBanner() {
   const [online, setOnline]               = useState(true);
   const [queueCount, setQueueCount]       = useState(0);
+  const [queueItems, setQueueItems]       = useState<QueueItem[]>([]);
+  const [pendingUps, setPendingUps]       = useState<PendingUpload[]>([]);
   const [warming, setWarming]             = useState(false);
   const [lastWarm, setLastWarm]           = useState(0);
   const [showWarmOk, setShowWarmOk]       = useState(false);
   const [failedCount, setFailedCount]     = useState(0);
   const [retrying, setRetrying]           = useState(false);
+  const [showDetails, setShowDetails]     = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const refresh = async () => {
       const upCount = await countPendingUploads();
       const failCount = await countPermanentlyFailed();
+      const uploads = await getPendingUploads({ status: "pending" });
+      const items = getQueue();
       if (cancelled) return;
       setOnline(isOnline());
-      setQueueCount(getQueue().length + upCount);
+      setQueueCount(items.length + upCount);
+      setQueueItems(items);
+      setPendingUps(uploads);
       setLastWarm(getLastCacheWarmTs());
       setFailedCount(failCount);
     };
@@ -139,7 +185,6 @@ export function OfflineBanner() {
   }
 
   // En ligne, queue vide, aucun échec : rien à afficher.
-  // La barre ne s'affiche que si quelque chose requiert l'attention.
   if (online && queueCount === 0) {
     return null;
   }
@@ -163,14 +208,82 @@ export function OfflineBanner() {
     label = `Synchronisation de ${queueCount} opération${queueCount > 1 ? "s" : ""}…`;
   }
 
+  const hasDetails = queueItems.length > 0 || pendingUps.length > 0;
+
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={`sticky top-0 z-[55] w-full px-3 py-1.5 text-xs flex items-center justify-center gap-2 shadow-md ${cls}`}
-    >
-      <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden />
-      <span className="text-center leading-tight">{label}</span>
+    <div className={`sticky top-0 z-[55] w-full shadow-md ${cls}`}>
+      {/* Ligne principale cliquable */}
+      <button
+        type="button"
+        role="status"
+        aria-live="polite"
+        onClick={() => hasDetails && setShowDetails((v) => !v)}
+        className={`w-full px-3 py-1.5 text-xs flex items-center justify-center gap-2 ${hasDetails ? "cursor-pointer" : "cursor-default"}`}
+      >
+        <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden />
+        <span className="text-center leading-tight">{label}</span>
+        {hasDetails && (
+          <ChevronDown
+            className={`w-3.5 h-3.5 shrink-0 transition-transform ${showDetails ? "rotate-180" : ""}`}
+            aria-hidden
+          />
+        )}
+      </button>
+
+      {/* Panneau de détail (au clic ou survol) */}
+      {showDetails && hasDetails && (
+        <div className="bg-white dark:bg-slate-900 border-t border-blue-200 dark:border-slate-700 px-4 py-3 space-y-1.5 max-h-64 overflow-y-auto shadow-lg">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+            Opérations en attente
+          </p>
+
+          {/* Opérations API (localStorage queue) */}
+          {queueItems.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between gap-3 py-1 border-b border-gray-50 dark:border-slate-800 last:border-0"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide ${
+                  item.type === "upload"
+                    ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                    : item.type === "pdf"
+                    ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                    : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                }`}>
+                  {item.type === "upload" ? "photo" : item.type === "pdf" ? "pdf" : "sync"}
+                </span>
+                <span className="text-xs text-gray-700 dark:text-gray-200 truncate">
+                  {describeQueueItem(item)}
+                </span>
+              </div>
+              <span className="text-[10px] text-gray-400 shrink-0">
+                {formatTime(item.timestamp)}
+              </span>
+            </div>
+          ))}
+
+          {/* Photos en attente (IndexedDB) */}
+          {pendingUps.map((up) => (
+            <div
+              key={up.id}
+              className="flex items-center justify-between gap-3 py-1 border-b border-gray-50 dark:border-slate-800 last:border-0"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                  photo
+                </span>
+                <span className="text-xs text-gray-700 dark:text-gray-200 truncate">
+                  {describePendingUpload(up)}
+                </span>
+              </div>
+              <span className="text-[10px] text-gray-400 shrink-0">
+                {formatTime(up.createdAt)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

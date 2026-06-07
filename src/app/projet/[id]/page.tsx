@@ -35,13 +35,13 @@ import {
   X,
   GripVertical,
 } from "lucide-react";
-import { MontageChecklist } from "@/components/checklist";
+// MontageChecklist supprimée (section retirée)
 import { ProjectChat } from "@/components/project-chat";
 // GPS DÉSACTIVÉ — décommenter pour réactiver le pointage GPS automatique
 // import { GPSTracker } from "@/components/gps-tracker";
 // import { AdminGpsTimer } from "@/components/admin-gps-timer";
 import { SiteTimer } from "@/components/site-timer";
-import { StockUsage } from "@/components/stock-usage";
+// StockUsage supprimée (section retirée)
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
 import { Star, Share2, RefreshCw, PenLine, ImageDown } from "lucide-react";
@@ -5065,17 +5065,6 @@ function ProjectPageContent({ id }: { id: string }) {
               }, 2000);
             }}
             />
-
-            {/* Consommables utilisés */}
-            <StockUsage projectId={id} />
-
-            {/* Checklist de montage : titre retiré, en-tête intégré au
-                composant (badge X/N + chevron pour plier/déplier). */}
-            <Card>
-              <CardContent className="pt-4">
-                <MontageChecklist fournisseur={project.fournisseurs?.[0]} />
-              </CardContent>
-            </Card>
 
             {/* Signature client */}
             <Card>
