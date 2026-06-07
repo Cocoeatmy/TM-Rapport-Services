@@ -4542,11 +4542,21 @@ function ProjectPageContent({ id }: { id: string }) {
                               <ArrowUp className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {!cabineDragMode && (cabine.open ? (
-                            <ChevronUp className="w-4 h-4 text-gray-400" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-gray-400" />
-                          ))}
+                          {!cabineDragMode && (
+                            <button
+                              type="button"
+                              onClick={() => setCabines((prev) =>
+                                prev.map((c, i) => (i === idx ? { ...c, open: !c.open } : c))
+                              )}
+                              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
+                            >
+                              {cabine.open ? (
+                                <ChevronUp className="w-4 h-4 text-gray-400" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
 
