@@ -46,7 +46,21 @@ export async function POST(request: NextRequest) {
   // caches mémoire indépendants (TTL 60 s). Un POST sur l'instance B peut
   // lire un cache stale qui ne contient pas encore ce que l'instance A vient
   // d'écrire. En lisant toujours depuis Notion on garantit la cohérence.
-  const all = await getDataFresh<CabineAttribution>(KEY);
+  //
+  // ⚠️  PROTECTION ANTI-PERTE : getDataFresh() JETTE si Notion répond avec
+  // une erreur (timeout, rate-limit 429, erreur réseau…). Dans ce cas on
+  // retourne 503 plutôt que d'écrire un tableau vide qui ÉCRASERAIT toutes
+  // les entrées existantes (bug confirmé : perte des 17 entrées TM-2600395).
+  let all: CabineAttribution[];
+  try {
+    all = await getDataFresh<CabineAttribution>(KEY);
+  } catch (err) {
+    console.error("[cabine-attribution] Notion read FAILED — aborting write to prevent data loss:", err);
+    return NextResponse.json(
+      { error: "Lecture Notion échouée — réessayez dans quelques secondes" },
+      { status: 503 }
+    );
+  }
   const idx = all.findIndex((a) => a.projectId === projectId);
   const existing = idx >= 0 ? all[idx] : null;
 

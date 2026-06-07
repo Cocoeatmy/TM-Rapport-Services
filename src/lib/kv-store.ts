@@ -138,53 +138,73 @@ async function writeToNotion(key: string, jsonString: string): Promise<void> {
 /**
  * Read JSON data from the content blocks of a Notion page.
  * Concatenates all paragraph block text content and parses as JSON.
+ *
+ * ⚠️  Cette fonction PROPAGE les erreurs API Notion (timeout, rate-limit,
+ * network failure). Elle ne retourne [] que si la page est réellement vide
+ * ou si le contenu n'est pas un JSON valide.
+ *
+ * Les appelants qui font ensuite un WRITE doivent attraper ces erreurs et
+ * avorter l'écriture — sinon un [] de "lecture échouée" remplacerait un
+ * tableau valide de N entrées (perte de données catastrophique).
  */
 async function readFromNotion<T>(key: string): Promise<T[]> {
-  try {
-    const pageId = await getOrCreateBackupPageId(key);
+  // ── Erreurs API → propagées (pas swallowées) ────────────────────────────
+  // Si getOrCreateBackupPageId ou notion.blocks.children.list jettent, on
+  // laisse l'exception remonter jusqu'à l'appelant.
+  const pageId = await getOrCreateBackupPageId(key);
 
-    let allText = "";
-    let cursor: string | undefined;
+  let allText = "";
+  let cursor: string | undefined;
 
-    do {
-      const response = await notion.blocks.children.list({
-        block_id: pageId,
-        page_size: 100,
-        start_cursor: cursor,
-      });
+  do {
+    const response = await notion.blocks.children.list({
+      block_id: pageId,
+      page_size: 100,
+      start_cursor: cursor,
+    });
 
-      for (const block of response.results) {
-        const b = block as Record<string, any>;
-        if (b.type === "paragraph" && b.paragraph?.rich_text) {
-          for (const rt of b.paragraph.rich_text) {
-            allText += rt.plain_text || "";
-          }
+    for (const block of response.results) {
+      const b = block as Record<string, any>;
+      if (b.type === "paragraph" && b.paragraph?.rich_text) {
+        for (const rt of b.paragraph.rich_text) {
+          allText += rt.plain_text || "";
         }
       }
-
-      cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined;
-    } while (cursor);
-
-    if (!allText || allText.trim() === "") return [];
-
-    // Tentative normale
-    try {
-      return JSON.parse(allText);
-    } catch {
-      // La page peut contenir ancienne + nouvelle version en cas d'interruption
-      // pendant la suppression des anciens blocs (write-first strategy).
-      // On cherche le DERNIER tableau JSON valide dans le texte.
-      const lastBracket = allText.lastIndexOf("[");
-      if (lastBracket !== -1) {
-        try {
-          return JSON.parse(allText.slice(lastBracket));
-        } catch {}
-      }
-      console.error(`[kv-store] Could not parse content for "${key}", returning []`);
-      return [];
     }
+
+    cursor = response.has_more ? (response.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  if (!allText || allText.trim() === "") return [];
+
+  // ── Parse JSON ──────────────────────────────────────────────────────────
+  try {
+    return JSON.parse(allText);
+  } catch {
+    // La page peut contenir ancienne + nouvelle version en cas d'interruption
+    // pendant la suppression des anciens blocs (write-first strategy).
+    // On cherche le DERNIER tableau JSON valide dans le texte.
+    const lastBracket = allText.lastIndexOf("[");
+    if (lastBracket !== -1) {
+      try {
+        return JSON.parse(allText.slice(lastBracket));
+      } catch {}
+    }
+    console.error(`[kv-store] Could not parse content for "${key}", returning []`);
+    return []; // Erreur de parse (pas réseau) → [] acceptable
+  }
+}
+
+/**
+ * Variante sécurisée pour les lectures de GET (erreur → [] plutôt que throw).
+ * NE PAS utiliser avant un write — utiliser readFromNotion directement
+ * pour que les erreurs API soient propagées.
+ */
+async function readFromNotionSafe<T>(key: string): Promise<T[]> {
+  try {
+    return await readFromNotion<T>(key);
   } catch (err) {
-    console.error(`[kv-store] Failed to read from Notion for "${key}":`, err);
+    console.error(`[kv-store] Notion read failed for "${key}" (safe mode):`, err);
     return [];
   }
 }
@@ -205,9 +225,9 @@ export async function getData<T>(key: string): Promise<T[]> {
   const cached = getCached<T>(key);
   if (cached !== null) return cached;
 
-  // 2. Primary store: Notion
+  // 2. Primary store: Notion (mode safe → erreur réseau → [] sans throw)
   console.log(`[kv-store] Cache miss for "${key}", fetching from Notion...`);
-  const data = await readFromNotion<T>(key);
+  const data = await readFromNotionSafe<T>(key);
 
   // 3. Populate cache
   if (data.length > 0) {
@@ -221,11 +241,14 @@ export async function getData<T>(key: string): Promise<T[]> {
  * Read data for a given key — ALWAYS from Notion, bypassing the in-memory cache.
  *
  * À utiliser dans les handlers POST/PATCH pour éviter les problèmes de cache
- * stale entre plusieurs instances Vercel simultanées. Garanti de lire la
- * valeur la plus récente écrite dans Notion.
+ * stale entre plusieurs instances Vercel simultanées.
+ *
+ * ⚠️  THROWS si Notion répond avec une erreur réseau ou API (timeout, 429, etc.).
+ * L'appelant DOIT attraper l'erreur et retourner 503 plutôt que d'écrire
+ * un tableau vide dans Notion (ce qui effacerait toutes les données existantes).
  */
 export async function getDataFresh<T>(key: string): Promise<T[]> {
-  // Toujours lire depuis Notion (source de vérité absolue)
+  // readFromNotion propage les erreurs API — l'appelant doit les attraper
   console.log(`[kv-store] Fresh read for "${key}" from Notion...`);
   const data = await readFromNotion<T>(key);
 
