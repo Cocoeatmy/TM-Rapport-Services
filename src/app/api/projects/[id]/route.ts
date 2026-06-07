@@ -27,6 +27,72 @@ function hasDate(val: string): boolean {
   return /^\d{4}-\d{2}-\d{2}:/.test(val);
 }
 
+/**
+ * Merge noms de cabines : la valeur personnalisée gagne toujours sur le défaut.
+ * Si incoming = "Cabine N" (défaut) et existing a une valeur → on garde existing.
+ * Si incoming est custom (≠ "Cabine N") → incoming gagne (changement explicite).
+ */
+function mergeCabineNoms(existing: string, incoming: string): string {
+  if (!incoming.includes("Cab")) return incoming;
+  const exMap = parseCabineMap(existing);
+  // Parser qui inclut les valeurs vides pour détecter les slots présents dans incoming
+  const inMap = new Map<number, string>();
+  const re1 = /Cab(\d+)\s*:([^|]*)/g;
+  let m1: RegExpExecArray | null;
+  while ((m1 = re1.exec(incoming))) {
+    inMap.set(parseInt(m1[1], 10), m1[2].trim());
+  }
+
+  const merged = new Map(exMap);
+  inMap.forEach((inVal, cabNum) => {
+    const isDefault = inVal === `Cabine ${cabNum}` || inVal === "";
+    if (!isDefault) {
+      merged.set(cabNum, inVal); // valeur custom → incoming gagne
+    } else if (!exMap.has(cabNum)) {
+      merged.set(cabNum, inVal || `Cabine ${cabNum}`); // pas d'existant → défaut OK
+    }
+    // sinon : existing a une valeur, incoming est défaut → on garde existing
+  });
+
+  return [...merged.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([num, val]) => `Cab${num}:${val}`)
+    .join(" | ");
+}
+
+/**
+ * Merge attribution (monteurs) : non-vide écrase toujours, vide = suppression explicite.
+ * Le format encode TOUS les slots (même vides) pour permettre la suppression d'un monteur.
+ * Ex: "Cab1:Micael | Cab2: | Cab3:Claudio" → Cab2 est explicitement vidé.
+ */
+function mergeCabineAttribution(existing: string, incoming: string): string {
+  if (!incoming.includes("Cab")) return incoming;
+  const exMap = parseCabineMap(existing);
+  // Parser qui capture aussi les slots vides
+  const inMap = new Map<number, string>();
+  const re2 = /Cab(\d+)\s*:([^|]*)/g;
+  let m2: RegExpExecArray | null;
+  while ((m2 = re2.exec(incoming))) {
+    inMap.set(parseInt(m2[1], 10), m2[2].trim());
+  }
+
+  const merged = new Map(exMap);
+  inMap.forEach((inVal, cabNum) => {
+    if (inVal) {
+      merged.set(cabNum, inVal); // non-vide → incoming gagne
+    } else {
+      merged.delete(cabNum); // vide explicite = suppression du monteur
+    }
+  });
+
+  const result = [...merged.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .filter(([, val]) => val)
+    .map(([num, val]) => `Cab${num}:${val}`)
+    .join(" | ");
+  return result;
+}
+
 function mergeCabineTimes(existing: string, incoming: string): string {
   // Si le payload n'est pas au format multi-cabin, on passe tel quel
   if (!incoming.includes("Cab")) return incoming;
@@ -97,11 +163,17 @@ export async function PATCH(
     id = (await params).id;
     const body = await request.json();
 
-    // ── Merge heureArrivee / heureDepart avec l'état Notion actuel ──────────
+    // ── Merge heureArrivee / heureDepart / nomsCabines / attributionCabines ─
     // Invalider le cache d'abord pour forcer un fetch frais depuis Notion,
     // puis merger : les cabines présentes dans Notion mais absentes du payload
     // client (cache incomplet) sont préservées.
-    if (body.heureArrivee !== undefined || body.heureDepart !== undefined) {
+    const needsMerge =
+      body.heureArrivee !== undefined ||
+      body.heureDepart !== undefined ||
+      body.nomsCabines !== undefined ||
+      body.attributionCabines !== undefined;
+
+    if (needsMerge) {
       invalidateCache(`project-${id}`);
       let existing: any;
       try {
@@ -115,6 +187,12 @@ export async function PATCH(
         }
         if (body.heureDepart !== undefined) {
           body.heureDepart = mergeCabineTimes(existing.heureDepart || "", body.heureDepart);
+        }
+        if (body.nomsCabines !== undefined) {
+          body.nomsCabines = mergeCabineNoms(existing.nomsCabines || "", body.nomsCabines);
+        }
+        if (body.attributionCabines !== undefined) {
+          body.attributionCabines = mergeCabineAttribution(existing.attributionCabines || "", body.attributionCabines);
         }
       }
     }

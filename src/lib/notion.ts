@@ -146,6 +146,10 @@ export interface Project {
   arrivageTM: string | null;
   arrivageGrossiste: string | null;
   nbCartons: number | null;
+  /** Noms des cabines encodés : "Cab1:Apt 28F 1er | Cab2:Apt 28A 2ème | ..." */
+  nomsCabines: string;
+  /** Monteurs responsables par cabine : "Cab1:Micael | Cab2:Claudio | ..." */
+  attributionCabines: string;
 }
 
 export interface FileItem {
@@ -256,6 +260,8 @@ export function mapPageToProject(page: any): Project {
     documentsMesures: extractFiles(p["Documents pour prise de mesures"]),
     heureArrivee: extractText(p["Heure arrivée"]),
     heureDepart: extractText(p["Heure départ"]),
+    nomsCabines: extractText(p["Lot (nom de cabine)"]),
+    attributionCabines: extractText(p["Monteur responsable"]),
     commentairesMontages: extractText(p["Commentaires Montages"]),
     rapportMonteur: extractText(p["Rapport monteur"]),
     photosAvant: extractFiles(p["Photos avant montage"]),
@@ -787,6 +793,8 @@ export async function updateProject(
   data: {
     heureArrivee?: string;
     heureDepart?: string;
+    nomsCabines?: string;
+    attributionCabines?: string;
     commentairesMontages?: string;
     rapportMonteur?: string;
     dateMontage?: string | null;
@@ -823,6 +831,16 @@ export async function updateProject(
   if (data.heureDepart !== undefined) {
     properties["Heure départ"] = {
       rich_text: toRichText(data.heureDepart),
+    };
+  }
+  if (data.nomsCabines !== undefined) {
+    properties["Lot (nom de cabine)"] = {
+      rich_text: toRichText(data.nomsCabines),
+    };
+  }
+  if (data.attributionCabines !== undefined) {
+    properties["Monteur responsable"] = {
+      rich_text: toRichText(data.attributionCabines),
     };
   }
   if (data.commentairesMontages !== undefined) {
