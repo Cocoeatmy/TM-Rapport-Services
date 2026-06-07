@@ -1664,6 +1664,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     allWeekCabinesBySource[src] = (allWeekCabinesBySource[src] || 0) + (p.nbCabines || 0);
   });
   const weekSummary = formatCabinesSummary(allWeekCabinesBySource);
+
+  // Comptages projets par type sur la fenêtre 14j (pour affichage à gauche du 79)
+  const week14MontagesProj = uniqueWeekProjects.filter((p) => {
+    const src = getProjectSource(p);
+    return src !== "mesures" && !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"));
+  }).length;
+  const week14MesuresProj = uniqueWeekProjects.filter((p) => getProjectSource(p) === "mesures").length;
+  const week14ServicesProj = uniqueWeekProjects.filter((p) =>
+    (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"))
+  ).length;
+
   const busyToday = collabData.filter((c) => c.todayProjects.length > 0).length;
 
   // ── Stats hebdomadaires : semaine courante vs semaine précédente ──────────────
@@ -2049,11 +2060,40 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             ) : (
               <span className="text-xl animate-pulse">🌡️</span>
             )}
-            {/* Cabines semaine */}
-            <button onClick={() => setShowWeekProjects(!showWeekProjects)} className="text-right hover:opacity-70 transition-opacity">
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCabinesWeek}</p>
-              <p className="text-[10px] text-gray-400 dark:text-gray-500">cab. cette sem. ▾</p>
-              {weekSummary && <p className="text-[9px] text-gray-400 mt-0.5">{weekSummary}</p>}
+            {/* Cabines semaine + mini-stats types */}
+            <button onClick={() => setShowWeekProjects(!showWeekProjects)} className="flex items-center gap-3 hover:opacity-70 transition-opacity">
+              {/* Mini-stats par type (à gauche du 79) */}
+              <div className="flex flex-col items-end gap-0.5">
+                {week14MesuresProj > 0 && (
+                  <p className="text-[9px] font-medium text-cyan-500 dark:text-cyan-400">
+                    {week14MesuresProj} mesure{week14MesuresProj > 1 ? "s" : ""}
+                    {(allWeekCabinesBySource["mesures"] || 0) > 0 && (
+                      <span className="text-gray-400 font-normal"> · {allWeekCabinesBySource["mesures"]} cab.</span>
+                    )}
+                  </p>
+                )}
+                {week14MontagesProj > 0 && (
+                  <p className="text-[9px] font-medium text-orange-500 dark:text-orange-400">
+                    {week14MontagesProj} projet{week14MontagesProj > 1 ? "s" : ""}
+                    {(allWeekCabinesBySource["montage"] || 0) > 0 && (
+                      <span className="text-gray-400 font-normal"> · {allWeekCabinesBySource["montage"]} cab.</span>
+                    )}
+                  </p>
+                )}
+                {week14ServicesProj > 0 && (
+                  <p className="text-[9px] font-medium text-violet-500 dark:text-violet-400">
+                    {week14ServicesProj} service{week14ServicesProj > 1 ? "s" : ""}
+                    {(allWeekCabinesBySource["services"] || 0) > 0 && (
+                      <span className="text-gray-400 font-normal"> · {allWeekCabinesBySource["services"]} cab.</span>
+                    )}
+                  </p>
+                )}
+              </div>
+              {/* Total cabines (à droite) */}
+              <div className="text-right">
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCabinesWeek}</p>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500">cab. cette sem. ▾</p>
+              </div>
             </button>
           </div>
         </div>
