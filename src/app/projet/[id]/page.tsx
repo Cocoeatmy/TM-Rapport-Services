@@ -2014,14 +2014,16 @@ function estimateDuration(
   let confidence: string;
   const seriesLabel = seriesCabines.length > 0 ? ` – ${seriesCabines.join(", ")}` : "";
 
-  if (supplierSeriesProjects.length >= 3) {
-    // Meilleure précision : fournisseur + série
+  if (supplierSeriesProjects.length >= 1) {
+    // Meilleure précision : fournisseur + série (même 1 projet est plus fiable
+    // que mélanger des séries différentes — ex. Easy vs Luxe)
     avgMinsPerCabine =
       supplierSeriesProjects.reduce((s, p) => s + p.minsPerCabine, 0) /
       supplierSeriesProjects.length;
-    confidence = `${supplierSeriesProjects.length} projets ${fournisseur}${seriesLabel}`;
+    const n = supplierSeriesProjects.length;
+    confidence = `${n} projet${n > 1 ? "s" : ""} ${fournisseur}${seriesLabel}`;
   } else if (supplierProjects.length >= 3) {
-    // Fallback : fournisseur seul
+    // Fallback : fournisseur seul (pas de données série disponibles)
     avgMinsPerCabine =
       supplierProjects.reduce((s, p) => s + p.minsPerCabine, 0) /
       supplierProjects.length;
