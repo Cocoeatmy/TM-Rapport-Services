@@ -218,6 +218,26 @@ export async function getData<T>(key: string): Promise<T[]> {
 }
 
 /**
+ * Read data for a given key — ALWAYS from Notion, bypassing the in-memory cache.
+ *
+ * À utiliser dans les handlers POST/PATCH pour éviter les problèmes de cache
+ * stale entre plusieurs instances Vercel simultanées. Garanti de lire la
+ * valeur la plus récente écrite dans Notion.
+ */
+export async function getDataFresh<T>(key: string): Promise<T[]> {
+  // Toujours lire depuis Notion (source de vérité absolue)
+  console.log(`[kv-store] Fresh read for "${key}" from Notion...`);
+  const data = await readFromNotion<T>(key);
+
+  // Mettre à jour le cache de cette instance avec les données fraîches
+  if (data.length > 0) {
+    setCache(key, data);
+  }
+
+  return data;
+}
+
+/**
  * Write data for a given key.
  *
  * 1. Update the in-memory cache immediately.

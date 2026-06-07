@@ -2370,9 +2370,10 @@ function ProjectPageContent({ id }: { id: string }) {
       const arr = [...prev];
       const [moved] = arr.splice(srcIdx, 1);
       arr.splice(dstIdx, 0, moved);
-      // Persiste le nouvel ordre des noms immédiatement dans localStorage + KV
+      // Persiste le nouvel ordre des noms ET monteurs dans localStorage + KV
       try {
         localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(arr.map((c) => c.nom)));
+        localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(arr.map((c) => c.monteur)));
       } catch {}
       offlineFetch("/api/cabine-attribution", {
         method: "POST",
@@ -2611,28 +2612,36 @@ function ProjectPageContent({ id }: { id: string }) {
       const departMap = parseCabineTimes(data.heureDepart || "");
       const dateMap = parseCabineDates(data.heureArrivee || "");
 
-      // ── Restauration des noms depuis localStorage ──────────────────────────
-      // Utilisé immédiatement pour éviter le flash « Cabine N » pendant le
-      // fetch API. Lire AVANT le guard alreadyInit car on en a besoin dans
-      // la closure du fetch.
+      // ── Restauration depuis localStorage ─────────────────────────────────────
+      // Noms ET monteurs persistés localement : restauration immédiate avant
+      // que le KV serveur réponde, pour éviter tout flash visuel.
+      // Lire AVANT le guard alreadyInit (utilisé dans la closure du fetch).
       let storedNoms: string[] | null = null;
+      let storedMonteurs: string[] | null = null;
       try {
         const s = localStorage.getItem(`tm-cabin-noms-${data.id}`);
         if (s) storedNoms = JSON.parse(s);
+      } catch {}
+      try {
+        const s = localStorage.getItem(`tm-cabin-monteurs-${data.id}`);
+        if (s) storedMonteurs = JSON.parse(s);
       } catch {}
 
       const alreadyInit = cabinesInitializedRef.current === data.id;
 
       if (!alreadyInit) {
         // Premier appel pour ce projet (données du cache) — initialisation complète.
+        // Les monteurs sont pré-remplis depuis localStorage (backup local) pour
+        // éviter tout flash "monteur vide" en attendant la réponse KV.
         cabinesInitializedRef.current = data.id;
         setCabines(
           Array.from({ length: nb }, (_, i) => ({
-            // Priorité : localStorage → sinon valeur par défaut
+            // Priorité noms : localStorage → sinon défaut
             nom: storedNoms?.[i] || `Cabine ${i + 1}`,
             rapport: "",
             open: i === 0,
-            monteur: "",
+            // Priorité monteurs : localStorage backup → sinon vide (sera rempli par KV fetch)
+            monteur: storedMonteurs?.[i] || "",
             arrivee: arriveeMap[i] || "",
             depart: departMap[i] || "",
             date: dateMap[i] || "",
@@ -2643,59 +2652,80 @@ function ProjectPageContent({ id }: { id: string }) {
         );
       } else {
         // Second appel (données fraîches Notion) — ne jamais écraser les noms
-        // déjà chargés. On met à jour uniquement les champs temporels.
+        // ni les monteurs déjà chargés. On met à jour uniquement les champs temporels.
         setCabines((prev) =>
           prev.map((c, i) => ({
             ...c,
             arrivee: arriveeMap[i] !== undefined ? arriveeMap[i] : c.arrivee,
             depart: departMap[i] !== undefined ? departMap[i] : c.depart,
             date: dateMap[i] !== undefined ? dateMap[i] : c.date,
+            // monteur : ne jamais rétrograder vers "" si déjà rempli
+            monteur: c.monteur || storedMonteurs?.[i] || "",
           }))
         );
       }
 
-      // Load existing attribution depuis l'API (source de vérité serveur)
+      // ── Chargement KV serveur (source de vérité partagée) ─────────────────
+      // NE pas démarrer deux fois le même fetch : on le lance uniquement
+      // lors du premier appel initProject pour ce projet.
+      if (!alreadyInit || cabinesInitializedRef.current === data.id) {
       fetch(`/api/cabine-attribution?projectId=${data.id}`)
-        .then((r) => r.json())
+        .then(async (r) => {
+          // Vérifier le statut HTTP avant de parser le JSON
+          if (!r.ok) {
+            // 401 = non authentifié, ou autre erreur serveur → ne rien modifier
+            return null;
+          }
+          const attr = await r.json();
+          return attr;
+        })
         .then((attr) => {
+          if (!attr || typeof attr !== "object" || attr.error) {
+            // Réponse invalide ou erreur → ne rien modifier dans l'état
+            // (les monteurs du localStorage sont déjà chargés)
+            return;
+          }
+
           // ── Règle fondamentale : "le nom le plus personnalisé gagne toujours" ──
           // localStorage   KV serveur   → résultat
-          // custom         default      → custom  (et push vers KV immédiatement)
+          // custom         default      → custom  (et push noms vers KV)
           // custom         custom       → KV (le serveur est la source partagée)
           // default        custom       → KV custom
           // default        default      → default
 
-          // Détecter les slots où localStorage a un nom custom mais le KV a un défaut
-          // (ou n'existe pas) → on doit pousser vers le KV pour que TOUS les
-          // collaborateurs voient le bon nom, pas seulement l'appareil qui l'a tapé.
           const localHasCustom = storedNoms?.some((n, i) => n && n !== `Cabine ${i + 1}`);
-          const kvNeedsUpdate = localHasCustom && storedNoms && storedNoms.some((sn, i) => {
+          const kvNeedsNomUpdate = localHasCustom && storedNoms && storedNoms.some((sn, i) => {
             const isLocalCustom = sn && sn !== `Cabine ${i + 1}`;
             const apiNom = attr?.noms?.[i];
             const isApiDefault = !apiNom || apiNom === `Cabine ${i + 1}`;
-            return isLocalCustom && isApiDefault; // local a mieux que le KV
+            return isLocalCustom && isApiDefault;
           });
 
-          if (!attr || kvNeedsUpdate) {
-            // KV absent ou incomplet : on pousse les noms custom du localStorage
-            // vers le serveur pour que tous les collaborateurs en bénéficient.
+          if (!attr || kvNeedsNomUpdate) {
+            // KV absent ou noms incomplets : synchroniser les noms custom du
+            // localStorage vers le KV — SANS TOUCHER à l'attribution monteurs.
+            // C'est la correction de la Cause 2 : on n'envoie plus
+            // `attribution: attr?.attribution || []` qui pouvait être stale.
             if (localHasCustom && storedNoms) {
-              // Fusion : on garde le meilleur de chaque source
-              const mergedNoms = Array.from({ length: Math.max(storedNoms.length, attr?.noms?.length || 0, nb) }, (_, i) => {
-                const local = storedNoms[i];
-                const api   = attr?.noms?.[i];
-                const isLocalCustom = local && local !== `Cabine ${i + 1}`;
-                const isApiCustom   = api   && api   !== `Cabine ${i + 1}`;
-                if (isLocalCustom) return local; // localStorage prime si custom
-                if (isApiCustom)   return api;   // sinon KV si custom
-                return `Cabine ${i + 1}`;        // sinon défaut
-              });
+              const mergedNoms = Array.from(
+                { length: Math.max(storedNoms.length, attr?.noms?.length || 0, nb) },
+                (_, i) => {
+                  const local = storedNoms[i];
+                  const api   = attr?.noms?.[i];
+                  const isLocalCustom = local && local !== `Cabine ${i + 1}`;
+                  const isApiCustom   = api   && api   !== `Cabine ${i + 1}`;
+                  if (isLocalCustom) return local;
+                  if (isApiCustom)   return api;
+                  return `Cabine ${i + 1}`;
+                }
+              );
+              // NOMS UNIQUEMENT (attribution non fournie → route API protège les monteurs)
               offlineFetch("/api/cabine-attribution", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   projectId: data.id,
-                  attribution: attr?.attribution || [],
+                  // Pas de champ "attribution" → mise à jour noms uniquement côté API
                   noms: mergedNoms,
                 }),
               }).catch(() => {});
@@ -2705,36 +2735,49 @@ function ProjectPageContent({ id }: { id: string }) {
 
           setCabines((prev) => {
             const next = prev.map((c, i) => {
-              const apiNom   = attr.noms?.[i];
-              const localNom = storedNoms?.[i];
-              const isApiDefault   = !apiNom   || apiNom   === `Cabine ${i + 1}`;
-              const isLocalCustom  = localNom  && localNom !== `Cabine ${i + 1}`;
-              const isCurrentCustom = c.nom    && c.nom    !== `Cabine ${i + 1}`;
-              // Priorité : API custom > local custom > état courant custom > défaut
+              // ── Résolution du nom ────────────────────────────────────────
+              const apiNom      = attr.noms?.[i];
+              const localNom    = storedNoms?.[i];
+              const isApiDefault     = !apiNom   || apiNom   === `Cabine ${i + 1}`;
+              const isLocalCustom    = localNom  && localNom !== `Cabine ${i + 1}`;
+              const isCurrentCustom  = c.nom     && c.nom    !== `Cabine ${i + 1}`;
               let nom: string;
-              if (!isApiDefault)      nom = apiNom!;
-              else if (isLocalCustom) nom = localNom!;
+              if (!isApiDefault)       nom = apiNom!;
+              else if (isLocalCustom)  nom = localNom!;
               else if (isCurrentCustom) nom = c.nom;
-              else                    nom = `Cabine ${i + 1}`;
-              return {
-                ...c,
-                // || et non ?? : "" (chaîne vide du KV) doit garder la valeur
-                // existante en mémoire — protège contre les écrasements silencieux.
-                monteur: attr.attribution?.[i] || c.monteur,
-                nom,
-              };
+              else                     nom = `Cabine ${i + 1}`;
+
+              // ── Résolution du monteur ────────────────────────────────────
+              // Ordre de priorité (jamais rétrograder vers ""):
+              // 1. KV serveur (source de vérité partagée)
+              // 2. État courant en mémoire (déjà chargé)
+              // 3. localStorage backup
+              const kvMonteur    = (attr.attribution?.[i] ?? "").trim();
+              const curMonteur   = (c.monteur ?? "").trim();
+              const localMonteur = (storedMonteurs?.[i] ?? "").trim();
+              const monteur = kvMonteur || curMonteur || localMonteur;
+
+              return { ...c, monteur, nom };
             });
-            // Persiste les noms définitifs dans localStorage pour le prochain chargement
+
+            // Persiste les noms ET monteurs définitifs dans localStorage
             try {
               localStorage.setItem(
                 `tm-cabin-noms-${data.id}`,
                 JSON.stringify(next.map((c) => c.nom))
               );
+              localStorage.setItem(
+                `tm-cabin-monteurs-${data.id}`,
+                JSON.stringify(next.map((c) => c.monteur))
+              );
             } catch {}
             return next;
           });
         })
-        .catch(() => {});
+        .catch(() => {
+          // Échec réseau : les monteurs du localStorage sont déjà chargés, rien à faire
+        });
+      }
       // Si les heures Notion ne sont PAS au format multi-cabine (projet
       // saisi avant cette feature), on les charge dans la ligne pointages
       // par défaut — retrocompat.
@@ -2967,14 +3010,18 @@ function ProjectPageContent({ id }: { id: string }) {
       // Save cabine attribution if in multi-cabin mode
       if (isCabineMode) {
         const nomsToSave = cabines.map((c, i) => c.nom || `Cabine ${i + 1}`);
-        // Persiste toujours dans localStorage (restauration immédiate au prochain chargement)
-        try { localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(nomsToSave)); } catch {}
+        const monteursToSave = cabines.map((c) => c.monteur);
+        // Backup localStorage : noms + monteurs (restauration immédiate au prochain chargement)
+        try {
+          localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(nomsToSave));
+          localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(monteursToSave));
+        } catch {}
         await offlineFetch("/api/cabine-attribution", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             projectId: id,
-            attribution: cabines.map((c) => c.monteur),
+            attribution: monteursToSave,
             noms: nomsToSave,
           }),
         });
@@ -3065,15 +3112,19 @@ function ProjectPageContent({ id }: { id: string }) {
         }),
       });
 
-      // Sauvegarde attribution KV (monteurs + noms)
+      // Sauvegarde attribution KV (monteurs + noms) + backup localStorage
       const nomsToSave = cabines.map((c, i) => c.nom || `Cabine ${i + 1}`);
-      try { localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(nomsToSave)); } catch {}
+      const monteursToSave = cabines.map((c) => c.monteur);
+      try {
+        localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(nomsToSave));
+        localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(monteursToSave));
+      } catch {}
       await offlineFetch("/api/cabine-attribution", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId: id,
-          attribution: cabines.map((c) => c.monteur),
+          attribution: monteursToSave,
           noms: nomsToSave,
         }),
       });
@@ -4570,8 +4621,15 @@ function ProjectPageContent({ id }: { id: string }) {
                                               : [...current, name];
                                             return { ...c, monteur: updated.join(" & ") };
                                           });
-                                          // ── Sauvegarde immédiate du Monteur Responsable dans le KV ──
-                                          // Le changement doit persister même sans clic sur Enregistrer.
+                                          // ── Sauvegarde immédiate du Monteur Responsable ──────────────
+                                          // 1. localStorage : backup local instantané (survit aux erreurs réseau)
+                                          try {
+                                            localStorage.setItem(
+                                              `tm-cabin-monteurs-${id}`,
+                                              JSON.stringify(next.map((c) => c.monteur))
+                                            );
+                                          } catch {}
+                                          // 2. KV serveur : source de vérité partagée
                                           offlineFetch("/api/cabine-attribution", {
                                             method: "POST",
                                             headers: { "Content-Type": "application/json" },
