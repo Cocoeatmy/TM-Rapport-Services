@@ -14,6 +14,8 @@ import { toast } from "sonner";
 interface PhotoUploadProps {
   category: string;
   label: string;
+  /** Texte d'instruction affiché sous le titre de la section (entre parenthèses). */
+  hint?: string;
   projectId: string;
   notionField?: string;
   filePrefix?: string;
@@ -29,6 +31,7 @@ interface PhotoUploadProps {
 export function PhotoUpload({
   category,
   label,
+  hint,
   projectId,
   notionField,
   filePrefix,
@@ -259,7 +262,10 @@ export function PhotoUpload({
 
   return (
     <div>
-      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">{label}</label>
+      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">{label}</label>
+      {hint && (
+        <p className="text-xs text-gray-400 mb-2 mt-0.5">({hint})</p>
+      )}
       <div className="grid grid-cols-2 gap-2">
         {allImages.map((img, i) => (
           <div key={`${img.isPreview ? "p" : "e"}-${i}-${img.src}`} className="relative rounded-xl overflow-hidden bg-gray-100 group" style={{ aspectRatio: "4/3" }}>

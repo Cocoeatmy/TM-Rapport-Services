@@ -188,10 +188,8 @@ function BucketPhotoUpload({
   const hint = BUCKET_HINT[bucket];
   return (
     <div>
-      {hint && (
-        <p className="text-xs text-gray-400 mb-1 mt-0.5">({hint})</p>
-      )}
       <PhotoUpload
+        hint={hint}
         category={`${bucket.toLowerCase()}${cabineIdx ? `-cab${cabineIdx}` : ""}`}
         label={BUCKET_LABEL[bucket]}
         projectId={projectId}
@@ -276,8 +274,8 @@ function CombinedMontageUpload({
 
   return (
     <div>
-      <p className="text-xs text-gray-400 mb-1 mt-0.5">(1 photo gauche, 1 photo centre, 1 photo droite)</p>
       <PhotoUpload
+        hint="1 photo gauche, 1 photo centre, 1 photo droite"
         category={`montage${cabineIdx ? `-cab${cabineIdx}` : ""}`}
         label="Photos montage"
         projectId={projectId}
@@ -2359,6 +2357,23 @@ function ProjectPageContent({ id }: { id: string }) {
   const cabineLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cabineTouchSrcRef = useRef<number | null>(null);
   const nomKvDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Auto-save en arrière-plan ─────────────────────────────────────────────
+  // Référence vers les données actuelles pour éviter les stale closures dans
+  // le timer de debounce. Mise à jour à chaque render (avant le return).
+  const latestSaveDataRef = useRef<{
+    rapport: string;
+    commentaires: string;
+    heureArrivee: string;
+    heureDepart: string;
+    cabines: typeof cabines;
+    isCabineMode: boolean;
+    isMultiDay: boolean;
+    pointages: typeof pointages;
+  }>({
+    rapport: "", commentaires: "", heureArrivee: "", heureDepart: "",
+    cabines: [], isCabineMode: false, isMultiDay: false, pointages: [],
+  });
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Garde-fou : stocke l'id du projet dont les noms ont déjà été initialisés.
    *  Empêche le 2e appel initProject (données fraîches Notion) d'écraser les
    *  noms personnalisés déjà chargés depuis localStorage ou l'API KV. */
@@ -2387,6 +2402,81 @@ function ProjectPageContent({ id }: { id: string }) {
       return arr;
     });
   };
+  /**
+   * Planifie une sauvegarde silencieuse en arrière-plan (debounce 2 s).
+   * Appelée à chaque modification utilisateur — le bouton Enregistrer reste
+   * disponible comme filet de sécurité. Pas de toast, pas de setSaving.
+   */
+  const scheduleAutoSave = useCallback(() => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      const {
+        rapport, commentaires, heureArrivee, heureDepart,
+        cabines: cab, isCabineMode: cabMode, isMultiDay: multiDay, pointages: pts,
+      } = latestSaveDataRef.current;
+      if (!id) return; // projet pas encore chargé
+
+      const reportToSave = cabMode
+        ? rapport + "\n\n" + cab.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
+        : rapport;
+
+      const arriveeToSave = cabMode
+        ? cab.map((c, i) => {
+            if (!c.arrivee && !c.date) return "";
+            const ds = c.date ? `${c.date}:` : "";
+            return `Cab${i + 1}:${ds}${c.arrivee}`;
+          }).filter(Boolean).join(" | ")
+        : multiDay
+          ? pts.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
+          : heureArrivee;
+
+      const departToSave = cabMode
+        ? cab.map((c, i) => {
+            if (!c.depart && !c.date) return "";
+            const ds = c.date ? `${c.date}:` : "";
+            return `Cab${i + 1}:${ds}${c.depart}`;
+          }).filter(Boolean).join(" | ")
+        : multiDay
+          ? pts.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
+          : heureDepart;
+
+      // PATCH Notion en arrière-plan — erreurs silencieuses
+      offlineFetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          heureArrivee: arriveeToSave,
+          heureDepart: departToSave,
+          commentairesMontages: commentaires,
+          rapportMonteur: reportToSave,
+        }),
+      }).catch(() => {});
+
+      if (cabMode) {
+        const nomsToSave = cab.map((c, i) => c.nom || `Cabine ${i + 1}`);
+        const monteursToSave = cab.map((c) => c.monteur);
+        try {
+          localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(nomsToSave));
+          localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(monteursToSave));
+        } catch {}
+        offlineFetch("/api/cabine-attribution", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: id, attribution: monteursToSave, noms: nomsToSave }),
+        }).catch(() => {});
+      }
+
+      // Aligner le snapshot pour que le polling ne détecte pas de faux conflit
+      serverSnapshotRef.current = {
+        rapport: reportToSave,
+        commentaires,
+        heureArrivee: arriveeToSave,
+        heureDepart: departToSave,
+      };
+      invalidateApiCache();
+    }, 2000); // 2 s de debounce
+  }, [id]); // id stable pour toute la durée du projet ; latestSaveDataRef est lu au moment du fire
+
   const [signature, setSignature] = useState("");
 
   // Restaure la signature depuis le localStorage tant que le projet n'a
@@ -3246,6 +3336,13 @@ function ProjectPageContent({ id }: { id: string }) {
     } finally {
       setSending(false);
     }
+  };
+
+  // Mise à jour synchrone de la ref à chaque render pour que le timer
+  // de scheduleAutoSave lise toujours les valeurs les plus récentes.
+  latestSaveDataRef.current = {
+    rapport, commentaires, heureArrivee, heureDepart,
+    cabines, isCabineMode, isMultiDay, pointages,
   };
 
   if (loading) {
@@ -4310,6 +4407,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                     } else {
                                       setRapport((rapport ? rapport + "\n" : "") + option);
                                     }
+                                    scheduleAutoSave();
                                   }}
                                   className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${
                                     isSelected
@@ -4332,7 +4430,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           <Textarea
                             placeholder="Précisions supplémentaires..."
                             value={rapport}
-                            onChange={(e) => setRapport(e.target.value)}
+                            onChange={(e) => { setRapport(e.target.value); scheduleAutoSave(); }}
                             rows={3}
                             className="mt-3"
                           />
@@ -4349,9 +4447,10 @@ function ProjectPageContent({ id }: { id: string }) {
                           )}
                           <div className="mt-3">
                             <VoiceRecorder
-                              onTranscript={(text) =>
-                                setRapport((prev) => (prev ? prev + "\n" + text : text))
-                              }
+                              onTranscript={(text) => {
+                                setRapport((prev) => (prev ? prev + "\n" + text : text));
+                                scheduleAutoSave();
+                              }}
                             />
                           </div>
                         </div>
@@ -4660,11 +4759,13 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <Input
                                   type="date"
                                   value={cabine.date}
-                                  onChange={(e) =>
+                                  onChange={(e) => {
+                                    const v = e.target.value;
                                     setCabines((prev) =>
-                                      prev.map((c, i) => (i === idx ? { ...c, date: e.target.value } : c))
-                                    )
-                                  }
+                                      prev.map((c, i) => (i === idx ? { ...c, date: v } : c))
+                                    );
+                                    scheduleAutoSave();
+                                  }}
                                   className="mt-1 h-11 glass-input"
                                 />
                               </div>
@@ -4676,11 +4777,13 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <Input
                                     type="time"
                                     value={cabine.arrivee}
-                                    onChange={(e) =>
+                                    onChange={(e) => {
+                                      const v = e.target.value;
                                       setCabines((prev) =>
-                                        prev.map((c, i) => (i === idx ? { ...c, arrivee: e.target.value } : c))
-                                      )
-                                    }
+                                        prev.map((c, i) => (i === idx ? { ...c, arrivee: v } : c))
+                                      );
+                                      scheduleAutoSave();
+                                    }}
                                     className="mt-1 h-11 glass-input"
                                   />
                                 </div>
@@ -4689,11 +4792,13 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <Input
                                     type="time"
                                     value={cabine.depart}
-                                    onChange={(e) =>
+                                    onChange={(e) => {
+                                      const v = e.target.value;
                                       setCabines((prev) =>
-                                        prev.map((c, i) => (i === idx ? { ...c, depart: e.target.value } : c))
-                                      )
-                                    }
+                                        prev.map((c, i) => (i === idx ? { ...c, depart: v } : c))
+                                      );
+                                      scheduleAutoSave();
+                                    }}
                                     className="mt-1 h-11 glass-input"
                                   />
                                 </div>
@@ -4820,6 +4925,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                               return { ...c, rapport: newRapport };
                                             })
                                           );
+                                          scheduleAutoSave();
                                         }}
                                         className={`w-full text-left text-xs px-2.5 py-2 rounded-lg border-2 transition-colors ${
                                           isSelected
@@ -4842,11 +4948,13 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <Textarea
                                   placeholder="Précisions pour cette cabine..."
                                   value={cabine.rapport}
-                                  onChange={(e) =>
+                                  onChange={(e) => {
+                                    const v = e.target.value;
                                     setCabines((prev) =>
-                                      prev.map((c, i) => (i === idx ? { ...c, rapport: e.target.value } : c))
-                                    )
-                                  }
+                                      prev.map((c, i) => (i === idx ? { ...c, rapport: v } : c))
+                                    );
+                                    scheduleAutoSave();
+                                  }}
                                   rows={2}
                                   className="mt-2"
                                 />
@@ -4883,6 +4991,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               } else {
                                 setRapport((rapport ? rapport + "\n" : "") + option);
                               }
+                              scheduleAutoSave();
                             }}
                             className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${
                               isSelected
@@ -4905,7 +5014,7 @@ function ProjectPageContent({ id }: { id: string }) {
                     <Textarea
                       placeholder="Précisions supplémentaires..."
                       value={rapport}
-                      onChange={(e) => setRapport(e.target.value)}
+                      onChange={(e) => { setRapport(e.target.value); scheduleAutoSave(); }}
                       rows={3}
                       className="mt-3"
                     />
@@ -5024,6 +5133,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               } else {
                                 setRapport((rapport ? rapport + "\n" : "") + option);
                               }
+                              scheduleAutoSave();
                             }}
                             className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${
                               isSelected

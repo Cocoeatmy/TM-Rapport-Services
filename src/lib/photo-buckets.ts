@@ -52,7 +52,7 @@ export const BUCKET_LABEL: Record<PhotoBucketKey, string> = {
 export const BUCKET_HINT: Partial<Record<PhotoBucketKey, string>> = {
   AVANT_INTERVENTION: "1 photo des lieux + 1 photo de l'état du receveur de douche",
   DEMONTAGE:          "1 photo de l'état après démontage + 1 photo après nettoyage",
-  APRES_INTERVENTION: "1 photo de l'état du receveur de douche",
+  APRES_INTERVENTION: "1 photo de l'état du receveur de douche + 1 photo de l'état de la salle de douche",
 };
 
 // Mapping bucket → champ Notion qui stocke ses fichiers.
