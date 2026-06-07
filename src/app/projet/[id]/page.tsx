@@ -1968,10 +1968,11 @@ function parseTimeRaw(raw: string): number | null {
   return null;
 }
 
-/** Estimate duration for a project based on supplier historical data */
+/** Estimate duration for a project based on supplier + series historical data */
 function estimateDuration(
   fournisseur: string,
   nbCabines: number,
+  seriesCabines: string[],
   projects: Project[],
 ): { hours: number; minutes: number; confidence: string } | null {
   const projectsWithTime = projects
@@ -1994,20 +1995,39 @@ function estimateDuration(
     })
     .filter(Boolean) as { project: Project; minsPerCabine: number }[];
 
-  // Filter by supplier
+  // Priorité 1 : même fournisseur + même série (intersection ≥ 1 série commune)
+  const hasSeries = seriesCabines.length > 0;
+  const supplierSeriesProjects = hasSeries
+    ? projectsWithTime.filter(
+        (p) =>
+          p.project.fournisseurs.includes(fournisseur) &&
+          p.project.seriesCabines.some((s) => seriesCabines.includes(s)),
+      )
+    : [];
+
+  // Priorité 2 : même fournisseur uniquement
   const supplierProjects = projectsWithTime.filter((p) =>
     p.project.fournisseurs.includes(fournisseur),
   );
 
   let avgMinsPerCabine: number;
   let confidence: string;
+  const seriesLabel = seriesCabines.length > 0 ? ` – ${seriesCabines.join(", ")}` : "";
 
-  if (supplierProjects.length >= 3) {
+  if (supplierSeriesProjects.length >= 3) {
+    // Meilleure précision : fournisseur + série
+    avgMinsPerCabine =
+      supplierSeriesProjects.reduce((s, p) => s + p.minsPerCabine, 0) /
+      supplierSeriesProjects.length;
+    confidence = `${supplierSeriesProjects.length} projets ${fournisseur}${seriesLabel}`;
+  } else if (supplierProjects.length >= 3) {
+    // Fallback : fournisseur seul
     avgMinsPerCabine =
       supplierProjects.reduce((s, p) => s + p.minsPerCabine, 0) /
       supplierProjects.length;
     confidence = `${supplierProjects.length} projets ${fournisseur}`;
   } else if (projectsWithTime.length >= 3) {
+    // Dernier recours : moyenne générale
     avgMinsPerCabine =
       projectsWithTime.reduce((s, p) => s + p.minsPerCabine, 0) /
       projectsWithTime.length;
@@ -2039,6 +2059,7 @@ function DurationEstimate({
   useEffect(() => {
     const nbCabines = project.nbCabines || 1;
     const fournisseur = project.fournisseurs?.[0];
+    const seriesCabines = project.seriesCabines || [];
     if (!fournisseur) {
       setLoaded(true);
       return;
@@ -2047,12 +2068,12 @@ function DurationEstimate({
     fetch("/api/projects/cmd-termine")
       .then((r) => (r.ok ? r.json() : []))
       .then((completedProjects: Project[]) => {
-        const result = estimateDuration(fournisseur, nbCabines, completedProjects);
+        const result = estimateDuration(fournisseur, nbCabines, seriesCabines, completedProjects);
         setEstimate(result);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
-  }, [project.fournisseurs, project.nbCabines]);
+  }, [project.fournisseurs, project.nbCabines, project.seriesCabines]);
 
   if (!loaded) return null;
 
@@ -4944,6 +4965,18 @@ function ProjectPageContent({ id }: { id: string }) {
                                 )}
                               </button>
 
+                              {/* Remonter en haut — onglet Infos */}
+                              <div className="flex justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                                  className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/40 dark:hover:text-blue-400 transition-colors"
+                                  title="Remonter en haut de page"
+                                >
+                                  <ArrowUp className="w-4 h-4" />
+                                </button>
+                              </div>
+
                               {/* Bouton accès rapide Photos si tout est rempli */}
                               {cabine.monteur && cabine.date && cabine.arrivee && (
                                 <button
@@ -5124,6 +5157,18 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <><Check className="w-4 h-4" />Enregistrer</>
                                 )}
                               </button>
+
+                              {/* Remonter en haut — onglet Photos */}
+                              <div className="flex justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                                  className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/40 dark:hover:text-blue-400 transition-colors"
+                                  title="Remonter en haut de page"
+                                >
+                                  <ArrowUp className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           )}
                         </CardContent>
