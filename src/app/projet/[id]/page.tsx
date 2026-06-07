@@ -979,7 +979,7 @@ function EmplacementSelect({
 
 /** Liste les pièces manquantes (depuis /api/pieces) avec numérotation,
  *  modification inline et suppression per-pièce. */
-function PiecesList({ projectId, refreshKey }: { projectId: string; refreshKey?: number }) {
+function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string; refreshKey?: number; cabineLabel?: string }) {
   type Piece = {
     id: string;
     description?: string;
@@ -989,6 +989,7 @@ function PiecesList({ projectId, refreshKey }: { projectId: string; refreshKey?:
     photoUrls?: string[];
     photoUrl?: string;
     status?: string;
+    cabineLabel?: string;
   };
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -1043,14 +1044,18 @@ function PiecesList({ projectId, refreshKey }: { projectId: string; refreshKey?:
     finally { setSaving(false); }
   };
 
-  if (!loaded || pieces.length === 0) return null;
+  const visiblePieces = cabineLabel
+    ? pieces.filter((p) => p.cabineLabel === cabineLabel)
+    : pieces;
+
+  if (!loaded || visiblePieces.length === 0) return null;
 
   return (
     <div className="space-y-3">
       <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-        Pièces manquantes ({pieces.length})
+        Pièces manquantes ({visiblePieces.length})
       </p>
-      {pieces.map((p, idx) => {
+      {visiblePieces.map((p, idx) => {
         const num = idx + 1;
         const isDeleting = deleting === p.id;
         const isEditing = editing === p.id;
@@ -1121,7 +1126,7 @@ function PiecesList({ projectId, refreshKey }: { projectId: string; refreshKey?:
 
 /** Liste les défauts du projet (depuis /api/defauts) avec numérotation,
  *  toggle rapport client, et suppression per-défaut. */
-function DefautsList({ projectId, refreshKey }: { projectId: string; refreshKey?: number }) {
+function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string; refreshKey?: number; cabineLabel?: string }) {
   type Defaut = {
     id: string;
     typesLabel?: string;
@@ -1132,6 +1137,7 @@ function DefautsList({ projectId, refreshKey }: { projectId: string; refreshKey?
     photoUrls?: string[];
     status?: string;
     displayInRapport?: boolean;
+    cabineLabel?: string;
   };
   const [defauts, setDefauts] = useState<Defaut[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -1188,12 +1194,16 @@ function DefautsList({ projectId, refreshKey }: { projectId: string; refreshKey?
     finally { setSaving(false); }
   };
 
-  if (!loaded || defauts.length === 0) return null;
+  const visibleDefauts = cabineLabel
+    ? defauts.filter((d) => d.cabineLabel === cabineLabel)
+    : defauts;
+
+  if (!loaded || visibleDefauts.length === 0) return null;
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-red-600 dark:text-red-400">Défauts signalés ({defauts.length})</p>
-      {defauts.map((d, idx) => {
+      <p className="text-xs font-semibold text-red-600 dark:text-red-400">Défauts signalés ({visibleDefauts.length})</p>
+      {visibleDefauts.map((d, idx) => {
         const num = idx + 1;
         const visible = d.displayInRapport !== false;
         const isDeleting = deleting === d.id;
@@ -5002,8 +5012,20 @@ function ProjectPageContent({ id }: { id: string }) {
                               </div>
 
                               {/* Signalement par cabine */}
-                              <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
-                                <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 mb-2">Signalement — {cabine.nom}</p>
+                              <div className="pt-1 border-t border-gray-100 dark:border-slate-700 space-y-3">
+                                <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalement — {cabine.nom}</p>
+                                {/* Signalements déjà enregistrés pour cette cabine */}
+                                <PiecesList
+                                  projectId={id}
+                                  refreshKey={pieceRefreshKey}
+                                  cabineLabel={cabine.nom}
+                                />
+                                <DefautsList
+                                  projectId={id}
+                                  refreshKey={defautRefreshKey}
+                                  cabineLabel={cabine.nom}
+                                />
+                                {/* Formulaires d'ajout */}
                                 <PiecesForm
                                   projectId={id}
                                   projectName={project.projet}
