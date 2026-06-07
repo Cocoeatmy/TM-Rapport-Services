@@ -115,6 +115,7 @@ function BucketPhotoUpload({
   project,
   setProject,
   onAutoFill,
+  onLog,
 }: {
   bucket: PhotoBucketKey;
   cabineIdx?: number;
@@ -122,6 +123,7 @@ function BucketPhotoUpload({
   project: Project | null;
   setProject: React.Dispatch<React.SetStateAction<Project | null>>;
   onAutoFill?: (bucket: PhotoBucketKey, captureTime: string, cabineIdx?: number) => void;
+  onLog?: (action: string, details: string) => void;
 }) {
   if (!project) return null;
   const notionFieldKey = BUCKET_NOTION_FIELD[bucket];
@@ -164,6 +166,13 @@ function BucketPhotoUpload({
       const existingUrls = new Set(current.map((f) => f.url));
       const toAdd = newFiles.filter((f) => f.url && !existingUrls.has(f.url));
       if (toAdd.length === 0) return prev;
+      // Log l'ajout de photos
+      const label = BUCKET_LABEL[bucket];
+      const cabSuffix = cabineIdx ? ` (Cabine ${cabineIdx})` : "";
+      onLog?.(
+        `Photo ajoutée — ${label}${cabSuffix}`,
+        `${toAdd.length} photo${toAdd.length > 1 ? "s" : ""} enregistrée${toAdd.length > 1 ? "s" : ""}`,
+      );
       return { ...prev, [notionFieldKey]: [...current, ...toAdd] };
     });
   };
@@ -223,12 +232,14 @@ function CombinedMontageUpload({
   project,
   setProject,
   onAutoFill,
+  onLog,
 }: {
   cabineIdx?: number;
   projectId: string;
   project: Project | null;
   setProject: React.Dispatch<React.SetStateAction<Project | null>>;
   onAutoFill?: (bucket: PhotoBucketKey, captureTime: string, cabineIdx?: number) => void;
+  onLog?: (action: string, details: string) => void;
 }) {
   if (!project) return null;
   const fieldDefault = defaultBucketForField("photosMontage");
@@ -246,6 +257,11 @@ function CombinedMontageUpload({
       const existingUrls = new Set(current.map((f) => f.url));
       const toAdd = newFiles.filter((f) => f.url && !existingUrls.has(f.url));
       if (toAdd.length === 0) return prev;
+      const cabSuffix = cabineIdx ? ` (Cabine ${cabineIdx})` : "";
+      onLog?.(
+        `Photo ajoutée — Photos montage${cabSuffix}`,
+        `${toAdd.length} photo${toAdd.length > 1 ? "s" : ""} enregistrée${toAdd.length > 1 ? "s" : ""}`,
+      );
       return { ...prev, photosMontage: [...current, ...toAdd] };
     });
   };
@@ -491,9 +507,10 @@ function ProjectHistory({ projectId, onCountChange }: { projectId: string; onCou
             ) : (
               logs.map((log) => (
                 <div key={log.id} className="flex items-start gap-2 text-xs border-b border-gray-50 dark:border-gray-700 pb-2 last:border-0">
-                  <span className="text-gray-400 shrink-0 w-14">
-                    {new Date(log.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
-                  </span>
+                  <div className="text-gray-400 shrink-0 w-14">
+                    <div>{new Date(log.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}</div>
+                    <div className="text-[10px] text-gray-300">{new Date(log.timestamp).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}</div>
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-700 dark:text-gray-300">{log.action}</p>
                     {log.details && <p className="text-gray-400">{log.details}</p>}
@@ -3130,6 +3147,16 @@ function ProjectPageContent({ id }: { id: string }) {
     };
   }, [project?.id]);
 
+  /** Helper : enregistre une entrée dans l'historique des modifications. */
+  const logAction = useCallback((action: string, details: string) => {
+    if (!project) return;
+    fetch("/api/logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: id, projectName: project.projet, action, details }),
+    }).catch(() => {});
+  }, [id, project]);
+
   const handleSave = async (opts: { force?: boolean } = {}) => {
     // La vérification "photos manquantes" ne s'applique qu'au rapport
     // (mode cmd / rapport / dashboard) — pas aux mesures qui ont leurs
@@ -3225,6 +3252,14 @@ function ProjectPageContent({ id }: { id: string }) {
           heureDepart: departToSave,
         };
         toast.success("Rapport enregistré avec succès");
+        // Log des modifications
+        const snap = serverSnapshotRef.current;
+        const changes: string[] = [];
+        if (reportToSave !== snap?.rapport) changes.push("Rapport mis à jour");
+        if (commentaires !== snap?.commentaires) changes.push("Commentaires mis à jour");
+        if (arriveeToSave !== snap?.heureArrivee) changes.push("Heure arrivée modifiée");
+        if (departToSave !== snap?.heureDepart) changes.push("Heure départ modifiée");
+        if (changes.length > 0) logAction("Enregistrement rapport", changes.join(" · "));
       } else {
         // Message d'erreur explicite (long toast) pour que l'utilisateur
         // comprenne que la sauvegarde a échoué et n'abandonne pas sa saisie.
@@ -3313,7 +3348,16 @@ function ProjectPageContent({ id }: { id: string }) {
       };
       invalidateApiCache();
 
-      toast.success(`${cabines[cabineIdx]?.nom || `Cabine ${cabineIdx + 1}`} — enregistrée ✓`);
+      const cab = cabines[cabineIdx];
+      const cabLabel = cab?.nom || `Cabine ${cabineIdx + 1}`;
+      toast.success(`${cabLabel} — enregistrée ✓`);
+      // Log de la modification
+      const details: string[] = [];
+      if (cab?.monteur) details.push(`Monteur: ${cab.monteur}`);
+      if (cab?.date) details.push(`Date: ${cab.date}`);
+      if (cab?.arrivee && cab?.depart) details.push(`Heures: ${cab.arrivee}→${cab.depart}`);
+      if (cab?.rapport?.trim()) details.push("Rapport cabine mis à jour");
+      logAction(`${cabLabel} enregistrée`, details.join(" · ") || "Données cabine sauvegardées");
     } catch {
       toast.error("Erreur lors de la sauvegarde");
     } finally {
@@ -4690,12 +4734,12 @@ function ProjectPageContent({ id }: { id: string }) {
                     )}
                     {monoActiveTab === "photos" && (
                       <>
-                        <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                        <BucketPhotoUpload bucket="DEMONTAGE" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                        <CombinedMontageUpload projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                        <BucketPhotoUpload bucket="APRES_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                        <BucketPhotoUpload bucket="QR_CODE" projectId={id} project={project} setProject={setProject} />
-                        <BucketPhotoUpload bucket="GARANTIE" projectId={id} project={project} setProject={setProject} />
+                        <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
+                        <BucketPhotoUpload bucket="DEMONTAGE" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
+                        <CombinedMontageUpload projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
+                        <BucketPhotoUpload bucket="APRES_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
+                        <BucketPhotoUpload bucket="QR_CODE" projectId={id} project={project} setProject={setProject} onLog={logAction} />
+                        <BucketPhotoUpload bucket="GARANTIE" projectId={id} project={project} setProject={setProject} onLog={logAction} />
                         <Separator />
                         <BeforeAfterPhotos
                           projectId={id}
@@ -5075,10 +5119,10 @@ function ProjectPageContent({ id }: { id: string }) {
                           {/* ── Onglet Photos ────────────────────────────────── */}
                           {cabine.activeTab === "photos" && (
                             <div className="space-y-4 px-4">
-                              <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                              <BucketPhotoUpload bucket="DEMONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
-                              <CombinedMontageUpload cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
-                              <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} />
+                              <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
+                              <BucketPhotoUpload bucket="DEMONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
+                              <CombinedMontageUpload cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
+                              <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
 
                               {/* QR Code toggle */}
                               <div className="space-y-2">
@@ -5099,7 +5143,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                   QR Code présent
                                 </button>
                                 {cabine.qrEnabled && (
-                                  <BucketPhotoUpload bucket="QR_CODE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                                  <BucketPhotoUpload bucket="QR_CODE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
                                 )}
                               </div>
 
@@ -5122,7 +5166,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                   Garantie présente
                                 </button>
                                 {cabine.garantieEnabled && (
-                                  <BucketPhotoUpload bucket="GARANTIE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} />
+                                  <BucketPhotoUpload bucket="GARANTIE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
                                 )}
                               </div>
 
