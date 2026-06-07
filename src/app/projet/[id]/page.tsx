@@ -5211,19 +5211,17 @@ function ProjectPageContent({ id }: { id: string }) {
                                   rows={2}
                                   className="mt-2"
                                 />
-                                {cabine.rapport.trim().length > 10 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleReformulateCabine(idx)}
-                                    disabled={reformulatingCabineIdx === idx}
-                                    className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50"
-                                  >
-                                    {reformulatingCabineIdx === idx
-                                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                      : <Sparkles className="w-3.5 h-3.5" />}
-                                    {reformulatingCabineIdx === idx ? "Reformulation en cours..." : "Reformuler avec l'IA"}
-                                  </button>
-                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleReformulateCabine(idx)}
+                                  disabled={reformulatingCabineIdx === idx || cabine.rapport.trim().length < 5}
+                                  className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                                >
+                                  {reformulatingCabineIdx === idx
+                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    : <Sparkles className="w-3.5 h-3.5" />}
+                                  {reformulatingCabineIdx === idx ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+                                </button>
                               </div>
 
                               {/* Bouton Enregistrer — onglet Photos */}
