@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft,
+  ArrowUp,
   Clock,
   MapPin,
   Navigation,
@@ -3022,6 +3023,78 @@ function ProjectPageContent({ id }: { id: string }) {
     }
   };
 
+  /** Enregistrement rapide d'une cabine individuelle (heures + monteur + noms + rapport).
+   *  Sans vérification photo — l'utilisateur peut sauvegarder à tout moment. */
+  const handleSaveCabineData = async (cabineIdx: number) => {
+    setSaving(true);
+    try {
+      const arriveeToSave = cabines
+        .map((c, i) => {
+          if (!c.arrivee && !c.date) return "";
+          const dateStr = c.date ? `${c.date}:` : "";
+          return `Cab${i + 1}:${dateStr}${c.arrivee}`;
+        })
+        .filter(Boolean)
+        .join(" | ");
+
+      const departToSave = cabines
+        .map((c, i) => {
+          if (!c.depart && !c.date) return "";
+          const dateStr = c.date ? `${c.date}:` : "";
+          return `Cab${i + 1}:${dateStr}${c.depart}`;
+        })
+        .filter(Boolean)
+        .join(" | ");
+
+      const reportToSave =
+        rapport +
+        "\n\n" +
+        cabines
+          .map((c) => (c.rapport ? `${c.nom} : ${c.rapport}` : ""))
+          .filter(Boolean)
+          .join("\n");
+
+      await offlineFetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          heureArrivee: arriveeToSave,
+          heureDepart: departToSave,
+          rapportMonteur: reportToSave,
+          commentairesMontages: commentaires,
+        }),
+      });
+
+      // Sauvegarde attribution KV (monteurs + noms)
+      const nomsToSave = cabines.map((c, i) => c.nom || `Cabine ${i + 1}`);
+      try { localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(nomsToSave)); } catch {}
+      await offlineFetch("/api/cabine-attribution", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: id,
+          attribution: cabines.map((c) => c.monteur),
+          noms: nomsToSave,
+        }),
+      });
+
+      // Aligne le snapshot serveur pour éviter un faux conflit au prochain polling
+      serverSnapshotRef.current = {
+        rapport: reportToSave,
+        commentaires,
+        heureArrivee: arriveeToSave,
+        heureDepart: departToSave,
+      };
+      invalidateApiCache();
+
+      toast.success(`${cabines[cabineIdx]?.nom || `Cabine ${cabineIdx + 1}`} — enregistrée ✓`);
+    } catch {
+      toast.error("Erreur lors de la sauvegarde");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSendReport = async (opts: { force?: boolean } = {}) => {
     if (!project) return;
     if (!opts.force) {
@@ -4314,44 +4387,46 @@ function ProjectPageContent({ id }: { id: string }) {
                       onDrop={() => { if (cabineDragMode && dragCabSrc !== null) { reorderCabines(dragCabSrc, idx); setDragCabSrc(null); setDragCabOver(null); } }}
                       onDragEnd={() => { setDragCabSrc(null); setDragCabOver(null); }}
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (cabineDragMode) return;
-                          setCabines((prev) =>
-                            prev.map((c, i) => (i === idx ? { ...c, open: !c.open } : c))
-                          );
-                        }}
-                        onTouchStart={() => {
-                          if (cabineDragMode) { cabineTouchSrcRef.current = idx; return; }
-                          cabineLongPressTimer.current = setTimeout(() => {
-                            setCabineDragMode(true);
-                            cabineTouchSrcRef.current = idx;
-                            setDragCabSrc(idx);
-                          }, 500);
-                        }}
-                        onTouchEnd={() => {
-                          if (cabineLongPressTimer.current) { clearTimeout(cabineLongPressTimer.current); cabineLongPressTimer.current = null; }
-                          if (cabineDragMode && cabineTouchSrcRef.current !== null && dragCabOver !== null && cabineTouchSrcRef.current !== dragCabOver) {
-                            reorderCabines(cabineTouchSrcRef.current, dragCabOver);
-                          }
-                          cabineTouchSrcRef.current = null;
-                          setDragCabSrc(null);
-                          setDragCabOver(null);
-                        }}
-                        onTouchMove={(e) => {
-                          if (!cabineDragMode) { if (cabineLongPressTimer.current) { clearTimeout(cabineLongPressTimer.current); cabineLongPressTimer.current = null; } return; }
-                          const touch = e.touches[0];
-                          const el = document.elementFromPoint(touch.clientX, touch.clientY);
-                          const card = el?.closest("[data-cabineidx]");
-                          if (card) {
-                            const overIdx = parseInt(card.getAttribute("data-cabineidx") || "-1", 10);
-                            if (overIdx >= 0 && overIdx !== dragCabOver) setDragCabOver(overIdx);
-                          }
-                        }}
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
+                      {/* Header cabine — wrapper div pour permettre le bouton "scroll en haut" indépendant */}
+                      <div className="w-full flex items-center hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-slate-700/50 transition-colors">
+                        {/* Zone cliquable principale (toggle accordéon + drag) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (cabineDragMode) return;
+                            setCabines((prev) =>
+                              prev.map((c, i) => (i === idx ? { ...c, open: !c.open } : c))
+                            );
+                          }}
+                          onTouchStart={() => {
+                            if (cabineDragMode) { cabineTouchSrcRef.current = idx; return; }
+                            cabineLongPressTimer.current = setTimeout(() => {
+                              setCabineDragMode(true);
+                              cabineTouchSrcRef.current = idx;
+                              setDragCabSrc(idx);
+                            }, 500);
+                          }}
+                          onTouchEnd={() => {
+                            if (cabineLongPressTimer.current) { clearTimeout(cabineLongPressTimer.current); cabineLongPressTimer.current = null; }
+                            if (cabineDragMode && cabineTouchSrcRef.current !== null && dragCabOver !== null && cabineTouchSrcRef.current !== dragCabOver) {
+                              reorderCabines(cabineTouchSrcRef.current, dragCabOver);
+                            }
+                            cabineTouchSrcRef.current = null;
+                            setDragCabSrc(null);
+                            setDragCabOver(null);
+                          }}
+                          onTouchMove={(e) => {
+                            if (!cabineDragMode) { if (cabineLongPressTimer.current) { clearTimeout(cabineLongPressTimer.current); cabineLongPressTimer.current = null; } return; }
+                            const touch = e.touches[0];
+                            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                            const card = el?.closest("[data-cabineidx]");
+                            if (card) {
+                              const overIdx = parseInt(card.getAttribute("data-cabineidx") || "-1", 10);
+                              if (overIdx >= 0 && overIdx !== dragCabOver) setDragCabOver(overIdx);
+                            }
+                          }}
+                          className="flex-1 flex items-center gap-3 px-4 py-3 text-left min-w-0"
+                        >
                           {cabineDragMode ? (
                             <GripVertical className="w-4 h-4 text-gray-400 shrink-0" />
                           ) : (
@@ -4365,7 +4440,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               {idx + 1}
                             </span>
                           )}
-                          <span className="font-medium text-sm">{cabine.nom}</span>
+                          <span className="font-medium text-sm truncate">{cabine.nom}</span>
                           {/* Icônes signalement : pièce manquante (orange) + défaut (rouge) */}
                           {cabineSignalements.pieces.some((p) => p.cabineLabel === cabine.nom) && (
                             <Package className="w-3.5 h-3.5 text-orange-500 shrink-0" />
@@ -4373,13 +4448,27 @@ function ProjectPageContent({ id }: { id: string }) {
                           {cabineSignalements.defauts.some((d) => d.cabineLabel === cabine.nom) && (
                             <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
                           )}
+                        </button>
+
+                        {/* Actions droite : scroll-en-haut (quand ouverte) + chevron */}
+                        <div className="flex items-center gap-1.5 px-3 py-3 shrink-0">
+                          {cabine.open && !cabineDragMode && (
+                            <button
+                              type="button"
+                              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                              className="w-7 h-7 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/40 dark:hover:text-blue-400 transition-colors"
+                              title="Remonter en haut de page"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {!cabineDragMode && (cabine.open ? (
+                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          ))}
                         </div>
-                        {!cabineDragMode && (cabine.open ? (
-                          <ChevronUp className="w-4 h-4 text-gray-400" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-gray-400" />
-                        ))}
-                      </button>
+                      </div>
 
                       {cabine.open && (
                         <CardContent className="border-t pt-0 pb-4 px-0">
@@ -4551,6 +4640,20 @@ function ProjectPageContent({ id }: { id: string }) {
                                   />
                                 </div>
                               </div>
+
+                              {/* Bouton Enregistrer par cabine */}
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => handleSaveCabineData(idx)}
+                                className="w-full py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-medium flex items-center justify-center gap-2 active:opacity-80 disabled:opacity-50 transition-all"
+                              >
+                                {saving ? (
+                                  <><Loader2 className="w-4 h-4 animate-spin" />Enregistrement...</>
+                                ) : (
+                                  <><Check className="w-4 h-4" />Enregistrer</>
+                                )}
+                              </button>
 
                               {/* Bouton accès rapide Photos si tout est rempli */}
                               {cabine.monteur && cabine.date && cabine.arrivee && (
