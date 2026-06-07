@@ -2378,6 +2378,8 @@ function ProjectPageContent({ id }: { id: string }) {
    *  Empêche le 2e appel initProject (données fraîches Notion) d'écraser les
    *  noms personnalisés déjà chargés depuis localStorage ou l'API KV. */
   const cabinesInitializedRef = useRef<string | null>(null);
+  /** Dernier count envoyé à Notion pour éviter les PATCH redondants. */
+  const lastSyncedInstalledRef = useRef<number>(-1);
 
   const reorderCabines = (srcIdx: number, dstIdx: number) => {
     if (srcIdx === dstIdx) return;
@@ -2518,6 +2520,28 @@ function ProjectPageContent({ id }: { id: string }) {
   const [headerHeight, setHeaderHeight] = useState(60);
 
   useEffect(() => { setFav(isFavorite(id)); }, [id]);
+
+  // ── Sync "Nb. Cabines installées" → Notion ──────────────────────────────────
+  // Dès qu'une cabine reçoit ses photos de montage, on met à jour le compteur
+  // dans Notion afin que la progression soit visible depuis la base de données.
+  // On utilise un ref pour n'envoyer un PATCH que lorsque le count CHANGE
+  // réellement (évite les appels redondants lors des re-renders normaux).
+  useEffect(() => {
+    if (!isCabineMode || !id) return;
+    const montagePhotos = project?.photosMontage || [];
+    const count = new Set(
+      montagePhotos
+        .map((f) => { const m = f.name?.match(/\.Cab(\d+)\./); return m ? parseInt(m[1], 10) : null; })
+        .filter((n): n is number => n !== null)
+    ).size;
+    if (count === lastSyncedInstalledRef.current) return; // pas de changement réel
+    lastSyncedInstalledRef.current = count;
+    offlineFetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nbCabinesInstallees: count }),
+    }).catch(() => {});
+  }, [project?.photosMontage, isCabineMode, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const header = document.getElementById("main-header");

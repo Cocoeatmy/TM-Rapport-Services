@@ -150,6 +150,8 @@ export interface Project {
   nomsCabines: string;
   /** Monteurs responsables par cabine : "Cab1:Micael | Cab2:Claudio | ..." */
   attributionCabines: string;
+  /** Nombre de cabines dont le montage est terminé (photos uploadées) */
+  nbCabinesInstallees: number | null;
 }
 
 export interface FileItem {
@@ -262,6 +264,7 @@ export function mapPageToProject(page: any): Project {
     heureDepart: extractText(p["Heure départ"]),
     nomsCabines: extractText(p["Lot (nom de cabine)"]),
     attributionCabines: extractText(p["Monteur responsable"]),
+    nbCabinesInstallees: extractNumber(p["Nb. Cabines installées"]),
     commentairesMontages: extractText(p["Commentaires Montages"]),
     rapportMonteur: extractText(p["Rapport monteur"]),
     photosAvant: extractFiles(p["Photos avant montage"]),
@@ -795,6 +798,7 @@ export async function updateProject(
     heureDepart?: string;
     nomsCabines?: string;
     attributionCabines?: string;
+    nbCabinesInstallees?: number;
     commentairesMontages?: string;
     rapportMonteur?: string;
     dateMontage?: string | null;
@@ -841,6 +845,11 @@ export async function updateProject(
   if (data.attributionCabines !== undefined) {
     properties["Monteur responsable"] = {
       rich_text: toRichText(data.attributionCabines),
+    };
+  }
+  if (data.nbCabinesInstallees !== undefined) {
+    properties["Nb. Cabines installées"] = {
+      number: data.nbCabinesInstallees,
     };
   }
   if (data.commentairesMontages !== undefined) {
