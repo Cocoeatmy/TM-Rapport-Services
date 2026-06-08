@@ -828,6 +828,26 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
         dispatchList(project.photosQRCode || [], "photosQRCode");
         dispatchList(project.photosGaranties || [], "photosGaranties");
 
+        // ── Fusion groupe-0 pour les projets mono-cabine ────────────────────
+        // Problème : en mode non-multi-cabine, les monteurs uploadent leurs photos
+        // avec ".Cab1." dans le nom (→ groups[1]) tandis qu'une photo ajoutée
+        // manuellement sans préciser de cabine n'a pas ".Cab1." (→ groups[0]).
+        // Résultat : deux pages "Photos du chantier" distinctes — la photo manuelle
+        // est sur la 2ᵉ page que l'utilisateur ne voit pas.
+        // Fix : fusionner groups[0] dans le premier groupe cabine existant.
+        if (!isMultiCabine && groups[0]) {
+          // Trouver le groupe cabine principal (le plus petit numéro non-nul présent)
+          const nonZeroKeys = Object.keys(groups).map(Number).filter((k) => k > 0).sort((a, b) => a - b);
+          const mainKey = nonZeroKeys.length > 0 ? nonZeroKeys[0] : 1;
+          if (!groups[mainKey]) groups[mainKey] = {};
+          for (const [bucket, photos] of Object.entries(groups[0] as Record<string, Photo[]>)) {
+            const bk = bucket as keyof typeof groups[number];
+            if (!groups[mainKey][bk]) groups[mainKey][bk] = [];
+            groups[mainKey][bk]!.push(...(photos || []));
+          }
+          delete groups[0];
+        }
+
         const orderedCabKeys: number[] = [];
         for (let i = 1; i <= nbCab; i++) { if (groups[i]) orderedCabKeys.push(i); }
         if (groups[0]) orderedCabKeys.push(0);
