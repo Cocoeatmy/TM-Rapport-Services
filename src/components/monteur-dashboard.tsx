@@ -1679,36 +1679,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     return all;
   }, [projects, terminatedProjects]);
 
-  // Comptages projets/cabines par type sur la fenêtre 14j (pour les chips à côté du 79)
-  // On utilise allProjectsForStats (même source que la barre hebdo) avec dateMontage/dateMesures
-  // pour ne pas rater les mesures sans collaborateur dans mesuresTraiteePar.
-  const week14MontagesProj = allProjectsForStats.filter((p) =>
-    (p as any)._source !== "mesures" &&
-    !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
-    inRange(p.dateMontage, todayStr, weekEndStr)
-  ).length;
-  const week14MesuresProj = allProjectsForStats.filter((p) =>
-    inRange(p.dateMesures, todayStr, weekEndStr)
-  ).length;
-  const week14ServicesProj = allProjectsForStats.filter((p) =>
-    (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
-    inRange(p.dateMontage, todayStr, weekEndStr)
-  ).length;
-  const week14MontagesCab = allProjectsForStats
-    .filter((p) =>
-      (p as any)._source !== "mesures" &&
-      !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
-      inRange(p.dateMontage, todayStr, weekEndStr)
-    ).reduce((s, p) => s + (p.nbCabines || 0), 0);
-  const week14MesuresCab = allProjectsForStats
-    .filter((p) => inRange(p.dateMesures, todayStr, weekEndStr))
-    .reduce((s, p) => s + (p.nbCabines || 0), 0);
-  const week14ServicesCab = allProjectsForStats
-    .filter((p) =>
-      (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
-      inRange(p.dateMontage, todayStr, weekEndStr)
-    ).reduce((s, p) => s + (p.nbCabines || 0), 0);
-
   // Bornes de la semaine courante (Lundi → Dimanche)
   const thisWeekBounds = useMemo(() => {
     const today = new Date();
@@ -1744,6 +1714,36 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     const d = dateStr.split("T")[0];
     return d >= start && d <= end;
   };
+
+  // Comptages projets/cabines par type sur la fenêtre 14j (pour les chips à côté du 79)
+  // Utilise allProjectsForStats + inRange (déclarés juste avant) pour capter toutes les mesures,
+  // même sans collaborateur assigné dans mesuresTraiteePar.
+  const week14MontagesProj = allProjectsForStats.filter((p) =>
+    (p as any)._source !== "mesures" &&
+    !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
+    inRange(p.dateMontage, todayStr, weekEndStr)
+  ).length;
+  const week14MesuresProj = allProjectsForStats.filter((p) =>
+    inRange(p.dateMesures, todayStr, weekEndStr)
+  ).length;
+  const week14ServicesProj = allProjectsForStats.filter((p) =>
+    (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
+    inRange(p.dateMontage, todayStr, weekEndStr)
+  ).length;
+  const week14MontagesCab = allProjectsForStats
+    .filter((p) =>
+      (p as any)._source !== "mesures" &&
+      !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
+      inRange(p.dateMontage, todayStr, weekEndStr)
+    ).reduce((s, p) => s + (p.nbCabines || 0), 0);
+  const week14MesuresCab = allProjectsForStats
+    .filter((p) => inRange(p.dateMesures, todayStr, weekEndStr))
+    .reduce((s, p) => s + (p.nbCabines || 0), 0);
+  const week14ServicesCab = allProjectsForStats
+    .filter((p) =>
+      (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
+      inRange(p.dateMontage, todayStr, weekEndStr)
+    ).reduce((s, p) => s + (p.nbCabines || 0), 0);
 
   const weekStats = useMemo(() => {
     const calc = (start: string, end: string) => {
