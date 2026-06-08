@@ -1665,16 +1665,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   });
   const weekSummary = formatCabinesSummary(allWeekCabinesBySource);
 
-  // Comptages projets par type sur la fenêtre 14j (pour affichage à gauche du 79)
-  const week14MontagesProj = uniqueWeekProjects.filter((p) => {
-    const src = getProjectSource(p);
-    return src !== "mesures" && !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"));
-  }).length;
-  const week14MesuresProj = uniqueWeekProjects.filter((p) => getProjectSource(p) === "mesures").length;
-  const week14ServicesProj = uniqueWeekProjects.filter((p) =>
-    (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"))
-  ).length;
-
   const busyToday = collabData.filter((c) => c.todayProjects.length > 0).length;
 
   // ── Stats hebdomadaires : semaine courante vs semaine précédente ──────────────
@@ -1688,6 +1678,36 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     }
     return all;
   }, [projects, terminatedProjects]);
+
+  // Comptages projets/cabines par type sur la fenêtre 14j (pour les chips à côté du 79)
+  // On utilise allProjectsForStats (même source que la barre hebdo) avec dateMontage/dateMesures
+  // pour ne pas rater les mesures sans collaborateur dans mesuresTraiteePar.
+  const week14MontagesProj = allProjectsForStats.filter((p) =>
+    (p as any)._source !== "mesures" &&
+    !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
+    inRange(p.dateMontage, todayStr, weekEndStr)
+  ).length;
+  const week14MesuresProj = allProjectsForStats.filter((p) =>
+    inRange(p.dateMesures, todayStr, weekEndStr)
+  ).length;
+  const week14ServicesProj = allProjectsForStats.filter((p) =>
+    (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
+    inRange(p.dateMontage, todayStr, weekEndStr)
+  ).length;
+  const week14MontagesCab = allProjectsForStats
+    .filter((p) =>
+      (p as any)._source !== "mesures" &&
+      !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
+      inRange(p.dateMontage, todayStr, weekEndStr)
+    ).reduce((s, p) => s + (p.nbCabines || 0), 0);
+  const week14MesuresCab = allProjectsForStats
+    .filter((p) => inRange(p.dateMesures, todayStr, weekEndStr))
+    .reduce((s, p) => s + (p.nbCabines || 0), 0);
+  const week14ServicesCab = allProjectsForStats
+    .filter((p) =>
+      (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services")) &&
+      inRange(p.dateMontage, todayStr, weekEndStr)
+    ).reduce((s, p) => s + (p.nbCabines || 0), 0);
 
   // Bornes de la semaine courante (Lundi → Dimanche)
   const thisWeekBounds = useMemo(() => {
@@ -2072,8 +2092,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-900/30 text-[9px] font-medium text-orange-600 dark:text-orange-400">
                       <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
                       {week14MontagesProj} projet{week14MontagesProj > 1 ? "s" : ""}
-                      {(allWeekCabinesBySource["montage"] || 0) > 0 && (
-                        <span className="text-orange-400/70"> · {allWeekCabinesBySource["montage"]} cab.</span>
+                      {week14MontagesCab > 0 && (
+                        <span className="text-orange-400/70"> · {week14MontagesCab} cab.</span>
                       )}
                     </span>
                   )}
@@ -2081,8 +2101,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-[9px] font-medium text-cyan-600 dark:text-cyan-400">
                       <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
                       {week14MesuresProj} mesure{week14MesuresProj > 1 ? "s" : ""}
-                      {(allWeekCabinesBySource["mesures"] || 0) > 0 && (
-                        <span className="text-cyan-400/70"> · {allWeekCabinesBySource["mesures"]} cab.</span>
+                      {week14MesuresCab > 0 && (
+                        <span className="text-cyan-400/70"> · {week14MesuresCab} cab.</span>
                       )}
                     </span>
                   )}
@@ -2090,8 +2110,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-50 dark:bg-violet-900/30 text-[9px] font-medium text-violet-600 dark:text-violet-400">
                       <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
                       {week14ServicesProj} service{week14ServicesProj > 1 ? "s" : ""}
-                      {(allWeekCabinesBySource["services"] || 0) > 0 && (
-                        <span className="text-violet-400/70"> · {allWeekCabinesBySource["services"]} cab.</span>
+                      {week14ServicesCab > 0 && (
+                        <span className="text-violet-400/70"> · {week14ServicesCab} cab.</span>
                       )}
                     </span>
                   )}

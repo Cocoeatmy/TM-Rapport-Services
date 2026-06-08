@@ -181,6 +181,22 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 15,
   },
+  photoSectionLabel: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    color: "#444",
+    marginBottom: 6,
+    marginTop: 2,
+    paddingBottom: 3,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#d0d0d0",
+  },
+  photoRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
+  },
   sectionTitle: {
     fontSize: 12,
     fontFamily: "Helvetica-Bold",
@@ -817,18 +833,39 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
         if (groups[0]) orderedCabKeys.push(0);
         Object.keys(groups).map(Number).filter((k) => k !== 0 && k > nbCab).sort((a, b) => a - b).forEach((k) => orderedCabKeys.push(k));
 
-        const renderBucketGrid = (label: string, photos: Photo[], keyPrefix: string) => (
-          <View key={keyPrefix} style={styles.section} wrap={false}>
-            <Text style={{ ...styles.label, marginBottom: 6 }}>{label}</Text>
-            <View style={styles.photosGrid}>
-              {photos.map((p, i) => (
-                <View key={i} style={styles.photoContainer}>
-                  <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
+        const renderBucketGrid = (label: string, photos: Photo[], keyPrefix: string) => {
+          // Grouper les photos par rangées de 2
+          const rows: Photo[][] = [];
+          for (let i = 0; i < photos.length; i += 2) {
+            rows.push(photos.slice(i, i + 2));
+          }
+          if (rows.length === 0) return null;
+          return (
+            <View key={keyPrefix} style={styles.section}>
+              {/* Titre + 1ʳᵉ rangée ensemble : empêche le titre orphelin en bas de page */}
+              <View wrap={false}>
+                <Text style={styles.photoSectionLabel}>{label}</Text>
+                <View style={styles.photoRow}>
+                  {rows[0].map((p, i) => (
+                    <View key={i} style={styles.photoContainer}>
+                      <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
+                    </View>
+                  ))}
+                </View>
+              </View>
+              {/* Rangées suivantes : chaque paire est indivisible (pas de photo coupée) */}
+              {rows.slice(1).map((row, rowIdx) => (
+                <View key={rowIdx} style={styles.photoRow} wrap={false}>
+                  {row.map((p, i) => (
+                    <View key={i} style={styles.photoContainer}>
+                      <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
+                    </View>
+                  ))}
                 </View>
               ))}
             </View>
-          </View>
-        );
+          );
+        };
 
         const renderQrGarantieRow = (qrPhotos: Photo[], garPhotos: Photo[], keyPrefix: string) => {
           const hasQr = qrPhotos.length > 0;
