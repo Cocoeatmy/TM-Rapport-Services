@@ -2765,25 +2765,34 @@ function ProjectPageContent({ id }: { id: string }) {
 
   useEffect(() => { setFav(isFavorite(id)); }, [id]);
 
-  // Scroll vers l'ancre #cabines-list quand la page est chargée depuis
-  // le portail client (lien "Saisir rapport" → /projet/[id]#cabines-list).
-  // On attend que isCabineMode soit connu (données chargées) avant de scroller.
+  // Scroll automatique vers la liste des cabines quand la page est ouverte
+  // depuis le portail client via "Saisir rapport".
+  // Mécanisme : sessionStorage flag "tm-goto-<id>" = "cabines" posé par le
+  // portail avant navigation. On relit + efface ici, puis on scrolle dès que
+  // la liste est rendue (isCabineMode = true + DOM prêt). On retente 3× avec
+  // des délais croissants pour absorber les temps de rendu variables sur mobile.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (window.location.hash !== "#cabines-list") return;
-    if (!isCabineMode) return; // pas encore chargé ou non multi-cabines
-    const tryScroll = () => {
+    const key = `tm-goto-${id}`;
+    let target: string | null = null;
+    try { target = sessionStorage.getItem(key); } catch {}
+    if (target !== "cabines") return;
+    if (!isCabineMode) return;
+
+    // Efface immédiatement pour ne pas re-scroller à chaque re-render
+    try { sessionStorage.removeItem(key); } catch {}
+
+    const scrollToCabines = () => {
       const el = document.getElementById("cabines-list");
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-        // Retire le hash pour éviter les re-scrolls sur chaque render
-        history.replaceState(null, "", window.location.pathname);
-      }
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     };
-    // Petit délai pour laisser le DOM se stabiliser
-    const t = setTimeout(tryScroll, 300);
-    return () => clearTimeout(t);
-  }, [isCabineMode]);
+
+    // 3 tentatives avec délais croissants (rendu mobile peut être lent)
+    const t1 = setTimeout(scrollToCabines, 200);
+    const t2 = setTimeout(scrollToCabines, 700);
+    const t3 = setTimeout(scrollToCabines, 1400);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [id, isCabineMode]);
 
   // ── Sync "Nb. Cabines installées" → Notion ──────────────────────────────────
   // Dès qu'une cabine reçoit ses photos de montage, on met à jour le compteur

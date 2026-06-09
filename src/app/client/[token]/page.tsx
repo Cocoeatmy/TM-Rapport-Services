@@ -495,7 +495,10 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
 
                 {/* 3 — Saisir le rapport (accès direct à la liste des cabines) */}
                 <a
-                  href={`/projet/${project.id}#cabines-list`}
+                  href={`/projet/${project.id}`}
+                  onClick={() => {
+                    try { sessionStorage.setItem(`tm-goto-${project.id}`, "cabines"); } catch {}
+                  }}
                   className="bg-white/20 hover:bg-white/30 active:scale-95 rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all ring-1 ring-white/30"
                 >
                   <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center">
