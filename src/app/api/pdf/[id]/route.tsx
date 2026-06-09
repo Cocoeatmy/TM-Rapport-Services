@@ -505,7 +505,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }}>
         {/* Logo centré */}
         <View style={{ alignItems: "center", marginBottom: 15 }}>
           <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
@@ -699,7 +699,10 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
             const IDENT_WIDTH = 52; // largeur fixe colonne gauche (pt)
             const lines = project.rapportMonteur.split("\n");
             return (
-              <View style={{ backgroundColor: "#fafafa", padding: 10, borderRadius: 4 }}>
+              {/* Pas de backgroundColor sur le container : un fond avec borderRadius
+                  coupé en plein milieu d'une page est visuellement cassé. On utilise
+                  un liseré gauche qui se prolonge naturellement sur les pages suivantes. */}
+              <View style={{ borderLeftWidth: 3, borderLeftColor: "#1e3a5f", paddingLeft: 10, paddingVertical: 6 }}>
                 <Text style={{ fontSize: 8, color: "#666", marginBottom: 6 }}>
                   Rapport du monteur
                 </Text>
@@ -749,7 +752,10 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
 
         {/* Alertes défauts / pièces manquantes */}
         {(pieces.length > 0 || defauts.length > 0) && (
-          <View style={{ marginTop: 12, padding: 10, backgroundColor: "#fef2f2", borderRadius: 6, borderWidth: 1, borderColor: "#fecaca" }}>
+          /* wrap={false} : le bloc signalements ne doit jamais être coupé en
+             pleine page. S'il ne tient pas dans l'espace restant, il saute
+             entièrement sur la page suivante. */
+          <View wrap={false} style={{ marginTop: 12, padding: 10, backgroundColor: "#fef2f2", borderRadius: 6, borderWidth: 1, borderColor: "#fecaca" }}>
             <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#991b1b", marginBottom: 6 }}>
               ⚠ Signalements sur ce projet
             </Text>
