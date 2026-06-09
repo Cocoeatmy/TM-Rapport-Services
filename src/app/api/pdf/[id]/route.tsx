@@ -1135,7 +1135,37 @@ export async function GET(
 
     const pieces = await loadPiecesForProject(id, project);
     const defauts = await loadDefautsForProject(id, project);
-    const cabineAttribution = await loadCabineAttribution(id);
+
+    // Charge les noms/monteurs de cabines.
+    // Source prioritaire : project.nomsCabines + project.attributionCabines (stockés dans Notion).
+    // Fallback : ancien KV store "cabine-attributions" (projets non encore migrés).
+    let cabineAttribution = await loadCabineAttribution(id);
+    const nbCab = project.nbCabines || 0;
+    if (nbCab > 0 && (project.nomsCabines || project.attributionCabines)) {
+      const parseNotionCabField = (raw: string): Map<number, string> => {
+        const map = new Map<number, string>();
+        if (!raw) return map;
+        const re = /Cab(\d+)\s*:([^|]*)/g;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(raw))) {
+          const val = m[2].trim();
+          if (val) map.set(parseInt(m[1], 10), val);
+        }
+        return map;
+      };
+      const nomsMap = parseNotionCabField(project.nomsCabines || "");
+      const attrMap  = parseNotionCabField(project.attributionCabines || "");
+      if (nomsMap.size > 0 || attrMap.size > 0) {
+        const noms: string[] = [];
+        const attribution: string[] = [];
+        for (let i = 0; i < nbCab; i++) {
+          // Notion a la priorité ; KV store sert de fallback pour les anciens projets
+          noms[i]        = nomsMap.get(i + 1) || cabineAttribution?.noms?.[i] || `Cabine ${i + 1}`;
+          attribution[i] = attrMap.get(i + 1)  || cabineAttribution?.attribution?.[i] || "";
+        }
+        cabineAttribution = { projectId: id, noms, attribution, updatedAt: Date.now() };
+      }
+    }
 
     const pdfStream = await ReactPDF.renderToStream(
       <RapportPDF project={project} pieces={pieces} defauts={defauts} cabineAttribution={cabineAttribution} />

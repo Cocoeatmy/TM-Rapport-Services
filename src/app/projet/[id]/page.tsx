@@ -1345,10 +1345,13 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
   const [draft, setDraft] = useState(text);
   const [saving, setSaving] = useState(false);
   const [photos, setPhotos] = useState(initialPhotos);
-  const [uploading, setUploading] = useState(false);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  // Blob URLs pour aperçu instantané pendant l'upload
+  const [uploadPreviews, setUploadPreviews] = useState<string[]>([]);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
-  const uploadingRef = useRef(false);
+  // Anti double-fire iOS : timestamp du dernier déclenchement
+  const lastFireMsRef = useRef<Record<string, number>>({ camera: 0, gallery: 0 });
 
   // Garde le state local en phase quand le parent re-render avec
   // une nouvelle liste (ex : polling collaboratif, refetch).
@@ -1415,20 +1418,32 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
     }
   };
 
-  const handleAddPhotos = async (files: FileList | null) => {
+  const handleAddPhotos = async (files: FileList | null, source: "camera" | "gallery" = "gallery") => {
     if (!files?.length) return;
-    // Garde synchrone : empêche un 2e onChange de relancer un upload
-    // pendant que le 1er est en cours (cf. bug iOS capture + multiple).
-    if (uploadingRef.current) {
+    // Anti double-fire iOS : ignorer si même source déclenchée < 600 ms
+    const now = Date.now();
+    if (now - lastFireMsRef.current[source] < 600) {
       if (cameraRef.current) cameraRef.current.value = "";
       if (galleryRef.current) galleryRef.current.value = "";
       return;
     }
-    uploadingRef.current = true;
-    setUploading(true);
+    lastFireMsRef.current[source] = now;
+
+    const originals = Array.from(files);
+
+    // Réinitialise l'input IMMÉDIATEMENT → permet de prendre une 2e photo
+    // sans attendre la fin de l'upload de la première.
+    if (cameraRef.current) cameraRef.current.value = "";
+    if (galleryRef.current) galleryRef.current.value = "";
+
+    // Aperçu instantané
+    const newPreviews = originals.map((f) => URL.createObjectURL(f));
+    setUploadPreviews((prev) => [...prev, ...newPreviews]);
+    setUploadingCount((n) => n + 1);
+
     try {
       const formData = new FormData();
-      Array.from(files).forEach((f) => formData.append("files", f));
+      originals.forEach((f) => formData.append("files", f));
       formData.append("projectId", projectId);
       formData.append("category", uploadCategory);
       formData.append("notionField", uploadNotionField);
@@ -1449,13 +1464,16 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
       setPhotos(merged);
       onPhotosUpdate?.(merged);
       invalidateApiCache();
+      // Nettoie les previews de CE batch
+      setUploadPreviews((prev) => {
+        const result = prev.filter((u) => !newPreviews.includes(u));
+        newPreviews.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
+        return result;
+      });
     } catch {
       toast.error("Erreur réseau");
     } finally {
-      uploadingRef.current = false;
-      setUploading(false);
-      if (cameraRef.current) cameraRef.current.value = "";
-      if (galleryRef.current) galleryRef.current.value = "";
+      setUploadingCount((n) => Math.max(0, n - 1));
     }
   };
 
@@ -1517,34 +1535,51 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
             </button>
           </div>
         ))}
+        {/* Aperçus instantanés des photos en cours d'upload */}
+        {uploadPreviews.map((src, i) => (
+          <div key={`prev-${i}`} className="relative w-16 h-16 rounded border overflow-hidden bg-gray-100">
+            <img src={src} alt="En cours…" className="w-full h-full object-cover opacity-60" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+            </div>
+          </div>
+        ))}
         <div className="flex flex-col gap-1">
           <button
             type="button"
             onClick={() => cameraRef.current?.click()}
-            disabled={uploading}
-            className={`w-16 h-7 rounded border-2 border-dashed flex items-center justify-center gap-1 text-[10px] transition-colors ${
+            className={`w-16 h-7 rounded border-2 border-dashed flex items-center justify-center gap-1 text-[10px] transition-colors relative ${
               color === "orange"
                 ? "border-orange-300 text-orange-500 hover:bg-orange-50"
                 : "border-red-300 text-red-500 hover:bg-red-50"
-            } disabled:opacity-50`}
+            }`}
           >
-            {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Camera className="w-3 h-3" /> Photo</>}
+            <Camera className="w-3 h-3" /> Photo
+            {uploadingCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-500 flex items-center justify-center">
+                <Loader2 className="w-2 h-2 animate-spin text-white" />
+              </span>
+            )}
           </button>
           <button
             type="button"
             onClick={() => galleryRef.current?.click()}
-            disabled={uploading}
-            className={`w-16 h-7 rounded border-2 border-dashed flex items-center justify-center gap-1 text-[10px] transition-colors ${
+            className={`w-16 h-7 rounded border-2 border-dashed flex items-center justify-center gap-1 text-[10px] transition-colors relative ${
               color === "orange"
                 ? "border-orange-300 text-orange-500 hover:bg-orange-50"
                 : "border-red-300 text-red-500 hover:bg-red-50"
-            } disabled:opacity-50`}
+            }`}
           >
-            {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <><ImagePlus className="w-3 h-3" /> Galerie</>}
+            <ImagePlus className="w-3 h-3" /> Galerie
+            {uploadingCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-500 flex items-center justify-center">
+                <Loader2 className="w-2 h-2 animate-spin text-white" />
+              </span>
+            )}
           </button>
         </div>
-        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleAddPhotos(e.target.files)} />
-        <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleAddPhotos(e.target.files)} />
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleAddPhotos(e.target.files, "camera")} />
+        <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleAddPhotos(e.target.files, "gallery")} />
       </div>
     </div>
   );
@@ -4860,6 +4895,9 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{name}</span>
                                   <span className="text-xs text-gray-500 dark:text-gray-400">
                                     {count} cabine{count > 1 ? "s" : ""}
+                                  </span>
+                                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                                    ~{fmtMin(Math.round(minutes / count))}/cab
                                   </span>
                                   <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 min-w-[52px] text-right">
                                     {fmtMin(minutes)}
