@@ -303,9 +303,9 @@ export async function offlineFetch(url: string, init?: RequestInit): Promise<Res
 
   try {
     const res = await fetch(url, init);
-    // 5xx : on tente la queue pour rejouer plus tard. 4xx : on laisse
-    // remonter, l'erreur est probablement permanente (validation).
-    if (res.status >= 500) {
+    // 5xx ou 429 (rate-limit Notion) : on met en queue pour retry.
+    // Autres 4xx : erreur permanente, on retourne tel quel.
+    if (res.status >= 500 || res.status === 429) {
       return queueIt("network-error");
     }
     return res;

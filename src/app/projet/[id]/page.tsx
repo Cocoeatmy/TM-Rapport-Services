@@ -177,21 +177,50 @@ function BucketPhotoUpload({
     });
   };
 
-  // Suppression : mise à jour immédiate et définitive de l'état React.
-  // On calcule nextFullList depuis project (closure fraîche au moment du
-  // clic) plutôt qu'à l'intérieur de setProject pour éviter tout edge-case
-  // React 18 Concurrent Mode où l'updater peut être appelé plusieurs fois.
-  const handleDelete = (newBucketFiles: { name: string; url: string }[]) => {
+  // Suppression : mise à jour immédiate de l'état React + PATCH Notion confirmé.
+  // On calcule nextFullList depuis project (closure fraîche au moment du clic)
+  // plutôt qu'à l'intérieur de setProject pour éviter tout edge-case React 18.
+  const handleDelete = async (newBucketFiles: { name: string; url: string }[]) => {
     if (!project) return;
     const nextFullList = buildNextFullList(project, newBucketFiles);
-    // Mise à jour UI immédiate — la photo disparaît définitivement du rendu.
+    // Mise à jour UI immédiate — la photo disparaît du rendu.
     setProject((prev) => prev ? { ...prev, [notionFieldKey]: nextFullList } : prev);
-    // PATCH Notion en arrière-plan (état déjà correct côté UI).
-    offlineFetch(`/api/projects/${projectId}`, {
+
+    // PATCH Notion : on vérifie le résultat pour éviter que les photos
+    // "reviennent" après un rechargement si le PATCH a échoué silencieusement.
+    // offlineFetch queue automatiquement les 5xx et 429 (retry plus tard).
+    const res = await offlineFetch(`/api/projects/${projectId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [notionFieldKey]: nextFullList }),
-    }).catch(() => {});
+    });
+
+    // Invalide le cache SW pour que le prochain rechargement reçoive les données fraîches.
+    invalidateApiCache();
+
+    if (res.ok) {
+      let resData: any = {};
+      try { resData = await res.json(); } catch {}
+      if (resData?.queued) {
+        // La suppression est en attente de synchronisation (réseau faible / rate-limit Notion).
+        // Elle sera rejouée automatiquement dès que la connexion revient.
+        toast("Photo retirée — synchronisation Notion en attente (connexion faible)", {
+          duration: 5000,
+          icon: "🔄",
+        } as any);
+      }
+      // Sinon : succès immédiat, pas de toast superflu.
+    } else {
+      // Erreur définitive (400, etc.) — avertir sans annuler l'UI.
+      let errMsg = "";
+      try { const j = await res.json(); errMsg = j?.error || ""; } catch {}
+      toast.error(
+        errMsg
+          ? `Suppression non enregistrée dans Notion : ${errMsg}`
+          : "Suppression non enregistrée dans Notion — réessayez ou rechargez la page.",
+        { duration: 8000 }
+      );
+    }
   };
 
   const hint = BUCKET_HINT[bucket];
