@@ -39,6 +39,37 @@ interface PublicProject {
   nbCabines: number | null;
   photosAvant: { name: string; url: string }[];
   photosMontage: { name: string; url: string }[];
+  nomsCabines: string;
+}
+
+/** Parse "Cab1:J-001 (Divera) | Cab2:J-002..." → Map<numéro, nom> */
+function parseCabineNames(raw: string): Map<number, string> {
+  const map = new Map<number, string>();
+  if (!raw) return map;
+  const re = /Cab(\d+)\s*:([^|]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw))) {
+    const val = m[2].trim();
+    if (val) map.set(parseInt(m[1], 10), val);
+  }
+  return map;
+}
+
+/** Extrait le numéro de cabine depuis le nom du fichier (.Cab3. → 3, sinon 0 = général) */
+function extractCabNum(name: string): number {
+  const m = (name || "").match(/\.Cab(\d+)\./);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+/** Détecte le type de photo depuis le préfixe du nom de fichier */
+function detectPhotoType(name: string): string {
+  const n = (name || "").toLowerCase();
+  if (n.startsWith("avant") || n.includes("avant_intervention") || n.includes("avant intervention")) return "Avant montage";
+  if (n.startsWith("apres") || n.includes("apres_intervention") || n.includes("après intervention")) return "Après montage";
+  if (n.startsWith("demontage") || n.includes("démontage")) return "Démontage";
+  if (n.startsWith("montage") || n.includes("montage terminé") || n.includes("montage_termine")) return "Montage terminé";
+  if (n.startsWith("qrcode") || n.includes("qr")) return "QR Code";
+  return "";
 }
 
 interface CollabData {
@@ -233,6 +264,19 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
   const statusStyle = getStatusStyle(project.etatCMD);
   const allPhotos = [...(project.photosAvant || []), ...(project.photosMontage || [])];
   const tmNumber = project.ofrTM || extractTmNumber(project.projet);
+
+  // Grouper les photos par numéro de cabine
+  const cabineNamesMap = parseCabineNames(project.nomsCabines || "");
+  const photosByCabin = new Map<number, { name: string; url: string }[]>();
+  for (const photo of allPhotos) {
+    const cab = extractCabNum(photo.name || "");
+    if (!photosByCabin.has(cab)) photosByCabin.set(cab, []);
+    photosByCabin.get(cab)!.push(photo);
+  }
+  // Trier : cabines numérotées d'abord (1, 2, 3…), photos sans cabine (0) en dernier
+  const cabinEntries = [...photosByCabin.entries()].sort(([a], [b]) =>
+    a === 0 ? 1 : b === 0 ? -1 : a - b
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -523,7 +567,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
           )}
         </div>
 
-        {/* Photos */}
+        {/* Photos — groupées par lot/cabine */}
         {allPhotos.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <button onClick={() => setPhotosOpen(!photosOpen)} className="w-full flex items-center justify-between p-5">
@@ -533,20 +577,59 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-medium text-gray-800">Photos du projet</p>
-                  <p className="text-xs text-gray-400">{allPhotos.length} photo{allPhotos.length > 1 ? "s" : ""}</p>
+                  <p className="text-xs text-gray-400">
+                    {allPhotos.length} photo{allPhotos.length > 1 ? "s" : ""}
+                    {cabinEntries.length > 1 && ` · ${cabinEntries.filter(([c]) => c > 0).length} lot${cabinEntries.filter(([c]) => c > 0).length > 1 ? "s" : ""}`}
+                  </p>
                 </div>
               </div>
               {photosOpen ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
             </button>
+
             {photosOpen && (
-              <div className="px-5 pb-5 grid grid-cols-2 gap-2">
-                {allPhotos.map((photo, idx) => (
-                  <a key={idx} href={photo.url} target="_blank" rel="noopener noreferrer"
-                    className="block rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow">
-                    <img src={thumbnailUrl(photo.url, 400)} alt={photo.name || `Photo ${idx + 1}`}
-                      loading="lazy" decoding="async" className="w-full h-32 object-cover" />
-                  </a>
-                ))}
+              <div className="px-4 pb-5 space-y-5">
+                {cabinEntries.map(([cabNum, photos]) => {
+                  const cabName = cabNum > 0
+                    ? (cabineNamesMap.get(cabNum) || `Cabine ${cabNum}`)
+                    : "Général";
+                  return (
+                    <div key={cabNum}>
+                      {/* En-tête du lot */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                          <Box className="w-3.5 h-3.5 text-indigo-600" />
+                        </div>
+                        <span className="text-xs font-semibold text-gray-700">{cabName}</span>
+                        <span className="text-[10px] text-gray-400 ml-auto">
+                          {photos.length} photo{photos.length > 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      {/* Grille de photos */}
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {photos.map((photo, idx) => {
+                          const typeLabel = detectPhotoType(photo.name || "");
+                          return (
+                            <a key={idx} href={photo.url} target="_blank" rel="noopener noreferrer"
+                              className="block rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow relative group">
+                              <img
+                                src={thumbnailUrl(photo.url, 400)}
+                                alt={photo.name || `Photo ${idx + 1}`}
+                                loading="lazy"
+                                decoding="async"
+                                className="w-full h-28 object-cover"
+                              />
+                              {typeLabel && (
+                                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
+                                  <span className="text-[9px] font-medium text-white/90">{typeLabel}</span>
+                                </div>
+                              )}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

@@ -90,6 +90,7 @@ export async function GET(
     nbCabines: project.nbCabines,
     photosAvant: project.photosAvant,
     photosMontage: project.photosMontage,
+    nomsCabines: project.nomsCabines || "",
   };
 
   return NextResponse.json(publicData, {
