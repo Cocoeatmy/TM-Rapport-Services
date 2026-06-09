@@ -828,24 +828,28 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
         dispatchList(project.photosQRCode || [], "photosQRCode");
         dispatchList(project.photosGaranties || [], "photosGaranties");
 
-        // ── Fusion groupe-0 pour les projets mono-cabine ────────────────────
-        // Problème : en mode non-multi-cabine, les monteurs uploadent leurs photos
-        // avec ".Cab1." dans le nom (→ groups[1]) tandis qu'une photo ajoutée
-        // manuellement sans préciser de cabine n'a pas ".Cab1." (→ groups[0]).
-        // Résultat : deux pages "Photos du chantier" distinctes — la photo manuelle
-        // est sur la 2ᵉ page que l'utilisateur ne voit pas.
-        // Fix : fusionner groups[0] dans le premier groupe cabine existant.
+        // ── Fusion pour les projets mono-cabine ──────────────────────────────
+        // Problème : en mode non-multi-cabine, certaines photos ont ".Cab1." dans
+        // leur nom (→ groups[1]) et d'autres non (→ groups[0]).
+        // Résultat sans fix : deux pages "Photos du chantier" distinctes.
+        //
+        // Fix sûr : si et seulement si des groupes non-nuls existent déjà,
+        // on fusionne groups[0] dans le premier d'entre eux — sans jamais créer
+        // un groups[1] artificiel qui serait invisible à la boucle suivante.
         if (!isMultiCabine && groups[0]) {
-          // Trouver le groupe cabine principal (le plus petit numéro non-nul présent)
           const nonZeroKeys = Object.keys(groups).map(Number).filter((k) => k > 0).sort((a, b) => a - b);
-          const mainKey = nonZeroKeys.length > 0 ? nonZeroKeys[0] : 1;
-          if (!groups[mainKey]) groups[mainKey] = {};
-          for (const [bucket, photos] of Object.entries(groups[0] as Record<string, Photo[]>)) {
-            const bk = bucket as keyof typeof groups[number];
-            if (!groups[mainKey][bk]) groups[mainKey][bk] = [];
-            groups[mainKey][bk]!.push(...(photos || []));
+          if (nonZeroKeys.length > 0) {
+            // Il y a déjà des photos avec CabN → fusionner le groupe-0 dedans
+            const mainKey = nonZeroKeys[0];
+            for (const [bucket, photos] of Object.entries(groups[0] as Record<string, Photo[]>)) {
+              const bk = bucket as keyof typeof groups[typeof mainKey];
+              if (!groups[mainKey][bk]) groups[mainKey][bk] = [];
+              groups[mainKey][bk]!.push(...(photos || []));
+            }
+            delete groups[0];
           }
-          delete groups[0];
+          // Si nonZeroKeys est vide : toutes les photos sont déjà dans groups[0]
+          // (cas normal mono-cabine) → on ne touche rien.
         }
 
         const orderedCabKeys: number[] = [];
@@ -935,12 +939,19 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               const headerText = isMultiCabine ? cabineLabel : "Photos du chantier";
 
               const avantPhotos = [...(buckets.AVANT_INTERVENTION || []), ...(buckets.AVANT_MONTAGE || [])];
-              const apresPhotos = buckets.APRES_INTERVENTION || [];
-              const montagePhotos = [...(buckets.MONTAGE_GAUCHE || []), ...(buckets.MONTAGE_CENTRE || []), ...(buckets.MONTAGE_DROITE || [])];
+              // APRES_INTERVENTION est stocké dans le même champ Notion "Photos montage terminé"
+              // que MONTAGE_GAUCHE/CENTRE/DROITE → on les regroupe tous sous "Photos montage"
+              // pour éviter toute confusion (upload manuel, etc.)
+              const montagePhotos = [
+                ...(buckets.MONTAGE_GAUCHE || []),
+                ...(buckets.MONTAGE_CENTRE || []),
+                ...(buckets.MONTAGE_DROITE || []),
+                ...(buckets.APRES_INTERVENTION || []),
+              ];
               const qrPhotos = buckets.QR_CODE || [];
               const garPhotos = buckets.GARANTIE || [];
 
-              const hasAny = avantPhotos.length > 0 || montagePhotos.length > 0 || apresPhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0;
+              const hasAny = avantPhotos.length > 0 || montagePhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0;
               if (!hasAny) return null;
 
               return (
@@ -979,7 +990,6 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                   })()}
                   {avantPhotos.length > 0 && renderBucketGrid("Photos avant intervention", avantPhotos, `cab-${cabKey}-avant`)}
                   {montagePhotos.length > 0 && renderBucketGrid("Photos montage", montagePhotos, `cab-${cabKey}-montage`)}
-                  {apresPhotos.length > 0 && renderBucketGrid("Photos après intervention", apresPhotos, `cab-${cabKey}-apres`)}
                   {renderQrGarantieRow(qrPhotos, garPhotos, `cab-${cabKey}-qrgar`)}
                   <View style={styles.footer} fixed>
                     <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>

@@ -3128,6 +3128,46 @@ function ProjectPageContent({ id }: { id: string }) {
           });
         }
         if (conflict) setCollabUpdateToast(true);
+
+        // ── Sync noms de cabines depuis Notion ─────────────────────────
+        // setProject (ci-dessus) met à jour project.nomsCabines mais
+        // N'actualise PAS `cabines` (l'état UI) — il est initialisé une
+        // seule fois au chargement initial. Résultat : si l'admin renomme
+        // une cabine après que le collaborateur a ouvert la page, le
+        // collaborateur ne voit jamais le nouveau nom, même après des heures.
+        // Ce bloc corrige ça : à chaque refetch, si Notion a un nom
+        // personnalisé différent du nom affiché, on le pousse dans `cabines`.
+        if (data.nomsCabines) {
+          const notionNomRe = /Cab(\d+)\s*:([^|]*)/g;
+          const freshNomMap = new Map<number, string>();
+          let mn: RegExpExecArray | null;
+          while ((mn = notionNomRe.exec(data.nomsCabines))) {
+            const v = mn[2].trim();
+            if (v) freshNomMap.set(parseInt(mn[1], 10), v);
+          }
+          if (freshNomMap.size > 0) {
+            setCabines((prev) => {
+              let changed = false;
+              const next = prev.map((c, i) => {
+                const freshNom = freshNomMap.get(i + 1) || "";
+                // Ne met à jour que si Notion a un nom personnalisé (≠ défaut)
+                // qui diffère de ce qui est affiché — préserve les saisies locales
+                // en cours si elles diffèrent du nom précédemment connu.
+                if (freshNom && freshNom !== `Cabine ${i + 1}` && freshNom !== c.nom) {
+                  changed = true;
+                  return { ...c, nom: freshNom };
+                }
+                return c;
+              });
+              if (!changed) return prev; // pas de re-render inutile
+              // Sync localStorage pour éviter le flash au prochain rechargement
+              try {
+                localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(next.map((c) => c.nom)));
+              } catch {}
+              return next;
+            });
+          }
+        }
       } catch {}
     };
     const interval = setInterval(refetch, 15_000); // 15 s — sans cache CDN, pas d'ISR Writes

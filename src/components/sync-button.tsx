@@ -12,7 +12,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { saveToCache, getCacheTimestamp, getQueue, processQueue, isOnline } from "@/lib/offline";
-import { processPendingUploads, countPendingUploads, retryAllFailedUploads, resetBackoffForAll } from "@/lib/idb-uploads";
+import { processPendingUploads, countPendingUploads, retryAllFailedUploads, resetBackoffForAll, countPermanentlyFailed } from "@/lib/idb-uploads";
 import { toast } from "sonner";
 
 export function SyncButton() {
@@ -67,7 +67,12 @@ export function SyncButton() {
 
     const handleOnline = () => {
       setOnline(true);
-      autoSync();
+      // Réinitialiser les backoffs ET remettre les "permanently-failed" en jeu
+      // pour qu'ils soient envoyés sans attendre un clic manuel sur "Renvoyer".
+      resetBackoffForAll()
+        .then(() => retryAllFailedUploads())
+        .then(() => autoSync())
+        .catch(() => {});
     };
     const handleOffline = () => setOnline(false);
     const onPendingChange = () => refreshCount();
@@ -78,10 +83,13 @@ export function SyncButton() {
     window.addEventListener("tm-pending-upload-removed", onPendingChange);
     window.addEventListener("tm-offline-queued", onPendingChange);
 
-    // Auto-sync au retour au premier plan (bypass backoff)
+    // Auto-sync au retour au premier plan (bypass backoff + retry failed)
     const handleVisibility = async () => {
       if (document.visibilityState === "visible") {
         await resetBackoffForAll();
+        // Remettre automatiquement les "permanently-failed" en attente
+        // pour les renvoyer dès que le téléphone revient au premier plan.
+        await retryAllFailedUploads();
         autoSync();
       }
     };
@@ -90,8 +98,12 @@ export function SyncButton() {
     const interval = setInterval(async () => {
       await refreshCount();
       const upCount = await countPendingUploads();
-      const totalQueued = getQueue().length + upCount;
+      const failedCount = await countPermanentlyFailed();
+      const totalQueued = getQueue().length + upCount + failedCount;
       if (isOnline() && totalQueued > 0) {
+        // Si des uploads sont bloqués en échec permanent, les remettre en
+        // attente pour qu'ils soient retraités sans action manuelle.
+        if (failedCount > 0) await retryAllFailedUploads();
         autoSync();
       }
       // Vérifier le signal force-sync depuis le serveur

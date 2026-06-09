@@ -3,6 +3,17 @@ import { v2 as cloudinary } from "cloudinary";
 import { notion } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
 
+/**
+ * Timeout Vercel étendu à 60 s (plan Pro).
+ *
+ * Sans cette directive la fonction expire après 10 s (défaut).
+ * Un upload de 5 photos : Cloudinary ×5 en parallèle (~2-4 s) +
+ * lecture/écriture/vérification Notion (~1-3 s) = 3-7 s en temps
+ * normal, mais jusqu'à 12-15 s si Cloudinary ou Notion est lent.
+ * → Timeout → 504 → photo mise en IDB "failed" même avec 5G.
+ */
+export const maxDuration = 60;
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
