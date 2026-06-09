@@ -91,6 +91,7 @@ export async function GET(
     photosAvant: project.photosAvant,
     photosMontage: project.photosMontage,
     nomsCabines: project.nomsCabines || "",
+    dateMontageEnd: project.dateMontageEnd || null,
   };
 
   return NextResponse.json(publicData, {

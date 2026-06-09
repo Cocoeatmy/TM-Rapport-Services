@@ -42,6 +42,7 @@ interface PublicProject {
   photosAvant: { name: string; url: string }[];
   photosMontage: { name: string; url: string }[];
   nomsCabines: string;
+  dateMontageEnd: string | null;
 }
 
 /** Parse "Cab1:J-001 (Divera) | Cab2:J-002..." → Map<numéro, nom> */
@@ -100,17 +101,27 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   "Terminé":                   { bg: "bg-emerald-100", text: "text-emerald-800" },
 };
 
-function formatDate(dateStr: string | null): string {
+function formatDate(dateStr: string | null, endDateStr?: string | null): string {
   if (!dateStr) return "Non planifié";
-  const d = new Date(dateStr);
-  const datePart = d.toLocaleDateString("fr-CH", {
-    weekday: "long", day: "2-digit", month: "long", year: "numeric",
-  });
-  if (dateStr.includes("T")) {
-    const timePart = d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
-    return `${datePart} à ${timePart}`;
-  }
-  return datePart;
+
+  const fmt = (s: string) => {
+    const d = new Date(s);
+    const datePart = d.toLocaleDateString("fr-CH", {
+      weekday: "long", day: "2-digit", month: "long", year: "numeric",
+    });
+    if (s.includes("T")) {
+      const timePart = d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
+      return `${datePart} à ${timePart}`;
+    }
+    return datePart;
+  };
+
+  const start = fmt(dateStr);
+  if (!endDateStr) return start;
+
+  // Plage de dates : "mardi, 09 juin 2026 → mercredi, 10 juin 2026"
+  const end = fmt(endDateStr);
+  return `${start} → ${end}`;
 }
 
 function getStatusStyle(status: string) {
@@ -362,7 +373,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
             </div>
             <div>
               <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Date prévue</p>
-              <p className="text-sm text-gray-800 mt-0.5">{formatDate(project.dateMontage)}</p>
+              <p className="text-sm text-gray-800 mt-0.5">{formatDate(project.dateMontage, project.dateMontageEnd)}</p>
             </div>
           </div>
 
