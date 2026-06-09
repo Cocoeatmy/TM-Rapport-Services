@@ -2331,7 +2331,16 @@ function NotionComments({ projectId }: { projectId: string }) {
             <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded w-1/2" />
           </div>
         ) : commentsError ? (
-          <p className="text-xs text-red-500 italic">Erreur : {commentsError}</p>
+          <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 px-3 py-2.5">
+            <span className="text-xs text-amber-800 dark:text-amber-200 flex-1">{commentsError}</span>
+            <button
+              type="button"
+              onClick={loadComments}
+              className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:underline shrink-0"
+            >
+              Réessayer
+            </button>
+          </div>
         ) : comments.length === 0 ? (
           <p className="text-xs text-gray-400 italic">Aucun commentaire dans Notion.</p>
         ) : (

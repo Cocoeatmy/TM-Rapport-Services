@@ -104,8 +104,25 @@ export async function GET(
     return NextResponse.json(visible);
   } catch (error: any) {
     const msg = error?.message || String(error);
-    console.error("[comments] Error fetching Notion comments:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const isRateLimit = msg.includes("429") || msg.includes("rate_limited");
+    const isTimeout   = msg.includes("timeout") || msg.includes("504");
+    console.error("[comments] Error fetching Notion comments:", msg.slice(0, 200));
+    if (isRateLimit) {
+      return NextResponse.json(
+        { error: "Notion est momentanément surchargé — réessayez dans quelques secondes.", retryable: true },
+        { status: 503, headers: { "Retry-After": "15", "Cache-Control": "no-store" } }
+      );
+    }
+    if (isTimeout) {
+      return NextResponse.json(
+        { error: "La requête a expiré — réessayez.", retryable: true },
+        { status: 504 }
+      );
+    }
+    return NextResponse.json(
+      { error: "Impossible de charger les commentaires. Réessayez." },
+      { status: 500 }
+    );
   }
 }
 
