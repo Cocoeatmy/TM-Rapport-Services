@@ -4913,15 +4913,12 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
                               )}
                             </div>
-                            {/* Sous-titre : monteur responsable + date de montage */}
-                            {(cabine.monteur || cabine.date) && (
+                            {/* Sous-titre : monteur + date — affiché seulement si les DEUX sont renseignés.
+                                Monteur seul (date absente) = installation pas encore complète → rien.
+                                Ni l'un ni l'autre = cabine pas encore installée → rien. */}
+                            {cabine.monteur && cabine.date && (
                               <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate leading-tight mt-0.5">
-                                {[
-                                  cabine.monteur || null,
-                                  cabine.date
-                                    ? cabine.date.split("-").reverse().join(".")
-                                    : null,
-                                ].filter(Boolean).join(" · ")}
+                                {cabine.monteur} · {cabine.date.split("-").reverse().join(".")}
                               </p>
                             )}
                           </div>
