@@ -5150,7 +5150,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
                         {/* Actions droite : reset + scroll-en-haut (quand ouverte) + chevron */}
                         <div className="flex items-center gap-1.5 px-3 py-3 shrink-0">
-                          {!cabineDragMode && (
+                          {!cabineDragMode && isAdmin && (
                             <button
                               type="button"
                               onClick={() => setResetConfirmIdx(idx)}
