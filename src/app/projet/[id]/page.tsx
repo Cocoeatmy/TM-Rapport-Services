@@ -2765,6 +2765,26 @@ function ProjectPageContent({ id }: { id: string }) {
 
   useEffect(() => { setFav(isFavorite(id)); }, [id]);
 
+  // Scroll vers l'ancre #cabines-list quand la page est chargée depuis
+  // le portail client (lien "Saisir rapport" → /projet/[id]#cabines-list).
+  // On attend que isCabineMode soit connu (données chargées) avant de scroller.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash !== "#cabines-list") return;
+    if (!isCabineMode) return; // pas encore chargé ou non multi-cabines
+    const tryScroll = () => {
+      const el = document.getElementById("cabines-list");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        // Retire le hash pour éviter les re-scrolls sur chaque render
+        history.replaceState(null, "", window.location.pathname);
+      }
+    };
+    // Petit délai pour laisser le DOM se stabiliser
+    const t = setTimeout(tryScroll, 300);
+    return () => clearTimeout(t);
+  }, [isCabineMode]);
+
   // ── Sync "Nb. Cabines installées" → Notion ──────────────────────────────────
   // Dès qu'une cabine reçoit ses photos de montage, on met à jour le compteur
   // dans Notion afin que la progression soit visible depuis la base de données.
@@ -5112,7 +5132,7 @@ function ProjectPageContent({ id }: { id: string }) {
             {/* Mode multi-cabines */}
             {isCabineMode && (
               <>
-                <div className="space-y-3">
+                <div id="cabines-list" className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-gray-700">
                       {installedCabineCount > 0
