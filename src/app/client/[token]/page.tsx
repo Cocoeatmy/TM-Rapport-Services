@@ -22,6 +22,8 @@ import {
   ExternalLink,
   WifiOff,
   CheckCircle2,
+  Info,
+  PenLine,
 } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 
@@ -444,112 +446,69 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
             </div>
           ) : isCollab ? (
             <>
-              {/* Bouton rapport */}
-              <a href={`/projet/${project.id}`} className="flex items-center gap-3 p-5 w-full group">
-                <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0 group-hover:bg-white/25 transition-colors">
+              {/* En-tête section collaborateur */}
+              <div className="flex items-center gap-3 px-5 pt-5 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
                   <ClipboardList className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-white">Saisir le rapport de montage</p>
-                  <p className="text-xs text-blue-200">Heures, photos, rapport</p>
+                  <p className="text-sm font-semibold text-white">Espace collaborateur</p>
+                  <p className="text-xs text-blue-200">Accès rapide au chantier</p>
                 </div>
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white/50 group-hover:text-white transition-colors">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </a>
+              </div>
 
-              {/* ── Infos collaborateur ── */}
-              {collabData ? (
-                <div className="px-4 pb-4 space-y-2">
-                  <div className="border-t border-white/20 pt-4 mb-3">
-                    <p className="text-xs font-semibold text-blue-200 uppercase tracking-wide">Informations du chantier</p>
+              {/* ── 3 cartes de navigation rapide ── */}
+              <div className="px-4 pb-4 grid grid-cols-3 gap-2.5">
+
+                {/* 1 — Détails du projet */}
+                <a
+                  href={`/projet/${project.id}`}
+                  className="bg-white/10 hover:bg-white/20 active:scale-95 rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                    <Info className="w-5 h-5 text-white" />
                   </div>
+                  <span className="text-[11px] font-medium text-white leading-tight">Détails projet</span>
+                </a>
 
-                  {/* Grille 2 colonnes pour les infos courtes */}
-                  <div className="grid grid-cols-2 gap-2">
-
-                    {/* Emplacement cabine */}
-                    <div className="bg-white/10 rounded-xl p-3">
-                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Emplacement cabine</p>
-                      <p className="text-sm text-white font-medium leading-snug">
-                        {collabData.emplacementCabine || <span className="text-white/40 font-normal">—</span>}
-                      </p>
-                    </div>
-
-                    {/* Nb. de cartons */}
-                    <div className="bg-white/10 rounded-xl p-3">
-                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Nb. de cartons</p>
-                      <p className="text-sm text-white font-medium">
-                        {collabData.nbCartons !== null ? collabData.nbCartons : <span className="text-white/40 font-normal">—</span>}
-                      </p>
-                    </div>
-
-                    {/* N° CMD fournisseur */}
-                    <div className="bg-white/10 rounded-xl p-3">
-                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° CMD fournisseur</p>
-                      <p className="text-sm text-white font-medium leading-snug break-all">
-                        {collabData.cmdFournisseurs || <span className="text-white/40 font-normal">—</span>}
-                      </p>
-                    </div>
-
-                    {/* Contact RDV */}
-                    <div className="bg-white/10 rounded-xl p-3">
-                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Contact RDV</p>
-                      <p className="text-sm text-white font-medium leading-snug">
-                        {collabData.contactsRDV || <span className="text-white/40 font-normal">—</span>}
-                      </p>
-                    </div>
+                {/* 2 — Mesures & Documents */}
+                <a
+                  href={`/client/${token}/mesures`}
+                  className="bg-white/10 hover:bg-white/20 active:scale-95 rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                    <Ruler className="w-5 h-5 text-white" />
                   </div>
+                  <span className="text-[11px] font-medium text-white leading-tight">Mesures</span>
+                </a>
 
-                  {/* Commentaire montage — pleine largeur */}
-                  {collabData.commentairesMontages && (
+                {/* 3 — Saisir le rapport (accès direct) */}
+                <a
+                  href={`/projet/${project.id}`}
+                  className="bg-white/20 hover:bg-white/30 active:scale-95 rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all ring-1 ring-white/30"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center">
+                    <PenLine className="w-5 h-5 text-[#1e3a5f]" />
+                  </div>
+                  <span className="text-[11px] font-medium text-white leading-tight">Saisir rapport</span>
+                </a>
+              </div>
+
+              {/* ── Infos rapides (emplacement + contact) ── */}
+              {collabData && (collabData.emplacementCabine || collabData.contactsRDV) && (
+                <div className="px-4 pb-4 grid grid-cols-2 gap-2">
+                  {collabData.emplacementCabine && (
                     <div className="bg-white/10 rounded-xl p-3">
-                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Commentaire montage</p>
-                      <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">
-                        {collabData.commentairesMontages}
-                      </p>
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Emplacement</p>
+                      <p className="text-sm text-white font-medium leading-snug">{collabData.emplacementCabine}</p>
                     </div>
                   )}
-
-                  {/* Mesures — clicable si documents */}
-                  <div className={`rounded-xl p-3 ${collabData.documentsMontagee.length > 0 ? "bg-white/20" : "bg-white/10"}`}>
-                    <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-2">Mesures / Documents montage</p>
-                    {collabData.documentsMontagee.length === 0 ? (
-                      <p className="text-sm text-white/40">—</p>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {collabData.documentsMontagee.map((doc, i) => (
-                          <a
-                            key={i}
-                            href={doc.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 group/doc"
-                          >
-                            <FileText className="w-4 h-4 text-blue-200 shrink-0" />
-                            <span className="text-sm text-white underline underline-offset-2 decoration-white/40 group-hover/doc:decoration-white transition-colors truncate">
-                              {doc.name || `Document ${i + 1}`}
-                            </span>
-                            <ExternalLink className="w-3 h-3 text-white/50 shrink-0 group-hover/doc:text-white transition-colors" />
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* CTA — Démarrer le rapport */}
-                  <a
-                    href={`/projet/${project.id}`}
-                    className="flex items-center justify-center gap-2 w-full mt-2 py-3 px-4 bg-white text-[#1e3a5f] rounded-xl font-semibold text-sm hover:bg-blue-50 active:bg-blue-100 transition-colors shadow-sm"
-                  >
-                    <ClipboardList className="w-4 h-4" />
-                    Démarrer rapport de montage
-                  </a>
-                </div>
-              ) : (
-                <div className="px-5 pb-5 flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-white/50" />
-                  <p className="text-xs text-white/50">Chargement des informations...</p>
+                  {collabData.contactsRDV && (
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Contact RDV</p>
+                      <p className="text-sm text-white font-medium leading-snug">{collabData.contactsRDV}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </>
