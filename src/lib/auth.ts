@@ -117,7 +117,8 @@ export function updateUserInfo(currentEmail: string, newName?: string, newEmail?
 export async function createToken(user: User): Promise<string> {
   return new SignJWT({ email: user.email, name: user.name, role: user.role })
     .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("7d")
+    .setIssuedAt()
+    .setExpirationTime("365d") // 1 an — session persistante sur mobile
     .sign(secret);
 }
 
@@ -131,6 +132,28 @@ export async function verifyToken(token: string): Promise<User | null> {
     };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Vérifie le token ET retourne la date d'expiration (timestamp Unix en secondes).
+ * Utilisé par la route GET /api/auth pour le renouvellement automatique.
+ */
+export async function verifyTokenWithExpiry(
+  token: string
+): Promise<{ user: User | null; exp?: number }> {
+  try {
+    const { payload } = await jwtVerify(token, secret);
+    return {
+      user: {
+        email: payload.email as string,
+        name: payload.name as string,
+        role: payload.role as "admin" | "monteur",
+      },
+      exp: payload.exp as number,
+    };
+  } catch {
+    return { user: null };
   }
 }
 

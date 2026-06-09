@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticate, createToken, verifyToken } from "@/lib/auth";
+import { authenticate, createToken, verifyTokenWithExpiry } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 an en secondes
+
+function setAuthCookie(response: NextResponse, token: string) {
+  const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
+  response.cookies.set("auth-token", token, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax",
+    maxAge: COOKIE_MAX_AGE,
+    path: "/",
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,14 +35,7 @@ export async function POST(request: NextRequest) {
     }
     const token = await createToken(user);
     const response = NextResponse.json({ user });
-    const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
-    response.cookies.set("auth-token", token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    });
+    setAuthCookie(response, token);
     return response;
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -41,11 +47,32 @@ export async function GET(request: NextRequest) {
   if (!token) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
-  const user = await verifyToken(token);
+
+  const { user, exp } = await verifyTokenWithExpiry(token);
   if (!user) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
-  return NextResponse.json({ user });
+
+  const response = NextResponse.json({ user });
+
+  // Renouvellement silencieux : si le token expire dans moins de 30 jours,
+  // on émet un nouveau token + cookie 1 an sans que l'utilisateur s'en aperçoive.
+  // Résultat : tant que le monteur ouvre l'app au moins 1×/mois, il ne se
+  // reconnecte jamais.
+  if (exp) {
+    const remainingSec = exp - Math.floor(Date.now() / 1000);
+    const THIRTY_DAYS_SEC = 30 * 24 * 60 * 60;
+    if (remainingSec < THIRTY_DAYS_SEC) {
+      try {
+        const newToken = await createToken(user);
+        setAuthCookie(response, newToken);
+      } catch {
+        // Échec silencieux : le token actuel reste valide
+      }
+    }
+  }
+
+  return response;
 }
 
 export async function DELETE() {
