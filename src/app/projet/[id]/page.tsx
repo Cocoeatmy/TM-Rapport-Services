@@ -5134,7 +5134,29 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <Package className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                               )}
                               {cabineSignalements.defauts.some((d) => d.cabineLabel === cabine.nom) && (
-                                <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  title="Voir le défaut signalé"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Ouvre la cabine sur l'onglet Infos
+                                    setCabines((prev) =>
+                                      prev.map((c, i) =>
+                                        i === idx ? { ...c, open: true, activeTab: "infos" } : c
+                                      )
+                                    );
+                                    // Scroll vers la section signalement une fois le DOM mis à jour
+                                    setTimeout(() => {
+                                      const el = document.getElementById(`signalement-cab-${idx}`);
+                                      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                                    }, 150);
+                                  }}
+                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.currentTarget.click(); }}
+                                  className="shrink-0 cursor-pointer rounded hover:opacity-75 transition-opacity"
+                                >
+                                  <AlertTriangle className="w-4 h-4 text-red-500" />
+                                </span>
                               )}
                             </div>
                             {/* Sous-titre : monteur + date — affiché seulement si les DEUX sont renseignés.
@@ -5472,7 +5494,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               </div>
 
                               {/* Signalement par cabine */}
-                              <div className="pt-1 border-t border-gray-100 dark:border-slate-700 space-y-3">
+                              <div id={`signalement-cab-${idx}`} className="pt-1 border-t border-gray-100 dark:border-slate-700 space-y-3">
                                 <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalement — {cabine.nom}</p>
                                 {/* Signalements déjà enregistrés pour cette cabine */}
                                 <PiecesList
