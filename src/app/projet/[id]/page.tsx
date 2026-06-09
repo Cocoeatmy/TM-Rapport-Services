@@ -1110,7 +1110,11 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
         return (
           <div key={p.id} className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/40 dark:bg-orange-900/10 p-3">
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-xs font-bold text-orange-700 dark:text-orange-400">Pièce n°{num}</span>
+              <span className="text-xs font-bold text-orange-700 dark:text-orange-400">
+                {/* Vue globale (pas de filtre cabine) : affiche le nom de la cabine pour
+                    savoir immédiatement où va la pièce. Vue par cabine : numéro suffit. */}
+                {!cabineLabel && p.cabineLabel ? p.cabineLabel : `Pièce n°${num}`}
+              </span>
               <div className="flex items-center gap-1">
                 <button onClick={() => isEditing ? setEditing(null) : startEdit(p)}
                   className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors" title="Modifier">
@@ -1259,7 +1263,9 @@ function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string
           <div key={d.id} className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-900/10 p-3">
             {/* En-tête : numéro + actions */}
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-xs font-bold text-red-700 dark:text-red-400">Défaut n°{num}</span>
+              <span className="text-xs font-bold text-red-700 dark:text-red-400">
+                {!cabineLabel && d.cabineLabel ? d.cabineLabel : `Défaut n°${num}`}
+              </span>
               <div className="flex items-center gap-1.5">
                 <button onClick={() => toggleDisplay(d.id, visible)}
                   className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${visible ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300" : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"}`}
