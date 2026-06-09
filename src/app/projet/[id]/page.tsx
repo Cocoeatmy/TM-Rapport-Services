@@ -2914,7 +2914,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 ? notionNom
                 : storedNoms?.[i] || `Cabine ${i + 1}`,
               rapport: "",
-              open: i === 0,
+              open: false,
               monteur: notionMonteur || storedMonteurs?.[i] || "",
               arrivee: arriveeMap[i] || "",
               depart: departMap[i] || "",
