@@ -101,17 +101,33 @@ function mergeCabineTimes(existing: string, incoming: string): string {
   if (!incoming.includes("Cab")) return incoming;
 
   const exMap = parseCabineMap(existing);
-  const inMap = parseCabineMap(incoming);
+
+  // Parser étendu : capture AUSSI les slots vides "Cab3:" (valeur = "")
+  // pour permettre la suppression explicite d'une cabine réinitialisée.
+  // parseCabineMap exige [^|]+ donc il ignore les slots vides — on le refait ici.
+  const inMap = new Map<number, string | null>(); // null = suppression explicite
+  const reIn = /Cab(\d+)\s*:([^|]*)/g;
+  let mIn: RegExpExecArray | null;
+  while ((mIn = reIn.exec(incoming))) {
+    const val = mIn[2].trim();
+    inMap.set(parseInt(mIn[1], 10), val === "" ? null : val);
+  }
 
   // Union : incoming prend le dessus sauf si Notion a une valeur avec date
-  // et incoming n'en a pas (client en format ancien/dégradé)
+  // et incoming n'en a pas (client en format ancien/dégradé).
+  // Exception : valeur null = réinitialisation explicite → on supprime.
   const merged = new Map(exMap);
   inMap.forEach((inVal, cabNum) => {
-    const exVal = exMap.get(cabNum);
-    if (!exVal || hasDate(inVal) || !hasDate(exVal)) {
-      merged.set(cabNum, inVal);
+    if (inVal === null) {
+      // Suppression explicite (cabine réinitialisée) → retirer de Notion
+      merged.delete(cabNum);
+    } else {
+      const exVal = exMap.get(cabNum);
+      if (!exVal || hasDate(inVal) || !hasDate(exVal)) {
+        merged.set(cabNum, inVal);
+      }
+      // sinon : Notion a une date, client n'en a pas → on garde Notion
     }
-    // sinon : Notion a une date, client n'en a pas → on garde Notion
   });
 
   return [...merged.entries()]

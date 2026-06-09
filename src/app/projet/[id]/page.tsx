@@ -2555,6 +2555,10 @@ function ProjectPageContent({ id }: { id: string }) {
    * cabine inclurait le nom réverté dans son PATCH, écrasant Notion.
    */
   const dirtyNomRef = useRef<Map<number, number>>(new Map()); // cabIndex(0-based) → Date.now()
+  /** Timestamp du dernier reset par cabine.
+   *  Protège les cabines réinitialisées contre la restauration par le polling
+   *  (monteur) ou initProject (heures/date) pendant 10 minutes. */
+  const resetCabinesRef = useRef<Map<number, number>>(new Map()); // cabIndex → Date.now()
   // ── Auto-save en arrière-plan ─────────────────────────────────────────────
   // Référence vers les données actuelles pour éviter les stale closures dans
   // le timer de debounce. Mise à jour à chaque render (avant le return).
@@ -2970,18 +2974,26 @@ function ProjectPageContent({ id }: { id: string }) {
       } else {
         // Second appel (données fraîches Notion) — mise à jour complète.
         // Notion est la source de vérité : on applique ses valeurs si présentes.
+        // Exception : cabine récemment réinitialisée (< 10 min) → on préserve l'état
+        // local vide pour ne pas annuler un reset dont le PATCH n'a pas encore été
+        // confirmé par Notion (queue offline, rate-limit, etc.).
+        const nowInit = Date.now();
+        const RESET_PROTECT_MS = 10 * 60 * 1000;
         setCabines((prev) =>
           prev.map((c, i) => {
             const notionNom = notionNomsMap.get(i + 1) || "";
             const notionMonteur = notionAttrMap.get(i + 1) || "";
             const notionNomIsCustom = notionNom && notionNom !== `Cabine ${i + 1}`;
+            const resetAt = resetCabinesRef.current.get(i);
+            const recentlyReset = resetAt && (nowInit - resetAt < RESET_PROTECT_MS);
             return {
               ...c,
               nom: notionNomIsCustom ? notionNom : c.nom,
-              monteur: notionMonteur || c.monteur || storedMonteurs?.[i] || "",
-              arrivee: arriveeMap[i] !== undefined ? arriveeMap[i] : c.arrivee,
-              depart: departMap[i] !== undefined ? departMap[i] : c.depart,
-              date: dateMap[i] !== undefined ? dateMap[i] : c.date,
+              // Si cabine récemment réinitialisée : on garde les valeurs locales vides
+              monteur: recentlyReset ? c.monteur : (notionMonteur || c.monteur || storedMonteurs?.[i] || ""),
+              arrivee: recentlyReset ? c.arrivee : (arriveeMap[i] !== undefined ? arriveeMap[i] : c.arrivee),
+              depart:  recentlyReset ? c.depart  : (departMap[i]  !== undefined ? departMap[i]  : c.depart),
+              date:    recentlyReset ? c.date    : (dateMap[i]    !== undefined ? dateMap[i]    : c.date),
             };
           })
         );
@@ -3244,12 +3256,19 @@ function ProjectPageContent({ id }: { id: string }) {
           }
           if (freshAttrMap.size > 0) {
             setCabines((prev) => {
+              const now = Date.now();
+              const RESET_PROTECT_MS = 10 * 60 * 1000; // 10 minutes
               let changed = false;
               const next = prev.map((c, i) => {
                 const freshMonteur = freshAttrMap.get(i + 1) || "";
                 // Ne met à jour que si Notion a un monteur ET la cabine locale est vide.
                 // Si le monteur local est déjà renseigné, on le conserve (priorité locale).
-                if (freshMonteur && !c.monteur) {
+                // Exception : cabine récemment réinitialisée → on NE restaure PAS le monteur
+                // même si Notion en a encore un (le PATCH de reset n'a peut-être pas encore
+                // été appliqué dans Notion — le polling ne doit pas annuler le reset).
+                const resetAt = resetCabinesRef.current.get(i);
+                const recentlyReset = resetAt && (now - resetAt < RESET_PROTECT_MS);
+                if (freshMonteur && !c.monteur && !recentlyReset) {
                   changed = true;
                   return { ...c, monteur: freshMonteur };
                 }
@@ -3541,22 +3560,29 @@ function ProjectPageContent({ id }: { id: string }) {
       i === idx ? { ...c, monteur: "", arrivee: "", depart: "", date: "", rapport: "" } : c
     );
 
-    // 3. Recalcul des champs texte pour Notion (la cabine réinitialisée est exclue naturellement)
+    // 3. Recalcul des champs texte pour Notion.
+    // IMPORTANT : on envoie "Cab${cabNum}:" (vide explicite) pour la cabine réinitialisée.
+    // Le serveur (mergeCabineTimes) traite une valeur vide comme une suppression explicite,
+    // ce qui efface les anciennes heures dans Notion au lieu de les préserver.
+    // Sans ça, le merge côté serveur omettrait simplement la cabine et garderait
+    // l'ancienne valeur Notion — les heures reviendraient à la prochaine visite.
     const newArriveeToSave = newCabines
       .map((c, i) => {
-        if (!c.arrivee) return "";
+        if (i === idx) return `Cab${i + 1}:`; // vide explicite → suppression côté serveur
+        if (!c.arrivee) return null;
         const ds = c.date ? `${c.date}:` : "";
         return `Cab${i + 1}:${ds}${c.arrivee}`;
       })
-      .filter(Boolean)
+      .filter((s): s is string => s !== null)
       .join(" | ");
     const newDepartToSave = newCabines
       .map((c, i) => {
-        if (!c.depart) return "";
+        if (i === idx) return `Cab${i + 1}:`; // vide explicite → suppression côté serveur
+        if (!c.depart) return null;
         const ds = c.date ? `${c.date}:` : "";
         return `Cab${i + 1}:${ds}${c.depart}`;
       })
-      .filter(Boolean)
+      .filter((s): s is string => s !== null)
       .join(" | ");
     const newRapportToSave =
       rapport +
@@ -3567,6 +3593,8 @@ function ProjectPageContent({ id }: { id: string }) {
         .join("\n");
 
     // 4. Mise à jour UI immédiate (badge repasse en bleu, données disparaissent)
+    // Enregistre le timestamp de reset pour protéger contre la restauration par le polling.
+    resetCabinesRef.current.set(idx, Date.now());
     setCabines(newCabines);
     setProject((prev) =>
       prev
