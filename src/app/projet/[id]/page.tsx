@@ -4913,12 +4913,14 @@ function ProjectPageContent({ id }: { id: string }) {
                                     style={{ backgroundColor: colors.dot }}
                                   />
                                   <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{name}</span>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    {count} cabine{count > 1 ? "s" : ""}
-                                  </span>
-                                  <span className="text-xs text-gray-400 dark:text-gray-500">
-                                    ~{fmtMin(Math.round(minutes / count))}/cab
-                                  </span>
+                                  <div className="text-right">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                      {count} cabine{count > 1 ? "s" : ""}
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                                      moy.&nbsp;{fmtMin(Math.round(minutes / count))}/cab
+                                    </p>
+                                  </div>
                                   <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 min-w-[52px] text-right">
                                     {fmtMin(minutes)}
                                   </span>
