@@ -2515,6 +2515,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [expandedCabineDate, setExpandedCabineDate] = useState<string | null>(null);
   const [rapportModalCabineIdx, setRapportModalCabineIdx] = useState<number | null>(null);
   const [resetConfirmIdx, setResetConfirmIdx] = useState<number | null>(null);
+  const [showRapportGeneral, setShowRapportGeneral] = useState(false);
   const [showRapportRequiredModal, setShowRapportRequiredModal] = useState(false);
   const [monoActiveTab, setMonoActiveTab] = useState<"rapport" | "photos">("rapport");
 
@@ -5603,67 +5604,78 @@ function ProjectPageContent({ id }: { id: string }) {
 
                 {/* Rapport global multi-cabines */}
                 <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Rapport général</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="space-y-2">
-                      {[
-                        "Les installations se sont déroulées sans encombre.",
-                        "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",
-                        "Client présent lors des montages, travaux validés par client.",
-                        "Personne sur site lors du montage.",
-                      ].map((option) => {
-                        const isSelected = rapport.includes(option);
-                        return (
-                          <button
-                            key={option}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                setRapport(rapport.replace(option, "").replace(/\n{2,}/g, "\n").trim());
-                              } else {
-                                setRapport((rapport ? rapport + "\n" : "") + option);
-                              }
-                              scheduleAutoSave();
-                            }}
-                            className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${
-                              isSelected
-                                ? "border-[#1e3a5f] bg-blue-50 text-[#1e3a5f] font-medium"
-                                : "border-gray-200 bg-white text-gray-700 active:bg-gray-50"
-                            }`}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${
-                                isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300"
-                              }`}>
-                                {isSelected && <span className="text-white text-xs">✓</span>}
-                              </span>
-                              {option}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <Textarea
-                      placeholder="Précisions supplémentaires..."
-                      value={rapport}
-                      onChange={(e) => { setRapport(e.target.value); scheduleAutoSave(); }}
-                      rows={3}
-                      className="mt-3"
-                    />
-                    {rapport.trim().length > 10 && (
-                      <button
-                        type="button"
-                        onClick={handleReformulate}
-                        disabled={reformulating}
-                        className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50"
-                      >
-                        {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                        {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
-                      </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowRapportGeneral((v) => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left"
+                  >
+                    <span className="text-base font-semibold">Rapport général</span>
+                    {showRapportGeneral ? (
+                      <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
                     )}
-                  </CardContent>
+                  </button>
+                  {showRapportGeneral && (
+                    <CardContent className="border-t pt-3 space-y-2">
+                      <div className="space-y-2">
+                        {[
+                          "Les installations se sont déroulées sans encombre.",
+                          "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",
+                          "Client présent lors des montages, travaux validés par client.",
+                          "Personne sur site lors du montage.",
+                        ].map((option) => {
+                          const isSelected = rapport.includes(option);
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setRapport(rapport.replace(option, "").replace(/\n{2,}/g, "\n").trim());
+                                } else {
+                                  setRapport((rapport ? rapport + "\n" : "") + option);
+                                }
+                                scheduleAutoSave();
+                              }}
+                              className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${
+                                isSelected
+                                  ? "border-[#1e3a5f] bg-blue-50 text-[#1e3a5f] font-medium"
+                                  : "border-gray-200 bg-white text-gray-700 active:bg-gray-50"
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${
+                                  isSelected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300"
+                                }`}>
+                                  {isSelected && <span className="text-white text-xs">✓</span>}
+                                </span>
+                                {option}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <Textarea
+                        placeholder="Précisions supplémentaires..."
+                        value={rapport}
+                        onChange={(e) => { setRapport(e.target.value); scheduleAutoSave(); }}
+                        rows={3}
+                        className="mt-3"
+                      />
+                      {rapport.trim().length > 10 && (
+                        <button
+                          type="button"
+                          onClick={handleReformulate}
+                          disabled={reformulating}
+                          className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50"
+                        >
+                          {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                          {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+                        </button>
+                      )}
+                    </CardContent>
+                  )}
                 </Card>
               </>
             )}
