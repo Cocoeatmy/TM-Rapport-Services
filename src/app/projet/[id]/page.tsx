@@ -2801,12 +2801,13 @@ function ProjectPageContent({ id }: { id: string }) {
       }).catch(console.error);
       // PATCH attribution si monteur auto-assigné
       if (userCollab && next[idx0].monteur !== cabines[idx0].monteur) {
-        const nomsEnc = next.map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`).join(" | ");
-        const attrEnc = next.map((c, i) => `Cab${i + 1}:${c.monteur || ""}`).join(" | ");
+        // Envoie uniquement la cabine auto-assignée, pas toutes les cabines,
+        // pour éviter d'écraser d'autres attributions avec un état local périmé.
+        const autoAttrEnc = `Cab${idx0 + 1}:${next[idx0].monteur || ""}`;
         offlineFetch(`/api/projects/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nomsCabines: nomsEnc, attributionCabines: attrEnc }),
+          body: JSON.stringify({ attributionCabines: autoAttrEnc }),
         }).catch(console.error);
       }
     } else {
@@ -3210,6 +3211,41 @@ function ProjectPageContent({ id }: { id: string }) {
               // Sync localStorage pour éviter le flash au prochain rechargement
               try {
                 localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(next.map((c) => c.nom)));
+              } catch {}
+              return next;
+            });
+          }
+        }
+
+        // ── Sync monteurs responsables depuis Notion ────────────────────
+        // Même logique que pour les noms : le polling met à jour les monteurs
+        // si Notion a une valeur différente ET que la cabine locale est vide.
+        // Règle : on ne remplace JAMAIS un monteur déjà renseigné localement
+        // (état local est autoritatif pour ce qu'on a explicitement saisie).
+        if (data.attributionCabines && data.attributionCabines.includes("Cab")) {
+          const notionAttrRe = /Cab(\d+)\s*:([^|]*)/g;
+          const freshAttrMap = new Map<number, string>();
+          let ma: RegExpExecArray | null;
+          while ((ma = notionAttrRe.exec(data.attributionCabines))) {
+            const v = ma[2].trim();
+            if (v) freshAttrMap.set(parseInt(ma[1], 10), v);
+          }
+          if (freshAttrMap.size > 0) {
+            setCabines((prev) => {
+              let changed = false;
+              const next = prev.map((c, i) => {
+                const freshMonteur = freshAttrMap.get(i + 1) || "";
+                // Ne met à jour que si Notion a un monteur ET la cabine locale est vide.
+                // Si le monteur local est déjà renseigné, on le conserve (priorité locale).
+                if (freshMonteur && !c.monteur) {
+                  changed = true;
+                  return { ...c, monteur: freshMonteur };
+                }
+                return c;
+              });
+              if (!changed) return prev;
+              try {
+                localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(next.map((c) => c.monteur)));
               } catch {}
               return next;
             });
@@ -5080,11 +5116,13 @@ function ProjectPageContent({ id }: { id: string }) {
                                       if (nomKvDebounceRef.current) clearTimeout(nomKvDebounceRef.current);
                                       nomKvDebounceRef.current = setTimeout(() => {
                                         const nomsEnc = next.map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`).join(" | ");
-                                        const attrEnc = next.map((c, i) => `Cab${i + 1}:${c.monteur || ""}`).join(" | ");
+                                        // N'envoie PAS attributionCabines : le monteur n'a pas changé.
+                                        // Envoyer l'attrEnc complet avec des monteurs locaux potentiellement
+                                        // périmés déclencherait des suppressions involontaires dans mergeCabineAttribution.
                                         offlineFetch(`/api/projects/${id}`, {
                                           method: "PATCH",
                                           headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({ nomsCabines: nomsEnc, attributionCabines: attrEnc }),
+                                          body: JSON.stringify({ nomsCabines: nomsEnc }),
                                         }).catch(console.error);
                                       }, 150); // 150 ms — assez court pour survivre à une fermeture d'onglet rapide
                                       return next;
@@ -5122,10 +5160,15 @@ function ProjectPageContent({ id }: { id: string }) {
                                               JSON.stringify(next.map((c) => c.monteur))
                                             );
                                           } catch {}
-                                          // 2. Notion : seule l'attribution est mise à jour ici.
-                                          // nomsCabines est exclu intentionnellement pour éviter
-                                          // qu'un état local périmé n'écrase les noms Notion.
-                                          const attrEnc = next.map((c, i) => `Cab${i + 1}:${c.monteur || ""}`).join(" | ");
+                                          // 2. Notion : seule la cabine modifiée est envoyée.
+                                          // Envoyer TOUTES les cabines (même celles à monteur vide)
+                                          // avec un état local potentiellement périmé déclencherait
+                                          // des suppressions involontaires dans mergeCabineAttribution
+                                          // (vide = suppression explicite côté merge).
+                                          // → On envoie uniquement "Cab${idx+1}:<monteur>" — la merge
+                                          // logic ne touche alors que cette cabine et préserve toutes les autres.
+                                          const changedMonteur = next[idx].monteur || "";
+                                          const attrEnc = `Cab${idx + 1}:${changedMonteur}`;
                                           offlineFetch(`/api/projects/${id}`, {
                                             method: "PATCH",
                                             headers: { "Content-Type": "application/json" },
