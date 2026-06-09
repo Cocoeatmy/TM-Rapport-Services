@@ -4902,14 +4902,29 @@ function ProjectPageContent({ id }: { id: string }) {
                               {idx + 1}
                             </span>
                           )}
-                          <span className="font-medium text-sm truncate">{cabine.nom}</span>
-                          {/* Icônes signalement : pièce manquante (orange) + défaut (rouge) */}
-                          {cabineSignalements.pieces.some((p) => p.cabineLabel === cabine.nom) && (
-                            <Package className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                          )}
-                          {cabineSignalements.defauts.some((d) => d.cabineLabel === cabine.nom) && (
-                            <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-medium text-sm truncate">{cabine.nom}</span>
+                              {/* Icônes signalement : pièce manquante (orange) + défaut (rouge) */}
+                              {cabineSignalements.pieces.some((p) => p.cabineLabel === cabine.nom) && (
+                                <Package className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                              )}
+                              {cabineSignalements.defauts.some((d) => d.cabineLabel === cabine.nom) && (
+                                <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                              )}
+                            </div>
+                            {/* Sous-titre : monteur responsable + date de montage */}
+                            {(cabine.monteur || cabine.date) && (
+                              <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate leading-tight mt-0.5">
+                                {[
+                                  cabine.monteur || null,
+                                  cabine.date
+                                    ? cabine.date.split("-").reverse().join(".")
+                                    : null,
+                                ].filter(Boolean).join(" · ")}
+                              </p>
+                            )}
+                          </div>
                         </button>
 
                         {/* Actions droite : scroll-en-haut (quand ouverte) + chevron */}
