@@ -24,7 +24,10 @@ function parseCabineMap(raw: string): Map<number, string> {
 }
 
 function hasDate(val: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}:/.test(val);
+  // Exige une vraie heure après la date (HH:MM) — "2026-06-09:" seul ne compte PAS.
+  // Sans ça, une entrée "date-only" (c.date renseigné mais c.depart vide) écrase
+  // une heure valide déjà présente dans Notion lors du merge.
+  return /^\d{4}-\d{2}-\d{2}:\d{2}:\d{2}/.test(val);
 }
 
 /**

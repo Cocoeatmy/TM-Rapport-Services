@@ -2579,7 +2579,10 @@ function ProjectPageContent({ id }: { id: string }) {
 
       const arriveeToSave = cabMode
         ? cab.map((c, i) => {
-            if (!c.arrivee && !c.date) return "";
+            // N'inclure la cabine QUE si l'heure est renseignée.
+            // Sans ça, une cabine avec date mais sans heure génère
+            // "Cab2:2026-06-09:" qui écrase l'heure réelle côté serveur.
+            if (!c.arrivee) return "";
             const ds = c.date ? `${c.date}:` : "";
             return `Cab${i + 1}:${ds}${c.arrivee}`;
           }).filter(Boolean).join(" | ")
@@ -2589,7 +2592,8 @@ function ProjectPageContent({ id }: { id: string }) {
 
       const departToSave = cabMode
         ? cab.map((c, i) => {
-            if (!c.depart && !c.date) return "";
+            // Idem : on n'envoie rien si l'heure de départ est vide.
+            if (!c.depart) return "";
             const ds = c.date ? `${c.date}:` : "";
             return `Cab${i + 1}:${ds}${c.depart}`;
           }).filter(Boolean).join(" | ")
@@ -3240,7 +3244,7 @@ function ProjectPageContent({ id }: { id: string }) {
     // Priorité 3 : cas simple → valeur unique
     const arriveeToSave = isCabineMode
       ? cabines.map((c, i) => {
-          if (!c.arrivee && !c.date) return "";
+          if (!c.arrivee) return ""; // pas d'heure → on n'envoie rien (évite "Cab2:2026-06-09:")
           const dateStr = c.date ? `${c.date}:` : "";
           return `Cab${i + 1}:${dateStr}${c.arrivee}`;
         }).filter(Boolean).join(" | ")
@@ -3249,7 +3253,7 @@ function ProjectPageContent({ id }: { id: string }) {
         : heureArrivee;
     const departToSave = isCabineMode
       ? cabines.map((c, i) => {
-          if (!c.depart && !c.date) return "";
+          if (!c.depart) return ""; // pas d'heure → on n'envoie rien (évite "Cab2:2026-06-09:")
           const dateStr = c.date ? `${c.date}:` : "";
           return `Cab${i + 1}:${dateStr}${c.depart}`;
         }).filter(Boolean).join(" | ")
@@ -3334,7 +3338,7 @@ function ProjectPageContent({ id }: { id: string }) {
     try {
       const arriveeToSave = cabines
         .map((c, i) => {
-          if (!c.arrivee && !c.date) return "";
+          if (!c.arrivee) return ""; // pas d'heure → skip (évite "Cab2:2026-06-09:")
           const dateStr = c.date ? `${c.date}:` : "";
           return `Cab${i + 1}:${dateStr}${c.arrivee}`;
         })
@@ -3343,7 +3347,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
       const departToSave = cabines
         .map((c, i) => {
-          if (!c.depart && !c.date) return "";
+          if (!c.depart) return ""; // pas d'heure → skip (évite "Cab2:2026-06-09:")
           const dateStr = c.date ? `${c.date}:` : "";
           return `Cab${i + 1}:${dateStr}${c.depart}`;
         })
