@@ -476,6 +476,19 @@ function getDefautStatusStyle(status: string) {
   }
 }
 
+/**
+ * Tente d'extraire un identifiant cabine depuis le texte libre d'une pièce.
+ * Couvre les cas où le monteur a écrit "Lot J-303", "J-303 (Divera)",
+ * "Cabine J-101" etc. dans le champ description ou référence.
+ * Retourne null si rien n'est trouvé (pas de faux positif).
+ */
+function extractCabinLabel(text: string): string | null {
+  if (!text) return null;
+  // Patterns : "J-303", "J-303 (Divera)", "A-001 (Xyz)"
+  const m = text.match(/\b([A-Z]-\d{3}(?:\s*\([^)]*\))?)/);
+  return m ? m[1].trim() : null;
+}
+
 interface CabineAttribution {
   projectId: string;
   attribution: string[]; // monteur names per cabin (index = cabin - 1)
@@ -715,7 +728,9 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                   const m = line.match(/^(\d[\d.]*)\s*:?\s+(.*)/);
                   if (m) {
                     return (
-                      <View key={i} style={{ flexDirection: "row", marginBottom: 3 }}>
+                      // wrap={false} : une ligne identifiant+texte ne peut pas être
+                      // coupée entre deux pages (l'ID et son texte restent solidaires)
+                      <View key={i} wrap={false} style={{ flexDirection: "row", marginBottom: 3 }}>
                         <Text style={{ width: IDENT_WIDTH, fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f", flexShrink: 0 }}>
                           {m[1]}
                         </Text>
@@ -729,7 +744,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                   // (ex: "SDD VIP", "Cabine standard") → bold, pleine largeur
                   if (/^[A-ZÀÂÇÉÈÊËÎÏÔÙÛÜŸÆŒ]/.test(line.trim())) {
                     return (
-                      <View key={i} style={{ marginBottom: 3, marginTop: i > 0 ? 5 : 0 }}>
+                      <View key={i} wrap={false} style={{ marginBottom: 3, marginTop: i > 0 ? 5 : 0 }}>
                         <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>
                           {line.trim()}
                         </Text>
@@ -738,7 +753,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                   }
                   // Continuation / note (indentée sous la colonne texte)
                   return (
-                    <View key={i} style={{ flexDirection: "row", marginBottom: 3 }}>
+                    <View key={i} wrap={false} style={{ flexDirection: "row", marginBottom: 3 }}>
                       <View style={{ width: IDENT_WIDTH, flexShrink: 0 }} />
                       <Text style={{ flex: 1, fontSize: 9, color: "#555", fontFamily: "Helvetica-Oblique", lineHeight: 1.4 }}>
                         {line.trim()}
@@ -1032,9 +1047,11 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#92400e", marginBottom: 4 }}>
                 Pièce n°{idx + 1}
               </Text>
-              {piece.cabineLabel && (
+              {/* Cabine : priorité sur cabineLabel stocké, fallback extraction regex
+                  depuis la description (ex: "Lot J-303" → "J-303") */}
+              {(piece.cabineLabel || extractCabinLabel(piece.description || "") || extractCabinLabel(piece.reference || "")) && (
                 <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 4 }}>
-                  Cabine : {piece.cabineLabel}
+                  Cabine : {piece.cabineLabel || extractCabinLabel(piece.description || "") || extractCabinLabel(piece.reference || "")}
                 </Text>
               )}
 
