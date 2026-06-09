@@ -2672,7 +2672,7 @@ function ProjectPageContent({ id }: { id: string }) {
   }, [project?.signatureUrl]);
   const [fav, setFav] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [showHeuresCard, setShowHeuresCard] = useState(true);
+  const [showHeuresCard, setShowHeuresCard] = useState(false);
   const [downloadingPhotos, setDownloadingPhotos] = useState(false);
   const [historyCount, setHistoryCount] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(60);
