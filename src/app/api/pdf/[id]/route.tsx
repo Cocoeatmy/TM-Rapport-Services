@@ -36,6 +36,7 @@ interface PieceRequest {
   photoUrls?: string[];
   status: "demande" | "commande" | "recu";
   timestamp: number;
+  cabineLabel?: string;
 }
 
 interface DefautRequest {
@@ -1031,6 +1032,11 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#92400e", marginBottom: 4 }}>
                 Pièce n°{idx + 1}
               </Text>
+              {piece.cabineLabel && (
+                <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 4 }}>
+                  Cabine : {piece.cabineLabel}
+                </Text>
+              )}
 
               <View style={styles.defautHeader}>
                 <View style={{ flex: 1 }}>
