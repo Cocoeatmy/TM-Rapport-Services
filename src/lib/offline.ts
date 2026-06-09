@@ -134,19 +134,27 @@ export function getCacheTimestamp(): number {
 
 // File d'attente pour les opérations offline
 export function addToQueue(item: Omit<QueueItem, "id" | "timestamp">) {
-  const queue = getQueue();
-  queue.push({
-    ...item,
-    id: Math.random().toString(36).slice(2),
-    timestamp: Date.now(),
-  });
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  try {
+    const queue = getQueue();
+    queue.push({
+      ...item,
+      id: Math.random().toString(36).slice(2),
+      timestamp: Date.now(),
+    });
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  } catch (e) {
+    // localStorage plein ou indisponible — on log et on abandonne silencieusement
+    // plutôt que de laisser propager l'exception jusqu'aux appelants (handleSaveCabineData, etc.)
+    console.error("[offline] addToQueue failed:", e);
+  }
 }
 
 export function getQueue(): QueueItem[] {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    // Garde contre les valeurs corrompues (null, objet, etc.)
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }

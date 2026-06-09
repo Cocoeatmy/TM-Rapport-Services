@@ -3362,7 +3362,7 @@ function ProjectPageContent({ id }: { id: string }) {
           .filter(Boolean)
           .join("\n");
 
-      await offlineFetch(`/api/projects/${id}`, {
+      const res = await offlineFetch(`/api/projects/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3372,6 +3372,33 @@ function ProjectPageContent({ id }: { id: string }) {
           commentairesMontages: commentaires,
         }),
       });
+
+      // Vérifie si la sauvegarde a réellement abouti (res.ok) ou a été mise en queue
+      // ({ queued: true } → 200 synthétique retourné par offlineFetch hors-ligne / 5xx).
+      // On ne check PAS res.ok si la réponse est "queued" : dans ce cas les données
+      // seront rejouées automatiquement dès que la connexion revient.
+      let resQueued = false;
+      let resError = "";
+      if (!res.ok) {
+        try {
+          const j = await res.json();
+          if (j?.queued) {
+            resQueued = true; // queued synthétique → c'est un succès différé
+          } else {
+            resError = j?.error || "";
+          }
+        } catch {}
+      }
+
+      if (!res.ok && !resQueued) {
+        toast.error(
+          resError
+            ? `Sauvegarde échouée : ${resError}. Votre saisie reste, retentez.`
+            : "Sauvegarde échouée. Votre saisie reste dans le champ, retentez.",
+          { duration: 8000 }
+        );
+        return;
+      }
 
       // Backup localStorage noms + attribution — PAS de PATCH Notion.
       // Les noms/monteurs sont gérés exclusivement par leurs handlers dédiés
@@ -3395,7 +3422,11 @@ function ProjectPageContent({ id }: { id: string }) {
 
       const cab = cabines[cabineIdx];
       const cabLabel = cab?.nom || `Cabine ${cabineIdx + 1}`;
-      toast.success(`${cabLabel} — enregistrée ✓`);
+      if (resQueued) {
+        toast.success(`${cabLabel} — sauvegardée hors-ligne, sera synchronisée à la reconnexion.`, { duration: 5000 });
+      } else {
+        toast.success(`${cabLabel} — enregistrée ✓`);
+      }
       // Log de la modification
       const details: string[] = [];
       if (cab?.monteur) details.push(`Monteur: ${cab.monteur}`);
@@ -3404,7 +3435,7 @@ function ProjectPageContent({ id }: { id: string }) {
       if (cab?.rapport?.trim()) details.push("Rapport cabine mis à jour");
       logAction(`${cabLabel} enregistrée`, details.join(" · ") || "Données cabine sauvegardées");
     } catch {
-      toast.error("Erreur lors de la sauvegarde");
+      toast.error("Erreur lors de la sauvegarde — votre saisie reste dans le champ, retentez.");
     } finally {
       setSaving(false);
     }
