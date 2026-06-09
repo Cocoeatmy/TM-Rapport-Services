@@ -2504,6 +2504,16 @@ function ProjectPageContent({ id }: { id: string }) {
   const cabineLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cabineTouchSrcRef = useRef<number | null>(null);
   const nomKvDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Garde-fou anti-revert CDN.
+   *
+   * Quand l'admin modifie un nom de cabine, on stocke l'index + timestamp.
+   * Le refetch (15 s) ne doit PAS écraser ce nom pendant 60 s — le CDN
+   * (s-maxage=15) peut retourner de l'ancienne donnée dans cette fenêtre et
+   * provoquer un revert de l'état local → la prochaine édition d'une autre
+   * cabine inclurait le nom réverté dans son PATCH, écrasant Notion.
+   */
+  const dirtyNomRef = useRef<Map<number, number>>(new Map()); // cabIndex(0-based) → Date.now()
   // ── Auto-save en arrière-plan ─────────────────────────────────────────────
   // Référence vers les données actuelles pour éviter les stale closures dans
   // le timer de debounce. Mise à jour à chaque render (avant le return).
@@ -2600,19 +2610,15 @@ function ProjectPageContent({ id }: { id: string }) {
       }).catch(() => {});
 
       if (cabMode) {
-        const nomsToSave = cab.map((c, i) => c.nom || `Cabine ${i + 1}`);
-        const monteursToSave = cab.map((c) => c.monteur);
+        // Backup localStorage uniquement — PAS de PATCH Notion ici.
+        // Les noms de cabines et l'attribution sont déjà sauvegardés en temps
+        // réel par leurs handlers dédiés (onChange + onClick monteur).
+        // Inclure nomsCabines dans l'autosave causerait des écrasements
+        // Notion avec des données périmées (état local ≠ Notion récent).
         try {
-          localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(nomsToSave));
-          localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(monteursToSave));
+          localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(cab.map((c, i) => c.nom || `Cabine ${i + 1}`)));
+          localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(cab.map((c) => c.monteur)));
         } catch {}
-        const nomsEnc = nomsToSave.map((n, i) => `Cab${i + 1}:${n}`).join(" | ");
-        const attrEnc = monteursToSave.map((m, i) => `Cab${i + 1}:${m || ""}`).join(" | ");
-        offlineFetch(`/api/projects/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nomsCabines: nomsEnc, attributionCabines: attrEnc }),
-        }).catch(() => {});
       }
 
       // Aligner le snapshot pour que le polling ne détecte pas de faux conflit
@@ -3147,6 +3153,7 @@ function ProjectPageContent({ id }: { id: string }) {
           }
           if (freshNomMap.size > 0) {
             setCabines((prev) => {
+              const now = Date.now();
               let changed = false;
               const next = prev.map((c, i) => {
                 const freshNom = freshNomMap.get(i + 1) || "";
@@ -3154,6 +3161,13 @@ function ProjectPageContent({ id }: { id: string }) {
                 // qui diffère de ce qui est affiché — préserve les saisies locales
                 // en cours si elles diffèrent du nom précédemment connu.
                 if (freshNom && freshNom !== `Cabine ${i + 1}` && freshNom !== c.nom) {
+                  // Garde-fou : si l'utilisateur vient de modifier ce nom (< 60 s),
+                  // ne pas laisser le cache CDN périmé (s-maxage=15) le réverter.
+                  // Sans ça : admin edit → PATCH → CDN stale 15 s → refetch retourne
+                  // l'ancien nom → setCabines révertit → prochain onChange envoie le
+                  // nom réverté à Notion → boucle de perte de données.
+                  const dirtyAt = dirtyNomRef.current.get(i);
+                  if (dirtyAt && now - dirtyAt < 60_000) return c;
                   changed = true;
                   return { ...c, nom: freshNom };
                 }
@@ -3253,22 +3267,13 @@ function ProjectPageContent({ id }: { id: string }) {
           rapportMonteur: reportToSave,
         }),
       });
-      // Save cabine noms + attribution if in multi-cabin mode
+      // Backup localStorage noms/attribution — PAS de PATCH Notion.
+      // Les noms sont gérés exclusivement par le handler onChange dédié.
       if (isCabineMode) {
-        const nomsToSave = cabines.map((c, i) => c.nom || `Cabine ${i + 1}`);
-        const monteursToSave = cabines.map((c) => c.monteur);
-        // Backup localStorage
         try {
-          localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(nomsToSave));
-          localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(monteursToSave));
+          localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(cabines.map((c, i) => c.nom || `Cabine ${i + 1}`)));
+          localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(cabines.map((c) => c.monteur)));
         } catch {}
-        const nomsEnc = nomsToSave.map((n, i) => `Cab${i + 1}:${n}`).join(" | ");
-        const attrEnc = monteursToSave.map((m, i) => `Cab${i + 1}:${m || ""}`).join(" | ");
-        await offlineFetch(`/api/projects/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nomsCabines: nomsEnc, attributionCabines: attrEnc }),
-        });
       }
       if (res.ok) {
         // Purge le cache SW + aligne l'état React sur ce qu'on vient
@@ -3364,20 +3369,16 @@ function ProjectPageContent({ id }: { id: string }) {
         }),
       });
 
-      // Sauvegarde noms + attribution dans Notion + backup localStorage
-      const nomsToSave = cabines.map((c, i) => c.nom || `Cabine ${i + 1}`);
-      const monteursToSave = cabines.map((c) => c.monteur);
+      // Backup localStorage noms + attribution — PAS de PATCH Notion.
+      // Les noms/monteurs sont gérés exclusivement par leurs handlers dédiés
+      // (onChange nom + onClick monteur). Inclure nomsCabines ici causerait
+      // des écrasements Notion avec l'état local potentiellement périmé d'un
+      // autre utilisateur (ex : collaborateur qui sauvegarde ses heures alors
+      // que ses cabines.nom n'ont pas encore été rafraîchies depuis Notion).
       try {
-        localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(nomsToSave));
-        localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(monteursToSave));
+        localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(cabines.map((c, i) => c.nom || `Cabine ${i + 1}`)));
+        localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(cabines.map((c) => c.monteur)));
       } catch {}
-      const nomsEnc = nomsToSave.map((n, i) => `Cab${i + 1}:${n}`).join(" | ");
-      const attrEnc = monteursToSave.map((m, i) => `Cab${i + 1}:${m || ""}`).join(" | ");
-      await offlineFetch(`/api/projects/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nomsCabines: nomsEnc, attributionCabines: attrEnc }),
-      });
 
       // Aligne le snapshot serveur pour éviter un faux conflit au prochain polling
       serverSnapshotRef.current = {
@@ -4997,6 +4998,8 @@ function ProjectPageContent({ id }: { id: string }) {
                                           JSON.stringify(next.map((c) => c.nom))
                                         );
                                       } catch {}
+                                      // ── Marquer la cabine comme "dirty" pour protéger du revert CDN ─
+                                      dirtyNomRef.current.set(idx, Date.now());
                                       // ── Sauvegarde Notion (debounce court pour grouper la frappe) ──
                                       if (nomKvDebounceRef.current) clearTimeout(nomKvDebounceRef.current);
                                       nomKvDebounceRef.current = setTimeout(() => {
@@ -5043,13 +5046,14 @@ function ProjectPageContent({ id }: { id: string }) {
                                               JSON.stringify(next.map((c) => c.monteur))
                                             );
                                           } catch {}
-                                          // 2. Notion : source de vérité partagée
-                                          const nomsEnc = next.map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`).join(" | ");
+                                          // 2. Notion : seule l'attribution est mise à jour ici.
+                                          // nomsCabines est exclu intentionnellement pour éviter
+                                          // qu'un état local périmé n'écrase les noms Notion.
                                           const attrEnc = next.map((c, i) => `Cab${i + 1}:${c.monteur || ""}`).join(" | ");
                                           offlineFetch(`/api/projects/${id}`, {
                                             method: "PATCH",
                                             headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify({ nomsCabines: nomsEnc, attributionCabines: attrEnc }),
+                                            body: JSON.stringify({ attributionCabines: attrEnc }),
                                           }).catch(console.error);
                                           return next;
                                         })}
