@@ -34,6 +34,7 @@ import {
   ImagePlus,
   X,
   GripVertical,
+  RotateCcw,
 } from "lucide-react";
 // MontageChecklist supprimée (section retirée)
 import { ProjectChat } from "@/components/project-chat";
@@ -2513,6 +2514,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [expandedCabineDate, setExpandedCabineDate] = useState<string | null>(null);
   const [rapportModalCabineIdx, setRapportModalCabineIdx] = useState<number | null>(null);
+  const [resetConfirmIdx, setResetConfirmIdx] = useState<number | null>(null);
   const [showRapportRequiredModal, setShowRapportRequiredModal] = useState(false);
   const [monoActiveTab, setMonoActiveTab] = useState<"rapport" | "photos">("rapport");
 
@@ -3503,6 +3505,131 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Erreur lors de la sauvegarde — votre saisie reste dans le champ, retentez.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  /**
+   * Réinitialise complètement une cabine : efface ses photos (tous les buckets),
+   * ses heures, son rapport, son monteur et sa date — localement ET dans Notion.
+   * La badge retourne à l'état bleu (rien de fait).
+   * N'affecte pas les autres cabines.
+   */
+  const handleResetCabine = async (idx: number) => {
+    if (!project) return;
+    const cabNum = idx + 1; // 1-based
+    const cabPatternRe = new RegExp(`\\.Cab${cabNum}\\.`);
+
+    // 1. Nouvelles listes de photos sans la cabine réinitialisée
+    const newPhotosAvant     = (project.photosAvant     || []).filter((f) => !cabPatternRe.test(f.name || ""));
+    const newPhotosMontage   = (project.photosMontage   || []).filter((f) => !cabPatternRe.test(f.name || ""));
+    const newPhotosDemontage = (project.photosDemontage || []).filter((f) => !cabPatternRe.test(f.name || ""));
+    const newPhotosQRCode    = (project.photosQRCode    || []).filter((f) => !cabPatternRe.test(f.name || ""));
+    const newPhotosGaranties = (project.photosGaranties || []).filter((f) => !cabPatternRe.test(f.name || ""));
+
+    // 2. Cabines avec la cabine ciblée vidée
+    const newCabines = cabines.map((c, i) =>
+      i === idx ? { ...c, monteur: "", arrivee: "", depart: "", date: "", rapport: "" } : c
+    );
+
+    // 3. Recalcul des champs texte pour Notion (la cabine réinitialisée est exclue naturellement)
+    const newArriveeToSave = newCabines
+      .map((c, i) => {
+        if (!c.arrivee) return "";
+        const ds = c.date ? `${c.date}:` : "";
+        return `Cab${i + 1}:${ds}${c.arrivee}`;
+      })
+      .filter(Boolean)
+      .join(" | ");
+    const newDepartToSave = newCabines
+      .map((c, i) => {
+        if (!c.depart) return "";
+        const ds = c.date ? `${c.date}:` : "";
+        return `Cab${i + 1}:${ds}${c.depart}`;
+      })
+      .filter(Boolean)
+      .join(" | ");
+    const newRapportToSave =
+      rapport +
+      "\n\n" +
+      newCabines
+        .map((c) => (c.rapport ? `${c.nom} : ${c.rapport}` : ""))
+        .filter(Boolean)
+        .join("\n");
+
+    // 4. Mise à jour UI immédiate (badge repasse en bleu, données disparaissent)
+    setCabines(newCabines);
+    setProject((prev) =>
+      prev
+        ? {
+            ...prev,
+            photosAvant:     newPhotosAvant,
+            photosMontage:   newPhotosMontage,
+            photosDemontage: newPhotosDemontage,
+            photosQRCode:    newPhotosQRCode,
+            photosGaranties: newPhotosGaranties,
+          }
+        : prev
+    );
+
+    // 5. Mise à jour localStorage (noms inchangés, monteur vidé)
+    try {
+      localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(newCabines.map((c, i) => c.nom || `Cabine ${i + 1}`)));
+      localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(newCabines.map((c) => c.monteur)));
+    } catch {}
+
+    // 6. PATCH Notion — toutes les données de la cabine effacées
+    const cabLabel = cabines[idx]?.nom || `Cabine ${cabNum}`;
+    try {
+      const res = await offlineFetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          heureArrivee:      newArriveeToSave,
+          heureDepart:       newDepartToSave,
+          rapportMonteur:    newRapportToSave,
+          // "Cab${cabNum}:" vide = suppression explicite du monteur via mergeCabineAttribution
+          attributionCabines: `Cab${cabNum}:`,
+          photosAvant:       newPhotosAvant,
+          photosMontage:     newPhotosMontage,
+          photosDemontage:   newPhotosDemontage,
+          photosQRCode:      newPhotosQRCode,
+          photosGaranties:   newPhotosGaranties,
+        }),
+      });
+
+      invalidateApiCache();
+
+      // Aligner la snapshot serveur pour ne pas créer de faux conflit au prochain polling
+      serverSnapshotRef.current = {
+        rapport:      newRapportToSave,
+        commentaires,
+        heureArrivee: newArriveeToSave,
+        heureDepart:  newDepartToSave,
+      };
+
+      let resQueued = false;
+      if (res.ok) {
+        try { const j = await res.json(); if (j?.queued) resQueued = true; } catch {}
+      }
+
+      if (resQueued) {
+        toast.success(`${cabLabel} — réinitialisée (synchronisation Notion en attente).`, { duration: 5000 });
+      } else if (res.ok) {
+        toast.success(`${cabLabel} — réinitialisée ✓`);
+      } else {
+        let errMsg = "";
+        try { const j = await res.json(); errMsg = j?.error || ""; } catch {}
+        toast.error(
+          errMsg
+            ? `Réinitialisation non enregistrée dans Notion : ${errMsg}`
+            : "Réinitialisation non enregistrée dans Notion — réessayez.",
+          { duration: 8000 }
+        );
+      }
+
+      logAction(`${cabLabel} réinitialisée`, "Toutes les données de la cabine effacées");
+    } catch {
+      toast.error("Erreur lors de la réinitialisation — réessayez.");
     }
   };
 
@@ -5020,8 +5147,18 @@ function ProjectPageContent({ id }: { id: string }) {
                           </div>
                         </button>
 
-                        {/* Actions droite : scroll-en-haut (quand ouverte) + chevron */}
+                        {/* Actions droite : reset + scroll-en-haut (quand ouverte) + chevron */}
                         <div className="flex items-center gap-1.5 px-3 py-3 shrink-0">
+                          {!cabineDragMode && (
+                            <button
+                              type="button"
+                              onClick={() => setResetConfirmIdx(idx)}
+                              className="w-7 h-7 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center text-gray-400 hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/40 dark:hover:text-red-400 transition-colors"
+                              title={`Réinitialiser ${cabine.nom}`}
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           {cabine.open && !cabineDragMode && (
                             <button
                               type="button"
@@ -5963,6 +6100,67 @@ function ProjectPageContent({ id }: { id: string }) {
 
       {/* Chat flottant */}
       <ProjectChat projectId={id} />
+
+      {/* Confirmation : réinitialisation cabine */}
+      {resetConfirmIdx !== null && typeof document !== "undefined" && createPortal(
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 70, transform: "translateZ(0)" }}
+          className="flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setResetConfirmIdx(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-red-500 text-white px-5 py-4 flex items-center gap-2">
+              <RotateCcw className="w-5 h-5" />
+              <h3 className="text-base font-semibold">
+                Réinitialiser {cabines[resetConfirmIdx]?.nom || `Cabine ${resetConfirmIdx + 1}`}
+              </h3>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-gray-700 dark:text-gray-200">
+                Cette action effacera <strong>définitivement</strong> toutes les données de cette cabine :
+              </p>
+              <ul className="text-sm space-y-1 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3">
+                {[
+                  "Photos (avant, montage, démontage, QR, garanties)",
+                  "Heures d'arrivée et de départ",
+                  "Rapport et remarques",
+                  "Monteur responsable",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-red-900 dark:text-red-200">
+                    <span className="mt-0.5 text-red-500 shrink-0">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
+                Cette action est irréversible. Continuer ?
+              </p>
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button
+                onClick={() => setResetConfirmIdx(null)}
+                className="flex-1 h-10 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={async () => {
+                  const idx = resetConfirmIdx;
+                  setResetConfirmIdx(null);
+                  await handleResetCabine(idx);
+                }}
+                className="flex-1 h-10 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors"
+              >
+                Réinitialiser
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {/* Confirmation : photos manquantes avant enregistrement / envoi */}
       {missingPhotosPrompt && typeof document !== "undefined" && createPortal(
