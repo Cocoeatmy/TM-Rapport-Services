@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getData, setData } from "@/lib/kv-store";
 import { getProject } from "@/lib/notion";
+import { verifyToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -38,32 +39,44 @@ export async function POST(
     const trimmed = consultations.slice(-1000);
     await setData("rapport-consultations", trimmed);
 
-    // Notify admin on first view or PDF open
-    try {
-      const project = await getProject(projectId);
-      const actionLabel = action === "pdf" ? "a ouvert le rapport PDF" : "a consulté le portail";
-      // Send notification email to admin
-      const { Resend } = await import("resend");
-      const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
-      await resend.emails.send({
-        from: "TM Rapport Services <onboarding@resend.dev>",
-        to: "ferreira.micael@gmail.com",
-        subject: `📬 Rapport consulté - ${project.projet}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-            <div style="background: #059669; padding: 16px 20px; border-radius: 10px 10px 0 0;">
-              <h3 style="color: white; margin: 0; font-size: 16px;">✅ Rapport consulté</h3>
+    // Si l'appelant est un collaborateur ou admin authentifié, on enregistre
+    // la consultation mais on NE NOTIFIE PAS par email — trop de bruit.
+    const authCookie = request.cookies.get("auth-token")?.value;
+    let isCollab = false;
+    if (authCookie) {
+      try {
+        const user = await verifyToken(authCookie);
+        if (user) isCollab = true;
+      } catch {}
+    }
+
+    if (!isCollab) {
+      // Notification email uniquement pour les vrais clients (non authentifiés)
+      try {
+        const project = await getProject(projectId);
+        const actionLabel = action === "pdf" ? "a ouvert le rapport PDF" : "a consulté le portail";
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
+        await resend.emails.send({
+          from: "TM Rapport Services <onboarding@resend.dev>",
+          to: "ferreira.micael@gmail.com",
+          subject: `📬 Rapport consulté - ${project.projet}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+              <div style="background: #059669; padding: 16px 20px; border-radius: 10px 10px 0 0;">
+                <h3 style="color: white; margin: 0; font-size: 16px;">✅ Rapport consulté</h3>
+              </div>
+              <div style="background: #f0fdf4; padding: 20px; border: 1px solid #bbf7d0; border-top: none; border-radius: 0 0 10px 10px;">
+                <p style="margin: 0 0 8px 0; color: #166534; font-size: 14px;">Le client <strong>${actionLabel}</strong> pour :</p>
+                <p style="margin: 0; font-size: 18px; font-weight: 700; color: #14532d;">${project.projet}</p>
+                <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 12px;">${new Date().toLocaleString("fr-CH", { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Zurich" })}</p>
+              </div>
             </div>
-            <div style="background: #f0fdf4; padding: 20px; border: 1px solid #bbf7d0; border-top: none; border-radius: 0 0 10px 10px;">
-              <p style="margin: 0 0 8px 0; color: #166534; font-size: 14px;">Le client <strong>${actionLabel}</strong> pour :</p>
-              <p style="margin: 0; font-size: 18px; font-weight: 700; color: #14532d;">${project.projet}</p>
-              <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 12px;">${new Date().toLocaleString("fr-CH", { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Zurich" })}</p>
-            </div>
-          </div>
-        `,
-      });
-    } catch (notifyError) {
-      console.error("Track notification error:", notifyError);
+          `,
+        });
+      } catch (notifyError) {
+        console.error("Track notification error:", notifyError);
+      }
     }
 
     return NextResponse.json({ success: true });
