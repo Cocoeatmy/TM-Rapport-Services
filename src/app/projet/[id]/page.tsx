@@ -2762,8 +2762,24 @@ function ProjectPageContent({ id }: { id: string }) {
   const [downloadingPhotos, setDownloadingPhotos] = useState(false);
   const [historyCount, setHistoryCount] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(60);
+  const [headerScrollOpacity, setHeaderScrollOpacity] = useState(1);
 
   useEffect(() => { setFav(isFavorite(id)); }, [id]);
+
+  // Header translucide au scroll (mode rapport uniquement) : plus on descend,
+  // plus la barre titre devient transparente pour laisser voir le contenu
+  // derrière. Plancher à 0.4 pour rester lisible/cliquable.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!showRapport) { setHeaderScrollOpacity(1); return; }
+    const onScroll = () => {
+      const y = window.scrollY || 0;
+      setHeaderScrollOpacity(Math.max(0.4, 1 - y / 320));
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [showRapport]);
 
   // Scroll automatique vers la liste des cabines quand la page est ouverte
   // depuis le portail client via "Saisir rapport".
@@ -3980,85 +3996,120 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
       {/* Header */}
-      <div className="sticky z-40 glass-card border-b px-4 py-3" style={{ borderRadius: 0, top: headerHeight }}>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push(`/?mode=${mode}`)}
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex-1 min-w-0">
-            <h1 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 ios-line-clamp break-words leading-tight">
-              {project.projet}
-            </h1>
-            {project.ofrTM && (
-              <p className="text-xs text-gray-500">OFR {project.ofrTM}</p>
-            )}
-            {isAdmin && (
-              <div className="mt-1.5 flex flex-wrap items-start gap-x-3 gap-y-2">
-                <StatusDropdown
-                  project={project}
-                  mode="mesures"
-                  label="État – Mesures"
-                  onUpdate={(field, value) => {
-                    setProject((prev) => prev ? { ...prev, [field]: value } : prev);
-                  }}
-                />
-                <StatusDropdown
-                  project={project}
-                  mode="cmd"
-                  label="État – CMD"
-                  onUpdate={(field, value) => {
-                    setProject((prev) => prev ? { ...prev, [field]: value } : prev);
-                  }}
-                />
-              </div>
-            )}
-          </div>
-          {isAdmin && (
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
-              title="Modifier le projet"
-            >
-              <PenLine className="w-5 h-5 text-gray-500" />
-            </button>
-          )}
-          <button
-            onClick={() => {
-              const token = btoa(id);
-              const url = `${window.location.origin}/client/${token}`;
-              navigator.clipboard.writeText(url).then(() => {
-                toast.success("Lien client copie dans le presse-papiers");
-              }).catch(() => {
-                toast.error("Impossible de copier le lien");
-              });
-            }}
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
-            title="Partager avec le client"
-          >
-            <Share2 className="w-5 h-5 text-blue-400" />
-          </button>
-          <button
-            onClick={() => setFav(toggleFavorite(id))}
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
-          >
-            <Star className={`w-5 h-5 ${fav ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
-          </button>
-          {isAdmin && (
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              className={`relative w-9 h-9 flex items-center justify-center rounded-full active:scale-90 transition-all ${historyCount > 0 ? "bg-yellow-50" : ""} hover:bg-gray-100`}
-              title="Historique des modifications"
-            >
-              <History className={`w-5 h-5 ${showHistory ? "text-blue-500" : historyCount > 0 ? "text-yellow-500" : "text-gray-300"}`} />
-              {historyCount > 0 && !showHistory && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-yellow-400 text-[8px] font-bold text-white rounded-full flex items-center justify-center">{historyCount > 9 ? "9+" : historyCount}</span>
+      <div className="sticky z-40 glass-card border-b px-4 py-3 transition-opacity duration-150" style={{ borderRadius: 0, top: headerHeight, opacity: showRapport ? headerScrollOpacity : 1 }}>
+        {(() => {
+          // Boutons d'action (crayon, partage, étoile, historique) — rendus
+          // soit à droite de la ligne titre (mode normal), soit sur la ligne
+          // OFR (mode rapport). Définis une seule fois ici.
+          const actionButtons = (
+            <>
+              {isAdmin && (
+                <button
+                  onClick={() => setShowEditModal(true)}
+                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
+                  title="Modifier le projet"
+                >
+                  <PenLine className="w-5 h-5 text-gray-500" />
+                </button>
               )}
-            </button>
-          )}
-        </div>
+              <button
+                onClick={() => {
+                  const token = btoa(id);
+                  const url = `${window.location.origin}/client/${token}`;
+                  navigator.clipboard.writeText(url).then(() => {
+                    toast.success("Lien client copie dans le presse-papiers");
+                  }).catch(() => {
+                    toast.error("Impossible de copier le lien");
+                  });
+                }}
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
+                title="Partager avec le client"
+              >
+                <Share2 className="w-5 h-5 text-blue-400" />
+              </button>
+              <button
+                onClick={() => setFav(toggleFavorite(id))}
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-90 transition-transform"
+              >
+                <Star className={`w-5 h-5 ${fav ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => setShowHistory(!showHistory)}
+                  className={`relative w-9 h-9 flex items-center justify-center rounded-full active:scale-90 transition-all ${historyCount > 0 ? "bg-yellow-50" : ""} hover:bg-gray-100`}
+                  title="Historique des modifications"
+                >
+                  <History className={`w-5 h-5 ${showHistory ? "text-blue-500" : historyCount > 0 ? "text-yellow-500" : "text-gray-300"}`} />
+                  {historyCount > 0 && !showHistory && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-yellow-400 text-[8px] font-bold text-white rounded-full flex items-center justify-center">{historyCount > 9 ? "9+" : historyCount}</span>
+                  )}
+                </button>
+              )}
+            </>
+          );
+
+          return (
+            <div className="flex items-start gap-3">
+              <button
+                onClick={() => router.push(`/?mode=${mode}`)}
+                className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="flex-1 min-w-0">
+                {/* En mode rapport : titre plus petit, pleine largeur, 2 lignes max */}
+                <h1 className={`font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 ios-line-clamp break-words leading-tight ${showRapport ? "text-sm" : ""}`}>
+                  {project.projet}
+                </h1>
+
+                {/* Mode normal : OFR + états sous le titre ; icônes à droite (hors de ce bloc) */}
+                {!showRapport && (
+                  <>
+                    {project.ofrTM && (
+                      <p className="text-xs text-gray-500">OFR {project.ofrTM}</p>
+                    )}
+                    {isAdmin && (
+                      <div className="mt-1.5 flex flex-wrap items-start gap-x-3 gap-y-2">
+                        <StatusDropdown
+                          project={project}
+                          mode="mesures"
+                          label="État – Mesures"
+                          onUpdate={(field, value) => {
+                            setProject((prev) => prev ? { ...prev, [field]: value } : prev);
+                          }}
+                        />
+                        <StatusDropdown
+                          project={project}
+                          mode="cmd"
+                          label="État – CMD"
+                          onUpdate={(field, value) => {
+                            setProject((prev) => prev ? { ...prev, [field]: value } : prev);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Mode rapport : OFR + icônes sur une ligne, pleine largeur.
+                    Les états Mesures / CMD sont volontairement masqués (inutiles ici). */}
+                {showRapport && (
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    {project.ofrTM ? (
+                      <p className="text-xs text-gray-500 truncate">OFR {project.ofrTM}</p>
+                    ) : <span />}
+                    <div className="flex items-center shrink-0">
+                      {actionButtons}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Mode normal : icônes d'action à droite de la ligne titre */}
+              {!showRapport && actionButtons}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Historique des modifications (toggle) */}
