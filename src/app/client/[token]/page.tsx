@@ -525,7 +525,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                     </div>
                   )}
                   {collabData.contactsRDV && (
-                    <div className="bg-white/10 rounded-xl p-3">
+                    <div className="bg-white/10 rounded-xl p-3 col-span-2">
                       <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Contact RDV</p>
                       <p className="text-sm text-white font-medium leading-snug">{collabData.contactsRDV}</p>
                     </div>
