@@ -2363,7 +2363,7 @@ function NotionComments({ projectId }: { projectId: string }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Commentaires Notion</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Commentaires Notion</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (
@@ -4145,7 +4145,7 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* === SECTION 1 : Informations projet === */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Informations projet</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations projet</CardTitle>
           </CardHeader>
           <CardContent className="space-y-0">
 
@@ -4221,7 +4221,7 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* === SECTION 3 : Informations Dates === */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Informations Dates</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations Dates</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
 
@@ -4364,7 +4364,7 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* === SECTION 2 : Informations client === */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Informations client</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations client</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {/* Ligne 1 : Type de client | Grossistes/Fournisseurs */}
@@ -4459,7 +4459,7 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* === SECTION 4 : Informations cabines === */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Informations cabines</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations cabines</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-3">
@@ -4725,7 +4725,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   onClick={() => setShowHeuresCard((v) => !v)}
                   className="w-full flex items-center justify-between"
                 >
-                  <CardTitle className="text-base">Suivi des heures</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Suivi des heures</CardTitle>
                   {showHeuresCard
                     ? <ChevronUp className="w-4 h-4 text-gray-400" />
                     : <ChevronDown className="w-4 h-4 text-gray-400" />}
@@ -5052,7 +5052,7 @@ function ProjectPageContent({ id }: { id: string }) {
               <>
                 <Card>
                   <CardHeader className="pb-0">
-                    <CardTitle className="text-base">Rapport & Photos</CardTitle>
+                    <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Rapport & Photos</CardTitle>
                   </CardHeader>
                   {/* ── Onglets Rapport / Photos (mono-cabine) ── */}
                   <div className="flex border-b border-gray-100 dark:border-slate-700 mx-6">
@@ -6042,7 +6042,7 @@ function ProjectPageContent({ id }: { id: string }) {
             {isCabineMode && (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Signalements enregistrés</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Signalements enregistrés</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
@@ -6191,7 +6191,7 @@ function ProjectPageContent({ id }: { id: string }) {
             {/* Photos Mesures */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Photos</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Photos</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
                 <PhotoUpload
