@@ -713,9 +713,9 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
             const IDENT_WIDTH = 52; // largeur fixe colonne gauche (pt)
             const lines = project.rapportMonteur.split("\n");
             return (
-              {/* Pas de backgroundColor sur le container : un fond avec borderRadius
-                  coupé en plein milieu d'une page est visuellement cassé. On utilise
-                  un liseré gauche qui se prolonge naturellement sur les pages suivantes. */}
+              // Liseré gauche au lieu de backgroundColor+borderRadius :
+              // un fond coupé en milieu de page est visuellement cassé,
+              // un trait de côté se prolonge naturellement sur les pages suivantes.
               <View style={{ borderLeftWidth: 3, borderLeftColor: "#1e3a5f", paddingLeft: 10, paddingVertical: 6 }}>
                 <Text style={{ fontSize: 8, color: "#666", marginBottom: 6 }}>
                   Rapport du monteur
