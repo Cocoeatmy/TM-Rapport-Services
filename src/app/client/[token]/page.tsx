@@ -508,8 +508,8 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                   }}
                   className="bg-white/20 hover:bg-white/30 active:scale-95 rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all ring-1 ring-white/30"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center">
-                    <PenLine className="w-5 h-5 text-[#1e3a5f]" />
+                  <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                    <PenLine className="w-5 h-5 text-white" />
                   </div>
                   <span className="text-[11px] font-medium text-white leading-tight">Saisir rapport</span>
                 </a>
