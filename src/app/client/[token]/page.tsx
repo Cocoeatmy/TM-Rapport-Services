@@ -556,6 +556,16 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                   )}
                 </div>
               )}
+
+              {/* ── Commentaires Montages (info interne, via collabData authentifié) ── */}
+              {collabData?.commentairesMontages && (
+                <div className="px-4 pb-4">
+                  <div className="bg-white/10 rounded-xl p-3">
+                    <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Commentaires Montages</p>
+                    <p className="text-sm text-white font-medium leading-snug whitespace-pre-line">{collabData.commentairesMontages}</p>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             /* Non connecté */
