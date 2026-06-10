@@ -216,6 +216,74 @@ export default function AdminPage() {
   const fournisseurStats = Object.entries(fournisseurMap)
     .sort(([, a], [, b]) => b - a);
 
+  // ── Stats FIABLES par monteur — basées sur l'attribution PAR CABINE
+  //    ("Monteur responsable") + les heures arrivée/départ PAR CABINE, et NON
+  //    sur le champ projet "Collaborateurs montages" (moins précis).
+  //    Mis en place cette semaine via l'auto-attribution à l'upload photo. ──
+  const parseCabMap = (raw: string): Map<number, string> => {
+    const map = new Map<number, string>();
+    if (!raw) return map;
+    const re = /Cab(\d+)\s*:([^|]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(raw))) {
+      const val = m[2].trim();
+      if (val) map.set(parseInt(m[1], 10), val);
+    }
+    return map;
+  };
+  // Dernier HH:MM d'un slot (gère "Cab1:2026-06-03:08:30" et "Cab1:08:30")
+  const slotMinutes = (slot: string): number | null => {
+    const all = [...slot.matchAll(/(\d{1,2}):(\d{2})/g)];
+    if (all.length === 0) return null;
+    const last = all[all.length - 1];
+    const h = parseInt(last[1], 10);
+    const mn = parseInt(last[2], 10);
+    if (h > 23 || mn > 59) return null;
+    return h * 60 + mn;
+  };
+
+  const monteurAgg: Record<string, { cabines: number; minutes: number; cabinesAvecHeures: number; projets: Set<string> }> = {};
+  filteredProjects.forEach((p) => {
+    const attrMap = parseCabMap(p.attributionCabines || "");
+    if (attrMap.size === 0) return; // pas d'attribution par cabine → exclu (fiabilité)
+    const arrMap = parseCabMap(p.heureArrivee || "");
+    const depMap = parseCabMap(p.heureDepart || "");
+    attrMap.forEach((monteurRaw, cabNum) => {
+      const monteurs = monteurRaw.split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
+      if (monteurs.length === 0) return;
+      // Durée de cette cabine (si arrivée + départ dispo)
+      let dur = 0;
+      const aSlot = arrMap.get(cabNum);
+      const dSlot = depMap.get(cabNum);
+      if (aSlot && dSlot) {
+        const aMin = slotMinutes(aSlot);
+        const dMin = slotMinutes(dSlot);
+        if (aMin !== null && dMin !== null) {
+          let diff = dMin - aMin;
+          if (diff <= 0) diff += 24 * 60; // passage minuit
+          if (diff <= 12 * 60) dur = diff; // sanité : <12h/cabine
+        }
+      }
+      monteurs.forEach((mt) => {
+        if (!monteurAgg[mt]) monteurAgg[mt] = { cabines: 0, minutes: 0, cabinesAvecHeures: 0, projets: new Set() };
+        monteurAgg[mt].cabines += 1;
+        monteurAgg[mt].projets.add(p.id);
+        if (dur > 0) {
+          monteurAgg[mt].minutes += dur;
+          monteurAgg[mt].cabinesAvecHeures += 1;
+        }
+      });
+    });
+  });
+  const monteurMontageStats = Object.entries(monteurAgg)
+    .map(([name, v]) => ({ name, cabines: v.cabines, projets: v.projets.size, minutes: v.minutes, cabinesAvecHeures: v.cabinesAvecHeures }))
+    .sort((a, b) => b.cabines - a.cabines);
+  const monteurHeuresStats = monteurMontageStats
+    .filter((s) => s.minutes > 0)
+    .sort((a, b) => b.minutes - a.minutes);
+  const totalCabinesAttribuees = monteurMontageStats.reduce((s, m) => s + m.cabines, 0);
+  const fmtMin = (m: number) => (m <= 0 ? "—" : `${Math.floor(m / 60)}h${(m % 60).toString().padStart(2, "0")}`);
+
   // Totaux
   const totalCabines = filteredProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
   const totalProjets = filteredProjects.length;
@@ -445,6 +513,96 @@ export default function AdminPage() {
           <CardContent className="pt-4 text-center">
             <p className="text-3xl font-bold text-[#1e3a5f] dark:text-amber-300">{seriesStats.length}</p>
             <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">Séries de cabines</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Stats fiables par monteur (attribution + heures PAR CABINE) ── */}
+      <div className="grid sm:grid-cols-2 gap-4 mb-4">
+        {/* Montage par monteur */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2 text-[#1e3a5f] dark:text-blue-300">
+              <Box className="w-4 h-4" />
+              Montage par monteur
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            {monteurMontageStats.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-6">
+                Aucune attribution par cabine sur cette période.
+              </p>
+            ) : (
+              <>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-snug">
+                  Monteur responsable par cabine · {totalCabinesAttribuees} cabine{totalCabinesAttribuees > 1 ? "s" : ""} attribuée{totalCabinesAttribuees > 1 ? "s" : ""}
+                </p>
+                {monteurMontageStats.map((stat) => {
+                  const max = Math.max(...monteurMontageStats.map((s) => s.cabines), 1);
+                  const color = getCollaboratorColor(stat.name).dot;
+                  return (
+                    <div key={stat.name} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                          <span className="truncate">{stat.name}</span>
+                        </span>
+                        <span className="font-semibold shrink-0 ml-2">
+                          {stat.cabines} <span className="font-normal text-gray-400 text-xs">cab. ({stat.projets} proj.)</span>
+                        </span>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(stat.cabines / max) * 100}%`, backgroundColor: color }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Heures par monteur */}
+        <Card className="glass-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2 text-[#1e3a5f] dark:text-blue-300">
+              <Clock className="w-4 h-4 text-teal-500" />
+              Heures par monteur
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            {monteurHeuresStats.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-6">
+                Aucune heure enregistrée par cabine sur cette période.
+              </p>
+            ) : (
+              <>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-snug">
+                  Cumul arrivée → départ par cabine, attribué au monteur responsable
+                </p>
+                {monteurHeuresStats.map((stat) => {
+                  const max = Math.max(...monteurHeuresStats.map((s) => s.minutes), 1);
+                  const color = getCollaboratorColor(stat.name).dot;
+                  const moy = stat.cabinesAvecHeures > 0 ? Math.round(stat.minutes / stat.cabinesAvecHeures) : 0;
+                  return (
+                    <div key={stat.name} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                          <span className="truncate">{stat.name}</span>
+                        </span>
+                        <span className="font-semibold text-teal-700 dark:text-teal-300 shrink-0 ml-2">
+                          {fmtMin(stat.minutes)} <span className="font-normal text-gray-400 text-xs">({stat.cabinesAvecHeures} cab. · moy.&nbsp;{fmtMin(moy)})</span>
+                        </span>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-teal-500 transition-all duration-500" style={{ width: `${(stat.minutes / max) * 100}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
