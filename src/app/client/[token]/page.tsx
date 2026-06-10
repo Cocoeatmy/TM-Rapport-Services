@@ -506,7 +506,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                   onClick={() => {
                     try { sessionStorage.setItem(`tm-goto-${project.id}`, "cabines"); } catch {}
                   }}
-                  className="bg-white/20 hover:bg-white/30 active:scale-95 rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all ring-1 ring-white/30"
+                  className="bg-white/10 hover:bg-white/20 active:scale-95 rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all"
                 >
                   <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
                     <PenLine className="w-5 h-5 text-white" />
