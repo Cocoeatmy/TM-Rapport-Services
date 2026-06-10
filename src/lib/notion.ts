@@ -161,11 +161,53 @@ export interface FileItem {
 
 function extractText(prop: any): string {
   if (!prop) return "";
+  // Types texte natifs
   if (prop.type === "title") {
     return prop.title?.map((t: any) => t.plain_text).join("") || "";
   }
   if (prop.type === "rich_text") {
     return prop.rich_text?.map((t: any) => t.plain_text).join("") || "";
+  }
+  // Fallbacks : certaines colonnes Notion qu'on attend en texte sont en
+  // réalité d'un autre type (number, phone, formula, rollup, select…).
+  // Sans ces cas, extractText renvoyait "" et la valeur n'apparaissait jamais.
+  if (prop.type === "number") {
+    return prop.number != null ? String(prop.number) : "";
+  }
+  if (prop.type === "phone_number") {
+    return prop.phone_number || "";
+  }
+  if (prop.type === "email") {
+    return prop.email || "";
+  }
+  if (prop.type === "url") {
+    return prop.url || "";
+  }
+  if (prop.type === "select") {
+    return prop.select?.name || "";
+  }
+  if (prop.type === "status") {
+    return prop.status?.name || "";
+  }
+  if (prop.type === "formula") {
+    const f = prop.formula;
+    if (!f) return "";
+    if (f.type === "string") return f.string || "";
+    if (f.type === "number") return f.number != null ? String(f.number) : "";
+    if (f.type === "boolean") return f.boolean != null ? String(f.boolean) : "";
+    return "";
+  }
+  if (prop.type === "rollup") {
+    const r = prop.rollup;
+    if (!r) return "";
+    if (r.type === "number") return r.number != null ? String(r.number) : "";
+    if (r.type === "array") {
+      return (r.array || [])
+        .map((item: any) => extractText(item))
+        .filter(Boolean)
+        .join(", ");
+    }
+    return "";
   }
   return "";
 }
