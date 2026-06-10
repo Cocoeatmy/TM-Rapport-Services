@@ -4071,6 +4071,20 @@ function ProjectPageContent({ id }: { id: string }) {
       <div className={`px-4 mt-4 ${showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "max-w-5xl mx-auto"}`}>
         {/* Colonne gauche - Informations (masquée sur mobile quand rapport ouvert) */}
         <div className={`space-y-4 ${showRapport ? "hidden lg:block" : ""}`}>
+        {/* Bouton démarrer/consulter le rapport — placé juste sous le header,
+            au-dessus des cartes d'informations (demande utilisateur).
+            Caché pour les modes ayant leur propre flux (mesures, services, sav). */}
+        {!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && !showRapport && (
+          <button
+            onClick={() => { setShowRapport(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            className={`w-full py-4 rounded-2xl active:scale-[0.98] text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg transition-all ${
+              project.rapportMonteur ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"
+            }`}
+          >
+            <FileText className="w-5 h-5" />
+            {project.rapportMonteur ? "Consulter le rapport de montage" : "Démarrer le rapport de montage"}
+          </button>
+        )}
         {/* === Grille 2 colonnes sur md+ : gauche = projet+dates, droite = client+cabines === */}
         <div className={`grid grid-cols-1 gap-4 ${!showRapport ? "md:grid-cols-2" : ""}`}>
 
@@ -4503,23 +4517,6 @@ function ProjectPageContent({ id }: { id: string }) {
             )}
           </CardContent>
         </Card>
-
-        {/* Bouton démarrer/consulter le rapport de montage.
-            On le cache seulement pour les modes qui ont leur propre flux
-            (mesures, services, sav et leurs variantes terminées).
-            Tous les autres modes (cmd, dashboard, rapport, stats, archives,
-            projets-tous, calendrier, etc.) doivent afficher ce bouton. */}
-        {!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && !showRapport && (
-          <button
-            onClick={() => { setShowRapport(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-            className={`w-full py-4 rounded-2xl active:scale-[0.98] text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg transition-all ${
-              project.rapportMonteur ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"
-            }`}
-          >
-            <FileText className="w-5 h-5" />
-            {project.rapportMonteur ? "Consulter le rapport de montage" : "Démarrer le rapport de montage"}
-          </button>
-        )}
 
         {showRapport && !["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && (
           <button
