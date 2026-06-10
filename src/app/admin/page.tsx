@@ -231,7 +231,7 @@ export default function AdminPage() {
     }
     return map;
   };
-  // Dernier HH:MM d'un slot (gère "Cab1:2026-06-03:08:30" et "Cab1:08:30")
+  // Dernier HH:MM d'un slot (gère "Cab1:2026-06-03:08:30", "Cab1:08:30" et "08:30")
   const slotMinutes = (slot: string): number | null => {
     const all = [...slot.matchAll(/(\d{1,2}):(\d{2})/g)];
     if (all.length === 0) return null;
@@ -241,39 +241,52 @@ export default function AdminPage() {
     if (h > 23 || mn > 59) return null;
     return h * 60 + mn;
   };
+  // Durée (minutes) entre une arrivée et un départ, bornée à 12h (sanité).
+  const durMinutes = (arr: string, dep: string): number => {
+    if (!arr || !dep) return 0;
+    const aMin = slotMinutes(arr);
+    const dMin = slotMinutes(dep);
+    if (aMin === null || dMin === null) return 0;
+    let diff = dMin - aMin;
+    if (diff <= 0) diff += 24 * 60; // passage minuit
+    return diff <= 12 * 60 ? diff : 0;
+  };
 
   const monteurAgg: Record<string, { cabines: number; minutes: number; cabinesAvecHeures: number; projets: Set<string> }> = {};
+  const credit = (mt: string, cab: number, dur: number, projectId: string) => {
+    if (!monteurAgg[mt]) monteurAgg[mt] = { cabines: 0, minutes: 0, cabinesAvecHeures: 0, projets: new Set() };
+    monteurAgg[mt].cabines += cab;
+    monteurAgg[mt].projets.add(projectId);
+    if (dur > 0) {
+      monteurAgg[mt].minutes += dur;
+      monteurAgg[mt].cabinesAvecHeures += cab;
+    }
+  };
   filteredProjects.forEach((p) => {
     const attrMap = parseCabMap(p.attributionCabines || "");
-    if (attrMap.size === 0) return; // pas d'attribution par cabine → exclu (fiabilité)
-    const arrMap = parseCabMap(p.heureArrivee || "");
-    const depMap = parseCabMap(p.heureDepart || "");
-    attrMap.forEach((monteurRaw, cabNum) => {
-      const monteurs = monteurRaw.split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
-      if (monteurs.length === 0) return;
-      // Durée de cette cabine (si arrivée + départ dispo)
-      let dur = 0;
-      const aSlot = arrMap.get(cabNum);
-      const dSlot = depMap.get(cabNum);
-      if (aSlot && dSlot) {
-        const aMin = slotMinutes(aSlot);
-        const dMin = slotMinutes(dSlot);
-        if (aMin !== null && dMin !== null) {
-          let diff = dMin - aMin;
-          if (diff <= 0) diff += 24 * 60; // passage minuit
-          if (diff <= 12 * 60) dur = diff; // sanité : <12h/cabine
-        }
-      }
-      monteurs.forEach((mt) => {
-        if (!monteurAgg[mt]) monteurAgg[mt] = { cabines: 0, minutes: 0, cabinesAvecHeures: 0, projets: new Set() };
-        monteurAgg[mt].cabines += 1;
-        monteurAgg[mt].projets.add(p.id);
-        if (dur > 0) {
-          monteurAgg[mt].minutes += dur;
-          monteurAgg[mt].cabinesAvecHeures += 1;
-        }
+
+    if (attrMap.size > 0) {
+      // ── Attribution PAR CABINE (multi-cabine, ou mono avec responsable) ──
+      const arrMap = parseCabMap(p.heureArrivee || "");
+      const depMap = parseCabMap(p.heureDepart || "");
+      attrMap.forEach((monteurRaw, cabNum) => {
+        const monteurs = monteurRaw.split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
+        if (monteurs.length === 0) return;
+        const dur = durMinutes(arrMap.get(cabNum) || "", depMap.get(cabNum) || "");
+        monteurs.forEach((mt) => credit(mt, 1, dur, p.id));
       });
-    });
+      return;
+    }
+
+    // ── Mono-cabine sans responsable → fallback "Collaborateurs montages" ──
+    //    Si deux collaborateurs (binôme), chacun est crédité de la cabine
+    //    et de la durée du projet (heures arrivée/départ au niveau projet).
+    const isMono = (p.nbCabines || 1) <= 1;
+    if (!isMono) return; // multi-cabine sans attribution → exclu (peu fiable)
+    const collabs = (p.collaborateurs || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
+    if (collabs.length === 0) return;
+    const dur = durMinutes(p.heureArrivee || "", p.heureDepart || "");
+    collabs.forEach((mt) => credit(mt, 1, dur, p.id));
   });
   const monteurMontageStats = Object.entries(monteurAgg)
     .map(([name, v]) => ({ name, cabines: v.cabines, projets: v.projets.size, minutes: v.minutes, cabinesAvecHeures: v.cabinesAvecHeures }))
@@ -535,7 +548,7 @@ export default function AdminPage() {
             ) : (
               <>
                 <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-snug">
-                  Monteur responsable par cabine · {totalCabinesAttribuees} cabine{totalCabinesAttribuees > 1 ? "s" : ""} attribuée{totalCabinesAttribuees > 1 ? "s" : ""}
+                  Responsable par cabine (multi) + collaborateurs (mono) · {totalCabinesAttribuees} cabine{totalCabinesAttribuees > 1 ? "s" : ""}
                 </p>
                 {monteurMontageStats.map((stat) => {
                   const max = Math.max(...monteurMontageStats.map((s) => s.cabines), 1);
