@@ -5130,6 +5130,25 @@ function ProjectPageContent({ id }: { id: string }) {
                             ...filterByBucket(project.photosMontage, "APRES_INTERVENTION"),
                           ]}
                         />
+                        <Separator />
+                        {/* Signalements — déplacés ici depuis la racine du rapport.
+                            En mono-cabine, le signalement est rattaché au projet
+                            (pas de lots multiples à distinguer). */}
+                        <div className="pt-1 space-y-3">
+                          <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalements</p>
+                          <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
+                          <DefautsList projectId={id} refreshKey={defautRefreshKey} />
+                          <PiecesForm
+                            projectId={id}
+                            projectName={project.projet}
+                            onSubmitted={() => setPieceRefreshKey((k) => k + 1)}
+                          />
+                          <DefautForm
+                            projectId={id}
+                            projectName={project.projet}
+                            onSubmitted={() => setDefautRefreshKey((k) => k + 1)}
+                          />
+                        </div>
                       </>
                     )}
                   </CardContent>
@@ -5963,53 +5982,23 @@ function ProjectPageContent({ id }: { id: string }) {
               document.body
             )}
 
-            {/* Signalements enregistrés — pièces et défauts depuis le KV store */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Signalements enregistrés</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
-                <DefautsList projectId={id} refreshKey={defautRefreshKey} />
-              </CardContent>
-            </Card>
-
-            {/* Pièce manquante */}
-            <PiecesForm projectId={id} projectName={project.projet} onSubmitted={() => {
-              setPieceRefreshKey((k) => k + 1);
-            }} />
-
-            {/* Signaler un défaut */}
-            <DefautForm
-              projectId={id}
-              projectName={project.projet}
-              cabineOptions={cabines.length > 1 ? cabines.map((c, i) => c.nom || `Cabine ${i + 1}`) : undefined}
-              onSubmitted={() => {
-              // Les photos du défaut sont stockées dans le KV store par défaut (per-defaut).
-              // DefautsList les lit directement → on force son rechargement via refreshKey.
-              // On ne touche PAS à photosDefautsSignale (qui est un champ agrégat legacy).
-              setDefautRefreshKey((k) => k + 1);
-              // Rafraîchir les textes du projet (infoDefautsSignale etc.) en préservant les photos locales
-              setTimeout(() => {
-                fetch(`/api/projects/${id}`).then(r => r.json()).then(data => {
-                  if (!data?.id) return;
-                  setProject((prev) => {
-                    if (!prev) return data;
-                    const incoming = { ...data } as typeof data;
-                    const photoFields = [
-                      "photosAvant", "photosDemontage", "photosMontage", "photosQRCode", "photosGaranties",
-                      "photosCartons", "photosSituations", "photosMesures", "photosLocalite",
-                      "photosPiecesManquantes", "photosDefautsSignale",
-                    ] as const;
-                    for (const field of photoFields) {
-                      (incoming as Record<string, unknown>)[field] = prev[field];
-                    }
-                    return incoming;
-                  });
-                }).catch(() => {});
-              }, 2000);
-            }}
-            />
+            {/* Signalements enregistrés — vue globale agrégée.
+                Multi-cabine uniquement : les signalements (liste + formulaires)
+                vivent dans chaque onglet cabine, on conserve ici une vue d'ensemble.
+                En mono-cabine, liste + formulaires sont dans l'onglet Photos.
+                Les FORMULAIRES de signalement à la racine ont été retirés : ils ne
+                rattachaient pas le signalement à un lot précis (demande utilisateur). */}
+            {isCabineMode && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Signalements enregistrés</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
+                  <DefautsList projectId={id} refreshKey={defautRefreshKey} />
+                </CardContent>
+              </Card>
+            )}
 
             {/* Signature client */}
             <Card>
