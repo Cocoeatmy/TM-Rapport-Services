@@ -92,6 +92,10 @@ export async function GET(
     photosMontage: project.photosMontage,
     nomsCabines: project.nomsCabines || "",
     dateMontageEnd: project.dateMontageEnd || null,
+    // Références commandes — affichées dans l'espace collaborateur (isCollab = true)
+    cmdGrossiste: project.cmdGrossiste || "",
+    cmdFournisseurs: project.cmdFournisseurs || "",
+    servCmdFournisseurs: project.servCmdFournisseurs || "",
   };
 
   return NextResponse.json(publicData, {

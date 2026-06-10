@@ -43,6 +43,9 @@ interface PublicProject {
   photosMontage: { name: string; url: string }[];
   nomsCabines: string;
   dateMontageEnd: string | null;
+  cmdGrossiste: string;
+  cmdFournisseurs: string;
+  servCmdFournisseurs: string;
 }
 
 /** Parse "Cab1:J-001 (Divera) | Cab2:J-002..." → Map<numéro, nom> */
@@ -530,25 +533,25 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                 </div>
               )}
 
-              {/* ── Références commandes (CMD Grossiste / CMD Fourn. / Serv. CMD Fourn.) ── */}
-              {collabData && (collabData.cmdGrossiste || collabData.cmdFournisseurs || collabData.servCmdFournisseurs) && (
+              {/* ── Références commandes (lues depuis l'API publique — pas de 2ème fetch) ── */}
+              {(project.cmdGrossiste || project.cmdFournisseurs || project.servCmdFournisseurs) && (
                 <div className="px-4 pb-4 grid grid-cols-2 gap-2">
-                  {collabData.cmdGrossiste && (
+                  {project.cmdGrossiste && (
                     <div className="bg-white/10 rounded-xl p-3">
                       <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° CMD Grossiste</p>
-                      <p className="text-sm text-white font-semibold leading-snug">{collabData.cmdGrossiste}</p>
+                      <p className="text-sm text-white font-semibold leading-snug">{project.cmdGrossiste}</p>
                     </div>
                   )}
-                  {collabData.cmdFournisseurs && (
+                  {project.cmdFournisseurs && (
                     <div className="bg-white/10 rounded-xl p-3">
                       <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° CMD Fourn.</p>
-                      <p className="text-sm text-white font-semibold leading-snug">{collabData.cmdFournisseurs}</p>
+                      <p className="text-sm text-white font-semibold leading-snug">{project.cmdFournisseurs}</p>
                     </div>
                   )}
-                  {collabData.servCmdFournisseurs && (
+                  {project.servCmdFournisseurs && (
                     <div className="bg-white/10 rounded-xl p-3 col-span-2">
                       <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° Serv. CMD Fourn.</p>
-                      <p className="text-sm text-white font-semibold leading-snug">{collabData.servCmdFournisseurs}</p>
+                      <p className="text-sm text-white font-semibold leading-snug">{project.servCmdFournisseurs}</p>
                     </div>
                   )}
                 </div>
