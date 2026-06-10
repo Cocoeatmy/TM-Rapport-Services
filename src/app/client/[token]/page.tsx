@@ -81,7 +81,9 @@ interface CollabData {
   nbCartons: number | null;
   documentsMontagee: { name: string; url: string }[];
   commentairesMontages: string;
+  cmdGrossiste: string;
   cmdFournisseurs: string;
+  servCmdFournisseurs: string;
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -230,7 +232,9 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
             })}`,
           })),
           commentairesMontages: data.commentairesMontages || "",
+          cmdGrossiste: data.cmdGrossiste || "",
           cmdFournisseurs: data.cmdFournisseurs || "",
+          servCmdFournisseurs: data.servCmdFournisseurs || "",
         });
 
         // Pré-cache les documents via le SW dès qu'ils sont connus
@@ -521,6 +525,30 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                     <div className="bg-white/10 rounded-xl p-3">
                       <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Contact RDV</p>
                       <p className="text-sm text-white font-medium leading-snug">{collabData.contactsRDV}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Références commandes (CMD Grossiste / CMD Fourn. / Serv. CMD Fourn.) ── */}
+              {collabData && (collabData.cmdGrossiste || collabData.cmdFournisseurs || collabData.servCmdFournisseurs) && (
+                <div className="px-4 pb-4 grid grid-cols-2 gap-2">
+                  {collabData.cmdGrossiste && (
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° CMD Grossiste</p>
+                      <p className="text-sm text-white font-semibold leading-snug">{collabData.cmdGrossiste}</p>
+                    </div>
+                  )}
+                  {collabData.cmdFournisseurs && (
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° CMD Fourn.</p>
+                      <p className="text-sm text-white font-semibold leading-snug">{collabData.cmdFournisseurs}</p>
+                    </div>
+                  )}
+                  {collabData.servCmdFournisseurs && (
+                    <div className="bg-white/10 rounded-xl p-3 col-span-2">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° Serv. CMD Fourn.</p>
+                      <p className="text-sm text-white font-semibold leading-snug">{collabData.servCmdFournisseurs}</p>
                     </div>
                   )}
                 </div>
