@@ -202,9 +202,9 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const [fYear, setFYear] = useState("all");
   const [fMonth, setFMonth] = useState("all");
   const [pdfGenerating, setPdfGenerating] = useState(false);
-  // Comparaison VS entre collaborateurs
+  // Comparaison VS entre collaborateurs (multi-sélection)
   const [compareMode, setCompareMode] = useState(false);
-  const [collabB, setCollabB] = useState("");
+  const [collabsB, setCollabsB] = useState<string[]>([]);
   // Persistance des filtres entre changements de monteur (jusqu'à reset).
   const FKEY = "tm-heures-detail-filters";
   const [filtersLoaded, setFiltersLoaded] = useState(false);
@@ -219,7 +219,7 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
       if (s.fYear) setFYear(s.fYear);
       if (s.fMonth) setFMonth(s.fMonth);
       if (typeof s.compareMode === "boolean") setCompareMode(s.compareMode);
-      if (s.collabB) setCollabB(s.collabB);
+      if (Array.isArray(s.collabsB)) setCollabsB(s.collabsB);
     } catch {}
     setFiltersLoaded(true);
   }, []);
@@ -228,9 +228,9 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   useEffect(() => {
     if (!filtersLoaded) return;
     try {
-      sessionStorage.setItem(FKEY, JSON.stringify({ fMarque, fSerie, fService, fYear, fMonth, compareMode, collabB }));
+      sessionStorage.setItem(FKEY, JSON.stringify({ fMarque, fSerie, fService, fYear, fMonth, compareMode, collabsB }));
     } catch {}
-  }, [filtersLoaded, fMarque, fSerie, fService, fYear, fMonth, compareMode, collabB]);
+  }, [filtersLoaded, fMarque, fSerie, fService, fYear, fMonth, compareMode, collabsB]);
 
   useEffect(() => {
     fetch("/api/auth")
@@ -297,22 +297,28 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const moyTotal = cabAvecHeures > 0 ? Math.round(totalMin / cabAvecHeures) : 0;
 
   // Stats agrégées d'un monteur (même filtre actif) — pour la comparaison VS.
-  const computeStats = (name: string) => {
+  type MStats = {
+    totalMin: number; soloMin: number; binomeMin: number;
+    totalCab: number; soloCab: number; binomeCab: number;
+    moyTotal: number; moySolo: number; moyBinome: number;
+  };
+  const computeStats = (name: string): MStats => {
     const es = projects.flatMap((p) => entriesForMonteur(p, name)).filter(filterEntry);
-    const tot = es.reduce((s, e) => s + e.minutes, 0);
     const solo = es.filter((e) => !e.binome);
     const bin = es.filter((e) => e.binome);
-    const cabH = es.filter((e) => e.minutes > 0).length;
+    const sum = (arr: Entry[]) => arr.reduce((s, e) => s + e.minutes, 0);
+    const avg = (arr: Entry[]) => { const n = arr.filter((e) => e.minutes > 0).length; return n > 0 ? Math.round(sum(arr) / n) : 0; };
     return {
-      totalMin: tot,
-      soloMin: solo.reduce((s, e) => s + e.minutes, 0),
-      binomeMin: bin.reduce((s, e) => s + e.minutes, 0),
+      totalMin: sum(es), soloMin: sum(solo), binomeMin: sum(bin),
       totalCab: es.length, soloCab: solo.length, binomeCab: bin.length,
-      moy: cabH > 0 ? Math.round(tot / cabH) : 0,
+      moyTotal: avg(es), moySolo: avg(solo), moyBinome: avg(bin),
     };
   };
-  const statsA = { totalMin, soloMin, binomeMin, totalCab, soloCab, binomeCab, moy: moyTotal };
-  const statsB = compareMode && collabB ? computeStats(collabB) : null;
+  const statsA: MStats = { totalMin, soloMin, binomeMin, totalCab, soloCab, binomeCab, moyTotal, moySolo, moyBinome };
+  // Colonnes de comparaison : le monteur courant + les sélectionnés.
+  const compareColumns = compareMode
+    ? [{ name: decoded, stats: statsA }, ...collabsB.map((n) => ({ name: n, stats: computeStats(n) }))]
+    : [];
 
   // Choix de monteur (sélecteur en-tête) : liste connue + le courant si absent.
   const monteurChoices = [...new Set([decoded, ...COLLABORATEURS_LIST])];
@@ -436,27 +442,29 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
                 ))}
               </select>
 
-              {/* Comparaison VS avec un autre collaborateur */}
+              {/* Comparaison VS — multi-sélection de collaborateurs */}
               <button
                 onClick={() => setCompareMode((v) => !v)}
                 className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${compareMode ? "bg-[#1e3a5f] text-white" : "border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:text-gray-900"}`}
               >
                 Comparer (VS)
               </button>
-              {compareMode && (
-                <select
-                  value={collabB}
-                  onChange={(e) => setCollabB(e.target.value)}
-                  className="text-xs px-2.5 py-1.5 rounded-lg border border-amber-400/60 bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 font-medium"
-                >
-                  <option value="">Comparer avec…</option>
-                  {COLLABORATEURS_LIST.filter((n) => n !== decoded).map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-              )}
+              {compareMode && COLLABORATEURS_LIST.filter((n) => n !== decoded).map((n) => {
+                const sel = collabsB.includes(n);
+                return (
+                  <button
+                    key={n}
+                    onClick={() => setCollabsB((prev) => sel ? prev.filter((x) => x !== n) : [...prev, n])}
+                    className={`text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors ${sel ? "bg-amber-500 text-white" : "border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:text-gray-900"}`}
+                  >
+                    {sel ? "✓ " : ""}{n}
+                  </button>
+                );
+              })}
 
               {(fMarque !== "all" || fSerie !== "all" || fService !== "all" || fYear !== "all" || fMonth !== "all" || compareMode) && (
                 <button
-                  onClick={() => { setFMarque("all"); setFSerie("all"); setFService("all"); setFYear("all"); setFMonth("all"); setCompareMode(false); setCollabB(""); }}
+                  onClick={() => { setFMarque("all"); setFSerie("all"); setFService("all"); setFYear("all"); setFMonth("all"); setCompareMode(false); setCollabsB([]); }}
                   className="text-xs px-2.5 py-1.5 rounded-lg text-blue-600 dark:text-blue-300 hover:underline"
                 >
                   Réinitialiser
@@ -496,39 +504,66 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
         </div>
       </div>
 
-      {/* Comparaison VS entre 2 collaborateurs */}
+      {/* Comparaison VS — multi-collaborateurs, breakdown Solo/Binôme */}
       {compareMode && (
         <div className="glass-card rounded-2xl p-4 mb-6">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-3">Comparaison VS</p>
-          {!collabB || !statsB ? (
-            <p className="text-sm text-gray-400 text-center py-4">Choisis un collaborateur à comparer.</p>
-          ) : (
-            <div className="grid grid-cols-4 gap-x-2 gap-y-2 items-center">
-              <div />
-              <div className="text-sm font-bold text-[#1e3a5f] dark:text-blue-300 text-center">{decoded}</div>
-              <div className="text-sm font-bold text-amber-600 dark:text-amber-400 text-center">{collabB}</div>
-              <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 text-center">Écart</div>
-              {([
-                { label: "Total heures", a: statsA.totalMin, b: statsB.totalMin, hours: true },
-                { label: "Solo", a: statsA.soloMin, b: statsB.soloMin, hours: true },
-                { label: "Binôme", a: statsA.binomeMin, b: statsB.binomeMin, hours: true },
-                { label: "Cabines", a: statsA.totalCab, b: statsB.totalCab, hours: false },
-                { label: "Moy. / cabine", a: statsA.moy, b: statsB.moy, hours: true },
-              ] as const).map((r) => {
-                const delta = r.a - r.b;
-                const fmt = (x: number) => (r.hours ? fmtMin(x) : String(x));
-                const deltaStr = delta === 0 ? "—" : `${delta > 0 ? "+" : "-"}${r.hours ? fmtMin(Math.abs(delta)) : Math.abs(delta)}`;
-                return (
-                  <Fragment key={r.label}>
-                    <div className="text-xs font-medium text-gray-600 dark:text-gray-300">{r.label}</div>
-                    <div className="text-base font-bold text-[#1e3a5f] dark:text-blue-300 text-center">{fmt(r.a)}</div>
-                    <div className="text-base font-bold text-amber-600 dark:text-amber-400 text-center">{fmt(r.b)}</div>
-                    <div className={`text-xs font-semibold text-center ${delta === 0 ? "text-gray-400" : delta > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{deltaStr}</div>
+          {collabsB.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">Sélectionne un ou plusieurs collaborateurs à comparer (boutons en haut).</p>
+          ) : (() => {
+            const cols = compareColumns;
+            const showEcart = cols.length === 2; // écart seulement en 1 vs 1
+            const template = `minmax(110px,1.4fr) repeat(${cols.length}, 1fr)${showEcart ? " 0.9fr" : ""}`;
+            const groups: { title: string; hours: boolean; rows: { label: string; get: (s: MStats) => number; strong?: boolean }[] }[] = [
+              { title: "Heures", hours: true, rows: [
+                { label: "Total", get: (s) => s.totalMin, strong: true },
+                { label: "Solo", get: (s) => s.soloMin },
+                { label: "Binôme", get: (s) => s.binomeMin },
+              ] },
+              { title: "Cabines", hours: false, rows: [
+                { label: "Total", get: (s) => s.totalCab, strong: true },
+                { label: "Solo", get: (s) => s.soloCab },
+                { label: "Binôme", get: (s) => s.binomeCab },
+              ] },
+              { title: "Moy. / cabine", hours: true, rows: [
+                { label: "Total", get: (s) => s.moyTotal, strong: true },
+                { label: "Solo", get: (s) => s.moySolo },
+                { label: "Binôme", get: (s) => s.moyBinome },
+              ] },
+            ];
+            const fmtVal = (x: number, hours: boolean) => (hours ? (x > 0 ? fmtMin(x) : "—") : String(x));
+            return (
+              <div className="grid gap-x-3 gap-y-1.5 items-center overflow-x-auto" style={{ gridTemplateColumns: template }}>
+                {/* En-tête : noms des collaborateurs */}
+                <div />
+                {cols.map((c, i) => (
+                  <div key={c.name} className={`text-sm font-bold text-center ${i === 0 ? "text-[#1e3a5f] dark:text-blue-300" : "text-amber-600 dark:text-amber-400"}`}>{c.name}</div>
+                ))}
+                {showEcart && <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 text-center">Écart</div>}
+
+                {groups.map((g) => (
+                  <Fragment key={g.title}>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 pt-2" style={{ gridColumn: "1 / -1" }}>{g.title}</div>
+                    {g.rows.map((r) => (
+                      <Fragment key={r.label}>
+                        <div className="text-xs text-gray-600 dark:text-gray-300 pl-2">{r.label}</div>
+                        {cols.map((c, i) => (
+                          <div key={c.name} className={`text-center ${r.strong ? "text-base font-bold" : "text-sm font-semibold"} ${i === 0 ? "text-[#1e3a5f] dark:text-blue-300" : "text-amber-600 dark:text-amber-400"}`}>
+                            {fmtVal(r.get(c.stats), g.hours)}
+                          </div>
+                        ))}
+                        {showEcart && (() => {
+                          const delta = r.get(cols[0].stats) - r.get(cols[1].stats);
+                          const dstr = delta === 0 ? "—" : `${delta > 0 ? "+" : "-"}${g.hours ? fmtMin(Math.abs(delta)) : Math.abs(delta)}`;
+                          return <div className={`text-xs font-semibold text-center ${delta === 0 ? "text-gray-400" : delta > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{dstr}</div>;
+                        })()}
+                      </Fragment>
+                    ))}
                   </Fragment>
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
