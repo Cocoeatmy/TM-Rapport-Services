@@ -64,6 +64,8 @@ export interface PendingUpload {
   /** Statut de l'upload : "pending" (en cours) ou "permanently-failed"
    *  (MAX_RETRIES atteint — conservé pour inspection/retry manuel). */
   status?: UploadStatus;
+  /** Motif du dernier échec (ex. "Erreur 413"), pour diagnostic UI. */
+  reason?: string;
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;

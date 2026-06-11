@@ -78,6 +78,7 @@ export function OfflineBanner() {
   const [lastWarm, setLastWarm]           = useState(0);
   const [showWarmOk, setShowWarmOk]       = useState(false);
   const [failedCount, setFailedCount]     = useState(0);
+  const [failedReason, setFailedReason]   = useState("");
   const [retrying, setRetrying]           = useState(false);
   const [showDetails, setShowDetails]     = useState(false);
 
@@ -95,6 +96,18 @@ export function OfflineBanner() {
       setPendingUps(uploads);
       setLastWarm(getLastCacheWarmTs());
       setFailedCount(failCount);
+      // Récupère le motif d'échec le plus récent pour diagnostic visible.
+      if (failCount > 0) {
+        try {
+          const failed = await getPendingUploads({ status: "permanently-failed" });
+          if (!cancelled) {
+            const reasons = failed.map((f) => f.reason).filter(Boolean) as string[];
+            setFailedReason(reasons[0] || "");
+          }
+        } catch {}
+      } else if (!cancelled) {
+        setFailedReason("");
+      }
     };
     refresh();
 
@@ -169,6 +182,9 @@ export function OfflineBanner() {
         <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden />
         <span className="text-center leading-tight">
           {failedCount} photo{failedCount > 1 ? "s" : ""} n&apos;ont pas pu être envoyées — données conservées localement
+          {failedReason && (
+            <span className="block text-[10px] font-normal opacity-90">motif&nbsp;: {failedReason}</span>
+          )}
         </span>
         {online && (
           <button
