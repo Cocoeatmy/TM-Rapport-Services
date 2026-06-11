@@ -356,6 +356,20 @@ export default function AdminPage() {
   const totalCabinesAttribuees = monteurA.totalCab;
   const fmtMin = (m: number) => (m <= 0 ? "—" : `${Math.floor(m / 60)}h${(m % 60).toString().padStart(2, "0")}`);
 
+  // Projets (période A) où un monteur donné est intervenu — pour le dépliage
+  // de la carte "Montage par monteur". Même logique d'attribution que les stats.
+  const projectsForMonteur = (name: string): Project[] => {
+    const target = name.trim().toLowerCase();
+    const matches = (raw: string) =>
+      raw.split(/\s*&\s*/).map((s) => s.trim()).some((n) => n.toLowerCase() === target);
+    return filteredProjects.filter((p) => {
+      const attrMap = parseCabMap(p.attributionCabines || "");
+      if (attrMap.size > 0) return Array.from(attrMap.values()).some((v) => matches(v));
+      const isMono = (p.nbCabines || 1) <= 1;
+      return isMono && matches(p.collaborateurs || "");
+    });
+  };
+
   // ── Fusion A/B pour l'affichage côte à côte par monteur (mode comparaison) ──
   //    metric: "cabines" (carte Montage) ou "minutes" (carte Heures).
   const buildComparison = (metric: "cabines" | "minutes") => {
@@ -776,20 +790,32 @@ export default function AdminPage() {
                 {monteurMontageStats.map((stat) => {
                   const max = Math.max(...monteurMontageStats.map((s) => s.cabines), 1);
                   const color = getCollaboratorColor(stat.name).dot;
+                  const key = `montage-${stat.name}`;
+                  const isOpen = expanded === key;
                   return (
-                    <div key={stat.name} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-1.5 min-w-0">
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                          <span className="truncate">{stat.name}</span>
-                        </span>
-                        <span className="font-semibold shrink-0 ml-2">
-                          {stat.cabines} <span className="font-normal text-gray-400 text-xs">cab. ({stat.projets} proj.)</span>
-                        </span>
-                      </div>
-                      <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(stat.cabines / max) * 100}%`, backgroundColor: color }} />
-                      </div>
+                    <div key={stat.name}>
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(key)}
+                        className="w-full text-left space-y-1 rounded-lg px-1 py-1 -mx-1 hover:bg-white/50 dark:hover:bg-white/5 transition-colors"
+                      >
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                            <span className="truncate">{stat.name}</span>
+                          </span>
+                          <span className="flex items-center gap-1.5 shrink-0 ml-2">
+                            <span className="font-semibold">
+                              {stat.cabines} <span className="font-normal text-gray-400 text-xs">cab. ({stat.projets} proj.)</span>
+                            </span>
+                            {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(stat.cabines / max) * 100}%`, backgroundColor: color }} />
+                        </div>
+                      </button>
+                      {isOpen && <ProjectList items={projectsForMonteur(stat.name)} />}
                     </div>
                   );
                 })}
