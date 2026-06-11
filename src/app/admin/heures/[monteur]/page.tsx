@@ -115,23 +115,39 @@ function entriesForMonteur(p: Project, monteur: string): Entry[] {
   const base = { projectName: p.projet, projectId: p.id, marque, serie, typeService };
 
   const attrMap = parseCabMap(p.attributionCabines || "");
-  if (attrMap.size > 0) {
-    const nomsMap = parseCabMap(p.nomsCabines || "");
-    const arrMap = parseCabMap(p.heureArrivee || "");
-    const depMap = parseCabMap(p.heureDepart || "");
-    const dateMap = parseCabDates(p.heureArrivee || "");
-    // Le monteur est-il attribué à AU MOINS une cabine de ce projet ?
-    const targetInAnyAttr = [...attrMap.values()].some((raw) =>
-      splitNames(raw).some((n) => normName(n) === target)
-    );
-    attrMap.forEach((monteurRaw, cabNum) => {
-      const names = splitNames(monteurRaw);
+  const arrMap = parseCabMap(p.heureArrivee || "");
+  const depMap = parseCabMap(p.heureDepart || "");
+  const nomsMap = parseCabMap(p.nomsCabines || "");
+  const dateMap = parseCabDates(p.heureArrivee || "");
+  // Numéros de cabine connus : présents dans l'attribution OU les heures OU les
+  // noms. (Un projet multi-cabine peut avoir des heures par cabine SANS
+  // attribution enregistrée — il ne faut pas le traiter comme un mono.)
+  const cabNums = [...new Set([...attrMap.keys(), ...arrMap.keys(), ...nomsMap.keys()])].sort((a, b) => a - b);
+  const targetInAnyAttr = [...attrMap.values()].some((raw) =>
+    splitNames(raw).some((n) => normName(n) === target)
+  );
+
+  if (cabNums.length > 0) {
+    // ── Projet structuré par cabines ──
+    for (const cabNum of cabNums) {
+      const names = splitNames(attrMap.get(cabNum) || "");
       const inAttr = names.some((n) => normName(n) === target);
-      // Inclure si attribué à CETTE cabine, OU s'il n'est attribué à AUCUNE
-      // cabine mais est collaborateur du projet (= partenaire binôme dont
-      // l'upload n'a pas été enregistré → il a fait toutes les cabines avec).
-      if (!inAttr && !(!targetInAnyAttr && targetInCollabs)) return;
-      const binome = names.length >= 2 || teamProject;
+      let include = false;
+      let binome = false;
+      if (inAttr) {
+        // Attribué explicitement à cette cabine.
+        include = true;
+        binome = names.length >= 2 || teamProject;
+      } else if (names.length === 0 && targetInCollabs) {
+        // Cabine sans responsable enregistré → l'équipe du projet l'a faite.
+        include = true;
+        binome = teamProject;
+      } else if (names.length > 0 && targetInCollabs && !targetInAnyAttr) {
+        // Partenaire binôme jamais enregistré dans l'attribution du projet.
+        include = true;
+        binome = true;
+      }
+      if (!include) continue;
       const partner = [...new Set([...names, ...collabs])]
         .filter((n) => normName(n) !== target)
         .join(", ");
@@ -147,13 +163,12 @@ function entriesForMonteur(p: Project, monteur: string): Entry[] {
         binome,
         partner,
       });
-    });
+    }
     return out;
   }
 
-  // Mono-cabine sans attribution → fallback "Collaborateurs montages".
-  const isMono = (p.nbCabines || 1) <= 1;
-  if (!isMono || !targetInCollabs) return out;
+  // ── Projet SANS structure de cabine (simple) → "Collaborateurs montages" ──
+  if (!targetInCollabs) return out;
   out.push({
     ...base,
     date: p.dateMontage?.slice(0, 10) || "",
