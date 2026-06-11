@@ -65,6 +65,17 @@ export function SyncButton() {
     };
     checkForceSync();
 
+    // Rejeu immédiat au montage (chargement/rechargement de page) : on
+    // réinitialise les backoffs périmés + on remet les "failed" en jeu, puis
+    // on envoie. Sans ça, des photos coincées avec un vieux backoff lointain
+    // attendaient un événement online/visibility pour repartir.
+    if (isOnline()) {
+      resetBackoffForAll()
+        .then(() => retryAllFailedUploads())
+        .then(() => autoSync())
+        .catch(() => {});
+    }
+
     const handleOnline = () => {
       setOnline(true);
       // Réinitialiser les backoffs ET remettre les "permanently-failed" en jeu
@@ -101,8 +112,10 @@ export function SyncButton() {
       const failedCount = await countPermanentlyFailed();
       const totalQueued = getQueue().length + upCount + failedCount;
       if (isOnline() && totalQueued > 0) {
-        // Si des uploads sont bloqués en échec permanent, les remettre en
-        // attente pour qu'ils soient retraités sans action manuelle.
+        // Réinitialiser les backoffs périmés à CHAQUE tick : en ligne, rien ne
+        // doit rester en attente d'un vieux délai. Les "failed" sont aussi
+        // remis en jeu. Résultat : la file se vide en continu, sans blocage.
+        await resetBackoffForAll();
         if (failedCount > 0) await retryAllFailedUploads();
         autoSync();
       }
