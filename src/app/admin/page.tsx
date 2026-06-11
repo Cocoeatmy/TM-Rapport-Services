@@ -100,6 +100,10 @@ export default function AdminPage() {
 
   // Mode comparaison (VS) — période B comparée à la période A ci-dessus.
   const [compareMode, setCompareMode] = useState(false);
+  // Type de comparaison : "period" (période A vs B) ou "collab" (2 monteurs).
+  const [compareType, setCompareType] = useState<"period" | "collab">("period");
+  const [collabA, setCollabA] = useState("");
+  const [collabB, setCollabB] = useState("");
   const [yearFilterB, setYearFilterB] = useState<string>("all");
   const [monthRangeStartB, setMonthRangeStartB] = useState<string | null>(null);
   const [monthRangeEndB, setMonthRangeEndB] = useState<string | null>(null);
@@ -150,7 +154,7 @@ export default function AdminPage() {
 
   // Période A (pilote tout le tableau de bord) + période B (mode comparaison).
   const filteredProjects = filterByPeriod(projects, yearFilter, monthRangeStart, monthRangeEnd);
-  const filteredProjectsB = compareMode
+  const filteredProjectsB = compareMode && compareType === "period"
     ? filterByPeriod(projects, yearFilterB, monthRangeStartB, monthRangeEndB)
     : [];
 
@@ -351,7 +355,7 @@ export default function AdminPage() {
   };
 
   const monteurA = computeMonteurStats(filteredProjects);
-  const monteurB = compareMode ? computeMonteurStats(filteredProjectsB) : null;
+  const monteurB = compareMode && compareType === "period" ? computeMonteurStats(filteredProjectsB) : null;
   // Alias période A (rendu mono-période inchangé)
   const monteurMontageStats = monteurA.montage;
   const monteurHeuresStats = monteurA.heures;
@@ -392,8 +396,15 @@ export default function AdminPage() {
       .filter((r) => r.valA > 0 || r.valB > 0)
       .sort((x, y) => y.valA - x.valA || y.valB - x.valB);
   };
-  const montageComparison = compareMode ? buildComparison("cabines") : [];
-  const heuresComparison = compareMode ? buildComparison("minutes") : [];
+  const montageComparison = compareMode && compareType === "period" ? buildComparison("cabines") : [];
+  const heuresComparison = compareMode && compareType === "period" ? buildComparison("minutes") : [];
+
+  // ── Comparaison entre 2 collaborateurs (même période A) ──────────────────
+  const monteurNames = monteurMontageStats.map((s) => s.name);
+  const statByName = (n: string) => monteurMontageStats.find((s) => s.name === n);
+  const isCollabCompare = compareMode && compareType === "collab" && !!collabA && !!collabB;
+  const collabStatA = isCollabCompare ? statByName(collabA) : undefined;
+  const collabStatB = isCollabCompare ? statByName(collabB) : undefined;
 
   // Totaux (période A) + totaux période B pour la comparaison
   const totalCabines = filteredProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
@@ -526,14 +537,59 @@ export default function AdminPage() {
             Comparer (VS)
           </button>
           {compareMode && (
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">
-              <strong className="text-[#1e3a5f] dark:text-blue-300">{labelA}</strong>
-              <span className="mx-1 text-gray-400">vs</span>
-              <strong className="text-amber-600 dark:text-amber-400">{labelB}</strong>
-            </span>
+            <>
+              {/* Sous-toggle : comparer des périodes ou des collaborateurs */}
+              <div className="flex gap-1 glass-card rounded-full p-0.5">
+                <button
+                  onClick={() => setCompareType("period")}
+                  className={`text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors ${compareType === "period" ? "glass-btn text-white" : "text-gray-500 hover:text-gray-700"}`}
+                >Périodes</button>
+                <button
+                  onClick={() => setCompareType("collab")}
+                  className={`text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors ${compareType === "collab" ? "glass-btn text-white" : "text-gray-500 hover:text-gray-700"}`}
+                >Collaborateurs</button>
+              </div>
+              {compareType === "period" ? (
+                <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                  <strong className="text-[#1e3a5f] dark:text-blue-300">{labelA}</strong>
+                  <span className="mx-1 text-gray-400">vs</span>
+                  <strong className="text-amber-600 dark:text-amber-400">{labelB}</strong>
+                </span>
+              ) : (collabA && collabB) ? (
+                <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                  <strong className="text-[#1e3a5f] dark:text-blue-300">{collabA}</strong>
+                  <span className="mx-1 text-gray-400">vs</span>
+                  <strong className="text-amber-600 dark:text-amber-400">{collabB}</strong>
+                </span>
+              ) : null}
+            </>
           )}
         </div>
-        {compareMode && (
+
+        {/* Sélecteurs de collaborateurs (mode collab) */}
+        {compareMode && compareType === "collab" && (
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+            <select
+              value={collabA}
+              onChange={(e) => setCollabA(e.target.value)}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-[#1e3a5f]/40 bg-white dark:bg-slate-800 text-[#1e3a5f] dark:text-blue-300 font-medium"
+            >
+              <option value="">Collaborateur A…</option>
+              {monteurNames.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <span className="text-xs text-gray-400">vs</span>
+            <select
+              value={collabB}
+              onChange={(e) => setCollabB(e.target.value)}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-amber-400/50 bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 font-medium"
+            >
+              <option value="">Collaborateur B…</option>
+              {monteurNames.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+        )}
+
+        {compareMode && compareType === "period" && (
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[#1e3a5f] dark:text-blue-300 pt-0.5">Période A</p>
         )}
         {/* Ligne 1 : année */}
@@ -623,8 +679,8 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── Période B (mode comparaison) — accent ambre pour la distinguer de A ── */}
-        {compareMode && (
+        {/* ── Période B (mode comparaison de périodes) — accent ambre ── */}
+        {compareMode && compareType === "period" && (
           <div className="mt-2 pt-3 border-t border-amber-300/40 space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Période B</p>
             {/* Année B */}
@@ -693,7 +749,7 @@ export default function AdminPage() {
           <CardContent className="pt-4 text-center">
             <p className="text-3xl font-bold text-[#1e3a5f] dark:text-cyan-300">{totalProjets}</p>
             <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">Projets en cours</p>
-            {compareMode && (
+            {compareMode && compareType === "period" && (
               <p className="text-[11px] mt-1 text-amber-600 dark:text-amber-400 font-medium">
                 vs {totalProjetsB} <span className="text-gray-400 font-normal">({labelB})</span>
               </p>
@@ -704,7 +760,7 @@ export default function AdminPage() {
           <CardContent className="pt-4 text-center">
             <p className="text-3xl font-bold text-[#1e3a5f] dark:text-blue-300">{totalCabines}</p>
             <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">Cabines totales</p>
-            {compareMode && (
+            {compareMode && compareType === "period" && (
               <p className="text-[11px] mt-1 text-amber-600 dark:text-amber-400 font-medium">
                 vs {totalCabinesB} <span className="text-gray-400 font-normal">({labelB})</span>
               </p>
@@ -736,7 +792,7 @@ export default function AdminPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {compareMode ? (
+            {compareMode && compareType === "period" ? (
               montageComparison.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-6">Aucune donnée sur les deux périodes.</p>
               ) : (
@@ -782,6 +838,47 @@ export default function AdminPage() {
                   })()}
                 </>
               )
+            ) : compareMode && compareType === "collab" ? (
+              (!collabA || !collabB) ? (
+                <p className="text-xs text-gray-400 text-center py-6">Choisissez 2 collaborateurs à comparer.</p>
+              ) : (() => {
+                const vA = collabStatA?.cabines || 0;
+                const vB = collabStatB?.cabines || 0;
+                const max = Math.max(vA, vB, 1);
+                const delta = vA - vB;
+                return (
+                  <>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: getCollaboratorColor(collabA).dot }} />
+                          <span className="truncate text-[#1e3a5f] dark:text-blue-300 font-medium">{collabA}</span>
+                        </span>
+                        <span className="font-semibold shrink-0 ml-2">{vA} <span className="font-normal text-gray-400 text-xs">cab. ({collabStatA?.projets || 0} proj.)</span></span>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${(vA / max) * 100}%`, backgroundColor: getCollaboratorColor(collabA).dot }} />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-amber-400" />
+                          <span className="truncate text-amber-600 dark:text-amber-400 font-medium">{collabB}</span>
+                        </span>
+                        <span className="font-semibold shrink-0 ml-2">{vB} <span className="font-normal text-gray-400 text-xs">cab. ({collabStatB?.projets || 0} proj.)</span></span>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-amber-400" style={{ width: `${(vB / max) * 100}%` }} />
+                      </div>
+                    </div>
+                    <p className="text-xs text-center pt-1">
+                      Écart : <span className={`font-semibold ${delta === 0 ? "text-gray-500" : delta > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{delta > 0 ? "+" : ""}{delta} cab.</span>
+                      {delta !== 0 && <span className="text-gray-400"> — avantage {delta > 0 ? collabA : collabB}</span>}
+                    </p>
+                  </>
+                );
+              })()
             ) : monteurMontageStats.length === 0 ? (
               <p className="text-xs text-gray-400 text-center py-6">
                 Aucune attribution par cabine sur cette période.
@@ -837,7 +934,7 @@ export default function AdminPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {compareMode ? (
+            {compareMode && compareType === "period" ? (
               heuresComparison.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-6">Aucune donnée sur les deux périodes.</p>
               ) : (
@@ -883,6 +980,49 @@ export default function AdminPage() {
                   })()}
                 </>
               )
+            ) : compareMode && compareType === "collab" ? (
+              (!collabA || !collabB) ? (
+                <p className="text-xs text-gray-400 text-center py-6">Choisissez 2 collaborateurs à comparer.</p>
+              ) : (() => {
+                const vA = collabStatA?.minutes || 0;
+                const vB = collabStatB?.minutes || 0;
+                const max = Math.max(vA, vB, 1);
+                const delta = vA - vB;
+                const moyA = (collabStatA?.cabinesAvecHeures || 0) > 0 ? Math.round(vA / (collabStatA!.cabinesAvecHeures)) : 0;
+                const moyB = (collabStatB?.cabinesAvecHeures || 0) > 0 ? Math.round(vB / (collabStatB!.cabinesAvecHeures)) : 0;
+                return (
+                  <>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: getCollaboratorColor(collabA).dot }} />
+                          <span className="truncate text-[#1e3a5f] dark:text-blue-300 font-medium">{collabA}</span>
+                        </span>
+                        <span className="font-semibold text-teal-700 dark:text-teal-300 shrink-0 ml-2">{fmtMin(vA)} <span className="font-normal text-gray-400 text-xs">(moy.&nbsp;{fmtMin(moyA)})</span></span>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${(vA / max) * 100}%`, backgroundColor: getCollaboratorColor(collabA).dot }} />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-amber-400" />
+                          <span className="truncate text-amber-600 dark:text-amber-400 font-medium">{collabB}</span>
+                        </span>
+                        <span className="font-semibold text-teal-700 dark:text-teal-300 shrink-0 ml-2">{fmtMin(vB)} <span className="font-normal text-gray-400 text-xs">(moy.&nbsp;{fmtMin(moyB)})</span></span>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-amber-400" style={{ width: `${(vB / max) * 100}%` }} />
+                      </div>
+                    </div>
+                    <p className="text-xs text-center pt-1">
+                      Écart : <span className={`font-semibold ${delta === 0 ? "text-gray-500" : delta > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{delta > 0 ? "+" : "−"}{fmtMin(Math.abs(delta))}</span>
+                      {delta !== 0 && <span className="text-gray-400"> — {delta > 0 ? collabA : collabB} en a fait plus</span>}
+                    </p>
+                  </>
+                );
+              })()
             ) : monteurHeuresStats.length === 0 ? (
               <p className="text-xs text-gray-400 text-center py-6">
                 Aucune heure enregistrée par cabine sur cette période.
