@@ -119,13 +119,13 @@ export function PhotoUpload({
     );
 
     // Helper : enregistre les fichiers en IDB pour upload différé
-    const queueOffline = async (reason: "offline" | "error") => {
+    const queueOffline = async (reason: "offline" | "error", filesToQueue: File[] = compressed) => {
       try {
         await addPendingUpload({
           projectId,
           category,
           notionField,
-          files: compressed.map((f) => ({ name: f.name, type: f.type, blob: f })),
+          files: filesToQueue.map((f) => ({ name: f.name, type: f.type, blob: f })),
         });
         toast.info(
           reason === "offline"
@@ -151,48 +151,62 @@ export function PhotoUpload({
         return;
       }
 
-      const formData = new FormData();
-      for (const f of compressed) formData.append("files", f);
-      formData.append("category", category);
-      formData.append("projectId", projectId);
-      if (notionField) formData.append("notionField", notionField);
+      // Une requête PAR photo : la limite Vercel est ~4,5 Mo/req. Un lot de
+      // plusieurs photos dans une seule requête peut la dépasser → 413 → échec
+      // permanent. En envoyant photo par photo (<1 Mo chacune), on élimine ce
+      // cas et un échec isolé n'entraîne pas les autres.
+      const newFiles: { name: string; url: string }[] = [];
+      const failedFiles: File[] = [];
+      const failedPreviews: string[] = [];
+      for (let i = 0; i < compressed.length; i++) {
+        const f = compressed[i];
+        const formData = new FormData();
+        formData.append("files", f);
+        formData.append("category", category);
+        formData.append("projectId", projectId);
+        if (notionField) formData.append("notionField", notionField);
 
-      // Timeout 45 s : un upload figé (connexion qui ne répond plus) est annulé,
-      // l'erreur est attrapée plus bas → la photo part en file IDB et sera
-      // rejouée automatiquement, au lieu de tourner indéfiniment.
-      const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 45_000);
-      let res: Response;
-      try {
-        res = await fetch("/api/upload", { method: "POST", body: formData, signal: ctrl.signal });
-      } finally {
-        clearTimeout(to);
+        // Timeout 45 s : un upload figé est annulé → la photo part en file IDB.
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 45_000);
+        try {
+          const res = await fetch("/api/upload", { method: "POST", body: formData, signal: ctrl.signal });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && Array.isArray(data.files)) {
+            for (const p of data.files as { name: string; url: string }[]) {
+              if (p?.url) newFiles.push(p);
+            }
+          } else {
+            failedFiles.push(f);
+            failedPreviews.push(newPreviews[i]);
+          }
+        } catch {
+          failedFiles.push(f);
+          failedPreviews.push(newPreviews[i]);
+        } finally {
+          clearTimeout(to);
+        }
       }
-      const data = await res.json().catch(() => ({}));
 
-      if (res.ok && data.files) {
-        const newFiles = (data.files as { name: string; url: string }[]).filter(
-          (p) => p?.url,
-        );
+      if (newFiles.length > 0) {
         invalidateApiCache();
         onUpload?.(newFiles);
-
-        // Nettoie UNIQUEMENT les previews de ce batch (pas tous les previews
-        // d'éventuels autres uploads concurrents).
-        setPreviews((prev) => {
-          const result = prev.filter((u) => !newPreviews.includes(u));
-          newPreviews.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
-          return result;
-        });
-
         if (source === "camera") {
           saveFilesToDeviceGallery(originals).catch(() => {});
         }
-      } else if (res.status >= 500 || !res.ok) {
-        await queueOffline("error");
-        // Garde les previews visibles (ils seront dans pending IDB)
-      } else if (data.error) {
-        console.error("Upload rejected:", data.error);
+      }
+
+      // Retire les previews des photos réussies, garde celles en échec (elles
+      // partent en file IDB ci-dessous et gardent leur badge "Sync").
+      setPreviews((prev) => {
+        const toRemove = newPreviews.filter((u) => !failedPreviews.includes(u));
+        toRemove.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
+        return prev.filter((u) => !toRemove.includes(u));
+      });
+
+      // Met en file UNIQUEMENT les photos qui ont échoué (rejeu auto rapide).
+      if (failedFiles.length > 0) {
+        await queueOffline("error", failedFiles);
       }
     } catch (err) {
       console.error("Upload error:", err);
