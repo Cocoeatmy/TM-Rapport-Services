@@ -85,61 +85,83 @@ interface Entry {
   arrivee: string;
   depart: string;
   minutes: number;
+  binome: boolean;  // travail en binôme/équipe (2+ collaborateurs)
+  partner: string;  // nom(s) du/des partenaire(s)
 }
 
-/** Extrait les entrées (une par cabine) attribuées à `monteur` pour un projet. */
+const splitNames = (raw: string) =>
+  (raw || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
+
+/**
+ * Extrait les entrées (1 par cabine) où `monteur` est intervenu.
+ *
+ * Important : l'attribution par cabine n'enregistre souvent que l'uploadeur.
+ * Pour un binôme, le partenaire n'y figure pas → on le récupère via les
+ * "Collaborateurs montages" du projet. Un monteur compte donc pour une cabine
+ * s'il est l'attribué OU un collaborateur du projet. Une cabine est "binôme"
+ * dès que l'équipe (attribution OU collaborateurs) compte 2+ personnes.
+ */
 function entriesForMonteur(p: Project, monteur: string): Entry[] {
   const target = normName(monteur);
-  const matches = (raw: string) =>
-    raw.split(/\s*&\s*/).some((n) => normName(n) === target);
+  const collabs = splitNames(p.collaborateurs || "");
+  const targetInCollabs = collabs.some((n) => normName(n) === target);
+  const teamProject = collabs.length >= 2;
   const marque = (p.fournisseurs || []).join(", ");
   const serie = (p.seriesCabines || []).join(", ");
   const typeService = (p.typeServices || []).join(", ");
 
   const out: Entry[] = [];
-  const attrMap = parseCabMap(p.attributionCabines || "");
+  const base = { projectName: p.projet, projectId: p.id, marque, serie, typeService };
 
+  const attrMap = parseCabMap(p.attributionCabines || "");
   if (attrMap.size > 0) {
-    // Multi-cabine (ou mono avec responsable) : attribution par cabine.
     const nomsMap = parseCabMap(p.nomsCabines || "");
     const arrMap = parseCabMap(p.heureArrivee || "");
     const depMap = parseCabMap(p.heureDepart || "");
     const dateMap = parseCabDates(p.heureArrivee || "");
+    // Le monteur est-il attribué à AU MOINS une cabine de ce projet ?
+    const targetInAnyAttr = [...attrMap.values()].some((raw) =>
+      splitNames(raw).some((n) => normName(n) === target)
+    );
     attrMap.forEach((monteurRaw, cabNum) => {
-      if (!matches(monteurRaw)) return;
+      const names = splitNames(monteurRaw);
+      const inAttr = names.some((n) => normName(n) === target);
+      // Inclure si attribué à CETTE cabine, OU s'il n'est attribué à AUCUNE
+      // cabine mais est collaborateur du projet (= partenaire binôme dont
+      // l'upload n'a pas été enregistré → il a fait toutes les cabines avec).
+      if (!inAttr && !(!targetInAnyAttr && targetInCollabs)) return;
+      const binome = names.length >= 2 || teamProject;
+      const partner = [...new Set([...names, ...collabs])]
+        .filter((n) => normName(n) !== target)
+        .join(", ");
       const arrSlot = arrMap.get(cabNum) || "";
       const depSlot = depMap.get(cabNum) || "";
       out.push({
+        ...base,
         date: dateMap.get(cabNum) || p.dateMontage?.slice(0, 10) || "",
-        projectName: p.projet,
-        projectId: p.id,
         cabineLabel: nomsMap.get(cabNum) || `Cabine ${cabNum}`,
-        marque,
-        serie,
-        typeService,
         arrivee: slotHHMM(arrSlot),
         depart: slotHHMM(depSlot),
         minutes: durMinutes(arrSlot, depSlot),
+        binome,
+        partner,
       });
     });
     return out;
   }
 
-  // Mono-cabine sans responsable → fallback "Collaborateurs montages".
+  // Mono-cabine sans attribution → fallback "Collaborateurs montages".
   const isMono = (p.nbCabines || 1) <= 1;
-  if (!isMono) return out;
-  if (!matches(p.collaborateurs || "")) return out;
+  if (!isMono || !targetInCollabs) return out;
   out.push({
+    ...base,
     date: p.dateMontage?.slice(0, 10) || "",
-    projectName: p.projet,
-    projectId: p.id,
     cabineLabel: "—",
-    marque,
-    serie,
-    typeService,
     arrivee: slotHHMM(p.heureArrivee || ""),
     depart: slotHHMM(p.heureDepart || ""),
     minutes: durMinutes(p.heureArrivee || "", p.heureDepart || ""),
+    binome: teamProject,
+    partner: collabs.filter((n) => normName(n) !== target).join(", "),
   });
   return out;
 }
@@ -219,6 +241,11 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const totalMin = entries.reduce((s, e) => s + e.minutes, 0);
   const totalCab = entries.length;
   const cabAvecHeures = entries.filter((e) => e.minutes > 0).length;
+  // Répartition solo / binôme
+  const soloEntries = entries.filter((e) => !e.binome);
+  const binomeEntries = entries.filter((e) => e.binome);
+  const soloMin = soloEntries.reduce((s, e) => s + e.minutes, 0);
+  const binomeMin = binomeEntries.reduce((s, e) => s + e.minutes, 0);
 
   // Groupe par jour de montage.
   const byDay = new Map<string, Entry[]>();
@@ -303,6 +330,16 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
         </div>
         <div className="w-px h-10 bg-gray-200 dark:bg-gray-700" />
         <div>
+          <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{fmtMin(soloMin)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Solo</p>
+        </div>
+        <div className="w-px h-10 bg-gray-200 dark:bg-gray-700" />
+        <div>
+          <p className="text-2xl font-bold text-purple-600 dark:text-purple-300">{fmtMin(binomeMin)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Binôme</p>
+        </div>
+        <div className="w-px h-10 bg-gray-200 dark:bg-gray-700" />
+        <div>
           <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{totalCab}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Cabines</p>
         </div>
@@ -368,7 +405,17 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
                         <td className="py-1.5 pr-2 text-gray-900 dark:text-gray-100 text-[11px] leading-tight max-w-[180px]">
                           <span className="line-clamp-2">{e.projectName}</span>
                         </td>
-                        <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">{e.cabineLabel}</td>
+                        <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                          <span>{e.cabineLabel}</span>
+                          {e.binome && (
+                            <span
+                              className="ml-1.5 inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 align-middle"
+                              title={e.partner ? `Binôme avec ${e.partner}` : "Binôme"}
+                            >
+                              Binôme{e.partner ? ` · ${e.partner}` : ""}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300">{e.marque || "-"}</td>
                         <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300">{e.serie || "-"}</td>
                         <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300">{e.typeService || "-"}</td>
