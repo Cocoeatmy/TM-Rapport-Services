@@ -10,7 +10,6 @@
 import type { FileItem } from "./notion";
 
 const KEY = "photo-overflow";
-const NOTION_LIMIT = 100;
 
 interface OverflowRecord {
   projectId: string;
@@ -50,16 +49,16 @@ export async function setOverflow(projectId: string, field: string, files: FileI
 
 /**
  * Fusionne le débordement KV dans les champs photo d'un projet déjà mappé.
- * No-op (et aucun appel KV) si aucun champ photo n'atteint la limite — pour
- * ne pas pénaliser la lecture des projets normaux.
+ *
+ * On lit TOUJOURS les enregistrements de débordement (lecture KV mise en
+ * cache 60 s) : on ne peut PAS se fier au seul fait que le champ Notion soit
+ * à 100. Exemple vécu : après suppression/re-upload de photos, le compteur
+ * Notion repasse SOUS 100 alors que des photos restent en débordement → si on
+ * ne fusionnait que quand le champ est plein, ces photos disparaîtraient
+ * (cabines repassées en "orange" à tort).
  */
 export async function mergeOverflowIntoProject(project: any): Promise<void> {
   try {
-    const anyFull = Object.values(PHOTO_NOTION_TO_KEY).some(
-      (k) => Array.isArray(project[k]) && project[k].length >= NOTION_LIMIT,
-    );
-    if (!anyFull) return;
-
     const { getData } = await import("@/lib/kv-store");
     const all = await getData<OverflowRecord>(KEY);
     const recs = all.filter((r) => r.projectId === project.id);

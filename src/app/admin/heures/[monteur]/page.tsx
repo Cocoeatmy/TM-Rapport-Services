@@ -79,6 +79,8 @@ interface Entry {
   projectName: string;
   projectId: string;
   cabineLabel: string;
+  marque: string; // n8n Fournisseurs
+  serie: string;  // n8n Séries Cabines
   arrivee: string;
   depart: string;
   minutes: number;
@@ -89,6 +91,8 @@ function entriesForMonteur(p: Project, monteur: string): Entry[] {
   const target = normName(monteur);
   const matches = (raw: string) =>
     raw.split(/\s*&\s*/).some((n) => normName(n) === target);
+  const marque = (p.fournisseurs || []).join(", ");
+  const serie = (p.seriesCabines || []).join(", ");
 
   const out: Entry[] = [];
   const attrMap = parseCabMap(p.attributionCabines || "");
@@ -108,6 +112,8 @@ function entriesForMonteur(p: Project, monteur: string): Entry[] {
         projectName: p.projet,
         projectId: p.id,
         cabineLabel: nomsMap.get(cabNum) || `Cabine ${cabNum}`,
+        marque,
+        serie,
         arrivee: slotHHMM(arrSlot),
         depart: slotHHMM(depSlot),
         minutes: durMinutes(arrSlot, depSlot),
@@ -125,6 +131,8 @@ function entriesForMonteur(p: Project, monteur: string): Entry[] {
     projectName: p.projet,
     projectId: p.id,
     cabineLabel: "—",
+    marque,
+    serie,
     arrivee: slotHHMM(p.heureArrivee || ""),
     depart: slotHHMM(p.heureDepart || ""),
     minutes: durMinutes(p.heureArrivee || "", p.heureDepart || ""),
@@ -263,6 +271,8 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
                     <tr className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
                       <th className="text-left py-1.5 pr-2">Projet</th>
                       <th className="text-left py-1.5 pr-2">Cabine</th>
+                      <th className="text-left py-1.5 pr-2">Marque</th>
+                      <th className="text-left py-1.5 pr-2">Série</th>
                       <th className="text-center py-1.5 px-2">Arrivée</th>
                       <th className="text-center py-1.5 px-2">Départ</th>
                       <th className="text-right py-1.5 pl-2">Heures</th>
@@ -273,10 +283,15 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
                       <tr
                         key={`${e.projectId}-${e.cabineLabel}-${i}`}
                         onClick={() => router.push(`/projet/${e.projectId}?mode=cmd`)}
-                        className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
+                        className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer align-top"
                       >
-                        <td className="py-1.5 pr-2 text-gray-900 dark:text-gray-100 truncate max-w-[150px]">{e.projectName}</td>
+                        {/* Titre projet complet sur 2 lignes, police plus petite */}
+                        <td className="py-1.5 pr-2 text-gray-900 dark:text-gray-100 text-[11px] leading-tight max-w-[180px]">
+                          <span className="line-clamp-2">{e.projectName}</span>
+                        </td>
                         <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">{e.cabineLabel}</td>
+                        <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300">{e.marque || "-"}</td>
+                        <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300">{e.serie || "-"}</td>
                         <td className="py-1.5 px-2 text-center text-gray-600 dark:text-gray-400 font-mono">{e.arrivee || "-"}</td>
                         <td className="py-1.5 px-2 text-center text-gray-600 dark:text-gray-400 font-mono">{e.depart || "-"}</td>
                         <td className="py-1.5 pl-2 text-right font-medium text-gray-900 dark:text-gray-100">{e.minutes > 0 ? fmtMin(e.minutes) : "-"}</td>
