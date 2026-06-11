@@ -230,7 +230,7 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const days = Array.from(byDay.entries()).sort(([a], [b]) => (a || "9999").localeCompare(b || "9999"));
 
   return (
-    <div className="max-w-3xl mx-auto w-full px-4 py-4 pb-8">
+    <div className="w-full px-4 sm:px-6 py-4 pb-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-5">
         <button
