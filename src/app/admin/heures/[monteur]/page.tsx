@@ -32,15 +32,25 @@ function parseCabDates(raw: string): Map<number, string> {
   return map;
 }
 
-/** Dernier HH:MM d'un texte (gère "Cab1:2026-05-07:08:30", "08:30"). */
-function lastHHMM(slot: string): string {
-  const all = [...(slot || "").matchAll(/(\d{1,2}):(\d{2})/g)];
-  if (all.length === 0) return "";
-  const last = all[all.length - 1];
-  const h = parseInt(last[1], 10);
-  const mn = parseInt(last[2], 10);
+/**
+ * Heure HH:MM d'un slot, en sautant un éventuel préfixe date "YYYY-MM-DD:".
+ * Aligné EXACTEMENT sur le parseCabineTimes de la page projet pour que les
+ * valeurs coïncident. Bug corrigé : l'ancienne version prenait le dernier
+ * motif \d{1,2}:\d{2}, ce qui sur "2026-06-10:10:13" capturait "10:10"
+ * (jour:heure) au lieu de "10:13".
+ */
+function slotHHMM(slot: string): string {
+  const m = (slot || "").match(/(?:\d{4}-\d{2}-\d{2}:)?(\d{1,2}):(\d{2})/);
+  if (!m) return "";
+  const h = parseInt(m[1], 10);
+  const mn = parseInt(m[2], 10);
   if (h > 23 || mn > 59) return "";
-  return `${h.toString().padStart(2, "0")}:${last[2]}`;
+  return `${h.toString().padStart(2, "0")}:${m[2]}`;
+}
+
+/** Normalise un nom pour comparaison (sans accents, minuscule). */
+function normName(s: string): string {
+  return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
 }
 
 function toMin(hhmm: string): number | null {
@@ -51,8 +61,8 @@ function toMin(hhmm: string): number | null {
 
 /** Durée (min) entre arrivée et départ, bornée à 12h. */
 function durMinutes(arr: string, dep: string): number {
-  const a = toMin(lastHHMM(arr));
-  const d = toMin(lastHHMM(dep));
+  const a = toMin(slotHHMM(arr));
+  const d = toMin(slotHHMM(dep));
   if (a === null || d === null) return 0;
   let diff = d - a;
   if (diff <= 0) diff += 24 * 60;
@@ -76,9 +86,9 @@ interface Entry {
 
 /** Extrait les entrées (une par cabine) attribuées à `monteur` pour un projet. */
 function entriesForMonteur(p: Project, monteur: string): Entry[] {
-  const target = monteur.trim().toLowerCase();
+  const target = normName(monteur);
   const matches = (raw: string) =>
-    raw.split(/\s*&\s*/).map((s) => s.trim()).some((n) => n.toLowerCase() === target);
+    raw.split(/\s*&\s*/).some((n) => normName(n) === target);
 
   const out: Entry[] = [];
   const attrMap = parseCabMap(p.attributionCabines || "");
@@ -98,8 +108,8 @@ function entriesForMonteur(p: Project, monteur: string): Entry[] {
         projectName: p.projet,
         projectId: p.id,
         cabineLabel: nomsMap.get(cabNum) || `Cabine ${cabNum}`,
-        arrivee: lastHHMM(arrSlot),
-        depart: lastHHMM(depSlot),
+        arrivee: slotHHMM(arrSlot),
+        depart: slotHHMM(depSlot),
         minutes: durMinutes(arrSlot, depSlot),
       });
     });
@@ -115,8 +125,8 @@ function entriesForMonteur(p: Project, monteur: string): Entry[] {
     projectName: p.projet,
     projectId: p.id,
     cabineLabel: "—",
-    arrivee: lastHHMM(p.heureArrivee || ""),
-    depart: lastHHMM(p.heureDepart || ""),
+    arrivee: slotHHMM(p.heureArrivee || ""),
+    depart: slotHHMM(p.heureDepart || ""),
     minutes: durMinutes(p.heureArrivee || "", p.heureDepart || ""),
   });
   return out;

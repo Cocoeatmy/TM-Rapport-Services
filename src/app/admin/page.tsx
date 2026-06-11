@@ -284,13 +284,15 @@ export default function AdminPage() {
     }
     return map;
   };
-  // Dernier HH:MM d'un slot (gère "Cab1:2026-06-03:08:30", "Cab1:08:30" et "08:30")
+  // HH:MM d'un slot en SAUTANT un éventuel préfixe date "YYYY-MM-DD:".
+  // Aligné sur parseCabineTimes de la page projet. Bug corrigé : l'ancienne
+  // version prenait le dernier \d{1,2}:\d{2}, ce qui sur "2026-06-03:08:30"
+  // capturait "03:08" (jour:heure) au lieu de "08:30".
   const slotMinutes = (slot: string): number | null => {
-    const all = [...slot.matchAll(/(\d{1,2}):(\d{2})/g)];
-    if (all.length === 0) return null;
-    const last = all[all.length - 1];
-    const h = parseInt(last[1], 10);
-    const mn = parseInt(last[2], 10);
+    const m = (slot || "").match(/(?:\d{4}-\d{2}-\d{2}:)?(\d{1,2}):(\d{2})/);
+    if (!m) return null;
+    const h = parseInt(m[1], 10);
+    const mn = parseInt(m[2], 10);
     if (h > 23 || mn > 59) return null;
     return h * 60 + mn;
   };
@@ -358,10 +360,12 @@ export default function AdminPage() {
 
   // Projets (période A) où un monteur donné est intervenu — pour le dépliage
   // de la carte "Montage par monteur". Même logique d'attribution que les stats.
+  const normName = (s: string) =>
+    (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
   const projectsForMonteur = (name: string): Project[] => {
-    const target = name.trim().toLowerCase();
+    const target = normName(name);
     const matches = (raw: string) =>
-      raw.split(/\s*&\s*/).map((s) => s.trim()).some((n) => n.toLowerCase() === target);
+      raw.split(/\s*&\s*/).some((n) => normName(n) === target);
     return filteredProjects.filter((p) => {
       const attrMap = parseCabMap(p.attributionCabines || "");
       if (attrMap.size > 0) return Array.from(attrMap.values()).some((v) => matches(v));
