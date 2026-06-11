@@ -171,20 +171,19 @@ function MonteurDoc({ data }: { data: MonteurPdfData }) {
         <Footer />
       </Page>
 
-      {/* ── Pages DÉTAIL ── */}
-      <Page size="A4" orientation="landscape" style={s.page}>
-        <Header sub={`Détail par jour · ${data.periodLabel}`} />
-        {months.map(([ym, mList]) => {
-          const mTotal = mList.reduce((s2, e) => s2 + e.minutes, 0);
-          const byDay = group(mList, (e) => e.date || "");
-          const days = Array.from(byDay.entries()).sort(([a], [b]) => (a || "9999").localeCompare(b || "9999"));
-          return (
-            <View key={ym} wrap>
-              <View style={s.monthHeader} wrap={false}>
-                <Text style={s.monthName}>{monthLabel(ym)}</Text>
-                <Text style={s.monthTotal}>{mList.length} cab. · {fmtMin(mTotal)}</Text>
-              </View>
-              {days.map(([d, dList]) => {
+      {/* ── DÉTAIL : une PAGE A4 par mois (chaque mois démarre en haut) ── */}
+      {months.map(([ym, mList]) => {
+        const mTotal = mList.reduce((s2, e) => s2 + e.minutes, 0);
+        const byDay = group(mList, (e) => e.date || "");
+        const days = Array.from(byDay.entries()).sort(([a], [b]) => (a || "9999").localeCompare(b || "9999"));
+        return (
+          <Page key={ym} size="A4" orientation="landscape" style={s.page}>
+            <Header sub={`Détail — ${monthLabel(ym)}`} />
+            <View style={s.monthHeader} wrap={false}>
+              <Text style={s.monthName}>{monthLabel(ym)}</Text>
+              <Text style={s.monthTotal}>{mList.length} cab. · {fmtMin(mTotal)}</Text>
+            </View>
+            {days.map(([d, dList]) => {
                 const sorted = [...dList].sort((a, b) => (a.arrivee || "99:99").localeCompare(b.arrivee || "99:99"));
                 const dTotal = dList.reduce((s2, e) => s2 + e.minutes, 0);
                 return (
@@ -217,11 +216,10 @@ function MonteurDoc({ data }: { data: MonteurPdfData }) {
                   </View>
                 );
               })}
-            </View>
+            <Footer />
+          </Page>
           );
         })}
-        <Footer />
-      </Page>
     </Document>
   );
 }
