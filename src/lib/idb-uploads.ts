@@ -322,7 +322,17 @@ export async function processPendingUploads(): Promise<{
       formData.append("projectId", item.projectId);
       if (item.notionField) formData.append("notionField", item.notionField);
 
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      // Timeout dur (45 s) : sans ça, un fetch qui se fige ne se résout jamais,
+      // le for() ne se termine pas, _processingUploads reste true → plus aucune
+      // photo ne s'uploade (toutes bloquées). L'abort jette → catch → backoff.
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 45_000);
+      let res: Response;
+      try {
+        res = await fetch("/api/upload", { method: "POST", body: formData, signal: ctrl.signal });
+      } finally {
+        clearTimeout(to);
+      }
       if (res.ok) {
         await removePendingUpload(item.id);
         // Invalider le cache client pour que la photo apparaisse immédiatement.
@@ -351,7 +361,9 @@ export async function processPendingUploads(): Promise<{
           permanentlyFailed++;
         } else {
           // Backoff : 1min, 2min, 4min…, plafonné à 1h (au lieu de 30min)
-          const delayMs = Math.min(60_000 * 2 ** (retries - 1), 60 * 60_000);
+          // Backoff court : 3s, 6s, 12s, 24s… plafonné à 30s. En ligne, une
+          // photo qui a raté une fois repart en quelques secondes, pas en minutes.
+          const delayMs = Math.min(3_000 * 2 ** (retries - 1), 30_000);
           await updatePendingUpload({ ...item, retryCount: retries, nextAttemptAt: now + delayMs });
         }
         failed++;

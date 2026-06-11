@@ -6,7 +6,7 @@ import { thumbnailUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
 import { compressImage } from "@/lib/compress-image";
 import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
-import { addPendingUpload, removePendingUpload } from "@/lib/idb-uploads";
+import { addPendingUpload, removePendingUpload, processPendingUploads } from "@/lib/idb-uploads";
 import { usePendingUploads } from "@/lib/use-pending-uploads";
 import { isOnline } from "@/lib/offline";
 import { toast } from "sonner";
@@ -133,6 +133,12 @@ export function PhotoUpload({
             : "Upload en attente — nouvelle tentative auto",
           { duration: 3500 },
         );
+        // Si on est en ligne (échec ponctuel, pas une coupure réseau), on
+        // relance tout de suite le traitement de la file au lieu d'attendre
+        // le poll de 30 s → la photo repart en quelques secondes.
+        if (reason === "error" && isOnline()) {
+          setTimeout(() => { processPendingUploads().catch(() => {}); }, 1500);
+        }
       } catch (idbErr) {
         console.error("[photo-upload] IDB queue error:", idbErr);
         toast.error("Impossible de mettre en file la photo");
@@ -151,7 +157,17 @@ export function PhotoUpload({
       formData.append("projectId", projectId);
       if (notionField) formData.append("notionField", notionField);
 
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      // Timeout 45 s : un upload figé (connexion qui ne répond plus) est annulé,
+      // l'erreur est attrapée plus bas → la photo part en file IDB et sera
+      // rejouée automatiquement, au lieu de tourner indéfiniment.
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 45_000);
+      let res: Response;
+      try {
+        res = await fetch("/api/upload", { method: "POST", body: formData, signal: ctrl.signal });
+      } finally {
+        clearTimeout(to);
+      }
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.files) {
