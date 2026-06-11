@@ -245,6 +245,11 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const binomeEntries = entries.filter((e) => e.binome);
   const soloMin = soloEntries.reduce((s, e) => s + e.minutes, 0);
   const binomeMin = binomeEntries.reduce((s, e) => s + e.minutes, 0);
+  const soloCab = soloEntries.length;
+  const binomeCab = binomeEntries.length;
+  const moySolo = (() => { const n = soloEntries.filter((e) => e.minutes > 0).length; return n > 0 ? Math.round(soloMin / n) : 0; })();
+  const moyBinome = (() => { const n = binomeEntries.filter((e) => e.minutes > 0).length; return n > 0 ? Math.round(binomeMin / n) : 0; })();
+  const moyTotal = cabAvecHeures > 0 ? Math.round(totalMin / cabAvecHeures) : 0;
 
   // Choix de monteur (sélecteur en-tête) : liste connue + le courant si absent.
   const monteurChoices = [...new Set([decoded, ...COLLABORATEURS_LIST])];
@@ -381,32 +386,31 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
       </div>
 
       {/* Total */}
-      <div className="glass-card rounded-2xl p-4 mb-6 flex items-center justify-around text-center">
-        <div>
-          <p className="text-2xl font-bold text-teal-600 dark:text-teal-300">{fmtMin(totalMin)}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Total heures</p>
-        </div>
-        <div className="w-px h-10 bg-gray-200 dark:bg-gray-700" />
-        <div>
-          <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{fmtMin(soloMin)}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Solo</p>
-        </div>
-        <div className="w-px h-10 bg-gray-200 dark:bg-gray-700" />
-        <div>
-          <p className="text-2xl font-bold text-purple-600 dark:text-purple-300">{fmtMin(binomeMin)}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Binôme</p>
-        </div>
-        <div className="w-px h-10 bg-gray-200 dark:bg-gray-700" />
-        <div>
-          <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{totalCab}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Cabines</p>
-        </div>
-        <div className="w-px h-10 bg-gray-200 dark:bg-gray-700" />
-        <div>
-          <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">
-            {cabAvecHeures > 0 ? fmtMin(Math.round(totalMin / cabAvecHeures)) : "—"}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Moy. / cabine</p>
+      <div className="glass-card rounded-2xl p-4 mb-6">
+        <div className="grid grid-cols-4 gap-x-2 gap-y-1.5 items-center">
+          {/* En-têtes de colonnes */}
+          <div />
+          <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 text-center">Heures</div>
+          <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 text-center">Cabines</div>
+          <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 text-center">Moy. / cabine</div>
+
+          {/* Ligne Solo */}
+          <div className="text-sm font-semibold text-[#1e3a5f] dark:text-blue-300">Solo</div>
+          <div className="text-xl font-bold text-[#1e3a5f] dark:text-blue-300 text-center">{fmtMin(soloMin)}</div>
+          <div className="text-xl font-bold text-[#1e3a5f] dark:text-blue-300 text-center">{soloCab}</div>
+          <div className="text-xl font-bold text-[#1e3a5f] dark:text-blue-300 text-center">{moySolo > 0 ? fmtMin(moySolo) : "—"}</div>
+
+          {/* Ligne Binôme */}
+          <div className="text-sm font-semibold text-purple-600 dark:text-purple-300">Binôme</div>
+          <div className="text-xl font-bold text-purple-600 dark:text-purple-300 text-center">{fmtMin(binomeMin)}</div>
+          <div className="text-xl font-bold text-purple-600 dark:text-purple-300 text-center">{binomeCab}</div>
+          <div className="text-xl font-bold text-purple-600 dark:text-purple-300 text-center">{moyBinome > 0 ? fmtMin(moyBinome) : "—"}</div>
+
+          {/* Ligne Total */}
+          <div className="text-sm font-semibold text-teal-600 dark:text-teal-300 border-t border-gray-200 dark:border-gray-700 pt-1.5">Total</div>
+          <div className="text-2xl font-bold text-teal-600 dark:text-teal-300 text-center border-t border-gray-200 dark:border-gray-700 pt-1.5">{fmtMin(totalMin)}</div>
+          <div className="text-2xl font-bold text-teal-600 dark:text-teal-300 text-center border-t border-gray-200 dark:border-gray-700 pt-1.5">{totalCab}</div>
+          <div className="text-2xl font-bold text-teal-600 dark:text-teal-300 text-center border-t border-gray-200 dark:border-gray-700 pt-1.5">{moyTotal > 0 ? fmtMin(moyTotal) : "—"}</div>
         </div>
       </div>
 
@@ -439,7 +443,18 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
             </CardHeader>
             <CardContent className="pt-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm table-fixed">
+                  {/* Largeurs fixes → colonnes alignées entre toutes les journées */}
+                  <colgroup>
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "16%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "7%" }} />
+                    <col style={{ width: "7%" }} />
+                    <col style={{ width: "8%" }} />
+                  </colgroup>
                   <thead>
                     <tr className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
                       <th className="text-left py-1.5 pr-2">Projet</th>
@@ -460,10 +475,10 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
                         className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer align-top"
                       >
                         {/* Titre projet complet sur 2 lignes, police plus petite */}
-                        <td className="py-1.5 pr-2 text-gray-900 dark:text-gray-100 text-[11px] leading-tight max-w-[180px]">
+                        <td className="py-1.5 pr-2 text-gray-900 dark:text-gray-100 text-[11px] leading-tight">
                           <span className="line-clamp-2">{e.projectName}</span>
                         </td>
-                        <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                        <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300">
                           <span>{e.cabineLabel}</span>
                           {e.binome && (
                             <span
