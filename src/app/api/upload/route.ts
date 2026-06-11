@@ -104,6 +104,18 @@ export async function POST(request: NextRequest) {
         const page = await notion.pages.retrieve({ page_id: projectId }) as any;
         const existingFiles = page.properties[notionField]?.files || [];
 
+        const LIMIT = 100;
+        // Photos déjà débordées (au-delà de 100) stockées dans le KV — on les
+        // réinclut pour ne pas les perdre. Inutile de lire le KV si le champ
+        // Notion n'est pas plein (pas de débordement possible).
+        let overflowExisting: { name: string; url: string }[] = [];
+        if (existingFiles.length >= LIMIT) {
+          try {
+            const { getOverflow } = await import("@/lib/photo-overflow");
+            overflowExisting = await getOverflow(projectId, notionField);
+          } catch {}
+        }
+
         // Dédup par URL ET par nom (le nom inclut un timestamp unique). En cas
         // de retry réseau, le même nom revient → on ignore le doublon.
         const seenUrls = new Set<string>();
@@ -116,20 +128,36 @@ export async function POST(request: NextRequest) {
           if (name) seenNames.add(name);
           allFiles.push({ type: "external", name: name || "photo", external: { url } });
         };
+        // Ordre : Notion (100 existants) d'abord → ils restent dans Notion ;
+        // débordement existant ensuite ; nouvelles photos en dernier.
         for (const f of existingFiles) {
           const url = f.type === "external" ? f.external?.url : f.file?.url;
           pushUnique(f.name, url);
         }
-        for (const f of uploaded) {
-          pushUnique(f.name, f.url);
-        }
+        for (const f of overflowExisting) pushUnique(f.name, f.url);
+        for (const f of uploaded) pushUnique(f.name, f.url);
+
+        // Notion plafonne CHAQUE propriété "Files" à 100. Au-delà → débordement
+        // KV (refusionné à la lecture via getProject). L'upload ne peut donc
+        // jamais échouer pour cause de champ plein.
+        const notionSlice = allFiles.slice(0, LIMIT);
+        const overflowSlice = allFiles.slice(LIMIT).map((f) => ({ name: f.name, url: f.external.url }));
 
         await notion.pages.update({
           page_id: projectId,
           properties: {
-            [notionField]: { files: allFiles },
+            [notionField]: { files: notionSlice },
           },
         });
+
+        // N'écrit le KV que s'il y a un débordement (ou qu'il faut le mettre à
+        // jour) — les projets normaux ne touchent jamais ce store.
+        if (overflowSlice.length > 0 || overflowExisting.length > 0) {
+          try {
+            const { setOverflow } = await import("@/lib/photo-overflow");
+            await setOverflow(projectId, notionField, overflowSlice);
+          } catch {}
+        }
       });
 
       // Invalider les caches côté serveur pour que le prochain fetch

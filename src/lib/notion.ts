@@ -803,6 +803,12 @@ export async function getProject(pageId: string): Promise<Project> {
     project.sanitaireNames = project.sanitaireRelation.map((id) => names[id] || id);
     project.contactsProjetNames = project.contactsProjetRelation.map((id) => names[id] || id);
   }
+  // Fusionne les photos au-delà de la limite Notion (100/champ) stockées en
+  // débordement. Transparent : PDF, portail et app voient toutes les photos.
+  try {
+    const { mergeOverflowIntoProject } = await import("@/lib/photo-overflow");
+    await mergeOverflowIntoProject(project);
+  } catch {}
   return project;
 }
 
