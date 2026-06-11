@@ -98,6 +98,12 @@ export default function AdminPage() {
   const [monthRangeStart, setMonthRangeStart] = useState<string | null>(null);
   const [monthRangeEnd, setMonthRangeEnd] = useState<string | null>(null);
 
+  // Mode comparaison (VS) — période B comparée à la période A ci-dessus.
+  const [compareMode, setCompareMode] = useState(false);
+  const [yearFilterB, setYearFilterB] = useState<string>("all");
+  const [monthRangeStartB, setMonthRangeStartB] = useState<string | null>(null);
+  const [monthRangeEndB, setMonthRangeEndB] = useState<string | null>(null);
+
   const toggleExpand = (key: string) => {
     setExpanded(expanded === key ? null : key);
   };
@@ -121,24 +127,47 @@ export default function AdminPage() {
     )
   ).sort().reverse() as string[];
 
-  // Liste des 12 mois de l'année filtrée (pour le picker mois).
-  const monthsForYear = yearFilter !== "all"
-    ? Array.from({ length: 12 }, (_, i) => `${yearFilter}-${String(i + 1).padStart(2, "0")}`)
+  // Liste des 12 mois d'une année (pour les pickers mois A et B).
+  const monthsFor = (year: string) =>
+    year !== "all"
+      ? Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`)
+      : [];
+  const monthsForYear = monthsFor(yearFilter);
+  const monthsForYearB = monthsFor(yearFilterB);
+
+  // Filtre période réutilisable (année + mois seul ou plage de mois).
+  const filterByPeriod = (list: Project[], year: string, mStart: string | null, mEnd: string | null) =>
+    list.filter((p) => {
+      const month = p.dateMontage?.slice(0, 7);
+      if (year !== "all" && !p.dateMontage?.startsWith(year)) return false;
+      if (mStart) {
+        if (!month) return false;
+        const end = mEnd || mStart;
+        if (month < mStart || month > end) return false;
+      }
+      return true;
+    });
+
+  // Période A (pilote tout le tableau de bord) + période B (mode comparaison).
+  const filteredProjects = filterByPeriod(projects, yearFilter, monthRangeStart, monthRangeEnd);
+  const filteredProjectsB = compareMode
+    ? filterByPeriod(projects, yearFilterB, monthRangeStartB, monthRangeEndB)
     : [];
 
-  // Projets filtrés par année + plage de mois (ou mois seul).
-  const filteredProjects = projects.filter((p) => {
-    const month = p.dateMontage?.slice(0, 7);
-    // Filtre année
-    if (yearFilter !== "all" && !p.dateMontage?.startsWith(yearFilter)) return false;
-    // Filtre mois (un seul ou plage)
-    if (monthRangeStart) {
-      if (!month) return false;
-      const end = monthRangeEnd || monthRangeStart;
-      if (month < monthRangeStart || month > end) return false;
+  // Libellé court d'une période, pour les en-têtes de comparaison.
+  const periodLabel = (year: string, mStart: string | null, mEnd: string | null): string => {
+    if (mStart) {
+      const end = mEnd || mStart;
+      const fmt = (m: string) => {
+        const [y, mo] = m.split("-");
+        return `${["Janv.", "Fév.", "Mars", "Avril", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."][parseInt(mo) - 1]} ${y}`;
+      };
+      return mStart === end ? fmt(mStart) : `${fmt(mStart)} → ${fmt(end)}`;
     }
-    return true;
-  });
+    return year === "all" ? "Toutes années" : year;
+  };
+  const labelA = periodLabel(yearFilter, monthRangeStart, monthRangeEnd);
+  const labelB = periodLabel(yearFilterB, monthRangeStartB, monthRangeEndB);
 
   const MONTH_SHORT = ["Janv.", "Fév.", "Mars", "Avril", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];
 
@@ -174,6 +203,30 @@ export default function AdminPage() {
       setMonthRangeStart(month);
     } else {
       setMonthRangeEnd(month);
+    }
+  };
+
+  // Versions période B (mode comparaison) — même logique que A.
+  const clearMonthRangeB = () => {
+    setMonthRangeStartB(null);
+    setMonthRangeEndB(null);
+  };
+  const handleMonthClickB = (month: string) => {
+    const rangeActive = !!(monthRangeStartB && monthRangeEndB);
+    if (!monthRangeStartB || rangeActive) {
+      setMonthRangeStartB(month);
+      setMonthRangeEndB(null);
+      return;
+    }
+    if (month === monthRangeStartB) {
+      clearMonthRangeB();
+      return;
+    }
+    if (month < monthRangeStartB) {
+      setMonthRangeEndB(monthRangeStartB);
+      setMonthRangeStartB(month);
+    } else {
+      setMonthRangeEndB(month);
     }
   };
 
@@ -252,54 +305,83 @@ export default function AdminPage() {
     return diff <= 12 * 60 ? diff : 0;
   };
 
-  const monteurAgg: Record<string, { cabines: number; minutes: number; cabinesAvecHeures: number; projets: Set<string> }> = {};
-  const credit = (mt: string, cab: number, dur: number, projectId: string) => {
-    if (!monteurAgg[mt]) monteurAgg[mt] = { cabines: 0, minutes: 0, cabinesAvecHeures: 0, projets: new Set() };
-    monteurAgg[mt].cabines += cab;
-    monteurAgg[mt].projets.add(projectId);
-    if (dur > 0) {
-      monteurAgg[mt].minutes += dur;
-      monteurAgg[mt].cabinesAvecHeures += cab;
-    }
+  // Agrège les stats monteur pour une liste de projets donnée (réutilisable A/B).
+  const computeMonteurStats = (list: Project[]) => {
+    const agg: Record<string, { cabines: number; minutes: number; cabinesAvecHeures: number; projets: Set<string> }> = {};
+    const credit = (mt: string, cab: number, dur: number, projectId: string) => {
+      if (!agg[mt]) agg[mt] = { cabines: 0, minutes: 0, cabinesAvecHeures: 0, projets: new Set() };
+      agg[mt].cabines += cab;
+      agg[mt].projets.add(projectId);
+      if (dur > 0) {
+        agg[mt].minutes += dur;
+        agg[mt].cabinesAvecHeures += cab;
+      }
+    };
+    list.forEach((p) => {
+      const attrMap = parseCabMap(p.attributionCabines || "");
+      if (attrMap.size > 0) {
+        // ── Attribution PAR CABINE (multi-cabine, ou mono avec responsable) ──
+        const arrMap = parseCabMap(p.heureArrivee || "");
+        const depMap = parseCabMap(p.heureDepart || "");
+        attrMap.forEach((monteurRaw, cabNum) => {
+          const monteurs = monteurRaw.split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
+          if (monteurs.length === 0) return;
+          const dur = durMinutes(arrMap.get(cabNum) || "", depMap.get(cabNum) || "");
+          monteurs.forEach((mt) => credit(mt, 1, dur, p.id));
+        });
+        return;
+      }
+      // ── Mono-cabine sans responsable → fallback "Collaborateurs montages" ──
+      //    Binôme (deux collaborateurs) → chacun crédité de la cabine + durée.
+      const isMono = (p.nbCabines || 1) <= 1;
+      if (!isMono) return; // multi-cabine sans attribution → exclu (peu fiable)
+      const collabs = (p.collaborateurs || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
+      if (collabs.length === 0) return;
+      const dur = durMinutes(p.heureArrivee || "", p.heureDepart || "");
+      collabs.forEach((mt) => credit(mt, 1, dur, p.id));
+    });
+    const montage = Object.entries(agg)
+      .map(([name, v]) => ({ name, cabines: v.cabines, projets: v.projets.size, minutes: v.minutes, cabinesAvecHeures: v.cabinesAvecHeures }))
+      .sort((a, b) => b.cabines - a.cabines);
+    const heures = [...montage].filter((s) => s.minutes > 0).sort((a, b) => b.minutes - a.minutes);
+    const totalCab = montage.reduce((s, m) => s + m.cabines, 0);
+    return { montage, heures, totalCab };
   };
-  filteredProjects.forEach((p) => {
-    const attrMap = parseCabMap(p.attributionCabines || "");
 
-    if (attrMap.size > 0) {
-      // ── Attribution PAR CABINE (multi-cabine, ou mono avec responsable) ──
-      const arrMap = parseCabMap(p.heureArrivee || "");
-      const depMap = parseCabMap(p.heureDepart || "");
-      attrMap.forEach((monteurRaw, cabNum) => {
-        const monteurs = monteurRaw.split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
-        if (monteurs.length === 0) return;
-        const dur = durMinutes(arrMap.get(cabNum) || "", depMap.get(cabNum) || "");
-        monteurs.forEach((mt) => credit(mt, 1, dur, p.id));
-      });
-      return;
-    }
-
-    // ── Mono-cabine sans responsable → fallback "Collaborateurs montages" ──
-    //    Si deux collaborateurs (binôme), chacun est crédité de la cabine
-    //    et de la durée du projet (heures arrivée/départ au niveau projet).
-    const isMono = (p.nbCabines || 1) <= 1;
-    if (!isMono) return; // multi-cabine sans attribution → exclu (peu fiable)
-    const collabs = (p.collaborateurs || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
-    if (collabs.length === 0) return;
-    const dur = durMinutes(p.heureArrivee || "", p.heureDepart || "");
-    collabs.forEach((mt) => credit(mt, 1, dur, p.id));
-  });
-  const monteurMontageStats = Object.entries(monteurAgg)
-    .map(([name, v]) => ({ name, cabines: v.cabines, projets: v.projets.size, minutes: v.minutes, cabinesAvecHeures: v.cabinesAvecHeures }))
-    .sort((a, b) => b.cabines - a.cabines);
-  const monteurHeuresStats = monteurMontageStats
-    .filter((s) => s.minutes > 0)
-    .sort((a, b) => b.minutes - a.minutes);
-  const totalCabinesAttribuees = monteurMontageStats.reduce((s, m) => s + m.cabines, 0);
+  const monteurA = computeMonteurStats(filteredProjects);
+  const monteurB = compareMode ? computeMonteurStats(filteredProjectsB) : null;
+  // Alias période A (rendu mono-période inchangé)
+  const monteurMontageStats = monteurA.montage;
+  const monteurHeuresStats = monteurA.heures;
+  const totalCabinesAttribuees = monteurA.totalCab;
   const fmtMin = (m: number) => (m <= 0 ? "—" : `${Math.floor(m / 60)}h${(m % 60).toString().padStart(2, "0")}`);
 
-  // Totaux
+  // ── Fusion A/B pour l'affichage côte à côte par monteur (mode comparaison) ──
+  //    metric: "cabines" (carte Montage) ou "minutes" (carte Heures).
+  const buildComparison = (metric: "cabines" | "minutes") => {
+    if (!monteurB) return [];
+    const aMap = new Map(monteurA.montage.map((s) => [s.name, s]));
+    const bMap = new Map(monteurB.montage.map((s) => [s.name, s]));
+    const names = Array.from(new Set([...aMap.keys(), ...bMap.keys()]));
+    return names
+      .map((name) => {
+        const a = aMap.get(name);
+        const b = bMap.get(name);
+        const valA = metric === "cabines" ? (a?.cabines || 0) : (a?.minutes || 0);
+        const valB = metric === "cabines" ? (b?.cabines || 0) : (b?.minutes || 0);
+        return { name, valA, valB, delta: valA - valB };
+      })
+      .filter((r) => r.valA > 0 || r.valB > 0)
+      .sort((x, y) => y.valA - x.valA || y.valB - x.valB);
+  };
+  const montageComparison = compareMode ? buildComparison("cabines") : [];
+  const heuresComparison = compareMode ? buildComparison("minutes") : [];
+
+  // Totaux (période A) + totaux période B pour la comparaison
   const totalCabines = filteredProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
   const totalProjets = filteredProjects.length;
+  const totalCabinesB = filteredProjectsB.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
+  const totalProjetsB = filteredProjectsB.length;
 
   // Composant mini-liste de projets
   const ProjectList = ({ items }: { items: Project[] }) => (
@@ -412,8 +494,30 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* Filtre temps — 2 niveaux (année + mois/plage) */}
+      {/* Filtre temps — 2 niveaux (année + mois/plage) + comparaison VS */}
       <div className="space-y-2 mb-4">
+        {/* Bascule comparaison (VS) */}
+        <div className="flex items-center flex-wrap gap-2">
+          <button
+            onClick={() => setCompareMode((v) => !v)}
+            className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+              compareMode ? "glass-btn text-white" : "glass-card text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            Comparer (VS)
+          </button>
+          {compareMode && (
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">
+              <strong className="text-[#1e3a5f] dark:text-blue-300">{labelA}</strong>
+              <span className="mx-1 text-gray-400">vs</span>
+              <strong className="text-amber-600 dark:text-amber-400">{labelB}</strong>
+            </span>
+          )}
+        </div>
+        {compareMode && (
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#1e3a5f] dark:text-blue-300 pt-0.5">Période A</p>
+        )}
         {/* Ligne 1 : année */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide items-center">
           <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">Année</span>
@@ -500,6 +604,69 @@ export default function AdminPage() {
             )}
           </div>
         )}
+
+        {/* ── Période B (mode comparaison) — accent ambre pour la distinguer de A ── */}
+        {compareMode && (
+          <div className="mt-2 pt-3 border-t border-amber-300/40 space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Période B</p>
+            {/* Année B */}
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide items-center">
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">Année</span>
+              <button
+                onClick={() => { setYearFilterB("all"); clearMonthRangeB(); }}
+                className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                  yearFilterB === "all" ? "bg-amber-500 text-white" : "glass-card text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                }`}
+              >
+                Toutes
+              </button>
+              {availableYears.map((y) => (
+                <button
+                  key={y}
+                  onClick={() => { setYearFilterB(yearFilterB === y ? "all" : y); clearMonthRangeB(); }}
+                  className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                    yearFilterB === y ? "bg-amber-500 text-white" : "glass-card text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                  }`}
+                >
+                  {y}
+                </button>
+              ))}
+            </div>
+            {/* Mois B */}
+            {yearFilterB !== "all" && (
+              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide items-center">
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">Mois</span>
+                <button
+                  onClick={clearMonthRangeB}
+                  className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                    !monthRangeStartB ? "bg-amber-500 text-white" : "glass-card text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                  }`}
+                >
+                  Toute l'année
+                </button>
+                {monthsForYearB.map((m, idx) => {
+                  const isBoundary = m === monthRangeStartB || m === monthRangeEndB;
+                  const inRange = monthRangeStartB && monthRangeEndB && m >= monthRangeStartB && m <= monthRangeEndB;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => handleMonthClickB(m)}
+                      className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                        isBoundary
+                          ? "bg-amber-500 text-white"
+                          : inRange
+                            ? "bg-amber-500/25 text-amber-700 dark:text-amber-200 ring-1 ring-inset ring-amber-400/40"
+                            : "glass-card text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                      }`}
+                    >
+                      {MONTH_SHORT[idx]}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* KPIs */}
@@ -508,12 +675,22 @@ export default function AdminPage() {
           <CardContent className="pt-4 text-center">
             <p className="text-3xl font-bold text-[#1e3a5f] dark:text-cyan-300">{totalProjets}</p>
             <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">Projets en cours</p>
+            {compareMode && (
+              <p className="text-[11px] mt-1 text-amber-600 dark:text-amber-400 font-medium">
+                vs {totalProjetsB} <span className="text-gray-400 font-normal">({labelB})</span>
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card className="glass-card">
           <CardContent className="pt-4 text-center">
             <p className="text-3xl font-bold text-[#1e3a5f] dark:text-blue-300">{totalCabines}</p>
             <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">Cabines totales</p>
+            {compareMode && (
+              <p className="text-[11px] mt-1 text-amber-600 dark:text-amber-400 font-medium">
+                vs {totalCabinesB} <span className="text-gray-400 font-normal">({labelB})</span>
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card className="glass-card">
@@ -541,7 +718,53 @@ export default function AdminPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {monteurMontageStats.length === 0 ? (
+            {compareMode ? (
+              montageComparison.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6">Aucune donnée sur les deux périodes.</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-end gap-2 text-[10px] font-semibold pb-0.5">
+                    <span className="text-[#1e3a5f] dark:text-blue-300">{labelA}</span>
+                    <span className="text-gray-300">vs</span>
+                    <span className="text-amber-600 dark:text-amber-400">{labelB}</span>
+                  </div>
+                  {(() => {
+                    const max = Math.max(...montageComparison.flatMap((x) => [x.valA, x.valB]), 1);
+                    return montageComparison.map((r) => {
+                      const color = getCollaboratorColor(r.name).dot;
+                      return (
+                        <div key={r.name} className="space-y-1">
+                          <div className="flex items-center justify-between text-sm gap-2">
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                              <span className="truncate">{r.name}</span>
+                            </span>
+                            <span className="flex items-center gap-1.5 shrink-0 text-xs">
+                              <span className="font-semibold text-[#1e3a5f] dark:text-blue-300">{r.valA}</span>
+                              <span className="text-gray-300">/</span>
+                              <span className="font-semibold text-amber-600 dark:text-amber-400">{r.valB}</span>
+                              {r.delta !== 0 && (
+                                <span className={`font-medium ${r.delta > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                                  {r.delta > 0 ? "+" : ""}{r.delta}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex gap-1">
+                            <div className="h-2 flex-1 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${(r.valA / max) * 100}%`, backgroundColor: color }} />
+                            </div>
+                            <div className="h-2 flex-1 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full bg-amber-400" style={{ width: `${(r.valB / max) * 100}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </>
+              )
+            ) : monteurMontageStats.length === 0 ? (
               <p className="text-xs text-gray-400 text-center py-6">
                 Aucune attribution par cabine sur cette période.
               </p>
@@ -584,7 +807,53 @@ export default function AdminPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {monteurHeuresStats.length === 0 ? (
+            {compareMode ? (
+              heuresComparison.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6">Aucune donnée sur les deux périodes.</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-end gap-2 text-[10px] font-semibold pb-0.5">
+                    <span className="text-[#1e3a5f] dark:text-blue-300">{labelA}</span>
+                    <span className="text-gray-300">vs</span>
+                    <span className="text-amber-600 dark:text-amber-400">{labelB}</span>
+                  </div>
+                  {(() => {
+                    const max = Math.max(...heuresComparison.flatMap((x) => [x.valA, x.valB]), 1);
+                    return heuresComparison.map((r) => {
+                      const color = getCollaboratorColor(r.name).dot;
+                      return (
+                        <div key={r.name} className="space-y-1">
+                          <div className="flex items-center justify-between text-sm gap-2">
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                              <span className="truncate">{r.name}</span>
+                            </span>
+                            <span className="flex items-center gap-1.5 shrink-0 text-xs">
+                              <span className="font-semibold text-[#1e3a5f] dark:text-blue-300">{fmtMin(r.valA)}</span>
+                              <span className="text-gray-300">/</span>
+                              <span className="font-semibold text-amber-600 dark:text-amber-400">{fmtMin(r.valB)}</span>
+                              {r.delta !== 0 && (
+                                <span className={`font-medium ${r.delta > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                                  {r.delta > 0 ? "+" : "−"}{fmtMin(Math.abs(r.delta))}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex gap-1">
+                            <div className="h-2 flex-1 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${(r.valA / max) * 100}%`, backgroundColor: color }} />
+                            </div>
+                            <div className="h-2 flex-1 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full bg-amber-400" style={{ width: `${(r.valB / max) * 100}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </>
+              )
+            ) : monteurHeuresStats.length === 0 ? (
               <p className="text-xs text-gray-400 text-center py-6">
                 Aucune heure enregistrée par cabine sur cette période.
               </p>
