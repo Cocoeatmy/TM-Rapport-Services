@@ -323,7 +323,12 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
       )}
 
       {/* Une carte par jour de montage */}
-      {days.map(([day, dayEntries]) => {
+      {days.map(([day, rawDayEntries]) => {
+        // Tri intra-jour : du plus tôt au plus tard (heure d'arrivée).
+        // Les entrées sans arrivée passent en dernier.
+        const dayEntries = [...rawDayEntries].sort((a, b) =>
+          (a.arrivee || "99:99").localeCompare(b.arrivee || "99:99")
+        );
         const dayTotal = dayEntries.reduce((s, e) => s + e.minutes, 0);
         return (
           <Card key={day || "no-date"} className="mb-4">
