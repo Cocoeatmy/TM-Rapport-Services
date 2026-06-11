@@ -867,11 +867,17 @@ export default function AdminPage() {
                   const color = getCollaboratorColor(stat.name).dot;
                   const moy = stat.cabinesAvecHeures > 0 ? Math.round(stat.minutes / stat.cabinesAvecHeures) : 0;
                   return (
-                    <div key={stat.name} className="space-y-1">
+                    <button
+                      key={stat.name}
+                      type="button"
+                      onClick={() => router.push(`/admin/heures/${encodeURIComponent(stat.name)}`)}
+                      className="w-full text-left space-y-1 rounded-lg px-1 py-1 -mx-1 hover:bg-white/50 dark:hover:bg-white/5 transition-colors"
+                      title={`Voir le détail des heures de ${stat.name}`}
+                    >
                       <div className="flex items-center justify-between text-sm">
                         <span className="flex items-center gap-1.5 min-w-0">
                           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                          <span className="truncate">{stat.name}</span>
+                          <span className="truncate underline-offset-2 hover:underline">{stat.name}</span>
                         </span>
                         <span className="font-semibold text-teal-700 dark:text-teal-300 shrink-0 ml-2">
                           {fmtMin(stat.minutes)} <span className="font-normal text-gray-400 text-xs">({stat.cabinesAvecHeures} cab. · moy.&nbsp;{fmtMin(moy)})</span>
@@ -880,7 +886,7 @@ export default function AdminPage() {
                       <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
                         <div className="h-full rounded-full bg-teal-500 transition-all duration-500" style={{ width: `${(stat.minutes / max) * 100}%` }} />
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </>
