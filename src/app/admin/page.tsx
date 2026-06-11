@@ -1082,7 +1082,8 @@ export default function AdminPage() {
               const names = stat.name.split(" & ");
               const isBinome = names.length > 1;
               const isTeam = stat.name.toLowerCase().includes("team");
-              const matchedProjects = filteredProjects.filter((p) => p.collaborateurs === stat.name);
+              // Cohérent avec le groupage (collaborateurs vide → "Non assigné").
+              const matchedProjects = filteredProjects.filter((p) => (p.collaborateurs || "Non assigné") === stat.name);
               return (
                 <div key={stat.name}>
                   <button type="button" onClick={() => toggleExpand(key)} className="w-full text-left space-y-1 hover:bg-white/40 rounded-lg px-1 py-1 -mx-1 transition-colors">
