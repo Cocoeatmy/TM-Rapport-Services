@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { Fragment, use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Clock, Loader2, FileDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -187,6 +187,35 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const [fYear, setFYear] = useState("all");
   const [fMonth, setFMonth] = useState("all");
   const [pdfGenerating, setPdfGenerating] = useState(false);
+  // Comparaison VS entre collaborateurs
+  const [compareMode, setCompareMode] = useState(false);
+  const [collabB, setCollabB] = useState("");
+  // Persistance des filtres entre changements de monteur (jusqu'à reset).
+  const FKEY = "tm-heures-detail-filters";
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
+
+  // Au montage : restaure les filtres/VS sauvegardés.
+  useEffect(() => {
+    try {
+      const s = JSON.parse(sessionStorage.getItem(FKEY) || "{}");
+      if (s.fMarque) setFMarque(s.fMarque);
+      if (s.fSerie) setFSerie(s.fSerie);
+      if (s.fService) setFService(s.fService);
+      if (s.fYear) setFYear(s.fYear);
+      if (s.fMonth) setFMonth(s.fMonth);
+      if (typeof s.compareMode === "boolean") setCompareMode(s.compareMode);
+      if (s.collabB) setCollabB(s.collabB);
+    } catch {}
+    setFiltersLoaded(true);
+  }, []);
+
+  // Sauvegarde à chaque changement (après chargement initial).
+  useEffect(() => {
+    if (!filtersLoaded) return;
+    try {
+      sessionStorage.setItem(FKEY, JSON.stringify({ fMarque, fSerie, fService, fYear, fMonth, compareMode, collabB }));
+    } catch {}
+  }, [filtersLoaded, fMarque, fSerie, fService, fYear, fMonth, compareMode, collabB]);
 
   useEffect(() => {
     fetch("/api/auth")
@@ -227,15 +256,16 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const yearOptions = [...new Set(allEntries.map((e) => e.date.slice(0, 4)).filter(Boolean))].sort().reverse();
   const MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
-  // Application des filtres.
-  const entries = allEntries.filter((e) => {
+  // Prédicat de filtre réutilisable (pour le monteur courant ET la comparaison).
+  const filterEntry = (e: Entry) => {
     if (fMarque !== "all" && !e.marque.split(", ").includes(fMarque)) return false;
     if (fSerie !== "all" && !e.serie.split(", ").includes(fSerie)) return false;
     if (fService !== "all" && !e.typeService.split(", ").includes(fService)) return false;
     if (fYear !== "all" && e.date.slice(0, 4) !== fYear) return false;
     if (fMonth !== "all" && e.date.slice(5, 7) !== fMonth) return false;
     return true;
-  });
+  };
+  const entries = allEntries.filter(filterEntry);
 
   const totalMin = entries.reduce((s, e) => s + e.minutes, 0);
   const totalCab = entries.length;
@@ -250,6 +280,24 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const moySolo = (() => { const n = soloEntries.filter((e) => e.minutes > 0).length; return n > 0 ? Math.round(soloMin / n) : 0; })();
   const moyBinome = (() => { const n = binomeEntries.filter((e) => e.minutes > 0).length; return n > 0 ? Math.round(binomeMin / n) : 0; })();
   const moyTotal = cabAvecHeures > 0 ? Math.round(totalMin / cabAvecHeures) : 0;
+
+  // Stats agrégées d'un monteur (même filtre actif) — pour la comparaison VS.
+  const computeStats = (name: string) => {
+    const es = projects.flatMap((p) => entriesForMonteur(p, name)).filter(filterEntry);
+    const tot = es.reduce((s, e) => s + e.minutes, 0);
+    const solo = es.filter((e) => !e.binome);
+    const bin = es.filter((e) => e.binome);
+    const cabH = es.filter((e) => e.minutes > 0).length;
+    return {
+      totalMin: tot,
+      soloMin: solo.reduce((s, e) => s + e.minutes, 0),
+      binomeMin: bin.reduce((s, e) => s + e.minutes, 0),
+      totalCab: es.length, soloCab: solo.length, binomeCab: bin.length,
+      moy: cabH > 0 ? Math.round(tot / cabH) : 0,
+    };
+  };
+  const statsA = { totalMin, soloMin, binomeMin, totalCab, soloCab, binomeCab, moy: moyTotal };
+  const statsB = compareMode && collabB ? computeStats(collabB) : null;
 
   // Choix de monteur (sélecteur en-tête) : liste connue + le courant si absent.
   const monteurChoices = [...new Set([decoded, ...COLLABORATEURS_LIST])];
@@ -372,9 +420,28 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
                   <option key={i} value={String(i + 1).padStart(2, "0")}>{label}</option>
                 ))}
               </select>
-              {(fMarque !== "all" || fSerie !== "all" || fService !== "all" || fYear !== "all" || fMonth !== "all") && (
+
+              {/* Comparaison VS avec un autre collaborateur */}
+              <button
+                onClick={() => setCompareMode((v) => !v)}
+                className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${compareMode ? "bg-[#1e3a5f] text-white" : "border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:text-gray-900"}`}
+              >
+                Comparer (VS)
+              </button>
+              {compareMode && (
+                <select
+                  value={collabB}
+                  onChange={(e) => setCollabB(e.target.value)}
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-amber-400/60 bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 font-medium"
+                >
+                  <option value="">Comparer avec…</option>
+                  {COLLABORATEURS_LIST.filter((n) => n !== decoded).map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              )}
+
+              {(fMarque !== "all" || fSerie !== "all" || fService !== "all" || fYear !== "all" || fMonth !== "all" || compareMode) && (
                 <button
-                  onClick={() => { setFMarque("all"); setFSerie("all"); setFService("all"); setFYear("all"); setFMonth("all"); }}
+                  onClick={() => { setFMarque("all"); setFSerie("all"); setFService("all"); setFYear("all"); setFMonth("all"); setCompareMode(false); setCollabB(""); }}
                   className="text-xs px-2.5 py-1.5 rounded-lg text-blue-600 dark:text-blue-300 hover:underline"
                 >
                   Réinitialiser
@@ -413,6 +480,42 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
           <div className="text-2xl font-bold text-teal-600 dark:text-teal-300 text-center border-t border-gray-200 dark:border-gray-700 pt-1.5">{moyTotal > 0 ? fmtMin(moyTotal) : "—"}</div>
         </div>
       </div>
+
+      {/* Comparaison VS entre 2 collaborateurs */}
+      {compareMode && (
+        <div className="glass-card rounded-2xl p-4 mb-6">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-3">Comparaison VS</p>
+          {!collabB || !statsB ? (
+            <p className="text-sm text-gray-400 text-center py-4">Choisis un collaborateur à comparer.</p>
+          ) : (
+            <div className="grid grid-cols-4 gap-x-2 gap-y-2 items-center">
+              <div />
+              <div className="text-sm font-bold text-[#1e3a5f] dark:text-blue-300 text-center">{decoded}</div>
+              <div className="text-sm font-bold text-amber-600 dark:text-amber-400 text-center">{collabB}</div>
+              <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 text-center">Écart</div>
+              {([
+                { label: "Total heures", a: statsA.totalMin, b: statsB.totalMin, hours: true },
+                { label: "Solo", a: statsA.soloMin, b: statsB.soloMin, hours: true },
+                { label: "Binôme", a: statsA.binomeMin, b: statsB.binomeMin, hours: true },
+                { label: "Cabines", a: statsA.totalCab, b: statsB.totalCab, hours: false },
+                { label: "Moy. / cabine", a: statsA.moy, b: statsB.moy, hours: true },
+              ] as const).map((r) => {
+                const delta = r.a - r.b;
+                const fmt = (x: number) => (r.hours ? fmtMin(x) : String(x));
+                const deltaStr = delta === 0 ? "—" : `${delta > 0 ? "+" : "-"}${r.hours ? fmtMin(Math.abs(delta)) : Math.abs(delta)}`;
+                return (
+                  <Fragment key={r.label}>
+                    <div className="text-xs font-medium text-gray-600 dark:text-gray-300">{r.label}</div>
+                    <div className="text-base font-bold text-[#1e3a5f] dark:text-blue-300 text-center">{fmt(r.a)}</div>
+                    <div className="text-base font-bold text-amber-600 dark:text-amber-400 text-center">{fmt(r.b)}</div>
+                    <div className={`text-xs font-semibold text-center ${delta === 0 ? "text-gray-400" : delta > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{deltaStr}</div>
+                  </Fragment>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {entries.length === 0 && (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
