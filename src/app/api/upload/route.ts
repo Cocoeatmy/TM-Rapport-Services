@@ -95,76 +95,41 @@ export async function POST(request: NextRequest) {
     console.log("Upload done, saving to Notion:", { notionField, uploadedCount: uploaded.length });
     if (notionField && projectId) {
       await withFieldLock(`${projectId}:${notionField}`, async () => {
-        // Retry loop : en cas de race cross-container (deux workers Vercel
-        // simultanés qui bypassent le verrou in-memory), on relit l'état
-        // Notion après chaque write et on réécrit si des fichiers attendus
-        // manquent. Max 3 tentatives.
-        const MAX_WRITE_ATTEMPTS = 3;
-        const expectedNames = new Set(uploaded.map((f) => f.name));
+        // UN SEUL retrieve + UN SEUL update (avant : jusqu'à 5 appels Notion via
+        // une boucle retrieve+update+vérification ×3). Sur les gros projets,
+        // cette boucle rendait l'écriture trop lente → dépassement du timeout →
+        // photos bloquées en boucle de re-essais. Le verrou in-memory sérialise
+        // déjà les écritures du même champ, et le dédup par nom ci-dessous
+        // élimine tout doublon au prochain upload : la vérification était superflue.
+        const page = await notion.pages.retrieve({ page_id: projectId }) as any;
+        const existingFiles = page.properties[notionField]?.files || [];
 
-        for (let attempt = 1; attempt <= MAX_WRITE_ATTEMPTS; attempt++) {
-          // Re-read inside the lock so concurrent uploads queue up
-          // behind each other and each sees the latest state.
-          const page = await notion.pages.retrieve({ page_id: projectId }) as any;
-          const existingFiles = page.properties[notionField]?.files || [];
-
-          // Dédup par URL ET par nom de fichier.
-          //
-          // Pourquoi le nom ? En cas de retry (réseau coupé APRÈS que le
-          // serveur a traité la 1ère requête mais AVANT que le client reçoive
-          // la réponse), le client re-upload le même fichier. Cloudinary génère
-          // alors un nouveau public_id → URL différente → `seenUrls` ne détecte
-          // pas le doublon → la photo apparaît deux fois dans Notion.
-          //
-          // Les noms incluent désormais un timestamp (format :
-          // `${filePrefix}.${idx}.${Date.now()}.ext`) — le timestamp garantit
-          // l'unicité cross-device (deux monteurs sur le même chantier ne
-          // produiront pas le même nom), tout en préservant le dédup sur retry
-          // (l'IDB conserve le même nom pour les tentatives suivantes).
-          // NB : detectBucket et extractCabine analysent le PRÉFIXE et le
-          // pattern `.Cab(\d+).` — ils ne sont pas affectés par le suffixe.
-          const seenUrls = new Set<string>();
-          const seenNames = new Set<string>();
-          const allFiles: { type: "external"; name: string; external: { url: string } }[] = [];
-          const pushUnique = (name: string, url: string | undefined | null) => {
-            if (!url || seenUrls.has(url)) return;
-            // Même nom → même photo uploadée deux fois (retry) → on ignore
-            if (name && seenNames.has(name)) return;
-            seenUrls.add(url);
-            if (name) seenNames.add(name);
-            allFiles.push({ type: "external", name: name || "photo", external: { url } });
-          };
-          for (const f of existingFiles) {
-            const url = f.type === "external" ? f.external?.url : f.file?.url;
-            pushUnique(f.name, url);
-          }
-          for (const f of uploaded) {
-            pushUnique(f.name, f.url);
-          }
-
-          await notion.pages.update({
-            page_id: projectId,
-            properties: {
-              [notionField]: { files: allFiles },
-            },
-          });
-
-          // Vérification post-write : relire Notion pour confirmer que tous
-          // les fichiers uploadés sont bien présents. Si un fichier manque
-          // (race cross-container), on réitère le write.
-          if (attempt < MAX_WRITE_ATTEMPTS) {
-            const verify = await notion.pages.retrieve({ page_id: projectId }) as any;
-            const writtenNames = new Set(
-              (verify.properties[notionField]?.files || []).map((f: any) => f.name)
-            );
-            const allPresent = [...expectedNames].every((n) => writtenNames.has(n));
-            if (allPresent) break; // tout est là, on sort
-            console.warn(
-              `[upload] Tentative ${attempt}/${MAX_WRITE_ATTEMPTS} — fichiers manquants détectés, retry write Notion`
-            );
-            await new Promise((r) => setTimeout(r, 200 * attempt)); // petit délai avant retry
-          }
+        // Dédup par URL ET par nom (le nom inclut un timestamp unique). En cas
+        // de retry réseau, le même nom revient → on ignore le doublon.
+        const seenUrls = new Set<string>();
+        const seenNames = new Set<string>();
+        const allFiles: { type: "external"; name: string; external: { url: string } }[] = [];
+        const pushUnique = (name: string, url: string | undefined | null) => {
+          if (!url || seenUrls.has(url)) return;
+          if (name && seenNames.has(name)) return;
+          seenUrls.add(url);
+          if (name) seenNames.add(name);
+          allFiles.push({ type: "external", name: name || "photo", external: { url } });
+        };
+        for (const f of existingFiles) {
+          const url = f.type === "external" ? f.external?.url : f.file?.url;
+          pushUnique(f.name, url);
         }
+        for (const f of uploaded) {
+          pushUnique(f.name, f.url);
+        }
+
+        await notion.pages.update({
+          page_id: projectId,
+          properties: {
+            [notionField]: { files: allFiles },
+          },
+        });
       });
 
       // Invalider les caches côté serveur pour que le prochain fetch
