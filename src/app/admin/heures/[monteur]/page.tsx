@@ -157,6 +157,12 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
+  // Filtres
+  const [fMarque, setFMarque] = useState("all");
+  const [fSerie, setFSerie] = useState("all");
+  const [fService, setFService] = useState("all");
+  const [fYear, setFYear] = useState("all");
+  const [fMonth, setFMonth] = useState("all");
 
   useEffect(() => {
     fetch("/api/auth")
@@ -188,9 +194,27 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const colors = getCollaboratorColor(decoded);
 
   // Toutes les entrées de ce monteur, triées par date de montage.
-  const entries = projects
+  const allEntries = projects
     .flatMap((p) => entriesForMonteur(p, decoded))
     .sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999"));
+
+  // Options de filtre (depuis toutes les entrées du monteur).
+  const uniq = (arr: string[]) => [...new Set(arr.filter(Boolean))].sort();
+  const marqueOptions = uniq(allEntries.flatMap((e) => e.marque.split(", ")));
+  const serieOptions = uniq(allEntries.flatMap((e) => e.serie.split(", ")));
+  const serviceOptions = uniq(allEntries.flatMap((e) => e.typeService.split(", ")));
+  const yearOptions = [...new Set(allEntries.map((e) => e.date.slice(0, 4)).filter(Boolean))].sort().reverse();
+  const MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+
+  // Application des filtres.
+  const entries = allEntries.filter((e) => {
+    if (fMarque !== "all" && !e.marque.split(", ").includes(fMarque)) return false;
+    if (fSerie !== "all" && !e.serie.split(", ").includes(fSerie)) return false;
+    if (fService !== "all" && !e.typeService.split(", ").includes(fService)) return false;
+    if (fYear !== "all" && e.date.slice(0, 4) !== fYear) return false;
+    if (fMonth !== "all" && e.date.slice(5, 7) !== fMonth) return false;
+    return true;
+  });
 
   const totalMin = entries.reduce((s, e) => s + e.minutes, 0);
   const totalCab = entries.length;
@@ -230,6 +254,47 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
         </div>
       </div>
 
+      {/* Filtres */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {(() => {
+          const cls = "text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 max-w-[160px]";
+          return (
+            <>
+              <select value={fMarque} onChange={(e) => setFMarque(e.target.value)} className={cls}>
+                <option value="all">Marque : toutes</option>
+                {marqueOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select value={fSerie} onChange={(e) => setFSerie(e.target.value)} className={cls}>
+                <option value="all">Série : toutes</option>
+                {serieOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select value={fService} onChange={(e) => setFService(e.target.value)} className={cls}>
+                <option value="all">Service : tous</option>
+                {serviceOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select value={fYear} onChange={(e) => setFYear(e.target.value)} className={cls}>
+                <option value="all">Année : toutes</option>
+                {yearOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <select value={fMonth} onChange={(e) => setFMonth(e.target.value)} className={cls}>
+                <option value="all">Mois : tous</option>
+                {MONTHS.map((label, i) => (
+                  <option key={i} value={String(i + 1).padStart(2, "0")}>{label}</option>
+                ))}
+              </select>
+              {(fMarque !== "all" || fSerie !== "all" || fService !== "all" || fYear !== "all" || fMonth !== "all") && (
+                <button
+                  onClick={() => { setFMarque("all"); setFSerie("all"); setFService("all"); setFYear("all"); setFMonth("all"); }}
+                  className="text-xs px-2.5 py-1.5 rounded-lg text-blue-600 dark:text-blue-300 hover:underline"
+                >
+                  Réinitialiser
+                </button>
+              )}
+            </>
+          );
+        })()}
+      </div>
+
       {/* Total */}
       <div className="glass-card rounded-2xl p-4 mb-6 flex items-center justify-around text-center">
         <div>
@@ -265,7 +330,11 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center justify-between gap-2">
                 <span className="capitalize text-[#1e3a5f] dark:text-blue-300">{formatDay(day)}</span>
-                <span className="text-xs font-bold text-teal-600 dark:text-teal-300 shrink-0">{fmtMin(dayTotal)}</span>
+                <span className="flex items-center gap-2 shrink-0 text-xs font-bold text-teal-600 dark:text-teal-300">
+                  <span>{dayEntries.length} cabine{dayEntries.length > 1 ? "s" : ""}</span>
+                  <span className="text-gray-300 dark:text-gray-600 font-normal">·</span>
+                  <span>{fmtMin(dayTotal)}</span>
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
