@@ -1509,7 +1509,7 @@ export default function AdminPage() {
               const JOURS_PAR_SEMAINE = 5;
               const capaciteHebdo = NB_COLLABORATEURS * CAB_PAR_JOUR * JOURS_PAR_SEMAINE; // = 87.5
 
-              const weeks: { label: string; cabines: number; projets: number; equipes: number }[] = [];
+              const weeks: { label: string; cabines: number; projets: number; equipes: number; items: Project[] }[] = [];
               for (let w = 0; w < 6; w++) {
                 const start = new Date(today);
                 start.setDate(today.getDate() + w * 7 - ((today.getDay() + 6) % 7));
@@ -1526,6 +1526,7 @@ export default function AdminPage() {
                   cabines: weekCabines,
                   projets: weekProjects.length,
                   equipes: equipes.size,
+                  items: weekProjects,
                 });
               }
 
@@ -1538,29 +1539,43 @@ export default function AdminPage() {
                   {weeks.map((w, i) => {
                     const charge = capaciteHebdo > 0 ? (w.cabines / capaciteHebdo) * 100 : 0;
                     const barColor = charge > 80 ? "#ef4444" : charge > 50 ? "#f59e0b" : "#8b5cf6";
+                    const key = `prevision-${i}`;
+                    const isOpen = expanded === key;
+                    const clickable = w.projets > 0;
                     return (
-                      <div key={i} className="space-y-0.5">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className={i === 0 ? "font-bold text-purple-700" : "text-gray-600"}>{w.label}</span>
-                          <span className="font-semibold">
-                            {w.cabines} cab.
-                            <span className="font-normal text-gray-400"> ({w.projets} proj.)</span>
-                            {charge > 0 && (
-                              <span className={`ml-1.5 text-[10px] font-bold ${charge > 80 ? "text-red-500" : charge > 50 ? "text-amber-500" : "text-purple-500"}`}>
-                                {Math.round(charge)}%
+                      <div key={i}>
+                        <button
+                          type="button"
+                          onClick={() => clickable && toggleExpand(key)}
+                          disabled={!clickable}
+                          className={`w-full text-left space-y-0.5 rounded-lg px-1 py-1 -mx-1 transition-colors ${clickable ? "hover:bg-white/50 dark:hover:bg-white/5 cursor-pointer" : "cursor-default"}`}
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className={i === 0 ? "font-bold text-purple-700" : "text-gray-600"}>{w.label}</span>
+                            <span className="flex items-center gap-1.5">
+                              <span className="font-semibold">
+                                {w.cabines} cab.
+                                <span className="font-normal text-gray-400"> ({w.projets} proj.)</span>
+                                {charge > 0 && (
+                                  <span className={`ml-1.5 text-[10px] font-bold ${charge > 80 ? "text-red-500" : charge > 50 ? "text-amber-500" : "text-purple-500"}`}>
+                                    {Math.round(charge)}%
+                                  </span>
+                                )}
                               </span>
-                            )}
-                          </span>
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{
-                              width: `${Math.min(charge, 100)}%`,
-                              backgroundColor: barColor,
-                            }}
-                          />
-                        </div>
+                              {clickable && (isOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />)}
+                            </span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{
+                                width: `${Math.min(charge, 100)}%`,
+                                backgroundColor: barColor,
+                              }}
+                            />
+                          </div>
+                        </button>
+                        {isOpen && <ProjectList items={w.items} />}
                       </div>
                     );
                   })}
