@@ -60,7 +60,8 @@ function describePendingUpload(up: PendingUpload): string {
   const nbFiles = up.files?.length ?? 0;
   const label = up.notionField || up.category || "photo";
   const suffix = up.retryCount > 0 ? ` (essai ${up.retryCount})` : "";
-  return `${nbFiles} photo${nbFiles > 1 ? "s" : ""} — ${label} · ${up.projectId}${suffix}`;
+  const why = up.reason ? ` ⚠ ${up.reason}` : "";
+  return `${nbFiles} photo${nbFiles > 1 ? "s" : ""} — ${label} · ${up.projectId}${suffix}${why}`;
 }
 
 /** Formate un timestamp en heure lisible. */

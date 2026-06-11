@@ -321,6 +321,7 @@ export async function processPendingUploads(): Promise<{
     // échec isolé ne bloque pas les autres (les fichiers passés sont retirés).
     const remaining = [...item.files];
     let failureStatus: number | null = null;
+    let failureMsg = "";
     let networkError = false;
     for (const f of item.files) {
       const formData = new FormData();
@@ -337,8 +338,9 @@ export async function processPendingUploads(): Promise<{
       let res: Response;
       try {
         res = await fetch("/api/upload", { method: "POST", body: formData, signal: ctrl.signal });
-      } catch {
+      } catch (e: any) {
         networkError = true;
+        failureMsg = e?.name === "AbortError" ? "timeout 45s" : "réseau indisponible";
         break;
       } finally {
         clearTimeout(to);
@@ -348,9 +350,21 @@ export async function processPendingUploads(): Promise<{
         if (idx >= 0) remaining.splice(idx, 1);
       } else {
         failureStatus = res.status;
+        // Capture le message d'erreur renvoyé par le serveur (ex. message
+        // Notion/Cloudinary) → stocké comme `reason` pour diagnostic visible.
+        try {
+          const d = await res.clone().json();
+          failureMsg = d?.error ? String(d.error).slice(0, 140) : "";
+        } catch {
+          try { failureMsg = (await res.text()).slice(0, 140); } catch {}
+        }
         break;
       }
     }
+
+    const reason = networkError
+      ? `Réseau : ${failureMsg}`
+      : `HTTP ${failureStatus ?? "?"}${failureMsg ? " — " + failureMsg : ""}`;
 
     if (remaining.length === 0) {
       // Tous les fichiers de l'item sont passés.
@@ -369,23 +383,22 @@ export async function processPendingUploads(): Promise<{
     ) {
       // 4xx (hors 408/429) : erreur permanente. On ne garde que les fichiers
       // pas encore envoyés (les autres sont déjà chez Notion).
-      console.warn("[idb-uploads] Upload 4xx permanent", item.id, failureStatus);
-      await _markPermanentlyFailed({ ...item, files: remaining }, `Erreur ${failureStatus}`);
+      console.warn("[idb-uploads] Upload 4xx permanent", item.id, reason);
+      await _markPermanentlyFailed({ ...item, files: remaining }, reason);
       permanentlyFailed++;
       failed++;
     } else {
       // 5xx / 408 / 429 / réseau : temporaire → backoff court (3s → 30s).
       const retries = (item.retryCount || 0) + 1;
       if (retries >= MAX_RETRIES) {
-        console.error("[idb-uploads] MAX_RETRIES atteint — permanently-failed", item.id);
-        await _markPermanentlyFailed(
-          { ...item, files: remaining },
-          networkError ? "Réseau indisponible après plusieurs tentatives" : `${MAX_RETRIES} tentatives échouées`,
-        );
+        console.error("[idb-uploads] MAX_RETRIES atteint — permanently-failed", item.id, reason);
+        await _markPermanentlyFailed({ ...item, files: remaining }, reason);
         permanentlyFailed++;
       } else {
         const delayMs = Math.min(3_000 * 2 ** (retries - 1), 30_000);
-        await updatePendingUpload({ ...item, files: remaining, retryCount: retries, nextAttemptAt: now + delayMs });
+        // On stocke aussi le `reason` sur l'item pending → visible immédiatement
+        // dans le détail du bandeau, sans attendre l'échec permanent.
+        await updatePendingUpload({ ...item, files: remaining, retryCount: retries, nextAttemptAt: now + delayMs, reason });
       }
       failed++;
     }
@@ -402,7 +415,7 @@ export async function processPendingUploads(): Promise<{
  * Les données (blobs) sont conservées — zéro perte.
  */
 async function _markPermanentlyFailed(item: PendingUpload, reason: string): Promise<void> {
-  await updatePendingUpload({ ...item, status: "permanently-failed" });
+  await updatePendingUpload({ ...item, status: "permanently-failed", reason });
   if (typeof window !== "undefined") {
     window.dispatchEvent(
       new CustomEvent("tm-upload-permanently-failed", {
