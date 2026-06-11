@@ -81,6 +81,7 @@ interface Entry {
   cabineLabel: string;
   marque: string; // n8n Fournisseurs
   serie: string;  // n8n Séries Cabines
+  typeService: string; // Type de services
   arrivee: string;
   depart: string;
   minutes: number;
@@ -93,6 +94,7 @@ function entriesForMonteur(p: Project, monteur: string): Entry[] {
     raw.split(/\s*&\s*/).some((n) => normName(n) === target);
   const marque = (p.fournisseurs || []).join(", ");
   const serie = (p.seriesCabines || []).join(", ");
+  const typeService = (p.typeServices || []).join(", ");
 
   const out: Entry[] = [];
   const attrMap = parseCabMap(p.attributionCabines || "");
@@ -114,6 +116,7 @@ function entriesForMonteur(p: Project, monteur: string): Entry[] {
         cabineLabel: nomsMap.get(cabNum) || `Cabine ${cabNum}`,
         marque,
         serie,
+        typeService,
         arrivee: slotHHMM(arrSlot),
         depart: slotHHMM(depSlot),
         minutes: durMinutes(arrSlot, depSlot),
@@ -133,6 +136,7 @@ function entriesForMonteur(p: Project, monteur: string): Entry[] {
     cabineLabel: "—",
     marque,
     serie,
+    typeService,
     arrivee: slotHHMM(p.heureArrivee || ""),
     depart: slotHHMM(p.heureDepart || ""),
     minutes: durMinutes(p.heureArrivee || "", p.heureDepart || ""),
@@ -273,6 +277,7 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
                       <th className="text-left py-1.5 pr-2">Cabine</th>
                       <th className="text-left py-1.5 pr-2">Marque</th>
                       <th className="text-left py-1.5 pr-2">Série</th>
+                      <th className="text-left py-1.5 pr-2">Service</th>
                       <th className="text-center py-1.5 px-2">Arrivée</th>
                       <th className="text-center py-1.5 px-2">Départ</th>
                       <th className="text-right py-1.5 pl-2">Heures</th>
@@ -292,6 +297,7 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
                         <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">{e.cabineLabel}</td>
                         <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300">{e.marque || "-"}</td>
                         <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300">{e.serie || "-"}</td>
+                        <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300">{e.typeService || "-"}</td>
                         <td className="py-1.5 px-2 text-center text-gray-600 dark:text-gray-400 font-mono">{e.arrivee || "-"}</td>
                         <td className="py-1.5 px-2 text-center text-gray-600 dark:text-gray-400 font-mono">{e.depart || "-"}</td>
                         <td className="py-1.5 pl-2 text-right font-medium text-gray-900 dark:text-gray-100">{e.minutes > 0 ? fmtMin(e.minutes) : "-"}</td>
