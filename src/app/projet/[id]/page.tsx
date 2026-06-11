@@ -3959,7 +3959,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const installedCabineCount = installedCabineIndices.size;
 
   return (
-    <div className="max-w-4xl mx-auto w-full pb-8 px-4">
+    <div className="w-full pb-8 px-4 sm:px-6">
       {/* Modal d'édition admin */}
       {isAdmin && project && (
         <AdminEditModal
@@ -4119,7 +4119,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
 
-      <div className={`px-4 mt-4 ${showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "max-w-5xl mx-auto"}`}>
+      <div className={`px-4 sm:px-6 mt-4 ${showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "w-full"}`}>
         {/* Colonne gauche - Informations (masquée sur mobile quand rapport ouvert) */}
         <div className={`space-y-4 ${showRapport ? "hidden lg:block" : ""}`}>
         {/* Bouton démarrer/consulter le rapport — placé juste sous le header,

@@ -2045,7 +2045,7 @@ function HomePage() {
     : filtered;
 
   return (
-    <div className="px-3 sm:px-4 py-3 sm:py-4 max-w-7xl mx-auto w-full">
+    <div className="px-3 sm:px-4 py-3 sm:py-4 w-full">
       <PullToRefresh />
       <Onboarding />
       {/* Drawer mobile CleanMyMac — rendu en dehors du flux normal car position:fixed */}
