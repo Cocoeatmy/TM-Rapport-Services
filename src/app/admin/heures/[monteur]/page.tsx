@@ -2,9 +2,10 @@
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Clock, Loader2 } from "lucide-react";
+import { ArrowLeft, Clock, Loader2, FileDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCollaboratorColor } from "@/lib/collaborators";
+import { COLLABORATEURS_LIST } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 
 // ── Helpers de parsing par cabine (alignés sur le calcul du tableau de bord) ──
@@ -185,6 +186,7 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const [fService, setFService] = useState("all");
   const [fYear, setFYear] = useState("all");
   const [fMonth, setFMonth] = useState("all");
+  const [pdfGenerating, setPdfGenerating] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth")
@@ -244,6 +246,48 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
   const soloMin = soloEntries.reduce((s, e) => s + e.minutes, 0);
   const binomeMin = binomeEntries.reduce((s, e) => s + e.minutes, 0);
 
+  // Choix de monteur (sélecteur en-tête) : liste connue + le courant si absent.
+  const monteurChoices = [...new Set([decoded, ...COLLABORATEURS_LIST])];
+
+  // Libellés période + filtres pour le PDF.
+  const pdfPeriodLabel =
+    fYear === "all" ? "Toutes années" : fMonth === "all" ? fYear : `${MONTHS[parseInt(fMonth, 10) - 1]} ${fYear}`;
+  const pdfFilterLabel = [
+    fMarque !== "all" ? `Marque : ${fMarque}` : "",
+    fSerie !== "all" ? `Série : ${fSerie}` : "",
+    fService !== "all" ? `Service : ${fService}` : "",
+  ].filter(Boolean).join(" · ");
+
+  const handlePdf = async () => {
+    if (entries.length === 0) return;
+    setPdfGenerating(true);
+    try {
+      const { generateMonteurHeuresPdf } = await import("@/components/heures-monteur-pdf");
+      const blob = await generateMonteurHeuresPdf({
+        monteur: decoded,
+        periodLabel: pdfPeriodLabel,
+        filterLabel: pdfFilterLabel,
+        entries: entries.map((e) => ({
+          date: e.date, projectName: e.projectName, cabineLabel: e.cabineLabel,
+          marque: e.marque, serie: e.serie, typeService: e.typeService,
+          arrivee: e.arrivee, depart: e.depart, minutes: e.minutes,
+          binome: e.binome, partner: e.partner,
+        })),
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Heures - ${decoded} - ${pdfPeriodLabel}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("PDF heures monteur:", err);
+      alert("Erreur lors de la génération du PDF.");
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
   // Groupe par jour de montage.
   const byDay = new Map<string, Entry[]>();
   for (const e of entries) {
@@ -270,12 +314,29 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
           {decoded[0]}
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 truncate">{decoded}</h1>
+          {/* Sélecteur de monteur : changer sans revenir en arrière */}
+          <select
+            value={decoded}
+            onChange={(e) => router.push(`/admin/heures/${encodeURIComponent(e.target.value)}`)}
+            className="text-xl font-bold text-gray-900 dark:text-gray-100 bg-transparent cursor-pointer focus:outline-none -ml-0.5 max-w-full"
+            title="Changer de monteur"
+          >
+            {monteurChoices.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
           <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5" />
             Heures par cabine & projet
           </p>
         </div>
+        {/* Export PDF */}
+        <button
+          onClick={handlePdf}
+          disabled={pdfGenerating || entries.length === 0}
+          className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1e3a5f] hover:bg-[#163055] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+        >
+          {pdfGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+          PDF
+        </button>
       </div>
 
       {/* Filtres */}
