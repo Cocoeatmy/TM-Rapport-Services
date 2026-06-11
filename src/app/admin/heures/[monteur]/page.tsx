@@ -194,15 +194,12 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
         setIsAdmin(true);
       });
 
-    Promise.all([
-      fetch("/api/projects").then((r) => r.json()),
-      fetch("/api/projects/cmd-termine").then((r) => r.json()),
-    ]).then(([enCours, termines]) => {
-      setProjects([
-        ...(Array.isArray(enCours) ? enCours : []),
-        ...(Array.isArray(termines) ? termines : []),
-      ]);
-    }).finally(() => setLoading(false));
+    // TOUS les projets (tous statuts : en cours, terminés, services, SAV,
+    // mesures…) pour ne manquer aucun montage du monteur (mono ou multi).
+    fetch("/api/projects/all")
+      .then((r) => r.json())
+      .then((all) => setProjects(Array.isArray(all) ? all : []))
+      .finally(() => setLoading(false));
   }, [router]);
 
   if (!isAdmin || loading) {
