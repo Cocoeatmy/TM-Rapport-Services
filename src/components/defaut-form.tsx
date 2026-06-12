@@ -144,7 +144,10 @@ export function DefautForm({ projectId, projectName, cabineOptions, onSubmitted 
           description,
           photoUrls,
           displayInRapport,
-          cabineLabel: selectedCabine || undefined,
+          // Si une seule cabine possible (signalement depuis un onglet cabine),
+          // on l'enregistre automatiquement comme lot — le sélecteur est masqué
+          // dans ce cas, mais le lot doit quand même être attribué.
+          cabineLabel: selectedCabine || (cabineOptions && cabineOptions.length === 1 ? cabineOptions[0] : undefined),
         }),
       });
       if (res.ok) {

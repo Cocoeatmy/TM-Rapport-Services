@@ -1263,8 +1263,14 @@ function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string
           <div key={d.id} className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-900/10 p-3">
             {/* En-tête : numéro + actions */}
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-xs font-bold text-red-700 dark:text-red-400">
-                {!cabineLabel && d.cabineLabel ? d.cabineLabel : `Défaut n°${num}`}
+              <span className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-bold text-red-700 dark:text-red-400">Défaut n°{num}</span>
+                {/* Lot : affiché dans la liste globale (pas dans un onglet cabine où c'est redondant) */}
+                {!cabineLabel && d.cabineLabel && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#1e3a5f]/10 text-[#1e3a5f] dark:bg-blue-900/30 dark:text-blue-300">
+                    Lot&nbsp;: {d.cabineLabel}
+                  </span>
+                )}
               </span>
               <div className="flex items-center gap-1.5">
                 <button onClick={() => toggleDisplay(d.id, visible)}
