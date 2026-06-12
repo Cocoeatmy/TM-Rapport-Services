@@ -5702,7 +5702,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <DefautForm
                                   projectId={id}
                                   projectName={project.projet}
-                                  cabineOptions={[cabine.nom]}
+                                  cabineLabel={cabine.nom}
                                   onSubmitted={() => setDefautRefreshKey((k) => k + 1)}
                                 />
                               </div>

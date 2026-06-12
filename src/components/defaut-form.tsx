@@ -24,11 +24,13 @@ interface DefautFormProps {
   projectName: string;
   /** Liste des noms de cabines pour le sélecteur (uniquement si > 1 cabine). */
   cabineOptions?: string[];
+  /** Lot/cabine imposé (signalement depuis un onglet cabine précis). Prioritaire. */
+  cabineLabel?: string;
   /** Appelé après soumission réussie avec les URLs des photos uploadées. */
   onSubmitted?: (photoUrls: string[]) => void;
 }
 
-export function DefautForm({ projectId, projectName, cabineOptions, onSubmitted }: DefautFormProps) {
+export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, onSubmitted }: DefautFormProps) {
   const [open, setOpen] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [description, setDescription] = useState("");
@@ -144,10 +146,10 @@ export function DefautForm({ projectId, projectName, cabineOptions, onSubmitted 
           description,
           photoUrls,
           displayInRapport,
-          // Si une seule cabine possible (signalement depuis un onglet cabine),
-          // on l'enregistre automatiquement comme lot — le sélecteur est masqué
-          // dans ce cas, mais le lot doit quand même être attribué.
-          cabineLabel: selectedCabine || (cabineOptions && cabineOptions.length === 1 ? cabineOptions[0] : undefined),
+          // Lot du défaut : sélection manuelle > lot imposé par le contexte
+          // cabine (prop cabineLabel) > unique option disponible. Garantit que
+          // le lot est TOUJOURS enregistré quand on signale depuis une cabine.
+          cabineLabel: selectedCabine || cabineLabel || (cabineOptions && cabineOptions.length === 1 ? cabineOptions[0] : undefined),
         }),
       });
       if (res.ok) {
