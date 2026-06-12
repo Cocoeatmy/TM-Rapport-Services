@@ -702,8 +702,10 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
           })()}
         </View>
 
-        {/* Rapport */}
-        <View style={styles.section}>
+        {/* Rapport — wrap={false} : titre + rapport restent ensemble (jamais
+            à cheval sur deux pages). Bascule en entier sur la page suivante
+            si l'espace restant est insuffisant. */}
+        <View wrap={false} style={styles.section}>
           <Text style={styles.sectionTitle}>Commentaires & Rapport</Text>
           {/* Commentaires montages exclus du PDF - informations internes */}
           {project.rapportMonteur && (() => {
@@ -713,10 +715,10 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
             const IDENT_WIDTH = 52; // largeur fixe colonne gauche (pt)
             const lines = project.rapportMonteur.split("\n");
             return (
-              // Liseré gauche au lieu de backgroundColor+borderRadius :
-              // un fond coupé en milieu de page est visuellement cassé,
-              // un trait de côté se prolonge naturellement sur les pages suivantes.
-              <View style={{ borderLeftWidth: 3, borderLeftColor: "#1e3a5f", paddingLeft: 10, paddingVertical: 6 }}>
+              // wrap={false} : le bloc "Rapport du monteur" ne doit jamais être
+              // coupé entre deux pages (en-tête orphelin). S'il ne tient pas dans
+              // l'espace restant, il bascule entièrement sur la page suivante.
+              <View wrap={false} style={{ borderLeftWidth: 3, borderLeftColor: "#1e3a5f", paddingLeft: 10, paddingVertical: 6 }}>
                 <Text style={{ fontSize: 8, color: "#666", marginBottom: 6 }}>
                   Rapport du monteur
                 </Text>
