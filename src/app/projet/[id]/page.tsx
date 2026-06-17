@@ -2462,6 +2462,8 @@ function ProjectPageContent({ id }: { id: string }) {
   const mode = searchParams.get("mode") || "cmd";
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  // Vrai quand on affiche un cache et qu'une actualisation tourne en arrière-plan.
+  const [refreshing, setRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<"temporary" | "notfound" | null>(null);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
@@ -3141,6 +3143,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
   useEffect(() => {
     // 1. Cache-first: charger depuis le cache des projets instantanément
+    let hadCache = false;
     try {
       const cached = localStorage.getItem("tm-projects-cache");
       if (cached) {
@@ -3152,12 +3155,18 @@ function ProjectPageContent({ id }: { id: string }) {
             if (found) {
               initProject(found);
               setLoading(false);
+              hadCache = true;
               break;
             }
           }
         }
       }
     } catch {}
+
+    // On a affiché un cache (peut-être périmé/incomplet) → on signale qu'une
+    // actualisation est en cours, pour que l'utilisateur ne croie pas le
+    // rapport vide ou effacé pendant le fetch des données fraîches.
+    if (hadCache) setRefreshing(true);
 
     // 2. Fetch API en arrière-plan avec retry (protection rate-limit Notion)
     const fetchWithProjectRetry = async (retries = 3, delayMs = 1500) => {
@@ -3169,6 +3178,7 @@ function ProjectPageContent({ id }: { id: string }) {
             initProject(data);
             setFetchError(null);
             setLoading(false);
+            setRefreshing(false);
             return;
           }
           // Erreur serveur : temporaire (rate-limit/timeout) ou définitive
@@ -3180,6 +3190,7 @@ function ProjectPageContent({ id }: { id: string }) {
           // Pas de données après tous les retries
           setFetchError(isTemporary ? "temporary" : "notfound");
           setLoading(false);
+          setRefreshing(false);
           return;
         } catch {
           if (attempt < retries) {
@@ -3188,6 +3199,7 @@ function ProjectPageContent({ id }: { id: string }) {
           }
           setFetchError("temporary");
           setLoading(false);
+          setRefreshing(false);
         }
       }
     };
@@ -3874,8 +3886,10 @@ function ProjectPageContent({ id }: { id: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-center px-6">
+        <Loader2 className="w-10 h-10 animate-spin text-[#1e3a5f] dark:text-blue-300" />
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Chargement du rapport…</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500">Récupération des photos et des informations</p>
       </div>
     );
   }
@@ -3966,6 +3980,15 @@ function ProjectPageContent({ id }: { id: string }) {
 
   return (
     <div className="w-full pb-8 px-4 sm:px-6">
+      {/* Bannière d'actualisation : un cache (peut-être périmé) est affiché
+          pendant que les données fraîches se chargent. Évite de croire que le
+          rapport est vide ou effacé. */}
+      {refreshing && (
+        <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-1.5 bg-blue-50/95 dark:bg-blue-900/40 border-b border-blue-200 dark:border-blue-800 flex items-center justify-center gap-2 text-xs font-medium text-[#1e3a5f] dark:text-blue-200 backdrop-blur">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          Actualisation des données du rapport…
+        </div>
+      )}
       {/* Modal d'édition admin */}
       {isAdmin && project && (
         <AdminEditModal

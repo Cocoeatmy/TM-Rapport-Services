@@ -794,21 +794,26 @@ export async function getProjectsCmdTermine(): Promise<Project[]> {
 export async function getProject(pageId: string): Promise<Project> {
   const page = await notionRetrieveWithRetry(pageId);
   const project = mapPageToProject(page);
-  // Resolve relation names for single project
+  // Résolution des noms de relations ET fusion du débordement photo EN
+  // PARALLÈLE (deux lectures indépendantes) — réduit la latence d'ouverture
+  // d'un projet, surtout sur instance froide (cold start) où chaque lecture
+  // Notion compte. Le débordement mute project.photos* en place.
   const allRelIds = [...new Set([...project.grossistesRelation, ...project.fournisseursRelation, ...project.sanitaireRelation, ...project.contactsProjetRelation])];
+  const [names] = await Promise.all([
+    allRelIds.length > 0 ? resolveRelationNames(allRelIds) : Promise.resolve({} as Record<string, string>),
+    (async () => {
+      try {
+        const { mergeOverflowIntoProject } = await import("@/lib/photo-overflow");
+        await mergeOverflowIntoProject(project);
+      } catch {}
+    })(),
+  ]);
   if (allRelIds.length > 0) {
-    const names = await resolveRelationNames(allRelIds);
     project.grossistesNames = project.grossistesRelation.map((id) => names[id] || id);
     project.fournisseursNames = project.fournisseursRelation.map((id) => names[id] || id);
     project.sanitaireNames = project.sanitaireRelation.map((id) => names[id] || id);
     project.contactsProjetNames = project.contactsProjetRelation.map((id) => names[id] || id);
   }
-  // Fusionne les photos au-delà de la limite Notion (100/champ) stockées en
-  // débordement. Transparent : PDF, portail et app voient toutes les photos.
-  try {
-    const { mergeOverflowIntoProject } = await import("@/lib/photo-overflow");
-    await mergeOverflowIntoProject(project);
-  } catch {}
   return project;
 }
 
