@@ -1049,6 +1049,8 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
     try {
       const res = await fetch(`/api/pieces?projectId=${projectId}`);
       if (res.ok) {
+        // Réponse hors-ligne du SW ([] vide) : ne pas écraser une liste déjà affichée.
+        if (res.headers.get("X-SW-Offline") === "1") return;
         const data = await res.json();
         if (Array.isArray(data)) setPieces(data);
       }
@@ -1201,6 +1203,8 @@ function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string
     try {
       const res = await fetch(`/api/defauts?projectId=${projectId}`);
       if (res.ok) {
+        // Réponse hors-ligne du SW ([] vide) : ne pas écraser une liste déjà affichée.
+        if (res.headers.get("X-SW-Offline") === "1") return;
         const data = await res.json();
         if (Array.isArray(data)) setDefauts(data);
       }

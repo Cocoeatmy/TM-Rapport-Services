@@ -282,11 +282,116 @@ export async function resetBackoffForAll(): Promise<number> {
  */
 let _processingUploads = false;
 
+/** Résultat du traitement d'un seul item. */
+interface ItemOutcome { success: number; failed: number; permanentlyFailed: number; }
+
+/**
+ * Traite UN item : envoie ses fichiers (un par requête), met à jour l'IDB
+ * (retrait si tout est passé, backoff sinon, échec permanent après MAX_RETRIES).
+ * Ne lève jamais — renvoie un décompte.
+ */
+async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOutcome> {
+  // Envoi FICHIER PAR FICHIER : la limite Vercel est ~4,5 Mo/requête. Un lot
+  // de plusieurs photos dans une seule requête peut la dépasser → 413 → échec
+  // permanent. Une photo par requête (chacune <1 Mo) élimine ce cas, et un
+  // échec isolé ne bloque pas les autres (les fichiers passés sont retirés).
+  const remaining = [...item.files];
+  let failureStatus: number | null = null;
+  let failureMsg = "";
+  let networkError = false;
+  for (const f of item.files) {
+    const formData = new FormData();
+    formData.append("files", new File([f.blob], f.name, { type: f.type }));
+    formData.append("category", item.category);
+    formData.append("projectId", item.projectId);
+    if (item.notionField) formData.append("notionField", item.notionField);
+
+    // Timeout dur (45 s) : un fetch figé ne se résout jamais → la boucle ne se
+    // termine pas → _processingUploads reste true → plus aucune photo ne
+    // s'uploade. L'abort jette → networkError → backoff.
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 45_000);
+    let res: Response;
+    try {
+      res = await fetch("/api/upload", { method: "POST", body: formData, signal: ctrl.signal });
+    } catch (e: any) {
+      networkError = true;
+      failureMsg = e?.name === "AbortError" ? "timeout 45s" : "réseau indisponible";
+      break;
+    } finally {
+      clearTimeout(to);
+    }
+    if (res.ok) {
+      const idx = remaining.findIndex((r) => r.name === f.name);
+      if (idx >= 0) remaining.splice(idx, 1);
+    } else {
+      failureStatus = res.status;
+      // Capture le message d'erreur renvoyé par le serveur (ex. message
+      // Notion/Cloudinary) → stocké comme `reason` pour diagnostic visible.
+      try {
+        const d = await res.clone().json();
+        failureMsg = d?.error ? String(d.error).slice(0, 140) : "";
+      } catch {
+        try { failureMsg = (await res.text()).slice(0, 140); } catch {}
+      }
+      break;
+    }
+  }
+
+  const reason = networkError
+    ? `Réseau : ${failureMsg}`
+    : `HTTP ${failureStatus ?? "?"}${failureMsg ? " — " + failureMsg : ""}`;
+
+  if (remaining.length === 0) {
+    // Tous les fichiers de l'item sont passés.
+    await removePendingUpload(item.id);
+    if (typeof window !== "undefined") {
+      try {
+        const { invalidateApiCache } = await import("@/lib/api-helpers");
+        invalidateApiCache();
+      } catch {}
+    }
+    return { success: 1, failed: 0, permanentlyFailed: 0 };
+  } else if (
+    failureStatus !== null &&
+    failureStatus >= 400 && failureStatus < 500 &&
+    failureStatus !== 408 && failureStatus !== 429
+  ) {
+    // 4xx (hors 408/429) : erreur permanente. On ne garde que les fichiers
+    // pas encore envoyés (les autres sont déjà chez Notion).
+    console.warn("[idb-uploads] Upload 4xx permanent", item.id, reason);
+    await _markPermanentlyFailed({ ...item, files: remaining }, reason);
+    return { success: 0, failed: 1, permanentlyFailed: 1 };
+  } else {
+    // 5xx / 408 / 429 / réseau : temporaire → backoff court (3s → 30s).
+    const retries = (item.retryCount || 0) + 1;
+    if (retries >= MAX_RETRIES) {
+      console.error("[idb-uploads] MAX_RETRIES atteint — permanently-failed", item.id, reason);
+      await _markPermanentlyFailed({ ...item, files: remaining }, reason);
+      return { success: 0, failed: 1, permanentlyFailed: 1 };
+    }
+    const delayMs = Math.min(3_000 * 2 ** (retries - 1), 30_000);
+    // On stocke aussi le `reason` sur l'item pending → visible immédiatement
+    // dans le détail du bandeau, sans attendre l'échec permanent.
+    await updatePendingUpload({ ...item, files: remaining, retryCount: retries, nextAttemptAt: now + delayMs, reason });
+    return { success: 0, failed: 1, permanentlyFailed: 0 };
+  }
+}
+
 /**
  * Tente de rejouer chaque upload pendant. Backoff exponentiel sur
  * les items qui ont déjà raté. Passe en "permanently-failed" après
  * MAX_RETRIES — ne supprime JAMAIS les données (zéro perte photo).
+ *
+ * Parallélisation SÛRE : on regroupe par champ Notion (projet + champ).
+ * Les uploads vers un MÊME champ restent SÉQUENTIELS — le verrou serveur
+ * est par-conteneur, donc deux envois parallèles sur le même champ peuvent
+ * atterrir sur deux conteneurs Vercel et s'écraser (read-modify-write) →
+ * perte de photo. Mais des champs DIFFÉRENTS (montage, après-intervention…)
+ * s'envoient EN PARALLÈLE sans risque → la file se vide bien plus vite en 5G.
  */
+const GROUP_CONCURRENCY = 4;
+
 export async function processPendingUploads(): Promise<{
   success: number;
   failed: number;
@@ -306,107 +411,46 @@ export async function processPendingUploads(): Promise<{
     _processingUploads = false;
     return { success: 0, failed: 0, total: 0, permanentlyFailed: 0 };
   }
-  let success = 0;
-  let failed = 0;
-  let permanentlyFailed = 0;
+  const totals = { success: 0, failed: 0, permanentlyFailed: 0 };
   const now = Date.now();
 
   try { // try global pour libérer _processingUploads même sur erreur inattendue
-  for (const item of all) {
-    if (item.nextAttemptAt && item.nextAttemptAt > now) continue;
+    // Regroupement par champ (sérialisation intra-groupe, parallélisme inter-groupe).
+    const groups = new Map<string, PendingUpload[]>();
+    for (const item of all) {
+      const key = `${item.projectId}::${item.notionField ?? item.category ?? ""}`;
+      const arr = groups.get(key);
+      if (arr) arr.push(item);
+      else groups.set(key, [item]);
+    }
 
-    // Envoi FICHIER PAR FICHIER : la limite Vercel est ~4,5 Mo/requête. Un lot
-    // de plusieurs photos dans une seule requête peut la dépasser → 413 → échec
-    // permanent. Une photo par requête (chacune <1 Mo) élimine ce cas, et un
-    // échec isolé ne bloque pas les autres (les fichiers passés sont retirés).
-    const remaining = [...item.files];
-    let failureStatus: number | null = null;
-    let failureMsg = "";
-    let networkError = false;
-    for (const f of item.files) {
-      const formData = new FormData();
-      formData.append("files", new File([f.blob], f.name, { type: f.type }));
-      formData.append("category", item.category);
-      formData.append("projectId", item.projectId);
-      if (item.notionField) formData.append("notionField", item.notionField);
-
-      // Timeout dur (45 s) : un fetch figé ne se résout jamais → le for() global
-      // ne se termine pas → _processingUploads reste true → plus aucune photo
-      // ne s'uploade. L'abort jette → networkError → backoff.
-      const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 45_000);
-      let res: Response;
-      try {
-        res = await fetch("/api/upload", { method: "POST", body: formData, signal: ctrl.signal });
-      } catch (e: any) {
-        networkError = true;
-        failureMsg = e?.name === "AbortError" ? "timeout 45s" : "réseau indisponible";
-        break;
-      } finally {
-        clearTimeout(to);
+    const processGroup = async (items: PendingUpload[]) => {
+      for (const item of items) {
+        if (item.nextAttemptAt && item.nextAttemptAt > now) continue;
+        const r = await _processOneItem(item, now);
+        totals.success += r.success;
+        totals.failed += r.failed;
+        totals.permanentlyFailed += r.permanentlyFailed;
       }
-      if (res.ok) {
-        const idx = remaining.findIndex((r) => r.name === f.name);
-        if (idx >= 0) remaining.splice(idx, 1);
-      } else {
-        failureStatus = res.status;
-        // Capture le message d'erreur renvoyé par le serveur (ex. message
-        // Notion/Cloudinary) → stocké comme `reason` pour diagnostic visible.
-        try {
-          const d = await res.clone().json();
-          failureMsg = d?.error ? String(d.error).slice(0, 140) : "";
-        } catch {
-          try { failureMsg = (await res.text()).slice(0, 140); } catch {}
+    };
+
+    // Pool de workers : au plus GROUP_CONCURRENCY champs traités en parallèle.
+    const groupArrays = [...groups.values()];
+    let next = 0;
+    const workers = Array.from(
+      { length: Math.min(GROUP_CONCURRENCY, groupArrays.length) },
+      async () => {
+        while (next < groupArrays.length) {
+          const mine = groupArrays[next++];
+          await processGroup(mine);
         }
-        break;
-      }
-    }
-
-    const reason = networkError
-      ? `Réseau : ${failureMsg}`
-      : `HTTP ${failureStatus ?? "?"}${failureMsg ? " — " + failureMsg : ""}`;
-
-    if (remaining.length === 0) {
-      // Tous les fichiers de l'item sont passés.
-      await removePendingUpload(item.id);
-      if (typeof window !== "undefined") {
-        try {
-          const { invalidateApiCache } = await import("@/lib/api-helpers");
-          invalidateApiCache();
-        } catch {}
-      }
-      success++;
-    } else if (
-      failureStatus !== null &&
-      failureStatus >= 400 && failureStatus < 500 &&
-      failureStatus !== 408 && failureStatus !== 429
-    ) {
-      // 4xx (hors 408/429) : erreur permanente. On ne garde que les fichiers
-      // pas encore envoyés (les autres sont déjà chez Notion).
-      console.warn("[idb-uploads] Upload 4xx permanent", item.id, reason);
-      await _markPermanentlyFailed({ ...item, files: remaining }, reason);
-      permanentlyFailed++;
-      failed++;
-    } else {
-      // 5xx / 408 / 429 / réseau : temporaire → backoff court (3s → 30s).
-      const retries = (item.retryCount || 0) + 1;
-      if (retries >= MAX_RETRIES) {
-        console.error("[idb-uploads] MAX_RETRIES atteint — permanently-failed", item.id, reason);
-        await _markPermanentlyFailed({ ...item, files: remaining }, reason);
-        permanentlyFailed++;
-      } else {
-        const delayMs = Math.min(3_000 * 2 ** (retries - 1), 30_000);
-        // On stocke aussi le `reason` sur l'item pending → visible immédiatement
-        // dans le détail du bandeau, sans attendre l'échec permanent.
-        await updatePendingUpload({ ...item, files: remaining, retryCount: retries, nextAttemptAt: now + delayMs, reason });
-      }
-      failed++;
-    }
-  }
+      },
+    );
+    await Promise.all(workers);
   } finally {
     _processingUploads = false;
   }
-  return { success, failed, total: all.length, permanentlyFailed };
+  return { ...totals, total: all.length };
 }
 
 /**

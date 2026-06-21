@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { saveToCache, getCacheTimestamp, getQueue, processQueue, isOnline } from "@/lib/offline";
 import { processPendingUploads, countPendingUploads, retryAllFailedUploads, resetBackoffForAll, countPermanentlyFailed } from "@/lib/idb-uploads";
+import { acquireWakeLock, releaseWakeLock, reacquireWakeLockIfWanted } from "@/lib/wake-lock";
 import { toast } from "sonner";
 
 export function SyncButton() {
@@ -86,7 +87,13 @@ export function SyncButton() {
         .catch(() => {});
     };
     const handleOffline = () => setOnline(false);
-    const onPendingChange = () => refreshCount();
+    const onPendingChange = () => {
+      refreshCount();
+      // Une photo vient d'être mise en file : on tente de l'envoyer tout de
+      // suite (au lieu d'attendre le poll 30 s). autoSync est protégé par un
+      // guard, donc un appel en trop est sans risque.
+      if (isOnline()) autoSync();
+    };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
@@ -97,6 +104,9 @@ export function SyncButton() {
     // Auto-sync au retour au premier plan (bypass backoff + retry failed)
     const handleVisibility = async () => {
       if (document.visibilityState === "visible") {
+        // iOS relâche le verrou d'écran en arrière-plan : on le re-demande
+        // s'il reste des photos à envoyer.
+        reacquireWakeLockIfWanted();
         await resetBackoffForAll();
         // Remettre automatiquement les "permanently-failed" en attente
         // pour les renvoyer dès que le téléphone revient au premier plan.
@@ -143,6 +153,14 @@ export function SyncButton() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Garde l'écran allumé tant qu'il reste des opérations en attente (sinon iOS
+  // suspend la page et la synchro s'arrête). Libère dès que la file est vide.
+  useEffect(() => {
+    if (queueCount > 0) acquireWakeLock();
+    else releaseWakeLock();
+  }, [queueCount]);
+  useEffect(() => () => { releaseWakeLock(); }, []);
 
   const autoSyncingRef = useRef(false);
   const autoSync = async () => {

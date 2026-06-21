@@ -24,6 +24,9 @@ import {
   CheckCircle2,
   Info,
   PenLine,
+  X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { thumbnailUrl } from "@/lib/image-url";
 
@@ -82,6 +85,7 @@ interface CollabData {
   contactsRDV: string;
   emplacementCabine: string;
   nbCartons: number | null;
+  photosCartons: { name: string; url: string }[];
   documentsMontagee: { name: string; url: string }[];
   commentairesMontages: string;
   cmdGrossiste: string;
@@ -150,6 +154,9 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
   const [collabData, setCollabData] = useState<CollabData | null>(null);
   /** État du pré-cache hors-ligne : null=inconnu, false=en cours, true=prêt */
   const [offlineReady, setOfflineReady] = useState<boolean | null>(null);
+  // Lightbox : photos à afficher en grand (null = fermé), index courant.
+  const [zoomPhotos, setZoomPhotos] = useState<{ name: string; url: string }[] | null>(null);
+  const [zoomIndex, setZoomIndex] = useState(0);
 
   useEffect(() => {
     async function fetchProject() {
@@ -225,6 +232,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
           contactsRDV: data.contactsRDV || "",
           emplacementCabine: data.emplacementCabine || "",
           nbCartons: data.nbCartons ?? null,
+          photosCartons: Array.isArray(data.photosCartons) ? data.photosCartons : [],
           // Remplace les URLs Notion (expirantes) par des URLs proxy stables
           documentsMontagee: docs.map((doc, i) => ({
             name: doc.name,
@@ -515,17 +523,45 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                 </a>
               </div>
 
-              {/* ── Infos rapides (emplacement + contact) ── */}
-              {collabData && (collabData.emplacementCabine || collabData.contactsRDV) && (
-                <div className="px-4 pb-4 grid grid-cols-2 gap-2">
+              {/* ── Infos rapides (emplacement + cartons + contact) ── */}
+              {collabData && (collabData.emplacementCabine || collabData.contactsRDV || collabData.nbCartons != null || collabData.photosCartons.length > 0) && (
+                <div className="px-4 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {collabData.emplacementCabine && (
-                    <div className="bg-white/10 rounded-xl p-3">
+                    <div className="bg-white/10 rounded-xl p-3 col-span-2 flex flex-col justify-center">
                       <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Emplacement</p>
                       <p className="text-sm text-white font-medium leading-snug">{collabData.emplacementCabine}</p>
                     </div>
                   )}
+                  {collabData.nbCartons != null && (
+                    <div className="bg-white/10 rounded-xl p-3 col-span-1 flex flex-col justify-center">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Nb. cartons</p>
+                      <p className="text-base text-white font-semibold leading-snug">{collabData.nbCartons}</p>
+                    </div>
+                  )}
+                  {collabData.photosCartons.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => { setZoomPhotos(collabData.photosCartons); setZoomIndex(0); }}
+                      className="relative col-span-1 rounded-xl overflow-hidden bg-white/10 min-h-[72px] group active:scale-[0.98] transition-transform"
+                      title="Voir l'état des cartons réceptionnés"
+                    >
+                      <img
+                        src={thumbnailUrl(collabData.photosCartons[0].url, 300)}
+                        alt="État des cartons réceptionnés"
+                        loading="lazy"
+                        decoding="async"
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                      <span className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/30" />
+                      <span className="absolute top-1.5 left-1.5 text-[9px] font-semibold text-white uppercase tracking-wide drop-shadow">État cartons</span>
+                      <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[9px] font-medium text-white bg-black/45 px-1.5 py-0.5 rounded-full">
+                        <ImageIcon className="w-2.5 h-2.5" />
+                        {collabData.photosCartons.length > 1 ? collabData.photosCartons.length : "Agrandir"}
+                      </span>
+                    </button>
+                  )}
                   {collabData.contactsRDV && (
-                    <div className="bg-white/10 rounded-xl p-3 col-span-2">
+                    <div className="bg-white/10 rounded-xl p-3 col-span-2 sm:col-span-4 flex flex-col justify-center">
                       <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Contact RDV</p>
                       <p className="text-sm text-white font-medium leading-snug">{collabData.contactsRDV}</p>
                     </div>
@@ -657,6 +693,54 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
           <p className="text-xs text-gray-300 mt-1">TM Douche Montage | Champs-Lovat 13 Box n.16, 1400 Yverdon</p>
         </div>
       </footer>
+
+      {/* Lightbox : état des cartons réceptionnés agrandi (clic sur la miniature) */}
+      {zoomPhotos && zoomPhotos.length > 0 && (
+        <div
+          className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setZoomPhotos(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <img
+            src={zoomPhotos[zoomIndex].url}
+            alt={zoomPhotos[zoomIndex].name || "État des cartons réceptionnés"}
+            className="max-h-[85vh] max-w-full object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            onClick={() => setZoomPhotos(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center hover:bg-white/25 transition-colors"
+            aria-label="Fermer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          {zoomPhotos.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setZoomIndex((i) => (i - 1 + zoomPhotos.length) % zoomPhotos.length); }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center hover:bg-white/25 transition-colors"
+                aria-label="Photo précédente"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setZoomIndex((i) => (i + 1) % zoomPhotos.length); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center hover:bg-white/25 transition-colors"
+                aria-label="Photo suivante"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+              <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/70">
+                {zoomIndex + 1} / {zoomPhotos.length}
+              </p>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

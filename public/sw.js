@@ -1,4 +1,4 @@
-// Service worker TM Rapport — v11
+// Service worker TM Rapport — v15
 // Stratégies :
 //   - Statique (_next/static, icons, logos, manifest) : cache-first (permanent).
 //   - API GET : network-first avec timeout 400 ms → si réseau lent/absent, sert le cache.
@@ -7,7 +7,7 @@
 //   v11 : pré-cache explicite des pages /client/ et /projet/ + leurs données API
 //         via message PRECACHE_URLS — permet consultation hors-ligne garantie.
 
-const VERSION = "v14";
+const VERSION = "v15";
 const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;
@@ -93,6 +93,29 @@ async function networkFirstWithTimeout(request, cache, timeoutMs) {
   return networkPromise;
 }
 
+/**
+ * Network-first STRICT (sans service de cache anticipé).
+ * Pour les données qui changent souvent et doivent toujours être fraîches
+ * quand on est en ligne (défauts, pièces signalées). On attend le réseau ;
+ * on ne sert le cache QUE si le réseau échoue (hors-ligne).
+ * Évite le bug "le SW sert une version périmée → photos/défauts disparus".
+ */
+async function networkFirstFresh(request, cache) {
+  const response = await fetch(request); // throw si hors-ligne → géré par le caller
+  if (response && response.ok) {
+    cache.put(request, response.clone()).catch(() => {});
+  }
+  return response;
+}
+
+/** Endpoints API dont les données changent et doivent rester fraîches en ligne. */
+function isAlwaysFreshApi(pathname) {
+  return (
+    pathname.startsWith("/api/defauts") ||
+    pathname.startsWith("/api/pieces")
+  );
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -105,7 +128,9 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       caches.open(API_CACHE).then(async (cache) => {
         try {
-          return await networkFirstWithTimeout(request, cache, API_TIMEOUT_MS);
+          return isAlwaysFreshApi(url.pathname)
+            ? await networkFirstFresh(request, cache)
+            : await networkFirstWithTimeout(request, cache, API_TIMEOUT_MS);
         } catch {
           // Échec réseau total : cache, sinon JSON vide (UI reste fonctionnelle).
           const cached = await cache.match(request);

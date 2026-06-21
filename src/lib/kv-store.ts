@@ -12,6 +12,12 @@ interface CacheEntry<T = unknown> {
 const memoryCache = new Map<string, CacheEntry>();
 const CACHE_TTL = 60_000; // 1 minute
 
+// Verrou d'écriture PAR CLÉ : sérialise les setData concurrents d'une même clé
+// (ex. deux défauts/pièces enregistrés quasi simultanément). Sans ça, deux
+// writes peuvent s'entrelacer (append A, append B, delete) → la page Notion
+// contient un mélange ancien+nouveau → JSON illisible → perte de données.
+const writeLocks = new Map<string, Promise<unknown>>();
+
 function getCached<T>(key: string): T[] | null {
   const entry = memoryCache.get(key);
   if (entry && Date.now() < entry.expiry) return entry.data as T[];
@@ -96,12 +102,21 @@ async function getOrCreateBackupPageId(key: string): Promise<string> {
 async function writeToNotion(key: string, jsonString: string): Promise<void> {
   const pageId = await getOrCreateBackupPageId(key);
 
-  // 1. Mémoriser les IDs des blocs actuels AVANT d'écrire quoi que ce soit
-  const existingBlocks = await notion.blocks.children.list({
-    block_id: pageId,
-    page_size: 100,
-  });
-  const oldBlockIds = existingBlocks.results.map((b) => b.id);
+  // 1. Mémoriser TOUS les IDs des blocs actuels (AVEC pagination) avant d'écrire.
+  //    Bug corrigé : sans pagination, au-delà de 100 blocs les anciens n'étaient
+  //    pas tous supprimés → accumulation ancien+nouveau → JSON illisible → perte
+  //    de données (ex. photoUrls de défauts qui "disparaissent").
+  const oldBlockIds: string[] = [];
+  let listCursor: string | undefined;
+  do {
+    const existingBlocks = await notion.blocks.children.list({
+      block_id: pageId,
+      page_size: 100,
+      start_cursor: listCursor,
+    });
+    for (const b of existingBlocks.results) oldBlockIds.push(b.id);
+    listCursor = existingBlocks.has_more ? (existingBlocks.next_cursor ?? undefined) : undefined;
+  } while (listCursor);
 
   // 2. Écrire les nouveaux blocs EN PREMIER (les données sont sûres dès ici)
   const chunks: string[] = [];
@@ -181,14 +196,25 @@ async function readFromNotion<T>(key: string): Promise<T[]> {
   try {
     return JSON.parse(allText);
   } catch {
-    // La page peut contenir ancienne + nouvelle version en cas d'interruption
-    // pendant la suppression des anciens blocs (write-first strategy).
-    // On cherche le DERNIER tableau JSON valide dans le texte.
-    const lastBracket = allText.lastIndexOf("[");
-    if (lastBracket !== -1) {
-      try {
-        return JSON.parse(allText.slice(lastBracket));
-      } catch {}
+    // La page peut contenir ancienne + nouvelle version (ex: "[...][...]") si
+    // un write a été interrompu avant la suppression des anciens blocs.
+    // On extrait le DERNIER tableau de PREMIER NIVEAU (équilibrage des crochets
+    // depuis la fin) — l'ancien lastIndexOf("[") tombait sur un crochet IMBRIQUÉ
+    // (photoUrls, types…) et renvoyait un fragment corrompu.
+    const end = allText.lastIndexOf("]");
+    if (end !== -1) {
+      let depth = 0;
+      for (let i = end; i >= 0; i--) {
+        const c = allText[i];
+        if (c === "]") depth++;
+        else if (c === "[") {
+          depth--;
+          if (depth === 0) {
+            try { return JSON.parse(allText.slice(i, end + 1)); } catch {}
+            break;
+          }
+        }
+      }
     }
     console.error(`[kv-store] Could not parse content for "${key}", returning []`);
     return []; // Erreur de parse (pas réseau) → [] acceptable
@@ -270,13 +296,17 @@ export async function setData<T>(key: string, data: T[]): Promise<void> {
   // 1. Update in-memory cache immediately
   setCache(key, data);
 
-  // 2. Write to Notion (primary store) – use compact JSON to minimize blocks
+  // 2. Write to Notion (primary store) – sérialisé par clé pour éviter que deux
+  //    écritures concurrentes ne corrompent la page (mélange ancien/nouveau).
   const compactJson = JSON.stringify(data);
+  const previous = writeLocks.get(key) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(() => writeToNotion(key, compactJson));
+  writeLocks.set(key, next);
+  next.finally(() => { if (writeLocks.get(key) === next) writeLocks.delete(key); });
   try {
-    await writeToNotion(key, compactJson);
+    await next;
   } catch (err) {
     console.error(`[kv-store] Notion write failed for "${key}":`, err);
-    // Re-throw so callers know the write didn't persist
-    throw err;
+    throw err; // Re-throw so callers know the write didn't persist
   }
 }

@@ -220,9 +220,10 @@ export function OfflineBanner() {
     label = "Hors ligne — vous pouvez continuer à travailler, tout sera synchronisé au retour du réseau";
   } else {
     // online && queueCount > 0 : affiche pendant que la queue se vide.
+    // Message explicite : sur iPhone, fermer l'app interrompt l'envoi.
     cls = "bg-blue-500 text-white";
     Icon = CloudUpload;
-    label = `Synchronisation de ${queueCount} opération${queueCount > 1 ? "s" : ""}…`;
+    label = `Envoi de ${queueCount} photo${queueCount > 1 ? "s" : ""}… garde l'app ouverte jusqu'à la fin`;
   }
 
   const hasDetails = queueItems.length > 0 || pendingUps.length > 0;
