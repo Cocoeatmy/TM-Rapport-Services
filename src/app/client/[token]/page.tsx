@@ -157,6 +157,8 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
   // Lightbox : photos à afficher en grand (null = fermé), index courant.
   const [zoomPhotos, setZoomPhotos] = useState<{ name: string; url: string }[] | null>(null);
   const [zoomIndex, setZoomIndex] = useState(0);
+  // Contact RDV : masqué par défaut, révélé au clic sur la cellule.
+  const [showContact, setShowContact] = useState(false);
 
   useEffect(() => {
     async function fetchProject() {
@@ -483,8 +485,8 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                 </div>
               </div>
 
-              {/* ── 3 cartes de navigation rapide ── */}
-              <div className="px-4 pb-4 grid grid-cols-3 gap-2.5">
+              {/* ── Cartes de navigation rapide ── */}
+              <div className={`px-4 pb-4 grid gap-2.5 ${collabData?.contactsRDV ? "grid-cols-4" : "grid-cols-3"}`}>
 
                 {/* 1 — Détails du projet */}
                 <a
@@ -496,6 +498,21 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                   </div>
                   <span className="text-[11px] font-medium text-white leading-tight">Détails projet</span>
                 </a>
+
+                {/* 1b — Contact RDV (cliquable : révèle le contact, sinon icône seule) */}
+                {collabData?.contactsRDV && (
+                  <button
+                    type="button"
+                    onClick={() => setShowContact((v) => !v)}
+                    aria-expanded={showContact}
+                    className={`rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all active:scale-95 ${showContact ? "bg-white/25" : "bg-white/10 hover:bg-white/20"}`}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                      <Phone className="w-5 h-5 text-white" />
+                    </div>
+                    <span className="text-[11px] font-medium text-white leading-tight">Contact RDV</span>
+                  </button>
+                )}
 
                 {/* 2 — Mesures & Documents */}
                 <a
@@ -523,17 +540,27 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                 </a>
               </div>
 
-              {/* ── Infos rapides (emplacement + cartons + contact) ── */}
-              {collabData && (collabData.emplacementCabine || collabData.contactsRDV || collabData.nbCartons != null || collabData.photosCartons.length > 0) && (
-                <div className="px-4 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {/* Contact RDV révélé au clic sur la cellule ci-dessus */}
+              {collabData?.contactsRDV && showContact && (
+                <div className="px-4 pb-4 -mt-1">
+                  <div className="bg-white/10 rounded-xl p-3">
+                    <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Contact RDV</p>
+                    <p className="text-sm text-white font-medium leading-snug whitespace-pre-line">{collabData.contactsRDV}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Infos rapides : Emplacement / Nb. cartons / État cartons (3 cellules égales) ── */}
+              {collabData && (collabData.emplacementCabine || collabData.nbCartons != null || collabData.photosCartons.length > 0) && (
+                <div className="px-4 pb-4 grid grid-cols-3 gap-2">
                   {collabData.emplacementCabine && (
-                    <div className="bg-white/10 rounded-xl p-3 col-span-2 flex flex-col justify-center">
+                    <div className="bg-white/10 rounded-xl p-3 min-h-[72px] flex flex-col justify-center">
                       <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Emplacement</p>
                       <p className="text-sm text-white font-medium leading-snug">{collabData.emplacementCabine}</p>
                     </div>
                   )}
                   {collabData.nbCartons != null && (
-                    <div className="bg-white/10 rounded-xl p-3 col-span-1 flex flex-col justify-center">
+                    <div className="bg-white/10 rounded-xl p-3 min-h-[72px] flex flex-col justify-center">
                       <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Nb. cartons</p>
                       <p className="text-base text-white font-semibold leading-snug">{collabData.nbCartons}</p>
                     </div>
@@ -542,7 +569,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                     <button
                       type="button"
                       onClick={() => { setZoomPhotos(collabData.photosCartons); setZoomIndex(0); }}
-                      className="relative col-span-1 rounded-xl overflow-hidden bg-white/10 min-h-[72px] group active:scale-[0.98] transition-transform"
+                      className="relative rounded-xl overflow-hidden bg-white/10 min-h-[72px] group active:scale-[0.98] transition-transform"
                       title="Voir l'état des cartons réceptionnés"
                     >
                       <img
@@ -559,12 +586,6 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                         {collabData.photosCartons.length > 1 ? collabData.photosCartons.length : "Agrandir"}
                       </span>
                     </button>
-                  )}
-                  {collabData.contactsRDV && (
-                    <div className="bg-white/10 rounded-xl p-3 col-span-2 sm:col-span-4 flex flex-col justify-center">
-                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Contact RDV</p>
-                      <p className="text-sm text-white font-medium leading-snug">{collabData.contactsRDV}</p>
-                    </div>
                   )}
                 </div>
               )}
