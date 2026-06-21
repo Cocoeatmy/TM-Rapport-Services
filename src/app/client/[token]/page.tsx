@@ -46,6 +46,8 @@ interface PublicProject {
   photosMontage: { name: string; url: string }[];
   nomsCabines: string;
   dateMontageEnd: string | null;
+  cmdTM: string;
+  cmdTMUsine: string;
   cmdGrossiste: string;
   cmdFournisseurs: string;
   servCmdFournisseurs: string;
@@ -588,6 +590,30 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                         {collabData.photosCartons.length > 1 ? collabData.photosCartons.length : "Agrandir"}
                       </span>
                     </button>
+                  )}
+                </div>
+              )}
+
+              {/* ── Références TM (OFR / CMD / CMD Usine) — 3 cellules égales ── */}
+              {(project.ofrTM || project.cmdTM || project.cmdTMUsine) && (
+                <div className="px-4 pb-4 grid grid-cols-3 gap-2">
+                  {project.ofrTM && (
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° OFR TM</p>
+                      <p className="text-sm text-white font-semibold leading-snug">{project.ofrTM}</p>
+                    </div>
+                  )}
+                  {project.cmdTM && (
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° CMD TM</p>
+                      <p className="text-sm text-white font-semibold leading-snug">{project.cmdTM}</p>
+                    </div>
+                  )}
+                  {project.cmdTMUsine && (
+                    <div className="bg-white/10 rounded-xl p-3">
+                      <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° CMD TM - Usine</p>
+                      <p className="text-sm text-white font-semibold leading-snug">{project.cmdTMUsine}</p>
+                    </div>
                   )}
                 </div>
               )}

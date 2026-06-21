@@ -93,6 +93,8 @@ export async function GET(
     nomsCabines: project.nomsCabines || "",
     dateMontageEnd: project.dateMontageEnd || null,
     // Références commandes — affichées dans l'espace collaborateur (isCollab = true)
+    cmdTM: project.cmdTM || "",
+    cmdTMUsine: project.cmdTMUsine || "",
     cmdGrossiste: project.cmdGrossiste || "",
     cmdFournisseurs: project.cmdFournisseurs || "",
     servCmdFournisseurs: project.servCmdFournisseurs || "",
