@@ -485,8 +485,8 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                 </div>
               </div>
 
-              {/* ── Cartes de navigation rapide ── */}
-              <div className={`px-4 pb-4 grid gap-2.5 ${collabData?.contactsRDV ? "grid-cols-4" : "grid-cols-3"}`}>
+              {/* ── Cartes de navigation rapide (4 cellules) ── */}
+              <div className="px-4 pb-4 grid grid-cols-4 gap-2.5">
 
                 {/* 1 — Détails du projet */}
                 <a
@@ -499,20 +499,18 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                   <span className="text-[11px] font-medium text-white leading-tight">Détails projet</span>
                 </a>
 
-                {/* 1b — Contact RDV (cliquable : révèle le contact, sinon icône seule) */}
-                {collabData?.contactsRDV && (
-                  <button
-                    type="button"
-                    onClick={() => setShowContact((v) => !v)}
-                    aria-expanded={showContact}
-                    className={`rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all active:scale-95 ${showContact ? "bg-white/25" : "bg-white/10 hover:bg-white/20"}`}
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                      <Phone className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-[11px] font-medium text-white leading-tight">Contact RDV</span>
-                  </button>
-                )}
+                {/* 1b — Contact RDV (toujours visible ; le contact se révèle au clic) */}
+                <button
+                  type="button"
+                  onClick={() => setShowContact((v) => !v)}
+                  aria-expanded={showContact}
+                  className={`rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all active:scale-95 ${showContact ? "bg-white/25" : "bg-white/10 hover:bg-white/20"}`}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                    <Phone className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-[11px] font-medium text-white leading-tight">Contact RDV</span>
+                </button>
 
                 {/* 2 — Mesures & Documents */}
                 <a
@@ -541,11 +539,15 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
               </div>
 
               {/* Contact RDV révélé au clic sur la cellule ci-dessus */}
-              {collabData?.contactsRDV && showContact && (
+              {showContact && (
                 <div className="px-4 pb-4 -mt-1">
                   <div className="bg-white/10 rounded-xl p-3">
                     <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">Contact RDV</p>
-                    <p className="text-sm text-white font-medium leading-snug whitespace-pre-line">{collabData.contactsRDV}</p>
+                    {collabData?.contactsRDV ? (
+                      <p className="text-sm text-white font-medium leading-snug whitespace-pre-line">{collabData.contactsRDV}</p>
+                    ) : (
+                      <p className="text-sm text-blue-200/70 italic leading-snug">Non renseigné</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -606,7 +608,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
                     </div>
                   )}
                   {project.servCmdFournisseurs && (
-                    <div className="bg-white/10 rounded-xl p-3 col-span-2">
+                    <div className="bg-white/10 rounded-xl p-3">
                       <p className="text-[10px] font-medium text-blue-200 uppercase tracking-wide mb-1">N° Serv. CMD Fourn.</p>
                       <p className="text-sm text-white font-semibold leading-snug">{project.servCmdFournisseurs}</p>
                     </div>
