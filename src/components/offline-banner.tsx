@@ -220,10 +220,19 @@ export function OfflineBanner() {
     label = "Hors ligne — vous pouvez continuer à travailler, tout sera synchronisé au retour du réseau";
   } else {
     // online && queueCount > 0 : affiche pendant que la queue se vide.
-    // Message explicite : sur iPhone, fermer l'app interrompt l'envoi.
+    // Message explicite ET exact : distinguer photos et mises à jour de données
+    // (sinon une simple synchro de données s'affichait à tort comme "photo").
     cls = "bg-blue-500 text-white";
     Icon = CloudUpload;
-    label = `Envoi de ${queueCount} photo${queueCount > 1 ? "s" : ""}… garde l'app ouverte jusqu'à la fin`;
+    const nbPhotos = pendingUps.reduce((s, u) => s + (u.files?.length || 0), 0);
+    const nbData = queueItems.length;
+    if (nbPhotos > 0 && nbData > 0) {
+      label = `Synchronisation… ${nbPhotos} photo${nbPhotos > 1 ? "s" : ""} + ${nbData} mise${nbData > 1 ? "s" : ""} à jour — garde l'app ouverte`;
+    } else if (nbPhotos > 0) {
+      label = `Envoi de ${nbPhotos} photo${nbPhotos > 1 ? "s" : ""}… garde l'app ouverte jusqu'à la fin`;
+    } else {
+      label = `Synchronisation de ${nbData} mise${nbData > 1 ? "s" : ""} à jour…`;
+    }
   }
 
   const hasDetails = queueItems.length > 0 || pendingUps.length > 0;

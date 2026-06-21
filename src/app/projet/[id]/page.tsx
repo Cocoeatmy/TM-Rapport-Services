@@ -2835,6 +2835,13 @@ function ProjectPageContent({ id }: { id: string }) {
         .map((f) => { const m = f.name?.match(/\.Cab(\d+)\./); return m ? parseInt(m[1], 10) : null; })
         .filter((n): n is number => n !== null)
     ).size;
+    // Au 1er passage, on cale le repère sur la valeur DÉJÀ enregistrée dans
+    // Notion (ou 0). Sans ça, le ref démarrait à -1 → un PATCH redondant partait
+    // à CHAQUE ouverture du projet, même sans changement (et apparaissait dans
+    // le bandeau de synchro si le réseau venait juste de se connecter).
+    if (lastSyncedInstalledRef.current === -1) {
+      lastSyncedInstalledRef.current = project?.nbCabinesInstallees ?? 0;
+    }
     if (count === lastSyncedInstalledRef.current) return; // pas de changement réel
     lastSyncedInstalledRef.current = count;
     offlineFetch(`/api/projects/${id}`, {
