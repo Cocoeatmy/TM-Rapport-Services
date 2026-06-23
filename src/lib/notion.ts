@@ -1,8 +1,51 @@
 import { Client } from "@notionhq/client";
 
+// ── Limiteur de débit global pour l'API Notion ──────────────────────────────
+// Notion plafonne à ~3 requêtes/seconde en moyenne (petite tolérance de burst).
+// Sans limiteur, un pic — full-sync qui recharge tous les projets, ou plusieurs
+// monteurs simultanés — dépasse la limite → 429 → la route renvoie 503 (incident
+// du 23 juin 2026). Deux protections appliquées à CHAQUE appel HTTP Notion :
+//   1. Token-bucket par instance : lisse les appels sous ~3 req/s.
+//   2. Retry sur 429 : respecte l'en-tête Retry-After (utile quand plusieurs
+//      instances Vercel, chacune avec son bucket, dépassent collectivement le seuil).
+const NOTION_BUCKET_MAX = 4;      // tolérance de burst (un getProject ≈ 2-3 appels)
+const NOTION_REFILL_PER_SEC = 3;  // débit soutenu visé
+let notionTokens = NOTION_BUCKET_MAX;
+let notionLastRefill = Date.now();
+
+async function takeNotionToken(): Promise<void> {
+  for (;;) {
+    const now = Date.now();
+    notionTokens = Math.min(
+      NOTION_BUCKET_MAX,
+      notionTokens + ((now - notionLastRefill) / 1000) * NOTION_REFILL_PER_SEC,
+    );
+    notionLastRefill = now;
+    if (notionTokens >= 1) { notionTokens -= 1; return; }
+    const waitMs = ((1 - notionTokens) / NOTION_REFILL_PER_SEC) * 1000;
+    await new Promise((r) => setTimeout(r, Math.max(20, waitMs)));
+  }
+}
+
+const rateLimitedFetch = (async (url: unknown, init: unknown) => {
+  for (let attempt = 0; ; attempt++) {
+    await takeNotionToken();
+    const res = await fetch(url as RequestInfo, init as RequestInit);
+    if (res.status !== 429 || attempt >= 4) return res;
+    // 429 : on attend (Retry-After plafonné) puis on retente.
+    const retryAfter = Number(res.headers.get("retry-after")) || 1;
+    const waitMs = Math.min(retryAfter * 1000, 8000) + attempt * 250;
+    console.warn(`[notion] 429 rate-limited, retry ${attempt + 1}/4 dans ${waitMs}ms`);
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+}) as unknown as typeof fetch;
+
 export const notion = new Client({
   auth: process.env.NOTION_TOKEN,
-  timeoutMs: 8000,
+  // Relevé à 25 s (route maxDuration = 30 s) : un appel mis en file par le
+  // token-bucket ou réessayé après un 429 ne doit pas être avorté trop tôt.
+  timeoutMs: 25000,
+  fetch: rateLimitedFetch,
 });
 
 export const databaseId = process.env.NOTION_DATABASE_ID!;

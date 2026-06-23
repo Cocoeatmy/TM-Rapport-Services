@@ -228,13 +228,13 @@ export function SyncButton() {
       // Sauvegarder le cache combiné pour la page d'accueil
       try { localStorage.setItem("tm-projects-cache", JSON.stringify(cacheData)); } catch {}
 
-      // 2. Cacher chaque projet individuellement EN PARALLÈLE.
-      // Avant : boucle séquentielle → 50 projets × ~100 ms = 5 s.
-      // Maintenant : Promise.all par lots de 10 (pour ne pas saturer
-      // le serveur et respecter les rate limits Notion en aval).
+      // 2. Cacher chaque projet individuellement, par petits lots.
+      // Lots de 5 + courte pause entre lots : limite le nombre d'instances
+      // Vercel concurrentes et évite de saturer l'API Notion en aval (~3 req/s)
+      // lors d'une synchro manuelle sur tous les projets (sinon → 429 → 503).
       const uniqueIds = [...new Set(allProjects.map((p: any) => p.id))];
       let cached = 0;
-      const BATCH_SIZE = 10;
+      const BATCH_SIZE = 5;
       for (let i = 0; i < uniqueIds.length; i += BATCH_SIZE) {
         const batch = uniqueIds.slice(i, i + BATCH_SIZE);
         const results = await Promise.all(
@@ -252,6 +252,10 @@ export function SyncButton() {
           ),
         );
         cached += results.reduce((s: number, n: number) => s + n, 0);
+        // Pause entre lots pour laisser le token-bucket Notion se recharger.
+        if (i + BATCH_SIZE < uniqueIds.length) {
+          await new Promise((r) => setTimeout(r, 400));
+        }
       }
 
       // 3. Traiter la file d'attente JSON (mutations texte)
