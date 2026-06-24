@@ -3837,6 +3837,10 @@ function ProjectPageContent({ id }: { id: string }) {
       const pdfParams = new URLSearchParams();
       if (arriveeFinal) pdfParams.set("arrivee", arriveeFinal);
       if (departFinal) pdfParams.set("depart", departFinal);
+      // send=1 : c'est l'envoi DÉLIBÉRÉ du rapport → déclenche mail + Telegram.
+      // Les simples consultations du PDF (portail, téléchargement) ne le passent
+      // pas et n'envoient donc aucun mail.
+      pdfParams.set("send", "1");
       await new Promise((r) => setTimeout(r, 2000));
       const pdfRes = await fetch(`/api/pdf/${id}?${pdfParams.toString()}`);
       if (!pdfRes.ok) {

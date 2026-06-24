@@ -1241,7 +1241,14 @@ export async function GET(
       if (list) allPhotoUrls.push(...list.map((p: { url: string }) => p.url));
     }
 
-    // Envoi email + Telegram en arrière-plan (ne bloque pas le téléchargement)
+    // Envoi email + Telegram UNIQUEMENT lors d'un envoi DÉLIBÉRÉ (?send=1).
+    // Avant : chaque génération du PDF (consultation du portail par un
+    // collaborateur, lien de téléchargement…) renvoyait un mail + Telegram
+    // → ~80 mails/jour. Désormais seul le bouton « Envoyer le rapport »
+    // passe ?send=1. La notification de consultation par un CLIENT
+    // (non-collaborateur) reste gérée séparément par /api/client/[token]/track.
+    const shouldSend = request.nextUrl.searchParams.get("send") === "1";
+    if (shouldSend) {
     sendPdfByEmail({
       projectName: project.projet,
       ofrTM: project.ofrTM,
@@ -1271,6 +1278,7 @@ export async function GET(
         console.error(`Erreur Telegram: ${result.error}`);
       }
     });
+    }
 
     return new NextResponse(buffer, {
       headers: {
