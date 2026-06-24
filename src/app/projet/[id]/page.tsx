@@ -2876,6 +2876,11 @@ function ProjectPageContent({ id }: { id: string }) {
     captureTime: string,
     cabineIdx?: number,
   ) => {
+    // Sauvegarde silencieuse en arrière-plan après CHAQUE upload photo : le
+    // rapport (texte, heures, cabines) est persisté automatiquement, sans toast
+    // ni spinner (debounce 2 s). Le bouton « Enregistrer le rapport » devient un
+    // simple filet de sécurité au cas où une sauvegarde aurait échoué.
+    scheduleAutoSave();
     const userCollab = autoCollab;
     const todayStr = new Date().toISOString().split("T")[0];
     const isMontageOrAfter = (b: string) =>
@@ -2959,7 +2964,7 @@ function ProjectPageContent({ id }: { id: string }) {
         }).catch(console.error);
       }
     }
-  }, [isCabineMode, cabines, autoCollab, heureArrivee, heureDepart, project?.collaborateurs, id]);
+  }, [isCabineMode, cabines, autoCollab, heureArrivee, heureDepart, project?.collaborateurs, id, scheduleAutoSave]);
 
   const addPointage = () => {
     setPointages((prev) => [...prev, { date: today, collaborateur: "", arrivee: "", depart: "" }]);
@@ -6146,7 +6151,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   handleSave();
                 }}
                 disabled={saving}
-                className="w-full h-12 rounded-xl text-base font-medium glass-btn text-white"
+                className="w-full h-12 rounded-xl text-base font-medium save-btn text-white"
               >
                 {saving ? (
                   <Loader2 className="w-5 h-5 animate-spin mr-2" />
