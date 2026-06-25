@@ -4626,6 +4626,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
               // Build a map of dateKey → projects, expanding multi-day projects
               const isSavPanel = showSummaryPanel === "sav-non-traites";
+              const isRdvMontagePanel = showSummaryPanel === "rdv-montage-a-fixer";
               const dayMap: Record<string, Project[]> = {};
               panelProjects.forEach((p) => {
                 // For SAV panel: group by date SAV received, not montage date
@@ -4638,6 +4639,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     if (!dayMap[savDate]) dayMap[savDate] = [];
                     dayMap[savDate].push(p);
                   }
+                  return;
+                }
+                // RDV Montage à fixer : grouper par Arrivage TM (fallback Arrivage Grossiste)
+                if (isRdvMontagePanel) {
+                  const arrDate = ((p.arrivageTM || p.arrivageGrossiste) || "").split("T")[0];
+                  const key = arrDate || "no-date";
+                  if (!dayMap[key]) dayMap[key] = [];
+                  dayMap[key].push(p);
                   return;
                 }
                 const startDate = (p.dateMontage || p.dateMesures || "").split("T")[0];
