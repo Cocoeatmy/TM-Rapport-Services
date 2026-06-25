@@ -3627,6 +3627,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       }
                     </span>
                     <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
+                    {p.etatCMD && (
+                      <span className={`shrink-0 hidden sm:inline-block text-[9px] font-semibold px-2 py-0.5 rounded-full ${STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700"}`}>
+                        {p.etatCMD}
+                      </span>
+                    )}
                     {logo && <LogoImg src={logo} />}
                     <div className="flex -space-x-1 shrink-0">
                       {names.slice(0, 3).map((n: string) => (
@@ -5111,7 +5116,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 mt-0">{p.nomChantier}</span>
                           )}
                         </span>
-                        {(showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rapports-attente") && p.etatCMD && (
+                        {showSummaryPanel === "rdv-montage-a-fixer" && p.etatCMD && (
                           <span className={`shrink-0 hidden sm:inline-block text-[9px] font-semibold px-2 py-0.5 rounded-full ${STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700"}`}>
                             {p.etatCMD}
                           </span>
