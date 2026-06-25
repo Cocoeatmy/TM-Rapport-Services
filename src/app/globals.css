@@ -123,9 +123,16 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Empêche le scroll horizontal "fantôme" de la page (espace vide à droite
+       sur iOS quand on glisse vers la gauche). `clip` au lieu de `hidden` :
+       ne crée pas de conteneur de défilement, donc ne casse pas les `sticky`. */
+    overflow-x: clip;
+    max-width: 100%;
   }
   html {
     @apply font-sans;
+    overflow-x: clip;
+    max-width: 100%;
   }
 }
 
