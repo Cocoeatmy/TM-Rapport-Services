@@ -2361,3 +2361,21 @@ html[data-ui="cleanmymac"] .save-btn:hover {
     0 10px 28px -4px rgba(5, 120, 90, 0.45);
 }
 html[data-ui="cleanmymac"] .save-btn:active { transform: translateY(0) scale(0.97); }
+
+/* ============================================================================
+   Cartes CONTENEUR (panneaux) : neutralise l'effet de soulèvement/clic.
+   Sur .glass-card, le :hover/:active applique un transform (translate/scale)
+   qui DÉPLACE le contenu pendant l'appui — un petit bouton à l'intérieur (le
+   toggle de tri) devenait quasi inratable (clic perdu car mouseup hors cible).
+   La classe .no-lift fige la carte → les clics internes répondent du 1er coup.
+   ============================================================================ */
+.glass-card.no-lift:hover,
+.glass-card.no-lift:active,
+html[data-ui="aurora"] .glass-card.no-lift:hover,
+html[data-ui="aurora"] .glass-card.no-lift:active,
+html[data-ui="ocean"] .glass-card.no-lift:hover,
+html[data-ui="ocean"] .glass-card.no-lift:active,
+html[data-ui="cleanmymac"] .glass-card.no-lift:hover,
+html[data-ui="cleanmymac"] .glass-card.no-lift:active {
+  transform: none !important;
+}

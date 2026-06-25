@@ -4596,7 +4596,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         const dateLabel = "Date";
 
         return (
-          <div className="glass-card rounded-2xl p-4 space-y-1.5">
+          <div className="glass-card no-lift rounded-2xl p-4 space-y-1.5">
             <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{panelTitle} ({panelProjects.length})</p>
               {showSummaryPanel === "rdv-montage-a-fixer" && (
