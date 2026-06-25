@@ -2267,8 +2267,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
   return (
     <div className="mb-6 space-y-4">
-      {/* En-tête de bienvenue */}
-      <div className="glass-card rounded-2xl p-4">
+      {/* En-tête de bienvenue — masqué quand un panneau est ouvert (visible
+          uniquement sur le dashboard principal). */}
+      <div className="glass-card rounded-2xl p-4" style={{ display: showSummaryPanel ? "none" : undefined }}>
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-lg font-bold text-blue-600 dark:text-blue-400 shrink-0">
             {getCollaboratorInitials(firstName)}
