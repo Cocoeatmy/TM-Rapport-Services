@@ -81,11 +81,13 @@ function mergeCabineAttribution(existing: string, incoming: string): string {
 
   const merged = new Map(exMap);
   inMap.forEach((inVal, cabNum) => {
-    if (inVal) {
-      merged.set(cabNum, inVal); // non-vide → incoming gagne
-    } else {
-      merged.delete(cabNum); // vide explicite = suppression du monteur
-    }
+    // IMPORTANT : un slot NON-VIDE écrase ; un slot VIDE est IGNORÉ (on préserve
+    // l'existant). On ne supprime JAMAIS un monteur via un slot vide — c'était
+    // la cause des disparitions à répétition : tout envoi de l'attribution
+    // complète depuis un état local incomplet (un monteur pas encore chargé)
+    // vidait ces cabines. La suppression délibérée passe désormais par le champ
+    // body.clearAttributionCabs (signal explicite, jamais ambigu).
+    if (inVal) merged.set(cabNum, inVal);
   });
 
   const result = [...merged.entries()]
@@ -94,6 +96,17 @@ function mergeCabineAttribution(existing: string, incoming: string): string {
     .map(([num, val]) => `Cab${num}:${val}`)
     .join(" | ");
   return result;
+}
+
+/** Retire des cabines de la chaîne d'attribution (suppression EXPLICITE). */
+function clearCabinesFromAttribution(attribution: string, cabs: number[]): string {
+  const map = parseCabineMap(attribution);
+  for (const n of cabs) map.delete(Number(n));
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .filter(([, val]) => val)
+    .map(([num, val]) => `Cab${num}:${val}`)
+    .join(" | ");
 }
 
 function mergeCabineTimes(existing: string, incoming: string): string {
@@ -186,11 +199,13 @@ export async function PATCH(
     // Invalider le cache d'abord pour forcer un fetch frais depuis Notion,
     // puis merger : les cabines présentes dans Notion mais absentes du payload
     // client (cache incomplet) sont préservées.
+    const hasClear = Array.isArray(body.clearAttributionCabs) && body.clearAttributionCabs.length > 0;
     const needsMerge =
       body.heureArrivee !== undefined ||
       body.heureDepart !== undefined ||
       body.nomsCabines !== undefined ||
-      body.attributionCabines !== undefined;
+      body.attributionCabines !== undefined ||
+      hasClear;
 
     if (needsMerge) {
       invalidateCache(`project-${id}`);
@@ -213,8 +228,18 @@ export async function PATCH(
         if (body.attributionCabines !== undefined) {
           body.attributionCabines = mergeCabineAttribution(existing.attributionCabines || "", body.attributionCabines);
         }
+        // Suppression EXPLICITE de monteurs (action « réinitialiser la cabine »).
+        // Appliquée APRÈS le merge, sur l'attribution déjà fusionnée (ou l'existant).
+        if (hasClear) {
+          const base = body.attributionCabines !== undefined
+            ? body.attributionCabines
+            : (existing.attributionCabines || "");
+          body.attributionCabines = clearCabinesFromAttribution(base, body.clearAttributionCabs);
+        }
       }
     }
+    // Ne pas transmettre ce champ de contrôle à updateProject.
+    delete body.clearAttributionCabs;
 
     await updateProject(id, body);
     // Invalider le cache après mise à jour

@@ -3745,8 +3745,10 @@ function ProjectPageContent({ id }: { id: string }) {
           heureArrivee:      newArriveeToSave,
           heureDepart:       newDepartToSave,
           rapportMonteur:    newRapportToSave,
-          // "Cab${cabNum}:" vide = suppression explicite du monteur via mergeCabineAttribution
-          attributionCabines: `Cab${cabNum}:`,
+          // Suppression EXPLICITE du monteur de cette cabine (signal dédié).
+          // On n'utilise plus un slot vide "Cab${cabNum}:" : un slot vide est
+          // désormais ignoré (préservation), pour éviter les disparitions.
+          clearAttributionCabs: [cabNum],
           photosAvant:       newPhotosAvant,
           photosMontage:     newPhotosMontage,
           photosDemontage:   newPhotosDemontage,
