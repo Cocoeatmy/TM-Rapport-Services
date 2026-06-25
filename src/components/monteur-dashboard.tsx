@@ -1334,7 +1334,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     setSelectedDashId(null);
   };
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | "montage-tomorrow" | "mesures-tomorrow" | "services-tomorrow" | "sav-tomorrow" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | "montage-tomorrow" | "mesures-tomorrow" | "services-tomorrow" | "sav-tomorrow" | "montage-after" | "mesures-after" | "services-after" | "sav-after" | null>(null);
   // Tri des panneaux "RDV … à fixer" + "Soucis en cours" : par date (défaut) ou
   // par code postal (région) pour planifier les tournées. Une préférence PAR
   // panneau, persistée en localStorage.
@@ -1828,6 +1828,36 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const tomorrowServicesCab = sumCab(tomorrowServicesProjects);
   const tomorrowGarantiesCab = sumCab(tomorrowGarantiesList);
   const savTomorrowCab = sumCab(tomorrowSavProjects);
+
+  // ── Après-demain (J+2) : mêmes décomptes ──────────────────────────────────
+  const afterD = new Date(todayStr + "T12:00:00");
+  afterD.setDate(afterD.getDate() + 2);
+  const afterStr = afterD.toISOString().split("T")[0];
+  const uniqueAfterProjects = uniqueWeekProjects.filter((p) => projectSpansDate(p, afterStr));
+  const afterMontageProjects = uniqueAfterProjects.filter((p) => {
+    const src = getProjectSource(p);
+    return src !== "mesures" && !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"));
+  });
+  const afterMesuresProjects = uniqueAfterProjects.filter((p) => getProjectSource(p) === "mesures");
+  const afterServicesProjects = uniqueAfterProjects.filter((p) =>
+    (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"))
+  );
+  const afterSavProjects = projects.filter(
+    (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === afterStr,
+  );
+  const afterGarantiesList = uniqueAfterProjects.filter((p) =>
+    (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"))
+  );
+  const afterMontages = afterMontageProjects.length;
+  const afterMesures = afterMesuresProjects.length;
+  const afterServices = afterServicesProjects.length;
+  const afterGaranties = afterGarantiesList.length;
+  const afterSavCount = afterSavProjects.length;
+  const afterMontageCab = sumCab(afterMontageProjects);
+  const afterMesuresCab = sumCab(afterMesuresProjects);
+  const afterServicesCab = sumCab(afterServicesProjects);
+  const afterGarantiesCab = sumCab(afterGarantiesList);
+  const afterSavCab = sumCab(afterSavProjects);
   // Texte composite ex: "2 mesures · 1 montage · 1 service prévu(s) aujourd'hui"
   const todayParts: string[] = [];
   if (todayMesures > 0) todayParts.push(`${todayMesures} mesure${todayMesures > 1 ? "s" : ""}`);
@@ -2420,6 +2450,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 <span className="text-xs text-gray-500 dark:text-gray-400 inline-block min-w-[150px]">
                   <span className={`font-bold ${count > 0 ? color : "text-gray-300 dark:text-gray-600"} mr-1`}>{count}</span>
                   {`${label}${label !== "SAV" && count !== 1 ? "s" : ""} prévu${count !== 1 ? "s" : ""} demain`}
+                </span>
+                {count > 0 && <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500 whitespace-nowrap">{cabines} cabine{cabines > 1 ? "s" : ""}</span>}
+              </button>
+            ))}
+          </div>
+          {/* Après-demain (J+2) */}
+          <div className="flex-1 w-full space-y-1.5">
+            {([
+              { label: "Montage",  count: afterMontages,  cabines: afterMontageCab,   color: "text-orange-500 dark:text-orange-400", panel: "montage-after" as const },
+              { label: "Mesure",   count: afterMesures,   cabines: afterMesuresCab,   color: "text-cyan-600 dark:text-cyan-400",     panel: "mesures-after" as const },
+              { label: "SAV",      count: afterSavCount,  cabines: afterSavCab,       color: "text-red-600 dark:text-red-400",       panel: "sav-after" as const },
+              { label: "Service",  count: afterServices,  cabines: afterServicesCab,  color: "text-violet-600 dark:text-violet-400", panel: "services-after" as const },
+              { label: "Garantie", count: afterGaranties, cabines: afterGarantiesCab, color: "text-emerald-600 dark:text-emerald-400", panel: null as null },
+            ]).map(({ label, count, cabines, color, panel }) => (
+              <button
+                key={label}
+                onClick={panel ? (e) => openPanel(panel, e as React.MouseEvent<HTMLButtonElement>) : undefined}
+                className={`flex items-center gap-2 w-full text-left ${panel ? "hover:opacity-70 active:scale-95 transition-all" : "cursor-default"}`}
+              >
+                <span className="text-xs text-gray-500 dark:text-gray-400 inline-block min-w-[150px]">
+                  <span className={`font-bold ${count > 0 ? color : "text-gray-300 dark:text-gray-600"} mr-1`}>{count}</span>
+                  {`${label}${label !== "SAV" && count !== 1 ? "s" : ""} prévu${count !== 1 ? "s" : ""} après-demain`}
                 </span>
                 {count > 0 && <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500 whitespace-nowrap">{cabines} cabine{cabines > 1 ? "s" : ""}</span>}
               </button>
@@ -3125,6 +3177,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           "mesures-tomorrow":     { label: "Mesures demain",         color: "text-cyan-600 dark:text-cyan-400",     bg: "bg-cyan-100/80 dark:bg-cyan-900/30",     icon: <Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /> },
           "services-tomorrow":    { label: "Services demain",        color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-100/80 dark:bg-violet-900/30", icon: <Settings className="w-4 h-4 text-violet-500 dark:text-violet-400" /> },
           "sav-tomorrow":         { label: "SAV demain",             color: "text-red-600 dark:text-red-400",       bg: "bg-red-100/80 dark:bg-red-900/30",       icon: <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" /> },
+          "montage-after":        { label: "Montages après-demain",  color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-100/80 dark:bg-blue-900/30",     icon: <Wrench className="w-4 h-4 text-blue-500 dark:text-blue-400" /> },
+          "mesures-after":        { label: "Mesures après-demain",   color: "text-cyan-600 dark:text-cyan-400",     bg: "bg-cyan-100/80 dark:bg-cyan-900/30",     icon: <Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /> },
+          "services-after":       { label: "Services après-demain",  color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-100/80 dark:bg-violet-900/30", icon: <Settings className="w-4 h-4 text-violet-500 dark:text-violet-400" /> },
+          "sav-after":            { label: "SAV après-demain",       color: "text-red-600 dark:text-red-400",       bg: "bg-red-100/80 dark:bg-red-900/30",       icon: <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" /> },
           "week":                 { label: "Cabines cette semaine",  color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100/80 dark:bg-emerald-900/30", icon: <Box className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> },
           "active":               { label: "Monteurs actifs",        color: "text-amber-600 dark:text-amber-400",   bg: "bg-amber-100/80 dark:bg-amber-900/30",   icon: <Users className="w-4 h-4 text-amber-500 dark:text-amber-400" /> },
           "emplacement-cabines":  { label: "Emplacement cabines",    color: "text-sky-600 dark:text-sky-400",       bg: "bg-sky-100/80 dark:bg-sky-900/30",       icon: <MapPin className="w-4 h-4 text-sky-500 dark:text-sky-400" /> },
@@ -3594,6 +3650,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         } else if (showSummaryPanel === "sav-tomorrow") {
           panelTitle = "SAV demain";
           panelProjects = tomorrowSavProjects.slice().sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+        } else if (showSummaryPanel === "montage-after") {
+          panelTitle = "Montages après-demain";
+          panelProjects = afterMontageProjects.slice().sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+        } else if (showSummaryPanel === "mesures-after") {
+          panelTitle = "Mesures après-demain";
+          panelProjects = afterMesuresProjects.slice().sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+        } else if (showSummaryPanel === "services-after") {
+          panelTitle = "Services après-demain";
+          panelProjects = afterServicesProjects.slice().sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+        } else if (showSummaryPanel === "sav-after") {
+          panelTitle = "SAV après-demain";
+          panelProjects = afterSavProjects.slice().sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
         } else if (showSummaryPanel === "emplacement-cabines") {
           panelTitle = "Emplacement cabines";
           panelProjects = emplacementCabinesProjects.sort((a, b) => {
