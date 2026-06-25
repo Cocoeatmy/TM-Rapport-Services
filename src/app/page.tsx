@@ -1276,6 +1276,25 @@ function HomePage() {
   const [statsDateMode, setStatsDateMode] = useState<StatsDateMode>("all");
   const [statsDateFrom, setStatsDateFrom] = useState("");
   const [statsDateTo, setStatsDateTo] = useState("");
+
+  // Bouton Accueil (header) → réinitialise vraiment la vue au dashboard.
+  // `mode` étant un état figé à l'init, un simple changement d'URL ne le remet
+  // pas à "dashboard" : on le force ici via l'événement "tm-go-home".
+  useEffect(() => {
+    const handler = () => {
+      setMode("dashboard");
+      setQuickFilter(null);
+      setStatusFilter(null);
+      setCollabFilter(null);
+      setSearch("");
+      setCmmHeroMode(null);
+      setCrmTagFilter(null);
+      setSubView("projets");
+      try { window.scrollTo({ top: 0 }); } catch {}
+    };
+    window.addEventListener("tm-go-home", handler);
+    return () => window.removeEventListener("tm-go-home", handler);
+  }, []);
   const [statsMonth, setStatsMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; });
   const [statsYear, setStatsYear] = useState(() => String(new Date().getFullYear()));
   // Mode comparaison VS — période B

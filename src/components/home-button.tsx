@@ -17,8 +17,9 @@ export function HomeButton() {
       onClick={(e) => {
         e.preventDefault();
         try { sessionStorage.removeItem("tm-dash-panel"); } catch {}
-        // Ferme un panneau éventuellement ouvert sur le dashboard déjà monté.
-        try { window.dispatchEvent(new CustomEvent("tm-close-panel")); } catch {}
+        // Réinitialise la page principale au dashboard (mode + filtres + panneau).
+        // Le mode étant un état figé à l'init, router.push("/") seul ne suffit pas.
+        try { window.dispatchEvent(new CustomEvent("tm-go-home")); } catch {}
         router.push("/");
       }}
       className="home-badge inline-flex items-center justify-center w-9 h-9 rounded-xl shadow-lg text-white"

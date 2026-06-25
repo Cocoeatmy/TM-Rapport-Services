@@ -1469,11 +1469,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Le bouton Accueil demande la fermeture du panneau (dashboard déjà monté).
+  // Le bouton Accueil ferme tout panneau ouvert (dashboard déjà monté).
   useEffect(() => {
     const handler = () => closePanel();
-    window.addEventListener("tm-close-panel", handler);
-    return () => window.removeEventListener("tm-close-panel", handler);
+    window.addEventListener("tm-go-home", handler);
+    return () => window.removeEventListener("tm-go-home", handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
