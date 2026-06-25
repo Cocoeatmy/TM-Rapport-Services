@@ -1325,6 +1325,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   };
   const [showWeekProjects, setShowWeekProjects] = useState(false);
   const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | null>(null);
+  // Tri du panneau "RDV Montage à fixer" : par date d'arrivage (défaut) ou par
+  // code postal (région) pour planifier les tournées. Persisté en localStorage.
+  const [rdvMontageSort, setRdvMontageSort] = useState<"date" | "region">(() => {
+    if (typeof window !== "undefined") {
+      try { return (localStorage.getItem("tm-rdv-montage-sort") as "date" | "region") || "date"; } catch {}
+    }
+    return "date";
+  });
+  const setRdvSort = (v: "date" | "region") => {
+    setRdvMontageSort(v);
+    try { localStorage.setItem("tm-rdv-montage-sort", v); } catch {}
+  };
   const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
@@ -4534,7 +4546,25 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
         return (
           <div className="glass-card rounded-2xl p-4 space-y-1.5">
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{panelTitle} ({panelProjects.length})</p>
+            <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{panelTitle} ({panelProjects.length})</p>
+              {showSummaryPanel === "rdv-montage-a-fixer" && (
+                <div className="flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-slate-700 p-0.5">
+                  <button
+                    onClick={() => setRdvSort("date")}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors ${rdvMontageSort === "date" ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-300 shadow-sm" : "text-gray-500 dark:text-gray-400"}`}
+                  >
+                    Par date
+                  </button>
+                  <button
+                    onClick={() => setRdvSort("region")}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors ${rdvMontageSort === "region" ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-300 shadow-sm" : "text-gray-500 dark:text-gray-400"}`}
+                  >
+                    Par région (NPA)
+                  </button>
+                </div>
+              )}
+            </div>
             {panelProjects.length > 0 && (
               <div className="flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 mb-1">
                 {isRdvAFixer && <span className="w-16 shrink-0">{dateLabel}</span>}
@@ -4853,8 +4883,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               // Build a map of dateKey → projects, expanding multi-day projects
               const isSavPanel = showSummaryPanel === "sav-non-traites";
               const isRdvMontagePanel = showSummaryPanel === "rdv-montage-a-fixer";
+              const isRegionMode = isRdvMontagePanel && rdvMontageSort === "region";
+              const extractNpa = (addr: string) => { const m = (addr || "").match(/\b(\d{4})\b/); return m ? m[1] : ""; };
+              const extractNpaVille = (addr: string) => { const m = (addr || "").match(/\b(\d{4})\s+([^,]+)/); return m ? `${m[1]} ${m[2].trim()}` : (extractNpa(addr) || "Sans adresse"); };
               const dayMap: Record<string, Project[]> = {};
               panelProjects.forEach((p) => {
+                // Tri par RÉGION : groupe par code postal (NPA) de l'adresse chantier.
+                if (isRegionMode) {
+                  const npa = extractNpa(p.adresseChantier || p.projet || "");
+                  const key = npa || "no-code";
+                  if (!dayMap[key]) dayMap[key] = [];
+                  dayMap[key].push(p);
+                  return;
+                }
                 // For SAV panel: group by date SAV received, not montage date
                 if (isSavPanel) {
                   const savDate = (p.dateSAVRecu || "").split("T")[0];
@@ -4896,9 +4937,23 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 }
               });
 
-              // Sort days and build grouped array
-              const sortedDays = Object.keys(dayMap).sort((a, b) => a === "no-date" ? 1 : b === "no-date" ? -1 : a.localeCompare(b));
+              // Sort + build grouped array
+              const sortedDays = Object.keys(dayMap).sort((a, b) => {
+                if (isRegionMode) {
+                  if (a === "no-code") return 1;
+                  if (b === "no-code") return -1;
+                  return Number(a) - Number(b); // tri croissant par code postal
+                }
+                return a === "no-date" ? 1 : b === "no-date" ? -1 : a.localeCompare(b);
+              });
               const grouped = sortedDays.map((dateKey) => {
+                if (isRegionMode) {
+                  const projs = dayMap[dateKey];
+                  const label = dateKey === "no-code"
+                    ? "Sans code postal"
+                    : extractNpaVille(projs[0]?.adresseChantier || projs[0]?.projet || "");
+                  return { dateKey, dateLabel: label, isToday: false, isThisWeek: false, projects: projs };
+                }
                 const d = dateKey !== "no-date" ? new Date(dateKey + "T12:00:00") : null;
                 const label = d ? d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" }) : "Date non définie";
                 return {
