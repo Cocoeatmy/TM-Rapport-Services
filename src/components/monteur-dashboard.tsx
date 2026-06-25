@@ -6,7 +6,7 @@ import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
-import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS } from "@/lib/constants";
+import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 import { PersonalStats } from "@/components/personal-stats";
 
@@ -4953,6 +4953,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 mt-0">{p.nomChantier}</span>
                           )}
                         </span>
+                        {showSummaryPanel === "rdv-montage-a-fixer" && p.etatCMD && (
+                          <span className={`shrink-0 hidden sm:inline-block text-[9px] font-semibold px-2 py-0.5 rounded-full ${STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700"}`}>
+                            {p.etatCMD}
+                          </span>
+                        )}
                         {showSummaryPanel === "rdv-montage-a-fixer" && p.emplacementCabine && (
                           <span className="shrink-0 hidden sm:flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400 max-w-[170px]" title={p.emplacementCabine}>
                             <MapPin className="w-3 h-3 shrink-0" />
