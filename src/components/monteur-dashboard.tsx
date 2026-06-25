@@ -5111,7 +5111,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 mt-0">{p.nomChantier}</span>
                           )}
                         </span>
-                        {showSummaryPanel === "rdv-montage-a-fixer" && p.etatCMD && (
+                        {(showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rapports-attente") && p.etatCMD && (
                           <span className={`shrink-0 hidden sm:inline-block text-[9px] font-semibold px-2 py-0.5 rounded-full ${STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700"}`}>
                             {p.etatCMD}
                           </span>
