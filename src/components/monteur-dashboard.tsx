@@ -1239,6 +1239,61 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
   };
 
+  // ── Mode placement plein écran ────────────────────────────────────────────
+  const realCardIds = () => buttonOrder.filter((id) => id !== "__empty__");
+  const openPlacement = () => {
+    const cards = realCardIds();
+    setSlots(cards.slice());   // état actuel : toutes les cases à leur place
+    setPalette([]);
+    setDragCard(null);
+    setPlacementMode(true);
+  };
+  const resetPlacement = () => {
+    const cards = realCardIds();
+    setSlots(cards.map(() => null));  // grille entièrement vide
+    setPalette(cards.slice());        // toutes les cases descendent en bas
+    setDragCard(null);
+  };
+  const savePlacement = () => {
+    const ordered = slots.filter((x): x is string => !!x);
+    // Les cases non placées (restées en bas) sont ajoutées à la fin.
+    const newOrder = [...ordered, ...palette, "__empty__"];
+    setButtonOrder(newOrder);
+    saveDashOrder(newOrder);
+    setPlacementMode(false);
+    setDragCard(null);
+  };
+  // Dépose `card` dans l'emplacement `slotIdx`.
+  //  - depuis la grille : ÉCHANGE avec la case déjà présente (déplacement intuitif).
+  //  - depuis la zone du bas : place la case ; si l'emplacement est occupé, la
+  //    case délogée redescend dans la zone du bas.
+  const placeInSlot = (card: string, slotIdx: number) => {
+    const ns = slots.slice();
+    const from = ns.indexOf(card);
+    const displaced = ns[slotIdx];
+    if (displaced === card) return;
+    if (from >= 0) {
+      ns[from] = displaced ?? null;          // échange grille ↔ grille
+      ns[slotIdx] = card;
+      setSlots(ns);
+      setPalette(palette.filter((c) => c !== card));
+    } else {
+      ns[slotIdx] = card;                    // depuis la zone du bas
+      let np = palette.filter((c) => c !== card);
+      if (displaced && !np.includes(displaced)) np = [...np, displaced];
+      setSlots(ns);
+      setPalette(np);
+    }
+  };
+  // Renvoie `card` dans la zone du bas (vide son emplacement).
+  const sendToPalette = (card: string) => {
+    const ns = slots.slice();
+    const i = ns.indexOf(card);
+    if (i >= 0) ns[i] = null;
+    setSlots(ns);
+    setPalette(palette.includes(card) ? palette : [...palette, card]);
+  };
+
   const exitEditMode = () => {
     setIsEditMode(false);
     setDragSrcId(null);
@@ -1428,6 +1483,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [selectedDashId, setSelectedDashId] = useState<string | null>(null);
   const [dragSrcId, setDragSrcId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  // ── Mode placement plein écran (assombri) ─────────────────────────────────
+  const [placementMode, setPlacementMode] = useState(false);
+  const [slots, setSlots] = useState<(string | null)[]>([]);   // grille : id de case ou null (vide)
+  const [palette, setPalette] = useState<string[]>([]);        // cases en attente (zone du bas)
+  const [dragCard, setDragCard] = useState<string | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchDragIdRef = useRef<string | null>(null);
   // Ignore le clic qui vient JUSTE de faire entrer en mode édition (sinon il
@@ -2573,8 +2633,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     }}
                     onMouseDown={() => {
                       cancelLongPress();
-                      if (!isEditMode) {
-                        longPressTimer.current = setTimeout(() => { setIsEditMode(true); editJustEnteredRef.current = true; }, 500);
+                      if (!isEditMode && !placementMode && id !== "__empty__") {
+                        // Long-clic → mode placement plein écran (assombri).
+                        longPressTimer.current = setTimeout(() => openPlacement(), 500);
                       }
                     }}
                     onMouseUp={cancelLongPress}
@@ -2582,12 +2643,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     onTouchStart={(e) => {
                       cancelLongPress();
                       if (!isEditMode) {
-                        longPressTimer.current = setTimeout(() => {
-                          setIsEditMode(true);
-                          editJustEnteredRef.current = true;
-                          touchDragIdRef.current = id;
-                          setDragSrcId(id);
-                        }, 500);
+                        if (id !== "__empty__") {
+                          longPressTimer.current = setTimeout(() => openPlacement(), 500);
+                        }
                       } else {
                         touchDragIdRef.current = id;
                         setDragSrcId(id);
@@ -2654,6 +2712,99 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           </div>
         );
       })()}
+
+      {/* ── Mode placement plein écran (assombri) ─────────────────────────── */}
+      {placementMode && (
+        <div className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex flex-col overflow-auto p-4 sm:p-6">
+          <div className="flex items-center justify-between gap-3 mb-3 shrink-0">
+            <h2 className="text-white font-semibold text-sm sm:text-base">Réorganiser le tableau de bord</h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setPlacementMode(false); setDragCard(null); }}
+                className="text-xs font-medium px-3 py-2 rounded-xl bg-white/10 text-white/80 hover:bg-white/20 active:scale-95 transition-all"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={resetPlacement}
+                className="text-xs font-semibold px-3 py-2 rounded-xl bg-white/15 text-white hover:bg-white/25 active:scale-95 transition-all"
+              >
+                Réinitialiser positions
+              </button>
+              <button
+                onClick={savePlacement}
+                className="text-xs font-bold px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all"
+              >
+                Terminer
+              </button>
+            </div>
+          </div>
+          <p className="text-white/60 text-[11px] mb-3 shrink-0 leading-snug">
+            Glissez les cases dans la grille du haut. « Réinitialiser positions » les fait toutes
+            redescendre dans la zone du bas, puis vous les replacez où vous voulez.
+          </p>
+
+          {/* Grille d'emplacements (slots) */}
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 sm:gap-3">
+            {slots.map((cardId, idx) => (
+              <div
+                key={idx}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                onDrop={(e) => { e.preventDefault(); if (dragCard) { placeInSlot(dragCard, idx); setDragCard(null); } }}
+                className={`relative rounded-2xl min-h-[80px] sm:min-h-[100px] ${
+                  cardId
+                    ? (dragCard ? "ring-2 ring-white/20" : "")
+                    : "border-2 border-dashed border-white/25 bg-white/5 flex items-center justify-center"
+                }`}
+              >
+                {cardId ? (
+                  <div
+                    draggable
+                    onDragStart={(e) => { setDragCard(cardId); e.dataTransfer.effectAllowed = "move"; }}
+                    onDragEnd={() => setDragCard(null)}
+                    onClickCapture={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                    className="cursor-grab active:cursor-grabbing w-full h-full"
+                  >
+                    <div className="pointer-events-none w-full h-full">{renderCard(cardId)}</div>
+                  </div>
+                ) : (
+                  <span className="text-white/30 text-xs select-none">{idx + 1}</span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Zone du bas : cases à placer */}
+          <div
+            className="mt-6 shrink-0"
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+            onDrop={(e) => { e.preventDefault(); if (dragCard) { sendToPalette(dragCard); setDragCard(null); } }}
+          >
+            <p className="text-white/70 text-xs font-semibold mb-2">
+              Cases à placer{palette.length > 0 ? ` (${palette.length})` : ""}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 sm:gap-3 min-h-[96px] rounded-2xl border-2 border-dashed border-white/20 p-2 bg-white/5">
+              {palette.length === 0 && (
+                <span className="col-span-full text-white/40 text-xs flex items-center justify-center py-6">
+                  Toutes les cases sont placées
+                </span>
+              )}
+              {palette.map((cardId) => (
+                <div
+                  key={cardId}
+                  draggable
+                  onDragStart={(e) => { setDragCard(cardId); e.dataTransfer.effectAllowed = "move"; }}
+                  onDragEnd={() => setDragCard(null)}
+                  onClickCapture={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                  className="cursor-grab active:cursor-grabbing"
+                >
+                  <div className="pointer-events-none w-full h-full">{renderCard(cardId)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* RDV buttons — thèmes normaux uniquement (non-CMM) */}
       {!cmmMode && (
