@@ -1791,6 +1791,25 @@ html[data-ui="cleanmymac"] .lg-bg::before {
     }
   }
 
+  /* Inset UNIVERSEL (TOUS les thèmes) en Window Controls Overlay : le contenu
+     de l'en-tête reste dans la zone sûre du titlebar et n'est JAMAIS caché
+     derrière les contrôles de fenêtre — feux macOS à gauche, contrôles PWA à
+     droite. (Avant, l'inset n'existait que pour le thème cleanmymac, donc en
+     thème aurora/ocean les boutons passaient sous les contrôles.) */
+  @media (display-mode: window-controls-overlay) {
+    #main-header {
+      padding-top: env(titlebar-area-height, 0px);
+      -webkit-app-region: drag;
+    }
+    #main-header * { -webkit-app-region: no-drag; }
+    #main-header > div {
+      padding-left: max(1rem, env(titlebar-area-x, 0px));
+      padding-right: max(1rem, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)));
+    }
+    /* La marge fixe des feux est gérée par le padding-left ci-dessus. */
+    #main-header .cmm-header-left { margin-left: 0 !important; }
+  }
+
   /* Repositionne le groupe home+back après les feux (rouge 20px + 2×20px gap + largeur 12px = 72px).
      Marge légèrement augmentée pour laisser de l'air. */
   html[data-ui="cleanmymac"] #main-header .cmm-header-left {
