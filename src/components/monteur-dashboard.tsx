@@ -1435,11 +1435,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     if (isEditMode) return;
     if (showSummaryPanel === id) { closePanel(); return; }
     setShowSummaryPanel(id);
+    // Mémorise le panneau ouvert : si l'utilisateur ouvre un projet puis revient
+    // (bouton Retour), on rouvre ce panneau au lieu d'afficher le dashboard nu.
+    try { if (id) sessionStorage.setItem("tm-dash-panel", id); } catch {}
   };
 
   const closePanel = () => {
     setShowSummaryPanel(null);
+    try { sessionStorage.removeItem("tm-dash-panel"); } catch {}
   };
+
+  // Restaure le panneau précédemment ouvert (retour depuis un projet).
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("tm-dash-panel");
+      if (saved) setShowSummaryPanel(saved as typeof showSummaryPanel);
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Widgets CMM configurables ─────────────────────────────────────────────
   const [cmmWidgets, setCmmWidgets] = useState<string[]>([]);
