@@ -66,13 +66,11 @@ export function Onboarding() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
 
-  // Auto-show on first visit
-  useEffect(() => {
-    const done = localStorage.getItem(STORAGE_KEY);
-    if (!done) {
-      setVisible(true);
-    }
-  }, []);
+  // Affichage automatique DÉSACTIVÉ : sur iPhone, iOS purge périodiquement le
+  // stockage local des PWA → le flag "déjà vu" sautait et le tutoriel
+  // réapparaissait tous les 2 jours à la connexion (plainte collaborateur).
+  // Le tutoriel reste accessible MANUELLEMENT via le menu (event
+  // "tm-open-onboarding"). On ne l'ouvre plus jamais tout seul.
 
   // Listen for re-trigger from user menu
   useEffect(() => {
