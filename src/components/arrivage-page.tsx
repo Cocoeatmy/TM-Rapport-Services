@@ -19,6 +19,7 @@ interface Project {
   emplacementCabine: string;
   servCmdFournisseurs: string;
   cmdGrossiste: string;
+  cmdFournisseurs: string;
   cmdTMUsine: string;
   arrivageGrossiste: string | null;
   arrivageTM: string | null;
@@ -557,23 +558,41 @@ export default function ArrivagePage() {
                   )}
                 </div>
 
-                {/* Fournisseurs + séries + nb cabines */}
-                {(p.fournisseurs.length > 0 || p.seriesCabines.length > 0 || p.nbCabines) && (
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {p.fournisseurs.map((f) => (
-                      <span key={f} className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
-                        {f}
-                      </span>
-                    ))}
+                {/* Infos clés — série · nb cabines · fournisseur (agrandies pour être évidentes) */}
+                {(p.seriesCabines.length > 0 || p.nbCabines || p.fournisseurs.length > 0) && (
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
                     {p.seriesCabines.map((s) => (
-                      <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                      <span key={s} className="text-xs sm:text-sm px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold">
                         {s}
                       </span>
                     ))}
                     {p.nbCabines != null && p.nbCabines > 0 && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium">
+                      <span className="text-xs sm:text-sm px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-semibold">
                         {p.nbCabines} cabine{p.nbCabines > 1 ? "s" : ""}
                       </span>
+                    )}
+                    {p.fournisseurs.length > 0 && (
+                      <span className="text-xs sm:text-sm px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-semibold">
+                        Fournisseur&nbsp;: {p.fournisseurs.join(", ")}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Références commandes (affichées seulement si renseignées) */}
+                {(p.cmdGrossiste || p.cmdFournisseurs || p.servCmdFournisseurs || p.cmdTMUsine) && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
+                    {p.cmdGrossiste && (
+                      <span className="text-[11px] text-gray-400 dark:text-gray-500">N° CMD Grossiste&nbsp;: <span className="font-medium text-gray-700 dark:text-gray-200">{p.cmdGrossiste}</span></span>
+                    )}
+                    {p.cmdFournisseurs && (
+                      <span className="text-[11px] text-gray-400 dark:text-gray-500">N° CMD Fourn.&nbsp;: <span className="font-medium text-gray-700 dark:text-gray-200">{p.cmdFournisseurs}</span></span>
+                    )}
+                    {p.servCmdFournisseurs && (
+                      <span className="text-[11px] text-gray-400 dark:text-gray-500">N° Serv. CMD Fourn.&nbsp;: <span className="font-medium text-gray-700 dark:text-gray-200">{p.servCmdFournisseurs}</span></span>
+                    )}
+                    {p.cmdTMUsine && (
+                      <span className="text-[11px] text-gray-400 dark:text-gray-500">N° CMD TM - Usine&nbsp;: <span className="font-medium text-gray-700 dark:text-gray-200">{p.cmdTMUsine}</span></span>
                     )}
                   </div>
                 )}
