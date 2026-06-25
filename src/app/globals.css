@@ -2265,6 +2265,22 @@ html[data-ui="cleanmymac"] main > *:nth-child(5) { animation-delay: 0.28s; }
   outline-offset: 2px;
   border-radius: 1rem;
 }
+/* Tap-pour-placer : case « prise » (en attente d'une destination) */
+.dash-selected {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 1rem;
+  transform: scale(1.04);
+  z-index: 30;
+  box-shadow: 0 8px 24px -6px rgba(37, 99, 235, 0.55);
+}
+/* Cibles possibles quand une case est « prise » */
+.dash-place-target {
+  outline: 2px dashed rgba(37, 99, 235, 0.5);
+  outline-offset: 2px;
+  border-radius: 1rem;
+  cursor: pointer;
+}
 
 /* ============================================================================
    Bouton « Enregistrer le rapport » — TOUJOURS vert, dégradé adapté au thème.

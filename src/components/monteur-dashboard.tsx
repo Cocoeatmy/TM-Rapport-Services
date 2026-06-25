@@ -1196,29 +1196,40 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
 
+  // Horodatage de l'ordre local courant (pour la réconciliation au chargement).
+  const localTsRef = useRef<number>(0);
+
   // ── Helpers réorganisation ─────────────────────────────────────────────────
-  // Sauvegarde locale (immédiate) + serveur (multi-plateforme)
+  // Sauvegarde locale (immédiate) + serveur (multi-plateforme), HORODATÉE.
+  // L'horodatage permet à la réconciliation au chargement de ne JAMAIS écraser
+  // un ordre local récent par une réponse serveur périmée (bug des positions qui
+  // « revenaient en arrière »).
   const saveDashOrder = (order: string[]) => {
-    // 1. localStorage pour la réactivité immédiate
-    try { localStorage.setItem(`tm-dashboard-order-${userName}`, JSON.stringify(order)); } catch {}
-    // 2. Persistance serveur (Notion) — fire-and-forget, pas bloquant
+    const updatedAt = Date.now();
+    localTsRef.current = updatedAt;
+    try {
+      localStorage.setItem(`tm-dashboard-order-${userName}`, JSON.stringify({ order, updatedAt }));
+    } catch {}
     const slug = encodeURIComponent(userName);
     fetch(`/api/preferences/dashboard-order/${slug}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ order }),
+      body: JSON.stringify({ order, updatedAt }),
     }).catch(() => {/* silencieux, localStorage reste le fallback */});
   };
 
+  // INSERTION (style iOS) : déplace la case `srcId` à la position de `dstId`
+  // (les autres se décalent), au lieu d'un simple échange. Plus intuitif.
   const reorderDash = (srcId: string, dstId: string) => {
     if (srcId === dstId) return;
     setButtonOrder(prev => {
       const arr = [...prev];
       const si = arr.indexOf(srcId);
-      const di = arr.indexOf(dstId);
-      if (si < 0 || di < 0) return prev;
-      // Swap the two buttons (échange simple des positions)
-      [arr[si], arr[di]] = [arr[di], arr[si]];
+      if (si < 0) return prev;
+      arr.splice(si, 1);                 // retire la case déplacée
+      const di = arr.indexOf(dstId);     // index de la cible APRÈS retrait
+      if (di < 0) return prev;
+      arr.splice(di, 0, srcId);          // l'insère à la place de la cible
       saveDashOrder(arr);
       return arr;
     });
@@ -1232,7 +1243,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     setIsEditMode(false);
     setDragSrcId(null);
     setDragOverId(null);
+    setSelectedDashId(null);
     touchDragIdRef.current = null;
+  };
+
+  // Tap-pour-placer : 1er tap = on prend la case ; 2e tap = destination.
+  const handleTapPlace = (id: string) => {
+    if (id === "__empty__") {
+      // La case vide n'est qu'une destination (placer en fin).
+      if (selectedDashId && selectedDashId !== "__empty__") {
+        reorderDash(selectedDashId, "__empty__");
+        setSelectedDashId(null);
+      }
+      return;
+    }
+    if (!selectedDashId) { setSelectedDashId(id); return; }     // prise
+    if (selectedDashId === id) { setSelectedDashId(null); return; } // dépose au même endroit = annule
+    reorderDash(selectedDashId, id);                             // place avant la cible
+    setSelectedDashId(null);
   };
   const [showWeekProjects, setShowWeekProjects] = useState(false);
   const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | null>(null);
@@ -1361,39 +1389,50 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   //   3. Si le serveur a un ordre différent → met à jour + synchro localStorage
   const [buttonOrder, setButtonOrder] = useState<string[]>([...DEFAULT_DASH_ORDER]);
   useEffect(() => {
-    // Étape 1 : localStorage (instantané)
-    let localOrder: string[] | null = null;
+    const normalize = (raw: string[]) => {
+      const valid = raw.filter((id) => DEFAULT_DASH_ORDER.includes(id));
+      const missing = DEFAULT_DASH_ORDER.filter((id) => !valid.includes(id));
+      return [...valid, ...missing];
+    };
+    // Étape 1 : localStorage (instantané). Compat : ancien format = tableau brut,
+    // nouveau format = { order, updatedAt }.
     try {
       const saved = localStorage.getItem(`tm-dashboard-order-${userName}`);
       if (saved) {
-        const parsed: string[] = JSON.parse(saved);
-        const valid = parsed.filter((id: string) => DEFAULT_DASH_ORDER.includes(id));
-        const missing = DEFAULT_DASH_ORDER.filter(id => !valid.includes(id));
-        localOrder = [...valid, ...missing];
-        setButtonOrder(localOrder);
+        const parsed = JSON.parse(saved);
+        const rawOrder: string[] = Array.isArray(parsed) ? parsed : (parsed?.order ?? []);
+        localTsRef.current = Array.isArray(parsed) ? 0 : (parsed?.updatedAt ?? 0);
+        if (Array.isArray(rawOrder) && rawOrder.length) setButtonOrder(normalize(rawOrder));
       }
     } catch {}
 
-    // Étape 2 : serveur (Notion) — source de vérité cross-device
+    // Étape 2 : serveur — n'écrase QUE si le serveur est STRICTEMENT plus récent
+    // que l'ordre local. Sinon on garde le local (corrige le « retour en arrière »
+    // causé par une réponse serveur périmée).
     const slug = encodeURIComponent(userName);
     fetch(`/api/preferences/dashboard-order/${slug}`)
-      .then(r => r.json())
-      .then((data: { order: string[] | null }) => {
+      .then((r) => r.json())
+      .then((data: { order: string[] | null; updatedAt?: number }) => {
         if (!Array.isArray(data?.order)) return;
-        const valid = data.order.filter((id: string) => DEFAULT_DASH_ORDER.includes(id));
-        const missing = DEFAULT_DASH_ORDER.filter(id => !valid.includes(id));
-        const serverOrder = [...valid, ...missing];
-        // Met à jour l'UI + synchro localStorage si différent du cache local
+        const serverTs = data.updatedAt ?? 0;
+        if (serverTs <= localTsRef.current) return; // local au moins aussi récent → on garde
+        const serverOrder = normalize(data.order);
+        localTsRef.current = serverTs;
         setButtonOrder(serverOrder);
-        try { localStorage.setItem(`tm-dashboard-order-${userName}`, JSON.stringify(serverOrder)); } catch {}
+        try { localStorage.setItem(`tm-dashboard-order-${userName}`, JSON.stringify({ order: serverOrder, updatedAt: serverTs })); } catch {}
       })
       .catch(() => {/* localStorage reste utilisé si le serveur est inaccessible */});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Tap-pour-placer : case « prise » par un tap, en attente d'une destination.
+  const [selectedDashId, setSelectedDashId] = useState<string | null>(null);
   const [dragSrcId, setDragSrcId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchDragIdRef = useRef<string | null>(null);
+  // Ignore le clic qui vient JUSTE de faire entrer en mode édition (sinon il
+  // sélectionnerait aussitôt une case en tap-pour-placer).
+  const editJustEnteredRef = useRef(false);
 
   // ── Édition inline État SAV ───────────────────────────────────────────────
   const [editingSavId, setEditingSavId] = useState<string | null>(null);
@@ -2493,8 +2532,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             {/* Barre mode édition */}
             {isEditMode && (
               <div className="flex items-center justify-between px-1 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                <p className="text-[11px] text-blue-600 dark:text-blue-300 font-medium pl-1">
-                  ✦ Maintenez un bouton pour le déplacer
+                <p className="text-[11px] text-blue-600 dark:text-blue-300 font-medium pl-1 leading-tight">
+                  {selectedDashId
+                    ? "👆 Touchez l'emplacement où placer la case"
+                    : "Touchez une case puis sa destination — ou glissez‑la directement"}
                 </p>
                 <button
                   onClick={exitEditMode}
@@ -2518,11 +2559,22 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       isEditMode && id !== "__empty__" ? "dash-edit-wiggle" : "",
                       isDragging ? "dash-dragging" : "",
                       isOver ? "dash-drag-over" : "",
+                      selectedDashId === id ? "dash-selected" : "",
+                      isEditMode && selectedDashId && selectedDashId !== id ? "dash-place-target" : "",
                     ].filter(Boolean).join(" ")}
+                    onClickCapture={(e) => {
+                      // En mode édition : le clic ne doit PAS ouvrir le panneau de
+                      // la carte → on l'intercepte ici pour le tap-pour-placer.
+                      if (!isEditMode) return;
+                      e.stopPropagation();
+                      e.preventDefault();
+                      if (editJustEnteredRef.current) { editJustEnteredRef.current = false; return; }
+                      handleTapPlace(id);
+                    }}
                     onMouseDown={() => {
                       cancelLongPress();
                       if (!isEditMode) {
-                        longPressTimer.current = setTimeout(() => setIsEditMode(true), 500);
+                        longPressTimer.current = setTimeout(() => { setIsEditMode(true); editJustEnteredRef.current = true; }, 500);
                       }
                     }}
                     onMouseUp={cancelLongPress}
@@ -2532,6 +2584,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       if (!isEditMode) {
                         longPressTimer.current = setTimeout(() => {
                           setIsEditMode(true);
+                          editJustEnteredRef.current = true;
                           touchDragIdRef.current = id;
                           setDragSrcId(id);
                         }, 500);
