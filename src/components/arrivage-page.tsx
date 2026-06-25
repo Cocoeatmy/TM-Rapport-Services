@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Truck, ChevronDown, ChevronUp, Loader2, Package, Camera, X, AlertCircle, Search } from "lucide-react";
+import { Truck, ChevronDown, ChevronUp, Loader2, Package, Camera, X, AlertCircle, Search, Check } from "lucide-react";
 import { STATUS_CMD_COLORS } from "@/lib/constants";
 
 interface FileItem {
@@ -41,6 +41,17 @@ const EXCLUDED_STATUTS = new Set([
   "Terminé",
 ]);
 
+// Statuts pertinents pour le suivi d'arrivage (mode « Tout afficher »).
+// "En attente de mesures" est inclus mais souvent décoché (beaucoup ne sont
+// pas encore commandées) → cases à cocher pour choisir ce qu'on voit.
+const ARRIVAGE_STATUTS = [
+  "En attente de mesures",
+  "Cabines mesurées",
+  "Cabines en CMD",
+  "Cabines à recevoir",
+  "Livraison partielle",
+];
+
 const ALL_STATUTS = [
   "En attente de mesures",
   "Cabines mesurées",
@@ -76,6 +87,16 @@ export default function ArrivagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  // Statuts visibles en mode « Tout afficher » (cochés). Persisté en localStorage.
+  const [visibleStatuts, setVisibleStatuts] = useState<Set<string>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const s = localStorage.getItem("tm-arrivage-statuts");
+        if (s) return new Set(JSON.parse(s) as string[]);
+      } catch {}
+    }
+    return new Set(ARRIVAGE_STATUTS);
+  });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
@@ -147,7 +168,22 @@ export default function ArrivagePage() {
           String(p.nbCartons ?? "").includes(q)
         );
       })()
-    : [];
+    : showAll
+      ? searchableProjects.filter((p) => visibleStatuts.has(p.etatCMD))
+      : [];
+
+  // Persiste le choix des statuts visibles.
+  useEffect(() => {
+    try { localStorage.setItem("tm-arrivage-statuts", JSON.stringify([...visibleStatuts])); } catch {}
+  }, [visibleStatuts]);
+
+  const toggleStatut = (s: string) => {
+    setVisibleStatuts((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s); else next.add(s);
+      return next;
+    });
+  };
 
   const getForm = useCallback(
     (p: Project) => {
@@ -443,19 +479,53 @@ export default function ArrivagePage() {
         </button>
       </div>
 
-      {!search.trim() ? (
+      {/* Filtres par statut (mode Tout afficher, hors recherche) */}
+      {showAll && !search.trim() && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">Statuts&nbsp;:</span>
+          {ARRIVAGE_STATUTS.map((s) => {
+            const checked = visibleStatuts.has(s);
+            const count = searchableProjects.filter((p) => p.etatCMD === s).length;
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => toggleStatut(s)}
+                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
+                  checked
+                    ? "border-sky-400 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300"
+                    : "border-gray-200 dark:border-slate-600 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700"
+                }`}
+              >
+                <span
+                  className={`w-3.5 h-3.5 rounded-[4px] border flex items-center justify-center shrink-0 ${
+                    checked ? "bg-sky-500 border-sky-500 text-white" : "border-gray-300 dark:border-slate-500"
+                  }`}
+                >
+                  {checked && <Check className="w-2.5 h-2.5" />}
+                </span>
+                {s} <span className="opacity-60">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {!search.trim() && !showAll ? (
         <div className="py-20 text-center space-y-3">
           <Search className="w-10 h-10 text-gray-200 dark:text-slate-600 mx-auto" />
           <p className="text-sm text-gray-400 dark:text-gray-500">
             Recherchez un projet pour enregistrer un arrivage
           </p>
           <p className="text-xs text-gray-300 dark:text-gray-600">
-            N° OFR, nom du projet, fournisseur, N° CMD…
+            N° OFR, nom du projet, fournisseur, N° CMD… ou cliquez sur « Tout afficher »
           </p>
         </div>
       ) : filteredProjects.length === 0 ? (
         <div className="py-16 text-center text-gray-400 dark:text-gray-500 text-sm">
-          Aucun projet trouvé pour «&nbsp;{search}&nbsp;»
+          {search.trim()
+            ? <>Aucun projet trouvé pour «&nbsp;{search}&nbsp;»</>
+            : "Aucun projet pour les statuts sélectionnés"}
         </div>
       ) : null}
 
