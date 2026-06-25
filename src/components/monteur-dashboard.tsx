@@ -1896,9 +1896,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     .filter((p) => ["Pas contacté", "Contact sans réponse"].includes(p.etatMesures || ""))
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
   const rdvMesuresAFixerCount = rdvMesuresAFixerProjects.length;
-  // RDV Montage à fixer : État - CMD dans RDV_MONTAGE_CMD
+  // RDV Montage à fixer : État - CMD dans RDV_MONTAGE_CMD, EXCLUT les services
+  // (les projets de type Services ont leur propre carte "RDV Services à fixer").
   const rdvMontageAFixerProjects = projects
-    .filter((p) => RDV_MONTAGE_CMD.includes(p.etatCMD || ""))
+    .filter((p) =>
+      RDV_MONTAGE_CMD.includes(p.etatCMD || "") &&
+      !(p.typeServices || []).some((t) => t === "Services" || t.includes("Services"))
+    )
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
   const rdvMontageAFixerCount = rdvMontageAFixerProjects.length;
   // RDV Services à fixer : Type de services = Services ET État - CMD dans RDV_MONTAGE_CMD
