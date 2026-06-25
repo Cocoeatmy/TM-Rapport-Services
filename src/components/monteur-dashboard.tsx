@@ -1334,7 +1334,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     setSelectedDashId(null);
   };
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | "montage-tomorrow" | "mesures-tomorrow" | "services-tomorrow" | "sav-tomorrow" | null>(null);
   // Tri des panneaux "RDV … à fixer" + "Soucis en cours" : par date (défaut) ou
   // par code postal (région) pour planifier les tournées. Une préférence PAR
   // panneau, persistée en localStorage.
@@ -1466,6 +1466,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       const saved = sessionStorage.getItem("tm-dash-panel");
       if (saved) setShowSummaryPanel(saved as typeof showSummaryPanel);
     } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Le bouton Accueil demande la fermeture du panneau (dashboard déjà monté).
+  useEffect(() => {
+    const handler = () => closePanel();
+    window.addEventListener("tm-close-panel", handler);
+    return () => window.removeEventListener("tm-close-panel", handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1787,20 +1795,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   tomorrowD.setDate(tomorrowD.getDate() + 1);
   const tomorrowStr = tomorrowD.toISOString().split("T")[0];
   const uniqueTomorrowProjects = uniqueWeekProjects.filter((p) => projectSpansDate(p, tomorrowStr));
-  const tomorrowMontages = uniqueTomorrowProjects.filter((p) => {
+  const tomorrowMontageProjects = uniqueTomorrowProjects.filter((p) => {
     const src = getProjectSource(p);
     return src !== "mesures" && !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"));
-  }).length;
-  const tomorrowMesures = uniqueTomorrowProjects.filter((p) => getProjectSource(p) === "mesures").length;
-  const tomorrowServices = uniqueTomorrowProjects.filter((p) =>
+  });
+  const tomorrowMesuresProjects = uniqueTomorrowProjects.filter((p) => getProjectSource(p) === "mesures");
+  const tomorrowServicesProjects = uniqueTomorrowProjects.filter((p) =>
     (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"))
-  ).length;
+  );
+  const tomorrowSavProjects = projects.filter(
+    (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === tomorrowStr,
+  );
+  const tomorrowMontages = tomorrowMontageProjects.length;
+  const tomorrowMesures = tomorrowMesuresProjects.length;
+  const tomorrowServices = tomorrowServicesProjects.length;
   const tomorrowGaranties = uniqueTomorrowProjects.filter((p) =>
     (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"))
   ).length;
-  const savTomorrowCount = projects.filter(
-    (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === tomorrowStr,
-  ).length;
+  const savTomorrowCount = tomorrowSavProjects.length;
   // Texte composite ex: "2 mesures · 1 montage · 1 service prévu(s) aujourd'hui"
   const todayParts: string[] = [];
   if (todayMesures > 0) todayParts.push(`${todayMesures} mesure${todayMesures > 1 ? "s" : ""}`);
@@ -2378,18 +2390,23 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           {/* Demain */}
           <div className="flex-1 w-full space-y-1.5">
             {([
-              { label: "Montage",  count: tomorrowMontages,  color: "text-orange-500 dark:text-orange-400" },
-              { label: "Mesure",   count: tomorrowMesures,   color: "text-cyan-600 dark:text-cyan-400" },
-              { label: "SAV",      count: savTomorrowCount,  color: "text-red-600 dark:text-red-400" },
-              { label: "Service",  count: tomorrowServices,  color: "text-violet-600 dark:text-violet-400" },
-              { label: "Garantie", count: tomorrowGaranties, color: "text-emerald-600 dark:text-emerald-400" },
-            ]).map(({ label, count, color }) => (
-              <div key={label} className="flex items-center justify-between w-full">
+              { label: "Montage",  count: tomorrowMontages,  color: "text-orange-500 dark:text-orange-400", panel: "montage-tomorrow" as const },
+              { label: "Mesure",   count: tomorrowMesures,   color: "text-cyan-600 dark:text-cyan-400",     panel: "mesures-tomorrow" as const },
+              { label: "SAV",      count: savTomorrowCount,  color: "text-red-600 dark:text-red-400",       panel: "sav-tomorrow" as const },
+              { label: "Service",  count: tomorrowServices,  color: "text-violet-600 dark:text-violet-400", panel: "services-tomorrow" as const },
+              { label: "Garantie", count: tomorrowGaranties, color: "text-emerald-600 dark:text-emerald-400", panel: null as null },
+            ]).map(({ label, count, color, panel }) => (
+              <button
+                key={label}
+                onClick={panel ? (e) => openPanel(panel, e as React.MouseEvent<HTMLButtonElement>) : undefined}
+                className={`flex items-center justify-between w-full ${panel ? "hover:opacity-70 active:scale-95 transition-all" : "cursor-default"}`}
+              >
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   <span className={`font-bold ${count > 0 ? color : "text-gray-300 dark:text-gray-600"} mr-1`}>{count}</span>
                   {`${label}${label !== "SAV" && count !== 1 ? "s" : ""} prévu${count !== 1 ? "s" : ""} demain`}
                 </span>
-              </div>
+                {panel && count > 0 && <span className="text-[9px] text-gray-300 dark:text-gray-600">›</span>}
+              </button>
             ))}
           </div>
         </div>
@@ -3088,6 +3105,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           "today":                { label: "Montages aujourd'hui",   color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-100/80 dark:bg-blue-900/30",     icon: <Wrench className="w-4 h-4 text-blue-500 dark:text-blue-400" /> },
           "services-today":       { label: "Services aujourd'hui",   color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-100/80 dark:bg-violet-900/30", icon: <Settings className="w-4 h-4 text-violet-500 dark:text-violet-400" /> },
           "sav-today":            { label: "SAV aujourd'hui",        color: "text-red-600 dark:text-red-400",       bg: "bg-red-100/80 dark:bg-red-900/30",       icon: <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" /> },
+          "montage-tomorrow":     { label: "Montages demain",        color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-100/80 dark:bg-blue-900/30",     icon: <Wrench className="w-4 h-4 text-blue-500 dark:text-blue-400" /> },
+          "mesures-tomorrow":     { label: "Mesures demain",         color: "text-cyan-600 dark:text-cyan-400",     bg: "bg-cyan-100/80 dark:bg-cyan-900/30",     icon: <Ruler className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /> },
+          "services-tomorrow":    { label: "Services demain",        color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-100/80 dark:bg-violet-900/30", icon: <Settings className="w-4 h-4 text-violet-500 dark:text-violet-400" /> },
+          "sav-tomorrow":         { label: "SAV demain",             color: "text-red-600 dark:text-red-400",       bg: "bg-red-100/80 dark:bg-red-900/30",       icon: <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" /> },
           "week":                 { label: "Cabines cette semaine",  color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100/80 dark:bg-emerald-900/30", icon: <Box className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> },
           "active":               { label: "Monteurs actifs",        color: "text-amber-600 dark:text-amber-400",   bg: "bg-amber-100/80 dark:bg-amber-900/30",   icon: <Users className="w-4 h-4 text-amber-500 dark:text-amber-400" /> },
           "emplacement-cabines":  { label: "Emplacement cabines",    color: "text-sky-600 dark:text-sky-400",       bg: "bg-sky-100/80 dark:bg-sky-900/30",       icon: <MapPin className="w-4 h-4 text-sky-500 dark:text-sky-400" /> },
@@ -3545,6 +3566,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           panelTitle = "Services aujourd'hui";
           panelProjects = servicesTodayProjects
             .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+        } else if (showSummaryPanel === "montage-tomorrow") {
+          panelTitle = "Montages demain";
+          panelProjects = tomorrowMontageProjects.slice().sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+        } else if (showSummaryPanel === "mesures-tomorrow") {
+          panelTitle = "Mesures demain";
+          panelProjects = tomorrowMesuresProjects.slice().sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+        } else if (showSummaryPanel === "services-tomorrow") {
+          panelTitle = "Services demain";
+          panelProjects = tomorrowServicesProjects.slice().sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+        } else if (showSummaryPanel === "sav-tomorrow") {
+          panelTitle = "SAV demain";
+          panelProjects = tomorrowSavProjects.slice().sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
         } else if (showSummaryPanel === "emplacement-cabines") {
           panelTitle = "Emplacement cabines";
           panelProjects = emplacementCabinesProjects.sort((a, b) => {

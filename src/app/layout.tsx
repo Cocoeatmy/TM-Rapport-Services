@@ -12,6 +12,7 @@ import { OfflineBanner } from "@/components/offline-banner";
 import { GlobalSearch } from "@/components/global-search";
 import { CmmWindowCorners } from "@/components/cmm-window-corners";
 import { BackButton } from "@/components/back-button";
+import { HomeButton } from "@/components/home-button";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -68,25 +69,7 @@ export default function RootLayout({
         <header id="main-header" className="sticky top-0 z-50 glass-header text-white">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-1 cmm-header-left">
-              <a
-                href="/"
-                aria-label="Accueil"
-                className="home-badge inline-flex items-center justify-center w-9 h-9 rounded-xl shadow-lg text-white"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2.2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="w-5 h-5"
-                >
-                  <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                  <polyline points="9 22 9 12 15 12 15 22" />
-                </svg>
-              </a>
+              <HomeButton />
               <BackButton />
             </div>
             <div className="flex items-center gap-2">
