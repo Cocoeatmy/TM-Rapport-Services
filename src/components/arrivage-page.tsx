@@ -23,6 +23,7 @@ interface Project {
   arrivageGrossiste: string | null;
   arrivageTM: string | null;
   bonLivraison: string;
+  photosBonLivraison: FileItem[];
   photosCartons: FileItem[];
   nbCartons: number | null;
   nbCabines: number | null;
@@ -79,13 +80,15 @@ export default function ArrivagePage() {
   const [search, setSearch] = useState("");
 
   // Per-project form state
-  const [forms, setForms] = useState<Record<string, Partial<Project & { photosCartonsUrls: string[] }>>>({});
+  const [forms, setForms] = useState<Record<string, Partial<Project & { photosCartonsUrls: string[]; photosBonLivraisonUrls: string[] }>>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [saveSuccess, setSaveSuccess] = useState<Record<string, boolean>>({});
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
+  const [uploadingBon, setUploadingBon] = useState<Record<string, boolean>>({});
   const [emplacementOptions, setEmplacementOptions] = useState<string[]>([]);
 
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const fileBonInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Load projects — utilise all-active pour avoir TOUS les projets disponibles
   // (pas uniquement les CMD), sinon la recherche manque les mesures, SAV, etc.
@@ -157,10 +160,10 @@ export default function ArrivagePage() {
         servCmdFournisseurs: p.servCmdFournisseurs,
         cmdGrossiste: p.cmdGrossiste,
         cmdTMUsine: p.cmdTMUsine,
-        bonLivraison: p.bonLivraison,
         nbCartons: p.nbCartons,
         commentairesMontages: p.commentairesMontages || "",
         photosCartonsUrls: p.photosCartons.map((f) => f.url),
+        photosBonLivraisonUrls: p.photosBonLivraison.map((f) => f.url),
       };
     },
     [forms]
@@ -217,12 +220,17 @@ export default function ArrivagePage() {
       if (f.servCmdFournisseurs !== undefined) body.servCmdFournisseurs = f.servCmdFournisseurs;
       if (f.cmdGrossiste !== undefined) body.cmdGrossiste = f.cmdGrossiste;
       if (f.cmdTMUsine !== undefined) body.cmdTMUsine = f.cmdTMUsine;
-      if (f.bonLivraison !== undefined) body.bonLivraison = f.bonLivraison;
       if (f.nbCartons !== undefined) body.nbCartons = f.nbCartons;
       if ((f as any).commentairesMontages !== undefined) body.commentairesMontages = (f as any).commentairesMontages;
       if ((f as any).photosCartonsUrls !== undefined) {
         body.photosCartons = ((f as any).photosCartonsUrls as string[]).map((url, i) => ({
           name: `carton-${i + 1}`,
+          url,
+        }));
+      }
+      if ((f as any).photosBonLivraisonUrls !== undefined) {
+        body.photosBonLivraison = ((f as any).photosBonLivraisonUrls as string[]).map((url, i) => ({
+          name: `bon-livraison-${i + 1}`,
           url,
         }));
       }
@@ -247,13 +255,16 @@ export default function ArrivagePage() {
                 servCmdFournisseurs: (f.servCmdFournisseurs as string) ?? proj.servCmdFournisseurs,
                 cmdGrossiste: (f.cmdGrossiste as string) ?? proj.cmdGrossiste,
                 cmdTMUsine: (f.cmdTMUsine as string) ?? proj.cmdTMUsine,
-                bonLivraison: (f.bonLivraison as string) ?? proj.bonLivraison,
                 nbCartons: f.nbCartons !== undefined ? (f.nbCartons as number | null) : proj.nbCartons,
                 commentairesMontages: (f as any).commentairesMontages !== undefined ? (f as any).commentairesMontages as string : proj.commentairesMontages,
                 photosCartons: ((f as any).photosCartonsUrls as string[] | undefined)?.map((url, i) => ({
                   name: `carton-${i + 1}`,
                   url,
                 })) ?? proj.photosCartons,
+                photosBonLivraison: ((f as any).photosBonLivraisonUrls as string[] | undefined)?.map((url, i) => ({
+                  name: `bon-livraison-${i + 1}`,
+                  url,
+                })) ?? proj.photosBonLivraison,
               }
             : proj
         )
@@ -323,6 +334,54 @@ export default function ArrivagePage() {
         ...prev[projectId],
         photosCartonsUrls: updated,
       },
+    }));
+  };
+
+  // ── Bon de livraison : upload multi-photos (propriété Notion de type Files) ──
+  const handleUploadBon = async (p: Project, files: FileList) => {
+    if (!files.length) return;
+    setUploadingBon((prev) => ({ ...prev, [p.id]: true }));
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach((file) => formData.append("files", file));
+      formData.append("projectId", p.id);
+      formData.append("category", "bon-livraison");
+      formData.append("notionField", "Bon de livraison");
+
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const newUrls: string[] = (data.uploaded || data.files || []).map((f: { url: string }) => f.url);
+
+      const currentUrls: string[] = (forms[p.id] as any)?.photosBonLivraisonUrls ?? p.photosBonLivraison.map((f) => f.url);
+      const merged = [...currentUrls, ...newUrls];
+
+      setForms((prev) => ({
+        ...prev,
+        [p.id]: { ...getForm(p), ...prev[p.id], photosBonLivraisonUrls: merged },
+      }));
+      setProjects((prev) =>
+        prev.map((proj) =>
+          proj.id === p.id
+            ? { ...proj, photosBonLivraison: merged.map((url, i) => ({ name: `bon-livraison-${i + 1}`, url })) }
+            : proj
+        )
+      );
+    } catch (e: unknown) {
+      alert(`Erreur upload : ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setUploadingBon((prev) => ({ ...prev, [p.id]: false }));
+    }
+  };
+
+  const removePhotoBon = (projectId: string, url: string) => {
+    const p = projects.find((proj) => proj.id === projectId);
+    if (!p) return;
+    const currentUrls: string[] = (forms[projectId] as any)?.photosBonLivraisonUrls ?? p.photosBonLivraison.map((f) => f.url);
+    const updated = currentUrls.filter((u) => u !== url);
+    setForms((prev) => ({
+      ...prev,
+      [projectId]: { ...getForm(p), ...prev[projectId], photosBonLivraisonUrls: updated },
     }));
   };
 
@@ -592,17 +651,58 @@ export default function ArrivagePage() {
                     </div>
                   )}
 
-                  {/* Bon de livraison */}
+                  {/* Bon de livraison — photos (propriété Notion de type Files) */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      Bon de livraison
-                    </label>
-                    <input
-                      type="text"
-                      value={(f?.bonLivraison as string) ?? p.bonLivraison}
-                      onChange={(e) => setFormField(p.id, "bonLivraison", e.target.value)}
-                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                        Bon de livraison
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {uploadingBon[p.id] && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />}
+                        <button
+                          type="button"
+                          onClick={() => fileBonInputRefs.current[p.id]?.click()}
+                          disabled={uploadingBon[p.id]}
+                          className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+                        >
+                          Ajouter
+                        </button>
+                        <input
+                          ref={(el) => { fileBonInputRefs.current[p.id] = el; }}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => { if (e.target.files) handleUploadBon(p, e.target.files); e.target.value = ""; }}
+                        />
+                      </div>
+                    </div>
+                    {(() => {
+                      const urls: string[] = (forms[p.id] as any)?.photosBonLivraisonUrls ?? p.photosBonLivraison.map((ph) => ph.url);
+                      return urls.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {urls.map((url) => (
+                            <div key={url} className="relative group w-16 h-16">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={url} alt="Bon de livraison" className="w-full h-full object-cover rounded-lg border border-gray-200 dark:border-slate-600" />
+                              <button
+                                type="button"
+                                onClick={() => removePhotoBon(p.id, url)}
+                                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Supprimer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center py-3 border-2 border-dashed border-gray-200 dark:border-slate-600 rounded-lg text-gray-400 dark:text-gray-500 text-xs gap-1.5">
+                          <Camera className="w-3.5 h-3.5" />
+                          Aucune photo
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Nb. de cartons */}

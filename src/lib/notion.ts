@@ -180,6 +180,10 @@ export interface Project {
   dateSAVRecu: string | null;
   sav: boolean;
   bonLivraison: string;
+  /** "Bon de livraison" est une propriété Notion de type Files → on l'expose
+   *  aussi comme tableau de photos (en plus de `bonLivraison` = 1ère URL, gardé
+   *  pour la recherche et le DeliveryScan). */
+  photosBonLivraison: FileItem[];
   signatureUrl: string;
   typeClient: string;
   grossistesRelation: string[];
@@ -393,6 +397,7 @@ export function mapPageToProject(page: any): Project {
     dateRDVSAV: extractDate(p["Date - RDV SAV"]),
     dateSAVRecu: extractDate(p["Date - SAV reçu le"]),
     sav: p["SAV"]?.checkbox || false,
+    photosBonLivraison: extractFiles(p["Bon de livraison"]),
     bonLivraison: (() => {
       const bl = p["Bon de livraison"];
       if (!bl) return "";
@@ -918,6 +923,7 @@ export async function updateProject(
     collaborateurs?: string;
     mesuresTraiteePar?: string;
     bonLivraison?: string;
+    photosBonLivraison?: { name: string; url: string }[];
     etatCMD?: string;
     etatMesures?: string;
     etatSAV?: string;
@@ -1227,6 +1233,7 @@ export async function updateProject(
     properties[propName] = { files };
   };
   writeFilesField("photosCartons", "État des cartons réceptionnés", "carton");
+  writeFilesField("photosBonLivraison", "Bon de livraison", "bon-livraison");
   writeFilesField("photosAvant", "Photos avant montage", "avant");
   writeFilesField("photosDemontage", "Photos démontage", "demontage");
   writeFilesField("photosMontage", "Photos montage terminé", "montage");
