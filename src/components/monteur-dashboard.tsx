@@ -1766,6 +1766,26 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const todayGaranties = uniqueTodayProjects.filter((p) =>
     (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"))
   ).length;
+
+  // ── Demain : mêmes décomptes, pour la date du lendemain ───────────────────
+  const tomorrowD = new Date(todayStr + "T12:00:00");
+  tomorrowD.setDate(tomorrowD.getDate() + 1);
+  const tomorrowStr = tomorrowD.toISOString().split("T")[0];
+  const uniqueTomorrowProjects = uniqueWeekProjects.filter((p) => projectSpansDate(p, tomorrowStr));
+  const tomorrowMontages = uniqueTomorrowProjects.filter((p) => {
+    const src = getProjectSource(p);
+    return src !== "mesures" && !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"));
+  }).length;
+  const tomorrowMesures = uniqueTomorrowProjects.filter((p) => getProjectSource(p) === "mesures").length;
+  const tomorrowServices = uniqueTomorrowProjects.filter((p) =>
+    (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"))
+  ).length;
+  const tomorrowGaranties = uniqueTomorrowProjects.filter((p) =>
+    (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"))
+  ).length;
+  const savTomorrowCount = projects.filter(
+    (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === tomorrowStr,
+  ).length;
   // Texte composite ex: "2 mesures · 1 montage · 1 service prévu(s) aujourd'hui"
   const todayParts: string[] = [];
   if (todayMesures > 0) todayParts.push(`${todayMesures} mesure${todayMesures > 1 ? "s" : ""}`);
@@ -2314,11 +2334,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           </div>
         </div>
 
-        {/* ── Résumé du jour ── */}
+        {/* ── Résumé du jour + demain ── */}
         {!cmmMode && (
-        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex gap-3 items-start">
-          {/* Liste verticale services du jour */}
-          <div className="flex-1 space-y-1.5">
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row gap-3 sm:gap-8 items-start">
+          {/* Aujourd'hui */}
+          <div className="flex-1 w-full space-y-1.5">
             {([
               { label: "Montage",  count: todayMontages,  color: "text-orange-500 dark:text-orange-400",       panel: "today" as const },
               { label: "Mesure",   count: todayMesures,   color: "text-cyan-600 dark:text-cyan-400",           panel: "mesures-today" as const },
@@ -2337,6 +2357,23 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </span>
                 {panel && count > 0 && <span className="text-[9px] text-gray-300 dark:text-gray-600">›</span>}
               </button>
+            ))}
+          </div>
+          {/* Demain */}
+          <div className="flex-1 w-full space-y-1.5">
+            {([
+              { label: "Montage",  count: tomorrowMontages,  color: "text-orange-500 dark:text-orange-400" },
+              { label: "Mesure",   count: tomorrowMesures,   color: "text-cyan-600 dark:text-cyan-400" },
+              { label: "SAV",      count: savTomorrowCount,  color: "text-red-600 dark:text-red-400" },
+              { label: "Service",  count: tomorrowServices,  color: "text-violet-600 dark:text-violet-400" },
+              { label: "Garantie", count: tomorrowGaranties, color: "text-emerald-600 dark:text-emerald-400" },
+            ]).map(({ label, count, color }) => (
+              <div key={label} className="flex items-center justify-between w-full">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  <span className={`font-bold ${count > 0 ? color : "text-gray-300 dark:text-gray-600"} mr-1`}>{count}</span>
+                  {`${label}${label !== "SAV" && count !== 1 ? "s" : ""} prévu${count !== 1 ? "s" : ""} demain`}
+                </span>
+              </div>
             ))}
           </div>
         </div>
