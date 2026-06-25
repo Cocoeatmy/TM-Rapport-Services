@@ -173,6 +173,7 @@ export interface Project {
   contactsRDV: string;
   commentairesMesures: string;
   soucisMontage: boolean;
+  dateSoucisMontage: string | null;
   causeSoucis: string;
   causeSAV: string;
   etatSAV: string;
@@ -391,6 +392,7 @@ export function mapPageToProject(page: any): Project {
     contactsRDV: extractText(p["Contacts pour RDV"]),
     commentairesMesures: extractText(p["Commentaires Mesures"]),
     soucisMontage: p["Soucis montage"]?.checkbox || false,
+    dateSoucisMontage: extractDate(p["Date - Soucis montage"]),
     causeSoucis: extractSelect(p["Cause Soucis montages"]),
     causeSAV: extractSelect(p["Cause SAV"]),
     etatSAV: extractStatus(p["État - SAV"]),

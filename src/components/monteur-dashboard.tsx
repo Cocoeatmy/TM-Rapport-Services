@@ -1191,6 +1191,16 @@ const DEFAULT_DASH_ORDER = [
   "__empty__", // Case vide — taquin pour faciliter les déplacements
 ];
 
+// Panneaux groupés par une date Notion spécifique + toggle "date / région (NPA)".
+// Clé = id du panneau ; valeur = date à utiliser pour le regroupement.
+const PANEL_DATE_FIELD: Record<string, (p: Project) => string | null | undefined> = {
+  "rdv-montage-a-fixer":  (p) => p.arrivageTM || p.arrivageGrossiste,
+  "rdv-mesures-a-fixer":  (p) => p.dateMesuresRecue,
+  "rdv-sav-a-fixer":      (p) => p.dateSAVRecu,
+  "rdv-services-a-fixer": (p) => p.dateDemandeProjet,
+  "soucis-en-cours":      (p) => p.dateSoucisMontage,
+};
+
 function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [], cmmMode = false }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[]; cmmMode?: boolean }) {
   const firstName = userName.split(" ")[0];
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
@@ -1325,17 +1335,22 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   };
   const [showWeekProjects, setShowWeekProjects] = useState(false);
   const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | null>(null);
-  // Tri du panneau "RDV Montage à fixer" : par date d'arrivage (défaut) ou par
-  // code postal (région) pour planifier les tournées. Persisté en localStorage.
-  const [rdvMontageSort, setRdvMontageSort] = useState<"date" | "region">(() => {
+  // Tri des panneaux "RDV … à fixer" + "Soucis en cours" : par date (défaut) ou
+  // par code postal (région) pour planifier les tournées. Une préférence PAR
+  // panneau, persistée en localStorage.
+  const [rdvSortByPanel, setRdvSortByPanel] = useState<Record<string, "date" | "region">>(() => {
     if (typeof window !== "undefined") {
-      try { return (localStorage.getItem("tm-rdv-montage-sort") as "date" | "region") || "date"; } catch {}
+      try { const s = localStorage.getItem("tm-rdv-sort-by-panel"); if (s) return JSON.parse(s); } catch {}
     }
-    return "date";
+    return {};
   });
-  const setRdvSort = (v: "date" | "region") => {
-    setRdvMontageSort(v);
-    try { localStorage.setItem("tm-rdv-montage-sort", v); } catch {}
+  const panelSortOf = (panel: string | null) => (panel ? rdvSortByPanel[panel] || "date" : "date");
+  const setPanelSort = (panel: string, v: "date" | "region") => {
+    setRdvSortByPanel((prev) => {
+      const next = { ...prev, [panel]: v };
+      try { localStorage.setItem("tm-rdv-sort-by-panel", JSON.stringify(next)); } catch {}
+      return next;
+    });
   };
   const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
@@ -4599,19 +4614,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           <div className="glass-card no-lift rounded-2xl p-4 space-y-1.5">
             <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{panelTitle} ({panelProjects.length})</p>
-              {showSummaryPanel === "rdv-montage-a-fixer" && (
+              {showSummaryPanel && PANEL_DATE_FIELD[showSummaryPanel] && (
                 <div className="flex items-center gap-1 rounded-lg bg-gray-200/70 dark:bg-slate-700 p-1">
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setRdvSort("date"); }}
-                    className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${rdvMontageSort === "date" ? "bg-blue-600 text-white shadow" : "text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-slate-600"}`}
+                    onClick={(e) => { e.stopPropagation(); setPanelSort(showSummaryPanel, "date"); }}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${panelSortOf(showSummaryPanel) === "date" ? "bg-blue-600 text-white shadow" : "text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-slate-600"}`}
                   >
                     Par date
                   </button>
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setRdvSort("region"); }}
-                    className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${rdvMontageSort === "region" ? "bg-blue-600 text-white shadow" : "text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-slate-600"}`}
+                    onClick={(e) => { e.stopPropagation(); setPanelSort(showSummaryPanel, "region"); }}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${panelSortOf(showSummaryPanel) === "region" ? "bg-blue-600 text-white shadow" : "text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-slate-600"}`}
                   >
                     Par région (NPA)
                   </button>
@@ -4935,8 +4950,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
               // Build a map of dateKey → projects, expanding multi-day projects
               const isSavPanel = showSummaryPanel === "sav-non-traites";
-              const isRdvMontagePanel = showSummaryPanel === "rdv-montage-a-fixer";
-              const isRegionMode = isRdvMontagePanel && rdvMontageSort === "region";
+              const dateGetter = showSummaryPanel ? PANEL_DATE_FIELD[showSummaryPanel] : undefined;
+              const isCustomPanel = !!dateGetter;
+              const isRegionMode = isCustomPanel && panelSortOf(showSummaryPanel) === "region";
               const extractNpa = (addr: string) => { const m = (addr || "").match(/\b(\d{4})\b/); return m ? m[1] : ""; };
               const extractNpaVille = (addr: string) => { const m = (addr || "").match(/\b(\d{4})\s+([^,]+)/); return m ? `${m[1]} ${m[2].trim()}` : (extractNpa(addr) || "Sans adresse"); };
               const dayMap: Record<string, Project[]> = {};
@@ -4949,7 +4965,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   dayMap[key].push(p);
                   return;
                 }
-                // For SAV panel: group by date SAV received, not montage date
+                // Panneaux à date Notion dédiée (arrivage / mesures reçue / SAV reçu /
+                // demande projet reçue / soucis montage) : groupe par cette date.
+                if (isCustomPanel && dateGetter) {
+                  const dStr = (dateGetter(p) || "").split("T")[0];
+                  const key = dStr || "no-date";
+                  if (!dayMap[key]) dayMap[key] = [];
+                  dayMap[key].push(p);
+                  return;
+                }
+                // SAV non traités : group by date SAV received, not montage date
                 if (isSavPanel) {
                   const savDate = (p.dateSAVRecu || "").split("T")[0];
                   if (!savDate) {
@@ -4959,14 +4984,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     if (!dayMap[savDate]) dayMap[savDate] = [];
                     dayMap[savDate].push(p);
                   }
-                  return;
-                }
-                // RDV Montage à fixer : grouper par Arrivage TM (fallback Arrivage Grossiste)
-                if (isRdvMontagePanel) {
-                  const arrDate = ((p.arrivageTM || p.arrivageGrossiste) || "").split("T")[0];
-                  const key = arrDate || "no-date";
-                  if (!dayMap[key]) dayMap[key] = [];
-                  dayMap[key].push(p);
                   return;
                 }
                 const startDate = (p.dateMontage || p.dateMesures || "").split("T")[0];
