@@ -4600,16 +4600,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{panelTitle} ({panelProjects.length})</p>
               {showSummaryPanel === "rdv-montage-a-fixer" && (
-                <div className="flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-slate-700 p-0.5">
+                <div className="flex items-center gap-1 rounded-lg bg-gray-200/70 dark:bg-slate-700 p-1">
                   <button
-                    onClick={() => setRdvSort("date")}
-                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors ${rdvMontageSort === "date" ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-300 shadow-sm" : "text-gray-500 dark:text-gray-400"}`}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setRdvSort("date"); }}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${rdvMontageSort === "date" ? "bg-blue-600 text-white shadow" : "text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-slate-600"}`}
                   >
                     Par date
                   </button>
                   <button
-                    onClick={() => setRdvSort("region")}
-                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors ${rdvMontageSort === "region" ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-300 shadow-sm" : "text-gray-500 dark:text-gray-400"}`}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setRdvSort("region"); }}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${rdvMontageSort === "region" ? "bg-blue-600 text-white shadow" : "text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-slate-600"}`}
                   >
                     Par région (NPA)
                   </button>
