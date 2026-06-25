@@ -1797,10 +1797,10 @@ html[data-ui="cleanmymac"] .lg-bg::before {
      droite. (Avant, l'inset n'existait que pour le thème cleanmymac, donc en
      thème aurora/ocean les boutons passaient sous les contrôles.) */
   @media (display-mode: window-controls-overlay) {
-    #main-header {
-      padding-top: env(titlebar-area-height, 0px);
-      -webkit-app-region: drag;
-    }
+    /* PAS de padding-top : on garde TOUT sur UNE SEULE ligne, alignée avec les
+       contrôles de fenêtre (barre continue). On ne fait que réserver l'espace
+       horizontal des contrôles : feux macOS à gauche, contrôles PWA à droite. */
+    #main-header { -webkit-app-region: drag; }
     #main-header * { -webkit-app-region: no-drag; }
     #main-header > div {
       padding-left: max(1rem, env(titlebar-area-x, 0px));
