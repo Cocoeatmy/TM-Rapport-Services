@@ -4687,9 +4687,22 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <span className="text-[12px] font-bold text-white">
                       {group.isToday ? "📍 Aujourd'hui" : group.dateLabel}
                     </span>
-                    <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-semibold bg-white/20 text-white">
-                      {group.projects.length} projet{group.projects.length > 1 ? "s" : ""} · {group.projects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
-                    </span>
+                    <div className="ml-auto flex items-center gap-2 min-w-0">
+                      {showSummaryPanel === "rdv-montage-a-fixer" && (() => {
+                        // Emplacement(s) de cabine distinct(s) des projets de ce jour
+                        const emps = Array.from(new Set(group.projects.map((p) => p.emplacementCabine).filter(Boolean)));
+                        if (emps.length === 0) return null;
+                        return (
+                          <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium bg-white/15 text-white max-w-[260px] min-w-0" title={emps.join(", ")}>
+                            <MapPin className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{emps.join(", ")}</span>
+                          </span>
+                        );
+                      })()}
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-white/20 text-white shrink-0">
+                        {group.projects.length} projet{group.projects.length > 1 ? "s" : ""} · {group.projects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
+                      </span>
+                    </div>
                   </div>
                   {group.projects.map((p, idx) => {
                     const isMesure = showSummaryPanel === "mesures-today" || (p as any)._source === "mesures" || p.etatMesures === "RDV - Fixé";
