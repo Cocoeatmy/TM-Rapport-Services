@@ -1777,18 +1777,27 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     new Map(collabData.flatMap((c) => c.todayProjects).map((p) => [p.id, p])).values()
   );
   const totalProjectsToday = uniqueTodayProjects.length;
-  // Décomposition par type pour l'affichage du texte
-  const todayMontages = uniqueTodayProjects.filter((p) => {
+  // Décomposition par type pour l'affichage du texte (+ nombre de cabines).
+  const sumCab = (arr: Project[]) => arr.reduce((s, p) => s + (p.nbCabines || 0), 0);
+  const todayMontageList = uniqueTodayProjects.filter((p) => {
     const src = getProjectSource(p);
     return src !== "mesures" && !(p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"));
-  }).length;
-  const todayMesures = uniqueTodayProjects.filter((p) => getProjectSource(p) === "mesures").length;
-  const todayServices = uniqueTodayProjects.filter((p) =>
+  });
+  const todayMesuresList = uniqueTodayProjects.filter((p) => getProjectSource(p) === "mesures");
+  const todayServicesList = uniqueTodayProjects.filter((p) =>
     (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"))
-  ).length;
-  const todayGaranties = uniqueTodayProjects.filter((p) =>
+  );
+  const todayGarantiesList = uniqueTodayProjects.filter((p) =>
     (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"))
-  ).length;
+  );
+  const todayMontages = todayMontageList.length;
+  const todayMesures = todayMesuresList.length;
+  const todayServices = todayServicesList.length;
+  const todayGaranties = todayGarantiesList.length;
+  const todayMontageCab = sumCab(todayMontageList);
+  const todayMesuresCab = sumCab(todayMesuresList);
+  const todayServicesCab = sumCab(todayServicesList);
+  const todayGarantiesCab = sumCab(todayGarantiesList);
 
   // ── Demain : mêmes décomptes, pour la date du lendemain ───────────────────
   const tomorrowD = new Date(todayStr + "T12:00:00");
@@ -1806,13 +1815,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const tomorrowSavProjects = projects.filter(
     (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === tomorrowStr,
   );
+  const tomorrowGarantiesList = uniqueTomorrowProjects.filter((p) =>
+    (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"))
+  );
   const tomorrowMontages = tomorrowMontageProjects.length;
   const tomorrowMesures = tomorrowMesuresProjects.length;
   const tomorrowServices = tomorrowServicesProjects.length;
-  const tomorrowGaranties = uniqueTomorrowProjects.filter((p) =>
-    (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"))
-  ).length;
+  const tomorrowGaranties = tomorrowGarantiesList.length;
   const savTomorrowCount = tomorrowSavProjects.length;
+  const tomorrowMontageCab = sumCab(tomorrowMontageProjects);
+  const tomorrowMesuresCab = sumCab(tomorrowMesuresProjects);
+  const tomorrowServicesCab = sumCab(tomorrowServicesProjects);
+  const tomorrowGarantiesCab = sumCab(tomorrowGarantiesList);
+  const savTomorrowCab = sumCab(tomorrowSavProjects);
   // Texte composite ex: "2 mesures · 1 montage · 1 service prévu(s) aujourd'hui"
   const todayParts: string[] = [];
   if (todayMesures > 0) todayParts.push(`${todayMesures} mesure${todayMesures > 1 ? "s" : ""}`);
@@ -1975,6 +1990,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     (p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === todayStr
   );
   const savTodayCount = savTodayProjects.length;
+  const savTodayCab = sumCab(savTodayProjects);
 
   // Emplacement cabines : projets avec le champ "Emplacement de cabine" renseigné
   const emplacementCabinesProjects = projects.filter((p) =>
@@ -2368,44 +2384,44 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           {/* Aujourd'hui */}
           <div className="flex-1 w-full space-y-1.5">
             {([
-              { label: "Montage",  count: todayMontages,  color: "text-orange-500 dark:text-orange-400",       panel: "today" as const },
-              { label: "Mesure",   count: todayMesures,   color: "text-cyan-600 dark:text-cyan-400",           panel: "mesures-today" as const },
-              { label: "SAV",      count: savTodayCount,  color: "text-red-600 dark:text-red-400",             panel: "sav-today" as const },
-              { label: "Service",  count: todayServices,  color: "text-violet-600 dark:text-violet-400",       panel: "services-today" as const },
-              { label: "Garantie", count: todayGaranties, color: "text-emerald-600 dark:text-emerald-400",     panel: null as null },
-            ]).map(({ label, count, color, panel }) => (
+              { label: "Montage",  count: todayMontages,  cabines: todayMontageCab,   color: "text-orange-500 dark:text-orange-400",       panel: "today" as const },
+              { label: "Mesure",   count: todayMesures,   cabines: todayMesuresCab,   color: "text-cyan-600 dark:text-cyan-400",           panel: "mesures-today" as const },
+              { label: "SAV",      count: savTodayCount,  cabines: savTodayCab,       color: "text-red-600 dark:text-red-400",             panel: "sav-today" as const },
+              { label: "Service",  count: todayServices,  cabines: todayServicesCab,  color: "text-violet-600 dark:text-violet-400",       panel: "services-today" as const },
+              { label: "Garantie", count: todayGaranties, cabines: todayGarantiesCab, color: "text-emerald-600 dark:text-emerald-400",     panel: null as null },
+            ]).map(({ label, count, cabines, color, panel }) => (
               <button
                 key={label}
                 onClick={panel ? (e) => openPanel(panel, e as React.MouseEvent<HTMLButtonElement>) : undefined}
-                className={`flex items-center justify-between w-full ${panel ? "hover:opacity-70 active:scale-95 transition-all" : "cursor-default"}`}
+                className={`flex items-center gap-2 w-full text-left ${panel ? "hover:opacity-70 active:scale-95 transition-all" : "cursor-default"}`}
               >
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-gray-500 dark:text-gray-400 inline-block min-w-[165px]">
                   <span className={`font-bold ${count > 0 ? color : "text-gray-300 dark:text-gray-600"} mr-1`}>{count}</span>
                   {`${label}${label !== "SAV" && count !== 1 ? "s" : ""} prévu${count !== 1 ? "s" : ""} aujourd'hui`}
                 </span>
-                {panel && count > 0 && <span className="text-[9px] text-gray-300 dark:text-gray-600">›</span>}
+                {count > 0 && <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500 whitespace-nowrap">{cabines} cabine{cabines > 1 ? "s" : ""}</span>}
               </button>
             ))}
           </div>
           {/* Demain */}
           <div className="flex-1 w-full space-y-1.5">
             {([
-              { label: "Montage",  count: tomorrowMontages,  color: "text-orange-500 dark:text-orange-400", panel: "montage-tomorrow" as const },
-              { label: "Mesure",   count: tomorrowMesures,   color: "text-cyan-600 dark:text-cyan-400",     panel: "mesures-tomorrow" as const },
-              { label: "SAV",      count: savTomorrowCount,  color: "text-red-600 dark:text-red-400",       panel: "sav-tomorrow" as const },
-              { label: "Service",  count: tomorrowServices,  color: "text-violet-600 dark:text-violet-400", panel: "services-tomorrow" as const },
-              { label: "Garantie", count: tomorrowGaranties, color: "text-emerald-600 dark:text-emerald-400", panel: null as null },
-            ]).map(({ label, count, color, panel }) => (
+              { label: "Montage",  count: tomorrowMontages,  cabines: tomorrowMontageCab,   color: "text-orange-500 dark:text-orange-400", panel: "montage-tomorrow" as const },
+              { label: "Mesure",   count: tomorrowMesures,   cabines: tomorrowMesuresCab,   color: "text-cyan-600 dark:text-cyan-400",     panel: "mesures-tomorrow" as const },
+              { label: "SAV",      count: savTomorrowCount,  cabines: savTomorrowCab,       color: "text-red-600 dark:text-red-400",       panel: "sav-tomorrow" as const },
+              { label: "Service",  count: tomorrowServices,  cabines: tomorrowServicesCab,  color: "text-violet-600 dark:text-violet-400", panel: "services-tomorrow" as const },
+              { label: "Garantie", count: tomorrowGaranties, cabines: tomorrowGarantiesCab, color: "text-emerald-600 dark:text-emerald-400", panel: null as null },
+            ]).map(({ label, count, cabines, color, panel }) => (
               <button
                 key={label}
                 onClick={panel ? (e) => openPanel(panel, e as React.MouseEvent<HTMLButtonElement>) : undefined}
-                className={`flex items-center justify-between w-full ${panel ? "hover:opacity-70 active:scale-95 transition-all" : "cursor-default"}`}
+                className={`flex items-center gap-2 w-full text-left ${panel ? "hover:opacity-70 active:scale-95 transition-all" : "cursor-default"}`}
               >
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-gray-500 dark:text-gray-400 inline-block min-w-[150px]">
                   <span className={`font-bold ${count > 0 ? color : "text-gray-300 dark:text-gray-600"} mr-1`}>{count}</span>
                   {`${label}${label !== "SAV" && count !== 1 ? "s" : ""} prévu${count !== 1 ? "s" : ""} demain`}
                 </span>
-                {panel && count > 0 && <span className="text-[9px] text-gray-300 dark:text-gray-600">›</span>}
+                {count > 0 && <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500 whitespace-nowrap">{cabines} cabine{cabines > 1 ? "s" : ""}</span>}
               </button>
             ))}
           </div>
