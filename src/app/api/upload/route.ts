@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
-import { notion } from "@/lib/notion";
+import { notionWrite as notion } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
 
 /**

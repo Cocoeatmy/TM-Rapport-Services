@@ -5,6 +5,7 @@ import { Camera, ImagePlus, X, Loader2, Download, CloudUpload } from "lucide-rea
 import { thumbnailUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
 import { compressImage } from "@/lib/compress-image";
+import { uploadToCloudinary, attachPhotos } from "@/lib/cloudinary-upload";
 import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
 import { addPendingUpload, removePendingUpload, processPendingUploads } from "@/lib/idb-uploads";
 import { usePendingUploads } from "@/lib/use-pending-uploads";
@@ -118,14 +119,19 @@ export function PhotoUpload({
       renamed.map((f) => compressImage(f, 1600, 0.82))
     );
 
-    // Helper : enregistre les fichiers en IDB pour upload différé
-    const queueOffline = async (reason: "offline" | "error", filesToQueue: File[] = compressed) => {
+    // Helper : enregistre les fichiers en IDB pour upload différé.
+    // `uploadedUrl` (si la photo est DÉJÀ sur Cloudinary) est conservé → le
+    // re-essai ne re-uploade jamais les octets, il ne refait que le rattachement.
+    const queueOffline = async (
+      reason: "offline" | "error",
+      items: { file: File; uploadedUrl?: string }[] = compressed.map((f) => ({ file: f })),
+    ) => {
       try {
         await addPendingUpload({
           projectId,
           category,
           notionField,
-          files: filesToQueue.map((f) => ({ name: f.name, type: f.type, blob: f })),
+          files: items.map((x) => ({ name: x.file.name, type: x.file.type, blob: x.file, uploadedUrl: x.uploadedUrl })),
         });
         toast.info(
           reason === "offline"
@@ -133,9 +139,8 @@ export function PhotoUpload({
             : "Upload en attente — nouvelle tentative auto",
           { duration: 3500 },
         );
-        // Si on est en ligne (échec ponctuel, pas une coupure réseau), on
-        // relance tout de suite le traitement de la file au lieu d'attendre
-        // le poll de 30 s → la photo repart en quelques secondes.
+        // En ligne (échec ponctuel) : relance tout de suite le traitement de la
+        // file au lieu d'attendre le poll de 30 s.
         if (reason === "error" && isOnline()) {
           setTimeout(() => { processPendingUploads().catch(() => {}); }, 1500);
         }
@@ -151,40 +156,26 @@ export function PhotoUpload({
         return;
       }
 
-      // Une requête PAR photo : la limite Vercel est ~4,5 Mo/req. Un lot de
-      // plusieurs photos dans une seule requête peut la dépasser → 413 → échec
-      // permanent. En envoyant photo par photo (<1 Mo chacune), on élimine ce
-      // cas et un échec isolé n'entraîne pas les autres.
+      // Upload DIRECT vers Cloudinary (les octets ne passent PAS par Vercel →
+      // fiable même en 5G lente, pas de limite 4,5 Mo), puis rattachement Notion
+      // (petit JSON). Si seul le rattachement échoue, on met en file AVEC l'URL
+      // Cloudinary → le re-essai ne renvoie jamais les octets.
       const newFiles: { name: string; url: string }[] = [];
-      const failedFiles: File[] = [];
-      const failedPreviews: string[] = [];
+      const failed: { file: File; uploadedUrl?: string; preview: string }[] = [];
       for (let i = 0; i < compressed.length; i++) {
         const f = compressed[i];
-        const formData = new FormData();
-        formData.append("files", f);
-        formData.append("category", category);
-        formData.append("projectId", projectId);
-        if (notionField) formData.append("notionField", notionField);
-
-        // Timeout 45 s : un upload figé est annulé → la photo part en file IDB.
-        const ctrl = new AbortController();
-        const to = setTimeout(() => ctrl.abort(), 45_000);
+        let url: string;
         try {
-          const res = await fetch("/api/upload", { method: "POST", body: formData, signal: ctrl.signal });
-          const data = await res.json().catch(() => ({}));
-          if (res.ok && Array.isArray(data.files)) {
-            for (const p of data.files as { name: string; url: string }[]) {
-              if (p?.url) newFiles.push(p);
-            }
-          } else {
-            failedFiles.push(f);
-            failedPreviews.push(newPreviews[i]);
-          }
+          url = await uploadToCloudinary(f, f.name, projectId, category);
         } catch {
-          failedFiles.push(f);
-          failedPreviews.push(newPreviews[i]);
-        } finally {
-          clearTimeout(to);
+          failed.push({ file: f, preview: newPreviews[i] });
+          continue;
+        }
+        try {
+          if (notionField) await attachPhotos(projectId, notionField, [{ name: f.name, url }]);
+          newFiles.push({ name: f.name, url });
+        } catch {
+          failed.push({ file: f, uploadedUrl: url, preview: newPreviews[i] });
         }
       }
 
@@ -196,17 +187,16 @@ export function PhotoUpload({
         }
       }
 
-      // Retire les previews des photos réussies, garde celles en échec (elles
-      // partent en file IDB ci-dessous et gardent leur badge "Sync").
+      // Retire les previews des photos réussies, garde celles en échec.
+      const failedPreviews = failed.map((x) => x.preview);
       setPreviews((prev) => {
         const toRemove = newPreviews.filter((u) => !failedPreviews.includes(u));
         toRemove.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
         return prev.filter((u) => !toRemove.includes(u));
       });
 
-      // Met en file UNIQUEMENT les photos qui ont échoué (rejeu auto rapide).
-      if (failedFiles.length > 0) {
-        await queueOffline("error", failedFiles);
+      if (failed.length > 0) {
+        await queueOffline("error", failed.map((x) => ({ file: x.file, uploadedUrl: x.uploadedUrl })));
       }
     } catch (err) {
       console.error("Upload error:", err);

@@ -1,4 +1,4 @@
-// Service worker TM Rapport — v15
+// Service worker TM Rapport — v16
 // Stratégies :
 //   - Statique (_next/static, icons, logos, manifest) : cache-first (permanent).
 //   - API GET : network-first avec timeout 400 ms → si réseau lent/absent, sert le cache.
@@ -7,7 +7,7 @@
 //   v11 : pré-cache explicite des pages /client/ et /projet/ + leurs données API
 //         via message PRECACHE_URLS — permet consultation hors-ligne garantie.
 
-const VERSION = "v15";
+const VERSION = "v16";
 const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;

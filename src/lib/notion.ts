@@ -8,44 +8,52 @@ import { Client } from "@notionhq/client";
 //   1. Token-bucket par instance : lisse les appels sous ~3 req/s.
 //   2. Retry sur 429 : respecte l'en-tête Retry-After (utile quand plusieurs
 //      instances Vercel, chacune avec son bucket, dépassent collectivement le seuil).
-const NOTION_BUCKET_MAX = 4;      // tolérance de burst (un getProject ≈ 2-3 appels)
-const NOTION_REFILL_PER_SEC = 3;  // débit soutenu visé
-let notionTokens = NOTION_BUCKET_MAX;
-let notionLastRefill = Date.now();
-
-async function takeNotionToken(): Promise<void> {
-  for (;;) {
-    const now = Date.now();
-    notionTokens = Math.min(
-      NOTION_BUCKET_MAX,
-      notionTokens + ((now - notionLastRefill) / 1000) * NOTION_REFILL_PER_SEC,
-    );
-    notionLastRefill = now;
-    if (notionTokens >= 1) { notionTokens -= 1; return; }
-    const waitMs = ((1 - notionTokens) / NOTION_REFILL_PER_SEC) * 1000;
-    await new Promise((r) => setTimeout(r, Math.max(20, waitMs)));
-  }
+// Fabrique de `fetch` limité : token-bucket INDÉPENDANT par client + retry 429.
+// On utilise DEUX buckets séparés : un pour les LECTURES (chargements de projets,
+// pics du full-sync) et un pour les ÉCRITURES (rattachement des photos). Ainsi un
+// pic de lectures ne peut JAMAIS affamer les écritures → les photos uploadées
+// (déjà sûres sur Cloudinary) se rattachent à Notion sans rester bloquées.
+function makeRateLimitedFetch(label: string, bucketMax: number, refillPerSec: number): typeof fetch {
+  let tokens = bucketMax;
+  let lastRefill = Date.now();
+  const takeToken = async (): Promise<void> => {
+    for (;;) {
+      const now = Date.now();
+      tokens = Math.min(bucketMax, tokens + ((now - lastRefill) / 1000) * refillPerSec);
+      lastRefill = now;
+      if (tokens >= 1) { tokens -= 1; return; }
+      const waitMs = ((1 - tokens) / refillPerSec) * 1000;
+      await new Promise((r) => setTimeout(r, Math.max(20, waitMs)));
+    }
+  };
+  return (async (url: unknown, init: unknown) => {
+    for (let attempt = 0; ; attempt++) {
+      await takeToken();
+      const res = await fetch(url as RequestInfo, init as RequestInit);
+      if (res.status !== 429 || attempt >= 4) return res;
+      const retryAfter = Number(res.headers.get("retry-after")) || 1;
+      const waitMs = Math.min(retryAfter * 1000, 8000) + attempt * 250;
+      console.warn(`[notion:${label}] 429 rate-limited, retry ${attempt + 1}/4 dans ${waitMs}ms`);
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }) as unknown as typeof fetch;
 }
-
-const rateLimitedFetch = (async (url: unknown, init: unknown) => {
-  for (let attempt = 0; ; attempt++) {
-    await takeNotionToken();
-    const res = await fetch(url as RequestInfo, init as RequestInit);
-    if (res.status !== 429 || attempt >= 4) return res;
-    // 429 : on attend (Retry-After plafonné) puis on retente.
-    const retryAfter = Number(res.headers.get("retry-after")) || 1;
-    const waitMs = Math.min(retryAfter * 1000, 8000) + attempt * 250;
-    console.warn(`[notion] 429 rate-limited, retry ${attempt + 1}/4 dans ${waitMs}ms`);
-    await new Promise((r) => setTimeout(r, waitMs));
-  }
-}) as unknown as typeof fetch;
 
 export const notion = new Client({
   auth: process.env.NOTION_TOKEN,
   // Relevé à 25 s (route maxDuration = 30 s) : un appel mis en file par le
   // token-bucket ou réessayé après un 429 ne doit pas être avorté trop tôt.
   timeoutMs: 25000,
-  fetch: rateLimitedFetch,
+  fetch: makeRateLimitedFetch("read", 4, 3),
+});
+
+// Client dédié aux ÉCRITURES (rattachement photos, mises à jour) : bucket séparé
+// pour ne pas être affamé par les pics de lectures. Même token Notion → mêmes
+// quotas globaux, mais le retry 429 absorbe les chevauchements ponctuels.
+export const notionWrite = new Client({
+  auth: process.env.NOTION_TOKEN,
+  timeoutMs: 25000,
+  fetch: makeRateLimitedFetch("write", 4, 3),
 });
 
 export const databaseId = process.env.NOTION_DATABASE_ID!;

@@ -34,6 +34,8 @@
  *     afficher une alerte persistante dans l'UI.
  */
 
+import { uploadToCloudinary, attachPhotos, UploadError } from "@/lib/cloudinary-upload";
+
 const DB_NAME = "tm-rapport-uploads";
 const DB_VERSION = 2; // bumped : ajout du champ `status`
 const STORE = "pendingUploads";
@@ -50,6 +52,9 @@ export interface PendingUploadFile {
   type: string;
   /** Données binaires brutes — IDB stocke les Blobs en natif. */
   blob: Blob;
+  /** URL Cloudinary une fois les octets uploadés. Persistée → un re-essai ne
+   *  re-uploade JAMAIS les octets, il ne refait que le rattachement Notion. */
+  uploadedUrl?: string;
 }
 
 export interface PendingUpload {
@@ -286,64 +291,58 @@ let _processingUploads = false;
 interface ItemOutcome { success: number; failed: number; permanentlyFailed: number; }
 
 /**
- * Traite UN item : envoie ses fichiers (un par requête), met à jour l'IDB
- * (retrait si tout est passé, backoff sinon, échec permanent après MAX_RETRIES).
- * Ne lève jamais — renvoie un décompte.
+ * Traite UN item en 2 étapes DÉCOUPLÉES :
+ *   1. Upload des octets DIRECTEMENT vers Cloudinary (robuste, hors Vercel).
+ *      L'URL obtenue est persistée → un re-essai ne re-uploade jamais les octets.
+ *   2. Rattachement des URLs au champ Notion (petit JSON, réessayable).
+ * Ne lève jamais — renvoie un décompte et met à jour l'IDB (retrait / backoff /
+ * échec permanent après MAX_RETRIES).
  */
 async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOutcome> {
-  // Envoi FICHIER PAR FICHIER : la limite Vercel est ~4,5 Mo/requête. Un lot
-  // de plusieurs photos dans une seule requête peut la dépasser → 413 → échec
-  // permanent. Une photo par requête (chacune <1 Mo) élimine ce cas, et un
-  // échec isolé ne bloque pas les autres (les fichiers passés sont retirés).
-  const remaining = [...item.files];
-  let failureStatus: number | null = null;
-  let failureMsg = "";
+  const files = item.files.map((f) => ({ ...f })); // copie mutable (uploadedUrl)
   let networkError = false;
-  for (const f of item.files) {
-    const formData = new FormData();
-    formData.append("files", new File([f.blob], f.name, { type: f.type }));
-    formData.append("category", item.category);
-    formData.append("projectId", item.projectId);
-    if (item.notionField) formData.append("notionField", item.notionField);
+  let permanent = false;
+  let reasonMsg = "";
 
-    // Timeout dur (45 s) : un fetch figé ne se résout jamais → la boucle ne se
-    // termine pas → _processingUploads reste true → plus aucune photo ne
-    // s'uploade. L'abort jette → networkError → backoff.
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 45_000);
-    let res: Response;
+  // ── Étape 1 : Cloudinary pour chaque fichier pas encore uploadé ──────────
+  for (const f of files) {
+    if (f.uploadedUrl) continue;
     try {
-      res = await fetch("/api/upload", { method: "POST", body: formData, signal: ctrl.signal });
-    } catch (e: any) {
-      networkError = true;
-      failureMsg = e?.name === "AbortError" ? "timeout 45s" : "réseau indisponible";
-      break;
-    } finally {
-      clearTimeout(to);
-    }
-    if (res.ok) {
-      const idx = remaining.findIndex((r) => r.name === f.name);
-      if (idx >= 0) remaining.splice(idx, 1);
-    } else {
-      failureStatus = res.status;
-      // Capture le message d'erreur renvoyé par le serveur (ex. message
-      // Notion/Cloudinary) → stocké comme `reason` pour diagnostic visible.
-      try {
-        const d = await res.clone().json();
-        failureMsg = d?.error ? String(d.error).slice(0, 140) : "";
-      } catch {
-        try { failureMsg = (await res.text()).slice(0, 140); } catch {}
-      }
+      f.uploadedUrl = await uploadToCloudinary(f.blob, f.name, item.projectId, item.category);
+      // Persiste immédiatement : si la suite échoue, ce fichier ne sera pas
+      // re-uploadé (octets déjà sûrs sur Cloudinary).
+      await updatePendingUpload({ ...item, files });
+    } catch (e) {
+      const ue = e as UploadError;
+      reasonMsg = ue?.message || "upload échoué";
+      if (ue?.permanent) permanent = true; else networkError = true;
       break;
     }
   }
 
-  const reason = networkError
-    ? `Réseau : ${failureMsg}`
-    : `HTTP ${failureStatus ?? "?"}${failureMsg ? " — " + failureMsg : ""}`;
+  // ── Étape 2 : rattachement Notion (si tout est sur Cloudinary) ───────────
+  let done = false;
+  if (!networkError && !permanent && files.every((f) => f.uploadedUrl)) {
+    if (item.notionField) {
+      try {
+        await attachPhotos(
+          item.projectId,
+          item.notionField,
+          files.map((f) => ({ name: f.name, url: f.uploadedUrl as string })),
+        );
+        done = true;
+      } catch (e) {
+        const ue = e as UploadError;
+        reasonMsg = ue?.message || "rattachement échoué";
+        if (ue?.permanent) permanent = true; else networkError = true;
+      }
+    } else {
+      done = true; // pas de champ Notion → rien à rattacher
+    }
+  }
 
-  if (remaining.length === 0) {
-    // Tous les fichiers de l'item sont passés.
+  // ── Succès complet ───────────────────────────────────────────────────────
+  if (done) {
     await removePendingUpload(item.id);
     if (typeof window !== "undefined") {
       try {
@@ -352,30 +351,24 @@ async function _processOneItem(item: PendingUpload, now: number): Promise<ItemOu
       } catch {}
     }
     return { success: 1, failed: 0, permanentlyFailed: 0 };
-  } else if (
-    failureStatus !== null &&
-    failureStatus >= 400 && failureStatus < 500 &&
-    failureStatus !== 408 && failureStatus !== 429
-  ) {
-    // 4xx (hors 408/429) : erreur permanente. On ne garde que les fichiers
-    // pas encore envoyés (les autres sont déjà chez Notion).
-    console.warn("[idb-uploads] Upload 4xx permanent", item.id, reason);
-    await _markPermanentlyFailed({ ...item, files: remaining }, reason);
-    return { success: 0, failed: 1, permanentlyFailed: 1 };
-  } else {
-    // 5xx / 408 / 429 / réseau : temporaire → backoff court (3s → 30s).
-    const retries = (item.retryCount || 0) + 1;
-    if (retries >= MAX_RETRIES) {
-      console.error("[idb-uploads] MAX_RETRIES atteint — permanently-failed", item.id, reason);
-      await _markPermanentlyFailed({ ...item, files: remaining }, reason);
-      return { success: 0, failed: 1, permanentlyFailed: 1 };
-    }
-    const delayMs = Math.min(3_000 * 2 ** (retries - 1), 30_000);
-    // On stocke aussi le `reason` sur l'item pending → visible immédiatement
-    // dans le détail du bandeau, sans attendre l'échec permanent.
-    await updatePendingUpload({ ...item, files: remaining, retryCount: retries, nextAttemptAt: now + delayMs, reason });
-    return { success: 0, failed: 1, permanentlyFailed: 0 };
   }
+
+  // ── Échec ────────────────────────────────────────────────────────────────
+  const reason = `${permanent ? "Erreur" : "Réseau"}${reasonMsg ? " : " + reasonMsg : ""}`;
+  if (permanent) {
+    console.warn("[idb-uploads] échec permanent", item.id, reason);
+    await _markPermanentlyFailed({ ...item, files }, reason);
+    return { success: 0, failed: 1, permanentlyFailed: 1 };
+  }
+  const retries = (item.retryCount || 0) + 1;
+  if (retries >= MAX_RETRIES) {
+    console.error("[idb-uploads] MAX_RETRIES atteint — permanently-failed", item.id, reason);
+    await _markPermanentlyFailed({ ...item, files }, reason);
+    return { success: 0, failed: 1, permanentlyFailed: 1 };
+  }
+  const delayMs = Math.min(3_000 * 2 ** (retries - 1), 30_000);
+  await updatePendingUpload({ ...item, files, retryCount: retries, nextAttemptAt: now + delayMs, reason });
+  return { success: 0, failed: 1, permanentlyFailed: 0 };
 }
 
 /**
