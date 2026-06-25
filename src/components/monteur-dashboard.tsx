@@ -1187,6 +1187,7 @@ const DEFAULT_DASH_ORDER = [
   "week", "active", "emplacement-cabines", "rapports-attente",
   "sav-non-traites", "soucis-en-cours", "dossiers-en-cours", "a-facturer",
   "calendrier", "archives", "arrivage", "sav-historique", "soucis-historique", "mesures-sans-commande",
+  "rdv-mesures-a-fixer", "rdv-montage-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer",
   "__empty__", // Case vide — taquin pour faciliter les déplacements
 ];
 
@@ -1234,7 +1235,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     touchDragIdRef.current = null;
   };
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | null>(null);
   const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
@@ -1888,6 +1889,32 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const dossiersEnCoursCount = dossiersEnCoursProjects.length;
   const dossiersEnCoursCabines = dossiersEnCoursProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
 
+  // ── RDV à fixer (4 catégories) ────────────────────────────────────────────
+  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel"];
+  // RDV Mesures à fixer : État - Mesures = Pas contacté / Contact sans réponse
+  const rdvMesuresAFixerProjects = projects
+    .filter((p) => ["Pas contacté", "Contact sans réponse"].includes(p.etatMesures || ""))
+    .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+  const rdvMesuresAFixerCount = rdvMesuresAFixerProjects.length;
+  // RDV Montage à fixer : État - CMD dans RDV_MONTAGE_CMD
+  const rdvMontageAFixerProjects = projects
+    .filter((p) => RDV_MONTAGE_CMD.includes(p.etatCMD || ""))
+    .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+  const rdvMontageAFixerCount = rdvMontageAFixerProjects.length;
+  // RDV Services à fixer : Type de services = Services ET État - CMD dans RDV_MONTAGE_CMD
+  const rdvServicesAFixerProjects = projects
+    .filter((p) =>
+      (p.typeServices || []).some((t) => t === "Services" || t.includes("Services")) &&
+      RDV_MONTAGE_CMD.includes(p.etatCMD || "")
+    )
+    .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+  const rdvServicesAFixerCount = rdvServicesAFixerProjects.length;
+  // RDV SAV à fixer : État - SAV = A contacter / Contact sans réponse / Attente news
+  const rdvSavAFixerProjects = projects
+    .filter((p) => ["A contacter", "Contact sans réponse", "Attente news"].includes(p.etatSAV || ""))
+    .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+  const rdvSavAFixerCount = rdvSavAFixerProjects.length;
+
   // ── renderCard : rendu d'un bouton dashboard par son ID ───────────────────
   // Défini avant le return pour être partagé entre la grille standard (non-CMM)
   // et la zone de widgets configurable (thème CleanMyMac).
@@ -2046,6 +2073,38 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{mesuresSansCommandeLoading ? <span className="animate-pulse text-base">…</span> : mesuresSansCommandeCount}</p>
           <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Mesures</p>
           <p className="text-[9px] sm:text-[10px] text-cyan-400 dark:text-cyan-500 mt-0.5">Non commandées</p>
+        </button>
+      );
+      case "rdv-mesures-a-fixer": return (
+        <button onClick={(e) => openPanel("rdv-mesures-a-fixer", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center"><Calendar className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /></span>
+          <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400">{rdvMesuresAFixerCount}</p>
+          <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">RDV Mesures à fixer</p>
+          <p className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+        </button>
+      );
+      case "rdv-montage-a-fixer": return (
+        <button onClick={(e) => openPanel("rdv-montage-a-fixer", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-blue-100/80 dark:bg-blue-900/30 flex items-center justify-center"><Calendar className="w-4 h-4 text-blue-500 dark:text-blue-400" /></span>
+          <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{rdvMontageAFixerCount}</p>
+          <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">RDV Montage à fixer</p>
+          <p className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+        </button>
+      );
+      case "rdv-services-a-fixer": return (
+        <button onClick={(e) => openPanel("rdv-services-a-fixer", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center"><Calendar className="w-4 h-4 text-violet-500 dark:text-violet-400" /></span>
+          <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{rdvServicesAFixerCount}</p>
+          <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">RDV Services à fixer</p>
+          <p className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+        </button>
+      );
+      case "rdv-sav-a-fixer": return (
+        <button onClick={(e) => openPanel("rdv-sav-a-fixer", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-rose-100/80 dark:bg-rose-900/30 flex items-center justify-center"><Calendar className="w-4 h-4 text-rose-500 dark:text-rose-400" /></span>
+          <p className="text-lg sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{rdvSavAFixerCount}</p>
+          <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">RDV SAV à fixer</p>
+          <p className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
         </button>
       );
       default: return null;
@@ -2621,6 +2680,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           "sav-historique":      "Historique SAV",
           "soucis-historique":   "Historique soucis",
           "mesures-sans-commande": "Mesures non commandées",
+          "rdv-mesures-a-fixer":  "RDV Mesures à fixer",
+          "rdv-montage-a-fixer":  "RDV Montage à fixer",
+          "rdv-services-a-fixer": "RDV Services à fixer",
+          "rdv-sav-a-fixer":      "RDV SAV à fixer",
         };
         const ALL_WIDGET_IDS = DEFAULT_DASH_ORDER.filter(id => id !== "__empty__");
 
@@ -2732,6 +2795,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           "arrivage":             { label: "Arrivage cabines",       color: "text-sky-600 dark:text-sky-400",       bg: "bg-sky-100/80 dark:bg-sky-900/30",       icon: <Truck className="w-4 h-4 text-sky-600 dark:text-sky-400" /> },
           "rdv-a-fixer":          { label: "RDV à fixer",            color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-100/80 dark:bg-orange-900/30", icon: <Calendar className="w-4 h-4 text-orange-500 dark:text-orange-400" /> },
           "rdv-fixe":             { label: "RDV fixé",               color: "text-green-600 dark:text-green-400",   bg: "bg-green-100/80 dark:bg-green-900/30",   icon: <Calendar className="w-4 h-4 text-green-500 dark:text-green-400" /> },
+          "rdv-mesures-a-fixer":  { label: "RDV Mesures à fixer",    color: "text-cyan-600 dark:text-cyan-400",     bg: "bg-cyan-100/80 dark:bg-cyan-900/30",     icon: <Calendar className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /> },
+          "rdv-montage-a-fixer":  { label: "RDV Montage à fixer",    color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-100/80 dark:bg-blue-900/30",     icon: <Calendar className="w-4 h-4 text-blue-500 dark:text-blue-400" /> },
+          "rdv-services-a-fixer": { label: "RDV Services à fixer",   color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-100/80 dark:bg-violet-900/30", icon: <Calendar className="w-4 h-4 text-violet-500 dark:text-violet-400" /> },
+          "rdv-sav-a-fixer":      { label: "RDV SAV à fixer",        color: "text-rose-600 dark:text-rose-400",     bg: "bg-rose-100/80 dark:bg-rose-900/30",     icon: <Calendar className="w-4 h-4 text-rose-500 dark:text-rose-400" /> },
         };
         const meta = panelMeta[showSummaryPanel];
         if (!meta) return null;
@@ -3240,6 +3307,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         } else if (showSummaryPanel === "soucis-en-cours") {
           panelTitle = "Soucis en cours";
           panelProjects = soucisEnCoursProjects;
+        } else if (showSummaryPanel === "rdv-mesures-a-fixer") {
+          panelTitle = "RDV Mesures à fixer";
+          panelProjects = rdvMesuresAFixerProjects;
+        } else if (showSummaryPanel === "rdv-montage-a-fixer") {
+          panelTitle = "RDV Montage à fixer";
+          panelProjects = rdvMontageAFixerProjects;
+        } else if (showSummaryPanel === "rdv-services-a-fixer") {
+          panelTitle = "RDV Services à fixer";
+          panelProjects = rdvServicesAFixerProjects;
+        } else if (showSummaryPanel === "rdv-sav-a-fixer") {
+          panelTitle = "RDV SAV à fixer";
+          panelProjects = rdvSavAFixerProjects;
         } else if (showSummaryPanel === "dossiers-en-cours") {
           /* ── PROJETS EN COURS ─────────────────────────────────── */
           const dossiersYears = Array.from(new Set(
