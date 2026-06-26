@@ -1833,12 +1833,18 @@ function HomePage() {
 
   const COLLABORATEURS = [...COLLABORATEURS_LIST];
 
+  // Le responsable d'un projet de MESURES est dans "Mesures traitée par"
+  // (mesuresTraiteePar), pas dans "collaborateurs". Sans ça, les compteurs et
+  // le filtre par collaborateur affichaient 0 partout en mode mesures.
+  const collabFieldOf = (p: Project) =>
+    (mode.startsWith("mesures") ? p.mesuresTraiteePar : p.collaborateurs) || "";
+
   const collabCounts = COLLABORATEURS.reduce<Record<string, number>>((acc, name) => {
-    acc[name] = projects.filter((p) => p.collaborateurs.toLowerCase().includes(name.toLowerCase())).length;
+    acc[name] = projects.filter((p) => collabFieldOf(p).toLowerCase().includes(name.toLowerCase())).length;
     return acc;
   }, {});
-  // Compteur "Team TM" — projets dont le champ collaborateurs contient "team tm"
-  const teamTMCount = projects.filter((p) => p.collaborateurs.toLowerCase().includes("team tm")).length;
+  // Compteur "Team TM" — projets dont le champ responsable contient "team tm"
+  const teamTMCount = projects.filter((p) => collabFieldOf(p).toLowerCase().includes("team tm")).length;
 
   const rdvFixeCount = mode === "cmd" ? projects.filter((p) => p.etatCMD === "RDV - fixé").length
     : projects.filter((p) => {
@@ -1850,7 +1856,7 @@ function HomePage() {
   const filtered = projects.filter((p) => {
     if (collabFilter === "Binôme") {
       if (!p.collaborateurs.includes(",")) return false;
-    } else if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) {
+    } else if (collabFilter && !collabFieldOf(p).toLowerCase().includes(collabFilter.toLowerCase())) {
       return false;
     }
     const statusVal = getStatusVal(p);
@@ -6352,6 +6358,7 @@ function HomePage() {
                   {/* En-tête colonnes */}
                   <div className="flex items-center gap-2 px-3 py-2 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
                     <span className="w-20 shrink-0">N° OFR TM</span>
+                    <span className="w-20 shrink-0 hidden sm:block">Date demande</span>
                     <span className="w-20 shrink-0 hidden sm:block">Date</span>
                     <span className="flex-1">Projet</span>
                     <span className="w-14 text-right">Cabines</span>
@@ -6371,6 +6378,9 @@ function HomePage() {
                       const dateFmt = p.dateMesures
                         ? new Date(p.dateMesures + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })
                         : "---";
+                      const dateDemandeFmt = p.dateMesuresRecue
+                        ? new Date(p.dateMesuresRecue + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" })
+                        : "---";
                       const rowBg = idx % 2 === 0
                         ? "bg-cyan-50/30 dark:bg-cyan-950/10"
                         : "bg-white/40 dark:bg-white/5";
@@ -6387,12 +6397,16 @@ function HomePage() {
                           <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 text-[11px] leading-tight truncate">
                             {p.ofrTM || "---"}
                           </span>
-                          {/* Date mesures */}
+                          {/* Date de demande (Date Mesures reçue le) */}
+                          <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 hidden sm:block">
+                            {dateDemandeFmt}
+                          </span>
+                          {/* Date mesures (RDV) */}
                           <span className="w-20 shrink-0 font-mono text-cyan-600 dark:text-cyan-400 hidden sm:block">
                             {dateFmt}
                           </span>
                           {/* Nom projet */}
-                          <span className="flex-1 min-w-0 text-gray-900 dark:text-gray-100 line-clamp-2 sm:line-clamp-1 leading-snug">
+                          <span className="flex-1 min-w-0 text-gray-900 dark:text-gray-100 line-clamp-2 leading-snug">
                             {p.projet || "Sans nom"}
                           </span>
                           {/* Badges collaborateurs */}
