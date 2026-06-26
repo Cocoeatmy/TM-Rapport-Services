@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 
 // ── Couleurs Notion → classes Tailwind (clair + sombre) ──────────────────────
 // Les 10 couleurs nommées de Notion. Approche fidèle à la palette Notion.
@@ -41,6 +42,26 @@ let colorMap: ColorMap | null = null;
 let loadPromise: Promise<ColorMap> | null = null;
 const subscribers = new Set<() => void>();
 
+// Mappe les couleurs Notion sur les maps de statut statiques EXISTANTES (mutation
+// en place). Ainsi, tous les badges qui font déjà `STATUS_CMD_COLORS[x]` adoptent
+// la couleur Notion sans qu'on touche à chaque endroit — il suffit que le
+// composant se re-render (cf. useNotionColors() posé en haut des pages).
+const STATIC_MAPS: Array<[Record<string, string>, string]> = [
+  [STATUS_CMD_COLORS, "État - CMD"],
+  [STATUS_MESURES_COLORS, "État - Mesures"],
+];
+function applyToStaticMaps() {
+  if (!colorMap) return;
+  for (const [map, prop] of STATIC_MAPS) {
+    const opts = colorMap[prop];
+    if (!opts) continue;
+    for (const key of Object.keys(map)) {
+      const c = opts[key];
+      if (c && NOTION_COLOR_CLASSES[c]) map[key] = NOTION_COLOR_CLASSES[c];
+    }
+  }
+}
+
 export function loadNotionColors(): Promise<ColorMap> {
   if (colorMap) return Promise.resolve(colorMap);
   if (!loadPromise) {
@@ -48,6 +69,7 @@ export function loadNotionColors(): Promise<ColorMap> {
       .then((r) => (r.ok ? r.json() : {}))
       .then((d: ColorMap) => {
         colorMap = d && typeof d === "object" ? d : {};
+        applyToStaticMaps();
         subscribers.forEach((f) => f());
         return colorMap;
       })

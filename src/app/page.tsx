@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
+import { useNotionColors } from "@/lib/notion-colors";
 import { formatDateFR, formatDateLong, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST, getISOWeek } from "@/lib/constants";
 import { dateInRange, formatLocalDate } from "@/lib/time-utils";
 import { getFavorites } from "@/lib/favorites";
@@ -1206,6 +1207,7 @@ function matchesSearch(
 }
 
 function HomePage() {
+  useNotionColors(); // couleurs Notion : applique aux badges/menus de statut
   const searchParams = useSearchParams();
   const router = useRouter();
   const collaborateurParam = searchParams.get("collaborateur");

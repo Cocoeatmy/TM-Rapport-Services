@@ -6,6 +6,7 @@ import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
+import { useNotionColors } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 import { PersonalStats } from "@/components/personal-stats";
@@ -1204,6 +1205,7 @@ const PANEL_DATE_FIELD: Record<string, (p: Project) => string | null | undefined
 };
 
 function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [], cmmMode = false }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[]; cmmMode?: boolean }) {
+  useNotionColors(); // couleurs Notion sur les badges de statut
   const firstName = userName.split(" ")[0];
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
   const toggleCollab = (name: string) => setExpandedCollabs((prev) => ({ ...prev, [name]: !prev[name] }));
@@ -5567,6 +5569,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
 // ─── Dashboard collaborateur (non-admin) ─────────────────────────────────────
 function CollaborateurDashboard({ userName, projects }: { userName: string; projects: Project[] }) {
+  useNotionColors(); // couleurs Notion sur les badges de statut
   const firstName = userName.split(" ")[0];
   const colors = getCollaboratorColor(firstName);
   const todayStr = getTodayStr();
