@@ -2634,6 +2634,10 @@ function ProjectPageContent({ id }: { id: string }) {
    *  Empêche le 2e appel initProject (données fraîches Notion) d'écraser les
    *  noms personnalisés déjà chargés depuis localStorage ou l'API KV. */
   const cabinesInitializedRef = useRef<string | null>(null);
+  /** Garde-fou : id du projet dont les champs ÉDITABLES (rapport, heures,
+   *  pointages) ont déjà été initialisés. Empêche le 2e appel initProject
+   *  (fetch frais après le cache) d'écraser la saisie en cours. */
+  const editablesInitializedRef = useRef<string | null>(null);
   /** Dernier count envoyé à Notion pour éviter les PATCH redondants. */
   const lastSyncedInstalledRef = useRef<number>(-1);
 
@@ -3012,17 +3016,35 @@ function ProjectPageContent({ id }: { id: string }) {
   const initProject = (data: any) => {
     if (!data?.id) return;
     setProject(data);
-    setHeureArrivee(data.heureArrivee || "");
-    setHeureDepart(data.heureDepart || "");
-    setCommentaires(data.commentairesMontages || "");
-    setRapport(data.rapportMonteur || "");
-    // Initialise la snapshot : le local est synchrone avec le serveur
-    // juste après le mount.
+
+    // Fusion anti-écrasement des champs éditables.
+    // 1er chargement de ce projet → on pose les valeurs serveur.
+    // Rechargements suivants (fetch frais après cache) → on ne réécrit un champ
+    // QUE si l'utilisateur n'y a pas touché depuis la dernière snapshot, sinon
+    // on effacerait sa saisie en cours (bug : le rapport tapé disparaissait).
+    const firstInit = editablesInitializedRef.current !== data.id;
+    editablesInitializedRef.current = data.id;
+    const prevSnap = { ...serverSnapshotRef.current };
+    const sRapport = data.rapportMonteur || "";
+    const sCommentaires = data.commentairesMontages || "";
+    const sHA = data.heureArrivee || "";
+    const sHD = data.heureDepart || "";
+    if (firstInit) {
+      setRapport(sRapport);
+      setCommentaires(sCommentaires);
+      setHeureArrivee(sHA);
+      setHeureDepart(sHD);
+    } else {
+      setRapport((cur) => (cur === prevSnap.rapport ? sRapport : cur));
+      setCommentaires((cur) => (cur === prevSnap.commentaires ? sCommentaires : cur));
+      setHeureArrivee((cur) => (cur === prevSnap.heureArrivee ? sHA : cur));
+      setHeureDepart((cur) => (cur === prevSnap.heureDepart ? sHD : cur));
+    }
     serverSnapshotRef.current = {
-      rapport: data.rapportMonteur || "",
-      commentaires: data.commentairesMontages || "",
-      heureArrivee: data.heureArrivee || "",
-      heureDepart: data.heureDepart || "",
+      rapport: sRapport,
+      commentaires: sCommentaires,
+      heureArrivee: sHA,
+      heureDepart: sHD,
     };
     const nb = data.nbCabines || 1;
     if (nb > 1) {
@@ -3183,14 +3205,16 @@ function ProjectPageContent({ id }: { id: string }) {
       }
       // Si les heures Notion ne sont PAS au format multi-cabine (projet
       // saisi avant cette feature), on les charge dans la ligne pointages
-      // par défaut — retrocompat.
-      if ((data.heureArrivee || data.heureDepart) && Object.keys(arriveeMap).length === 0) {
+      // par défaut — retrocompat. Uniquement au 1er chargement (sinon un
+      // refresh écraserait les pointages en cours d'édition).
+      if (firstInit && (data.heureArrivee || data.heureDepart) && Object.keys(arriveeMap).length === 0) {
         setPointages([{ date: today, collaborateur: "", arrivee: data.heureArrivee || "", depart: data.heureDepart || "" }]);
       }
-    } else {
+    } else if (firstInit) {
       // Mono-cabine : si les heures sont au format multi-interventions daté
       // ("2026-06-09 Micael 08:30 | …"), on réactive le mode pointages et on
       // recharge la liste. Sinon on reste en mode simple (heures HH:MM).
+      // Uniquement au 1er chargement, pour ne pas écraser une saisie en cours.
       if (isMultiDayHours(data.heureArrivee, data.heureDepart)) {
         const pts = parsePointages(data.heureArrivee, data.heureDepart);
         if (pts.length) {
