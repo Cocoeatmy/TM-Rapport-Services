@@ -862,6 +862,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
       {/* Photos pages — une Page par cabine pour éviter les pages vides
           et permettre un header fixe par cabine */}
       {(project.photosAvant?.length > 0 ||
+        project.photosDemontage?.length > 0 ||
         project.photosMontage?.length > 0 ||
         project.photosQRCode?.length > 0 ||
         project.photosGaranties?.length > 0) && (() => {
@@ -872,7 +873,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
 
         const groups: Record<number, Partial<Record<PhotoBucketKey, Photo[]>>> = {};
         const seenPdfUrls = new Set<string>();
-        const dispatchList = (list: Photo[], notionFieldKey: "photosAvant" | "photosMontage" | "photosQRCode" | "photosGaranties") => {
+        const dispatchList = (list: Photo[], notionFieldKey: "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties") => {
           const fallback = defaultBucketForField(notionFieldKey);
           for (const p of list) {
             if (!p.url || seenPdfUrls.has(p.url)) continue;
@@ -885,6 +886,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
           }
         };
         dispatchList(project.photosAvant || [], "photosAvant");
+        dispatchList(project.photosDemontage || [], "photosDemontage");
         dispatchList(project.photosMontage || [], "photosMontage");
         dispatchList(project.photosQRCode || [], "photosQRCode");
         dispatchList(project.photosGaranties || [], "photosGaranties");
@@ -1000,6 +1002,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               const headerText = isMultiCabine ? cabineLabel : "Photos du chantier";
 
               const avantPhotos = [...(buckets.AVANT_INTERVENTION || []), ...(buckets.AVANT_MONTAGE || [])];
+              const demontagePhotos = buckets.DEMONTAGE || [];
               // APRES_INTERVENTION est stocké dans le même champ Notion "Photos montage terminé"
               // que MONTAGE_GAUCHE/CENTRE/DROITE → on les regroupe tous sous "Photos montage"
               // pour éviter toute confusion (upload manuel, etc.)
@@ -1012,7 +1015,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               const qrPhotos = buckets.QR_CODE || [];
               const garPhotos = buckets.GARANTIE || [];
 
-              const hasAny = avantPhotos.length > 0 || montagePhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0;
+              const hasAny = avantPhotos.length > 0 || demontagePhotos.length > 0 || montagePhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0;
               if (!hasAny) return null;
 
               return (
@@ -1050,6 +1053,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                     );
                   })()}
                   {avantPhotos.length > 0 && renderBucketGrid("Photos avant intervention", avantPhotos, `cab-${cabKey}-avant`)}
+                  {demontagePhotos.length > 0 && renderBucketGrid("Photos démontage", demontagePhotos, `cab-${cabKey}-demontage`)}
                   {montagePhotos.length > 0 && renderBucketGrid("Photos montage", montagePhotos, `cab-${cabKey}-montage`)}
                   {renderQrGarantieRow(qrPhotos, garPhotos, `cab-${cabKey}-qrgar`)}
                   <View style={styles.footer} fixed>
@@ -1274,7 +1278,7 @@ export async function GET(
 
     // Collect all photo URLs for Telegram
     const allPhotoUrls: string[] = [];
-    for (const list of [project.photosAvant, project.photosMontage, project.photosQRCode, project.photosGaranties]) {
+    for (const list of [project.photosAvant, project.photosDemontage, project.photosMontage, project.photosQRCode, project.photosGaranties]) {
       if (list) allPhotoUrls.push(...list.map((p: { url: string }) => p.url));
     }
 
