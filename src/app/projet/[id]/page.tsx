@@ -4143,13 +4143,24 @@ function ProjectPageContent({ id }: { id: string }) {
                   </>
                 )}
 
-                {/* Mode rapport : OFR + icônes sur une ligne, pleine largeur.
-                    Les états Mesures / CMD sont volontairement masqués (inutiles ici). */}
+                {/* Mode rapport : OFR + État – CMD + icônes sur une ligne. */}
                 {showRapport && (
                   <div className="flex items-center justify-between gap-2 mt-1">
-                    {project.ofrTM ? (
-                      <p className="text-xs text-gray-500 truncate">OFR {project.ofrTM}</p>
-                    ) : <span />}
+                    <div className="flex items-center gap-2 min-w-0">
+                      {project.ofrTM && (
+                        <p className="text-xs text-gray-500 truncate">OFR {project.ofrTM}</p>
+                      )}
+                      {isAdmin && (
+                        <StatusDropdown
+                          project={project}
+                          mode="cmd"
+                          label="État – CMD"
+                          onUpdate={(field, value) => {
+                            setProject((prev) => prev ? { ...prev, [field]: value } : prev);
+                          }}
+                        />
+                      )}
+                    </div>
                     <div className="flex items-center shrink-0">
                       {actionButtons}
                     </div>
