@@ -1658,6 +1658,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // Sous-vue du panel Mesures : "commande" | "annulees"
   const [mesuresSubView, setMesuresSubView] = useState<"commande" | "annulees">("commande");
   const [mesuresShowStats, setMesuresShowStats] = useState(false);
+  const [mesuresStatsClient, setMesuresStatsClient] = useState<string | null>(null);
 
   // Sync terminatedProjects depuis la prop quand page.tsx finit de fetch
   // (utile si le cache localStorage était vide au premier rendu)
@@ -4420,16 +4421,34 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   </p>
                   {clientStats.length === 0 ? (
                     <p className="text-sm text-gray-400 py-4 text-center">Aucune donnée</p>
-                  ) : clientStats.map(({ name, count, pct }) => (
-                    <div key={name} className="flex items-center gap-2">
-                      <span className="w-28 sm:w-44 shrink-0 truncate text-xs text-gray-700 dark:text-gray-200" title={name}>{name}</span>
-                      <div className="flex-1 h-3.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                        <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${Math.max((count / maxClientCount) * 100, 4)}%` }} />
+                  ) : clientStats.map(({ name, count, pct }) => {
+                    const expanded = mesuresStatsClient === name;
+                    const clientProjects = expanded ? displayList.filter((p) => clientNameOf(p.projet) === name) : [];
+                    return (
+                    <div key={name}>
+                      <div className="flex items-center gap-2">
+                        <span className="w-28 sm:w-44 shrink-0 truncate text-xs text-gray-700 dark:text-gray-200" title={name}>{name}</span>
+                        <div className="flex-1 h-3.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                          <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${Math.max((count / maxClientCount) * 100, 4)}%` }} />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setMesuresStatsClient(expanded ? null : name)}
+                          title="Voir les projets concernés"
+                          className={`w-8 text-right text-xs font-bold tabular-nums hover:underline cursor-pointer ${expanded ? "text-cyan-600 dark:text-cyan-400" : "text-gray-800 dark:text-gray-100"}`}
+                        >
+                          {count}
+                        </button>
+                        <span className="w-12 text-right text-[10px] text-gray-400 tabular-nums">{pct}%</span>
                       </div>
-                      <span className="w-8 text-right text-xs font-bold text-gray-800 dark:text-gray-100 tabular-nums">{count}</span>
-                      <span className="w-12 text-right text-[10px] text-gray-400 tabular-nums">{pct}%</span>
+                      {expanded && (
+                        <div className="mt-1 mb-2 ml-1 pl-2 border-l-2 border-cyan-200 dark:border-cyan-800 space-y-0.5">
+                          {clientProjects.map((p, i) => renderMesureRow(p, i))}
+                        </div>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
               <>
