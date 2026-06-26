@@ -466,12 +466,14 @@ function getBestLogo(projectName: string, _fournisseurs?: string[]): string | nu
 function LogoImg({ src }: { src: string }) {
   const scale = LOGO_SCALE_MAP[src] ?? 1;
   const isWhite = LOGO_WHITE_SET.has(src);
-  // Décalage droit pour compenser le débordement visuel du zoom sans clipper.
-  const extraRight = scale > 1 ? Math.round((scale - 1) * 8) : 0;
+  // Le zoom (transform scale) déborde de la boîte 56px SANS la clipper, donc
+  // de ~(scale-1)*28px de chaque côté. On réserve cette marge des DEUX côtés
+  // pour que le logo ne recouvre pas ses voisins (ex. le badge d'emplacement).
+  const bleed = scale > 1 ? Math.ceil((scale - 1) * 28) : 0;
   return (
     <span
       className="w-14 h-6 shrink-0 flex items-center justify-center overflow-visible"
-      style={extraRight ? { marginRight: extraRight } : undefined}
+      style={bleed ? { marginLeft: bleed, marginRight: bleed } : undefined}
     >
       <img
         src={src}
