@@ -2772,6 +2772,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [showHistory, setShowHistory] = useState(false);
   const [showHeuresCard, setShowHeuresCard] = useState(false);
   const [downloadingPhotos, setDownloadingPhotos] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [historyCount, setHistoryCount] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(60);
   const [headerScrollOpacity, setHeaderScrollOpacity] = useState(1);
@@ -6177,15 +6178,40 @@ function ProjectPageContent({ id }: { id: string }) {
                 Envoyer le rapport
               </Button>
 
-              <a
-                href={`/api/pdf/${id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full h-12 rounded-xl text-base font-medium flex items-center justify-center gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800"
+              <button
+                type="button"
+                disabled={downloadingPdf}
+                onClick={async () => {
+                  setDownloadingPdf(true);
+                  try {
+                    const res = await fetch(`/api/pdf/${id}`);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const blob = await res.blob();
+                    // Récupère le nom de fichier depuis l'en-tête, sinon fallback.
+                    let filename = "Rapport de montage.pdf";
+                    const cd = res.headers.get("Content-Disposition");
+                    const m = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+                    if (m?.[1]) filename = decodeURIComponent(m[1]);
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                  } catch (e) {
+                    console.error("Téléchargement PDF échoué:", e);
+                    alert("Impossible de générer le PDF. Veuillez réessayer.");
+                  } finally {
+                    setDownloadingPdf(false);
+                  }
+                }}
+                className="w-full h-12 rounded-xl text-base font-medium flex items-center justify-center gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800 disabled:opacity-60"
               >
-                <RefreshCw className="w-5 h-5" />
-                Actualiser et télécharger le PDF
-              </a>
+                <RefreshCw className={`w-5 h-5 ${downloadingPdf ? "animate-spin" : ""}`} />
+                {downloadingPdf ? "Génération du PDF…" : "Actualiser et télécharger le PDF"}
+              </button>
               <p className="text-[10px] text-gray-400 text-center -mt-2">
                 Régénère le rapport avec toutes les dernières photos et données
               </p>
