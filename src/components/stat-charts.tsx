@@ -185,14 +185,14 @@ export function TimeSeriesChart({ data, series, chartType, height = 140 }: TimeC
           return (
             <g key={s.key}>
               <path d={area} fill={`url(#tsc-grad-${s.key})`} stroke="none" />
-              <path d={line} fill="none" stroke={color} strokeWidth="2"
+              <path d={line} fill="none" stroke={color} strokeWidth="1.1"
                 strokeLinejoin="round" strokeLinecap="round" />
             </g>
           );
         }
         return (
           <path key={s.key} d={line} fill="none" stroke={color}
-            strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            strokeWidth="1.1" strokeLinejoin="round" strokeLinecap="round" />
         );
       })}
 
@@ -201,8 +201,8 @@ export function TimeSeriesChart({ data, series, chartType, height = 140 }: TimeC
           const v = d.values[s.key] || 0;
           if (v === 0) return null;
           return (
-            <circle key={`${s.key}-${i}`} cx={px(i)} cy={py(v)} r="2"
-              fill={svgColor(s.color)} stroke="white" strokeWidth="0.8" />
+            <circle key={`${s.key}-${i}`} cx={px(i)} cy={py(v)} r="1.5"
+              fill={svgColor(s.color)} stroke="white" strokeWidth="0.6" />
           );
         }),
       )}
