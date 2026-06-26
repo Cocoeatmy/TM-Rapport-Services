@@ -135,9 +135,9 @@ export function WeekPlanning({ projects, mode, onDrop }: WeekPlanningProps) {
                         data-project-id={p.id}
                         onDragStart={(e) => { e.dataTransfer.setData("text/plain", p.id); e.currentTarget.style.opacity = "0.5"; }}
                         onDragEnd={(e) => { e.currentTarget.style.opacity = "1"; }}
-                        className="flex items-center gap-2 text-xs hover:bg-white/60 dark:hover:bg-gray-700/40 rounded-lg px-2 py-1 transition-colors cursor-grab active:cursor-grabbing"
+                        className="flex items-start gap-2 text-xs hover:bg-white/60 dark:hover:bg-gray-700/40 rounded-lg px-2 py-1 transition-colors cursor-grab active:cursor-grabbing"
                       >
-                        <div className="flex -space-x-1">
+                        <div className="flex -space-x-1 mt-0.5">
                           {names.slice(0, 2).map((n) => (
                             <span
                               key={n}
@@ -148,8 +148,13 @@ export function WeekPlanning({ projects, mode, onDrop }: WeekPlanningProps) {
                             </span>
                           ))}
                         </div>
-                        <span className="flex-1 truncate">{p.nomChantier || p.projet}</span>
-                        <span className="text-gray-400 shrink-0">{p.nbCabines} cab.</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="truncate">{p.nomChantier || p.projet}</div>
+                          {p.adresseChantier && (
+                            <div className="truncate text-[10px] text-gray-400">{p.adresseChantier}</div>
+                          )}
+                        </div>
+                        <span className="text-gray-400 shrink-0 mt-0.5">{p.nbCabines} cab.</span>
                       </Link>
                     );
                   })}
