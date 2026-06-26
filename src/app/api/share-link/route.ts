@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     // ── Recherche Notion par OFR TM ──────────────────────────────────────────
     const resp: any = await notion.databases.query({
       database_id: databaseId,
-      filter: { property: "OFR TM", rich_text: { contains: tm } },
+      filter: { property: "N° OFR TM", rich_text: { contains: tm } },
       page_size: 10,
     });
 
