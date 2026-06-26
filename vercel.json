@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/warm-all",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/stats-precalc",
+      "schedule": "0 4 * * *"
     }
   ]
 }
