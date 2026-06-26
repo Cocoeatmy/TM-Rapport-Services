@@ -5571,19 +5571,9 @@ function CollaborateurDashboard({ userName, projects }: { userName: string; proj
 
   // ── État ──────────────────────────────────────────────────────────────────
   type CollabPanel = "mesures-today" | "montages-today" | "sav-today" | "services-today" |
-    "rapports-attente" | "projets-en-cours" | "emplacement-cabines";
+    "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" |
+    "arrivage" | "emplacement-cabines";
   const [showPanel, setShowPanel] = useState<CollabPanel | null>(null);
-  const [allActiveProjects, setAllActiveProjects] = useState<Project[]>([]);
-  const [loadingActive, setLoadingActive] = useState(false);
-
-  useEffect(() => {
-    setLoadingActive(true);
-    fetch("/api/projects/all-active")
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setAllActiveProjects(data); })
-      .catch(() => {})
-      .finally(() => setLoadingActive(false));
-  }, []);
 
   // ── Mes projets ───────────────────────────────────────────────────────────
   const myProjects = projects.filter((p) => {
@@ -5619,27 +5609,6 @@ function CollaborateurDashboard({ userName, projects }: { userName: string; proj
   const savTodayMine = myProjects.filter((p) =>
     p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === todayStr
   );
-  const rapportsAttenteMine = myProjects.filter((p) => {
-    const src = (p as any)._source;
-    if (src === "mesures" || src === "sav") return false;
-    const dateStr = (p.dateMontage || "").split("T")[0];
-    if (!dateStr || dateStr > todayStr) return false;
-    const cloture = (p.rapportDeMontage || "").toLowerCase().includes("clôt") ||
-                    (p.rapportDeMontage || "").toLowerCase().includes("clot");
-    return !cloture;
-  }).sort((a, b) => ((b.dateMontage || "").split("T")[0]).localeCompare((a.dateMontage || "").split("T")[0]));
-
-  // ── Projets en cours — TOUS (exception) ───────────────────────────────────
-  const dossiersEnCoursTous = allActiveProjects
-    .filter((p) => p.etatCMD !== "Annulé" && p.etatCMD !== "Terminé")
-    .sort((a, b) => {
-      const da = a.dateOffre || ""; const db = b.dateOffre || "";
-      if (!da && !db) return 0; if (!da) return 1; if (!db) return -1;
-      return db.localeCompare(da);
-    });
-  const dossiersEnCoursCount = dossiersEnCoursTous.length;
-  const dossiersEnCoursCabines = dossiersEnCoursTous.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
-
   // ── Emplacement cabines — TOUS (exception) ────────────────────────────────
   const emplacementAll = projects.filter((p) =>
     p.etatCMD === "Cabine à aller chercher" || p.etatCMD === "Récéptionné - RDV à fixer"
@@ -5647,6 +5616,19 @@ function CollaborateurDashboard({ userName, projects }: { userName: string; proj
   const emplacementCount = emplacementAll.length;
   const emplacementDepotTM = emplacementAll.filter((p) => p.emplacementCabine === "Dépôt TM").reduce((s, p) => s + (p.nbCabines || 0), 0);
   const emplacementAutres = emplacementAll.filter((p) => p.emplacementCabine !== "Dépôt TM").reduce((s, p) => s + (p.nbCabines || 0), 0);
+
+  // ── RDV à fixer (GLOBAUX, comme l'admin — pas filtrés par monteur) ─────────
+  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel"];
+  const isServiceProject = (p: Project) => (p.typeServices || []).some((t) => t === "Services" || t.includes("Services"));
+  const byProjet = (a: Project, b: Project) => (a.projet || "").localeCompare(b.projet || "");
+  const rdvMesuresAFixer = projects.filter((p) => ["Pas contacté", "Contact sans réponse"].includes(p.etatMesures || "")).sort(byProjet);
+  const rdvMontageAFixer = projects.filter((p) => RDV_MONTAGE_CMD.includes(p.etatCMD || "") && !isServiceProject(p)).sort(byProjet);
+  const rdvServicesAFixer = projects.filter((p) => isServiceProject(p) && RDV_MONTAGE_CMD.includes(p.etatCMD || "")).sort(byProjet);
+  const rdvSavAFixer = projects.filter((p) => ["A contacter", "Contact sans réponse", "Attente news"].includes(p.etatSAV || "")).sort(byProjet);
+
+  // ── Arrivage (GLOBAL) ──────────────────────────────────────────────────────
+  const arrivageAll = projects.filter((p) => ["Cabines à recevoir", "Livraison partielle", "Cabine à aller chercher"].includes(p.etatCMD || ""));
+  const arrivageCab = arrivageAll.reduce((s, p) => s + (p.nbCabines || 0), 0);
 
   if (myProjects.length === 0) return null;
 
@@ -5733,7 +5715,43 @@ function CollaborateurDashboard({ userName, projects }: { userName: string; proj
       </div>
 
       {/* ── Boutons stats ── */}
-      <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+        {/* RDV Mesures à fixer (global) */}
+        <button onClick={() => togglePanel("rdv-mesures-a-fixer")} className={btnCls("rdv-mesures-a-fixer", "ring-cyan-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center">
+            <Calendar className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400" />
+          </span>
+          <p className="text-lg sm:text-2xl font-bold text-cyan-600 dark:text-cyan-400 mt-1">{rdvMesuresAFixer.length}</p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">RDV Mesures<br/>à fixer</p>
+        </button>
+
+        {/* RDV Montage à fixer (global) */}
+        <button onClick={() => togglePanel("rdv-montage-a-fixer")} className={btnCls("rdv-montage-a-fixer", "ring-orange-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center">
+            <Calendar className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400" />
+          </span>
+          <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">{rdvMontageAFixer.length}</p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">RDV Montage<br/>à fixer</p>
+        </button>
+
+        {/* RDV Services à fixer (global) */}
+        <button onClick={() => togglePanel("rdv-services-a-fixer")} className={btnCls("rdv-services-a-fixer", "ring-violet-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-violet-100/80 dark:bg-violet-900/30 flex items-center justify-center">
+            <Calendar className="w-3.5 h-3.5 text-violet-500 dark:text-violet-400" />
+          </span>
+          <p className="text-lg sm:text-2xl font-bold text-violet-600 dark:text-violet-400 mt-1">{rdvServicesAFixer.length}</p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">RDV Services<br/>à fixer</p>
+        </button>
+
+        {/* RDV SAV à fixer (global) */}
+        <button onClick={() => togglePanel("rdv-sav-a-fixer")} className={btnCls("rdv-sav-a-fixer", "ring-red-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-red-100/80 dark:bg-red-900/30 flex items-center justify-center">
+            <Calendar className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />
+          </span>
+          <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{rdvSavAFixer.length}</p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">RDV SAV<br/>à fixer</p>
+        </button>
+
         {/* Mesures aujourd'hui */}
         <button onClick={() => togglePanel("mesures-today")} className={btnCls("mesures-today", "ring-cyan-400")}>
           <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-cyan-100/80 dark:bg-cyan-900/30 flex items-center justify-center">
@@ -5774,26 +5792,14 @@ function CollaborateurDashboard({ userName, projects }: { userName: string; proj
           <p className="text-[7px] sm:text-[9px] text-gray-400 dark:text-gray-500 mt-0.5">{servicesTodayMine.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.</p>
         </button>
 
-        {/* Rapports en attente */}
-        <button onClick={() => togglePanel("rapports-attente")} className={btnCls("rapports-attente", "ring-orange-400")}>
-          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-orange-100/80 dark:bg-orange-900/30 flex items-center justify-center">
-            <Clock className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400" />
+        {/* Arrivage — TOUS */}
+        <button onClick={() => togglePanel("arrivage")} className={btnCls("arrivage", "ring-sky-400")}>
+          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-sky-100/80 dark:bg-sky-900/30 flex items-center justify-center">
+            <Truck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
           </span>
-          <p className="text-lg sm:text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">{rapportsAttenteMine.length}</p>
-          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">Rapports<br/>en attente</p>
-          <p className="text-[7px] sm:text-[9px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0</p>
-        </button>
-
-        {/* Projets en cours — TOUS */}
-        <button onClick={() => togglePanel("projets-en-cours")} className={btnCls("projets-en-cours", "ring-indigo-400")}>
-          <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-indigo-100/80 dark:bg-indigo-900/30 flex items-center justify-center">
-            <FolderOpen className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-          </span>
-          <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">
-            {loadingActive ? <span className="animate-pulse text-base">…</span> : dossiersEnCoursCount}
-          </p>
-          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">Projets<br/>en cours</p>
-          <p className="text-[7px] sm:text-[9px] text-indigo-400 dark:text-indigo-500 mt-0.5">{dossiersEnCoursCabines ? `${dossiersEnCoursCabines} cab.` : <span className="invisible">0</span>}</p>
+          <p className="text-lg sm:text-2xl font-bold text-sky-600 dark:text-sky-400 mt-1">{arrivageAll.length}</p>
+          <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight text-center">Arrivage</p>
+          <p className="text-[7px] sm:text-[9px] text-sky-400 dark:text-sky-500 mt-0.5">{arrivageCab} cab.</p>
         </button>
 
         {/* Emplacement cabines — TOUS */}
@@ -5837,21 +5843,34 @@ function CollaborateurDashboard({ userName, projects }: { userName: string; proj
               {servicesTodayMine.length === 0 ? emptyMsg("Aucun service aujourd'hui") : projectList(servicesTodayMine)}
             </>
           )}
-          {showPanel === "rapports-attente" && (
+          {showPanel === "rdv-mesures-a-fixer" && (
             <>
-              {panelHeader(<Clock className="w-4 h-4" />, "Rapports en attente", "text-orange-700 dark:text-orange-300", rapportsAttenteMine.length)}
-              {rapportsAttenteMine.length === 0 ? emptyMsg("Aucun rapport en attente 🎉") : projectList(rapportsAttenteMine)}
+              {panelHeader(<Calendar className="w-4 h-4" />, "RDV Mesures à fixer", "text-cyan-700 dark:text-cyan-300", rdvMesuresAFixer.length)}
+              {rdvMesuresAFixer.length === 0 ? emptyMsg("Aucun RDV mesures à fixer 🎉") : <div className="space-y-1.5 max-h-96 overflow-y-auto">{projectList(rdvMesuresAFixer)}</div>}
             </>
           )}
-          {showPanel === "projets-en-cours" && (
+          {showPanel === "rdv-montage-a-fixer" && (
             <>
-              {panelHeader(<FolderOpen className="w-4 h-4" />, "Projets en cours", "text-indigo-700 dark:text-indigo-300", dossiersEnCoursCount)}
-              {loadingActive
-                ? <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
-                : dossiersEnCoursTous.length === 0
-                  ? emptyMsg("Aucun projet en cours")
-                  : <div className="space-y-1.5 max-h-96 overflow-y-auto">{dossiersEnCoursTous.map((p) => <ProjectRow key={p.id} project={p} colors={colors} />)}</div>
-              }
+              {panelHeader(<Calendar className="w-4 h-4" />, "RDV Montage à fixer", "text-orange-700 dark:text-orange-300", rdvMontageAFixer.length)}
+              {rdvMontageAFixer.length === 0 ? emptyMsg("Aucun RDV montage à fixer 🎉") : <div className="space-y-1.5 max-h-96 overflow-y-auto">{projectList(rdvMontageAFixer)}</div>}
+            </>
+          )}
+          {showPanel === "rdv-services-a-fixer" && (
+            <>
+              {panelHeader(<Calendar className="w-4 h-4" />, "RDV Services à fixer", "text-violet-700 dark:text-violet-300", rdvServicesAFixer.length)}
+              {rdvServicesAFixer.length === 0 ? emptyMsg("Aucun RDV services à fixer 🎉") : <div className="space-y-1.5 max-h-96 overflow-y-auto">{projectList(rdvServicesAFixer)}</div>}
+            </>
+          )}
+          {showPanel === "rdv-sav-a-fixer" && (
+            <>
+              {panelHeader(<Calendar className="w-4 h-4" />, "RDV SAV à fixer", "text-red-700 dark:text-red-300", rdvSavAFixer.length)}
+              {rdvSavAFixer.length === 0 ? emptyMsg("Aucun RDV SAV à fixer 🎉") : <div className="space-y-1.5 max-h-96 overflow-y-auto">{projectList(rdvSavAFixer)}</div>}
+            </>
+          )}
+          {showPanel === "arrivage" && (
+            <>
+              {panelHeader(<Truck className="w-4 h-4" />, "Arrivage", "text-sky-700 dark:text-sky-300", arrivageAll.length)}
+              {arrivageAll.length === 0 ? emptyMsg("Aucune cabine en arrivage") : <div className="space-y-1.5 max-h-96 overflow-y-auto">{projectList(arrivageAll)}</div>}
             </>
           )}
           {showPanel === "emplacement-cabines" && (
