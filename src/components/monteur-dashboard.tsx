@@ -1932,6 +1932,21 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     };
   }, []);
 
+  const nextWeekBounds = useMemo(() => {
+    const today = new Date();
+    const dow = today.getDay();
+    const thisMon = new Date(today);
+    thisMon.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+    const nextMon = new Date(thisMon);
+    nextMon.setDate(thisMon.getDate() + 7);
+    const nextSun = new Date(nextMon);
+    nextSun.setDate(nextMon.getDate() + 6);
+    return {
+      start: nextMon.toISOString().split("T")[0],
+      end:   nextSun.toISOString().split("T")[0],
+    };
+  }, []);
+
   const inRange = (dateStr: string | null | undefined, start: string, end: string) => {
     if (!dateStr) return false;
     const d = dateStr.split("T")[0];
@@ -1997,8 +2012,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     return {
       cur:  calc(thisWeekBounds.start, thisWeekBounds.end),
       prev: calc(prevWeekBounds.start, prevWeekBounds.end),
+      next: calc(nextWeekBounds.start, nextWeekBounds.end),
     };
-  }, [allProjectsForStats, thisWeekBounds, prevWeekBounds]);
+  }, [allProjectsForStats, thisWeekBounds, prevWeekBounds, nextWeekBounds]);
 
   // Mesures aujourd'hui
   const mesuresTodayProjects = projects.filter((p) => (p as any)._source === "mesures" && (p.dateMesures || "").split("T")[0] === todayStr);
@@ -2354,8 +2370,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </p>
             <p className="text-[10px] text-gray-400 dark:text-gray-500 italic mt-0.5 leading-snug">&quot;{getDailyQuote(firstName)}&quot;</p>
           </div>
-          {/* Météo + cabines — colonne droite */}
-          <div className="flex flex-col items-end gap-1.5 shrink-0">
+          {/* Cabines (résumé semaine) à GAUCHE + météo à DROITE.
+              flex-row-reverse : la météo (1er enfant) passe à droite, le résumé à gauche. */}
+          <div className="flex flex-row-reverse items-start gap-3 shrink-0">
             {/* Widget météo */}
             {weather ? (
               <div className="text-right">
@@ -2484,20 +2501,33 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         {(() => {
           const cur = weekStats.cur;
           const prev = weekStats.prev;
-          const StatCell = ({ label, curVal, curCab, prevVal, color }: {
-            label: string; curVal: number; curCab: number; prevVal: number; color: string;
+          const next = weekStats.next;
+          // Colonne latérale (Semaine -1 / Semaine +1) : valeur atténuée + cab.
+          const SideCol = ({ title, val, cab }: { title: string; val: number; cab: number }) => (
+            <div className="text-center shrink-0">
+              <p className="text-[8px] text-gray-400 dark:text-gray-500 leading-tight">{title}</p>
+              <p className="text-sm font-semibold text-gray-400 dark:text-gray-500 leading-none mt-0.5">{val}</p>
+              {cab > 0 && <p className="text-[8px] text-gray-300 dark:text-gray-600 leading-none mt-0.5">{cab} cab.</p>}
+            </div>
+          );
+          const StatCell = ({ label, color, prevVal, prevCab, curVal, curCab, nextVal, nextCab }: {
+            label: string; color: string;
+            prevVal: number; prevCab: number; curVal: number; curCab: number; nextVal: number; nextCab: number;
           }) => {
             const diff = curVal - prevVal;
             const trend = diff > 0 ? "↑" : diff < 0 ? "↓" : "=";
             const trendColor = diff > 0 ? "text-emerald-500" : diff < 0 ? "text-red-400" : "text-gray-400";
             return (
-              <div className="flex-1 min-w-0 text-center">
-                <p className={`text-[10px] font-semibold uppercase tracking-wider mb-1 ${color}`}>{label}</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-gray-100 leading-none">{curVal}</p>
-                {curCab > 0 && <p className="text-[10px] text-gray-400">{curCab} cab.</p>}
-                <div className="flex items-center justify-center gap-0.5 mt-1">
-                  <span className={`text-[10px] font-semibold ${trendColor}`}>{trend}{Math.abs(diff) > 0 ? Math.abs(diff) : ""}</span>
-                  <span className="text-[9px] text-gray-400">vs sem. préc. ({prevVal})</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-[10px] font-semibold uppercase tracking-wider mb-1 text-center ${color}`}>{label}</p>
+                <div className="flex items-start justify-center gap-1.5">
+                  <SideCol title="Semaine -1" val={prevVal} cab={prevCab} />
+                  <div className="text-center px-0.5">
+                    <p className="text-xl font-bold text-gray-900 dark:text-gray-100 leading-none">{curVal}</p>
+                    {curCab > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{curCab} cab.</p>}
+                    <span className={`text-[10px] font-semibold ${trendColor} block mt-0.5`}>{trend}{Math.abs(diff) > 0 ? Math.abs(diff) : ""}</span>
+                  </div>
+                  <SideCol title="Semaine +1" val={nextVal} cab={nextCab} />
                 </div>
               </div>
             );
@@ -2505,13 +2535,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           return (
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
               <div className="flex items-stretch gap-2">
-                <StatCell label="Mesures" curVal={cur.mesures} curCab={cur.mesuresCabines} prevVal={prev.mesures} color="text-cyan-600 dark:text-cyan-400" />
+                <StatCell label="Projets" color="text-orange-500 dark:text-orange-400"
+                  prevVal={prev.montages} prevCab={0} curVal={cur.montages} curCab={0} nextVal={next.montages} nextCab={0} />
                 <div className="w-px bg-gray-100 dark:bg-gray-700 self-stretch" />
-                <StatCell label="Projets" curVal={cur.montages} curCab={0} prevVal={prev.montages} color="text-orange-500 dark:text-orange-400" />
+                <StatCell label="Mesures" color="text-cyan-600 dark:text-cyan-400"
+                  prevVal={prev.mesures} prevCab={prev.mesuresCabines} curVal={cur.mesures} curCab={cur.mesuresCabines} nextVal={next.mesures} nextCab={next.mesuresCabines} />
                 <div className="w-px bg-gray-100 dark:bg-gray-700 self-stretch" />
-                <StatCell label="Cabines" curVal={cur.montagesCabines} curCab={0} prevVal={prev.montagesCabines} color="text-orange-400 dark:text-orange-300" />
+                <StatCell label="Montage" color="text-orange-400 dark:text-orange-300"
+                  prevVal={prev.montagesCabines} prevCab={0} curVal={cur.montagesCabines} curCab={0} nextVal={next.montagesCabines} nextCab={0} />
                 <div className="w-px bg-gray-100 dark:bg-gray-700 self-stretch" />
-                <StatCell label="Services" curVal={cur.services} curCab={cur.servicesCabines} prevVal={prev.services} color="text-violet-500 dark:text-violet-400" />
+                <StatCell label="Services" color="text-violet-500 dark:text-violet-400"
+                  prevVal={prev.services} prevCab={prev.servicesCabines} curVal={cur.services} curCab={cur.servicesCabines} nextVal={next.services} nextCab={next.servicesCabines} />
               </div>
             </div>
           );
