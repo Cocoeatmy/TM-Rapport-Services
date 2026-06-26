@@ -194,6 +194,7 @@ export default function ArrivagePage() {
         emplacementCabine: p.emplacementCabine,
         arrivageTM: toInputDate(p.arrivageTM),
         arrivageGrossiste: toInputDate(p.arrivageGrossiste),
+        cmdFournisseurs: p.cmdFournisseurs,
         servCmdFournisseurs: p.servCmdFournisseurs,
         cmdGrossiste: p.cmdGrossiste,
         cmdTMUsine: p.cmdTMUsine,
@@ -232,6 +233,7 @@ export default function ArrivagePage() {
           emplacementCabine: p.emplacementCabine,
           arrivageTM: toInputDate(p.arrivageTM),
           arrivageGrossiste: toInputDate(p.arrivageGrossiste),
+          cmdFournisseurs: p.cmdFournisseurs,
           servCmdFournisseurs: p.servCmdFournisseurs,
           cmdGrossiste: p.cmdGrossiste,
           cmdTMUsine: p.cmdTMUsine,
@@ -254,6 +256,7 @@ export default function ArrivagePage() {
       if (f.emplacementCabine !== undefined) body.emplacementCabine = f.emplacementCabine;
       if (f.arrivageTM !== undefined) body.arrivageTM = (f.arrivageTM as string) || null;
       if (f.arrivageGrossiste !== undefined) body.arrivageGrossiste = (f.arrivageGrossiste as string) || null;
+      if ((f as any).cmdFournisseurs !== undefined) body.cmdFournisseurs = (f as any).cmdFournisseurs;
       if (f.servCmdFournisseurs !== undefined) body.servCmdFournisseurs = f.servCmdFournisseurs;
       if (f.cmdGrossiste !== undefined) body.cmdGrossiste = f.cmdGrossiste;
       if (f.cmdTMUsine !== undefined) body.cmdTMUsine = f.cmdTMUsine;
@@ -289,6 +292,7 @@ export default function ArrivagePage() {
                 emplacementCabine: (f.emplacementCabine as string) ?? proj.emplacementCabine,
                 arrivageTM: (f.arrivageTM as string) || null,
                 arrivageGrossiste: (f.arrivageGrossiste as string) || null,
+                cmdFournisseurs: ((f as any).cmdFournisseurs as string) ?? proj.cmdFournisseurs,
                 servCmdFournisseurs: (f.servCmdFournisseurs as string) ?? proj.servCmdFournisseurs,
                 cmdGrossiste: (f.cmdGrossiste as string) ?? proj.cmdGrossiste,
                 cmdTMUsine: (f.cmdTMUsine as string) ?? proj.cmdTMUsine,
@@ -648,7 +652,7 @@ export default function ArrivagePage() {
                   </div>
 
                   {/* Emplacement cabine */}
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                       Emplacement cabine
                     </label>
@@ -667,6 +671,22 @@ export default function ArrivagePage() {
                         ))}
                       </datalist>
                     )}
+                  </div>
+
+                  {/* Nb. de cartons */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                      Nb. de cartons
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={f?.nbCartons != null ? String(f.nbCartons) : p.nbCartons != null ? String(p.nbCartons) : ""}
+                      onChange={(e) =>
+                        setFormField(p.id, "nbCartons", e.target.value === "" ? null : Number(e.target.value))
+                      }
+                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
 
                   {/* Arrivage TM */}
@@ -695,20 +715,31 @@ export default function ArrivagePage() {
                     />
                   </div>
 
-                  {/* N° CMD Fournisseurs — affiché uniquement si renseigné */}
-                  {p.servCmdFournisseurs && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                        N° CMD Fournisseurs
-                      </label>
-                      <input
-                        type="text"
-                        value={(f?.servCmdFournisseurs as string) ?? p.servCmdFournisseurs}
-                        onChange={(e) => setFormField(p.id, "servCmdFournisseurs", e.target.value)}
-                        className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  )}
+                  {/* N° CMD Fournisseurs (Notion : « n° CMD Fournisseurs » → ex. 601/2397) */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                      N° CMD Fournisseurs
+                    </label>
+                    <input
+                      type="text"
+                      value={((f as any)?.cmdFournisseurs as string) ?? p.cmdFournisseurs}
+                      onChange={(e) => setFormField(p.id, "cmdFournisseurs", e.target.value)}
+                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* N° Serv. CMD Fournisseurs (Notion : « N° Serv. CMD Fournisseurs » → ex. MS 2026/1047) */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                      N° Serv. CMD Fournisseurs
+                    </label>
+                    <input
+                      type="text"
+                      value={(f?.servCmdFournisseurs as string) ?? p.servCmdFournisseurs}
+                      onChange={(e) => setFormField(p.id, "servCmdFournisseurs", e.target.value)}
+                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
 
                   {/* N° CMD Grossiste — affiché uniquement si renseigné */}
                   {p.cmdGrossiste && (
@@ -794,25 +825,8 @@ export default function ArrivagePage() {
                     })()}
                   </div>
 
-                  {/* Nb. de cartons */}
+                  {/* État des cartons réceptionnés (cellule de grille, à côté du Bon de livraison) */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      Nb. de cartons
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={f?.nbCartons != null ? String(f.nbCartons) : p.nbCartons != null ? String(p.nbCartons) : ""}
-                      onChange={(e) =>
-                        setFormField(p.id, "nbCartons", e.target.value === "" ? null : Number(e.target.value))
-                      }
-                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Photos cartons */}
-                <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                       <Camera className="w-3.5 h-3.5" />
@@ -850,7 +864,7 @@ export default function ArrivagePage() {
                       (forms[p.id] as any)?.photosCartonsUrls ??
                       p.photosCartons.map((ph) => ph.url);
                     return urls.length > 0 ? (
-                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {urls.map((url) => (
                           <div key={url} className="relative group aspect-square">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -877,6 +891,7 @@ export default function ArrivagePage() {
                       </div>
                     );
                   })()}
+                  </div>
                 </div>
 
                 {/* Commentaires de montage */}
