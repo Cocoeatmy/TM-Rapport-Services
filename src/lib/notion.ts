@@ -383,7 +383,7 @@ export function mapPageToProject(page: any): Project {
     etatMesures: extractStatus(p["État - Mesures"]),
     ofrGrossiste: extractText(p["N° OFR Grossiste"]),
     servMesuresFournisseurs: extractText(p["N° Serv. Mesures Fournisseurs"]),
-    mesuresTraiteePar: extractSelect(p["Mesures traitée par"]),
+    mesuresTraiteePar: extractMultiSelect(p["Mesures traitée par"]).join(" & "),
     dateMesures: extractDate(p["Mesures traitée le"]),
     photosSituations: extractFiles(p["Photos situations"]),
     photosMesures: extractFiles(p["Photos mesures"]),
@@ -1041,9 +1041,11 @@ export async function updateProject(
     properties["Collaborateurs montages"] = { multi_select: collabNames };
   }
   if (data.mesuresTraiteePar !== undefined) {
-    properties["Mesures traitée par"] = {
-      select: data.mesuresTraiteePar ? { name: data.mesuresTraiteePar } : null,
-    };
+    // Propriété Notion de type multi_select : on découpe "Nom1 & Nom2".
+    const noms = data.mesuresTraiteePar
+      ? data.mesuresTraiteePar.split(" & ").map((n) => n.trim()).filter(Boolean).map((name) => ({ name }))
+      : [];
+    properties["Mesures traitée par"] = { multi_select: noms };
   }
   if (data.bonLivraison !== undefined) {
     if (data.bonLivraison && data.bonLivraison.startsWith("http")) {
@@ -1321,7 +1323,7 @@ export async function createProject(data: {
   }
   if (data.mesuresTraiteePar) {
     properties["Mesures traitée par"] = {
-      select: { name: data.mesuresTraiteePar },
+      multi_select: data.mesuresTraiteePar.split(" & ").map((n) => n.trim()).filter(Boolean).map((name) => ({ name })),
     };
   }
   if (data.etatCMD) {
