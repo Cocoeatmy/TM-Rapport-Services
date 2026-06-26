@@ -4,6 +4,8 @@ import { getData } from "@/lib/kv-store";
 import { getAllProjectsRaw } from "@/lib/notion";
 
 export const dynamic = "force-dynamic";
+// getAllProjectsRaw() est lourd : marge large pour éviter le timeout.
+export const maxDuration = 120;
 
 interface Consultation {
   projectId: string;

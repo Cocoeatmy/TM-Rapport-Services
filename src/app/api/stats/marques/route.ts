@@ -3,6 +3,9 @@ import { notion } from "@/lib/notion";
 import { cachedOrFetchLong } from "@/lib/server-cache";
 
 export const dynamic = "force-dynamic";
+// Pagination Notion + client rate-limité (~1,3 req/s) : laisser le temps de finir
+// (le défaut Vercel ~15s est trop court à froid → 504 → stats vides).
+export const maxDuration = 60;
 
 const DB_ID = "17e1895b91798130bd39e0a3a5302b80";
 

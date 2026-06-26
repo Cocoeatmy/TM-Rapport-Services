@@ -1451,6 +1451,9 @@ function HomePage() {
         fetch("/api/cabine-attribution").then((r) => r.json()).catch(() => []),
         fetch("/api/stats/consultations").then((r) => r.ok ? r.json() : null).catch(() => null),
       ]).then((results) => {
+        // Idem : ne pas figer un cache vide (cf. fetchFromAPI).
+        const valid = Array.isArray(results[0]) && results[0].length > 0;
+        if (!valid) return;
         try {
           localStorage.setItem(LS_DATA, JSON.stringify(results));
           localStorage.setItem(LS_TS, String(Date.now()));
@@ -1496,10 +1499,16 @@ function HomePage() {
       ]).then((results) => {
         applyResults(results);
         setStatsLoading(false);
-        try {
-          localStorage.setItem(LS_DATA, JSON.stringify(results));
-          localStorage.setItem(LS_TS, String(Date.now()));
-        } catch { /* quota dépassé — on continue sans cache */ }
+        // Ne PAS mettre en cache un résultat vide/échoué (services manquant) :
+        // sinon le stale-while-revalidate (<1h) figerait des stats à 0 pendant
+        // une heure, même après rétablissement du serveur.
+        const valid = Array.isArray(results[0]) && results[0].length > 0;
+        if (valid) {
+          try {
+            localStorage.setItem(LS_DATA, JSON.stringify(results));
+            localStorage.setItem(LS_TS, String(Date.now()));
+          } catch { /* quota dépassé — on continue sans cache */ }
+        }
       });
     };
 
@@ -1511,13 +1520,18 @@ function HomePage() {
       const ts  = Number(localStorage.getItem(LS_TS) || "0");
       const raw = localStorage.getItem(LS_DATA);
       if (raw && ts > 0) {
-        applyResults(JSON.parse(raw));
-        setStatsLoading(false);
-        if (Date.now() - ts >= FRESH_MS) {
-          // Cache périmé → rafraîchissement silencieux en arrière-plan.
-          fetchFromAPI(false);
+        const parsed = JSON.parse(raw);
+        // Cache valide uniquement si les données services sont présentes.
+        const cacheValid = Array.isArray(parsed?.[0]) && parsed[0].length > 0;
+        if (cacheValid) {
+          applyResults(parsed);
+          setStatsLoading(false);
+          if (Date.now() - ts >= FRESH_MS) {
+            // Cache périmé → rafraîchissement silencieux en arrière-plan.
+            fetchFromAPI(false);
+          }
+          return; // Ne pas afficher le spinner si le cache est exploitable.
         }
-        return; // Ne pas afficher le spinner dans tous les cas où le cache existe.
       }
     } catch { /* localStorage inaccessible → fetch normal */ }
 
