@@ -221,10 +221,16 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
     "fournisseurs-koralle": "/logos/fournisseurs/Koralle-logo.png",
     "fournisseurs-nelo": "/logos/fournisseurs/Nelo-logo.png",
     "fournisseurs-novellini": "/logos/fournisseurs/Novellini-logo.png",
-    "fournisseurs-ronal": "/logos/fournisseurs/Ronal-logo.png",
+    "fournisseurs-ronal": "/logos/fournisseurs/ronal-logo.png",
     "fournisseurs-samo": "/logos/fournisseurs/Samo-logo.png",
     "fournisseurs-vismaravetro": "/logos/fournisseurs/Vismaravetro-logo.png",
   };
+  // Logos fournis en BLANC sur transparent → invisibles sur la pastille blanche.
+  // On les inverse (→ noir) pour qu'ils s'affichent dans la barre de navigation.
+  const WHITE_LOGOS = new Set([
+    "grossistes-tema", "grossistes-matway",
+    "fournisseurs-nelo", "fournisseurs-novellini",
+  ]);
   const isFournisseursActive = fournisseursModes.includes(mode);
   const fournisseurActiveLabel = fournisseursLabels[mode] || "";
 
@@ -340,7 +346,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
               "grossistes-dubat": 1.6,
               "grossistes-tema": 1.5,
               "grossistes-matway": 2,
-              "grossistes-bringhen": 1,
+              "grossistes-bringhen": 3,
             };
             const scale = logoScale[m] || 1;
             // On utilise Next.js Image avec une taille intrinsèque
@@ -367,7 +373,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
                     quality={100}
                     unoptimized={logo.endsWith(".svg")}
                     className="object-contain"
-                    style={{ width: `${w}px`, height: `${h}px` }}
+                    style={{ width: `${w}px`, height: `${h}px`, ...(WHITE_LOGOS.has(m) ? { filter: "invert(1)" } : {}) }}
                   />
                 ) : (
                   <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
@@ -416,7 +422,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
                     quality={100}
                     unoptimized={logo.endsWith(".svg")}
                     className="object-contain"
-                    style={{ width: `${w}px`, height: `${h}px` }}
+                    style={{ width: `${w}px`, height: `${h}px`, ...(WHITE_LOGOS.has(m) ? { filter: "invert(1)" } : {}) }}
                   />
                 ) : (
                   <span className={`text-xs font-semibold ${isActive ? "text-[#1e3a5f]" : "text-gray-600 dark:text-gray-300"}`}>
