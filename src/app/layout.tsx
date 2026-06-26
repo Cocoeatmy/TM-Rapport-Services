@@ -67,7 +67,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col lg-bg">
         <header id="main-header" className="sticky top-0 z-50 glass-header text-white">
-          <div className="flex items-center justify-between gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
+          <div className="flex items-center justify-between gap-2 px-4 py-3 overflow-x-auto md:overflow-visible scrollbar-hide">
             <div className="flex items-center gap-1 cmm-header-left shrink-0">
               <HomeButton />
               <BackButton />

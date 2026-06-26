@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette, Image as ImageIcon, Monitor } from "lucide-react";
 import { getCollaboratorInitials } from "@/lib/collaborators";
@@ -23,12 +24,30 @@ export function UserMenu() {
   const [uiMode, setUiMode] = useState<UiMode>("classic");
   const [saveToPhotos, setSaveToPhotos] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; right: number }>({ top: 56, right: 8 });
 
-  // Fermeture au clic/tap en dehors du menu (iOS-compatible via pointerdown)
+  // Position du menu (rendu via portail dans <body> pour échapper à l'overflow
+  // de la barre d'en-tête qui le rognait). Recalculée à l'ouverture + au resize.
+  useEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (r) setPos({ top: r.bottom + 8, right: Math.max(8, window.innerWidth - r.right) });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
+
+  // Fermeture au clic/tap en dehors du menu (iOS-compatible via pointerdown).
+  // Le menu étant portalisé, on teste aussi popRef (sinon clic interne = fermeture).
   useEffect(() => {
     if (!open) return;
     const handler = (e: PointerEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!menuRef.current?.contains(t) && !popRef.current?.contains(t)) setOpen(false);
     };
     document.addEventListener("pointerdown", handler);
     return () => document.removeEventListener("pointerdown", handler);
@@ -142,14 +161,18 @@ export function UserMenu() {
   return (
     <div className="relative" ref={menuRef}>
       <button
+        ref={btnRef}
         onClick={() => setOpen(!open)}
         className="w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-xs font-bold text-white hover:bg-white/25 transition-colors"
       >
         {initials}
       </button>
 
-      {open && (
-          <div className="absolute right-0 top-12 z-50 w-56 bg-white dark:bg-slate-800 rounded-xl p-2 shadow-xl border border-gray-200 dark:border-gray-700">
+      {open && typeof document !== "undefined" && createPortal(
+          <div
+            ref={popRef}
+            style={{ position: "fixed", top: pos.top, right: pos.right }}
+            className="z-[100] w-56 max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-xl p-2 shadow-xl border border-gray-200 dark:border-gray-700">
             <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 mb-1">
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
@@ -296,7 +319,8 @@ export function UserMenu() {
               <LogOut className="w-4 h-4" />
               Déconnexion
             </button>
-          </div>
+          </div>,
+          document.body
       )}
     </div>
   );
