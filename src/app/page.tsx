@@ -1441,8 +1441,8 @@ function HomePage() {
   // fetch principaux), uniquement si le cache localStorage est périmé.
   // Quand l'utilisateur clique "Stats", les données sont déjà disponibles.
   useEffect(() => {
-    const LS_DATA = "tm-stats-data-v1";
-    const LS_TS   = "tm-stats-ts-v1";
+    const LS_DATA = "tm-stats-data-v2";
+    const LS_TS   = "tm-stats-ts-v2";
     const FRESH_MS = 60 * 60 * 1000; // 1 h
 
     const timer = setTimeout(() => {
@@ -1476,8 +1476,8 @@ function HomePage() {
     if (mode !== "stats" || statsLoadedRef.current) return;
     statsLoadedRef.current = true;
 
-    const LS_DATA = "tm-stats-data-v1";
-    const LS_TS   = "tm-stats-ts-v1";
+    const LS_DATA = "tm-stats-data-v2";
+    const LS_TS   = "tm-stats-ts-v2";
     const FRESH_MS = 60 * 60 * 1000; // 1 h
 
     /** Injecte un tableau de résultats dans les états React. */
@@ -3645,6 +3645,7 @@ function HomePage() {
 
         // DB1: daily services data
         const svcFiltered = statsServices.filter((r: any) => {
+          if (r.objectif) return false; // lignes "Objectif" exclues des chiffres réels
           if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
           if (statsDateMode === "month" && filterMonth && r.mois !== filterMonth) return false;
           if ((statsDateMode === "range" || statsDateMode === "rolling12") && (statsEffFrom || statsEffTo)) {
@@ -3693,6 +3694,7 @@ function HomePage() {
         const filterBYear = statsBMode === "year" ? Number(statsBYear) : null;
         const filterBMonth = statsBMode === "month" ? statsBMonth : null;
         const svcFilteredB = statsCompare ? statsServices.filter((r: any) => {
+          if (r.objectif) return false; // lignes "Objectif" exclues des chiffres réels
           if (statsBMode === "year" && filterBYear && r.annee !== filterBYear) return false;
           if (statsBMode === "month" && filterBMonth && r.mois !== filterBMonth) return false;
           if (statsBMode === "range" && (statsBFrom || statsBTo)) {
@@ -4171,23 +4173,38 @@ function HomePage() {
                   { key: "ca",         label: "CA" },
                 ];
                 const metric = METRICS.some((m) => m.key === compareMetric) ? compareMetric : "montages";
-                // Agrège la base journalière par (mois 1-12, année) pour la stat choisie.
-                const agg: Record<number, Record<number, number>> = {};
+                // Objectif disponible uniquement pour Montages / Mesures / CA.
+                const OBJECTIF_METRICS = ["montages", "mesures", "ca"];
+                // Agrège la base journalière par (mois 1-12, clé série) pour la stat choisie.
+                // Clé série = année (ex. "2026") ou "Objectif" pour les lignes cibles.
+                const agg: Record<number, Record<string, number>> = {};
                 const yearSet = new Set<number>();
+                let hasObjectif = false;
                 statsServices.forEach((r: any) => {
+                  const mn = Number(r.moisNum);
+                  if (!mn || mn < 1 || mn > 12) return;
+                  const val = Number(r[metric]) || 0;
+                  if (r.objectif) {
+                    if (!OBJECTIF_METRICS.includes(metric)) return;
+                    agg[mn] = agg[mn] || {};
+                    agg[mn]["Objectif"] = (agg[mn]["Objectif"] || 0) + val;
+                    if (val > 0) hasObjectif = true;
+                    return;
+                  }
                   const y = typeof r.annee === "number" ? r.annee : Number(r.annee);
-                  const mn = r.mois ? Number(String(r.mois).split("-")[1]) : NaN;
-                  if (!y || !mn || mn < 1 || mn > 12) return;
+                  if (!y) return;
                   yearSet.add(y);
                   agg[mn] = agg[mn] || {};
-                  agg[mn][y] = (agg[mn][y] || 0) + (Number(r[metric]) || 0);
+                  agg[mn][String(y)] = (agg[mn][String(y)] || 0) + val;
                 });
                 const years = [...yearSet].sort((a, b) => a - b);
                 const YEAR_COLORS = ["#22c55e", "#f97316", "#ec4899", "#3b82f6", "#06b6d4", "#a855f7", "#eab308"];
                 const series = years.map((y, i) => ({ key: String(y), label: String(y), color: YEAR_COLORS[i % YEAR_COLORS.length] }));
+                if (hasObjectif) series.push({ key: "Objectif", label: "Objectif", color: "#ef4444" });
+                const seriesKeys = series.map((s) => s.key);
                 const compareData = Array.from({ length: 12 }, (_, m) => {
                   const values: Record<string, number> = {};
-                  years.forEach((y) => { values[String(y)] = agg[m + 1]?.[y] || 0; });
+                  seriesKeys.forEach((k) => { values[k] = agg[m + 1]?.[k] || 0; });
                   return { label: monthNames12[m], values };
                 });
                 const legendSeries = series.filter((s) => compareData.some((d) => (d.values[s.key] || 0) > 0));

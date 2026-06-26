@@ -22,7 +22,8 @@ export const STATS_DB = {
 export type StatsKind = keyof typeof STATS_DB;
 
 export const STATS_SNAPSHOT_KEY: Record<StatsKind, string> = {
-  services: "stats-services-snapshot",
+  // v2 : inclut désormais les lignes "Objectif" + moisNum (cache précédent ignoré).
+  services: "stats-services-snapshot-v2",
   clients: "stats-clients-snapshot",
   marques: "stats-marques-snapshot",
   series: "stats-series-snapshot",
@@ -79,18 +80,15 @@ async function queryAll(dbId: string): Promise<any[]> {
 // ── Calcul "live" de chaque jeu de données ──────────────────────────────────
 export async function fetchStatsServices() {
   const allResults = await queryAll(STATS_DB.services);
+  const MOIS_NUM: Record<string, number> = {
+    "janvier": 1, "février": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6,
+    "juillet": 7, "août": 8, "septembre": 9, "octobre": 10, "novembre": 11, "décembre": 12,
+  };
   return allResults
     .filter((page: any) => {
-      const props = page.properties;
-      for (const key of Object.keys(props)) {
-        const prop = props[key];
-        let text = "";
-        if (prop?.type === "title") text = prop.title?.map((t: any) => t.plain_text).join("") || "";
-        else if (prop?.type === "rich_text") text = prop.rich_text?.map((t: any) => t.plain_text).join("") || "";
-        else if (prop?.type === "select") text = prop.select?.name || "";
-        if (text.toLowerCase().includes("objectif")) return false;
-      }
-      const jour = props["Jours"];
+      // On NE filtre plus les lignes "Objectif" : elles sont conservées (flag
+      // `objectif`) pour tracer la cible. On garde juste les vraies lignes-jour.
+      const jour = page.properties["Jours"];
       const jourText = jour?.type === "title" ? jour.title?.map((t: any) => t.plain_text).join("") || "" : "";
       const jourNum = parseInt(jourText, 10);
       if (isNaN(jourNum) || jourNum < 1 || jourNum > 31) return false;
@@ -98,43 +96,42 @@ export async function fetchStatsServices() {
     })
     .map((page: any) => {
       const p = page.properties;
+      const anneeText = txt(p["Année"]);
+      const objectif = anneeText.toLowerCase().includes("objectif");
       const anneeRaw = dateVal(p["Année"]);
-      const annee = yearVal(p["Année"]) ?? (anneeRaw ? new Date(anneeRaw).getFullYear() : null);
+      const annee = objectif ? null : (yearVal(p["Année"]) ?? (anneeRaw ? new Date(anneeRaw).getFullYear() : null));
 
-      let mois: string | null = null;
+      // Numéro de mois (1-12), indépendant de l'année (marche aussi pour Objectif).
+      let moisNum: number | null = null;
+      let moisText = "";
       const moisProp = p["Mois"];
       if (moisProp) {
         if (moisProp.type === "date" && moisProp.date?.start) {
-          mois = moisProp.date.start.substring(0, 7);
+          moisNum = new Date(moisProp.date.start).getMonth() + 1;
         } else {
-          let moisText = "";
           if (moisProp.type === "select") moisText = moisProp.select?.name || "";
           else if (moisProp.type === "rich_text") moisText = moisProp.rich_text?.map((t: any) => t.plain_text).join("") || "";
           else if (moisProp.type === "title") moisText = moisProp.title?.map((t: any) => t.plain_text).join("") || "";
-          if (moisText) {
-            const numMatch = moisText.match(/^(\d{1,2})/);
-            if (numMatch && annee) {
-              mois = `${annee}-${numMatch[1].padStart(2, "0")}`;
-            } else {
-              const moisNames: Record<string, string> = {
-                "janvier": "01", "février": "02", "mars": "03", "avril": "04",
-                "mai": "05", "juin": "06", "juillet": "07", "août": "08",
-                "septembre": "09", "octobre": "10", "novembre": "11", "décembre": "12",
-              };
-              const lower = moisText.toLowerCase();
-              for (const [name, n] of Object.entries(moisNames)) {
-                if (lower.includes(name)) { mois = annee ? `${annee}-${n}` : null; break; }
-              }
+          const numMatch = moisText.match(/^(\d{1,2})/);
+          if (numMatch) moisNum = Number(numMatch[1]);
+          else {
+            const lower = moisText.toLowerCase();
+            for (const [name, n] of Object.entries(MOIS_NUM)) {
+              if (lower.includes(name)) { moisNum = n; break; }
             }
           }
         }
       }
+      if (moisNum !== null && (moisNum < 1 || moisNum > 12)) moisNum = null;
+      const mois = annee && moisNum ? `${annee}-${String(moisNum).padStart(2, "0")}` : null;
 
       return {
         id: page.id,
         jour: txt(p["Jours"]),
         annee,
+        objectif,
         mois,
+        moisNum,
         semaine: txt(p["Semaines"]),
         mesures: num(p["Nb. de Mesures"]),
         cabines: num(p["Nb. Cabine"]),
