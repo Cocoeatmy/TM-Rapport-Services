@@ -4162,10 +4162,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           : <span className="font-mono text-xs text-gray-400">---</span>
                         }
                       </span>
-                      <span className={`${showSummaryPanel === "rdv-mesures-a-fixer" ? "w-28" : "w-20 truncate"} shrink-0 font-mono text-gray-500 dark:text-gray-400 hidden sm:block`}>{p.servMesuresFournisseurs || "---"}</span>
-                      {showSummaryPanel !== "rdv-mesures-a-fixer" && (
-                        <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
-                      )}
+                      <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
+                      <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                       <span className="flex-1 min-w-0">
                         <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 leading-tight line-clamp-3 sm:line-clamp-1">{p.projet}</span>
                         {p.nomChantier && p.nomChantier !== p.projet && (
@@ -5230,8 +5228,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           : <span className="font-mono text-xs text-gray-400">---</span>
                         }
                       </span>
-                        <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servMesuresFournisseurs || "---"}</span>
-                        <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
+                        <span className={`${showSummaryPanel === "rdv-mesures-a-fixer" ? "w-28" : "w-20 truncate"} shrink-0 font-mono text-gray-500 dark:text-gray-400 hidden sm:block`}>{p.servMesuresFournisseurs || "---"}</span>
+                        {showSummaryPanel !== "rdv-mesures-a-fixer" && (
+                          <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
+                        )}
                         <span className="flex-1 min-w-0">
                           <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
                           {p.nomChantier && p.nomChantier !== p.projet && (
