@@ -7,5 +7,28 @@ SHARE_LINK_KEY="REMPLACER_PAR_VOTRE_CLE"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Verrou atomique : si un scan tourne déjà, on saute (pas de chevauchement).
+LOCKDIR="/tmp/tm-calendar-links.lock.d"
+if ! mkdir "$LOCKDIR" 2>/dev/null; then
+  echo "[$(date '+%H:%M:%S')] déjà en cours, on saute."
+  exit 0
+fi
+trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
+
+# Anti-rebond : si un scan a eu lieu il y a moins de COOLDOWN s, on saute.
+# Évite la boucle déclenchée par nos propres écritures dans le calendrier.
+STAMP="/tmp/tm-calendar-links.last"
+COOLDOWN=40
+now=$(date +%s)
+if [ -f "$STAMP" ]; then
+  last=$(cat "$STAMP" 2>/dev/null || echo 0)
+  if [ $((now - last)) -lt "$COOLDOWN" ]; then
+    echo "[$(date '+%H:%M:%S')] anti-rebond (${COOLDOWN}s), on saute."
+    exit 0
+  fi
+fi
+echo "$now" >"$STAMP"
+
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] scan calendrier…"
-/usr/bin/osascript "$SCRIPT_DIR/tm-calendar-links.applescript" "$BASE_URL" "$SHARE_LINK_KEY"
+# Basse priorité CPU + QoS « background » pour ne pas ralentir l'usage interactif.
+nice -n 5 /usr/sbin/taskpolicy -b /usr/bin/osascript -l JavaScript "$SCRIPT_DIR/tm-calendar-links.js" "$BASE_URL" "$SHARE_LINK_KEY"

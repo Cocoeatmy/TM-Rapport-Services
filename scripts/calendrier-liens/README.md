@@ -22,7 +22,12 @@ Les RDV qui ont déjà un lien ne sont jamais touchés.
 Un agent **launchd** surveille la base du calendrier
 (`~/Library/Group Containers/group.com.apple.calendar/Calendar.sqlitedb`) et se
 lance **dès qu'un RDV est ajouté / modifié / synchronisé** (y compris depuis
-l'iPhone), avec un minimum de 30 s entre deux passages.
+l'iPhone), avec un minimum de 45 s entre deux passages.
+
+Le scan utilise **EventKit** (`tm-calendar-links.js`, exécuté par
+`osascript -l JavaScript`) : requêtes indexées en millisecondes qui **ne pilotent
+pas Calendar.app**, donc aucun ralentissement de l'application — y compris avec
+des milliers de RDV. Un anti-rebond + un verrou évitent les passages en rafale.
 
 ## Prérequis côté serveur (à faire 1× sur Vercel)
 
@@ -39,8 +44,8 @@ cd "scripts/calendrier-liens"
 ./run-calendar-links.sh
 ```
 
-À la première exécution, macOS demande l'autorisation de **contrôler Calendrier**
-→ accepter. (System Settings → Confidentialité et sécurité → Automatisation.)
+À la première exécution, macOS demande l'autorisation d'**accéder au Calendrier**
+→ accepter. (System Settings → Confidentialité et sécurité → Calendriers.)
 
 ## Vérifier / déboguer
 
