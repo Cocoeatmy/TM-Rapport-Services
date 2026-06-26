@@ -816,8 +816,8 @@ export default function ArrivagePage() {
                           ))}
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center py-3 border-2 border-dashed border-gray-200 dark:border-slate-600 rounded-lg text-gray-400 dark:text-gray-500 text-xs gap-1.5">
-                          <Camera className="w-3.5 h-3.5" />
+                        <div className="flex items-center justify-center py-6 border-2 border-dashed border-gray-200 dark:border-slate-600 rounded-xl text-gray-400 dark:text-gray-500 text-xs gap-2">
+                          <Camera className="w-4 h-4" />
                           Aucune photo
                         </div>
                       );
