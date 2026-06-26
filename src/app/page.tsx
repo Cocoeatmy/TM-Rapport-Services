@@ -4096,7 +4096,7 @@ function HomePage() {
                 return (
                   <div className="glass-card rounded-2xl p-4">
                     {monthlyChartType === "line" || monthlyChartType === "area" ? (
-                      <TimeSeriesChart data={monthlyData} series={monthlySeries} chartType={monthlyChartType} />
+                      <TimeSeriesChart data={monthlyData} series={monthlySeries} chartType={monthlyChartType} height={170} />
                     ) : monthlyChartType === "bar-v" ? (
                       <MultiColumnChart data={monthlyData} series={monthlySeries} />
                     ) : monthlyChartType === "bar-stack" ? (

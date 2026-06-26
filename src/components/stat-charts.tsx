@@ -93,6 +93,34 @@ function polarToCart(cx: number, cy: number, r: number, angle: number) {
   return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
 }
 
+/** Courbe lissée (spline Catmull-Rom → Bézier) passant par tous les points. */
+function smoothLine(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return "";
+  if (pts.length === 1) return `M ${pts[0].x},${pts[0].y}`;
+  let d = `M ${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
+  }
+  return d;
+}
+
+/** Dernier index où la série a une valeur > 0 (pour stopper la courbe au lieu
+ *  de plonger à 0 sur les mois futurs sans données). */
+function lastDataIndex(data: ChartDataPoint[], key: string): number {
+  for (let i = data.length - 1; i >= 0; i--) {
+    if ((data[i].values[key] || 0) > 0) return i;
+  }
+  return -1;
+}
+
 // ── Line / Area Chart (non-empilé) ───────────────────────────────────────────
 
 interface TimeChartProps {
@@ -133,29 +161,38 @@ export function TimeSeriesChart({ data, series, chartType, height = 140 }: TimeC
       ))}
       <line x1={PAD.left} x2={W - PAD.right} y1={py(0)} y2={py(0)} stroke="#d1d5db" strokeWidth="0.8" />
 
-      {visibleSeries.map((s) => {
-        const pts = data.map((d, i) => ({ x: px(i), y: py(d.values[s.key] || 0) }));
-        const polyline = pts.map((p) => `${p.x},${p.y}`).join(" ");
-        const color = svgColor(s.color);
+      {chartType === "area" && (
+        <defs>
+          {visibleSeries.map((s) => (
+            <linearGradient key={s.key} id={`tsc-grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.color} stopOpacity="0.28" />
+              <stop offset="100%" stopColor={s.color} stopOpacity="0.02" />
+            </linearGradient>
+          ))}
+        </defs>
+      )}
 
-        if (chartType === "area") {
-          const area = [
-            `M ${pts[0].x},${py(0)}`,
-            ...pts.map((p) => `L ${p.x},${p.y}`),
-            `L ${pts[pts.length - 1].x},${py(0)}`,
-            "Z",
-          ].join(" ");
+      {visibleSeries.map((s) => {
+        // Stoppe la courbe à la dernière donnée (pas de chute à 0 sur les mois futurs).
+        const last = lastDataIndex(data, s.key);
+        if (last < 0) return null;
+        const pts = data.slice(0, last + 1).map((d, i) => ({ x: px(i), y: py(d.values[s.key] || 0) }));
+        const color = svgColor(s.color);
+        const line = smoothLine(pts);
+
+        if (chartType === "area" && pts.length > 1) {
+          const area = `${line} L ${pts[pts.length - 1].x.toFixed(2)},${py(0)} L ${pts[0].x.toFixed(2)},${py(0)} Z`;
           return (
             <g key={s.key}>
-              <path d={area} fill={color} fillOpacity="0.15" stroke="none" />
-              <polyline points={polyline} fill="none" stroke={color} strokeWidth="1.8"
+              <path d={area} fill={`url(#tsc-grad-${s.key})`} stroke="none" />
+              <path d={line} fill="none" stroke={color} strokeWidth="2"
                 strokeLinejoin="round" strokeLinecap="round" />
             </g>
           );
         }
         return (
-          <polyline key={s.key} points={polyline} fill="none" stroke={color}
-            strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+          <path key={s.key} d={line} fill="none" stroke={color}
+            strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         );
       })}
 
