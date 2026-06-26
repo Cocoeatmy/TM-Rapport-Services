@@ -107,6 +107,7 @@ import {
   extractCabine,
 } from "@/lib/photo-buckets";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
+import { ColoredSelect } from "@/components/colored-select";
 import { thumbnailUrl } from "@/lib/image-url";
 
 /** Photo upload tied to a logical bucket (sub-section dans une colonne Notion). */
@@ -1986,9 +1987,9 @@ function StatusDropdown({
 }) {
   const isMesures = mode === "mesures";
   const statusColors = isMesures ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
+  const property = isMesures ? "État - Mesures" : "État - CMD";
   const currentStatus = isMesures ? project.etatMesures : project.etatCMD;
   const field = isMesures ? "etatMesures" : "etatCMD";
-  const colorClass = statusColors[currentStatus] || "bg-gray-100 text-gray-700";
   const [saving, setSaving] = useState(false);
 
   const handleChange = async (newStatus: string) => {
@@ -2031,20 +2032,15 @@ function StatusDropdown({
         {label}
       </span>
       <div className="flex items-center gap-1.5">
-        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap leading-tight ${colorClass}`}>
-          {currentStatus || "—"}
-        </span>
-        <select
-          value={currentStatus || ""}
-          onChange={(e) => handleChange(e.target.value)}
-          disabled={saving}
-          className="text-[11px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-0.5 text-gray-700 dark:text-gray-300 disabled:opacity-50 max-w-[130px]"
-        >
-          {!currentStatus && <option value="">---</option>}
-          {Object.keys(statusColors).map((status) => (
-            <option key={status} value={status}>{status}</option>
-          ))}
-        </select>
+        <div className="min-w-[180px] max-w-[230px]">
+          <ColoredSelect
+            property={property}
+            value={currentStatus || ""}
+            options={Object.keys(statusColors)}
+            onChange={handleChange}
+            fallback={(v) => statusColors[v]}
+          />
+        </div>
         {saving && <span className="text-[10px] text-gray-400 animate-pulse">…</span>}
       </div>
     </div>
