@@ -90,6 +90,7 @@ const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m
 import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
+import { isMultiDayHours, parsePointages } from "@/lib/pointages";
 import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
 import { fetchWithRetry, invalidateApiCache } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
@@ -2969,12 +2970,43 @@ function ProjectPageContent({ id }: { id: string }) {
 
   const addPointage = () => {
     setPointages((prev) => [...prev, { date: today, collaborateur: "", arrivee: "", depart: "" }]);
+    scheduleAutoSave();
   };
   const updatePointage = (idx: number, field: keyof PointageEntry, value: string) => {
     setPointages((prev) => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)));
+    scheduleAutoSave();
   };
   const removePointage = (idx: number) => {
     setPointages((prev) => prev.filter((_, i) => i !== idx));
+    scheduleAutoSave();
+  };
+
+  // ── Bascule mode simple ⇆ plusieurs interventions (mono-cabine) ──────────────
+  // Active le tableau de pointages (date + collaborateur(s) + heures) pour un
+  // montage qui a nécessité plusieurs déplacements. La 1re ligne reprend les
+  // heures déjà saisies + les collaborateurs du montage.
+  const enableMultiInterventions = () => {
+    setPointages((prev) =>
+      prev.length
+        ? prev
+        : [{
+            date: project?.dateMontage?.slice(0, 10) || today,
+            collaborateur: project?.collaborateurs || "",
+            arrivee: heureArrivee || "",
+            depart: heureDepart || "",
+          }]
+    );
+    setIsMultiDay(true);
+    scheduleAutoSave();
+  };
+  // Revient au mode simple : conserve les heures de la 1re intervention.
+  const disableMultiInterventions = () => {
+    const first = pointages[0];
+    setHeureArrivee(first?.arrivee || "");
+    setHeureDepart(first?.depart || "");
+    setIsMultiDay(false);
+    setPointages([]);
+    scheduleAutoSave();
   };
 
   const initProject = (data: any) => {
@@ -3154,6 +3186,17 @@ function ProjectPageContent({ id }: { id: string }) {
       // par défaut — retrocompat.
       if ((data.heureArrivee || data.heureDepart) && Object.keys(arriveeMap).length === 0) {
         setPointages([{ date: today, collaborateur: "", arrivee: data.heureArrivee || "", depart: data.heureDepart || "" }]);
+      }
+    } else {
+      // Mono-cabine : si les heures sont au format multi-interventions daté
+      // ("2026-06-09 Micael 08:30 | …"), on réactive le mode pointages et on
+      // recharge la liste. Sinon on reste en mode simple (heures HH:MM).
+      if (isMultiDayHours(data.heureArrivee, data.heureDepart)) {
+        const pts = parsePointages(data.heureArrivee, data.heureDepart);
+        if (pts.length) {
+          setPointages(pts);
+          setIsMultiDay(true);
+        }
       }
     }
   };
@@ -4848,17 +4891,35 @@ function ProjectPageContent({ id }: { id: string }) {
                     }
                     return null;
                   })()}
+                  {/* Passer en plusieurs interventions datées (déplacements multiples) */}
+                  <button
+                    type="button"
+                    onClick={enableMultiInterventions}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Plusieurs interventions (jours / collaborateurs)
+                  </button>
                   </>
                 )}
 
                 {/* Mode tableau multi-jours (mono-cabine uniquement) */}
                 {isMultiDay && !isCabineMode && (
                   <div className="space-y-3">
-                    <Label>Pointage des heures</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Interventions</Label>
+                      <button
+                        type="button"
+                        onClick={disableMultiInterventions}
+                        className="text-xs text-gray-400 hover:text-gray-600 underline"
+                      >
+                        Revenir au mode simple
+                      </button>
+                    </div>
                     {pointages.map((entry, idx) => (
                       <div key={idx} className="p-3 bg-gray-50 rounded-xl space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-gray-500">Journée {idx + 1}</span>
+                          <span className="text-xs font-semibold text-gray-500">Intervention {idx + 1}</span>
                           <button
                             type="button"
                             onClick={() => removePointage(idx)}
@@ -4935,7 +4996,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors"
                     >
                       <Plus className="w-4 h-4" />
-                      Ajouter une journée
+                      Ajouter une intervention
                     </button>
                     {pointages.some((e) => e.arrivee && e.depart) && (() => {
                       const dayMinutes = pointages.map((e) => {

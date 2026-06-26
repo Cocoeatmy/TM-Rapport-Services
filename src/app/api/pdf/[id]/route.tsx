@@ -16,6 +16,7 @@ import ReactPDF, {
 import React from "react";
 import { getData } from "@/lib/kv-store";
 import { formatSwissDate, formatSwissDateTime } from "@/lib/time-utils";
+import { isMultiDayHours, parsePointages } from "@/lib/pointages";
 import {
   type PhotoBucketKey,
   BUCKET_LABEL,
@@ -685,6 +686,42 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                   })}
                 </View>
               );
+            }
+
+            // Format multi-interventions daté ("2026-06-09 Micael 08:30 | …") :
+            // une ligne par déplacement (date + collaborateur + arrivée/départ).
+            if (isMultiDayHours(project.heureArrivee, project.heureDepart)) {
+              const pts = parsePointages(project.heureArrivee, project.heureDepart);
+              if (pts.length) {
+                return (
+                  <View>
+                    {pts.map((p, i) => (
+                      <View key={i} wrap={false} style={{ flexDirection: "row", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                        <View style={{ width: 90, alignSelf: "center" }}>
+                          <Text style={{ fontSize: 8, color: "#888" }}>Intervention {i + 1}</Text>
+                          {p.collaborateur ? (
+                            <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>{p.collaborateur}</Text>
+                          ) : null}
+                        </View>
+                        {p.date ? (
+                          <View style={{ ...styles.timeBox, flex: 1.5, marginRight: 4 }}>
+                            <Text style={styles.timeLabel}>Date</Text>
+                            <Text style={styles.timeValue}>{fmtDate(p.date)}</Text>
+                          </View>
+                        ) : null}
+                        <View style={{ ...styles.timeBox, flex: 1, marginRight: 4 }}>
+                          <Text style={styles.timeLabel}>Arrivée</Text>
+                          <Text style={styles.timeValue}>{p.arrivee || "--:--"}</Text>
+                        </View>
+                        <View style={{ ...styles.timeBox, flex: 1 }}>
+                          <Text style={styles.timeLabel}>Départ</Text>
+                          <Text style={styles.timeValue}>{p.depart || "--:--"}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                );
+              }
             }
 
             return (

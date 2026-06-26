@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
+import { isMultiDayHours, parsePointages } from "@/lib/pointages";
 
 // ── Helpers de parsing par cabine (alignés sur le calcul du tableau de bord) ──
 
@@ -162,6 +163,32 @@ function entriesForMonteur(p: Project, monteur: string): Entry[] {
         minutes: durMinutes(arrSlot, depSlot),
         binome,
         partner,
+      });
+    }
+    return out;
+  }
+
+  // ── Projet mono-cabine avec PLUSIEURS interventions datées ──
+  // ("2026-06-09 Micael 08:30 | …") : une entrée par intervention où le
+  // monteur a participé (collaborateur de l'intervention, sinon du projet).
+  if (isMultiDayHours(p.heureArrivee, p.heureDepart)) {
+    const pts = parsePointages(p.heureArrivee, p.heureDepart);
+    for (const pt of pts) {
+      const names = splitNames(pt.collaborateur || "");
+      const include = names.length > 0
+        ? names.some((n) => normName(n) === target)
+        : targetInCollabs;
+      if (!include) continue;
+      const team = names.length > 0 ? names : collabs;
+      out.push({
+        ...base,
+        date: pt.date || p.dateMontage?.slice(0, 10) || "",
+        cabineLabel: "—",
+        arrivee: pt.arrivee,
+        depart: pt.depart,
+        minutes: durMinutes(pt.arrivee, pt.depart),
+        binome: team.length >= 2,
+        partner: team.filter((n) => normName(n) !== target).join(", "),
       });
     }
     return out;
