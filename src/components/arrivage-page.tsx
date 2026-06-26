@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Truck, ChevronDown, ChevronUp, Loader2, Package, Camera, X, AlertCircle, Search, Check } from "lucide-react";
 import { STATUS_CMD_COLORS } from "@/lib/constants";
+import { ColoredSelect } from "@/components/colored-select";
+import { statusClasses, useNotionColors } from "@/lib/notion-colors";
 
 interface FileItem {
   name: string;
@@ -84,6 +86,7 @@ function formatDateDisplay(iso: string | null): string {
 }
 
 export default function ArrivagePage() {
+  useNotionColors(); // charge + applique les couleurs Notion (badges + menus)
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -537,7 +540,7 @@ export default function ArrivagePage() {
       {/* Project cards */}
       {filteredProjects.map((p) => {
         const isExpanded = expandedId === p.id;
-        const statusColor = STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700";
+        const statusColor = statusClasses("État - CMD", p.etatCMD, STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700");
         const f = forms[p.id];
 
         return (
@@ -638,17 +641,13 @@ export default function ArrivagePage() {
                     <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                       État CMD
                     </label>
-                    <select
+                    <ColoredSelect
+                      property="État - CMD"
                       value={(f?.etatCMD as string) ?? p.etatCMD}
-                      onChange={(e) => setFormField(p.id, "etatCMD", e.target.value)}
-                      className="w-full text-sm border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {ALL_STATUTS.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                      options={ALL_STATUTS}
+                      onChange={(v) => setFormField(p.id, "etatCMD", v)}
+                      fallback={(v) => STATUS_CMD_COLORS[v]}
+                    />
                   </div>
 
                   {/* Emplacement cabine */}
