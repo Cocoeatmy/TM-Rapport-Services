@@ -129,6 +129,22 @@ export function FloatingWindow({
     };
   }, []);
 
+  /* ── Détacher dans une VRAIE fenêtre système (déplaçable hors de l'app) ── */
+  const detach = useCallback(() => {
+    const w = Math.round(size.w);
+    const h = Math.round(size.h);
+    const left = Math.round((window.screenX || 0) + pos.x);
+    const top = Math.round((window.screenY || 0) + pos.y);
+    const features = `popup=yes,width=${w},height=${h},left=${left},top=${top}`;
+    const win = window.open(`/?mode=${mode}`, `tm-fw-${Date.now()}`, features);
+    if (win) {
+      try { win.focus(); } catch {}
+      onClose(); // la vue vit maintenant dans une fenêtre séparée
+    } else {
+      alert("La fenêtre détachée a été bloquée par le navigateur. Autorise les pop-ups pour ce site.");
+    }
+  }, [mode, size.w, size.h, pos.x, pos.y, onClose]);
+
   const window_ = (
     <div
       onMouseDown={onFocus}
@@ -165,17 +181,15 @@ export function FloatingWindow({
           >
             <Minus className="w-2 h-2 text-yellow-900 opacity-0 group-hover:opacity-100 transition-opacity" />
           </button>
-          <a
-            href={`/?mode=${mode}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Ouvrir dans un onglet"
-            onClick={(e) => e.stopPropagation()}
+          <button
+            type="button"
+            title="Détacher dans une fenêtre séparée (déplaçable hors de l'app)"
+            onClick={(e) => { e.stopPropagation(); detach(); }}
             onMouseDown={(e) => e.stopPropagation()}
             className="w-3.5 h-3.5 rounded-full bg-green-400 hover:bg-green-500 flex items-center justify-center group transition-colors"
           >
             <ExternalLink className="w-2 h-2 text-green-900 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </a>
+          </button>
         </div>
 
         <GripVertical className="w-3.5 h-3.5 text-gray-400 shrink-0" />
