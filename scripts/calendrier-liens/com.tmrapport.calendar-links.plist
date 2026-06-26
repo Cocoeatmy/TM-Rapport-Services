@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.tmrapport.calendar-links</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/ferreiramicael/Desktop/iA/Projets APP/TM Rapport/scripts/calendrier-liens/run-calendar-links.sh</string>
+	</array>
+
+	<!-- Se déclenche dès que la base du calendrier change (ajout / modif / sync). -->
+	<key>WatchPaths</key>
+	<array>
+		<string>/Users/ferreiramicael/Library/Group Containers/group.com.apple.calendar/Calendar.sqlitedb-wal</string>
+		<string>/Users/ferreiramicael/Library/Group Containers/group.com.apple.calendar/Calendar.sqlitedb</string>
+	</array>
+
+	<!-- Au minimum 30 s entre deux lancements (évite les rafales d'écritures). -->
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+
+	<!-- Un passage au chargement (login), pour rattraper l'existant. -->
+	<key>RunAtLoad</key>
+	<true/>
+
+	<key>StandardOutPath</key>
+	<string>/tmp/tm-calendar-links.log</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/tm-calendar-links.err</string>
+</dict>
+</plist>

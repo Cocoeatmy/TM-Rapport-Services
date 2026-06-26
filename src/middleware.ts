@@ -12,6 +12,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/cron/") ||
     pathname.startsWith("/api/client/") ||
+    pathname.startsWith("/api/share-link") || // protégé par sa propre clé (SHARE_LINK_KEY)
     pathname.startsWith("/api/reminders") ||
     pathname.startsWith("/api/notion-webhook") || // webhook Notion (pas de cookie auth)
     pathname.startsWith("/client/") ||

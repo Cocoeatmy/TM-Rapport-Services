@@ -12,3 +12,6 @@ tsconfig.tsbuildinfo
 tm-rapport
 .vercel
 .env*.local
+
+# Agent calendrier : ne pas committer la clé secrète
+scripts/calendrier-liens/run-calendar-links.sh

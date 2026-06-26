@@ -1,0 +1,11 @@
+#!/bin/bash
+# MODÈLE — copie ce fichier en "run-calendar-links.sh" et renseigne la clé.
+# Le vrai fichier (avec la clé) n'est PAS versionné (cf. .gitignore).
+
+BASE_URL="https://tm-rapport-services.vercel.app"
+SHARE_LINK_KEY="REMPLACER_PAR_VOTRE_CLE"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] scan calendrier…"
+/usr/bin/osascript "$SCRIPT_DIR/tm-calendar-links.applescript" "$BASE_URL" "$SHARE_LINK_KEY"
