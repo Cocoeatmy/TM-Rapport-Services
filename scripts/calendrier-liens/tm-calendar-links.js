@@ -47,10 +47,20 @@ function run(argv) {
   }
   if (status !== FULL) return 'ACCES CALENDRIER REFUSE (statut ' + status + ')';
 
-  // ── Fenêtre : passé proche → ~5 mois devant ────────────────────────────────
-  const start = $.NSDate.dateWithTimeIntervalSinceNow(-3 * 86400);
+  // ── Calendriers CalDAV uniquement (exclut locaux, abonnements, anniversaires) ─
+  const CALDAV = 1; // EKCalendarTypeCalDAV
+  const allCals = store.calendarsForEntityType(EVENT);
+  const caldav = $.NSMutableArray.alloc.init;
+  for (let c = 0; c < allCals.count; c++) {
+    const cal = allCals.objectAtIndex(c);
+    if (Number(cal.type) === CALDAV) caldav.addObject(cal);
+  }
+  if (caldav.count === 0) return 'aucun calendrier CalDAV';
+
+  // ── Fenêtre : aujourd'hui 00:00 → ~5 mois devant (pas de passé) ──────────────
+  const start = $.NSCalendar.currentCalendar.startOfDayForDate($.NSDate.date);
   const end = $.NSDate.dateWithTimeIntervalSinceNow(150 * 86400);
-  const pred = store.predicateForEventsWithStartDateEndDateCalendars(start, end, $());
+  const pred = store.predicateForEventsWithStartDateEndDateCalendars(start, end, caldav);
   const events = store.eventsMatchingPredicate(pred);
   const count = events.count;
 
