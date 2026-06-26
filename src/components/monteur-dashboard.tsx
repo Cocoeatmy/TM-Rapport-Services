@@ -4254,16 +4254,37 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             ["duscholux", "Duscholux"], ["matway", "Matway"], ["tema", "Tema"], ["bringhen", "Bringhen"],
             ["bms", "BMS"], ["ronal", "Ronal"], ["nelo", "Nelo"], ["novellini", "Novellini"], ["samo", "Samo"],
           ];
-          const clientNameOf = (projet: string) => {
+          // Libellé affiché du client (1er segment, grossistes multi-agences fusionnés).
+          const clientLabelOf = (projet: string) => {
             const first = (projet || "").split(" - ")[0].trim();
             const lower = first.toLowerCase();
             for (const [k, label] of GROSSISTE_KEYS) if (lower.startsWith(k)) return label;
             return first || "—";
           };
-          const clientCounts: Record<string, number> = {};
-          displayList.forEach((p) => { const c = clientNameOf(p.projet); clientCounts[c] = (clientCounts[c] || 0) + 1; });
-          const clientStats = Object.entries(clientCounts)
-            .map(([name, count]) => ({ name, count, pct: displayList.length ? Math.round((count / displayList.length) * 1000) / 10 : 0 }))
+          // Clé de regroupement normalisée : casse, accents, espaces (insécables,
+          // doubles) et suffixes d'entreprise (Sàrl, SA, GmbH, AG…) ignorés, pour
+          // que « CANAsanitaire Sàrl », « CANAsanitaire » et leurs variantes
+          // d'espaces comptent comme UN seul client.
+          const clientKeyOf = (label: string) =>
+            label
+              .normalize("NFD").replace(/[̀-ͯ]/g, "")
+              .toLowerCase()
+              .replace(/[ ]/g, " ")
+              .replace(/[.,]/g, " ")
+              .replace(/\b(sarl|s a r l|sa|gmbh|ag|cie|snc|scrl)\b/g, "")
+              .replace(/\s+/g, " ")
+              .trim();
+          const clientGroups: Record<string, { label: string; count: number }> = {};
+          displayList.forEach((p) => {
+            const label = clientLabelOf(p.projet);
+            const key = clientKeyOf(label) || label.toLowerCase();
+            if (!clientGroups[key]) clientGroups[key] = { label, count: 0 };
+            clientGroups[key].count++;
+            // Garde le libellé le plus complet comme représentant du groupe.
+            if (label.length > clientGroups[key].label.length) clientGroups[key].label = label;
+          });
+          const clientStats = Object.entries(clientGroups)
+            .map(([key, { label, count }]) => ({ key, name: label, count, pct: displayList.length ? Math.round((count / displayList.length) * 1000) / 10 : 0 }))
             .sort((a, b) => b.count - a.count);
           const maxClientCount = clientStats.length ? clientStats[0].count : 1;
           const barColor = isAnnulees ? "bg-red-500" : "bg-cyan-500";
@@ -4421,11 +4442,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   </p>
                   {clientStats.length === 0 ? (
                     <p className="text-sm text-gray-400 py-4 text-center">Aucune donnée</p>
-                  ) : clientStats.map(({ name, count, pct }) => {
-                    const expanded = mesuresStatsClient === name;
-                    const clientProjects = expanded ? displayList.filter((p) => clientNameOf(p.projet) === name) : [];
+                  ) : clientStats.map(({ key, name, count, pct }) => {
+                    const expanded = mesuresStatsClient === key;
+                    const clientProjects = expanded ? displayList.filter((p) => clientKeyOf(clientLabelOf(p.projet)) === key) : [];
                     return (
-                    <div key={name}>
+                    <div key={key}>
                       <div className="flex items-center gap-2">
                         <span className="w-28 sm:w-44 shrink-0 truncate text-xs text-gray-700 dark:text-gray-200" title={name}>{name}</span>
                         <div className="flex-1 h-3.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
@@ -4433,7 +4454,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         </div>
                         <button
                           type="button"
-                          onClick={() => setMesuresStatsClient(expanded ? null : name)}
+                          onClick={() => setMesuresStatsClient(expanded ? null : key)}
                           title="Voir les projets concernés"
                           className={`w-8 text-right text-xs font-bold tabular-nums hover:underline cursor-pointer ${expanded ? "text-cyan-600 dark:text-cyan-400" : "text-gray-800 dark:text-gray-100"}`}
                         >
