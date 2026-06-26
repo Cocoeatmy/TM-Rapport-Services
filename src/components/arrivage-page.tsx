@@ -771,7 +771,7 @@ export default function ArrivagePage() {
 
                   {/* Bon de livraison — photos (propriété Notion de type Files) */}
                   <div>
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-2">
                       <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
                         Bon de livraison
                       </label>
