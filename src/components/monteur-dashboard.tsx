@@ -1657,6 +1657,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
   // Sous-vue du panel Mesures : "commande" | "annulees"
   const [mesuresSubView, setMesuresSubView] = useState<"commande" | "annulees">("commande");
+  const [mesuresShowStats, setMesuresShowStats] = useState(false);
 
   // Sync terminatedProjects depuis la prop quand page.tsx finit de fetch
   // (utile si le cache localStorage était vide au premier rendu)
@@ -4244,6 +4245,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const arrowClass    = isAnnulees ? "group-hover:text-red-400" : "group-hover:text-cyan-400";
           const dateClass     = isAnnulees ? "text-red-600 dark:text-red-400" : "text-cyan-700 dark:text-cyan-300";
 
+          // ── Répartition par client (vue statistiques) ──
+          // Le "client" = 1er segment du nom de projet, avec fusion des grossistes
+          // multi-agences (Getaz Nyon / Getaz Bulle → Getaz, etc.).
+          const GROSSISTE_KEYS: [string, string][] = [
+            ["gétaz", "Getaz"], ["getaz", "Getaz"], ["duka", "Duka"], ["dubat", "Dubat"],
+            ["duscholux", "Duscholux"], ["matway", "Matway"], ["tema", "Tema"], ["bringhen", "Bringhen"],
+            ["bms", "BMS"], ["ronal", "Ronal"], ["nelo", "Nelo"], ["novellini", "Novellini"], ["samo", "Samo"],
+          ];
+          const clientNameOf = (projet: string) => {
+            const first = (projet || "").split(" - ")[0].trim();
+            const lower = first.toLowerCase();
+            for (const [k, label] of GROSSISTE_KEYS) if (lower.startsWith(k)) return label;
+            return first || "—";
+          };
+          const clientCounts: Record<string, number> = {};
+          displayList.forEach((p) => { const c = clientNameOf(p.projet); clientCounts[c] = (clientCounts[c] || 0) + 1; });
+          const clientStats = Object.entries(clientCounts)
+            .map(([name, count]) => ({ name, count, pct: displayList.length ? Math.round((count / displayList.length) * 1000) / 10 : 0 }))
+            .sort((a, b) => b.count - a.count);
+          const maxClientCount = clientStats.length ? clientStats[0].count : 1;
+          const barColor = isAnnulees ? "bg-red-500" : "bg-cyan-500";
+
           const renderMesureRow = (p: Project, idx: number) => {
             const dateStr    = (p.dateMesures || "").split("T")[0];
             const traitePar  = p.mesuresTraiteePar || "";
@@ -4352,6 +4375,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     </span>
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setMesuresShowStats((v) => !v)}
+                  title="Voir la répartition par client"
+                  className={`shrink-0 flex items-center gap-1 text-[11px] font-semibold px-3 py-2 rounded-xl transition-colors ${mesuresShowStats ? "bg-cyan-600 text-white shadow-sm" : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"}`}
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  Stats
+                </button>
                 {displayLoading && <span className="text-[10px] text-gray-400 animate-pulse shrink-0">Chargement…</span>}
               </div>
 
@@ -4379,6 +4411,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 )}
               </div>
 
+              {mesuresShowStats ? (
+                /* ── Vue statistiques : répartition par client ── */
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                    {isAnnulees ? "Mesures annulées par client" : "Mesures à commander par client"}
+                    <span className="text-gray-400 font-normal"> · {displayList.length} au total</span>
+                  </p>
+                  {clientStats.length === 0 ? (
+                    <p className="text-sm text-gray-400 py-4 text-center">Aucune donnée</p>
+                  ) : clientStats.map(({ name, count, pct }) => (
+                    <div key={name} className="flex items-center gap-2">
+                      <span className="w-28 sm:w-44 shrink-0 truncate text-xs text-gray-700 dark:text-gray-200" title={name}>{name}</span>
+                      <div className="flex-1 h-3.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${Math.max((count / maxClientCount) * 100, 4)}%` }} />
+                      </div>
+                      <span className="w-8 text-right text-xs font-bold text-gray-800 dark:text-gray-100 tabular-nums">{count}</span>
+                      <span className="w-12 text-right text-[10px] text-gray-400 tabular-nums">{pct}%</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+              <>
               {/* Column headers */}
               {displayList.length > 0 && (
                 <div className="hidden sm:flex items-center gap-3 px-2 text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 pb-1.5">
@@ -4420,6 +4474,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 <p className="text-sm text-gray-400 py-4 text-center">
                   {isAnnulees ? "Aucune mesure terminée sur projet annulé" : "Toutes les mesures ont été commandées 🎉"}
                 </p>
+              )}
+              </>
               )}
             </div>
           );
