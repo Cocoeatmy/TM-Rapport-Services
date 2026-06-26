@@ -1399,10 +1399,12 @@ function HomePage() {
   const closeFloatingWindow = useCallback((id: number) => {
     setFloatingWindows((prev) => prev.filter((w) => w.id !== id));
   }, []);
-  const [statsExpandedSections, setStatsExpandedSections] = useState<Set<string>>(new Set(["kpis", "monthly"]));
+  const [statsExpandedSections, setStatsExpandedSections] = useState<Set<string>>(new Set(["kpis", "monthly", "compare"]));
 
   // Stats from dedicated Notion databases
   const [statsServices, setStatsServices] = useState<any[]>([]);
+  // Stat isolée pour la section "Comparaison annuelle" (une ligne par année).
+  const [compareMetric, setCompareMetric] = useState<string>("montages");
   const [statsClients, setStatsClients] = useState<any[]>([]);
   const [statsMarques, setStatsMarques] = useState<any[]>([]);
   const [statsSeries, setStatsSeries] = useState<any[]>([]);
@@ -4142,6 +4144,81 @@ function HomePage() {
                           );
                         })}
                         {last12.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Aucune donnée pour cette période</p>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Comparaison annuelle — une stat isolée, une ligne par année */}
+            <div>
+              <button onClick={() => toggleSection("compare")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                {expandedSections.has("compare") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                Comparaison annuelle
+                <ChartTypeSelector value={chartTypePrefs["compare"] || "line"} onChange={(t) => setChartType("compare", t)} types={["line", "area"]} />
+              </button>
+              {expandedSections.has("compare") && (() => {
+                const compareType = chartTypePrefs["compare"] || "line";
+                const METRICS = [
+                  { key: "montages",   label: "Montages" },
+                  { key: "cabines",    label: "Cabines" },
+                  { key: "mesures",    label: "Mesures" },
+                  { key: "services",   label: "Services" },
+                  { key: "sav",        label: "SAV" },
+                  { key: "demontages", label: "Démontages" },
+                  { key: "ofr",        label: "Nb. OFR" },
+                  { key: "ca",         label: "CA" },
+                ];
+                const metric = METRICS.some((m) => m.key === compareMetric) ? compareMetric : "montages";
+                // Agrège la base journalière par (mois 1-12, année) pour la stat choisie.
+                const agg: Record<number, Record<number, number>> = {};
+                const yearSet = new Set<number>();
+                statsServices.forEach((r: any) => {
+                  const y = typeof r.annee === "number" ? r.annee : Number(r.annee);
+                  const mn = r.mois ? Number(String(r.mois).split("-")[1]) : NaN;
+                  if (!y || !mn || mn < 1 || mn > 12) return;
+                  yearSet.add(y);
+                  agg[mn] = agg[mn] || {};
+                  agg[mn][y] = (agg[mn][y] || 0) + (Number(r[metric]) || 0);
+                });
+                const years = [...yearSet].sort((a, b) => a - b);
+                const YEAR_COLORS = ["#22c55e", "#f97316", "#ec4899", "#3b82f6", "#06b6d4", "#a855f7", "#eab308"];
+                const series = years.map((y, i) => ({ key: String(y), label: String(y), color: YEAR_COLORS[i % YEAR_COLORS.length] }));
+                const compareData = Array.from({ length: 12 }, (_, m) => {
+                  const values: Record<string, number> = {};
+                  years.forEach((y) => { values[String(y)] = agg[m + 1]?.[y] || 0; });
+                  return { label: monthNames12[m], values };
+                });
+                const legendSeries = series.filter((s) => compareData.some((d) => (d.values[s.key] || 0) > 0));
+                return (
+                  <div className="glass-card rounded-2xl p-4">
+                    {/* Sélecteur de la statistique à isoler */}
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {METRICS.map((mt) => (
+                        <button key={mt.key} onClick={() => setCompareMetric(mt.key)}
+                          className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
+                            metric === mt.key
+                              ? "bg-[#1e3a5f] text-white shadow-sm"
+                              : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700"
+                          }`}>
+                          {mt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {years.length === 0
+                      ? <p className="text-xs text-gray-400 text-center py-4">Aucune donnée</p>
+                      : <TimeSeriesChart data={compareData} series={series} chartType={compareType === "area" ? "area" : "line"} height={180} />
+                    }
+                    {/* Légende des années */}
+                    {legendSeries.length > 0 && (
+                      <div className="flex flex-wrap gap-3 justify-center mt-2">
+                        {legendSeries.map((s) => (
+                          <span key={s.key} className="inline-flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                            {s.label}
+                          </span>
+                        ))}
                       </div>
                     )}
                   </div>
