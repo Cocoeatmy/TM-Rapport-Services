@@ -84,9 +84,9 @@ end startsWithAllowed
 on extractTM(s)
 	set ix to offset of "TM-" in s
 	if ix = 0 then return ""
-	set rest to text (ix + 3) thru -1 of s
+	set afterTM to text (ix + 3) thru -1 of s
 	set digits to ""
-	repeat with c in characters of rest
+	repeat with c in characters of afterTM
 		set c to c as string
 		if c ≥ "0" and c ≤ "9" then
 			set digits to digits & c
