@@ -20,21 +20,32 @@ function run(argv) {
   app.includeStandardAdditions = true;
 
   const store = $.EKEventStore.alloc.init;
+  const EVENT = 0; // EKEntityTypeEvent
+  const FULL = 3;  // EKAuthorizationStatusAuthorized / FullAccess (lecture+écriture)
 
-  // ── Demande d'accès (macOS 14+ : full access ; sinon ancienne API) ──────────
-  let done = false, granted = false;
-  if (store.requestFullAccessToEventsWithCompletion) {
-    store.requestFullAccessToEventsWithCompletion((g) => { granted = g; done = true; });
-  } else {
-    store.requestAccessToEntityTypeCompletion(0, (g) => { granted = g; done = true; });
-  }
+  // ── Accès ───────────────────────────────────────────────────────────────────
+  // On lit d'abord le statut (synchrone, fiable). Le callback async de la
+  // demande d'accès est capricieux sous JXA : on le déclenche seulement si le
+  // statut est "non déterminé", et on détecte l'octroi en re-sondant le statut
+  // (pas en se fiant au callback).
   const rl = $.NSRunLoop.currentRunLoop;
-  let spins = 0;
-  while (!done && spins < 1200) { // ~60 s max le temps que l'utilisateur clique
-    rl.runModeBeforeDate($.NSDefaultRunLoopMode, $.NSDate.dateWithTimeIntervalSinceNow(0.05));
-    spins++;
+  // Number(...) : le pont ObjC renvoie un objet, pas un nombre JS → on coerce.
+  let status = Number($.EKEventStore.authorizationStatusForEntityType(EVENT));
+
+  if (status !== FULL) {
+    if (store.requestFullAccessToEventsWithCompletion) {
+      store.requestFullAccessToEventsWithCompletion(() => {});
+    } else {
+      store.requestAccessToEntityTypeCompletion(EVENT, () => {});
+    }
+    let spins = 0;
+    while (status !== FULL && spins < 1200) { // ~60 s le temps du clic utilisateur
+      rl.runModeBeforeDate($.NSDefaultRunLoopMode, $.NSDate.dateWithTimeIntervalSinceNow(0.05));
+      status = Number($.EKEventStore.authorizationStatusForEntityType(EVENT));
+      spins++;
+    }
   }
-  if (!granted) return 'ACCES CALENDRIER REFUSE';
+  if (status !== FULL) return 'ACCES CALENDRIER REFUSE (statut ' + status + ')';
 
   // ── Fenêtre : passé proche → ~5 mois devant ────────────────────────────────
   const start = $.NSDate.dateWithTimeIntervalSinceNow(-3 * 86400);
@@ -43,7 +54,9 @@ function run(argv) {
   const events = store.eventsMatchingPredicate(pred);
   const count = events.count;
 
-  const prefixes = ['Montage ', 'Services ', 'SAV ', 'Garantie ', 'PROV '];
+  // Types acceptés : Montage / Services / SAV / Garantie, éventuellement
+  // préfixés par "PROV" (séparateur " : " ou " - "). Exclut Mesures, Visite, etc.
+  const TYPE_RE = /^(?:PROV\s*[:\-]\s*)?(?:Montage|Services|SAV|Garantie)\b/i;
   let filled = 0;
 
   for (let i = 0; i < count; i++) {
@@ -51,7 +64,7 @@ function run(argv) {
 
     const title = ObjC.unwrap(ev.title) || '';
     if (!title) continue;
-    if (!prefixes.some((p) => title.indexOf(p) === 0)) continue;
+    if (!TYPE_RE.test(title)) continue;
 
     // URL déjà présente ? on saute.
     const abs = ObjC.unwrap(ev.URL ? ev.URL.absoluteString : $()) || '';
