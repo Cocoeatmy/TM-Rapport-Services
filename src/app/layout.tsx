@@ -79,8 +79,8 @@ export default function RootLayout({
               <CreateProjectButton />
               <NotificationBell />
               <RefreshButton />
-              <ForceSyncButton />
               <SyncButton />
+              <ForceSyncButton />
               <UserMenu />
             </div>
           </div>

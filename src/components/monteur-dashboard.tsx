@@ -418,7 +418,7 @@ const CLIENT_LOGOS: { prefix: string; logo: string; scale?: number; whiteOnTrans
   { prefix: "samo",       logo: "/logos/fournisseurs/Samo-logo.jpg",       scale: 1.5 },
   { prefix: "dubat",      logo: "/logos/fournisseurs/Dubat-Logo.png",      scale: 1.3 },
   { prefix: "tema",       logo: "/logos/fournisseurs/Tema-Logo.png",       scale: 1.4 },
-  { prefix: "matway",     logo: "/logos/fournisseurs/Matway-Logo.png",     scale: 1.5 },
+  { prefix: "matway",     logo: "/logos/fournisseurs/Matway-Logo.png",     scale: 1.5, whiteOnTransparent: true },
   { prefix: "bringhen",   logo: "/logos/fournisseurs/Bringhen-logo.jpg" },
 ];
 
