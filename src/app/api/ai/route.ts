@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getAllProjectsRaw } from "@/lib/notion";
 import { getCached, setCache } from "@/lib/server-cache";
+import { getStats } from "@/lib/stats-data";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30; // 1er appel : charge tous les projets (mis en cache 5 min)
@@ -63,6 +64,40 @@ function isoInTz(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
 }
 
+const MOIS_NOMS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+
+// Chiffres OFFICIELS des cabines installées (mêmes données que la page Stats,
+// base "marques"). Calculés en code car un LLM additionne mal des dizaines de
+// nombres — et le contexte projets n'envoie qu'un sous-ensemble.
+async function buildStatsSummary(currentYear: number): Promise<string> {
+  try {
+    const marques = await getStats("marques"); // [{ marque, annee, monthly, total }]
+    if (!Array.isArray(marques) || marques.length === 0) return "";
+    const byYear: Record<number, number> = {};
+    const monthCur: Record<string, number> = {};
+    for (const r of marques as { annee: number | null; monthly?: Record<string, number>; total?: number }[]) {
+      if (r.annee == null) continue;
+      byYear[r.annee] = (byYear[r.annee] || 0) + (r.total || 0);
+      if (r.annee === currentYear && r.monthly) {
+        for (const m of MOIS_NOMS) monthCur[m] = (monthCur[m] || 0) + (r.monthly[m] || 0);
+      }
+    }
+    const years = Object.keys(byYear).map(Number).sort((a, b) => b - a);
+    if (years.length === 0) return "";
+    const yearLines = years.map((y) => `  - ${y} : ${byYear[y]} cabines installées`).join("\n");
+    const monthLines = MOIS_NOMS
+      .filter((m) => (monthCur[m] || 0) > 0)
+      .map((m) => `  - ${m} ${currentYear} : ${monthCur[m]} cabines`)
+      .join("\n");
+    let out = `STATISTIQUES OFFICIELLES — cabines installées (chiffres exacts, identiques à la page Stats) :\n${yearLines}`;
+    if (monthLines) out += `\nDétail mensuel ${currentYear} :\n${monthLines}`;
+    return out;
+  } catch (e) {
+    console.error("AI stats summary error", e);
+    return "";
+  }
+}
+
 // minuscules + sans accents, pour la recherche par mot-clé.
 const norm = (s: string): string =>
   (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -118,6 +153,9 @@ export async function POST(request: NextRequest) {
       refLines.push(`${isoInTz(d)} = ${wdFmt.format(d)}${tag}`);
     }
     const refCalendar = refLines.join("\n");
+
+    // Bloc statistiques officiel (cabines installées par année/mois).
+    const statsSummary = await buildStatsSummary(Number(todayIso.slice(0, 4)));
 
     // Liste compacte de TOUS les projets (mise en cache 5 min). On y pioche
     // ensuite le sous-ensemble PERTINENT à la question, pour ne pas dépasser
@@ -218,7 +256,7 @@ ${refCalendar}
 
 UTILISATEUR CONNECTÉ : ${user.name} (${user.email})
 
-PROJETS PERTINENTS (sélectionnés selon ta question ; chaque date de montage est suivie de son jour de la semaine) :
+${statsSummary ? statsSummary + "\n\n" : ""}PROJETS PERTINENTS (sélectionnés selon ta question ; chaque date de montage est suivie de son jour de la semaine) :
 ${projectsContext}
 
 RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
@@ -226,7 +264,8 @@ RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
 2. Pour une question de date (« lundi prochain », « demain », « cette semaine »…), convertis-la d'abord en date exacte (AAAA-MM-JJ) à l'aide du calendrier de référence, puis liste UNIQUEMENT les projets dont la « Date montage » correspond EXACTEMENT à cette date.
 3. Pour une question sur un client / une entreprise (ex. « MMT », « Duka »…), liste TOUS les projets de la liste ci-dessus dont le nom, le chantier, les contacts ou le fournisseur contient ce terme, avec leur statut. Un projet est « ouvert » / « en cours » sauf si son statut est « Terminé » ou « Annulé ». Si on demande les projets ouverts, exclus les « Terminé » et « Annulé ».
 4. Si aucun projet ne correspond, dis-le clairement. Ne comble pas le vide en inventant.
-5. La liste fournie est un sous-ensemble pertinent (pas toute la base). Si tu penses qu'il pourrait exister d'autres projets non listés, invite l'utilisateur à utiliser la recherche de l'app.
+5. La liste de projets fournie est un sous-ensemble pertinent (pas toute la base). Pour LISTER des projets, base-toi dessus et, si pertinent, invite à utiliser la recherche de l'app.
+5bis. Pour toute question de TOTAL/COMPTAGE de cabines installées (par année ou par mois — ex. « combien de cabines en 2026 », « combien en juin »), réponds EXCLUSIVEMENT avec les chiffres du bloc « STATISTIQUES OFFICIELLES » ci-dessus. Ne compte JAMAIS les projets toi-même pour ça. Si le bloc statistiques est absent, dis que tu ne peux pas donner le total et renvoie vers la page Stats.
 6. Réponds toujours en français, de façon concise et pratique (monteurs sur le terrain).
 7. Pour les conseils techniques (séries Duka, Koralle, Duscholux, Nelo, Ronal…), donne des conseils généraux mais précise que le manuel officiel du fournisseur fait référence.
 8. MISE EN FORME (Markdown) : commence par une courte phrase de réponse, puis liste chaque projet sur sa propre puce « - ». Mets en **gras** les infos clés (numéro OFR, statut, dates importantes). Garde chaque puce concise. N'utilise pas de tableaux.`;
