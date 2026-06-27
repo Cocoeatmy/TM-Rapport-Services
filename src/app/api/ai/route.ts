@@ -21,13 +21,53 @@ async function queryGroq(messages: { role: string; content: string }[]) {
       max_tokens: 1024,
     }),
   });
+  // Remonter une vraie erreur au lieu du message muet « je n'ai pas pu répondre ».
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error("Groq error", res.status, body);
+    if (res.status === 429) {
+      throw new Error("Limite d'utilisation de l'IA atteinte pour le moment. Réessaie dans quelques minutes.");
+    }
+    throw new Error(`Le service IA est momentanément indisponible (erreur ${res.status}).`);
+  }
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || "Désolé, je n'ai pas pu répondre.";
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error("L'IA n'a renvoyé aucune réponse. Réessaie.");
+  return content;
 }
 
 // AAAA-MM-JJ dans le fuseau suisse (en-CA produit ce format).
 function isoInTz(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
+}
+
+// minuscules + sans accents, pour la recherche par mot-clé.
+const norm = (s: string): string =>
+  (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+// Mots à ignorer dans la question (trop génériques pour cibler un projet).
+const STOPWORDS = new Set([
+  "les", "des", "une", "est", "sont", "que", "qui", "quoi", "pour", "avec", "dans", "sur",
+  "nous", "avons", "encore", "quel", "quels", "quelle", "quelles", "mes", "mon", "ton", "ses",
+  "montage", "montages", "projet", "projets", "client", "clients", "entreprise", "entreprises",
+  "cabine", "cabines", "prochain", "prochaine", "semaine", "jour", "jours", "aujourd", "hui",
+  "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche", "demain", "fixer",
+  "adresse", "info", "infos", "information", "informations", "as", "tu", "le", "la", "et", "ou",
+  "du", "de", "au", "aux", "ce", "cette", "ces", "par", "pas", "plus", "fait", "faire",
+]);
+
+interface MiniProject {
+  ofrTM: string;
+  projet: string;
+  nomChantier: string;
+  adresseChantier: string;
+  nbCabines: number | string | null;
+  fournisseurs: string;
+  seriesCabines: string;
+  collaborateurs: string;
+  etatCMD: string;
+  dateMontage: string | null;
+  hay: string; // texte normalisé pour la recherche
 }
 
 export async function POST(request: NextRequest) {
@@ -47,46 +87,80 @@ export async function POST(request: NextRequest) {
     }).format(now);
 
     // Calendrier de référence : 21 prochains jours (date ↔ jour de la semaine).
-    // Permet au modèle de convertir « lundi prochain / demain » en date exacte
-    // sans faire de calcul (source d'erreurs).
     const wdFmt = new Intl.DateTimeFormat("fr-CH", { weekday: "long", timeZone: TZ });
     const refLines: string[] = [];
     for (let i = 0; i < 21; i++) {
       const d = new Date(now.getTime() + i * 86_400_000);
-      const iso = isoInTz(d);
-      const wd = wdFmt.format(d);
       const tag = i === 0 ? " ← AUJOURD'HUI" : i === 1 ? " (demain)" : "";
-      refLines.push(`${iso} = ${wd}${tag}`);
+      refLines.push(`${isoInTz(d)} = ${wdFmt.format(d)}${tag}`);
     }
     const refCalendar = refLines.join("\n");
 
-    // Contexte projets : trié (montages à venir d'abord), avec le jour de la
-    // semaine précalculé pour chaque date de montage. Mis en cache 5 min.
-    let projectsContext = getCached<string>("ai-context");
-    if (!projectsContext) {
+    // Liste compacte de TOUS les projets (mise en cache 5 min). On y pioche
+    // ensuite le sous-ensemble PERTINENT à la question, pour ne pas dépasser
+    // les limites de tokens.
+    let cachedMini = getCached<MiniProject[]>("ai-projects");
+    if (!cachedMini) {
       const projects = await getProjects();
-      const fmtDate = (iso: string | null | undefined): string => {
-        if (!iso) return "non fixé";
-        const dateOnly = iso.slice(0, 10);
-        const d = new Date(dateOnly + "T12:00:00");
-        if (isNaN(d.getTime())) return dateOnly;
-        return `${dateOnly} (${wdFmt.format(d)})`;
-      };
-      const line = (p: (typeof projects)[number]) =>
-        `- ${p.ofrTM} | ${p.projet} | Chantier: ${p.nomChantier} | Adresse: ${p.adresseChantier} | Cabines: ${p.nbCabines} | Fournisseurs: ${p.fournisseurs.join(",")} | Séries: ${p.seriesCabines.join(",")} | Collaborateurs: ${p.collaborateurs} | Statut: ${p.etatCMD} | Date montage: ${fmtDate(p.dateMontage)}`;
-
-      const withDate = projects.filter((p) => p.dateMontage);
-      const noDate = projects.filter((p) => !p.dateMontage);
-      const future = withDate
-        .filter((p) => (p.dateMontage as string).slice(0, 10) >= todayIso)
-        .sort((a, b) => ((a.dateMontage as string) < (b.dateMontage as string) ? -1 : 1));
-      const past = withDate
-        .filter((p) => (p.dateMontage as string).slice(0, 10) < todayIso)
-        .sort((a, b) => ((a.dateMontage as string) > (b.dateMontage as string) ? -1 : 1));
-
-      projectsContext = [...future, ...past, ...noDate].slice(0, 60).map(line).join("\n");
-      setCache("ai-context", projectsContext);
+      cachedMini = projects.map((p) => ({
+        ofrTM: p.ofrTM,
+        projet: p.projet,
+        nomChantier: p.nomChantier,
+        adresseChantier: p.adresseChantier,
+        nbCabines: p.nbCabines,
+        fournisseurs: p.fournisseurs.join(","),
+        seriesCabines: p.seriesCabines.join(","),
+        collaborateurs: p.collaborateurs,
+        etatCMD: p.etatCMD,
+        dateMontage: p.dateMontage || null,
+        hay: norm(`${p.ofrTM} ${p.projet} ${p.nomChantier} ${p.adresseChantier} ${p.collaborateurs} ${p.fournisseurs.join(" ")}`),
+      }));
+      setCache("ai-projects", cachedMini);
     }
+    const mini: MiniProject[] = cachedMini;
+
+    // 1) Projets correspondant aux mots-clés de la question (ex. « MMT », « Duka »).
+    const keywords = [...new Set(norm(message).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w)))];
+    const matched = keywords.length
+      ? mini.filter((p) => keywords.some((w) => p.hay.includes(w)))
+      : [];
+
+    // 2) Montages à venir (triés par date croissante).
+    const upcoming = mini
+      .filter((p) => p.dateMontage && p.dateMontage.slice(0, 10) >= todayIso)
+      .sort((a, b) => ((a.dateMontage as string) < (b.dateMontage as string) ? -1 : 1));
+
+    // Assemble : correspondances (max 70) + montages à venir (max 40), dédupliqués,
+    // puis on complète avec d'autres projets si besoin. Plafond global 120.
+    const selected: MiniProject[] = [];
+    const seen = new Set<string>();
+    const push = (arr: MiniProject[], max: number) => {
+      let n = 0;
+      for (const p of arr) {
+        if (n >= max || selected.length >= 120) break;
+        const key = p.ofrTM || p.projet;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        selected.push(p);
+        n++;
+      }
+    };
+    push(matched, 70);
+    push(upcoming, 40);
+    push(mini, 120); // complète avec le reste si de la place reste
+
+    const fmtDate = (iso: string | null): string => {
+      if (!iso) return "non fixé";
+      const dateOnly = iso.slice(0, 10);
+      const d = new Date(dateOnly + "T12:00:00");
+      if (isNaN(d.getTime())) return dateOnly;
+      return `${dateOnly} (${wdFmt.format(d)})`;
+    };
+    const projectsContext = selected
+      .map((p) =>
+        `- ${p.ofrTM} | ${p.projet} | Chantier: ${p.nomChantier} | Adresse: ${p.adresseChantier} | Cabines: ${p.nbCabines} | Fournisseurs: ${p.fournisseurs} | Séries: ${p.seriesCabines} | Collaborateurs: ${p.collaborateurs} | Statut: ${p.etatCMD} | Date montage: ${fmtDate(p.dateMontage)}`
+      )
+      .join("\n");
 
     const systemPrompt = `Tu es l'assistant IA de TM Douche Montage Sàrl, entreprise d'installation de cabines de douche en Suisse.
 
@@ -97,17 +171,17 @@ ${refCalendar}
 
 UTILISATEUR CONNECTÉ : ${user.name} (${user.email})
 
-PROJETS (triés : montages à venir d'abord ; chaque date de montage est suivie de son jour de la semaine) :
+PROJETS PERTINENTS (sélectionnés selon ta question ; chaque date de montage est suivie de son jour de la semaine) :
 ${projectsContext}
 
 RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
 1. N'INVENTE JAMAIS de date, de numéro de projet (OFR), de nom de chantier, d'adresse ni de collaborateur. Utilise UNIQUEMENT les données ci-dessus.
 2. Pour une question de date (« lundi prochain », « demain », « cette semaine »…), convertis-la d'abord en date exacte (AAAA-MM-JJ) à l'aide du calendrier de référence, puis liste UNIQUEMENT les projets dont la « Date montage » correspond EXACTEMENT à cette date.
-3. Un projet n'est concerné par une date QUE si sa « Date montage » est exactement celle-ci. Ne propose jamais un projet dont la date est différente.
-4. Si aucun projet ne correspond, dis clairement qu'il n'y a aucun montage à cette/ces date(s). Ne comble pas le vide en inventant.
-5. Réponds toujours en français, de façon concise et pratique (monteurs sur le terrain).
-6. Pour les conseils techniques (séries Duka, Koralle, Duscholux, Nelo, Ronal…), tu peux donner des conseils généraux mais précise que le manuel officiel du fournisseur fait référence.
-7. Si une information demandée n'est pas dans les données, dis honnêtement que tu ne l'as pas.`;
+3. Pour une question sur un client / une entreprise (ex. « MMT », « Duka »…), liste TOUS les projets de la liste ci-dessus dont le nom, le chantier ou le fournisseur contient ce terme, avec leur statut. Précise le statut (en cours, terminé, RDV à fixer, etc.).
+4. Si aucun projet ne correspond, dis-le clairement. Ne comble pas le vide en inventant.
+5. La liste fournie est un sous-ensemble pertinent (pas toute la base). Si tu penses qu'il pourrait exister d'autres projets non listés, invite l'utilisateur à utiliser la recherche de l'app.
+6. Réponds toujours en français, de façon concise et pratique (monteurs sur le terrain).
+7. Pour les conseils techniques (séries Duka, Koralle, Duscholux, Nelo, Ronal…), donne des conseils généraux mais précise que le manuel officiel du fournisseur fait référence.`;
 
     const answer = await queryGroq([
       { role: "system", content: systemPrompt },
