@@ -29,7 +29,11 @@ async function queryGemini(systemPrompt: string, userMessage: string) {
         contents: [{ role: "user", parts: [{ text: userMessage }] }],
         generationConfig: {
           temperature: 0.1, // factuel : zéro improvisation sur les dates/projets
-          maxOutputTokens: 1024,
+          maxOutputTokens: 2048,
+          // Désactive le mode « réflexion » de gemini-2.5-flash : inutile ici
+          // (réponses factuelles), il gaspillait le quota et pouvait vider le
+          // budget de sortie avant d'écrire la réponse.
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     }
