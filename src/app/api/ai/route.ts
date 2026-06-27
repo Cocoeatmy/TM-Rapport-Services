@@ -123,11 +123,14 @@ export async function POST(request: NextRequest) {
           client,
           etatCMD: p.etatCMD,
           dateMontage: p.dateMontage || null,
-          // Mêmes champs que l'index de la recherche de l'app (sinon « MMT »,
-          // souvent dans les contacts/grossistes, restait introuvable).
+          // EXACTEMENT les mêmes champs que l'index de la recherche de l'app
+          // (sinon « MMT », souvent dans les contacts/grossistes/cmd, restait
+          // introuvable alors que la recherche le trouve).
           hay: norm([
             p.projet, p.ofrTM, p.ofrGrossiste, p.nomChantier, p.adresseChantier,
-            p.collaborateurs, p.contacts,
+            p.cmdTM, p.cmdTMUsine, p.cmdGrossiste, p.cmdFournisseurs,
+            p.servCmdFournisseurs, p.servMesuresFournisseurs, p.bonLivraison,
+            p.collaborateurs, p.contacts, p.emplacementCabine,
             ...(p.fournisseurs || []), ...(p.fournisseursNames || []),
             ...(p.grossistesNames || []), ...(p.sanitaireNames || []),
             ...(p.seriesCabines || []),
@@ -164,11 +167,11 @@ export async function POST(request: NextRequest) {
         n++;
       }
     };
-    push(matched, 80);
-    push(upcoming, matched.length ? 20 : 40);
+    push(matched, 60);
+    push(upcoming, matched.length ? 15 : 35);
     // Ne complète avec des projets non pertinents QUE si le contexte est maigre
-    // (question générique). Évite d'envoyer 120 projets sans rapport.
-    if (selected.length < 40) push(mini, 60);
+    // (question générique). Évite d'envoyer trop de projets sans rapport (→ 413).
+    if (selected.length < 30) push(mini, 50);
 
     const fmtDate = (iso: string | null): string => {
       if (!iso) return "non fixé";
@@ -177,9 +180,11 @@ export async function POST(request: NextRequest) {
       if (isNaN(d.getTime())) return dateOnly;
       return `${dateOnly} (${wdFmt.format(d)})`;
     };
+    // Lignes COURTES : le nom du projet contient déjà client + lot + adresse.
+    // Les lignes longues faisaient dépasser la limite de taille de Groq (413).
     const projectsContext = selected
       .map((p) =>
-        `- ${p.ofrTM} | ${p.projet} | Chantier: ${p.nomChantier} | Adresse: ${p.adresseChantier} | Client/contacts: ${p.client || "—"} | Cabines: ${p.nbCabines} | Fournisseurs: ${p.fournisseurs} | Séries: ${p.seriesCabines} | Collaborateurs: ${p.collaborateurs} | Statut: ${p.etatCMD} | Date montage: ${fmtDate(p.dateMontage)}`
+        `- ${p.ofrTM} | ${p.projet} | Statut: ${p.etatCMD} | Collab: ${p.collaborateurs || "—"} | Montage: ${fmtDate(p.dateMontage)}`
       )
       .join("\n");
 
