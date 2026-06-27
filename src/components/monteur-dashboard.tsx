@@ -5503,6 +5503,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             </div>
                           );
                         })()}
+                        {showSummaryPanel === "rdv-montage-a-fixer" && p.nbCollaborateursMontage && (
+                          <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">{p.nbCollaborateursMontage} pers.</span>
+                        )}
                         <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
                       </Link>
                     );
