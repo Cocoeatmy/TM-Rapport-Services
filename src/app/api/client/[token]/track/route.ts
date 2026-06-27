@@ -25,11 +25,25 @@ export async function POST(
     // Get existing consultations
     const consultations = await getData<any>("rapport-consultations") || [];
 
+    // Identité du consulteur : collaborateur connecté (cookie auth) sinon "le client".
+    const authCookie = request.cookies.get("auth-token")?.value;
+    let isCollab = false;
+    let collaboratorName: string | null = null;
+    if (authCookie) {
+      try {
+        const user = await verifyToken(authCookie) as { name?: string; email?: string } | null;
+        if (user) { isCollab = true; collaboratorName = user.name || user.email || "Collaborateur"; }
+      } catch {}
+    }
+    const who = isCollab ? `${collaboratorName} (collaborateur)` : "le client";
+
     // Add new consultation
     consultations.push({
       projectId,
       token,
       action,
+      by: who,
+      collaborator: collaboratorName,
       timestamp: new Date().toISOString(),
       userAgent: request.headers.get("user-agent") || "unknown",
       ip: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown",
@@ -39,36 +53,33 @@ export async function POST(
     const trimmed = consultations.slice(-1000);
     await setData("rapport-consultations", trimmed);
 
-    // Si l'appelant est un collaborateur ou admin authentifié, on enregistre
-    // la consultation mais on NE NOTIFIE PAS par email — trop de bruit.
-    const authCookie = request.cookies.get("auth-token")?.value;
-    let isCollab = false;
-    if (authCookie) {
-      try {
-        const user = await verifyToken(authCookie);
-        if (user) isCollab = true;
-      } catch {}
-    }
-
-    if (!isCollab) {
-      // Notification email uniquement pour les vrais clients (non authentifiés)
+    // Notification email à CHAQUE consultation, en précisant QUI a consulté
+    // (collaborateur nommé si connecté, sinon « le client »).
+    {
       try {
         const project = await getProject(projectId);
         const actionLabel = action === "pdf" ? "a ouvert le rapport PDF" : "a consulté le portail";
+        const whoCap = who.charAt(0).toUpperCase() + who.slice(1);
+        const headerColor = isCollab ? "#1e3a5f" : "#059669";
+        const bgColor     = isCollab ? "#eff6ff" : "#f0fdf4";
+        const borderColor = isCollab ? "#bfdbfe" : "#bbf7d0";
+        const textColor   = isCollab ? "#1e3a8a" : "#166534";
+        const titleColor  = isCollab ? "#1e3a5f" : "#14532d";
+        const headerLabel = isCollab ? "👤 Rapport consulté (collaborateur)" : "✅ Rapport consulté (client)";
         const { Resend } = await import("resend");
         const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
         await resend.emails.send({
           from: "TM Rapport Services <onboarding@resend.dev>",
           to: "ferreira.micael@gmail.com",
-          subject: `📬 Rapport consulté - ${project.projet}`,
+          subject: `📬 Rapport consulté par ${who} - ${project.projet}`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-              <div style="background: #059669; padding: 16px 20px; border-radius: 10px 10px 0 0;">
-                <h3 style="color: white; margin: 0; font-size: 16px;">✅ Rapport consulté</h3>
+              <div style="background: ${headerColor}; padding: 16px 20px; border-radius: 10px 10px 0 0;">
+                <h3 style="color: white; margin: 0; font-size: 16px;">${headerLabel}</h3>
               </div>
-              <div style="background: #f0fdf4; padding: 20px; border: 1px solid #bbf7d0; border-top: none; border-radius: 0 0 10px 10px;">
-                <p style="margin: 0 0 8px 0; color: #166534; font-size: 14px;">Le client <strong>${actionLabel}</strong> pour :</p>
-                <p style="margin: 0; font-size: 18px; font-weight: 700; color: #14532d;">${project.projet}</p>
+              <div style="background: ${bgColor}; padding: 20px; border: 1px solid ${borderColor}; border-top: none; border-radius: 0 0 10px 10px;">
+                <p style="margin: 0 0 8px 0; color: ${textColor}; font-size: 14px;">${whoCap} <strong>${actionLabel}</strong> pour :</p>
+                <p style="margin: 0; font-size: 18px; font-weight: 700; color: ${titleColor};">${project.projet}</p>
                 <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 12px;">${new Date().toLocaleString("fr-CH", { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Zurich" })}</p>
               </div>
             </div>
