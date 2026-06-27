@@ -14,36 +14,60 @@ const TZ = "Europe/Zurich";
 // Modèle surchargeable via GEMINI_MODEL (défaut : gemini-2.5-flash).
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-async function queryGemini(systemPrompt: string, userMessage: string) {
+// Sites OFFICIELS des fabricants/fournisseurs (pour orienter la recherche web
+// vers les bons manuels / vues éclatées). À compléter avec les vraies adresses.
+const SUPPLIER_SITES = [
+  "Duka : duka.it / duka.com",
+  "Duscholux : duscholux.ch",
+  "Novellini : novellini.com",
+  "Ronal (Ronal Group / cabines) : site officiel du fabricant",
+  "Nelo : site officiel du fabricant",
+  "Samo : samo.it",
+  "Koralle : koralle.de",
+  "Kermi : kermi.com",
+  "Dubat, Tema, Matway, Bringhen : site officiel du fabricant/grossiste",
+].join("\n");
+
+// Détecte une question TECHNIQUE / documentaire (manuel, notice, vue éclatée,
+// pièce détachée, conseil de pose) → on active la recherche web.
+function isDocQuestion(message: string): boolean {
+  const m = message.toLowerCase();
+  if (/(manuel|notice|mode d.emploi|éclat|eclat|pi[èe]ce|sch[ée]ma|r[ée]glage|silicone|[ée]tanch|montage de|notice de)/.test(m)) return true;
+  if (/comment\s+(les?\s+|la\s+|l.\s*|une?\s+|des\s+)?(pose|mont|instal|fix|r[ée]gl|remplac|d[ée]pos|chang|coup|d[ée]coup)/.test(m)) return true;
+  return false;
+}
+
+async function queryGemini(systemPrompt: string, userMessage: string, opts?: { search?: boolean }) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("Clé API Gemini manquante (GEMINI_API_KEY).");
+
+  const body: Record<string, unknown> = {
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents: [{ role: "user", parts: [{ text: userMessage }] }],
+    generationConfig: {
+      // Recherche web : un peu plus de liberté ; sinon factuel strict.
+      temperature: opts?.search ? 0.3 : 0.1,
+      maxOutputTokens: 2048,
+      // Réflexion désactivée : économise le quota gratuit et évite que le
+      // budget de sortie soit consommé avant d'écrire la réponse.
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  };
+  // Active la recherche Google (grounding) pour les questions techniques/manuels.
+  if (opts?.search) body.tools = [{ google_search: {} }];
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": key,
-      },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: userMessage }] }],
-        generationConfig: {
-          temperature: 0.1, // factuel : zéro improvisation sur les dates/projets
-          maxOutputTokens: 2048,
-          // Désactive le mode « réflexion » de gemini-2.5-flash : inutile ici
-          // (réponses factuelles), il gaspillait le quota et pouvait vider le
-          // budget de sortie avant d'écrire la réponse.
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify(body),
     }
   );
 
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    console.error("Gemini error", res.status, body);
+    const errBody = await res.text().catch(() => "");
+    console.error("Gemini error", res.status, errBody);
     if (res.status === 429) {
       throw new Error("Limite d'utilisation gratuite de l'IA atteinte. Réessaie dans une minute.");
     }
@@ -51,12 +75,25 @@ async function queryGemini(systemPrompt: string, userMessage: string) {
   }
 
   const data = await res.json();
-  const content = data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || "").join("");
+  const cand = data.candidates?.[0];
+  let content = cand?.content?.parts?.map((p: { text?: string }) => p.text || "").join("");
   if (!content) {
-    // Réponse vide = souvent un blocage de sécurité ou une réponse tronquée.
     console.error("Gemini empty response", JSON.stringify(data).slice(0, 500));
     throw new Error("L'IA n'a renvoyé aucune réponse. Reformule ta question.");
   }
+
+  // En mode recherche : ajoute les liens sources (manuels, pages produits…).
+  if (opts?.search) {
+    const chunks: { web?: { uri?: string; title?: string } }[] =
+      cand?.groundingMetadata?.groundingChunks || [];
+    const links = chunks
+      .map((c) => c.web)
+      .filter((w): w is { uri: string; title?: string } => !!w?.uri)
+      .map((w) => `- [${w.title || w.uri}](${w.uri})`);
+    const uniq = [...new Set(links)].slice(0, 6);
+    if (uniq.length) content += `\n\n**Sources :**\n${uniq.join("\n")}`;
+  }
+
   return content;
 }
 
@@ -138,6 +175,32 @@ export async function POST(request: NextRequest) {
 
   const { message } = await request.json();
   if (!message) return NextResponse.json({ error: "Message requis" }, { status: 400 });
+
+  // ── Question TECHNIQUE / manuel → recherche web (Gemini grounding) ──────────
+  // Pas besoin du contexte projets ici ; on cherche un document fabricant.
+  if (isDocQuestion(message)) {
+    try {
+      const docPrompt = `Tu es l'assistant technique de TM Douche Montage Sàrl (montage de cabines de douche en Suisse). L'utilisateur cherche une information technique : manuel de montage, notice, vue éclatée, pièce détachée, ou conseil de pose.
+
+Utilise la RECHERCHE GOOGLE pour trouver l'information sur les sites OFFICIELS des fabricants. Fournisseurs/marques de l'entreprise (priorise leurs sites officiels) :
+${SUPPLIER_SITES}
+
+Règles :
+- Donne le(s) LIEN(S) direct(s) vers le manuel / la notice / la vue éclatée officielle quand tu les trouves (idéalement le PDF).
+- Privilégie TOUJOURS la source officielle du fabricant ; évite les revendeurs et sites tiers non officiels.
+- Si tu ne trouves pas le document exact, dis-le clairement, donne la page produit la plus proche, et suggère de contacter le fournisseur.
+- Donne aussi, si utile, un résumé concis des étapes clés de montage.
+- Réponds en français, clair et structuré (gras pour les points clés, puces).`;
+      const answer = await queryGemini(docPrompt, message, { search: true });
+      return NextResponse.json({ answer });
+    } catch (error) {
+      console.error("AI doc/search error:", error);
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Erreur IA (recherche)" },
+        { status: 500 }
+      );
+    }
+  }
 
   try {
     const now = new Date();

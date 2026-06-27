@@ -12,15 +12,30 @@ interface Message {
 // Rendu Markdown léger (sans dépendance) : gras **…**, puces (- ou *), titres
 // (#), et lignes vides → espacement. Suffisant pour les réponses de l'IA.
 function renderInline(text: string, keyPrefix: string) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-    part.startsWith("**") && part.endsWith("**") ? (
-      <strong key={`${keyPrefix}-${i}`} className="font-semibold text-gray-900">
-        {part.slice(2, -2)}
-      </strong>
-    ) : (
-      <span key={`${keyPrefix}-${i}`}>{part}</span>
-    )
-  );
+  // Gras **…**, liens Markdown [texte](url), et URLs brutes → cliquables.
+  const tokenRe = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s)]+)/g;
+  return text.split(tokenRe).map((part, i) => {
+    const key = `${keyPrefix}-${i}`;
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={key} className="font-semibold text-gray-900">{part.slice(2, -2)}</strong>;
+    }
+    const md = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (md) {
+      return (
+        <a key={key} href={md[2]} target="_blank" rel="noopener noreferrer" className="text-purple-600 underline break-all">
+          {md[1]}
+        </a>
+      );
+    }
+    if (/^https?:\/\//.test(part)) {
+      return (
+        <a key={key} href={part} target="_blank" rel="noopener noreferrer" className="text-purple-600 underline break-all">
+          {part}
+        </a>
+      );
+    }
+    return <span key={key}>{part}</span>;
+  });
 }
 
 function FormattedMessage({ content }: { content: string }) {
