@@ -4160,7 +4160,7 @@ function HomePage() {
                     {/* Légende couleur → métrique (les vues ligne/aire/colonnes
                         n'ont pas de libellé inline comme la vue barres). */}
                     {monthlyChartType !== "bar-h" && (
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
                         {monthlySeries.map((s) => (
                           <span key={s.key} className="flex items-center gap-1.5 text-[11px] text-gray-600 dark:text-gray-300">
                             <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: s.color }} />

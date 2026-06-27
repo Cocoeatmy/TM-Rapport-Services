@@ -208,7 +208,9 @@ export function TimeSeriesChart({ data, series, chartType, height = 140 }: TimeC
       )}
 
       {data.map((d, i) => (
-        <text key={i} x={px(i)} y={H - 6} textAnchor="middle" fontSize="6" fill="#9ca3af">
+        <text key={i} x={px(i)} y={H - 6}
+          textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"}
+          fontSize="5" fill="#9ca3af">
           {d.label}
         </text>
       ))}
@@ -298,7 +300,9 @@ export function StackedAreaChart({ data, series, height = 150 }: StackedAreaProp
       ))}
 
       {data.map((d, i) => (
-        <text key={i} x={px(i)} y={H - 6} textAnchor="middle" fontSize="6" fill="#9ca3af">
+        <text key={i} x={px(i)} y={H - 6}
+          textAnchor={i === 0 ? "start" : i === data.length - 1 ? "end" : "middle"}
+          fontSize="5" fill="#9ca3af">
           {d.label}
         </text>
       ))}
