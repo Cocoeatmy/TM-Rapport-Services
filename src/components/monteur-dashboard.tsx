@@ -5282,9 +5282,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 }
                 const d = dateKey !== "no-date" ? new Date(dateKey + "T12:00:00") : null;
                 const label = d ? d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" }) : "Date non définie";
+                const capLabel = label.charAt(0).toUpperCase() + label.slice(1);
+                // Préfixe explicite pour lever l'ambiguïté de la date du groupe.
+                const datePrefix = showSummaryPanel === "rdv-montage-a-fixer" ? "Date d'arrivage : " : "";
                 return {
                   dateKey,
-                  dateLabel: label.charAt(0).toUpperCase() + label.slice(1),
+                  dateLabel: datePrefix + capLabel,
                   isToday: dateKey === todayStr,
                   isThisWeek: dateKey >= todayStr && dateKey <= weekEndStr,
                   projects: dayMap[dateKey],
