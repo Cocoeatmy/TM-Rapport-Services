@@ -129,19 +129,39 @@ export function FloatingWindow({
     };
   }, []);
 
-  /* ── Détacher dans une VRAIE fenêtre système (déplaçable hors de l'app) ── */
-  const detach = useCallback(() => {
+  /* ── Détacher dans une VRAIE fenêtre flottante hors de l'app ──
+     1. Document Picture-in-Picture : fenêtre indépendante, toujours au-dessus,
+        déplaçable partout (y compris hors de l'app PWA). C'est la méthode fiable
+        en PWA, où window.open reste souvent contraint.
+     2. Repli : window.open en mode popup. */
+  const detach = useCallback(async () => {
     const w = Math.round(size.w);
     const h = Math.round(size.h);
+
+    const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: { width: number; height: number }) => Promise<Window> } }).documentPictureInPicture;
+    if (dpip?.requestWindow) {
+      try {
+        const pip = await dpip.requestWindow({ width: w, height: h });
+        pip.document.body.style.cssText = "margin:0;padding:0;overflow:hidden;background:#fff";
+        const iframe = pip.document.createElement("iframe");
+        iframe.src = `/?mode=${mode}`;
+        iframe.style.cssText = "border:none;width:100%;height:100%;display:block";
+        pip.document.body.append(iframe);
+        onClose();
+        return;
+      } catch {
+        /* PiP refusé/indispo → on tente le popup classique */
+      }
+    }
+
     const left = Math.round((window.screenX || 0) + pos.x);
     const top = Math.round((window.screenY || 0) + pos.y);
-    const features = `popup=yes,width=${w},height=${h},left=${left},top=${top}`;
-    const win = window.open(`/?mode=${mode}`, `tm-fw-${Date.now()}`, features);
+    const win = window.open(`/?mode=${mode}`, `tm-fw-${Date.now()}`, `popup=yes,width=${w},height=${h},left=${left},top=${top}`);
     if (win) {
       try { win.focus(); } catch {}
-      onClose(); // la vue vit maintenant dans une fenêtre séparée
+      onClose();
     } else {
-      alert("La fenêtre détachée a été bloquée par le navigateur. Autorise les pop-ups pour ce site.");
+      alert("Impossible d'ouvrir la fenêtre séparée. Autorise les pop-ups pour ce site.");
     }
   }, [mode, size.w, size.h, pos.x, pos.y, onClose]);
 
