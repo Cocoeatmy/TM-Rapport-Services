@@ -9,6 +9,63 @@ interface Message {
   timestamp: number;
 }
 
+// Rendu Markdown léger (sans dépendance) : gras **…**, puces (- ou *), titres
+// (#), et lignes vides → espacement. Suffisant pour les réponses de l'IA.
+function renderInline(text: string, keyPrefix: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") ? (
+      <strong key={`${keyPrefix}-${i}`} className="font-semibold text-gray-900">
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      <span key={`${keyPrefix}-${i}`}>{part}</span>
+    )
+  );
+}
+
+function FormattedMessage({ content }: { content: string }) {
+  const blocks: React.ReactNode[] = [];
+  let list: string[] = [];
+  let k = 0;
+  const flush = () => {
+    if (list.length) {
+      const items = list;
+      blocks.push(
+        <ul key={`ul-${k++}`} className="space-y-2 my-1.5 pl-1">
+          {items.map((it, i) => (
+            <li key={i} className="flex gap-1.5">
+              <span className="text-purple-400 shrink-0">•</span>
+              <span className="flex-1">{renderInline(it, `li-${k}-${i}`)}</span>
+            </li>
+          ))}
+        </ul>
+      );
+      list = [];
+    }
+  };
+  for (const raw of content.split("\n")) {
+    const trimmed = raw.trim();
+    const bullet = trimmed.match(/^[-*]\s+(.*)/);
+    if (bullet) {
+      list.push(bullet[1]);
+      continue;
+    }
+    flush();
+    if (trimmed === "") {
+      blocks.push(<div key={`sp-${k++}`} className="h-1.5" />);
+    } else {
+      const heading = trimmed.replace(/^#{1,6}\s+/, "");
+      blocks.push(
+        <p key={`p-${k++}`} className="leading-snug">
+          {renderInline(heading, `p-${k}`)}
+        </p>
+      );
+    }
+  }
+  flush();
+  return <div>{blocks}</div>;
+}
+
 export function AIChatbot() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -110,7 +167,11 @@ export function AIChatbot() {
                   : "bg-gray-100 text-gray-800 rounded-bl-md"
               }`}
             >
-              <p className="whitespace-pre-wrap">{msg.content}</p>
+              {msg.role === "assistant" ? (
+                <FormattedMessage content={msg.content} />
+              ) : (
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+              )}
             </div>
           </div>
         ))}

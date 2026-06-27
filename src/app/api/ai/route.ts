@@ -228,7 +228,8 @@ RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
 4. Si aucun projet ne correspond, dis-le clairement. Ne comble pas le vide en inventant.
 5. La liste fournie est un sous-ensemble pertinent (pas toute la base). Si tu penses qu'il pourrait exister d'autres projets non listés, invite l'utilisateur à utiliser la recherche de l'app.
 6. Réponds toujours en français, de façon concise et pratique (monteurs sur le terrain).
-7. Pour les conseils techniques (séries Duka, Koralle, Duscholux, Nelo, Ronal…), donne des conseils généraux mais précise que le manuel officiel du fournisseur fait référence.`;
+7. Pour les conseils techniques (séries Duka, Koralle, Duscholux, Nelo, Ronal…), donne des conseils généraux mais précise que le manuel officiel du fournisseur fait référence.
+8. MISE EN FORME (Markdown) : commence par une courte phrase de réponse, puis liste chaque projet sur sa propre puce « - ». Mets en **gras** les infos clés (numéro OFR, statut, dates importantes). Garde chaque puce concise. N'utilise pas de tableaux.`;
 
     const answer = await queryGemini(systemPrompt, message);
 
