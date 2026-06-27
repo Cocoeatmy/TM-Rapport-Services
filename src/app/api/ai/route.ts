@@ -14,18 +14,19 @@ const TZ = "Europe/Zurich";
 // Modèle surchargeable via GEMINI_MODEL (défaut : gemini-2.5-flash).
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-// Sites OFFICIELS des fabricants/fournisseurs (pour orienter la recherche web
-// vers les bons manuels / vues éclatées). À compléter avec les vraies adresses.
+// Sites OFFICIELS des fabricants/fournisseurs (adresses fournies par l'admin),
+// pour orienter la recherche web vers les bons manuels / vues éclatées.
 const SUPPLIER_SITES = [
-  "Duka : duka.it / duka.com",
-  "Duscholux : duscholux.ch",
-  "Novellini : novellini.com",
-  "Ronal (Ronal Group / cabines) : site officiel du fabricant",
-  "Nelo : site officiel du fabricant",
-  "Samo : samo.it",
-  "Koralle : koralle.de",
-  "Kermi : kermi.com",
-  "Dubat, Tema, Matway, Bringhen : site officiel du fabricant/grossiste",
+  "Duka : https://www.duka.it/fr/",
+  "Duscholux : https://www.duscholux.com/fr_ch/page-d-accueil/",
+  "Koralle : https://www.koralle.ch/shop/fr/",
+  "Novellini : https://www.novellini.fr",
+  "Nelo (marque Radaway) : https://www.radaway.de",
+  "Ronal : https://www.ronalbathrooms.com/en_GB",
+  "Samo : https://www.samo.it/it/accessori/cabine-doccia",
+  "Vismaravetro : https://www.vismaravetro.it/fr/",
+  "Relax : https://relaxsrl.com",
+  "Hüppe : https://www.hueppe.com/fr/",
 ].join("\n");
 
 // Détecte une question TECHNIQUE / documentaire (manuel, notice, vue éclatée,
