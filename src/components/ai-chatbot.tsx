@@ -52,6 +52,8 @@ export function AIChatbot() {
     return (
       <button
         onClick={() => setOpen(true)}
+        aria-label="Assistant IA"
+        title="Assistant IA"
         className="w-9 h-9 shrink-0 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-white flex items-center justify-center hover:scale-105 transition-transform active:scale-95 border border-white/20"
       >
         <Sparkles className="w-4 h-4" />

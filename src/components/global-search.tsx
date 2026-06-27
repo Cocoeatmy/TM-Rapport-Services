@@ -165,6 +165,7 @@ export function GlobalSearch() {
       <button
         onClick={openSearch}
         aria-label="Recherche globale (⌘K)"
+        title="Rechercher (⌘K)"
         className="w-9 h-9 shrink-0 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors sm:w-auto sm:rounded-xl sm:px-3 sm:gap-2"
       >
         <Search className="w-4 h-4" />

@@ -163,6 +163,8 @@ export function UserMenu() {
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
+        aria-label="Mon compte"
+        title="Mon compte"
         className="w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-xs font-bold text-white hover:bg-white/25 transition-colors"
       >
         {initials}

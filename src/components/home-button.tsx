@@ -14,6 +14,7 @@ export function HomeButton() {
     <a
       href="/"
       aria-label="Accueil"
+      title="Accueil"
       onClick={(e) => {
         e.preventDefault();
         try { sessionStorage.removeItem("tm-dash-panel"); } catch {}

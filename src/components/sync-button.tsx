@@ -22,6 +22,7 @@ export function SyncButton() {
   const [serverSyncTime, setServerSyncTime] = useState<string | null>(null);
   const [queueCount, setQueueCount] = useState(0);
   const [forceSyncCheckedAt, setForceSyncCheckedAt] = useState(0);
+  const [, setTick] = useState(0); // force le recalcul de la couleur du nuage
 
   useEffect(() => {
     let cancelled = false;
@@ -152,6 +153,13 @@ export function SyncButton() {
     else releaseWakeLock();
   }, [queueCount]);
   useEffect(() => () => { releaseWakeLock(); }, []);
+
+  // Recalcule la couleur du nuage (vert/orange/rouge) au fil du temps même
+  // sans nouvelle synchro.
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const autoSyncingRef = useRef(false);
   const autoSync = async () => {
@@ -303,38 +311,43 @@ export function SyncButton() {
     return `${isServer ? "Auto " : ""}${d.toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })} ${d.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}`;
   };
 
+  // Couleur du nuage selon l'ancienneté de la dernière synchro :
+  // < 2 min → vert, ≤ 10 min → orange, > 10 min → rouge.
+  const cloudColor = () => {
+    const serverTs = serverSyncTime ? new Date(serverSyncTime).getTime() : 0;
+    const mostRecent = Math.max(lastSync, serverTs);
+    if (!mostRecent) return "text-red-500";
+    const diff = Date.now() - mostRecent;
+    if (diff < 2 * 60000) return "text-green-500";
+    if (diff <= 10 * 60000) return "text-orange-500";
+    return "text-red-500";
+  };
+
   return (
-    <>
-      <button
-        onClick={handleSync}
-        disabled={syncing}
-        className="relative shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/15 border border-white/20 hover:bg-white/25 transition-all active:scale-95 text-sm"
-      >
-        {syncing ? (
-          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-        ) : online ? (
-          <Cloud className="w-4 h-4 text-green-500" />
-        ) : (
-          <CloudOff className="w-4 h-4 text-orange-500" />
-        )}
+    <button
+      onClick={handleSync}
+      disabled={syncing}
+      aria-label="Synchroniser"
+      title={syncing ? "Synchronisation…" : online ? `Synchronisé : ${formatLastSync().toLowerCase()}` : "Hors ligne"}
+      className="relative w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center hover:bg-white/25 transition-all active:scale-95"
+    >
+      {syncing ? (
+        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+      ) : online ? (
+        <Cloud className={`w-4 h-4 ${cloudColor()}`} />
+      ) : (
+        <CloudOff className="w-4 h-4 text-orange-500" />
+      )}
 
-        <div className="text-left whitespace-nowrap">
-          <p className="text-xs font-medium text-white">
-            {syncing ? "Sync..." : online ? "Sync" : "Hors ligne"}
-          </p>
-          <p className="text-[10px] text-white/60">{formatLastSync()}</p>
-        </div>
+      {/* Badge file d'attente */}
+      {queueCount > 0 && (
+        <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+          {queueCount}
+        </span>
+      )}
 
-        {/* Badge file d'attente */}
-        {queueCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-            {queueCount}
-          </span>
-        )}
-
-        {/* Indicateur réseau mobile */}
-        {!online && <WifiOff className="w-3 h-3 text-orange-500 absolute -bottom-0.5 -right-0.5" />}
-      </button>
-    </>
+      {/* Indicateur réseau mobile */}
+      {!online && <WifiOff className="w-3 h-3 text-orange-500 absolute -bottom-0.5 -right-0.5" />}
+    </button>
   );
 }

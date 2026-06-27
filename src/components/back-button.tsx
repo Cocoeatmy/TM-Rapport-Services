@@ -14,6 +14,7 @@ export function BackButton() {
       type="button"
       onClick={() => router.back()}
       aria-label="Retour"
+      title="Retour"
       className="back-btn inline-flex items-center justify-center w-9 h-9 rounded-xl text-white/70 hover:text-white transition-colors"
     >
       <ArrowLeft className="w-5 h-5" />
