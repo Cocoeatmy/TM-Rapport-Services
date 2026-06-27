@@ -155,6 +155,7 @@ export interface Project {
   rapportDeMontage: string;
   facturations: string;
   etatCMD: string;
+  priorite: string;
   typeServices: string[];
   cmdGrossiste: string;
   cmdTM: string;
@@ -374,6 +375,7 @@ export function mapPageToProject(page: any): Project {
     rapportDeMontage: extractSelect(p["Rapport de montage"]),
     facturations: extractStatus(p["Facturations"]),
     etatCMD: extractStatus(p["État - CMD"]),
+    priorite: extractSelect(p["Priorité"]),
     typeServices: extractMultiSelect(p["Type de services"]),
     cmdGrossiste: extractText(p["N° CMD Grossiste"]),
     cmdTM: extractText(p["N° CMD TM"]),
