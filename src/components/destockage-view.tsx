@@ -215,6 +215,9 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
   const [form, setForm]             = useState<FormState>(EMPTY_FORM);
   // Photo hover zoom — position fixe pour échapper aux stacking contexts (backdrop-filter)
   const [hoveredPhoto, setHoveredPhoto] = useState<{ src: string; x: number; y: number } | null>(null);
+  // Déstockage : modal (remplace prompt(), bloqué dans les PWA installées).
+  const [destockTarget, setDestockTarget] = useState<StockCabine | null>(null);
+  const [destockRef, setDestockRef] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -289,19 +292,22 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  const handleDestock = async (entry: StockCabine) => {
-    const ref = prompt(
-      `Déstocker « ${entry.serie}${entry.quantity > 1 ? ` × ${entry.quantity}` : ""} » — référence projet ?`,
-      entry.destockedProjectRef,
-    );
-    if (ref === null) return;
+  // Ouvre le modal de déstockage (au lieu de prompt(), inopérant en PWA).
+  const handleDestock = (entry: StockCabine) => {
+    setDestockRef(entry.destockedProjectRef || "");
+    setDestockTarget(entry);
+  };
+
+  const confirmDestock = async () => {
+    const entry = destockTarget;
+    if (!entry) return;
     try {
       const res = await fetch("/api/destockage", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: entry.id, status: "destocke", destockedProjectRef: ref }),
+        body: JSON.stringify({ id: entry.id, status: "destocke", destockedProjectRef: destockRef.trim() }),
       });
-      if (res.ok) { toast.success("Cabine déstockée"); refresh(); }
+      if (res.ok) { toast.success("Cabine déstockée"); setDestockTarget(null); refresh(); }
       else toast.error("Erreur lors du déstockage");
     } catch { toast.error("Erreur réseau"); }
   };
@@ -756,6 +762,33 @@ export function DestockageView({ isAdmin }: { isAdmin: boolean }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal de déstockage — remplace prompt() (inopérant en PWA installée) */}
+      {destockTarget && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onPointerDown={() => setDestockTarget(null)}>
+          <div className="glass-card rounded-2xl p-5 w-full max-w-sm shadow-2xl" onPointerDown={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">Déstocker la cabine</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+              {destockTarget.serie}{destockTarget.quantity > 1 ? ` × ${destockTarget.quantity}` : ""}
+            </p>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Référence projet (optionnel)</label>
+            <input
+              type="text"
+              autoFocus
+              value={destockRef}
+              onChange={(e) => setDestockRef(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") confirmDestock(); if (e.key === "Escape") setDestockTarget(null); }}
+              placeholder="Ex. TM-2600123, client…"
+              className="w-full h-10 text-sm px-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/40"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" size="sm" onClick={() => setDestockTarget(null)}>Annuler</Button>
+              <Button size="sm" onClick={confirmDestock} className="bg-blue-600 hover:bg-blue-700 text-white">Déstocker</Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
