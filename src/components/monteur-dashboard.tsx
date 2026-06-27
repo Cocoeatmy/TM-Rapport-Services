@@ -4914,7 +4914,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {isEmplacementCabines && <span className="w-24 shrink-0">Arrivage</span>}
                 {isDossiersEnCours && <span className="w-24 shrink-0 hidden sm:block">Date offre</span>}
                 {isAFacturer && <span className="w-28 shrink-0 hidden sm:block">Date</span>}
-                {!isEmplacementCabines && !isAFacturer && <span className={`${showSummaryPanel === "rdv-mesures-a-fixer" ? "w-28" : "w-20"} shrink-0 hidden sm:block`}>N° Mes. Fourn.</span>}
+                {!isEmplacementCabines && !isAFacturer && showSummaryPanel !== "rdv-montage-a-fixer" && <span className={`${showSummaryPanel === "rdv-mesures-a-fixer" ? "w-28" : "w-20"} shrink-0 hidden sm:block`}>N° Mes. Fourn.</span>}
                 {!isEmplacementCabines && !isAFacturer && showSummaryPanel !== "rdv-mesures-a-fixer" && <span className="w-20 shrink-0 hidden sm:block">N° CMD Fourn.</span>}
                 <span className="flex-1">Projet</span>
                 {showSummaryPanel === "sav-non-traites" && <span className="w-32 shrink-0 hidden sm:block">État SAV</span>}
@@ -5356,7 +5356,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           : <span className="font-mono text-xs text-gray-400">---</span>
                         }
                       </span>
-                        <span className={`${showSummaryPanel === "rdv-mesures-a-fixer" ? "w-28" : "w-20 truncate"} shrink-0 font-mono text-gray-500 dark:text-gray-400 hidden sm:block`}>{p.servMesuresFournisseurs || "---"}</span>
+                        {showSummaryPanel !== "rdv-montage-a-fixer" && <span className={`${showSummaryPanel === "rdv-mesures-a-fixer" ? "w-28" : "w-20 truncate"} shrink-0 font-mono text-gray-500 dark:text-gray-400 hidden sm:block`}>{p.servMesuresFournisseurs || "---"}</span>}
                         {showSummaryPanel !== "rdv-mesures-a-fixer" && (
                           <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 truncate hidden sm:block">{p.servCmdFournisseurs || "---"}</span>
                         )}
