@@ -2672,7 +2672,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const emptyMsg = (msg: string) => <p className="text-[10px] text-white/20 italic">{msg}</p>;
 
           const svcItems = [
-            { label: "Montage",  count: todayMontages,  color: "text-orange-400",  panel: "today" as const },
+            { label: "Projet",   count: todayMontages,  color: "text-orange-400",  panel: "today" as const },
             { label: "Mesure",   count: todayMesures,   color: "text-cyan-400",    panel: "mesures-today" as const },
             { label: "SAV",      count: savTodayCount,  color: "text-red-400",     panel: "sav-today" as const },
             { label: "Service",  count: todayServices,  color: "text-violet-400",  panel: "services-today" as const },
