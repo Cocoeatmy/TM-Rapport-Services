@@ -142,9 +142,12 @@ export function FloatingWindow({
     if (dpip?.requestWindow) {
       try {
         const pip = await dpip.requestWindow({ width: w, height: h });
-        pip.document.body.style.cssText = "margin:0;padding:0;overflow:hidden;background:#fff";
+        // html + body en hauteur pleine, sinon l'iframe se réduit à un filet
+        // (on ne voyait que l'en-tête, le reste blanc).
+        pip.document.documentElement.style.cssText = "height:100%;margin:0";
+        pip.document.body.style.cssText = "height:100%;margin:0;padding:0;overflow:hidden;background:#fff";
         const iframe = pip.document.createElement("iframe");
-        iframe.src = `/?mode=${mode}`;
+        iframe.src = `/?mode=${mode}&_fw=1`;
         iframe.style.cssText = "border:none;width:100%;height:100%;display:block";
         pip.document.body.append(iframe);
         onClose();
