@@ -8,32 +8,49 @@ export const maxDuration = 30; // 1er appel : charge tous les projets (mis en ca
 
 const TZ = "Europe/Zurich";
 
-async function queryGroq(messages: { role: string; content: string }[]) {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
-      messages,
-      temperature: 0.1, // factuel : on veut zéro improvisation sur les dates/projets
-      max_tokens: 1024,
-    }),
-  });
-  // Remonter une vraie erreur au lieu du message muet « je n'ai pas pu répondre ».
+// Google Gemini (palier gratuit via Google AI Studio). Clé : GEMINI_API_KEY.
+// Modèle surchargeable via GEMINI_MODEL (défaut : gemini-2.5-flash).
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+async function queryGemini(systemPrompt: string, userMessage: string) {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("Clé API Gemini manquante (GEMINI_API_KEY).");
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": key,
+      },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userMessage }] }],
+        generationConfig: {
+          temperature: 0.1, // factuel : zéro improvisation sur les dates/projets
+          maxOutputTokens: 1024,
+        },
+      }),
+    }
+  );
+
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    console.error("Groq error", res.status, body);
+    console.error("Gemini error", res.status, body);
     if (res.status === 429) {
-      throw new Error("Limite d'utilisation de l'IA atteinte pour le moment. Réessaie dans quelques minutes.");
+      throw new Error("Limite d'utilisation gratuite de l'IA atteinte. Réessaie dans une minute.");
     }
     throw new Error(`Le service IA est momentanément indisponible (erreur ${res.status}).`);
   }
+
   const data = await res.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("L'IA n'a renvoyé aucune réponse. Réessaie.");
+  const content = data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || "").join("");
+  if (!content) {
+    // Réponse vide = souvent un blocage de sécurité ou une réponse tronquée.
+    console.error("Gemini empty response", JSON.stringify(data).slice(0, 500));
+    throw new Error("L'IA n'a renvoyé aucune réponse. Reformule ta question.");
+  }
   return content;
 }
 
@@ -209,10 +226,7 @@ RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
 6. Réponds toujours en français, de façon concise et pratique (monteurs sur le terrain).
 7. Pour les conseils techniques (séries Duka, Koralle, Duscholux, Nelo, Ronal…), donne des conseils généraux mais précise que le manuel officiel du fournisseur fait référence.`;
 
-    const answer = await queryGroq([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: message },
-    ]);
+    const answer = await queryGemini(systemPrompt, message);
 
     return NextResponse.json({ answer });
   } catch (error: any) {
