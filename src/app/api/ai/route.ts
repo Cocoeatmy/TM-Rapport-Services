@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { getProjects } from "@/lib/notion";
+import { getAllProjectsRaw } from "@/lib/notion";
 import { getCached, setCache } from "@/lib/server-cache";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30; // 1er appel : charge tous les projets (mis en cache 5 min)
 
 const TZ = "Europe/Zurich";
 
@@ -65,9 +66,10 @@ interface MiniProject {
   fournisseurs: string;
   seriesCabines: string;
   collaborateurs: string;
+  client: string; // contacts + grossistes/fournisseurs/sanitaires (pour affichage)
   etatCMD: string;
   dateMontage: string | null;
-  hay: string; // texte normalisé pour la recherche
+  hay: string; // texte normalisé pour la recherche (mêmes champs que la recherche de l'app)
 }
 
 export async function POST(request: NextRequest) {
@@ -99,23 +101,40 @@ export async function POST(request: NextRequest) {
     // Liste compacte de TOUS les projets (mise en cache 5 min). On y pioche
     // ensuite le sous-ensemble PERTINENT à la question, pour ne pas dépasser
     // les limites de tokens.
-    let cachedMini = getCached<MiniProject[]>("ai-projects");
+    let cachedMini = getCached<MiniProject[]>("ai-projects-all");
     if (!cachedMini) {
-      const projects = await getProjects();
-      cachedMini = projects.map((p) => ({
-        ofrTM: p.ofrTM,
-        projet: p.projet,
-        nomChantier: p.nomChantier,
-        adresseChantier: p.adresseChantier,
-        nbCabines: p.nbCabines,
-        fournisseurs: p.fournisseurs.join(","),
-        seriesCabines: p.seriesCabines.join(","),
-        collaborateurs: p.collaborateurs,
-        etatCMD: p.etatCMD,
-        dateMontage: p.dateMontage || null,
-        hay: norm(`${p.ofrTM} ${p.projet} ${p.nomChantier} ${p.adresseChantier} ${p.collaborateurs} ${p.fournisseurs.join(" ")}`),
-      }));
-      setCache("ai-projects", cachedMini);
+      const projects = await getAllProjectsRaw(); // TOUS les projets (toutes étapes/états)
+      cachedMini = projects.map((p) => {
+        const names = [
+          ...(p.grossistesNames || []),
+          ...(p.fournisseursNames || []),
+          ...(p.sanitaireNames || []),
+        ].filter(Boolean);
+        const client = [p.contacts, names.join(", ")].filter(Boolean).join(" / ");
+        return {
+          ofrTM: p.ofrTM,
+          projet: p.projet,
+          nomChantier: p.nomChantier,
+          adresseChantier: p.adresseChantier,
+          nbCabines: p.nbCabines,
+          fournisseurs: p.fournisseurs.join(","),
+          seriesCabines: p.seriesCabines.join(","),
+          collaborateurs: p.collaborateurs,
+          client,
+          etatCMD: p.etatCMD,
+          dateMontage: p.dateMontage || null,
+          // Mêmes champs que l'index de la recherche de l'app (sinon « MMT »,
+          // souvent dans les contacts/grossistes, restait introuvable).
+          hay: norm([
+            p.projet, p.ofrTM, p.ofrGrossiste, p.nomChantier, p.adresseChantier,
+            p.collaborateurs, p.contacts,
+            ...(p.fournisseurs || []), ...(p.fournisseursNames || []),
+            ...(p.grossistesNames || []), ...(p.sanitaireNames || []),
+            ...(p.seriesCabines || []),
+          ].filter(Boolean).join(" ")),
+        };
+      });
+      setCache("ai-projects-all", cachedMini);
     }
     const mini: MiniProject[] = cachedMini;
 
@@ -145,9 +164,11 @@ export async function POST(request: NextRequest) {
         n++;
       }
     };
-    push(matched, 70);
-    push(upcoming, 40);
-    push(mini, 120); // complète avec le reste si de la place reste
+    push(matched, 80);
+    push(upcoming, matched.length ? 20 : 40);
+    // Ne complète avec des projets non pertinents QUE si le contexte est maigre
+    // (question générique). Évite d'envoyer 120 projets sans rapport.
+    if (selected.length < 40) push(mini, 60);
 
     const fmtDate = (iso: string | null): string => {
       if (!iso) return "non fixé";
@@ -158,7 +179,7 @@ export async function POST(request: NextRequest) {
     };
     const projectsContext = selected
       .map((p) =>
-        `- ${p.ofrTM} | ${p.projet} | Chantier: ${p.nomChantier} | Adresse: ${p.adresseChantier} | Cabines: ${p.nbCabines} | Fournisseurs: ${p.fournisseurs} | Séries: ${p.seriesCabines} | Collaborateurs: ${p.collaborateurs} | Statut: ${p.etatCMD} | Date montage: ${fmtDate(p.dateMontage)}`
+        `- ${p.ofrTM} | ${p.projet} | Chantier: ${p.nomChantier} | Adresse: ${p.adresseChantier} | Client/contacts: ${p.client || "—"} | Cabines: ${p.nbCabines} | Fournisseurs: ${p.fournisseurs} | Séries: ${p.seriesCabines} | Collaborateurs: ${p.collaborateurs} | Statut: ${p.etatCMD} | Date montage: ${fmtDate(p.dateMontage)}`
       )
       .join("\n");
 
@@ -177,7 +198,7 @@ ${projectsContext}
 RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
 1. N'INVENTE JAMAIS de date, de numéro de projet (OFR), de nom de chantier, d'adresse ni de collaborateur. Utilise UNIQUEMENT les données ci-dessus.
 2. Pour une question de date (« lundi prochain », « demain », « cette semaine »…), convertis-la d'abord en date exacte (AAAA-MM-JJ) à l'aide du calendrier de référence, puis liste UNIQUEMENT les projets dont la « Date montage » correspond EXACTEMENT à cette date.
-3. Pour une question sur un client / une entreprise (ex. « MMT », « Duka »…), liste TOUS les projets de la liste ci-dessus dont le nom, le chantier ou le fournisseur contient ce terme, avec leur statut. Précise le statut (en cours, terminé, RDV à fixer, etc.).
+3. Pour une question sur un client / une entreprise (ex. « MMT », « Duka »…), liste TOUS les projets de la liste ci-dessus dont le nom, le chantier, les contacts ou le fournisseur contient ce terme, avec leur statut. Un projet est « ouvert » / « en cours » sauf si son statut est « Terminé » ou « Annulé ». Si on demande les projets ouverts, exclus les « Terminé » et « Annulé ».
 4. Si aucun projet ne correspond, dis-le clairement. Ne comble pas le vide en inventant.
 5. La liste fournie est un sous-ensemble pertinent (pas toute la base). Si tu penses qu'il pourrait exister d'autres projets non listés, invite l'utilisateur à utiliser la recherche de l'app.
 6. Réponds toujours en français, de façon concise et pratique (monteurs sur le terrain).
