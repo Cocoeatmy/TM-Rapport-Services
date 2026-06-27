@@ -5366,6 +5366,20 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 mt-0">{p.nomChantier}</span>
                           )}
                         </span>
+                        {/* J+x par ligne en mode région (NPA) : les groupes ne sont
+                            plus par date, donc on l'affiche sur chaque projet. */}
+                        {isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer") && (() => {
+                          const refDate = showSummaryPanel === "rdv-montage-a-fixer"
+                            ? (p.arrivageTM || p.arrivageGrossiste)
+                            : p.dateMesuresRecue;
+                          const info = getDaysInfoFromDate(refDate);
+                          if (!info) return null;
+                          return (
+                            <span className={`shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-full ${info.bgClass} ${info.colorClass}`}>
+                              J+{info.days}
+                            </span>
+                          );
+                        })()}
                         {showSummaryPanel === "rdv-montage-a-fixer" && p.priorite && (
                           <span className={`shrink-0 inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${statusClasses("Priorité", p.priorite, "bg-amber-100 text-amber-700")}`}>
                             ⚡ Priorité {p.priorite}
