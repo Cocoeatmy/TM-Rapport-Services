@@ -5323,8 +5323,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <span className="text-[12px] font-bold text-white">
                       {group.isToday ? "📍 Aujourd'hui" : group.dateLabel}
                     </span>
-                    {/* J+x : depuis combien de temps réceptionné (arrivage / Mesures reçue) */}
-                    {(showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer") && (() => {
+                    {/* J+x d'en-tête : seulement en mode "Par date" (en mode région,
+                        la clé de groupe est un code postal, pas une date → J+x par ligne). */}
+                    {!isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer") && (() => {
                       const info = getDaysInfoFromDate(group.dateKey);
                       if (!info) return null;
                       return (
