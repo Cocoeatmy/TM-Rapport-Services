@@ -67,7 +67,11 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col lg-bg">
-        <header id="main-header" className="sticky top-0 z-50 glass-header text-white">
+        {/* Bandeau hors-ligne + header dans un même conteneur sticky : le
+            bandeau se place AU-DESSUS du header (plein haut), sans le recouvrir. */}
+        <div className="sticky top-0 z-50">
+        <OfflineBanner />
+        <header id="main-header" className="glass-header text-white">
           <div className="flex items-center justify-between gap-2 px-4 py-3 overflow-x-auto md:overflow-visible scrollbar-hide">
             <div className="flex items-center gap-1.5 cmm-header-left shrink-0">
               <HomeButton />
@@ -85,8 +89,8 @@ export default function RootLayout({
             </div>
           </div>
         </header>
+        </div>
         <CmmWindowCorners />
-        <OfflineBanner />
         <main className="flex-1">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>

@@ -178,7 +178,7 @@ export function OfflineBanner() {
       <div
         role="alert"
         aria-live="assertive"
-        className="sticky top-0 z-[55] w-full px-3 py-2 text-xs flex items-center justify-center gap-2 shadow-md bg-red-600 text-white"
+        className="w-full px-3 py-2 text-xs flex items-center justify-center gap-2 shadow-md bg-red-600 text-white"
       >
         <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden />
         <span className="text-center leading-tight">
@@ -238,7 +238,7 @@ export function OfflineBanner() {
   const hasDetails = queueItems.length > 0 || pendingUps.length > 0;
 
   return (
-    <div className={`sticky top-0 z-[55] w-full shadow-md ${cls}`}>
+    <div className={`w-full shadow-md ${cls}`}>
       {/* Ligne principale cliquable */}
       <button
         type="button"
