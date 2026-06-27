@@ -3,6 +3,7 @@ import { verifyToken } from "@/lib/auth";
 import { getAllProjectsRaw } from "@/lib/notion";
 import { getCached, setCache } from "@/lib/server-cache";
 import { getStats } from "@/lib/stats-data";
+import { computeMonteurCabStats } from "@/lib/monteur-stats";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30; // 1er appel : charge tous les projets (mis en cache 5 min)
@@ -125,6 +126,7 @@ interface MiniProject {
   client: string; // contacts + grossistes/fournisseurs/sanitaires (pour affichage)
   etatCMD: string;
   dateMontage: string | null;
+  attributionCabines: string; // "Cab1:Micael | Cab2:Claudio & Jacobo" (stats par monteur)
   hay: string; // texte normalisé pour la recherche (mêmes champs que la recherche de l'app)
 }
 
@@ -182,6 +184,7 @@ export async function POST(request: NextRequest) {
           client,
           etatCMD: p.etatCMD,
           dateMontage: p.dateMontage || null,
+          attributionCabines: p.attributionCabines || "",
           // EXACTEMENT les mêmes champs que l'index de la recherche de l'app
           // (sinon « MMT », souvent dans les contacts/grossistes/cmd, restait
           // introuvable alors que la recherche le trouve).
@@ -199,6 +202,15 @@ export async function POST(request: NextRequest) {
       setCache("ai-projects-all", cachedMini);
     }
     const mini: MiniProject[] = cachedMini;
+
+    // Cabines installées par monteur (seul / en équipe), depuis toujours.
+    const monteurStats = computeMonteurCabStats(mini);
+    const monteurSummary = monteurStats.length
+      ? "STATISTIQUES MONTEURS — cabines installées (depuis toujours, attribution par cabine) :\n" +
+        monteurStats
+          .map((m) => `  - ${m.name} : ${m.total} cabines au total (${m.solo} seul, ${m.team} en équipe)`)
+          .join("\n")
+      : "";
 
     // 1) Projets correspondant aux mots-clés de la question (ex. « MMT », « Duka »).
     const keywords = [...new Set(norm(message).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w)))];
@@ -256,7 +268,7 @@ ${refCalendar}
 
 UTILISATEUR CONNECTÉ : ${user.name} (${user.email})
 
-${statsSummary ? statsSummary + "\n\n" : ""}PROJETS PERTINENTS (sélectionnés selon ta question ; chaque date de montage est suivie de son jour de la semaine) :
+${statsSummary ? statsSummary + "\n\n" : ""}${monteurSummary ? monteurSummary + "\n\n" : ""}PROJETS PERTINENTS (sélectionnés selon ta question ; chaque date de montage est suivie de son jour de la semaine) :
 ${projectsContext}
 
 RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
@@ -266,6 +278,7 @@ RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
 4. Si aucun projet ne correspond, dis-le clairement. Ne comble pas le vide en inventant.
 5. La liste de projets fournie est un sous-ensemble pertinent (pas toute la base). Pour LISTER des projets, base-toi dessus et, si pertinent, invite à utiliser la recherche de l'app.
 5bis. Pour toute question de TOTAL/COMPTAGE de cabines installées (par année ou par mois — ex. « combien de cabines en 2026 », « combien en juin »), réponds EXCLUSIVEMENT avec les chiffres du bloc « STATISTIQUES OFFICIELLES » ci-dessus. Ne compte JAMAIS les projets toi-même pour ça. Si le bloc statistiques est absent, dis que tu ne peux pas donner le total et renvoie vers la page Stats.
+5ter. Pour toute question sur les cabines installées PAR UN MONTEUR (combien X a installé, seul ou en équipe, classement des monteurs…), réponds EXCLUSIVEMENT avec le bloc « STATISTIQUES MONTEURS » ci-dessus (chiffres « depuis toujours »). « Seul » = ce monteur était le seul sur la cabine ; « en équipe » = plusieurs monteurs sur la cabine (chaque participant est crédité de la cabine). Ne recompte jamais toi-même.
 6. Réponds toujours en français, de façon concise et pratique (monteurs sur le terrain).
 7. Pour les conseils techniques (séries Duka, Koralle, Duscholux, Nelo, Ronal…), donne des conseils généraux mais précise que le manuel officiel du fournisseur fait référence.
 8. MISE EN FORME (Markdown) : commence par une courte phrase de réponse, puis liste chaque projet sur sa propre puce « - ». Mets en **gras** les infos clés (numéro OFR, statut, dates importantes). Garde chaque puce concise. N'utilise pas de tableaux.`;
