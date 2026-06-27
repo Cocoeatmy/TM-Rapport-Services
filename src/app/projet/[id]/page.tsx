@@ -3332,6 +3332,14 @@ function ProjectPageContent({ id }: { id: string }) {
             for (const field of photoFields) {
               (incoming as Record<string, unknown>)[field] = prev[field];
             }
+            // Commentaires édités via le champ inline (EditableTextField) :
+            // autoritatifs en local. Sans ça, une lecture Notion non encore
+            // propagée juste après l'enregistrement effaçait le commentaire
+            // fraîchement saisi.
+            const localTextFields = ["commentairesMontages", "commentairesMesures"] as const;
+            for (const field of localTextFields) {
+              (incoming as Record<string, unknown>)[field] = prev[field];
+            }
           }
 
           return incoming;
@@ -4682,7 +4690,14 @@ function ProjectPageContent({ id }: { id: string }) {
                   fieldName="commentairesMontages"
                   notionField="Commentaires Montages"
                   multiline
-                  onUpdate={(v) => setProject({ ...project, commentairesMontages: v })}
+                  onUpdate={(v) => {
+                    setProject({ ...project, commentairesMontages: v });
+                    // Même champ Notion que la zone "commentaires" du rapport :
+                    // on synchronise l'état + la snapshot pour éviter qu'une
+                    // auto-sauvegarde du rapport ne réécrive l'ancienne valeur.
+                    setCommentaires(v);
+                    serverSnapshotRef.current.commentaires = v;
+                  }}
                 />
               </div>
             )}
