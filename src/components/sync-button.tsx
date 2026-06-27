@@ -312,14 +312,14 @@ export function SyncButton() {
   };
 
   // Couleur du nuage selon l'ancienneté de la dernière synchro :
-  // < 2 min → vert, ≤ 10 min → orange, > 10 min → rouge.
+  // 0–10 min → vert, 11–30 min → orange, ≥ 31 min → rouge.
   const cloudColor = () => {
     const serverTs = serverSyncTime ? new Date(serverSyncTime).getTime() : 0;
     const mostRecent = Math.max(lastSync, serverTs);
     if (!mostRecent) return "text-red-500";
     const diff = Date.now() - mostRecent;
-    if (diff < 2 * 60000) return "text-green-500";
-    if (diff <= 10 * 60000) return "text-orange-500";
+    if (diff <= 10 * 60000) return "text-green-500";
+    if (diff <= 30 * 60000) return "text-orange-500";
     return "text-red-500";
   };
 
