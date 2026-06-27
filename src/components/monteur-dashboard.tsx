@@ -609,6 +609,23 @@ function getArrivageInfo(p: { arrivageTM?: string | null; arrivageGrossiste?: st
   return { date, label, colorClass, bgClass, days };
 }
 
+/** J+x générique à partir d'une date ISO (mêmes seuils/couleurs que getArrivageInfo). */
+function getDaysInfoFromDate(raw: string | null | undefined): {
+  colorClass: string; bgClass: string; days: number;
+} | null {
+  if (!raw || raw === "no-date") return null;
+  const date = raw.split("T")[0];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const ref = new Date(date + "T00:00:00");
+  if (isNaN(ref.getTime())) return null;
+  const days = Math.floor((today.getTime() - ref.getTime()) / 86400000);
+  if (days < 0) return null;
+  const colorClass = days <= 5 ? "text-green-700 dark:text-green-400" : days <= 9 ? "text-orange-700 dark:text-orange-400" : "text-red-700 dark:text-red-400";
+  const bgClass    = days <= 5 ? "bg-green-100 dark:bg-green-900/30"   : days <= 9 ? "bg-orange-100 dark:bg-orange-900/30"   : "bg-red-100 dark:bg-red-900/30";
+  return { colorClass, bgClass, days };
+}
+
 function extractHHMM(s: string): string {
   const m = s.trim().match(/(\d{1,2}:\d{2})$/);
   return m ? m[1] : "";
@@ -5306,6 +5323,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <span className="text-[12px] font-bold text-white">
                       {group.isToday ? "📍 Aujourd'hui" : group.dateLabel}
                     </span>
+                    {/* J+x : depuis combien de temps réceptionné (arrivage / Mesures reçue) */}
+                    {(showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer") && (() => {
+                      const info = getDaysInfoFromDate(group.dateKey);
+                      if (!info) return null;
+                      return (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${info.bgClass} ${info.colorClass}`}>
+                          J+{info.days}
+                        </span>
+                      );
+                    })()}
                     <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-semibold bg-white/20 text-white">
                       {group.projects.length} projet{group.projects.length > 1 ? "s" : ""} · {group.projects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
                     </span>
