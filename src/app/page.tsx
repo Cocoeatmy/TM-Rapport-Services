@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
+import { computeMonteurCabStats } from "@/lib/monteur-stats";
 import { useNotionColors } from "@/lib/notion-colors";
 import { formatDateFR, formatDateLong, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST, getISOWeek } from "@/lib/constants";
 import { dateInRange, formatLocalDate } from "@/lib/time-utils";
@@ -4343,6 +4344,50 @@ function HomePage() {
             </div>
 
             {/* Binômes */}
+            {(() => {
+              // Cabines installées par monteur (seul / en équipe), DEPUIS TOUJOURS
+              // (attribution par cabine) — mêmes chiffres que l'assistant IA.
+              const monteurCabStats = computeMonteurCabStats(allProjectsRaw);
+              if (monteurCabStats.length === 0) return null;
+              const maxTotal = Math.max(...monteurCabStats.map((m) => m.total), 1);
+              const totalSolo = monteurCabStats.reduce((s, m) => s + m.solo, 0);
+              const totalTeam = monteurCabStats.reduce((s, m) => s + m.team, 0);
+              return (
+                <div>
+                  <button onClick={() => toggleSection("monteurs-cab")} className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 w-full text-left">
+                    {expandedSections.has("monteurs-cab") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    Cabines par monteur
+                    <span className="text-[10px] font-bold text-indigo-500 normal-case tracking-normal">depuis toujours · {totalSolo} seul / {totalTeam} en équipe</span>
+                  </button>
+                  {expandedSections.has("monteurs-cab") && (
+                    <div className="space-y-2">
+                      {monteurCabStats.map((m) => {
+                        const c = getCollaboratorColor(m.name);
+                        return (
+                          <div key={m.name} className="glass-card rounded-2xl p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: c.dot }} />
+                                <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">{m.name}</span>
+                              </div>
+                              <span className="text-sm font-bold text-gray-800 dark:text-gray-100">{m.total}<span className="text-[11px] font-normal text-gray-400 ml-1">cabines</span></span>
+                            </div>
+                            <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-slate-700">
+                              {m.solo > 0 && <div className="bg-emerald-500" style={{ width: `${(m.solo / maxTotal) * 100}%` }} title={`${m.solo} seul`} />}
+                              {m.team > 0 && <div className="bg-indigo-500" style={{ width: `${(m.team / maxTotal) * 100}%` }} title={`${m.team} en équipe`} />}
+                            </div>
+                            <div className="flex gap-4 mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                              <span><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1 align-middle" />{m.solo} seul</span>
+                              <span><span className="inline-block w-2 h-2 rounded-full bg-indigo-500 mr-1 align-middle" />{m.team} en équipe</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {(binomeStats.length > 0 || teamTMStats.projects > 0) && (() => {
               const ct = chartTypePrefs["binomes"] || "bar-h";
               const tmColors = getCollaboratorColor("Team TM");
