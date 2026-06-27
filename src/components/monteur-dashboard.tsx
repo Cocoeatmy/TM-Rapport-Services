@@ -2437,7 +2437,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           {/* Aujourd'hui */}
           <div className="flex-1 w-full space-y-1.5">
             {([
-              { label: "Montage",  count: todayMontages,  cabines: todayMontageCab,   color: "text-orange-500 dark:text-orange-400",       panel: "today" as const },
+              { label: "Projet",   count: todayMontages,  cabines: todayMontageCab,   color: "text-orange-500 dark:text-orange-400",       panel: "today" as const },
               { label: "Mesure",   count: todayMesures,   cabines: todayMesuresCab,   color: "text-cyan-600 dark:text-cyan-400",           panel: "mesures-today" as const },
               { label: "SAV",      count: savTodayCount,  cabines: savTodayCab,       color: "text-red-600 dark:text-red-400",             panel: "sav-today" as const },
               { label: "Service",  count: todayServices,  cabines: todayServicesCab,  color: "text-violet-600 dark:text-violet-400",       panel: "services-today" as const },
@@ -2459,7 +2459,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           {/* Demain */}
           <div className="flex-1 w-full space-y-1.5">
             {([
-              { label: "Montage",  count: tomorrowMontages,  cabines: tomorrowMontageCab,   color: "text-orange-500 dark:text-orange-400", panel: "montage-tomorrow" as const },
+              { label: "Projet",   count: tomorrowMontages,  cabines: tomorrowMontageCab,   color: "text-orange-500 dark:text-orange-400", panel: "montage-tomorrow" as const },
               { label: "Mesure",   count: tomorrowMesures,   cabines: tomorrowMesuresCab,   color: "text-cyan-600 dark:text-cyan-400",     panel: "mesures-tomorrow" as const },
               { label: "SAV",      count: savTomorrowCount,  cabines: savTomorrowCab,       color: "text-red-600 dark:text-red-400",       panel: "sav-tomorrow" as const },
               { label: "Service",  count: tomorrowServices,  cabines: tomorrowServicesCab,  color: "text-violet-600 dark:text-violet-400", panel: "services-tomorrow" as const },
@@ -2481,7 +2481,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           {/* Après-demain (J+2) */}
           <div className="flex-1 w-full space-y-1.5">
             {([
-              { label: "Montage",  count: afterMontages,  cabines: afterMontageCab,   color: "text-orange-500 dark:text-orange-400", panel: "montage-after" as const },
+              { label: "Projet",   count: afterMontages,  cabines: afterMontageCab,   color: "text-orange-500 dark:text-orange-400", panel: "montage-after" as const },
               { label: "Mesure",   count: afterMesures,   cabines: afterMesuresCab,   color: "text-cyan-600 dark:text-cyan-400",     panel: "mesures-after" as const },
               { label: "SAV",      count: afterSavCount,  cabines: afterSavCab,       color: "text-red-600 dark:text-red-400",       panel: "sav-after" as const },
               { label: "Service",  count: afterServices,  cabines: afterServicesCab,  color: "text-violet-600 dark:text-violet-400", panel: "services-after" as const },
