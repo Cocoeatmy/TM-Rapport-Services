@@ -166,11 +166,9 @@ export function GlobalSearch() {
         onClick={openSearch}
         aria-label="Recherche globale (⌘K)"
         title="Rechercher (⌘K)"
-        className="w-9 h-9 shrink-0 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors sm:w-auto sm:rounded-xl sm:px-3 sm:gap-2"
+        className="w-9 h-9 shrink-0 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors"
       >
         <Search className="w-4 h-4" />
-        <span className="hidden sm:inline text-sm">Rechercher</span>
-        <kbd className="hidden md:inline-flex items-center text-[10px] font-mono bg-white/10 px-1.5 py-0.5 rounded">⌘K</kbd>
       </button>
 
       {open && (
