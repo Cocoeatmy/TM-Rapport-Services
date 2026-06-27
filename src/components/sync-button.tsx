@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   CloudOff,
   Cloud,
-  RefreshCw,
   Check,
   AlertTriangle,
   Loader2,
@@ -23,8 +22,6 @@ export function SyncButton() {
   const [serverSyncTime, setServerSyncTime] = useState<string | null>(null);
   const [queueCount, setQueueCount] = useState(0);
   const [forceSyncCheckedAt, setForceSyncCheckedAt] = useState(0);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [forceSyncing, setForceSyncing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,12 +39,6 @@ export function SyncButton() {
       .then((data) => {
         if (data.timestamp) setServerSyncTime(data.timestamp);
       })
-      .catch(() => {});
-
-    // Charger le rôle utilisateur
-    fetch("/api/auth")
-      .then((r) => r.json())
-      .then((d) => { if (d.user?.role) setUserRole(d.user.role); })
       .catch(() => {});
 
     // Vérifier le signal force-sync au démarrage
@@ -289,25 +280,6 @@ export function SyncButton() {
     }
   }, []);
 
-  const handleForceSync = useCallback(async () => {
-    setForceSyncing(true);
-    try {
-      const res = await fetch("/api/force-sync", { method: "POST" });
-      if (res.ok) {
-        toast.success("Signal envoyé — les applis des monteurs vont se synchroniser dans ~30 s");
-        // Se synchronise aussi soi-même immédiatement
-        await resetBackoffForAll();
-        await autoSync();
-      } else {
-        toast.error("Erreur lors de l'envoi du signal");
-      }
-    } catch {
-      toast.error("Impossible d'envoyer le signal");
-    } finally {
-      setForceSyncing(false);
-    }
-  }, []);
-
   const formatLastSync = () => {
     // Use the most recent sync: client or server
     const serverTs = serverSyncTime ? new Date(serverSyncTime).getTime() : 0;
@@ -363,22 +335,6 @@ export function SyncButton() {
         {/* Indicateur réseau mobile */}
         {!online && <WifiOff className="w-3 h-3 text-orange-500 absolute -bottom-0.5 -right-0.5" />}
       </button>
-
-      {userRole === "admin" && (
-        <button
-          onClick={handleForceSync}
-          disabled={forceSyncing}
-          title="Forcer la synchronisation de tous les monteurs"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-500 hover:bg-orange-600 text-white transition-colors disabled:opacity-60"
-        >
-          {forceSyncing ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="w-3.5 h-3.5" />
-          )}
-          Force sync
-        </button>
-      )}
     </>
   );
 }

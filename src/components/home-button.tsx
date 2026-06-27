@@ -22,7 +22,7 @@ export function HomeButton() {
         try { window.dispatchEvent(new CustomEvent("tm-go-home")); } catch {}
         router.push("/");
       }}
-      className="home-badge inline-flex items-center justify-center w-9 h-9 rounded-xl shadow-lg text-white"
+      className="home-badge inline-flex items-center justify-center w-9 h-9 rounded-full shadow-lg text-white"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"

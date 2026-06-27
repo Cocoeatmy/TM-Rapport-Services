@@ -6,6 +6,7 @@ import { SyncButton } from "@/components/sync-button";
 import { AIChatbot } from "@/components/ai-chatbot";
 import { NotificationBell } from "@/components/notifications";
 import { RefreshButton } from "@/components/refresh-button";
+import { ForceSyncButton } from "@/components/force-sync-button";
 import { CreateProjectButton } from "@/components/create-project-button";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineBanner } from "@/components/offline-banner";
@@ -68,8 +69,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col lg-bg">
         <header id="main-header" className="sticky top-0 z-50 glass-header text-white">
           <div className="flex items-center justify-between gap-2 px-4 py-3 overflow-x-auto md:overflow-visible scrollbar-hide">
-            <div className="flex items-center gap-1 cmm-header-left shrink-0">
+            <div className="flex items-center gap-1.5 cmm-header-left shrink-0">
               <HomeButton />
+              <AIChatbot />
               <BackButton />
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -77,9 +79,9 @@ export default function RootLayout({
               <CreateProjectButton />
               <NotificationBell />
               <RefreshButton />
+              <ForceSyncButton />
               <SyncButton />
               <UserMenu />
-              <AIChatbot />
             </div>
           </div>
         </header>
