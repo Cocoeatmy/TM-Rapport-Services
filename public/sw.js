@@ -7,7 +7,7 @@
 //   v11 : pré-cache explicite des pages /client/ et /projet/ + leurs données API
 //         via message PRECACHE_URLS — permet consultation hors-ligne garantie.
 
-const VERSION = "v17";
+const VERSION = "v18";
 const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;
@@ -26,13 +26,20 @@ const HTML_TIMEOUT_MS = 6000;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) =>
-      Promise.all(
-        STATIC_ASSETS.map((url) =>
-          cache.add(url).catch(() => { /* non bloquant */ })
+    Promise.all([
+      caches.open(STATIC_CACHE).then((cache) =>
+        Promise.all(
+          STATIC_ASSETS.map((url) =>
+            cache.add(url).catch(() => { /* non bloquant */ })
+          )
         )
-      )
-    )
+      ),
+      // Pré-cache la page d'accueil (app shell) → ouverture hors-ligne à froid
+      // affiche le tableau de bord au lieu de la page "Pas de connexion".
+      caches.open(CACHE_NAME).then((cache) =>
+        cache.add("/").catch(() => { /* non bloquant (hors-ligne à l'install) */ })
+      ),
+    ])
   );
   self.skipWaiting();
 });
