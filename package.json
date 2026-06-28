@@ -4,8 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "postbuild": "node scripts/gen-sw-precache.mjs",
+    "build": "next build && node scripts/gen-sw-precache.mjs",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run"
