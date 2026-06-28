@@ -12,6 +12,12 @@ const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;
 
+// Injectés au build par scripts/gen-sw-precache.mjs (postbuild). Ne pas éditer
+// les valeurs à la main : elles sont remplacées à chaque déploiement.
+const PRECACHE_VERSION = "dev"; // VERSION_INJECT
+const PRECACHE_MANIFEST = []; // MANIFEST_INJECT
+const PRECACHE_CACHE = `tm-precache-${PRECACHE_VERSION}`;
+
 const STATIC_ASSETS = [
   "/manifest.json",
   "/icons/icon-192.png",
@@ -39,6 +45,15 @@ self.addEventListener("install", (event) => {
       caches.open(CACHE_NAME).then((cache) =>
         cache.add("/").catch(() => { /* non bloquant (hors-ligne à l'install) */ })
       ),
+      // Pré-cache TOUTE l'app (JS/CSS du build) → ouverture hors-ligne fiable,
+      // même juste après un déploiement. Liste injectée au build.
+      caches.open(PRECACHE_CACHE).then((cache) =>
+        Promise.all(
+          PRECACHE_MANIFEST.map((url) =>
+            cache.add(url).catch(() => { /* un asset manquant ne bloque pas l'install */ })
+          )
+        )
+      ),
     ])
   );
   self.skipWaiting();
@@ -49,7 +64,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key !== STATIC_CACHE && key !== API_CACHE && key !== CACHE_NAME)
+          .filter((key) => key !== STATIC_CACHE && key !== API_CACHE && key !== CACHE_NAME && key !== PRECACHE_CACHE)
           .map((key) => caches.delete(key))
       )
     )
@@ -190,11 +205,15 @@ self.addEventListener("fetch", (event) => {
         const cached = await cache.match(request);
         if (cached) return cached;
 
-        // Navigation HTML : page offline.
+        // Navigation HTML : on sert d'abord l'app shell pré-cachée (page
+        // d'accueil) pour que l'app démarre et bascule sur ses données en
+        // cache. En dernier recours seulement, la page "Pas de connexion".
         if (
           request.mode === "navigate" ||
           (request.headers.get("accept") || "").includes("text/html")
         ) {
+          const shell = (await cache.match("/")) || (await caches.match("/"));
+          if (shell) return shell;
           return new Response(OFFLINE_HTML, {
             headers: { "Content-Type": "text/html; charset=utf-8" },
             status: 200,
