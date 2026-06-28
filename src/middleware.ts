@@ -19,7 +19,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/icons") ||
     pathname === "/manifest.json" ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    pathname === "/sw.js" // service worker : toujours accessible (sinon corruption au renouvellement de session)
   ) {
     return NextResponse.next();
   }
