@@ -59,12 +59,4 @@ if (sw === before) {
 }
 
 writeFileSync(SW_PATH, sw);
-
-// Marqueur de diagnostic : prouve que ce script s'est exécuté au build et que
-// les fichiers écrits ensuite dans public/ sont bien déployés. (public/icons
-// est public — non protégé par la middleware.)
-try {
-  writeFileSync(join(ROOT, "public", "icons", "precache-version.txt"), buildId);
-} catch { /* non bloquant */ }
-
 console.log(`[sw-precache] ${manifest.length} fichiers précachés, version ${buildId}`);

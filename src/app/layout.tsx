@@ -101,6 +101,30 @@ export default function RootLayout({
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js');
+                  // Pré-cache hors-ligne fiable, indépendant du build : on liste
+                  // les fichiers de l'app réellement chargés (JS/CSS de Next) et
+                  // on demande au service worker de les mettre en cache. Garantit
+                  // que l'app rouvre hors-ligne, y compris juste après un déploiement.
+                  var precacheApp = function() {
+                    try {
+                      var urls = {};
+                      performance.getEntriesByType('resource').forEach(function(e) {
+                        if (e.name && e.name.indexOf('/_next/static/') !== -1) urls[e.name] = 1;
+                      });
+                      document.querySelectorAll('link[rel="stylesheet"],script[src]').forEach(function(el) {
+                        var u = el.href || el.src;
+                        if (u && u.indexOf('/_next/static/') !== -1) urls[u] = 1;
+                      });
+                      urls[location.origin + '/'] = 1; // app shell
+                      var list = Object.keys(urls);
+                      navigator.serviceWorker.ready.then(function(reg) {
+                        var sw = reg.active || navigator.serviceWorker.controller;
+                        if (sw) sw.postMessage({ type: 'PRECACHE_URLS', urls: list });
+                      });
+                    } catch (e) {}
+                  };
+                  // Laisse le temps aux chunks différés de se charger.
+                  setTimeout(precacheApp, 3500);
                 });
               }
 
