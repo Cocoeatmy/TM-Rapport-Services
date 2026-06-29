@@ -40,5 +40,11 @@ export function normalizeRapportMonteur(raw: string | null | undefined): string 
   // bloc puisqu'elles vivent dans `lines`).
   blocks.sort((a, b) => a.id.localeCompare(b.id, "fr", { numeric: true }));
 
-  return [...general, ...blocks.flatMap((b) => b.lines)].join("\n");
+  // Chaque "chunk" = rapport général OU un bloc cabine (en-tête + continuations,
+  // collés par "\n"). On sépare les chunks par UNE ligne vide : un seul saut de
+  // ligne entre chaque lot, jamais de blocs vides empilés.
+  const chunks: string[] = [];
+  if (general.length) chunks.push(general.join("\n"));
+  for (const b of blocks) chunks.push(b.lines.join("\n"));
+  return chunks.join("\n\n");
 }
