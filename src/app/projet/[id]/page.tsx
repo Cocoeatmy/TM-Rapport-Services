@@ -91,6 +91,7 @@ import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
+import { normalizeRapportMonteur } from "@/lib/rapport";
 import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
 import { fetchWithRetry, invalidateApiCache } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
@@ -3523,9 +3524,11 @@ function ProjectPageContent({ id }: { id: string }) {
     // vocal + texte, et on en aura besoin pour mettre à jour le state local
     // quand le save réussit — sinon un polling 15 s plus tard risque
     // d'écraser la saisie courante avec une réponse Notion vide).
-    const reportToSave = isCabineMode
-      ? rapport + "\n\n" + cabines.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
-      : rapport;
+    const reportToSave = normalizeRapportMonteur(
+      isCabineMode
+        ? rapport + "\n\n" + cabines.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
+        : rapport
+    );
     // Priorité 1 : mode multi-cabine → heures par cabine
     // ("Cab1:08:00 | Cab2:09:30")
     // Priorité 2 : mode multi-jour → pointages par date
@@ -3642,13 +3645,14 @@ function ProjectPageContent({ id }: { id: string }) {
         .filter(Boolean)
         .join(" | ");
 
-      const reportToSave =
+      const reportToSave = normalizeRapportMonteur(
         rapport +
-        "\n\n" +
-        cabines
-          .map((c) => (c.rapport ? `${c.nom} : ${c.rapport}` : ""))
-          .filter(Boolean)
-          .join("\n");
+          "\n\n" +
+          cabines
+            .map((c) => (c.rapport ? `${c.nom} : ${c.rapport}` : ""))
+            .filter(Boolean)
+            .join("\n")
+      );
 
       const res = await offlineFetch(`/api/projects/${id}`, {
         method: "PATCH",
@@ -3895,9 +3899,11 @@ function ProjectPageContent({ id }: { id: string }) {
               ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
               : heureDepart,
           commentairesMontages: commentaires,
-          rapportMonteur: isCabineMode
-            ? rapport + "\n\n" + cabines.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
-            : rapport,
+          rapportMonteur: normalizeRapportMonteur(
+            isCabineMode
+              ? rapport + "\n\n" + cabines.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
+              : rapport
+          ),
         }),
       });
       if (!saveRes.ok) {

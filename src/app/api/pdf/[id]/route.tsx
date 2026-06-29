@@ -4,6 +4,7 @@ import { LOGO_BASE64 } from "@/lib/logo";
 import { sendPdfByEmail } from "@/lib/email";
 import { sendReportToTelegram } from "@/lib/telegram";
 import { verifyToken } from "@/lib/auth";
+import { normalizeRapportMonteur } from "@/lib/rapport";
 import ReactPDF, {
   Document,
   Page,
@@ -750,7 +751,9 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
             // colonne droite = texte. Le retour à la ligne se fait dans la
             // colonne droite, les identifiants restent tous alignés.
             const IDENT_WIDTH = 52; // largeur fixe colonne gauche (pt)
-            const lines = project.rapportMonteur.split("\n");
+            // Normalisation : suppression des lignes vides + tri des cabines
+            // par titre (B33-203 avant B33-303…). Idem que côté app.
+            const lines = normalizeRapportMonteur(project.rapportMonteur).split("\n");
             return (
               // wrap={false} : le bloc "Rapport du monteur" ne doit jamais être
               // coupé entre deux pages (en-tête orphelin). S'il ne tient pas dans
