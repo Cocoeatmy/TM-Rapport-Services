@@ -55,9 +55,14 @@ export interface EdgeCacheOptions {
   sMaxAge?: number;
   /** Fenêtre stale-while-revalidate (secondes). Défaut 120. */
   swr?: number;
+  /** Rafraîchissement forcé : aucune mise en cache CDN (toujours frais). */
+  noStore?: boolean;
 }
 
 export function cachedJson<T>(data: T, options: EdgeCacheOptions = {}): NextResponse {
+  if (options.noStore) {
+    return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
+  }
   const sMaxAge = options.sMaxAge ?? 30;  // 30 s — limite les ISR Writes CDN
   const swr = options.swr ?? 120;         // 120 s stale-while-revalidate
   return NextResponse.json(data, {

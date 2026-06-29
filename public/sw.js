@@ -148,6 +148,20 @@ self.addEventListener("fetch", (event) => {
 
   // === API : network-first avec timeout 400 ms ===
   if (url.pathname.startsWith("/api/")) {
+    // Rafraîchissement FORCÉ (?fresh) : réseau direct, sans toucher au cache
+    // (ni lecture périmée, ni écriture de doublons). Garantit les dernières
+    // modifs Notion au clic sur "Rafraîchir".
+    if (url.searchParams.has("fresh")) {
+      event.respondWith(
+        fetch(request).catch(() =>
+          new Response(JSON.stringify([]), {
+            headers: { "Content-Type": "application/json", "X-SW-Offline": "1" },
+            status: 200,
+          })
+        )
+      );
+      return;
+    }
     event.respondWith(
       caches.open(API_CACHE).then(async (cache) => {
         try {

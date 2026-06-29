@@ -17,10 +17,20 @@ export function RefreshButton() {
 
   const handleClick = () => {
     setSpinning(true);
-    // Laisse 150 ms au spin pour démarrer visuellement puis recharge.
+    // Rafraîchissement FORCÉ : on contourne tous les caches pour récupérer les
+    // toutes dernières modifs Notion (sinon les derniers RDV ajoutés manquent).
+    try {
+      // 1) vide le cache API du service worker (mobile surtout).
+      navigator.serviceWorker?.controller?.postMessage({ type: "INVALIDATE_API_CACHE" });
+    } catch {}
+    try {
+      // 2) drapeau lu au rechargement → les requêtes ajoutent ?fresh (contourne
+      //    cache serveur + CDN).
+      sessionStorage.setItem("tm-force-fresh", "1");
+    } catch {}
     setTimeout(() => {
       window.location.reload();
-    }, 150);
+    }, 200);
   };
 
   return (

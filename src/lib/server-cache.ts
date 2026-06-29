@@ -27,6 +27,9 @@ const FALLBACK_TTL = 30 * 60 * 1000; // 30 min
 // et que le cache est vide, une seule requête Notion est lancée.
 const inflightFetch = new Map<string, Promise<unknown>>();
 
+// Déduplication des rafraîchissements FORCÉS (manuel "Rafraîchir").
+const inflightForce = new Map<string, Promise<unknown>>();
+
 // Déduplication des revalidations en arrière-plan.
 const inflightRevalidate = new Map<string, Promise<unknown>>();
 
@@ -136,7 +139,30 @@ export function revalidateInBackground<T>(
 export async function cachedOrFetch<T>(
   key: string,
   fetcher: () => Promise<T>,
+  force = false,
 ): Promise<T> {
+  // `force` (rafraîchissement manuel) : on ignore le cache et on attend
+  // les données FRAÎCHES de Notion, puis on met le cache à jour.
+  if (force) {
+    const existingForce = inflightForce.get(key);
+    if (existingForce) return existingForce as Promise<T>;
+    const fp = (async () => {
+      try {
+        const data = await fetcher();
+        setCache(key, data);
+        return data;
+      } catch (err: any) {
+        const fallback = getFallback<T>(key);
+        if (fallback !== null) return fallback;
+        throw err;
+      } finally {
+        inflightForce.delete(key);
+      }
+    })();
+    inflightForce.set(key, fp);
+    return fp;
+  }
+
   const entry = getCachedWithStale<T>(key);
   if (entry) {
     if (entry.stale) revalidateInBackground(key, fetcher);

@@ -4,10 +4,11 @@ import { cachedJson, errorResponse } from "@/lib/edge-cache";
 
 export const revalidate = 30;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const projects = await cachedOrFetch("projects-mesures", getProjectsMesures);
-    return cachedJson(projects);
+    const fresh = new URL(request.url).searchParams.has("fresh");
+    const projects = await cachedOrFetch("projects-mesures", getProjectsMesures, fresh);
+    return cachedJson(projects, fresh ? { noStore: true } : undefined);
   } catch (error) {
     return errorResponse(error);
   }

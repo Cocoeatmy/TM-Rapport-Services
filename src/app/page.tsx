@@ -1668,8 +1668,17 @@ function HomePage() {
     const allModes = Object.entries(MODE_API) as [string, string][];
     const uniqueUrls = [...new Set(allModes.map(([, url]) => url))];
 
+    // Rafraîchissement manuel (bouton Rafraîchir) → ?fresh contourne TOUS les
+    // caches (serveur + CDN + SW) pour garantir les toutes dernières modifs Notion.
+    let forceFresh = false;
+    try {
+      forceFresh = sessionStorage.getItem("tm-force-fresh") === "1";
+      if (forceFresh) sessionStorage.removeItem("tm-force-fresh");
+    } catch {}
+    const withFresh = (u: string) => (forceFresh ? `${u}${u.includes("?") ? "&" : "?"}fresh=${Date.now()}` : u);
+
     uniqueUrls.forEach((url) => {
-      fetch(url).then((r) => r.json()).then((data) => {
+      fetch(withFresh(url), forceFresh ? { cache: "no-store" } : undefined).then((r) => r.json()).then((data) => {
         // Ne pas écraser le cache avec un tableau vide :
         // le SW retourne [] comme fallback quand il n'a pas de données hors-ligne.
         if (!Array.isArray(data) || data.length === 0) return;

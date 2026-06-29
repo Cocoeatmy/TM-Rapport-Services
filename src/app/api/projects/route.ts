@@ -6,16 +6,13 @@ import { cachedJson, errorResponse } from "@/lib/edge-cache";
 
 export const revalidate = 30;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // 2 niveaux de cache :
-    //   - cachedOrFetch : SWR côté serveur (frais 30 s, stale 5 min)
-    //   - cachedJson : Cache-Control CDN (fresh 10 s, stale-while-revalidate 60 s)
-    // Premier visiteur après une invalidation paye le compute Notion ;
-    // tous les suivants dans les 70 s sont servis par le edge Vercel
-    // en ~10 ms, peu importe le nombre de devices.
-    const projects = await cachedOrFetch("projects", getProjects);
-    return cachedJson(projects);
+    // ?fresh=… (rafraîchissement manuel) → contourne tous les caches et attend
+    // les données fraîches de Notion (+ aucune mise en cache CDN de la réponse).
+    const fresh = new URL(request.url).searchParams.has("fresh");
+    const projects = await cachedOrFetch("projects", getProjects, fresh);
+    return cachedJson(projects, fresh ? { noStore: true } : undefined);
   } catch (error) {
     return errorResponse(error);
   }
