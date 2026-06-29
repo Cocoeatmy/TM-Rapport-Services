@@ -836,7 +836,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                 </Text>
                 {defauts.map((d, i) => (
                   <Text key={d.id} style={{ fontSize: 9, color: "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
-                    • Défaut n°{i + 1} — {(d.types || []).join(", ") || d.description || "Sans description"}
+                    • Défaut n°{i + 1}{d.cabineLabel ? ` — Cabine ${d.cabineLabel}` : ""} — {(d.types || []).join(", ") || d.description || "Sans description"}
                   </Text>
                 ))}
               </View>
