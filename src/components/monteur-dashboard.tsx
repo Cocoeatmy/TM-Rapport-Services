@@ -3755,34 +3755,41 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 const isOld = dateStr && dateStr < todayStr;
                 return (
                   <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-orange-200/60 dark:hover:bg-orange-800/30 transition-colors text-xs ${rowBg}`}>
-                    <span className={`w-20 shrink-0 font-mono text-[10px] tabular-nums ${isOld ? "text-red-500 dark:text-red-400 font-semibold" : "text-gray-500 dark:text-gray-400"}`}>
-                      {dateStr ? new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" }) : "---"}
-                    </span>
-                    <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
-                      {parseTMNumbers(p.ofrTM || "").length > 0
-                        ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
-                            <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
-                          ))
-                        : <span className="font-mono text-xs text-gray-400">---</span>
-                      }
-                    </span>
-                    <span className="flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
-                    {p.etatCMD && (
-                      <span className={`shrink-0 hidden sm:inline-block text-[9px] font-semibold px-2 py-0.5 rounded-full ${STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700"}`}>
-                        {p.etatCMD}
+                    className={`flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 px-2 py-1.5 rounded-lg hover:bg-orange-200/60 dark:hover:bg-orange-800/30 transition-colors text-xs ${rowBg}`}>
+                    {/* En portrait : ligne compacte (date · TM · logo · monteurs · cab.).
+                        Sur desktop (sm:contents) : la div disparaît → rangée unique inchangée. */}
+                    <div className="flex items-center gap-2 w-full sm:contents">
+                      <span className={`w-16 sm:w-20 shrink-0 font-mono text-[10px] tabular-nums ${isOld ? "text-red-500 dark:text-red-400 font-semibold" : "text-gray-500 dark:text-gray-400"}`}>
+                        {dateStr ? new Date(dateStr + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" }) : "---"}
                       </span>
-                    )}
-                    {logo && <LogoImg src={logo} />}
-                    <div className="flex -space-x-1 shrink-0">
-                      {names.slice(0, 3).map((n: string) => (
-                        <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
-                          style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
-                          {getCollaboratorInitials(n)}
+                      <span className="w-16 sm:w-20 shrink-0 flex flex-col justify-center gap-px">
+                        {parseTMNumbers(p.ofrTM || "").length > 0
+                          ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
+                              <span key={i} className="font-mono text-xs leading-tight text-gray-600 dark:text-gray-300 truncate">{tm}</span>
+                            ))
+                          : <span className="font-mono text-xs text-gray-400">---</span>
+                        }
+                      </span>
+                      {/* Nom projet — desktop uniquement (en portrait il passe en dessous, pleine largeur) */}
+                      <span className="hidden sm:block sm:flex-1 min-w-0 text-xs text-gray-900 dark:text-gray-100 sm:line-clamp-2">{p.projet}</span>
+                      {p.etatCMD && (
+                        <span className={`shrink-0 hidden sm:inline-block text-[9px] font-semibold px-2 py-0.5 rounded-full ${STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700"}`}>
+                          {p.etatCMD}
                         </span>
-                      ))}
+                      )}
+                      {logo && <LogoImg src={logo} />}
+                      <div className="flex -space-x-1 shrink-0 ml-auto sm:ml-0">
+                        {names.slice(0, 3).map((n: string) => (
+                          <span key={n} className="w-5 h-5 rounded-full text-[7px] font-bold flex items-center justify-center border border-white dark:border-gray-800"
+                            style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                            {getCollaboratorInitials(n)}
+                          </span>
+                        ))}
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
                     </div>
-                    <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                    {/* Nom projet en PLEINE LARGEUR en portrait — tout le texte visible */}
+                    <span className="sm:hidden w-full text-xs font-medium text-gray-900 dark:text-gray-100 break-words leading-snug">{p.projet}</span>
                   </Link>
                 );
               })}
