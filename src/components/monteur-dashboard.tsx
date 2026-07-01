@@ -5717,7 +5717,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 // --- Main component ---
 
 // ─── Dashboard collaborateur (non-admin) ─────────────────────────────────────
-function CollaborateurDashboard({ userName, projects }: { userName: string; projects: Project[] }) {
+function CollaborateurDashboard({ userName, projects, onNavigate }: { userName: string; projects: Project[]; onNavigate?: (mode: string) => void }) {
   useNotionColors(); // couleurs Notion sur les badges de statut
   const firstName = userName.split(" ")[0];
   const colors = getCollaboratorColor(firstName);
@@ -5948,8 +5948,9 @@ function CollaborateurDashboard({ userName, projects }: { userName: string; proj
           <p className="text-[7px] sm:text-[9px] text-gray-400 dark:text-gray-500 mt-0.5">{servicesTodayMine.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.</p>
         </button>
 
-        {/* Arrivage — TOUS */}
-        <button onClick={() => togglePanel("arrivage")} className={btnCls("arrivage", "ring-sky-400")}>
+        {/* Arrivage — TOUS. Même vue que l'admin (page de recherche/enregistrement
+            ArrivagePage), plus simple pour gérer les arrivages. */}
+        <button onClick={() => onNavigate?.("arrivage")} className={btnCls("arrivage", "ring-sky-400")}>
           <span className="absolute top-0 left-0 w-7 h-7 rounded-tl-2xl rounded-br-xl bg-sky-100/80 dark:bg-sky-900/30 flex items-center justify-center">
             <Truck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
           </span>
@@ -6187,5 +6188,5 @@ export function MonteurDashboard({ userName, projects, isAdmin, onNavigate, term
   }
 
   // Collaborateur (non-admin) view
-  return <CollaborateurDashboard userName={userName} projects={projects} />;
+  return <CollaborateurDashboard userName={userName} projects={projects} onNavigate={onNavigate} />;
 }
