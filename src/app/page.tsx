@@ -20,6 +20,7 @@ import { dateInRange, formatLocalDate } from "@/lib/time-utils";
 import { getFavorites } from "@/lib/favorites";
 import { fetchWithRetry, prefetchProject } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
+import { toast as sonnerToast } from "sonner";
 import { StatsDateFilter, filterByStatsDate, type StatsDateMode } from "@/components/stats-date-filter";
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
@@ -1675,10 +1676,29 @@ function HomePage() {
       forceFresh = sessionStorage.getItem("tm-force-fresh") === "1";
       if (forceFresh) sessionStorage.removeItem("tm-force-fresh");
     } catch {}
-    const withFresh = (u: string) => (forceFresh ? `${u}${u.includes("?") ? "&" : "?"}fresh=${Date.now()}` : u);
+
+    // Listes ACTIVES (qui alimentent les compteurs du résumé) : toujours chargées
+    // FRAÎCHES au login (contournent le cache "stale") → les infos se corrigent
+    // toutes seules en quelques secondes, sans devoir cliquer sur Rafraîchir.
+    const ACTIVE_FRESH = new Set([
+      "/api/projects", "/api/projects/mesures", "/api/projects/services",
+      "/api/projects/sav", "/api/projects/all-active",
+    ]);
+    const shouldFresh = (u: string) => forceFresh || ACTIVE_FRESH.has(u);
+    const withFresh = (u: string) => (shouldFresh(u) ? `${u}${u.includes("?") ? "&" : "?"}fresh=${Date.now()}` : u);
+
+    // Indicateur : tant que les listes actives fraîches ne sont pas arrivées, on
+    // signale la mise à jour (pour ne pas prendre des chiffres périmés pour finaux).
+    let pendingFresh = uniqueUrls.filter((u) => ACTIVE_FRESH.has(u)).length;
+    if (pendingFresh > 0) { try { sonnerToast.loading("Actualisation des données…", { id: "dash-refresh" }); } catch {} }
+    const doneFresh = () => {
+      pendingFresh -= 1;
+      if (pendingFresh <= 0) { try { sonnerToast.dismiss("dash-refresh"); } catch {} }
+    };
 
     uniqueUrls.forEach((url) => {
-      fetch(withFresh(url), forceFresh ? { cache: "no-store" } : undefined).then((r) => r.json()).then((data) => {
+      const isActive = ACTIVE_FRESH.has(url);
+      fetch(withFresh(url), shouldFresh(url) ? { cache: "no-store" } : undefined).then((r) => r.json()).then((data) => {
         // Ne pas écraser le cache avec un tableau vide :
         // le SW retourne [] comme fallback quand il n'a pas de données hors-ligne.
         if (!Array.isArray(data) || data.length === 0) return;
@@ -1695,6 +1715,8 @@ function HomePage() {
         setLoading(false);
       }).catch(() => {
         setLoading(false);
+      }).finally(() => {
+        if (isActive) doneFresh();
       });
     });
   }, []);
