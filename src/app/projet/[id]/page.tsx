@@ -2487,6 +2487,12 @@ function ProjectPageContent({ id }: { id: string }) {
     heureArrivee: string;
     heureDepart: string;
   }>({ rapport: "", commentaires: "", heureArrivee: "", heureDepart: "" });
+  // Valeurs qu'on vient de sauvegarder (+ horodatage). Tant que Notion n'a pas
+  // propagé l'écriture (quelques secondes), une relecture peut renvoyer l'ANCIENNE
+  // valeur : ce garde empêche le polling d'écraser la saisie avec ce périmé.
+  const pendingSaveRef = useRef<{
+    rapport: string; commentaires: string; heureArrivee: string; heureDepart: string; ts: number;
+  } | null>(null);
   // Notif discret si on n'a pas pu fusionner automatiquement (conflit).
   const [collabUpdateToast, setCollabUpdateToast] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email?: string } | null>(null);
@@ -2731,6 +2737,15 @@ function ProjectPageContent({ id }: { id: string }) {
         commentaires,
         heureArrivee: arriveeToSave,
         heureDepart: departToSave,
+      };
+      // Mémoriser ce qu'on vient de sauver : le polling ignorera une relecture
+      // Notion périmée (encore l'ancienne valeur) tant que ce n'est pas propagé.
+      pendingSaveRef.current = {
+        rapport: reportToSave,
+        commentaires,
+        heureArrivee: arriveeToSave,
+        heureDepart: departToSave,
+        ts: Date.now(),
       };
       invalidateApiCache();
     }, 2000); // 2 s de debounce
@@ -3031,18 +3046,31 @@ function ProjectPageContent({ id }: { id: string }) {
       setCommentaires(sCommentaires);
       setHeureArrivee(sHA);
       setHeureDepart(sHD);
+      serverSnapshotRef.current = {
+        rapport: sRapport, commentaires: sCommentaires, heureArrivee: sHA, heureDepart: sHD,
+      };
     } else {
-      setRapport((cur) => (cur === prevSnap.rapport ? sRapport : cur));
-      setCommentaires((cur) => (cur === prevSnap.commentaires ? sCommentaires : cur));
-      setHeureArrivee((cur) => (cur === prevSnap.heureArrivee ? sHA : cur));
-      setHeureDepart((cur) => (cur === prevSnap.heureDepart ? sHD : cur));
+      // Rechargement : ne réécrire un champ que si l'utilisateur n'y a pas
+      // touché ET si le serveur n'est pas une relecture périmée de ce qu'on
+      // vient de sauver (fenêtre de grâce). Sinon on garde la valeur sauvée.
+      const pend = pendingSaveRef.current;
+      const grace = !!(pend && Date.now() - pend.ts < 30000);
+      const merge = (
+        serverVal: string,
+        key: "rapport" | "commentaires" | "heureArrivee" | "heureDepart",
+        setter: React.Dispatch<React.SetStateAction<string>>,
+      ): string => {
+        if (grace && pend && serverVal !== pend[key]) return pend[key]; // périmé → garde le sauvé
+        setter((cur) => (cur === prevSnap[key] ? serverVal : cur));
+        return serverVal;
+      };
+      serverSnapshotRef.current = {
+        rapport: merge(sRapport, "rapport", setRapport),
+        commentaires: merge(sCommentaires, "commentaires", setCommentaires),
+        heureArrivee: merge(sHA, "heureArrivee", setHeureArrivee),
+        heureDepart: merge(sHD, "heureDepart", setHeureDepart),
+      };
     }
-    serverSnapshotRef.current = {
-      rapport: sRapport,
-      commentaires: sCommentaires,
-      heureArrivee: sHA,
-      heureDepart: sHD,
-    };
     const nb = data.nbCabines || 1;
     if (nb > 1) {
       setIsCabineMode(true);
@@ -3360,29 +3388,36 @@ function ProjectPageContent({ id }: { id: string }) {
         const sHA = data.heureArrivee || "";
         const sHD = data.heureDepart || "";
 
-        if (sRapport !== snap.rapport) {
-          setRapport((cur) => {
-            if (cur === snap.rapport) { snap.rapport = sRapport; return sRapport; }
-            snap.rapport = sRapport; conflict = true; return cur;
+        // Fenêtre de grâce après une sauvegarde : Notion peut renvoyer encore
+        // l'ANCIENNE valeur (propagation). On ignore alors le serveur pour ne
+        // JAMAIS écraser ce qu'on vient de taper/sauver.
+        const GRACE_MS = 30000;
+        const applyField = (
+          serverVal: string,
+          key: "rapport" | "commentaires" | "heureArrivee" | "heureDepart",
+          setter: React.Dispatch<React.SetStateAction<string>>,
+        ) => {
+          if (serverVal === snap[key]) return;
+          const pend = pendingSaveRef.current;
+          if (pend && Date.now() - pend.ts < GRACE_MS && serverVal !== pend[key]) {
+            return; // relecture Notion périmée → on garde le local
+          }
+          setter((cur) => {
+            if (cur === snap[key]) { snap[key] = serverVal; return serverVal; }
+            snap[key] = serverVal; conflict = true; return cur;
           });
-        }
-        if (sCommentaires !== snap.commentaires) {
-          setCommentaires((cur) => {
-            if (cur === snap.commentaires) { snap.commentaires = sCommentaires; return sCommentaires; }
-            snap.commentaires = sCommentaires; conflict = true; return cur;
-          });
-        }
-        if (sHA !== snap.heureArrivee) {
-          setHeureArrivee((cur) => {
-            if (cur === snap.heureArrivee) { snap.heureArrivee = sHA; return sHA; }
-            snap.heureArrivee = sHA; conflict = true; return cur;
-          });
-        }
-        if (sHD !== snap.heureDepart) {
-          setHeureDepart((cur) => {
-            if (cur === snap.heureDepart) { snap.heureDepart = sHD; return sHD; }
-            snap.heureDepart = sHD; conflict = true; return cur;
-          });
+        };
+
+        applyField(sRapport, "rapport", setRapport);
+        applyField(sCommentaires, "commentaires", setCommentaires);
+        applyField(sHA, "heureArrivee", setHeureArrivee);
+        applyField(sHD, "heureDepart", setHeureDepart);
+
+        // Le serveur reflète enfin tout ce qu'on a sauvé → on lève le garde.
+        const pend = pendingSaveRef.current;
+        if (pend && sRapport === pend.rapport && sCommentaires === pend.commentaires &&
+            sHA === pend.heureArrivee && sHD === pend.heureDepart) {
+          pendingSaveRef.current = null;
         }
         if (conflict) setCollabUpdateToast(true);
 
