@@ -5373,6 +5373,23 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           {p.nomChantier && p.nomChantier !== p.projet && (
                             <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 mt-0">{p.nomChantier}</span>
                           )}
+                          {/* PORTRAIT : infos clés sous le nom (elles sont masquées dans la
+                              rangée sur mobile). Reprend ce que le desktop affiche à droite. */}
+                          {["rdv-mesures-a-fixer", "rdv-montage-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer"].includes(showSummaryPanel || "") && (
+                            <span className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
+                              {showSummaryPanel === "rdv-mesures-a-fixer"
+                                ? (p.servMesuresFournisseurs && <span className="text-[9px] font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.5 rounded">N° {p.servMesuresFournisseurs}</span>)
+                                : (p.servCmdFournisseurs && <span className="text-[9px] font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.5 rounded">N° {p.servCmdFournisseurs}</span>)}
+                              {showSummaryPanel === "rdv-montage-a-fixer" && p.etatCMD && (
+                                <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700"}`}>{p.etatCMD}</span>
+                              )}
+                              {showSummaryPanel === "rdv-montage-a-fixer" && p.emplacementCabine && (
+                                <span className="flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400" title={p.emplacementCabine}>
+                                  <MapPin className="w-3 h-3 shrink-0" /><span className="truncate max-w-[150px]">{p.emplacementCabine}</span>
+                                </span>
+                              )}
+                            </span>
+                          )}
                         </span>
                         {/* J+x par ligne en mode région (NPA) : les groupes ne sont
                             plus par date, donc on l'affiche sur chaque projet. */}
