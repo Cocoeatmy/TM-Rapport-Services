@@ -579,6 +579,7 @@ function EditableDate({ project, mode, onUpdate }: { project: Project; mode: str
 
   const handleSave = async () => {
     setSaving(true);
+    try { window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: notionField } })); } catch {}
     const newDate = buildDateString();
     const patchBody = { [notionField]: newDate };
     const logDetails = `${formatDate(currentDate)} → ${newDate ? formatDate(newDate) : "Non planifié"}`;
@@ -724,6 +725,7 @@ function ExtraDateField({ label, value, projectId, fieldName, onUpdate }: {
         body: JSON.stringify({ [fieldName]: draft || null }),
       });
       onUpdate(draft || null);
+      try { window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: fieldName } })); } catch {}
       setEditing(false);
     } catch (err) {
       console.error("Save error:", err);
@@ -1740,6 +1742,7 @@ function MesuresParCell({
         body: JSON.stringify({ mesuresTraiteePar: newValue }),
       });
       onUpdate(newValue);
+      try { window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "mesuresTraiteePar" } })); } catch {}
       setEditing(false);
     } catch {} finally {
       setSaving(false);
@@ -1834,6 +1837,7 @@ function EditableCollaborateur({ project, mode, onUpdate }: { project: Project; 
 
   const handleSave = async () => {
     setSaving(true);
+    try { window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: notionField } })); } catch {}
     const newValue = selected.join(" & ");
     const patchBody = { [notionField]: newValue || "" };
     const logDetails = `${currentCollab || "---"} → ${newValue || "---"}`;
@@ -2493,6 +2497,9 @@ function ProjectPageContent({ id }: { id: string }) {
   const pendingSaveRef = useRef<{
     rapport: string; commentaires: string; heureArrivee: string; heureDepart: string; ts: number;
   } | null>(null);
+  // Champs projet (dates, "traité par"…) édités inline récemment : le polling ne
+  // doit pas les faire "clignoter" en réaffichant une relecture Notion périmée.
+  const pendingFieldsRef = useRef<Record<string, number>>({});
   // Notif discret si on n'a pas pu fusionner automatiquement (conflit).
   const [collabUpdateToast, setCollabUpdateToast] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email?: string } | null>(null);
@@ -3027,7 +3034,18 @@ function ProjectPageContent({ id }: { id: string }) {
 
   const initProject = (data: any) => {
     if (!data?.id) return;
-    setProject(data);
+    setProject((prev) => {
+      if (!prev) return data;
+      // Préserve les champs édités inline récemment (grâce 30 s) pour ne pas
+      // réafficher une relecture Notion périmée.
+      const incoming = { ...data } as Record<string, unknown>;
+      const now = Date.now();
+      for (const [field, ts] of Object.entries(pendingFieldsRef.current)) {
+        if (now - ts < 30000) incoming[field] = (prev as unknown as Record<string, unknown>)[field];
+        else delete pendingFieldsRef.current[field];
+      }
+      return incoming as typeof data;
+    });
 
     // Fusion anti-écrasement des champs éditables.
     // 1er chargement de ce projet → on pose les valeurs serveur.
@@ -3315,6 +3333,17 @@ function ProjectPageContent({ id }: { id: string }) {
     fetchWithProjectRetry();
   }, [id]);
 
+  // Enregistre chaque champ édité inline (dates, "traité par"…) → le polling le
+  // préservera pendant une fenêtre de grâce (pas de clignotement / retour arrière).
+  useEffect(() => {
+    const onEdited = (e: Event) => {
+      const field = (e as CustomEvent<{ field?: string }>).detail?.field;
+      if (field) pendingFieldsRef.current[field] = Date.now();
+    };
+    window.addEventListener("tm-project-field-edited", onEdited);
+    return () => window.removeEventListener("tm-project-field-edited", onEdited);
+  }, []);
+
   // Polling: re-fetch project data toutes les 15 s pour la collaboration
   // temps réel. Visibility-aware : si l'onglet n'est pas visible, on
   // saute le tick — pas la peine de saturer le réseau pour un projet
@@ -3368,6 +3397,18 @@ function ProjectPageContent({ id }: { id: string }) {
             const localTextFields = ["commentairesMontages", "commentairesMesures"] as const;
             for (const field of localTextFields) {
               (incoming as Record<string, unknown>)[field] = prev[field];
+            }
+
+            // Champs édités inline récemment (dates, "traité par"…) : on garde la
+            // valeur locale tant que Notion n'a pas propagé (fenêtre de grâce),
+            // sinon la relecture périmée fait "clignoter" l'ancienne valeur.
+            const now = Date.now();
+            for (const [field, ts] of Object.entries(pendingFieldsRef.current)) {
+              if (now - ts < 30000) {
+                (incoming as Record<string, unknown>)[field] = (prev as unknown as Record<string, unknown>)[field];
+              } else {
+                delete pendingFieldsRef.current[field];
+              }
             }
           }
 
