@@ -53,9 +53,11 @@ export async function POST(
     const trimmed = consultations.slice(-1000);
     await setData("rapport-consultations", trimmed);
 
-    // Notification email à CHAQUE consultation, en précisant QUI a consulté
-    // (collaborateur nommé si connecté, sinon « le client »).
-    {
+    // Notification email UNIQUEMENT pour un CLIENT FINAL (visiteur non connecté).
+    // Les consultations des collaborateurs (connectés) sont enregistrées mais
+    // NE déclenchent PAS de mail — sinon l'admin est inondé quand les
+    // collaborateurs ouvrent les rapports pour vérifier les infos.
+    if (!isCollab) {
       try {
         const project = await getProject(projectId);
         const actionLabel = action === "pdf" ? "a ouvert le rapport PDF" : "a consulté le portail";
