@@ -2961,8 +2961,39 @@ function ProjectPageContent({ id }: { id: string }) {
           body: JSON.stringify({ attributionCabines: autoAttrEnc }),
         }).catch(console.error);
       }
+    } else if (isMultiDay) {
+      // Multi-interventions (mono-cabine) : NE JAMAIS écraser la chaîne de
+      // pointages avec une heure unique (bug : les horaires étaient perdus dès
+      // qu'on uploadait une photo). On remplit la 1re intervention sans heure.
+      if (bucket === "AVANT_INTERVENTION") {
+        setPointages((prev) => {
+          const i = prev.findIndex((p) => !p.arrivee);
+          if (i < 0) return prev;
+          const next = [...prev];
+          next[i] = { ...next[i], arrivee: captureTime, date: next[i].date || todayStr };
+          return next;
+        });
+        scheduleAutoSave();
+      }
+      if (isMontageOrAfter(bucket)) {
+        setPointages((prev) => {
+          const i = prev.findIndex((p) => !p.depart);
+          if (i < 0) return prev;
+          const next = [...prev];
+          next[i] = { ...next[i], depart: captureTime, date: next[i].date || todayStr };
+          return next;
+        });
+        scheduleAutoSave();
+      }
+      if (userCollab && !project?.collaborateurs) {
+        setProject((prev) => prev ? { ...prev, collaborateurs: userCollab } : prev);
+        offlineFetch(`/api/projects/${id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ collaborateurs: userCollab }),
+        }).catch(console.error);
+      }
     } else {
-      // Mode simple (1 cabine) ou multi-jour
+      // Mode simple (1 cabine)
       if (bucket === "AVANT_INTERVENTION" && !heureArrivee) {
         setHeureArrivee(captureTime);
         offlineFetch(`/api/projects/${id}`, {
@@ -2989,7 +3020,7 @@ function ProjectPageContent({ id }: { id: string }) {
         }).catch(console.error);
       }
     }
-  }, [isCabineMode, cabines, autoCollab, heureArrivee, heureDepart, project?.collaborateurs, id, scheduleAutoSave]);
+  }, [isCabineMode, cabines, autoCollab, isMultiDay, heureArrivee, heureDepart, project?.collaborateurs, id, scheduleAutoSave]);
 
   const addPointage = () => {
     setPointages((prev) => [...prev, { date: today, collaborateur: "", arrivee: "", depart: "" }]);
