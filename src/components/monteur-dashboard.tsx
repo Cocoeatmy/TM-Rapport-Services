@@ -1221,7 +1221,8 @@ const PANEL_DATE_FIELD: Record<string, (p: Project) => string | null | undefined
   "soucis-en-cours":      (p) => p.dateSoucisMontage,
 };
 
-function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [], cmmMode = false }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[]; cmmMode?: boolean }) {
+type ForcedPanel = "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer";
+function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [], cmmMode = false, forcePanel = null, onForcePanelClose }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[]; cmmMode?: boolean; forcePanel?: ForcedPanel | null; onForcePanelClose?: () => void }) {
   useNotionColors(); // couleurs Notion sur les badges de statut
   const firstName = userName.split(" ")[0];
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
@@ -1355,7 +1356,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     setSelectedDashId(null);
   };
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | "montage-tomorrow" | "mesures-tomorrow" | "services-tomorrow" | "sav-tomorrow" | "montage-after" | "mesures-after" | "services-after" | "sav-after" | null>(null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | "montage-tomorrow" | "mesures-tomorrow" | "services-tomorrow" | "sav-tomorrow" | "montage-after" | "mesures-after" | "services-after" | "sav-after" | null>(forcePanel ?? null);
   // Tri des panneaux "RDV … à fixer" + "Soucis en cours" : par date (défaut) ou
   // par code postal (région) pour planifier les tournées. Une préférence PAR
   // panneau, persistée en localStorage.
@@ -1477,12 +1478,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   };
 
   const closePanel = () => {
+    // Mode "panneau forcé" (vue admin ouverte depuis le dashboard collaborateur) :
+    // fermer = revenir au dashboard collaborateur, pas afficher la grille admin.
+    if (forcePanel) { onForcePanelClose?.(); return; }
     setShowSummaryPanel(null);
     try { sessionStorage.removeItem("tm-dash-panel"); } catch {}
   };
 
   // Restaure le panneau précédemment ouvert (retour depuis un projet).
+  // (Ignoré en mode panneau forcé : le panneau est déjà imposé par la prop.)
   useEffect(() => {
+    if (forcePanel) return;
     try {
       const saved = sessionStorage.getItem("tm-dash-panel");
       if (saved) setShowSummaryPanel(saved as typeof showSummaryPanel);
@@ -5997,8 +6003,20 @@ function CollaborateurDashboard({ userName, projects, onNavigate }: { userName: 
         </button>
       </div>
 
-      {/* ── Panneau détail ── */}
-      {showPanel && (
+      {/* ── RDV Mesures / Montage / Services à fixer : VUE ADMIN (riche) pour
+             les collaborateurs (groupée par date, badges, tri Par date/NPA…). ── */}
+      {(showPanel === "rdv-mesures-a-fixer" || showPanel === "rdv-montage-a-fixer" || showPanel === "rdv-services-a-fixer") && (
+        <AdminDashboard
+          key={showPanel}
+          projects={projects}
+          userName={userName}
+          forcePanel={showPanel}
+          onForcePanelClose={() => setShowPanel(null)}
+        />
+      )}
+
+      {/* ── Panneau détail (autres onglets, vue collaborateur inchangée) ── */}
+      {showPanel && showPanel !== "rdv-mesures-a-fixer" && showPanel !== "rdv-montage-a-fixer" && showPanel !== "rdv-services-a-fixer" && (
         <div className="glass-card rounded-2xl p-4 space-y-2">
           {showPanel === "mesures-today" && (
             <>
@@ -6024,24 +6042,7 @@ function CollaborateurDashboard({ userName, projects, onNavigate }: { userName: 
               {servicesTodayMine.length === 0 ? emptyMsg("Aucun service aujourd'hui") : projectList(servicesTodayMine)}
             </>
           )}
-          {showPanel === "rdv-mesures-a-fixer" && (
-            <>
-              {panelHeader(<Calendar className="w-4 h-4" />, "RDV Mesures à fixer", "text-cyan-700 dark:text-cyan-300", rdvMesuresAFixer.length)}
-              {rdvMesuresAFixer.length === 0 ? emptyMsg("Aucun RDV mesures à fixer 🎉") : <div className="space-y-1.5 max-h-96 overflow-y-auto">{projectList(rdvMesuresAFixer)}</div>}
-            </>
-          )}
-          {showPanel === "rdv-montage-a-fixer" && (
-            <>
-              {panelHeader(<Calendar className="w-4 h-4" />, "RDV Montage à fixer", "text-orange-700 dark:text-orange-300", rdvMontageAFixer.length)}
-              {rdvMontageAFixer.length === 0 ? emptyMsg("Aucun RDV montage à fixer 🎉") : <div className="space-y-1.5 max-h-96 overflow-y-auto">{projectList(rdvMontageAFixer)}</div>}
-            </>
-          )}
-          {showPanel === "rdv-services-a-fixer" && (
-            <>
-              {panelHeader(<Calendar className="w-4 h-4" />, "RDV Services à fixer", "text-violet-700 dark:text-violet-300", rdvServicesAFixer.length)}
-              {rdvServicesAFixer.length === 0 ? emptyMsg("Aucun RDV services à fixer 🎉") : <div className="space-y-1.5 max-h-96 overflow-y-auto">{projectList(rdvServicesAFixer)}</div>}
-            </>
-          )}
+          {/* RDV Mesures/Montage/Services à fixer : rendus en vue ADMIN plus haut. */}
           {showPanel === "rdv-sav-a-fixer" && (
             <>
               {panelHeader(<Calendar className="w-4 h-4" />, "RDV SAV à fixer", "text-red-700 dark:text-red-300", rdvSavAFixer.length)}
