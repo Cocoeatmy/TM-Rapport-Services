@@ -7,7 +7,7 @@ import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, Chevro
 import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
-import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS } from "@/lib/constants";
+import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 import { PersonalStats } from "@/components/personal-stats";
 
@@ -5359,9 +5359,51 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       ? "bg-white/60 dark:bg-slate-800/40"
                       : "bg-blue-50/40 dark:bg-blue-950/15";
                     const bestLogo = getBestLogo(p.projet, p.fournisseurs || []);
+                    const isRdvAFixerPanel = ["rdv-montage-a-fixer", "rdv-mesures-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer"].includes(showSummaryPanel || "");
                     return (
                       <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                         className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
+                        {/* PORTRAIT (RDV à fixer) : nom en haut pleine largeur, TM/chantier/N°
+                            à gauche, J+x/logo/cab/État/Emplacement empilés à droite. Desktop inchangé. */}
+                        {isRdvAFixerPanel && (() => {
+                          const tmList = parseTMNumbers(p.ofrTM || "");
+                          const isMes = showSummaryPanel === "rdv-mesures-a-fixer";
+                          const refDate = isMes ? p.dateMesuresRecue : (p.arrivageTM || p.arrivageGrossiste);
+                          const jinfo = getDaysInfoFromDate(refDate);
+                          const etat = isMes ? p.etatMesures : p.etatCMD;
+                          const etatCls = isMes
+                            ? (STATUS_MESURES_COLORS[p.etatMesures || ""] || "bg-gray-100 text-gray-700")
+                            : (STATUS_CMD_COLORS[p.etatCMD || ""] || "bg-gray-100 text-gray-700");
+                          const numFourn = isMes ? p.servMesuresFournisseurs : p.servCmdFournisseurs;
+                          return (
+                            <div className="sm:hidden w-full flex gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 break-words leading-snug">{p.projet}</p>
+                                <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-0.5">
+                                  {tmList.length > 0
+                                    ? tmList.map((tm, i) => <span key={i} className="font-mono text-[11px] text-gray-600 dark:text-gray-300">{tm}</span>)
+                                    : <span className="font-mono text-[11px] text-gray-400">---</span>}
+                                  {p.nomChantier && p.nomChantier !== p.projet && (
+                                    <span className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{p.nomChantier}</span>
+                                  )}
+                                </div>
+                                {numFourn && <p className="mt-1 text-[9px] font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.5 rounded inline-block">N° {numFourn}</p>}
+                              </div>
+                              <div className="shrink-0 flex flex-col items-end gap-1">
+                                {jinfo && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${jinfo.bgClass} ${jinfo.colorClass}`}>J+{jinfo.days}</span>}
+                                {bestLogo && <LogoImg src={bestLogo} />}
+                                <Badge variant="outline" className="text-[10px]">{p.nbCabines || 0} cab.</Badge>
+                                {etat && <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full text-right ${etatCls}`}>{etat}</span>}
+                                {p.emplacementCabine && (
+                                  <span className="flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400" title={p.emplacementCabine}>
+                                    <MapPin className="w-3 h-3 shrink-0" /><span className="truncate max-w-[130px]">{p.emplacementCabine}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                        <div className={isRdvAFixerPanel ? "hidden sm:contents" : "contents"}>
                         <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
                         {parseTMNumbers(p.ofrTM || "").length > 0
                           ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
@@ -5378,23 +5420,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 sm:line-clamp-2">{p.projet}</span>
                           {p.nomChantier && p.nomChantier !== p.projet && (
                             <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 mt-0">{p.nomChantier}</span>
-                          )}
-                          {/* PORTRAIT : infos clés sous le nom (elles sont masquées dans la
-                              rangée sur mobile). Reprend ce que le desktop affiche à droite. */}
-                          {["rdv-mesures-a-fixer", "rdv-montage-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer"].includes(showSummaryPanel || "") && (
-                            <span className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
-                              {showSummaryPanel === "rdv-mesures-a-fixer"
-                                ? (p.servMesuresFournisseurs && <span className="text-[9px] font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.5 rounded">N° {p.servMesuresFournisseurs}</span>)
-                                : (p.servCmdFournisseurs && <span className="text-[9px] font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.5 rounded">N° {p.servCmdFournisseurs}</span>)}
-                              {showSummaryPanel === "rdv-montage-a-fixer" && p.etatCMD && (
-                                <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700"}`}>{p.etatCMD}</span>
-                              )}
-                              {showSummaryPanel === "rdv-montage-a-fixer" && p.emplacementCabine && (
-                                <span className="flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400" title={p.emplacementCabine}>
-                                  <MapPin className="w-3 h-3 shrink-0" /><span className="truncate max-w-[150px]">{p.emplacementCabine}</span>
-                                </span>
-                              )}
-                            </span>
                           )}
                         </span>
                         {/* J+x par ligne en mode région (NPA) : les groupes ne sont
@@ -5537,6 +5562,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">{p.nbCollaborateursMontage} pers.</span>
                         )}
                         <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                        </div>
                       </Link>
                     );
                   })}
