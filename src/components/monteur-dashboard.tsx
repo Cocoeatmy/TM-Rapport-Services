@@ -5360,40 +5360,40 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       : "bg-blue-50/40 dark:bg-blue-950/15";
                     const bestLogo = getBestLogo(p.projet, p.fournisseurs || []);
                     const isRdvAFixerPanel = ["rdv-montage-a-fixer", "rdv-mesures-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer"].includes(showSummaryPanel || "");
+                    const rdvIsMes = showSummaryPanel === "rdv-mesures-a-fixer";
+                    const rdvRefDate = rdvIsMes ? p.dateMesuresRecue : (p.arrivageTM || p.arrivageGrossiste);
+                    const rdvJ = getDaysInfoFromDate(rdvRefDate);
+                    const rdvEtat = rdvIsMes ? p.etatMesures : p.etatCMD;
+                    const rdvEtatCls = rdvIsMes
+                      ? (STATUS_MESURES_COLORS[p.etatMesures || ""] || "bg-gray-100 text-gray-700")
+                      : (STATUS_CMD_COLORS[p.etatCMD || ""] || "bg-gray-100 text-gray-700");
+                    const rdvNumFourn = rdvIsMes ? p.servMesuresFournisseurs : p.servCmdFournisseurs;
+                    const rdvTmList = parseTMNumbers(p.ofrTM || "");
+                    const rdvDaysCount = p.dateMontageEnd ? getWorkingDays(p.dateMontage || "", p.dateMontageEnd).length : 0;
                     return (
                       <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
-                        {/* PORTRAIT (RDV à fixer) : nom en haut pleine largeur, TM/chantier/N°
-                            à gauche, J+x/logo/cab/État/Emplacement empilés à droite. Desktop inchangé. */}
-                        {isRdvAFixerPanel && (() => {
-                          const tmList = parseTMNumbers(p.ofrTM || "");
-                          const isMes = showSummaryPanel === "rdv-mesures-a-fixer";
-                          const refDate = isMes ? p.dateMesuresRecue : (p.arrivageTM || p.arrivageGrossiste);
-                          const jinfo = getDaysInfoFromDate(refDate);
-                          const etat = isMes ? p.etatMesures : p.etatCMD;
-                          const etatCls = isMes
-                            ? (STATUS_MESURES_COLORS[p.etatMesures || ""] || "bg-gray-100 text-gray-700")
-                            : (STATUS_CMD_COLORS[p.etatCMD || ""] || "bg-gray-100 text-gray-700");
-                          const numFourn = isMes ? p.servMesuresFournisseurs : p.servCmdFournisseurs;
-                          return (
+                        className={`${isRdvAFixerPanel ? "flex flex-col" : "flex items-center"} gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
+                        {isRdvAFixerPanel && (
+                          <>
+                            {/* PORTRAIT : nom en haut, TM/chantier/N° à gauche, badges empilés à droite */}
                             <div className="sm:hidden w-full flex gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 break-words leading-snug">{p.projet}</p>
                                 <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-0.5">
-                                  {tmList.length > 0
-                                    ? tmList.map((tm, i) => <span key={i} className="font-mono text-[11px] text-gray-600 dark:text-gray-300">{tm}</span>)
+                                  {rdvTmList.length > 0
+                                    ? rdvTmList.map((tm, i) => <span key={i} className="font-mono text-[11px] text-gray-600 dark:text-gray-300">{tm}</span>)
                                     : <span className="font-mono text-[11px] text-gray-400">---</span>}
                                   {p.nomChantier && p.nomChantier !== p.projet && (
                                     <span className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{p.nomChantier}</span>
                                   )}
                                 </div>
-                                {numFourn && <p className="mt-1 text-[9px] font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.5 rounded inline-block">N° {numFourn}</p>}
+                                {rdvNumFourn && <p className="mt-1 text-[9px] font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.5 rounded inline-block">N° {rdvNumFourn}</p>}
                               </div>
                               <div className="shrink-0 flex flex-col items-end gap-1">
-                                {jinfo && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${jinfo.bgClass} ${jinfo.colorClass}`}>J+{jinfo.days}</span>}
+                                {rdvJ && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${rdvJ.bgClass} ${rdvJ.colorClass}`}>J+{rdvJ.days}</span>}
                                 {bestLogo && <LogoImg src={bestLogo} />}
                                 <Badge variant="outline" className="text-[10px]">{p.nbCabines || 0} cab.</Badge>
-                                {etat && <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full text-right ${etatCls}`}>{etat}</span>}
+                                {rdvEtat && <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${rdvEtatCls}`}>{rdvEtat}</span>}
                                 {p.emplacementCabine && (
                                   <span className="flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400" title={p.emplacementCabine}>
                                     <MapPin className="w-3 h-3 shrink-0" /><span className="truncate max-w-[130px]">{p.emplacementCabine}</span>
@@ -5401,9 +5401,40 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 )}
                               </div>
                             </div>
-                          );
-                        })()}
-                        <div className={isRdvAFixerPanel ? "hidden sm:contents" : "contents"}>
+                            {/* PAYSAGE / DESKTOP : nom en haut pleine largeur, puis toutes les infos sur une ligne */}
+                            <div className="hidden sm:block w-full">
+                              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{p.projet}</p>
+                              <div className="mt-1 flex items-center gap-3 min-w-0">
+                                {rdvTmList.length > 0
+                                  ? <span className="font-mono text-gray-600 dark:text-gray-300 shrink-0">{rdvTmList.join("  ")}</span>
+                                  : <span className="font-mono text-gray-400 shrink-0">---</span>}
+                                {rdvNumFourn && <span className="font-mono text-gray-500 dark:text-gray-400 shrink-0">{rdvNumFourn}</span>}
+                                {p.nomChantier && p.nomChantier !== p.projet && (
+                                  <span className="text-gray-400 dark:text-gray-500 truncate min-w-0">{p.nomChantier}</span>
+                                )}
+                                <span className="ml-auto flex items-center gap-2 shrink-0">
+                                  {rdvJ && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${rdvJ.bgClass} ${rdvJ.colorClass}`}>J+{rdvJ.days}</span>}
+                                  {rdvEtat && <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${rdvEtatCls}`}>{rdvEtat}</span>}
+                                  {p.emplacementCabine && (
+                                    <span className="flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400 max-w-[170px]" title={p.emplacementCabine}>
+                                      <MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{p.emplacementCabine}</span>
+                                    </span>
+                                  )}
+                                  {showSummaryPanel === "rdv-montage-a-fixer" && p.priorite && (
+                                    <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${statusClasses("Priorité", p.priorite, "bg-amber-100 text-amber-700")}`}>⚡ {p.priorite}</span>
+                                  )}
+                                  {bestLogo && <LogoImg src={bestLogo} />}
+                                  {rdvDaysCount > 1 && <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{rdvDaysCount}j</span>}
+                                  {showSummaryPanel === "rdv-montage-a-fixer" && p.nbCollaborateursMontage && (
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">{p.nbCollaborateursMontage} pers.</span>
+                                  )}
+                                  <Badge variant="outline" className="text-[10px]">{p.nbCabines || 0} cab.</Badge>
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        <div className={isRdvAFixerPanel ? "hidden" : "contents"}>
                         <span className="w-20 shrink-0 flex flex-col justify-center gap-px">
                         {parseTMNumbers(p.ofrTM || "").length > 0
                           ? parseTMNumbers(p.ofrTM || "").map((tm, i) => (
