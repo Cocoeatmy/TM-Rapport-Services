@@ -9,9 +9,10 @@ import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
 interface DeliveryScanProps {
   projectId: string;
   bonLivraison?: string;
+  hideTitle?: boolean;
 }
 
-export function DeliveryScan({ projectId, bonLivraison }: DeliveryScanProps) {
+export function DeliveryScan({ projectId, bonLivraison, hideTitle }: DeliveryScanProps) {
   const [url, setUrl] = useState(bonLivraison || "");
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -80,7 +81,7 @@ export function DeliveryScan({ projectId, bonLivraison }: DeliveryScanProps) {
 
   return (
     <div className="py-2">
-      <p className="text-xs text-gray-500 mb-2">Bon de livraison</p>
+      {!hideTitle && <p className="text-xs text-gray-500 mb-2">Bon de livraison</p>}
 
       {url ? (
         <div className="relative inline-block">

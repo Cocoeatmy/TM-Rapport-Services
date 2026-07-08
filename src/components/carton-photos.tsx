@@ -12,6 +12,7 @@ import { toast } from "sonner";
 interface CartonPhotosProps {
   projectId: string;
   initialPhotos?: { name: string; url: string }[];
+  hideTitle?: boolean;
 }
 
 /** Déduplique tout en préservant l'ordre. Sert de filet de sécurité au
@@ -27,7 +28,7 @@ function dedupOrdered(urls: string[]): string[] {
   return out;
 }
 
-export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
+export function CartonPhotos({ projectId, initialPhotos, hideTitle }: CartonPhotosProps) {
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   // Uploads de cartons en attente dans l'IDB (offline ou échec).
@@ -177,10 +178,12 @@ export function CartonPhotos({ projectId, initialPhotos }: CartonPhotosProps) {
 
   return (
     <div className="mt-4">
-      <label className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2 mb-2">
-        <Package className="w-4 h-4" />
-        État des cartons réceptionnés
-      </label>
+      {!hideTitle && (
+        <label className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2 mb-2">
+          <Package className="w-4 h-4" />
+          État des cartons réceptionnés
+        </label>
+      )}
 
       {/* Photos grid — on déduplique au rendu et on affiche les
           uploads pendants (IDB) en plus des photos déjà sauvegardées

@@ -2275,7 +2275,7 @@ function DurationEstimate({
   );
 }
 
-function DocumentLinks({ files, label, projectId, notionField }: { files: { name: string; url: string }[]; label: string; projectId?: string; notionField?: string }) {
+function DocumentLinks({ files, label, projectId, notionField, hideLabel }: { files: { name: string; url: string }[]; label: string; projectId?: string; notionField?: string; hideLabel?: boolean }) {
   if (!files.length) return null;
 
   const handleOpen = (index: number, originalUrl: string) => {
@@ -2288,8 +2288,8 @@ function DocumentLinks({ files, label, projectId, notionField }: { files: { name
   };
 
   return (
-    <div className="mt-3">
-      <p className="text-xs text-gray-500 mb-1.5">{label}</p>
+    <div className={hideLabel ? "" : "mt-3"}>
+      {!hideLabel && <p className="text-xs text-gray-500 mb-1.5">{label}</p>}
       <div className="space-y-1.5">
         {files.map((f, i) => (
           <button
@@ -4841,8 +4841,8 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>{/* fin colonne droite */}
         </div>{/* fin grille 2 colonnes */}
 
-        {/* === Documents === */}
-        <Card className={macHidden("mesures") && macHidden("cabines") ? "!hidden" : ""}>
+        {/* === Documents (iOS : tout ici ; macOS : réparti en cartes propres plus bas) === */}
+        <Card className={isMac ? "!hidden" : ""}>
           <CardContent className="pt-4">
             {/* Documents Mesures → onglet Mesures */}
             <div className={macHidden("mesures") ? "!hidden" : "contents"}>
@@ -4903,10 +4903,54 @@ function ProjectPageContent({ id }: { id: string }) {
           </CardContent>
         </Card>
 
-        {/* macOS : Commentaires Mesures / Montage en cartes propres, titre style Notion.
-            Visibles sous l'onglet Mesures ET sous l'onglet Commentaires. */}
+        {/* macOS : chaque bloc (documents, commentaires, bon de livraison, cartons)
+            dans sa propre carte avec titre style Notion. */}
         {isMac && (
           <>
+            {/* Documents Mesures — onglet Mesures */}
+            <Card className={macHidden("mesures") ? "!hidden" : ""}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Documents Mesures</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(project.documentsMesures || []).length > 0
+                  ? <DocumentLinks files={project.documentsMesures} label="Documents Mesures" hideLabel projectId={id} notionField="Documents pour prise de mesures" />
+                  : <p className="text-xs text-gray-400 dark:text-gray-500 italic">Aucun document</p>}
+              </CardContent>
+            </Card>
+            {/* Documents Montage — onglet Mesures */}
+            <Card className={macHidden("mesures") ? "!hidden" : ""}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Documents Montage</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(project.documentsMontagee || []).length > 0
+                  ? <DocumentLinks files={project.documentsMontagee} label="Documents Montage" hideLabel projectId={id} notionField="Documents pour Montage" />
+                  : <p className="text-xs text-gray-400 dark:text-gray-500 italic">Aucun document</p>}
+              </CardContent>
+            </Card>
+            {/* Bon de livraison — onglet Cabines */}
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
+              <Card className={macHidden("cabines") ? "!hidden" : ""}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Bon de livraison</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <DeliveryScan projectId={id} bonLivraison={project.bonLivraison} hideTitle />
+                </CardContent>
+              </Card>
+            )}
+            {/* État des cartons réceptionnés — onglet Cabines */}
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
+              <Card className={macHidden("cabines") ? "!hidden" : ""}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />État des cartons réceptionnés</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CartonPhotos projectId={id} initialPhotos={project.photosCartons} hideTitle />
+                </CardContent>
+              </Card>
+            )}
             <Card className={macHidden("mesures") && macHidden("commentaires") ? "!hidden" : ""}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Commentaires Mesures</CardTitle>
