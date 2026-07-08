@@ -2782,24 +2782,52 @@ function ProjectPageContent({ id }: { id: string }) {
           ? pts.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
           : heureDepart;
 
+      // ── Attribution monteurs : ré-affirmation continue (auto-réparation) ──────
+      // MÊME PRINCIPE QUE LES HEURES : on ré-envoie l'attribution à chaque
+      // autosave pour qu'elle ne disparaisse JAMAIS de Notion (bug récurrent :
+      // le monteur était écrit une seule fois puis jamais réécrit → toute perte
+      // était définitive, contrairement aux heures qui se réparent seules).
+      //
+      // SÉCURITÉ ANTI-ÉCRASEMENT (2 niveaux) :
+      //  1. On n'inclut QUE les slots non-vides → jamais de rétrogradation d'un
+      //     monteur existant (les slots vides ne sont pas envoyés).
+      //  2. On n'ajoute la clé `attributionCabines` QUE si la chaîne contient au
+      //     moins un "Cab" — car le merge serveur écrase Notion si l'entrant ne
+      //     contient pas "Cab" (chaîne vide = wipe). Donc si aucun monteur en
+      //     mémoire, on n'envoie rien du tout.
+      // Le merge serveur (mergeCabineAttribution) ignore de toute façon les
+      // slots absents et ne touche qu'aux cabines fournies non-vides.
+      const attributionToSave = cabMode
+        ? cab
+            .map((c, i) => (c.monteur && c.monteur.trim() ? `Cab${i + 1}:${c.monteur.trim()}` : ""))
+            .filter(Boolean)
+            .join(" | ")
+        : "";
+
+      const patchBody: Record<string, unknown> = {
+        heureArrivee: arriveeToSave,
+        heureDepart: departToSave,
+        commentairesMontages: commentaires,
+        rapportMonteur: reportToSave,
+      };
+      if (attributionToSave.includes("Cab")) {
+        patchBody.attributionCabines = attributionToSave;
+      }
+
       // PATCH Notion en arrière-plan — erreurs silencieuses
       offlineFetch(`/api/projects/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          heureArrivee: arriveeToSave,
-          heureDepart: departToSave,
-          commentairesMontages: commentaires,
-          rapportMonteur: reportToSave,
-        }),
+        body: JSON.stringify(patchBody),
       }).catch(() => {});
 
       if (cabMode) {
-        // Backup localStorage uniquement — PAS de PATCH Notion ici.
-        // Les noms de cabines et l'attribution sont déjà sauvegardés en temps
-        // réel par leurs handlers dédiés (onChange + onClick monteur).
-        // Inclure nomsCabines dans l'autosave causerait des écrasements
-        // Notion avec des données périmées (état local ≠ Notion récent).
+        // Backup localStorage. L'attribution monteurs est en plus ré-affirmée
+        // dans le PATCH ci-dessus (auto-réparation, slots non-vides uniquement).
+        // Les NOMS de cabines restent volontairement HORS autosave : contrairement
+        // au monteur, un nom vide/​par défaut est ambigu et un ré-envoi périmé
+        // pourrait écraser un renommage admin récent → on les laisse à leur
+        // handler dédié (onChange).
         try {
           localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(cab.map((c, i) => c.nom || `Cabine ${i + 1}`)));
           localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(cab.map((c) => c.monteur)));
