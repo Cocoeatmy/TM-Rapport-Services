@@ -2279,6 +2279,19 @@ function DurationEstimate({
 
 // Vignette « logo de fichier » classique, choisie selon l'extension.
 // Rendu d'une page blanche à coin plié + étiquette colorée (style Adobe/Office).
+// Découpe un champ "N° OFR TM" en numéros individuels. L'utilisateur saisit
+// dans Notion un retour à la ligne après chaque numéro (TM-xxxxxxx), mais le
+// HTML réduit les \n en espace. On coupe donc sur les retours à la ligne ET
+// avant chaque "TM-" (au cas où ils seraient collés/espacés) pour réafficher
+// un numéro par ligne.
+function splitOfrNumbers(raw?: string): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/\s*\n\s*|\s+(?=TM-)|(?<=\d)(?=TM-)/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function FileTypeIcon({ name, className }: { name: string; className?: string }) {
   const ext = (name.split(".").pop() || "").toLowerCase();
   const MAP: Record<string, { color: string; label: string }> = {
@@ -2557,6 +2570,7 @@ function ProjectPageContent({ id }: { id: string }) {
   // ── Nouvelle présentation macOS : barre d'icônes rondes qui déplient/replient
   //    les sections. iOS/autres : présentation actuelle inchangée. ──
   const [isMac, setIsMac] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
   const [macTabs, setMacTabs] = useState<Set<string>>(new Set());
   const [notionCommentsCount, setNotionCommentsCount] = useState(0);
   useEffect(() => {
@@ -2564,14 +2578,18 @@ function ProjectPageContent({ id }: { id: string }) {
     const isTouchMac = /Macintosh/.test(ua) && typeof document !== "undefined" && "ontouchend" in document;
     const iOS = /iPad|iPhone|iPod/.test(ua) || isTouchMac; // iPadOS se présente comme Mac
     setIsMac(/Macintosh|Mac OS X/.test(ua) && !iOS);
+    setIsIOS(iOS);
   }, []);
+  // Présentation « onglets » (icônes qui déplient/replient les sections) :
+  // active sur macOS (rail vertical à gauche) ET iOS (barre horizontale).
+  const isTab = isMac || isIOS;
   const toggleMacTab = (id: string) => setMacTabs((prev) => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
-  /** true = section masquée (présentation onglets macOS, onglet fermé). */
-  const macHidden = (id: string) => isMac && !macTabs.has(id);
+  /** true = section masquée (présentation onglets, onglet fermé). */
+  const macHidden = (id: string) => isTab && !macTabs.has(id);
   // Clé de rafraîchissement pour DefautsList : incrémentée à chaque
   // nouveau défaut soumis pour forcer le rechargement des données KV.
   const [defautRefreshKey, setDefautRefreshKey] = useState(0);
@@ -4299,6 +4317,62 @@ function ProjectPageContent({ id }: { id: string }) {
   const reportStatus: "done" | "progress" | "notStarted" =
     reportPercent >= 100 ? "done" : reportPercent > 0 ? "progress" : "notStarted";
 
+  // Définition des onglets (rail vertical macOS + barre horizontale iOS).
+  // "rapport" n'est présent que sur macOS : sur iOS le rapport reste piloté
+  // par le bouton dédié (« Consulter / Démarrer le rapport de montage »).
+  const tabDefs = [
+    { id: "projet", label: "Informations projet", Icon: FileText, bg: "bg-blue-100/80 dark:bg-blue-900/30", fg: "text-blue-600 dark:text-blue-400" },
+    { id: "dates", label: "Informations dates", Icon: Clock, bg: "bg-cyan-100/80 dark:bg-cyan-900/30", fg: "text-cyan-600 dark:text-cyan-400" },
+    { id: "client", label: "Informations client", Icon: Users, bg: "bg-violet-100/80 dark:bg-violet-900/30", fg: "text-violet-600 dark:text-violet-400" },
+    { id: "cabines", label: "Informations cabines", Icon: Package, bg: "bg-sky-100/80 dark:bg-sky-900/30", fg: "text-sky-600 dark:text-sky-400" },
+    { id: "mesures", label: "Documents & commentaires (Mesures / Montage)", Icon: Ruler, bg: "bg-teal-100/80 dark:bg-teal-900/30", fg: "text-teal-600 dark:text-teal-400" },
+    { id: "commentaires", label: "Commentaires", Icon: MessageSquare, bg: "bg-amber-100/80 dark:bg-amber-900/30", fg: "text-amber-600 dark:text-amber-400" },
+    { id: "rapport", label: "Rapport", Icon: ClipboardList, bg: "bg-emerald-100/80 dark:bg-emerald-900/30", fg: "text-emerald-600 dark:text-emerald-400" },
+  ] as const;
+
+  const renderTabButton = ({ id, label, Icon, bg, fg }: (typeof tabDefs)[number]) => {
+    const active = macTabs.has(id);
+    const commentCount = id === "commentaires"
+      ? notionCommentsCount
+        + ((project.commentairesMesures || "").trim() ? 1 : 0)
+        + ((project.commentairesMontages || "").trim() ? 1 : 0)
+      : 0;
+    return (
+      <button
+        key={id}
+        type="button"
+        onClick={() => toggleMacTab(id)}
+        title={label}
+        className={`relative w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all active:scale-95 ${bg} ${
+          active ? "ring-2 ring-[#1e3a5f] dark:ring-blue-400 shadow-md scale-105" : "opacity-90 hover:opacity-100 hover:scale-105"
+        }`}
+      >
+        <Icon className={`w-[18px] h-[18px] ${fg}`} />
+        {commentCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-slate-900 shadow">
+            {commentCount}
+          </span>
+        )}
+        {id === "rapport" && (
+          <span
+            className={`absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 shadow ${
+              reportStatus === "done" ? "bg-green-500" : reportStatus === "progress" ? "bg-orange-500" : "bg-blue-500"
+            }`}
+            title={reportStatus === "done" ? "Rapport clôturé" : reportStatus === "progress" ? "Rapport en cours" : "Rapport pas encore débuté"}
+          >
+            {reportStatus === "done" ? (
+              <Check className="w-[11px] h-[11px] text-white" strokeWidth={3} />
+            ) : reportStatus === "progress" ? (
+              <Hourglass className="w-[10px] h-[10px] text-white" strokeWidth={2.5} />
+            ) : (
+              <Minus className="w-[11px] h-[11px] text-white" strokeWidth={3} />
+            )}
+          </span>
+        )}
+      </button>
+    );
+  };
+
   return (
     <div className="w-full pb-8 px-4 sm:px-6">
       {/* Bannière d'actualisation : un cache (peut-être périmé) est affiché
@@ -4416,7 +4490,11 @@ function ProjectPageContent({ id }: { id: string }) {
                 {!showRapport && (
                   <>
                     {project.ofrTM && (
-                      <p className="text-xs text-gray-500">OFR {project.ofrTM}</p>
+                      <div className="text-xs text-gray-500">
+                        {splitOfrNumbers(project.ofrTM).map((n, i) => (
+                          <p key={i}>{i === 0 ? "OFR " : ""}{n}</p>
+                        ))}
+                      </div>
                     )}
                     {isAdmin && (
                       <div className="mt-1.5 flex flex-wrap items-start gap-x-3 gap-y-2">
@@ -4466,8 +4544,13 @@ function ProjectPageContent({ id }: { id: string }) {
                 )}
               </div>
 
-              {/* Mode normal : icônes d'action à droite de la ligne titre */}
-              {!showRapport && actionButtons}
+              {/* Mode normal : icônes d'action à droite de la ligne titre.
+                  iOS : empilées à la verticale pour libérer toute la largeur au titre. */}
+              {!showRapport && (
+                isIOS
+                  ? <div className="flex flex-col items-center shrink-0 -my-1">{actionButtons}</div>
+                  : actionButtons
+              )}
             </div>
           );
         })()}
@@ -4477,66 +4560,18 @@ function ProjectPageContent({ id }: { id: string }) {
           un carré arrondi ; l'onglet actif est entouré. Clic = déplie/replie. */}
       {isMac && (
         <div className="fixed left-2 top-[124px] z-30 flex flex-col gap-2">
-          {([
-            { id: "projet", label: "Informations projet", Icon: FileText, bg: "bg-blue-100/80 dark:bg-blue-900/30", fg: "text-blue-600 dark:text-blue-400" },
-            { id: "dates", label: "Informations dates", Icon: Clock, bg: "bg-cyan-100/80 dark:bg-cyan-900/30", fg: "text-cyan-600 dark:text-cyan-400" },
-            { id: "client", label: "Informations client", Icon: Users, bg: "bg-violet-100/80 dark:bg-violet-900/30", fg: "text-violet-600 dark:text-violet-400" },
-            { id: "cabines", label: "Informations cabines", Icon: Package, bg: "bg-sky-100/80 dark:bg-sky-900/30", fg: "text-sky-600 dark:text-sky-400" },
-            { id: "mesures", label: "Documents & commentaires (Mesures / Montage)", Icon: Ruler, bg: "bg-teal-100/80 dark:bg-teal-900/30", fg: "text-teal-600 dark:text-teal-400" },
-            { id: "commentaires", label: "Commentaires", Icon: MessageSquare, bg: "bg-amber-100/80 dark:bg-amber-900/30", fg: "text-amber-600 dark:text-amber-400" },
-            { id: "rapport", label: "Rapport", Icon: ClipboardList, bg: "bg-emerald-100/80 dark:bg-emerald-900/30", fg: "text-emerald-600 dark:text-emerald-400" },
-          ] as const).map(({ id, label, Icon, bg, fg }) => {
-            const active = macTabs.has(id);
-            const commentCount = id === "commentaires"
-              ? notionCommentsCount
-                + ((project.commentairesMesures || "").trim() ? 1 : 0)
-                + ((project.commentairesMontages || "").trim() ? 1 : 0)
-              : 0;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => toggleMacTab(id)}
-                title={label}
-                className={`relative w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all active:scale-95 ${bg} ${
-                  active ? "ring-2 ring-[#1e3a5f] dark:ring-blue-400 shadow-md scale-105" : "opacity-90 hover:opacity-100 hover:scale-105"
-                }`}
-              >
-                <Icon className={`w-[18px] h-[18px] ${fg}`} />
-                {commentCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-slate-900 shadow">
-                    {commentCount}
-                  </span>
-                )}
-                {id === "rapport" && (
-                  <span
-                    className={`absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 shadow ${
-                      reportStatus === "done"
-                        ? "bg-green-500"
-                        : reportStatus === "progress"
-                        ? "bg-orange-500"
-                        : "bg-blue-500"
-                    }`}
-                    title={
-                      reportStatus === "done"
-                        ? "Rapport clôturé"
-                        : reportStatus === "progress"
-                        ? "Rapport en cours"
-                        : "Rapport pas encore débuté"
-                    }
-                  >
-                    {reportStatus === "done" ? (
-                      <Check className="w-[11px] h-[11px] text-white" strokeWidth={3} />
-                    ) : reportStatus === "progress" ? (
-                      <Hourglass className="w-[10px] h-[10px] text-white" strokeWidth={2.5} />
-                    ) : (
-                      <Minus className="w-[11px] h-[11px] text-white" strokeWidth={3} />
-                    )}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {tabDefs.map(renderTabButton)}
+        </div>
+      )}
+
+      {/* Barre d'onglets horizontale (iOS). Même principe que le rail macOS mais
+          à l'horizontale, sous l'en-tête. "rapport" est exclu : sur iOS il reste
+          piloté par le bouton dédié. Cachée en mode rapport. */}
+      {isIOS && !showRapport && (
+        <div className="px-4 mt-3">
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {tabDefs.filter((t) => t.id !== "rapport").map(renderTabButton)}
+          </div>
         </div>
       )}
 
@@ -4547,7 +4582,12 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
 
-      <div className={`px-4 sm:px-6 mt-4 ${isMac ? "w-full space-y-4 !pl-24" : (showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "w-full")}`}>
+      <div className={`px-4 sm:px-6 mt-4 ${
+        isMac ? "w-full space-y-4 !pl-24"
+        : showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4"
+        : isIOS ? "w-full space-y-4"
+        : "w-full"
+      }`}>
         {/* Colonne gauche - Informations (masquée sur mobile quand rapport ouvert) */}
         <div className={`space-y-4 ${!isMac && showRapport ? "hidden lg:block" : ""}`}>
         {/* Bouton démarrer/consulter le rapport — placé juste sous le header,
@@ -4565,7 +4605,7 @@ function ProjectPageContent({ id }: { id: string }) {
           </button>
         )}
         {/* === Grille 2 colonnes sur md+ : gauche = projet+dates, droite = client+cabines === */}
-        <div className={`grid grid-cols-1 gap-4 ${!showRapport && !isMac ? "md:grid-cols-2" : ""}`}>
+        <div className={`grid grid-cols-1 gap-4 ${!showRapport && !isTab ? "md:grid-cols-2" : ""}`}>
 
         {/* --- Colonne gauche : Informations projet + Dates --- */}
         <div className="flex flex-col gap-4">
@@ -4956,8 +4996,9 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>{/* fin colonne droite */}
         </div>{/* fin grille 2 colonnes */}
 
-        {/* === Documents (iOS : tout ici ; macOS : réparti en cartes propres plus bas) === */}
-        <Card className={isMac ? "!hidden" : ""}>
+        {/* === Documents (plateformes SANS onglets : tout ici ; macOS + iOS : réparti
+              en cartes propres avec titres Notion plus bas) === */}
+        <Card className={isTab ? "!hidden" : ""}>
           <CardContent className="pt-4">
             {/* Documents Mesures → onglet Mesures */}
             <div className={macHidden("mesures") ? "!hidden" : "contents"}>
@@ -5018,9 +5059,9 @@ function ProjectPageContent({ id }: { id: string }) {
           </CardContent>
         </Card>
 
-        {/* macOS : chaque bloc (documents, commentaires, bon de livraison, cartons)
-            dans sa propre carte avec titre style Notion. */}
-        {isMac && (
+        {/* macOS + iOS : chaque bloc (documents, commentaires, bon de livraison,
+            cartons) dans sa propre carte avec titre style Notion. */}
+        {isTab && (
           <>
             {/* Onglet Mesures — Documents Mesures + Commentaires Mesures dans une seule carte */}
             <Card className={macHidden("mesures") ? "!hidden" : ""}>
