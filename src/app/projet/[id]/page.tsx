@@ -38,6 +38,8 @@ import {
   X,
   GripVertical,
   RotateCcw,
+  Hourglass,
+  Minus,
 } from "lucide-react";
 // MontageChecklist supprimée (section retirée)
 import { ProjectChat } from "@/components/project-chat";
@@ -4210,6 +4212,24 @@ function ProjectPageContent({ id }: { id: string }) {
   );
   const installedCabineCount = installedCabineIndices.size;
 
+  // Statut du rapport pour la pastille sur l'icône "Rapport" (macOS).
+  // Cabine : basé sur les cabines installées. Simple : checklist 5 critères.
+  const reportPercent = isCabineMode
+    ? (cabines.length === 0 ? 0 : Math.round((installedCabineCount / cabines.length) * 100))
+    : Math.round(
+        ([
+          !!heureArrivee,
+          !!heureDepart,
+          rapport.trim().length > 0,
+          (project?.photosAvant || []).length > 0,
+          (project?.photosMontage || []).length > 0,
+        ].filter(Boolean).length /
+          5) *
+          100,
+      );
+  const reportStatus: "done" | "progress" | "notStarted" =
+    reportPercent >= 100 ? "done" : reportPercent > 0 ? "progress" : "notStarted";
+
   return (
     <div className="w-full pb-8 px-4 sm:px-6">
       {/* Bannière d'actualisation : un cache (peut-être périmé) est affiché
@@ -4417,6 +4437,32 @@ function ProjectPageContent({ id }: { id: string }) {
                 {commentCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-slate-900 shadow">
                     {commentCount}
+                  </span>
+                )}
+                {id === "rapport" && (
+                  <span
+                    className={`absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 shadow ${
+                      reportStatus === "done"
+                        ? "bg-green-500"
+                        : reportStatus === "progress"
+                        ? "bg-orange-500"
+                        : "bg-blue-500"
+                    }`}
+                    title={
+                      reportStatus === "done"
+                        ? "Rapport clôturé"
+                        : reportStatus === "progress"
+                        ? "Rapport en cours"
+                        : "Rapport pas encore débuté"
+                    }
+                  >
+                    {reportStatus === "done" ? (
+                      <Check className="w-[11px] h-[11px] text-white" strokeWidth={3} />
+                    ) : reportStatus === "progress" ? (
+                      <Hourglass className="w-[10px] h-[10px] text-white" strokeWidth={2.5} />
+                    ) : (
+                      <Minus className="w-[11px] h-[11px] text-white" strokeWidth={3} />
+                    )}
                   </span>
                 )}
               </button>
