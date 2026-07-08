@@ -4378,17 +4378,18 @@ function ProjectPageContent({ id }: { id: string }) {
         })()}
       </div>
 
-      {/* Barre d'onglets (macOS) : icônes rondes qui déplient/replient les sections. */}
+      {/* Barre d'onglets (macOS) : icône colorée dans un carré arrondi (style
+          en-tête des panneaux). Clic = déplie/replie la section. */}
       {isMac && (
         <div className="px-4 sm:px-6 mt-3 flex flex-wrap items-center gap-2">
           {([
-            { id: "projet", label: "Informations projet", Icon: FileText },
-            { id: "dates", label: "Informations dates", Icon: Clock },
-            { id: "client", label: "Informations client", Icon: Users },
-            { id: "cabines", label: "Informations cabines", Icon: Package },
-            { id: "commentaires", label: "Commentaires", Icon: MessageSquare },
-            { id: "rapport", label: "Rapport", Icon: ClipboardList },
-          ] as const).map(({ id, label, Icon }) => {
+            { id: "projet", label: "Informations projet", Icon: FileText, bg: "bg-blue-100/80 dark:bg-blue-900/30", fg: "text-blue-600 dark:text-blue-400" },
+            { id: "dates", label: "Informations dates", Icon: Clock, bg: "bg-cyan-100/80 dark:bg-cyan-900/30", fg: "text-cyan-600 dark:text-cyan-400" },
+            { id: "client", label: "Informations client", Icon: Users, bg: "bg-violet-100/80 dark:bg-violet-900/30", fg: "text-violet-600 dark:text-violet-400" },
+            { id: "cabines", label: "Informations cabines", Icon: Package, bg: "bg-sky-100/80 dark:bg-sky-900/30", fg: "text-sky-600 dark:text-sky-400" },
+            { id: "commentaires", label: "Commentaires", Icon: MessageSquare, bg: "bg-amber-100/80 dark:bg-amber-900/30", fg: "text-amber-600 dark:text-amber-400" },
+            { id: "rapport", label: "Rapport", Icon: ClipboardList, bg: "bg-emerald-100/80 dark:bg-emerald-900/30", fg: "text-emerald-600 dark:text-emerald-400" },
+          ] as const).map(({ id, label, Icon, bg, fg }) => {
             const active = macTabs.has(id);
             return (
               <button
@@ -4396,14 +4397,14 @@ function ProjectPageContent({ id }: { id: string }) {
                 type="button"
                 onClick={() => toggleMacTab(id)}
                 title={label}
-                className={`flex items-center gap-2 rounded-full transition-all active:scale-95 ${
-                  active
-                    ? "bg-[#1e3a5f] text-white shadow-md px-3.5 py-2"
-                    : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600 w-10 h-10 justify-center"
+                className={`flex items-center gap-2 rounded-2xl transition-all active:scale-95 ${
+                  active ? "pr-3 bg-white/70 dark:bg-slate-800/70 ring-2 ring-[#1e3a5f]/40 dark:ring-blue-400/40 shadow-sm" : "hover:opacity-80"
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
-                {active && <span className="text-xs font-medium whitespace-nowrap">{label}</span>}
+                <span className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${bg}`}>
+                  <Icon className={`w-[18px] h-[18px] ${fg}`} />
+                </span>
+                {active && <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">{label}</span>}
               </button>
             );
           })}
