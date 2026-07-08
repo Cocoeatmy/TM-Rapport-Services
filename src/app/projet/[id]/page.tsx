@@ -4907,26 +4907,58 @@ function ProjectPageContent({ id }: { id: string }) {
             dans sa propre carte avec titre style Notion. */}
         {isMac && (
           <>
-            {/* Documents Mesures — onglet Mesures */}
+            {/* Onglet Mesures — Documents Mesures + Commentaires Mesures dans une seule carte */}
             <Card className={macHidden("mesures") ? "!hidden" : ""}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Documents Mesures</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 {(project.documentsMesures || []).length > 0
                   ? <DocumentLinks files={project.documentsMesures} label="Documents Mesures" hideLabel projectId={id} notionField="Documents pour prise de mesures" />
                   : <p className="text-xs text-gray-400 dark:text-gray-500 italic">Aucun document</p>}
+                <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300 mb-3"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Commentaires Mesures</CardTitle>
+                  <EditableTextField
+                    label="Commentaires Mesures"
+                    hideLabel
+                    value={project.commentairesMesures}
+                    projectId={id}
+                    fieldName="commentairesMesures"
+                    notionField="Commentaires Mesures"
+                    multiline
+                    onUpdate={(v) => setProject({ ...project, commentairesMesures: v })}
+                  />
+                </div>
               </CardContent>
             </Card>
-            {/* Documents Montage — onglet Mesures */}
+            {/* Onglet Mesures — Documents Montage + Commentaires Montage dans une seule carte */}
             <Card className={macHidden("mesures") ? "!hidden" : ""}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Documents Montage</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 {(project.documentsMontagee || []).length > 0
                   ? <DocumentLinks files={project.documentsMontagee} label="Documents Montage" hideLabel projectId={id} notionField="Documents pour Montage" />
                   : <p className="text-xs text-gray-400 dark:text-gray-500 italic">Aucun document</p>}
+                {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
+                  <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                    <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300 mb-3"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Commentaires Montage</CardTitle>
+                    <EditableTextField
+                      label="Commentaires Montages"
+                      hideLabel
+                      value={project.commentairesMontages}
+                      projectId={id}
+                      fieldName="commentairesMontages"
+                      notionField="Commentaires Montages"
+                      multiline
+                      onUpdate={(v) => {
+                        setProject({ ...project, commentairesMontages: v });
+                        setCommentaires(v);
+                        serverSnapshotRef.current.commentaires = v;
+                      }}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
             {/* Bon de livraison — onglet Cabines */}
@@ -4951,7 +4983,9 @@ function ProjectPageContent({ id }: { id: string }) {
                 </CardContent>
               </Card>
             )}
-            <Card className={macHidden("mesures") && macHidden("commentaires") ? "!hidden" : ""}>
+            {/* Onglet Commentaires — cartes autonomes (affichées seulement si l'onglet
+                Mesures est replié, sinon les commentaires sont déjà dans les cartes Mesures) */}
+            <Card className={(macHidden("commentaires") || !macHidden("mesures")) ? "!hidden" : ""}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Commentaires Mesures</CardTitle>
               </CardHeader>
@@ -4969,7 +5003,7 @@ function ProjectPageContent({ id }: { id: string }) {
               </CardContent>
             </Card>
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
-              <Card className={macHidden("mesures") && macHidden("commentaires") ? "!hidden" : ""}>
+              <Card className={(macHidden("commentaires") || !macHidden("mesures")) ? "!hidden" : ""}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Commentaires Montage</CardTitle>
                 </CardHeader>
