@@ -2277,6 +2277,47 @@ function DurationEstimate({
   );
 }
 
+// Vignette « logo de fichier » classique, choisie selon l'extension.
+// Rendu d'une page blanche à coin plié + étiquette colorée (style Adobe/Office).
+function FileTypeIcon({ name, className }: { name: string; className?: string }) {
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  const MAP: Record<string, { color: string; label: string }> = {
+    pdf: { color: "#E4483B", label: "PDF" },
+    jpg: { color: "#F59E0B", label: "JPG" },
+    jpeg: { color: "#F59E0B", label: "JPG" },
+    png: { color: "#0EA5E9", label: "PNG" },
+    gif: { color: "#8B5CF6", label: "GIF" },
+    webp: { color: "#0EA5E9", label: "WEBP" },
+    heic: { color: "#0EA5E9", label: "HEIC" },
+    heif: { color: "#0EA5E9", label: "HEIF" },
+    svg: { color: "#EC4899", label: "SVG" },
+    doc: { color: "#2563EB", label: "DOC" },
+    docx: { color: "#2563EB", label: "DOC" },
+    xls: { color: "#16A34A", label: "XLS" },
+    xlsx: { color: "#16A34A", label: "XLS" },
+    csv: { color: "#16A34A", label: "CSV" },
+    ppt: { color: "#EA580C", label: "PPT" },
+    pptx: { color: "#EA580C", label: "PPT" },
+    zip: { color: "#6B7280", label: "ZIP" },
+    rar: { color: "#6B7280", label: "RAR" },
+    txt: { color: "#64748B", label: "TXT" },
+    dwg: { color: "#0D9488", label: "DWG" },
+    dxf: { color: "#0D9488", label: "DXF" },
+  };
+  const info = MAP[ext] || { color: "#64748B", label: (ext || "FILE").toUpperCase().slice(0, 4) };
+  const fontSize = info.label.length >= 4 ? 4.4 : 5.6;
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      {/* Page avec coin plié */}
+      <path d="M6 2h8.5L20 7.5V21a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" fill="#fff" stroke={info.color} strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M14.5 2v4.5a1 1 0 0 0 1 1H20" stroke={info.color} strokeWidth="1.4" strokeLinejoin="round" />
+      {/* Étiquette colorée débordant à gauche (look classique) */}
+      <rect x="2" y="12.5" width="14.5" height="7.5" rx="1.2" fill={info.color} />
+      <text x="9.25" y="18.1" textAnchor="middle" fontSize={fontSize} fontWeight="700" fill="#fff" fontFamily="Arial, Helvetica, sans-serif">{info.label}</text>
+    </svg>
+  );
+}
+
 function DocumentLinks({ files, label, projectId, notionField, hideLabel }: { files: { name: string; url: string }[]; label: string; projectId?: string; notionField?: string; hideLabel?: boolean }) {
   if (!files.length) return null;
 
@@ -2299,7 +2340,7 @@ function DocumentLinks({ files, label, projectId, notionField, hideLabel }: { fi
             onClick={() => handleOpen(i, f.url)}
             className="w-full flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg active:bg-blue-100 text-left"
           >
-            <FileText className="w-4 h-4 shrink-0" />
+            <FileTypeIcon name={f.name} className="w-5 h-5 shrink-0" />
             <span className="truncate flex-1">{f.name}</span>
             <ExternalLink className="w-3.5 h-3.5 shrink-0" />
           </button>
