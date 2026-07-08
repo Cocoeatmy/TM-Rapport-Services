@@ -2317,7 +2317,7 @@ interface NotionComment {
   author?: string;
 }
 
-function NotionComments({ projectId }: { projectId: string }) {
+function NotionComments({ projectId, onCountChange }: { projectId: string; onCountChange?: (n: number) => void }) {
   const [comments, setComments] = useState<NotionComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
@@ -2343,6 +2343,10 @@ function NotionComments({ projectId }: { projectId: string }) {
   useEffect(() => {
     loadComments();
   }, [loadComments]);
+
+  useEffect(() => {
+    onCountChange?.(comments.length);
+  }, [comments, onCountChange]);
 
   const handleSubmit = async () => {
     const text = newComment.trim();
@@ -2511,6 +2515,7 @@ function ProjectPageContent({ id }: { id: string }) {
   //    les sections. iOS/autres : présentation actuelle inchangée. ──
   const [isMac, setIsMac] = useState(false);
   const [macTabs, setMacTabs] = useState<Set<string>>(new Set());
+  const [notionCommentsCount, setNotionCommentsCount] = useState(0);
   useEffect(() => {
     const ua = navigator.userAgent;
     const isTouchMac = /Macintosh/.test(ua) && typeof document !== "undefined" && "ontouchend" in document;
@@ -4393,17 +4398,27 @@ function ProjectPageContent({ id }: { id: string }) {
             { id: "rapport", label: "Rapport", Icon: ClipboardList, bg: "bg-emerald-100/80 dark:bg-emerald-900/30", fg: "text-emerald-600 dark:text-emerald-400" },
           ] as const).map(({ id, label, Icon, bg, fg }) => {
             const active = macTabs.has(id);
+            const commentCount = id === "commentaires"
+              ? notionCommentsCount
+                + ((project.commentairesMesures || "").trim() ? 1 : 0)
+                + ((project.commentairesMontages || "").trim() ? 1 : 0)
+              : 0;
             return (
               <button
                 key={id}
                 type="button"
                 onClick={() => toggleMacTab(id)}
                 title={label}
-                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all active:scale-95 ${bg} ${
+                className={`relative w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all active:scale-95 ${bg} ${
                   active ? "ring-2 ring-[#1e3a5f] dark:ring-blue-400 shadow-md scale-105" : "opacity-90 hover:opacity-100 hover:scale-105"
                 }`}
               >
                 <Icon className={`w-[18px] h-[18px] ${fg}`} />
+                {commentCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-slate-900 shadow">
+                    {commentCount}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -4820,7 +4835,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
         {/* === Commentaires Notion natifs === */}
         <div className={macHidden("commentaires") ? "!hidden" : ""}>
-          <NotionComments projectId={id} />
+          <NotionComments projectId={id} onCountChange={setNotionCommentsCount} />
         </div>
 
         </div>{/* fin colonne droite */}
