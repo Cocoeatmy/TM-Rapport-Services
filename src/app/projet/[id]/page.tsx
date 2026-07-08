@@ -14,6 +14,7 @@ import {
   FileText,
   MessageSquare,
   ClipboardList,
+  Ruler,
   Send,
   Loader2,
   ExternalLink,
@@ -4387,6 +4388,7 @@ function ProjectPageContent({ id }: { id: string }) {
             { id: "dates", label: "Informations dates", Icon: Clock, bg: "bg-cyan-100/80 dark:bg-cyan-900/30", fg: "text-cyan-600 dark:text-cyan-400" },
             { id: "client", label: "Informations client", Icon: Users, bg: "bg-violet-100/80 dark:bg-violet-900/30", fg: "text-violet-600 dark:text-violet-400" },
             { id: "cabines", label: "Informations cabines", Icon: Package, bg: "bg-sky-100/80 dark:bg-sky-900/30", fg: "text-sky-600 dark:text-sky-400" },
+            { id: "mesures", label: "Documents & commentaires (Mesures / Montage)", Icon: Ruler, bg: "bg-teal-100/80 dark:bg-teal-900/30", fg: "text-teal-600 dark:text-teal-400" },
             { id: "commentaires", label: "Commentaires", Icon: MessageSquare, bg: "bg-amber-100/80 dark:bg-amber-900/30", fg: "text-amber-600 dark:text-amber-400" },
             { id: "rapport", label: "Rapport", Icon: ClipboardList, bg: "bg-emerald-100/80 dark:bg-emerald-900/30", fg: "text-emerald-600 dark:text-emerald-400" },
           ] as const).map(({ id, label, Icon, bg, fg }) => {
@@ -4825,12 +4827,15 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>{/* fin grille 2 colonnes */}
 
         {/* === Documents === */}
-        <Card className={macHidden("commentaires") && macHidden("cabines") ? "!hidden" : ""}>
+        <Card className={macHidden("mesures") && macHidden("commentaires") && macHidden("cabines") ? "!hidden" : ""}>
           <CardContent className="pt-4">
-            <div className={macHidden("commentaires") ? "!hidden" : "contents"}>
+            {/* Documents Mesures → onglet Mesures */}
+            <div className={macHidden("mesures") ? "!hidden" : "contents"}>
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" projectId={id} notionField="Documents pour prise de mesures" />
+            </div>
 
-            {/* Commentaires Mesures — sous Documents Mesures, tous modes */}
+            {/* Commentaires Mesures → onglets Mesures ET Commentaires */}
+            <div className={macHidden("mesures") && macHidden("commentaires") ? "!hidden" : "contents"}>
             <div className="mt-2">
               <EditableTextField
                 label="Commentaires Mesures"
@@ -4842,11 +4847,16 @@ function ProjectPageContent({ id }: { id: string }) {
                 onUpdate={(v) => setProject({ ...project, commentairesMesures: v })}
               />
             </div>
+            </div>
 
+            {/* Documents Montage → onglet Mesures */}
+            <div className={macHidden("mesures") ? "!hidden" : "contents"}>
             <DocumentLinks files={project.documentsMontagee} label="Documents Montage" projectId={id} notionField="Documents pour Montage" />
+            </div>
 
-            {/* Commentaires Montages — sous Documents Montage */}
+            {/* Commentaires Montages → onglets Mesures ET Commentaires */}
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
+              <div className={macHidden("mesures") && macHidden("commentaires") ? "!hidden" : "contents"}>
               <div className="mt-3">
                 <EditableTextField
                   label="Commentaires Montages"
@@ -4865,8 +4875,8 @@ function ProjectPageContent({ id }: { id: string }) {
                   }}
                 />
               </div>
+              </div>
             )}
-            </div>
             <div className={macHidden("cabines") ? "!hidden" : "contents"}>
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <DeliveryScan projectId={id} bonLivraison={project.bonLivraison} />
