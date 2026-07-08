@@ -4378,10 +4378,10 @@ function ProjectPageContent({ id }: { id: string }) {
         })()}
       </div>
 
-      {/* Barre d'onglets (macOS) : icône colorée dans un carré arrondi (style
-          en-tête des panneaux). Clic = déplie/replie la section. */}
+      {/* Rail d'onglets vertical (macOS), fixé tout à gauche. Icône colorée dans
+          un carré arrondi ; l'onglet actif est entouré. Clic = déplie/replie. */}
       {isMac && (
-        <div className="px-4 sm:px-6 mt-3 flex flex-wrap items-center gap-2">
+        <div className="fixed left-2 top-[124px] z-30 flex flex-col gap-2">
           {([
             { id: "projet", label: "Informations projet", Icon: FileText, bg: "bg-blue-100/80 dark:bg-blue-900/30", fg: "text-blue-600 dark:text-blue-400" },
             { id: "dates", label: "Informations dates", Icon: Clock, bg: "bg-cyan-100/80 dark:bg-cyan-900/30", fg: "text-cyan-600 dark:text-cyan-400" },
@@ -4397,14 +4397,11 @@ function ProjectPageContent({ id }: { id: string }) {
                 type="button"
                 onClick={() => toggleMacTab(id)}
                 title={label}
-                className={`flex items-center gap-2 rounded-2xl transition-all active:scale-95 ${
-                  active ? "pr-3 bg-white/70 dark:bg-slate-800/70 ring-2 ring-[#1e3a5f]/40 dark:ring-blue-400/40 shadow-sm" : "hover:opacity-80"
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all active:scale-95 ${bg} ${
+                  active ? "ring-2 ring-[#1e3a5f] dark:ring-blue-400 shadow-md scale-105" : "opacity-90 hover:opacity-100 hover:scale-105"
                 }`}
               >
-                <span className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${bg}`}>
-                  <Icon className={`w-[18px] h-[18px] ${fg}`} />
-                </span>
-                {active && <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">{label}</span>}
+                <Icon className={`w-[18px] h-[18px] ${fg}`} />
               </button>
             );
           })}
@@ -4418,7 +4415,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
 
-      <div className={`px-4 sm:px-6 mt-4 ${isMac ? "w-full space-y-4" : (showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "w-full")}`}>
+      <div className={`px-4 sm:px-6 mt-4 ${isMac ? "w-full space-y-4 pl-16" : (showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "w-full")}`}>
         {/* Colonne gauche - Informations (masquée sur mobile quand rapport ouvert) */}
         <div className={`space-y-4 ${!isMac && showRapport ? "hidden lg:block" : ""}`}>
         {/* Bouton démarrer/consulter le rapport — placé juste sous le header,
