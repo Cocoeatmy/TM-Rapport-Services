@@ -4432,7 +4432,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
 
-      <div className={`px-4 sm:px-6 mt-4 ${isMac ? "w-full space-y-4 pl-20" : (showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "w-full")}`}>
+      <div className={`px-4 sm:px-6 mt-4 ${isMac ? "w-full space-y-4 !pl-24" : (showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "w-full")}`}>
         {/* Colonne gauche - Informations (masquée sur mobile quand rapport ouvert) */}
         <div className={`space-y-4 ${!isMac && showRapport ? "hidden lg:block" : ""}`}>
         {/* Bouton démarrer/consulter le rapport — placé juste sous le header,
