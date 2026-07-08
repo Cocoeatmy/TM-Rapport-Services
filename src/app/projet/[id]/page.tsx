@@ -12,6 +12,8 @@ import {
   Navigation,
   Users,
   FileText,
+  MessageSquare,
+  ClipboardList,
   Send,
   Loader2,
   ExternalLink,
@@ -2504,6 +2506,23 @@ function ProjectPageContent({ id }: { id: string }) {
   const [collabUpdateToast, setCollabUpdateToast] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email?: string } | null>(null);
   const [showRapport, setShowRapport] = useState(false);
+  // ── Nouvelle présentation macOS : barre d'icônes rondes qui déplient/replient
+  //    les sections. iOS/autres : présentation actuelle inchangée. ──
+  const [isMac, setIsMac] = useState(false);
+  const [macTabs, setMacTabs] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    const isTouchMac = /Macintosh/.test(ua) && typeof document !== "undefined" && "ontouchend" in document;
+    const iOS = /iPad|iPhone|iPod/.test(ua) || isTouchMac; // iPadOS se présente comme Mac
+    setIsMac(/Macintosh|Mac OS X/.test(ua) && !iOS);
+  }, []);
+  const toggleMacTab = (id: string) => setMacTabs((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  /** true = section masquée (présentation onglets macOS, onglet fermé). */
+  const macHidden = (id: string) => isMac && !macTabs.has(id);
   // Clé de rafraîchissement pour DefautsList : incrémentée à chaque
   // nouveau défaut soumis pour forcer le rechargement des données KV.
   const [defautRefreshKey, setDefautRefreshKey] = useState(0);
@@ -4359,6 +4378,38 @@ function ProjectPageContent({ id }: { id: string }) {
         })()}
       </div>
 
+      {/* Barre d'onglets (macOS) : icônes rondes qui déplient/replient les sections. */}
+      {isMac && (
+        <div className="px-4 sm:px-6 mt-3 flex flex-wrap items-center gap-2">
+          {([
+            { id: "projet", label: "Informations projet", Icon: FileText },
+            { id: "dates", label: "Informations dates", Icon: Clock },
+            { id: "client", label: "Informations client", Icon: Users },
+            { id: "cabines", label: "Informations cabines", Icon: Package },
+            { id: "commentaires", label: "Commentaires", Icon: MessageSquare },
+            { id: "rapport", label: "Rapport", Icon: ClipboardList },
+          ] as const).map(({ id, label, Icon }) => {
+            const active = macTabs.has(id);
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => toggleMacTab(id)}
+                title={label}
+                className={`flex items-center gap-2 rounded-full transition-all active:scale-95 ${
+                  active
+                    ? "bg-[#1e3a5f] text-white shadow-md px-3.5 py-2"
+                    : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600 w-10 h-10 justify-center"
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                {active && <span className="text-xs font-medium whitespace-nowrap">{label}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Historique des modifications (toggle) */}
       {showHistory && isAdmin && (
         <div className="px-4 mt-2">
@@ -4366,13 +4417,13 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
 
-      <div className={`px-4 sm:px-6 mt-4 ${showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "w-full"}`}>
+      <div className={`px-4 sm:px-6 mt-4 ${isMac ? "w-full space-y-4" : (showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4" : "w-full")}`}>
         {/* Colonne gauche - Informations (masquée sur mobile quand rapport ouvert) */}
-        <div className={`space-y-4 ${showRapport ? "hidden lg:block" : ""}`}>
+        <div className={`space-y-4 ${!isMac && showRapport ? "hidden lg:block" : ""}`}>
         {/* Bouton démarrer/consulter le rapport — placé juste sous le header,
             au-dessus des cartes d'informations (demande utilisateur).
             Caché pour les modes ayant leur propre flux (mesures, services, sav). */}
-        {!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && !showRapport && (
+        {!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && !showRapport && !isMac && (
           <button
             onClick={() => { setShowRapport(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
             className={`w-full py-4 rounded-2xl active:scale-[0.98] text-white font-semibold text-base flex items-center justify-center gap-2 shadow-lg transition-all ${
@@ -4384,13 +4435,13 @@ function ProjectPageContent({ id }: { id: string }) {
           </button>
         )}
         {/* === Grille 2 colonnes sur md+ : gauche = projet+dates, droite = client+cabines === */}
-        <div className={`grid grid-cols-1 gap-4 ${!showRapport ? "md:grid-cols-2" : ""}`}>
+        <div className={`grid grid-cols-1 gap-4 ${!showRapport && !isMac ? "md:grid-cols-2" : ""}`}>
 
         {/* --- Colonne gauche : Informations projet + Dates --- */}
         <div className="flex flex-col gap-4">
 
         {/* === SECTION 1 : Informations projet === */}
-        <Card>
+        <Card className={macHidden("projet") ? "!hidden" : ""}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations projet</CardTitle>
           </CardHeader>
@@ -4466,7 +4517,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </Card>
 
         {/* === SECTION 3 : Informations Dates === */}
-        <Card>
+        <Card className={macHidden("dates") ? "!hidden" : ""}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations Dates</CardTitle>
           </CardHeader>
@@ -4609,7 +4660,7 @@ function ProjectPageContent({ id }: { id: string }) {
         <div className="space-y-4">
 
         {/* === SECTION 2 : Informations client === */}
-        <Card>
+        <Card className={macHidden("client") ? "!hidden" : ""}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations client</CardTitle>
           </CardHeader>
@@ -4704,7 +4755,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </Card>
 
         {/* === SECTION 4 : Informations cabines === */}
-        <Card>
+        <Card className={macHidden("cabines") ? "!hidden" : ""}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations cabines</CardTitle>
           </CardHeader>
@@ -4768,14 +4819,17 @@ function ProjectPageContent({ id }: { id: string }) {
         </Card>
 
         {/* === Commentaires Notion natifs === */}
-        <NotionComments projectId={id} />
+        <div className={macHidden("commentaires") ? "!hidden" : ""}>
+          <NotionComments projectId={id} />
+        </div>
 
         </div>{/* fin colonne droite */}
         </div>{/* fin grille 2 colonnes */}
 
         {/* === Documents === */}
-        <Card>
+        <Card className={macHidden("commentaires") && macHidden("cabines") ? "!hidden" : ""}>
           <CardContent className="pt-4">
+            <div className={macHidden("commentaires") ? "!hidden" : "contents"}>
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" projectId={id} notionField="Documents pour prise de mesures" />
 
             {/* Commentaires Mesures — sous Documents Mesures, tous modes */}
@@ -4814,16 +4868,19 @@ function ProjectPageContent({ id }: { id: string }) {
                 />
               </div>
             )}
+            </div>
+            <div className={macHidden("cabines") ? "!hidden" : "contents"}>
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <DeliveryScan projectId={id} bonLivraison={project.bonLivraison} />
             )}
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <CartonPhotos projectId={id} initialPhotos={project.photosCartons} />
             )}
+            </div>
           </CardContent>
         </Card>
 
-        {showRapport && !["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && (
+        {showRapport && !isMac && !["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && (
           <button
             onClick={() => { setShowRapport(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
             className="w-full py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium text-sm flex items-center justify-center gap-2 transition-all"
@@ -4834,8 +4891,8 @@ function ProjectPageContent({ id }: { id: string }) {
         )}
 
         </div>
-        {/* Colonne droite - Rapport (visible uniquement quand showRapport) */}
-        <div className={`space-y-4 ${!showRapport ? "hidden" : ""}`}>
+        {/* Colonne droite - Rapport. macOS : visible via l'onglet "Rapport". */}
+        <div className={`space-y-4 ${isMac ? (macHidden("rapport") ? "!hidden" : "") : (!showRapport ? "hidden" : "")}`}>
         {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (() => {
           // ── Progression ──────────────────────────────────────────────────
           // Multi-cabine : % basé uniquement sur les cabines installées (photosMontage présentes)
