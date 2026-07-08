@@ -1603,8 +1603,8 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
   );
 }
 
-function EditableTextField({ label, value, projectId, fieldName, notionField, multiline, onUpdate }: {
-  label: string; value: string; projectId: string; fieldName: string; notionField: string; multiline?: boolean; onUpdate: (v: string) => void;
+function EditableTextField({ label, value, projectId, fieldName, notionField, multiline, onUpdate, hideLabel }: {
+  label: string; value: string; projectId: string; fieldName: string; notionField: string; multiline?: boolean; onUpdate: (v: string) => void; hideLabel?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
@@ -1650,9 +1650,9 @@ function EditableTextField({ label, value, projectId, fieldName, notionField, mu
 
   return (
     <div className="flex items-start gap-2">
-      <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+      {!hideLabel && <FileText className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />}
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-gray-500">{label}</p>
+        {!hideLabel && <p className="text-xs text-gray-500">{label}</p>}
         {editing ? (
           <div className="mt-1 space-y-1">
             {multiline ? (
@@ -4842,15 +4842,15 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>{/* fin grille 2 colonnes */}
 
         {/* === Documents === */}
-        <Card className={macHidden("mesures") && macHidden("commentaires") && macHidden("cabines") ? "!hidden" : ""}>
+        <Card className={macHidden("mesures") && macHidden("cabines") ? "!hidden" : ""}>
           <CardContent className="pt-4">
             {/* Documents Mesures → onglet Mesures */}
             <div className={macHidden("mesures") ? "!hidden" : "contents"}>
             <DocumentLinks files={project.documentsMesures} label="Documents Mesures" projectId={id} notionField="Documents pour prise de mesures" />
             </div>
 
-            {/* Commentaires Mesures → onglets Mesures ET Commentaires */}
-            <div className={macHidden("mesures") && macHidden("commentaires") ? "!hidden" : "contents"}>
+            {/* Commentaires Mesures — iOS : ici. macOS : carte propre plus bas. */}
+            <div className={isMac ? "!hidden" : "contents"}>
             <div className="mt-2">
               <EditableTextField
                 label="Commentaires Mesures"
@@ -4869,9 +4869,9 @@ function ProjectPageContent({ id }: { id: string }) {
             <DocumentLinks files={project.documentsMontagee} label="Documents Montage" projectId={id} notionField="Documents pour Montage" />
             </div>
 
-            {/* Commentaires Montages → onglets Mesures ET Commentaires */}
+            {/* Commentaires Montages — iOS : ici. macOS : carte propre plus bas. */}
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
-              <div className={macHidden("mesures") && macHidden("commentaires") ? "!hidden" : "contents"}>
+              <div className={isMac ? "!hidden" : "contents"}>
               <div className="mt-3">
                 <EditableTextField
                   label="Commentaires Montages"
@@ -4902,6 +4902,53 @@ function ProjectPageContent({ id }: { id: string }) {
             </div>
           </CardContent>
         </Card>
+
+        {/* macOS : Commentaires Mesures / Montage en cartes propres, titre style Notion.
+            Visibles sous l'onglet Mesures ET sous l'onglet Commentaires. */}
+        {isMac && (
+          <>
+            <Card className={macHidden("mesures") && macHidden("commentaires") ? "!hidden" : ""}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Commentaires Mesures</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <EditableTextField
+                  label="Commentaires Mesures"
+                  hideLabel
+                  value={project.commentairesMesures}
+                  projectId={id}
+                  fieldName="commentairesMesures"
+                  notionField="Commentaires Mesures"
+                  multiline
+                  onUpdate={(v) => setProject({ ...project, commentairesMesures: v })}
+                />
+              </CardContent>
+            </Card>
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
+              <Card className={macHidden("mesures") && macHidden("commentaires") ? "!hidden" : ""}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Commentaires Montage</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <EditableTextField
+                    label="Commentaires Montages"
+                    hideLabel
+                    value={project.commentairesMontages}
+                    projectId={id}
+                    fieldName="commentairesMontages"
+                    notionField="Commentaires Montages"
+                    multiline
+                    onUpdate={(v) => {
+                      setProject({ ...project, commentairesMontages: v });
+                      setCommentaires(v);
+                      serverSnapshotRef.current.commentaires = v;
+                    }}
+                  />
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
 
         {showRapport && !isMac && !["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode) && (
           <button
