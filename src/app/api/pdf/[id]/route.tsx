@@ -398,8 +398,11 @@ const styles = StyleSheet.create({
   },
   defautPhotosGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 6,
+    marginBottom: 6,
+  },
+  defautPhotoWrap: {
+    width: 220,
   },
   defautPhoto: {
     width: 220,
@@ -1146,41 +1149,57 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
           <Text style={{ ...styles.sectionTitle, color: "#b91c1c", borderBottomColor: "#fecaca" }} fixed>Défauts signalés</Text>
 
           {defauts.map((defaut, idx) => (
-            <View key={defaut.id} style={styles.defautCard} wrap={false}>
-              {/* Numéro du défaut */}
-              <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#b91c1c", marginBottom: 4 }}>
-                Défaut n°{idx + 1}
-              </Text>
-              {defaut.cabineLabel && (
-                <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 4 }}>
-                  Cabine : {defaut.cabineLabel}
+            // wrap (défaut) : la carte PEUT se répartir sur plusieurs pages
+            // quand il y a beaucoup de photos → plus de débordement hors page.
+            <View key={defaut.id} style={styles.defautCard}>
+              {/* En-tête (n° + cabine + types + statut + description + auteur)
+                  gardé soudé : ne se coupe jamais entre deux pages. */}
+              <View wrap={false}>
+                <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#b91c1c", marginBottom: 4 }}>
+                  Défaut n°{idx + 1}
                 </Text>
-              )}
+                {defaut.cabineLabel && (
+                  <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 4 }}>
+                    Cabine : {defaut.cabineLabel}
+                  </Text>
+                )}
 
-              <View style={styles.defautHeader}>
-                <View style={styles.defautTypes}>
-                  {defaut.types?.map((type, i) => (
-                    <Text key={i} style={styles.defautTypeBadge}>{type}</Text>
-                  ))}
+                <View style={styles.defautHeader}>
+                  <View style={styles.defautTypes}>
+                    {defaut.types?.map((type, i) => (
+                      <Text key={i} style={styles.defautTypeBadge}>{type}</Text>
+                    ))}
+                  </View>
+                  <Text style={{ ...styles.statusBadge, ...getDefautStatusStyle(defaut.status) }}>
+                    {defautStatusLabel(defaut.status)}
+                  </Text>
                 </View>
-                <Text style={{ ...styles.statusBadge, ...getDefautStatusStyle(defaut.status) }}>
-                  {defautStatusLabel(defaut.status)}
-                </Text>
+
+                <Text style={styles.defautDescription}>{defaut.description || "Aucune description"}</Text>
+
+                <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                  <Text style={{ fontSize: 7, color: "#888" }}>Signalé par : {defaut.user || "---"}</Text>
+                </View>
               </View>
 
-              <Text style={styles.defautDescription}>{defaut.description || "Aucune description"}</Text>
-
-              <View style={{ flexDirection: "row", marginBottom: 4 }}>
-                <Text style={{ fontSize: 7, color: "#888" }}>Signalé par : {defaut.user || "---"}</Text>
-              </View>
-
-              {defaut.photoUrls?.length > 0 && (
-                <View style={styles.defautPhotosGrid}>
-                  {defaut.photoUrls.map((url, i) => (
-                    <Image key={i} src={optimizeImageUrl(url)} style={styles.defautPhoto} />
-                  ))}
-                </View>
-              )}
+              {defaut.photoUrls && defaut.photoUrls.length > 0 && (() => {
+                // Rangées de 2 photos. Chaque rangée est indivisible (wrap={false})
+                // mais la SUITE des rangées peut passer à la page suivante → autant
+                // de pages que nécessaire, plus aucun débordement.
+                const rows: string[][] = [];
+                for (let i = 0; i < defaut.photoUrls!.length; i += 2) {
+                  rows.push(defaut.photoUrls!.slice(i, i + 2));
+                }
+                return rows.map((row, rowIdx) => (
+                  <View key={rowIdx} style={styles.defautPhotosGrid} wrap={false}>
+                    {row.map((url, i) => (
+                      <View key={i} style={styles.defautPhotoWrap}>
+                        <Image src={optimizeImageUrl(url)} style={styles.defautPhoto} />
+                      </View>
+                    ))}
+                  </View>
+                ));
+              })()}
             </View>
           ))}
 
