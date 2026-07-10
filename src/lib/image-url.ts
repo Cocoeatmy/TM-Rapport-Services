@@ -52,16 +52,50 @@ export function optimizeImageUrl(
 
   const transform = parts.join(",");
 
-  // Si des transformations existent déjà dans l'URL (après /upload/), on les
-  // remplace. On détecte ça en regardant si la chaîne après /upload/ contient
-  // un slash AVANT le nom de fichier et commence par des tokens alphanumériques.
   const insertAt = uploadIdx + CLOUDINARY_UPLOAD_MARKER.length;
   const rest = url.slice(insertAt);
-  // rest peut être : "v123/folder/file.jpg" ou "f_auto,q_auto/v123/folder/file.jpg"
-  // On supprime toute transformation qu'on aurait pu injecter précédemment.
-  const cleanRest = rest.replace(/^(?:[a-z]+_[^,\/]+,?)+\//i, "");
 
-  return `${url.slice(0, insertAt)}${transform}/${cleanRest}`;
+  // Préserve une rotation bakée dans l'URL stockée (`a_<deg>/` en tête, posée
+  // par rotateCloudinaryUrl). Elle doit être appliquée AVANT le
+  // redimensionnement, donc en composant chaîné séparé (a_90/f_auto,...).
+  let angleComponent = "";
+  let restBody = rest;
+  const rotMatch = rest.match(/^a_(\d+)\//i);
+  if (rotMatch) {
+    angleComponent = `a_${rotMatch[1]}/`;
+    restBody = rest.slice(rotMatch[0].length);
+  }
+
+  // rest peut être : "v123/folder/file.jpg" ou "f_auto,q_auto/v123/folder/file.jpg"
+  // On supprime toute transformation d'optimisation qu'on aurait injectée avant.
+  const cleanRest = restBody.replace(/^(?:[a-z]+_[^,\/]+,?)+\//i, "");
+
+  return `${url.slice(0, insertAt)}${angleComponent}${transform}/${cleanRest}`;
+}
+
+/**
+ * Fait pivoter une image Cloudinary de `delta` degrés (multiple de 90) en
+ * mettant à jour une transformation d'angle `a_<deg>` bakée dans l'URL stockée.
+ * L'angle est cumulé (modulo 360) ; à 0° la transformation est retirée.
+ * Retourne l'URL inchangée si ce n'est pas une URL Cloudinary `/image/upload/`
+ * (ex. anciennes photos hébergées ailleurs : non pivotables via URL).
+ */
+export function rotateCloudinaryUrl(url: string, delta: number): string {
+  if (!url) return url;
+  const uploadIdx = url.indexOf(CLOUDINARY_UPLOAD_MARKER);
+  if (uploadIdx === -1) return url;
+  const insertAt = uploadIdx + CLOUDINARY_UPLOAD_MARKER.length;
+  const rest = url.slice(insertAt);
+  let angle = 0;
+  let body = rest;
+  const m = rest.match(/^a_(\d+)\//i);
+  if (m) {
+    angle = parseInt(m[1], 10) || 0;
+    body = rest.slice(m[0].length);
+  }
+  angle = (((angle + delta) % 360) + 360) % 360;
+  const prefix = url.slice(0, insertAt);
+  return angle === 0 ? `${prefix}${body}` : `${prefix}a_${angle}/${body}`;
 }
 
 /** Variante : vignette carrée optimisée (galeries, cartes). */

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Camera, ImagePlus, X, Loader2, Download, CloudUpload } from "lucide-react";
-import { thumbnailUrl } from "@/lib/image-url";
+import { Camera, ImagePlus, X, Loader2, Download, CloudUpload, RotateCcw, RotateCw } from "lucide-react";
+import { thumbnailUrl, rotateCloudinaryUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
 import { compressImage } from "@/lib/compress-image";
 import { uploadToCloudinary, attachPhotos } from "@/lib/cloudinary-upload";
@@ -25,6 +25,9 @@ interface PhotoUploadProps {
   onUpload?: (files: { name: string; url: string }[]) => void;
   /** Appelé après une suppression (le parent doit PATCH Notion avec la liste mise à jour) */
   onDelete?: (files: { name: string; url: string }[]) => void;
+  /** Appelé après une rotation d'une photo existante : le parent remplace
+   *  l'URL et PATCH Notion (oldUrl → newUrl). */
+  onRotate?: (oldUrl: string, newUrl: string) => void;
   /** Appelé dès que l'utilisateur sélectionne des fichiers (avant upload/compression) */
   onFilesSelected?: (files: File[]) => void;
 }
@@ -39,6 +42,7 @@ export function PhotoUpload({
   existingPhotos = [],
   onUpload,
   onDelete,
+  onRotate,
   onFilesSelected,
 }: PhotoUploadProps) {
   // Nombre d'uploads actuellement en cours (≥ 1 = au moins un en arrière-plan)
@@ -243,6 +247,18 @@ export function PhotoUpload({
     invalidateApiCache();
   };
 
+  // Rotation d'une photo existante : ±90°. On calcule la nouvelle URL Cloudinary
+  // (transformation d'angle bakée) et on laisse le parent PATCH Notion.
+  const rotateExisting = (url: string, delta: number) => {
+    const newUrl = rotateCloudinaryUrl(url, delta);
+    if (newUrl === url) {
+      toast.info("Rotation indisponible pour cette photo");
+      return;
+    }
+    onRotate?.(url, newUrl);
+    invalidateApiCache();
+  };
+
   return (
     <div>
       <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">{label}</label>
@@ -289,31 +305,57 @@ export function PhotoUpload({
               </div>
             )}
 
-            {/* Bouton X */}
-            <button
-              type="button"
-              onClick={async () => {
-                if (img.isPending && img.pendingId) {
-                  try { await removePendingUpload(img.pendingId); } catch {}
-                  return;
+            {/* Barre d'actions en haut à droite : rotation (photos existantes
+                uniquement) + suppression. */}
+            <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+              {/* Rotation gauche / droite — seulement pour les photos déjà
+                  enregistrées (pas les previews ni les uploads en attente). */}
+              {!img.isUploading && !img.isPreview && !img.isPending && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => rotateExisting(img.src, -90)}
+                    className="w-8 h-8 bg-black/60 rounded-full flex items-center justify-center hover:bg-blue-500 transition-colors active:scale-95"
+                    title="Pivoter vers la gauche"
+                  >
+                    <RotateCcw className="w-4 h-4 text-white" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateExisting(img.src, 90)}
+                    className="w-8 h-8 bg-black/60 rounded-full flex items-center justify-center hover:bg-blue-500 transition-colors active:scale-95"
+                    title="Pivoter vers la droite"
+                  >
+                    <RotateCw className="w-4 h-4 text-white" />
+                  </button>
+                </>
+              )}
+              {/* Bouton X */}
+              <button
+                type="button"
+                onClick={async () => {
+                  if (img.isPending && img.pendingId) {
+                    try { await removePendingUpload(img.pendingId); } catch {}
+                    return;
+                  }
+                  if (img.isPreview) {
+                    removePreview(i - validExisting.length - pending.length);
+                  } else {
+                    removeExisting(img.src);
+                  }
+                }}
+                className="w-8 h-8 bg-black/60 rounded-full flex items-center justify-center hover:bg-red-500 transition-colors active:scale-95"
+                title={
+                  img.isPending
+                    ? "Annuler cet upload en attente"
+                    : img.isPreview
+                      ? "Annuler cet ajout"
+                      : "Supprimer cette photo du rapport"
                 }
-                if (img.isPreview) {
-                  removePreview(i - validExisting.length - pending.length);
-                } else {
-                  removeExisting(img.src);
-                }
-              }}
-              className="absolute top-1.5 right-1.5 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center hover:bg-red-500 transition-colors active:scale-95"
-              title={
-                img.isPending
-                  ? "Annuler cet upload en attente"
-                  : img.isPreview
-                    ? "Annuler cet ajout"
-                    : "Supprimer cette photo du rapport"
-              }
-            >
-              <X className="w-4 h-4 text-white" />
-            </button>
+              >
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
 
             {/* Badge "en attente de synchro" (photos IDB hors-ligne) */}
             {img.isPending && (

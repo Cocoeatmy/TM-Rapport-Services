@@ -232,6 +232,24 @@ function BucketPhotoUpload({
     }
   };
 
+  // Rotation : remplace l'URL d'une photo (rotation Cloudinary) dans le champ
+  // Notion et PATCH. Le nom reste inchangé (détection de bucket préservée).
+  const handleRotate = async (oldUrl: string, newUrl: string) => {
+    if (!project) return;
+    const current = project[notionFieldKey] || [];
+    const nextFullList = current.map((f) => (f.url === oldUrl ? { ...f, url: newUrl } : f));
+    setProject((prev) => (prev ? { ...prev, [notionFieldKey]: nextFullList } : prev));
+    const res = await offlineFetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [notionFieldKey]: nextFullList }),
+    });
+    invalidateApiCache();
+    if (!res.ok) {
+      toast.error("Rotation non enregistrée dans Notion — réessayez.");
+    }
+  };
+
   const hint = BUCKET_HINT[bucket];
   return (
     <div>
@@ -245,6 +263,7 @@ function BucketPhotoUpload({
         existingPhotos={existingPhotos}
         onUpload={handleUpload}
         onDelete={handleDelete}
+        onRotate={handleRotate}
         onFilesSelected={(files) => {
           if (onAutoFill && files.length > 0) {
             const t = new Date(files[0].lastModified);
@@ -326,6 +345,20 @@ function CombinedMontageUpload({
     }).catch(() => {});
   };
 
+  const handleRotate = async (oldUrl: string, newUrl: string) => {
+    if (!project) return;
+    const current = project.photosMontage || [];
+    const nextFullList = current.map((f) => (f.url === oldUrl ? { ...f, url: newUrl } : f));
+    setProject((prev) => (prev ? { ...prev, photosMontage: nextFullList } : prev));
+    const res = await offlineFetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ photosMontage: nextFullList }),
+    });
+    invalidateApiCache();
+    if (!res.ok) toast.error("Rotation non enregistrée dans Notion — réessayez.");
+  };
+
   return (
     <div>
       <PhotoUpload
@@ -338,6 +371,7 @@ function CombinedMontageUpload({
         existingPhotos={existingPhotos}
         onUpload={handleUpload}
         onDelete={handleDelete}
+        onRotate={handleRotate}
         onFilesSelected={(files) => {
           if (onAutoFill && files.length > 0) {
             const t = new Date(files[0].lastModified);
