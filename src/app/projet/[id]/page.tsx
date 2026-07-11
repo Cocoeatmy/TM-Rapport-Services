@@ -4371,6 +4371,17 @@ function ProjectPageContent({ id }: { id: string }) {
         + ((project.commentairesMesures || "").trim() ? 1 : 0)
         + ((project.commentairesMontages || "").trim() ? 1 : 0)
       : 0;
+    // Pastille "Mesures" : nombre de fichiers dans Documents Montage.
+    const montageDocsCount = id === "mesures" ? (project.documentsMontagee || []).length : 0;
+    // Pastille "Cabines" : nombre de cabines du projet (Nb. Cabines).
+    const cabCount = id === "cabines" ? (project.nbCabines || 0) : 0;
+    // Dates affichées dans l'icône "dates" (jj/mm/aa).
+    const fmtBadgeDate = (d?: string | null) => {
+      if (!d) return "—";
+      const [y, m, day] = d.slice(0, 10).split("-");
+      return y && m && day ? `${day}/${m}/${y.slice(2)}` : "—";
+    };
+    const showDates = id === "dates" && (!!project.dateMesures || !!project.dateMontage);
     return (
       <button
         key={id}
@@ -4381,10 +4392,32 @@ function ProjectPageContent({ id }: { id: string }) {
           active ? "ring-2 ring-[#1e3a5f] dark:ring-blue-400 shadow-md scale-105" : "opacity-90 hover:opacity-100 hover:scale-105"
         }`}
       >
-        <Icon className={`w-[18px] h-[18px] ${fg}`} />
+        {showDates ? (
+          // Onglet "dates" : date de mesures (haut) + date RDV montage (bas),
+          // directement dans le rond de l'icône.
+          <div className={`flex flex-col items-center justify-center leading-none ${fg}`}>
+            <span className="text-[7px] font-bold tracking-tight">{fmtBadgeDate(project.dateMesures)}</span>
+            <span className="w-3.5 h-px my-[2px] bg-current opacity-40" />
+            <span className="text-[7px] font-bold tracking-tight">{fmtBadgeDate(project.dateMontage)}</span>
+          </div>
+        ) : (
+          <Icon className={`w-[18px] h-[18px] ${fg}`} />
+        )}
         {commentCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-slate-900 shadow">
             {commentCount}
+          </span>
+        )}
+        {/* Pastille rouge "Mesures" : nombre de fichiers Documents Montage. */}
+        {montageDocsCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-slate-900 shadow">
+            {montageDocsCount}
+          </span>
+        )}
+        {/* Pastille "Cabines" (teal, nuance de l'icône Mesures) : nombre de cabines. */}
+        {cabCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-teal-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-slate-900 shadow">
+            {cabCount}
           </span>
         )}
         {id === "rapport" && (
