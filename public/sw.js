@@ -7,7 +7,7 @@
 //   v11 : pré-cache explicite des pages /client/ et /projet/ + leurs données API
 //         via message PRECACHE_URLS — permet consultation hors-ligne garantie.
 
-const VERSION = "v22";
+const VERSION = "v23";
 const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;
@@ -145,6 +145,34 @@ self.addEventListener("fetch", (event) => {
 
   if (request.method !== "GET") return;
   if (url.origin !== self.location.origin) return;
+
+  // === Proxy de fichiers (/api/file-proxy) ===
+  // Renvoie une REDIRECTION 302 vers le CDN Notion/S3.
+  //  • EN LIGNE : on NE touche à rien → le navigateur suit la redirection
+  //    nativement et charge le PDF directement depuis S3 (quasi instantané).
+  //    (Si le SW interceptait et renvoyait une réponse redirigée à une
+  //    navigation, le navigateur casserait avec "redirect mode is not follow".)
+  //  • HORS LIGNE : on sert les octets pré-cachés (pages client qui pré-cachent
+  //    leurs documents), en reconstruisant une réponse propre (sans flag
+  //    "redirected") pour rester compatible avec une navigation.
+  if (url.pathname.startsWith("/api/file-proxy")) {
+    if (!self.navigator.onLine) {
+      event.respondWith(
+        caches.match(request).then(async (cached) => {
+          if (!cached) return fetch(request);
+          const buf = await cached.arrayBuffer();
+          return new Response(buf, {
+            status: 200,
+            headers: {
+              "Content-Type": cached.headers.get("content-type") || "application/octet-stream",
+              "Content-Disposition": cached.headers.get("content-disposition") || "inline",
+            },
+          });
+        }),
+      );
+    }
+    return;
+  }
 
   // === API : network-first avec timeout 400 ms ===
   if (url.pathname.startsWith("/api/")) {
@@ -318,7 +346,23 @@ self.addEventListener("message", (event) => {
             }
             const response = await fetch(url, { credentials: "include" });
             if (response && response.ok) {
-              await cache.put(url, response);
+              // /api/file-proxy redirige (302) vers S3 ; `fetch` suit la
+              // redirection → réponse `redirected`, que `cache.put` peut
+              // refuser. On reconstruit une réponse propre (octets bruts) pour
+              // pouvoir la resservir hors ligne. Les autres URLs sont mises en
+              // cache telles quelles (headers préservés).
+              if (url.includes("/api/file-proxy")) {
+                const buf = await response.arrayBuffer();
+                await cache.put(url, new Response(buf, {
+                  status: 200,
+                  headers: {
+                    "Content-Type": response.headers.get("content-type") || "application/octet-stream",
+                    "Content-Disposition": "inline",
+                  },
+                }));
+              } else {
+                await cache.put(url, response);
+              }
             }
           } catch {
             // Silencieux : pas de réseau ou URL invalide

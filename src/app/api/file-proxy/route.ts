@@ -6,12 +6,19 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /**
- * Proxy de fichiers Notion — retourne le contenu binaire du fichier
- * (pas une redirection) afin que le Service Worker puisse le mettre
- * en cache à une URL stable pour la consultation hors-ligne.
+ * Proxy de fichiers Notion — REDIRIGE (302) vers l'URL fraîche Notion/S3.
  *
  * URL stable : /api/file-proxy?projectId=XXX&field=Documents+pour+Montage&index=0
- * → Notion URLs expirent (~1h), cette URL est permanente.
+ * → Notion URLs expirent (~1h), cette URL-ci est permanente et re-signe à
+ *   chaque appel.
+ *
+ * Pourquoi une redirection et non plus le contenu binaire :
+ * avant, on téléchargeait TOUT le PDF depuis Notion vers Vercel
+ * (`arrayBuffer()`) PUIS on le renvoyait au navigateur → double transfert de
+ * plusieurs Mo + latence, très lent sur mobile. Avec la redirection, le
+ * navigateur charge le PDF DIRECTEMENT depuis le CDN S3 de Notion (rendu
+ * progressif, quasi instantané). On perd la mise en cache hors-ligne des
+ * octets par le SW, mais la vitesse de consultation prime.
  */
 export async function GET(request: NextRequest) {
   // Auth requise — seuls les collaborateurs connectés accèdent aux documents
@@ -51,27 +58,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "URL introuvable" }, { status: 404 });
     }
 
-    const fileName = file.name || `document-${index}`;
-
-    // Télécharge le contenu réel du fichier depuis Notion
-    const fileResponse = await fetch(freshUrl);
-    if (!fileResponse.ok) {
-      return NextResponse.json({ error: "Impossible de récupérer le fichier" }, { status: 502 });
-    }
-
-    const contentType = fileResponse.headers.get("content-type") || "application/octet-stream";
-    const body = await fileResponse.arrayBuffer();
-
-    // Retourne les bytes avec une URL stable — le SW peut cacher cette réponse.
-    // CDN Vercel ne cache pas (données personnelles), mais le SW le peut.
-    return new NextResponse(body, {
-      headers: {
-        "Content-Type": contentType,
-        "Content-Disposition": `inline; filename="${encodeURIComponent(fileName)}"`,
-        "Cache-Control": "public, max-age=0, must-revalidate",
-        "Vercel-CDN-Cache-Control": "no-store",
-        "CDN-Cache-Control": "no-store",
-      },
+    // Redirection 302 vers l'URL fraîche : le navigateur télécharge le fichier
+    // directement depuis le CDN S3 de Notion (rapide, rendu progressif du PDF).
+    // 302 non mis en cache → chaque ouverture re-signe une URL valide.
+    return NextResponse.redirect(freshUrl, {
+      status: 302,
+      headers: { "Cache-Control": "no-store" },
     });
   } catch (error: any) {
     console.error("File proxy error:", error);
