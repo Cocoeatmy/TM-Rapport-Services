@@ -1594,6 +1594,7 @@ function HomePage() {
   useEffect(() => {
     // 1. Charger le cache local IMMÉDIATEMENT — affichage instantané
     let localCacheAge = Infinity;
+    let hadLocalData = false;
     try {
       const cached = localStorage.getItem("tm-projects-cache");
       const cachedTs = localStorage.getItem("tm-projects-cache-ts");
@@ -1604,6 +1605,7 @@ function HomePage() {
         if (hasRealData) {
           setProjectsData(parsed);
           setLoading(false);
+          hadLocalData = true;
           localCacheAge = cachedTs ? (Date.now() - Number(cachedTs)) / (1000 * 60 * 60) : Infinity;
         }
       }
@@ -1705,32 +1707,52 @@ function HomePage() {
     const fetchInto = (url: string, opts?: RequestInit) =>
       fetch(url, opts).then((r) => r.json()).then((data) => applyData(url, data)).catch(() => setLoading(false));
 
-    if (forceFresh) {
-      // Rafraîchissement MANUEL (bouton Rafraîchir) : fresh Notion partout +
-      // bannière (action explicite, l'utilisateur attend les toutes dernières
-      // données quitte à patienter).
+    // ── Gate par VERSION Notion ──────────────────────────────────────────────
+    // Signature légère = dernière édition Notion. Si elle est INCHANGÉE et qu'on
+    // a déjà des données en cache local → RIEN n'a bougé côté Notion : on
+    // conserve le cache, ZÉRO re-fetch (instantané). Dès qu'un changement Notion
+    // survient, la signature change → on rafraîchit automatiquement. Le bouton
+    // Rafraîchir force toujours le refetch (+ bannière).
+    let storedVersion: string | null = null;
+    try { storedVersion = localStorage.getItem("tm-projects-version"); } catch {}
+
+    // Rafraîchit toutes les listes puis mémorise la version. `banner` = manuel.
+    const refetchAll = (version: string | null, banner: boolean) => {
       let pending = uniqueUrls.length;
-      try { sonnerToast.loading("Actualisation des données…", { id: "dash-refresh" }); } catch {}
+      if (banner) { try { sonnerToast.loading("Actualisation des données…", { id: "dash-refresh" }); } catch {} }
       uniqueUrls.forEach((url) => {
-        fetchInto(freshUrl(url), { cache: "no-store" }).finally(() => {
+        // Manuel : tout en fresh Notion. Auto : listes actives en fresh (elles
+        // alimentent les compteurs), le reste depuis le cache serveur (rapide).
+        const useFresh = banner || ACTIVE_FRESH.has(url);
+        fetchInto(useFresh ? freshUrl(url) : url, useFresh ? { cache: "no-store" } : undefined).finally(() => {
           pending -= 1;
-          if (pending <= 0) { try { sonnerToast.dismiss("dash-refresh"); } catch {} }
+          if (pending <= 0) {
+            if (banner) { try { sonnerToast.dismiss("dash-refresh"); } catch {} }
+            // Mémorise la version APRÈS un refetch complet (évite de figer une
+            // version alors que les données ne sont pas encore à jour).
+            if (version) { try { localStorage.setItem("tm-projects-version", version); } catch {} }
+          }
         });
       });
-    } else {
-      // Chargement NORMAL — priorité à la VITESSE (< 1 s), SANS bannière :
-      //  • Phase 1 : cache serveur (SWR, tenu chaud par le cron) → affichage
-      //    quasi instantané de toutes les listes.
-      //  • Phase 2 : rafraîchissement SILENCIEUX des listes actives (fresh
-      //    Notion) en arrière-plan → les chiffres se corrigent tout seuls,
-      //    sans bloquer ni afficher de bannière.
-      uniqueUrls.forEach((url) => fetchInto(url));
-      setTimeout(() => {
-        uniqueUrls
-          .filter((u) => ACTIVE_FRESH.has(u))
-          .forEach((url) => fetchInto(freshUrl(url), { cache: "no-store" }));
-      }, 400);
-    }
+    };
+
+    fetch("/api/projects/version")
+      .then((r) => r.json())
+      .then((d) => {
+        const version: string | null = d?.version || null;
+        // Notion tronque last_edited_time à la minute : deux éditions dans la
+        // même minute partageraient la même signature. Tant que la dernière
+        // édition date de < 90 s (activité en cours), on refetch par sécurité ;
+        // le skip cache ne s'active qu'une fois les données stabilisées.
+        const settled = !!version && Date.now() - Date.parse(version) > 90_000;
+        const unchanged = !forceFresh && !!version && !!storedVersion && version === storedVersion && hadLocalData && settled;
+        if (unchanged) return; // Notion inchangé et stable → cache local conservé.
+        refetchAll(version, forceFresh);
+      })
+      .catch(() => {
+        // Version indisponible (réseau/Notion) → refetch de sécurité.
+        refetchAll(null, forceFresh);
+      });
   }, []);
 
   // Si projets-tous est déjà chargé (ex. retour depuis cet onglet),

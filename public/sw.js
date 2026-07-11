@@ -7,7 +7,7 @@
 //   v11 : pré-cache explicite des pages /client/ et /projet/ + leurs données API
 //         via message PRECACHE_URLS — permet consultation hors-ligne garantie.
 
-const VERSION = "v26";
+const VERSION = "v27";
 const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;
@@ -135,7 +135,10 @@ function isAlwaysFreshApi(pathname) {
   return (
     pathname.startsWith("/api/defauts") ||
     pathname.startsWith("/api/pieces") ||
-    pathname.startsWith("/api/preferences")
+    pathname.startsWith("/api/preferences") ||
+    // Signature de version des données : doit toujours refléter l'état réel
+    // (sinon le client croirait "inchangé" à tort et sauterait un refetch).
+    pathname.startsWith("/api/projects/version")
   );
 }
 
