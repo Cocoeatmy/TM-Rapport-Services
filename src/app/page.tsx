@@ -1684,41 +1684,53 @@ function HomePage() {
       "/api/projects", "/api/projects/mesures", "/api/projects/services",
       "/api/projects/sav", "/api/projects/all-active",
     ]);
-    const shouldFresh = (u: string) => forceFresh || ACTIVE_FRESH.has(u);
-    const withFresh = (u: string) => (shouldFresh(u) ? `${u}${u.includes("?") ? "&" : "?"}fresh=${Date.now()}` : u);
+    const freshUrl = (u: string) => `${u}${u.includes("?") ? "&" : "?"}fresh=${Date.now()}`;
 
-    // Indicateur : tant que les listes actives fraîches ne sont pas arrivées, on
-    // signale la mise à jour (pour ne pas prendre des chiffres périmés pour finaux).
-    let pendingFresh = uniqueUrls.filter((u) => ACTIVE_FRESH.has(u)).length;
-    if (pendingFresh > 0) { try { sonnerToast.loading("Actualisation des données…", { id: "dash-refresh" }); } catch {} }
-    const doneFresh = () => {
-      pendingFresh -= 1;
-      if (pendingFresh <= 0) { try { sonnerToast.dismiss("dash-refresh"); } catch {} }
-    };
-
-    uniqueUrls.forEach((url) => {
-      const isActive = ACTIVE_FRESH.has(url);
-      fetch(withFresh(url), shouldFresh(url) ? { cache: "no-store" } : undefined).then((r) => r.json()).then((data) => {
-        // Ne pas écraser le cache avec un tableau vide :
-        // le SW retourne [] comme fallback quand il n'a pas de données hors-ligne.
-        if (!Array.isArray(data) || data.length === 0) return;
-        const modesForUrl = allModes.filter(([, u]) => u === url);
-        setProjectsData((prev) => {
-          const updated = { ...prev };
-          modesForUrl.forEach(([key]) => { updated[key] = data; });
-          try {
-            localStorage.setItem("tm-projects-cache", JSON.stringify(updated));
-            localStorage.setItem("tm-projects-cache-ts", String(Date.now()));
-          } catch {}
-          return updated;
-        });
-        setLoading(false);
-      }).catch(() => {
-        setLoading(false);
-      }).finally(() => {
-        if (isActive) doneFresh();
+    // Applique les données d'un endpoint dans l'état React + le cache local.
+    // Ignore un tableau vide (le SW renvoie [] en fallback hors-ligne).
+    const applyData = (url: string, data: unknown) => {
+      if (!Array.isArray(data) || data.length === 0) return;
+      const modesForUrl = allModes.filter(([, u]) => u === url);
+      setProjectsData((prev) => {
+        const updated = { ...prev };
+        modesForUrl.forEach(([key]) => { updated[key] = data; });
+        try {
+          localStorage.setItem("tm-projects-cache", JSON.stringify(updated));
+          localStorage.setItem("tm-projects-cache-ts", String(Date.now()));
+        } catch {}
+        return updated;
       });
-    });
+      setLoading(false);
+    };
+    const fetchInto = (url: string, opts?: RequestInit) =>
+      fetch(url, opts).then((r) => r.json()).then((data) => applyData(url, data)).catch(() => setLoading(false));
+
+    if (forceFresh) {
+      // Rafraîchissement MANUEL (bouton Rafraîchir) : fresh Notion partout +
+      // bannière (action explicite, l'utilisateur attend les toutes dernières
+      // données quitte à patienter).
+      let pending = uniqueUrls.length;
+      try { sonnerToast.loading("Actualisation des données…", { id: "dash-refresh" }); } catch {}
+      uniqueUrls.forEach((url) => {
+        fetchInto(freshUrl(url), { cache: "no-store" }).finally(() => {
+          pending -= 1;
+          if (pending <= 0) { try { sonnerToast.dismiss("dash-refresh"); } catch {} }
+        });
+      });
+    } else {
+      // Chargement NORMAL — priorité à la VITESSE (< 1 s), SANS bannière :
+      //  • Phase 1 : cache serveur (SWR, tenu chaud par le cron) → affichage
+      //    quasi instantané de toutes les listes.
+      //  • Phase 2 : rafraîchissement SILENCIEUX des listes actives (fresh
+      //    Notion) en arrière-plan → les chiffres se corrigent tout seuls,
+      //    sans bloquer ni afficher de bannière.
+      uniqueUrls.forEach((url) => fetchInto(url));
+      setTimeout(() => {
+        uniqueUrls
+          .filter((u) => ACTIVE_FRESH.has(u))
+          .forEach((url) => fetchInto(freshUrl(url), { cache: "no-store" }));
+      }, 400);
+    }
   }, []);
 
   // Si projets-tous est déjà chargé (ex. retour depuis cet onglet),
