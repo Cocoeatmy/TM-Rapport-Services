@@ -4603,7 +4603,7 @@ function ProjectPageContent({ id }: { id: string }) {
           piloté par le bouton dédié. Cachée en mode rapport. */}
       {isIOS && !showRapport && (
         <div className="px-4 mt-3">
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          <div className="flex justify-between items-center pb-1">
             {tabDefs.filter((t) => t.id !== "rapport").map(renderTabButton)}
           </div>
         </div>
