@@ -1221,6 +1221,21 @@ const PANEL_DATE_FIELD: Record<string, (p: Project) => string | null | undefined
   "soucis-en-cours":      (p) => p.dateSoucisMontage,
 };
 
+// Champ d'état filtrable pour les panneaux "RDV … à fixer" (filtre par état).
+const RDV_STATUS_FIELD: Record<string, (p: Project) => string> = {
+  "rdv-montage-a-fixer":  (p) => p.etatCMD || "",
+  "rdv-services-a-fixer": (p) => p.etatCMD || "",
+  "rdv-mesures-a-fixer":  (p) => p.etatMesures || "",
+  "rdv-sav-a-fixer":      (p) => p.etatSAV || "",
+};
+// Ordre canonique d'affichage des chips d'état par panneau.
+const RDV_STATUS_ORDER: Record<string, string[]> = {
+  "rdv-montage-a-fixer":  ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel"],
+  "rdv-services-a-fixer": ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel"],
+  "rdv-mesures-a-fixer":  ["Pas contacté", "Contact sans réponse", "RDV - Attendre news"],
+  "rdv-sav-a-fixer":      ["A contacter", "Contact sans réponse", "Attente news"],
+};
+
 type ForcedPanel = "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer";
 function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [], cmmMode = false, forcePanel = null, onForcePanelClose }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[]; cmmMode?: boolean; forcePanel?: ForcedPanel | null; onForcePanelClose?: () => void }) {
   useNotionColors(); // couleurs Notion sur les badges de statut
@@ -1371,6 +1386,25 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     setRdvSortByPanel((prev) => {
       const next = { ...prev, [panel]: v };
       try { localStorage.setItem("tm-rdv-sort-by-panel", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  // Filtre par état des panneaux "RDV … à fixer" : liste des états DÉCOCHÉS
+  // (masqués) par panneau. Vide = tous affichés. Persisté en localStorage.
+  const [rdvHiddenStatusByPanel, setRdvHiddenStatusByPanel] = useState<Record<string, string[]>>(() => {
+    if (typeof window !== "undefined") {
+      try { const s = localStorage.getItem("tm-rdv-hidden-status"); if (s) return JSON.parse(s); } catch {}
+    }
+    return {};
+  });
+  const hiddenStatusOf = (panel: string | null) => new Set(panel ? (rdvHiddenStatusByPanel[panel] || []) : []);
+  const toggleRdvStatus = (panel: string, status: string) => {
+    setRdvHiddenStatusByPanel((prev) => {
+      const cur = new Set(prev[panel] || []);
+      if (cur.has(status)) cur.delete(status); else cur.add(status);
+      const next = { ...prev, [panel]: [...cur] };
+      try { localStorage.setItem("tm-rdv-hidden-status", JSON.stringify(next)); } catch {}
       return next;
     });
   };
@@ -4890,6 +4924,22 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           );
         }
 
+        // ── Filtre par état (panneaux "RDV … à fixer") ─────────────────────────
+        // On calcule les états réellement présents (chips), puis on masque ceux
+        // décochés. Le compteur du titre reflète la liste filtrée.
+        const rdvStatusFieldFn = showSummaryPanel ? RDV_STATUS_FIELD[showSummaryPanel] : undefined;
+        let rdvStatusOptions: string[] = [];
+        if (rdvStatusFieldFn) {
+          const present = new Set(panelProjects.map(rdvStatusFieldFn).filter(Boolean));
+          const order = (showSummaryPanel && RDV_STATUS_ORDER[showSummaryPanel]) || [];
+          rdvStatusOptions = [...present].sort((a, b) => {
+            const ia = order.indexOf(a), ib = order.indexOf(b);
+            return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
+          });
+          const hidden = hiddenStatusOf(showSummaryPanel);
+          if (hidden.size > 0) panelProjects = panelProjects.filter((p) => !hidden.has(rdvStatusFieldFn(p)));
+        }
+
         const isRdvAFixer = false; // rdv-a-fixer has its own return above
         const isDossiersEnCours = (showSummaryPanel as string) === "dossiers-en-cours";
         const isAFacturer = showSummaryPanel === "a-facturer";
@@ -4900,24 +4950,46 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           <div className="glass-card no-lift rounded-2xl p-4 space-y-1.5">
             <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{panelTitle} ({panelProjects.length})</p>
-              {showSummaryPanel && PANEL_DATE_FIELD[showSummaryPanel] && (
-                <div className="flex items-center gap-1 rounded-lg bg-gray-200/70 dark:bg-slate-700 p-1">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setPanelSort(showSummaryPanel, "date"); }}
-                    className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${panelSortOf(showSummaryPanel) === "date" ? "bg-blue-600 text-white shadow" : "text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-slate-600"}`}
-                  >
-                    Par date
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setPanelSort(showSummaryPanel, "region"); }}
-                    className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${panelSortOf(showSummaryPanel) === "region" ? "bg-blue-600 text-white shadow" : "text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-slate-600"}`}
-                  >
-                    Par région (NPA)
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {/* Filtre par état — chips cliquables (afficher/masquer). Placé
+                    juste à gauche du sélecteur Par date / Par région. */}
+                {rdvStatusFieldFn && rdvStatusOptions.length >= 2 && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {rdvStatusOptions.map((st) => {
+                      const off = hiddenStatusOf(showSummaryPanel).has(st);
+                      return (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); toggleRdvStatus(showSummaryPanel!, st); }}
+                          className={`text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors ${off ? "bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-slate-600 line-through" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50"}`}
+                          title={off ? `Afficher : ${st}` : `Masquer : ${st}`}
+                        >
+                          {st}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {showSummaryPanel && PANEL_DATE_FIELD[showSummaryPanel] && (
+                  <div className="flex items-center gap-1 rounded-lg bg-gray-200/70 dark:bg-slate-700 p-1">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPanelSort(showSummaryPanel, "date"); }}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${panelSortOf(showSummaryPanel) === "date" ? "bg-blue-600 text-white shadow" : "text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-slate-600"}`}
+                    >
+                      Par date
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPanelSort(showSummaryPanel, "region"); }}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${panelSortOf(showSummaryPanel) === "region" ? "bg-blue-600 text-white shadow" : "text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-slate-600"}`}
+                    >
+                      Par région (NPA)
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             {panelProjects.length > 0 && (
               <div className="flex items-center gap-2 px-2 py-1 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 mb-1">
