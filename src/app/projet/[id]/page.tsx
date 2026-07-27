@@ -2570,6 +2570,9 @@ function ProjectPageContent({ id }: { id: string }) {
   const [fetchError, setFetchError] = useState<"temporary" | "notfound" | null>(null);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
+  // Confirmation persistante "Rapport envoyé" (évite les envois multiples : le
+  // collaborateur voit clairement que ça a fonctionné et doit fermer la fenêtre).
+  const [showSentConfirm, setShowSentConfirm] = useState(false);
   const [reformulating, setReformulating] = useState(false);
   const [reformulatingCabineIdx, setReformulatingCabineIdx] = useState<number | null>(null);
   const [missingPhotosPrompt, setMissingPhotosPrompt] = useState<{
@@ -4196,11 +4199,12 @@ function ProjectPageContent({ id }: { id: string }) {
         await navigator.clipboard.writeText(clientPortalUrl);
       } catch {}
 
-      // 4. Show success toast
+      // 4. Show success toast + fenêtre de confirmation persistante
       toast.success("Rapport envoye", {
         description: "Lien client copie dans le presse-papiers",
         duration: 5000,
       });
+      setShowSentConfirm(true);
 
       // 5. Log the action
       Promise.all([
@@ -7132,6 +7136,44 @@ function ProjectPageContent({ id }: { id: string }) {
                 className="flex-1 h-10 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium"
               >
                 Continuer quand même
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Confirmation persistante "Rapport envoyé" — évite les envois répétés. */}
+      {showSentConfirm && typeof document !== "undefined" && createPortal(
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 70, transform: "translateZ(0)" }}
+          className="flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setShowSentConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="pt-7 pb-2 flex flex-col items-center gap-3">
+              <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                <Check className="w-9 h-9 text-green-600 dark:text-green-400" strokeWidth={3} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Rapport envoyé</h3>
+            </div>
+            <div className="px-6 pb-2">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Le rapport a bien été envoyé. Inutile de le renvoyer.
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                Le lien client a été copié dans le presse-papiers.
+              </p>
+            </div>
+            <div className="p-5">
+              <button
+                onClick={() => setShowSentConfirm(false)}
+                className="w-full h-11 rounded-xl bg-green-600 hover:bg-green-700 text-white text-base font-semibold active:scale-[0.98] transition-all"
+              >
+                OK, c'est noté
               </button>
             </div>
           </div>
