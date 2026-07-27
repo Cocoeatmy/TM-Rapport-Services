@@ -14,9 +14,21 @@
 // - En cas d'erreur Notion (ex. rate-limit 429), on retourne les dernières
 //   données connues plutôt que de propager une 500 côté client.
 
+import { getData } from "./kv-store";
+
 const cache = new Map<string, { data: unknown; expires: number; staleAt: number }>();
 const TTL = 5 * 60 * 1000;          // 5 min — durée totale avant purge
 const FRESH_MS = 5 * 1000;          // 5 s — fenêtre où la donnée est considérée fraîche
+
+// Clés dont un "snapshot" partagé (KV Notion) est maintenu à jour par le cron
+// (sync/warm-all). Sur une instance serverless FROIDE (cache mémoire vide), on
+// sert ce snapshot (~1-2 s) au lieu d'attaquer Notion en direct (~10 s), puis on
+// revalide en arrière-plan. C'est le seul cache "partagé entre instances" dont on
+// dispose (l'app n'a pas de store rapide type Redis).
+const SNAPSHOT_KEYS = new Set([
+  "projects", "projects-mesures", "projects-services", "projects-sav",
+  "projects-all-active", "projects-cmd-termine", "projects-all-raw",
+]);
 
 // Cache de secours : conserve les données jusqu'à 30 min même après expiration
 // du cache principal. Utilisé uniquement quand Notion est indisponible / rate-limité.
@@ -175,6 +187,22 @@ export async function cachedOrFetch<T>(
 
   const p = (async () => {
     try {
+      // Instance FROIDE : avant d'attaquer Notion (~10 s), on tente le snapshot
+      // partagé (KV, ~1-2 s) tenu à jour par le cron. On le sert immédiatement
+      // et on revalide en arrière-plan → l'utilisateur ne subit jamais l'attente
+      // Notion complète sur un chargement normal.
+      // Pas pendant le build Next (prerender) : la lecture snapshot ferait
+      // déborder le timeout de 60 s des routes lourdes.
+      if (SNAPSHOT_KEYS.has(key) && process.env.NEXT_PHASE !== "phase-production-build") {
+        try {
+          const snap = await getData(`snapshot-${key}`);
+          if (Array.isArray(snap) && snap.length > 0) {
+            setCache(key, snap as unknown as T);
+            revalidateInBackground(key, fetcher);
+            return snap as unknown as T;
+          }
+        } catch { /* snapshot indisponible → on continue vers Notion */ }
+      }
       const data = await fetcher();
       setCache(key, data);
       return data;

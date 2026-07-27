@@ -1702,33 +1702,43 @@ function HomePage() {
       });
       setLoading(false);
     };
-    const fetchInto = (url: string, opts?: RequestInit) =>
-      fetch(url, opts).then((r) => r.json()).then((data) => applyData(url, data)).catch(() => setLoading(false));
+    // baseUrl : URL "propre" (sans ?fresh/?rv) utilisée pour mapper les données
+    // dans projectsData. SANS ça, une URL avec query (?fresh) ne matchait aucun
+    // mode → les données étaient récupérées mais JAMAIS appliquées (bug).
+    const fetchInto = (url: string, opts?: RequestInit, baseUrl?: string) =>
+      fetch(url, opts).then((r) => r.json()).then((data) => applyData(baseUrl ?? url, data)).catch(() => setLoading(false));
 
     // ── Rafraîchissement (fraîcheur garantie, sans bannière) ─────────────────
     // Le cache local est déjà affiché INSTANTANÉMENT (bloc 1). Ici on rafraîchit
-    // SYSTÉMATIQUEMENT à chaque chargement pour que les données périmées (ex.
-    // projet clôturé encore listé dans "RDV à fixer") se corrigent toutes seules,
-    // sans que le collaborateur ait à cliquer sur Rafraîchir.
-    //   • Listes ACTIVES (compteurs + panneaux RDV) : fresh Notion (contourne
-    //     tous les caches → jamais périmé).
-    //   • Autres listes (archives, tous) : cache serveur (rapide, moins critique).
-    //   • Refresh MANUEL (bouton) : tout en fresh + bannière (action explicite).
+    // SYSTÉMATIQUEMENT à chaque chargement, mais SANS attendre Notion (~10 s) :
+    // on interroge les endpoints en mode normal (cache serveur / repli snapshot
+    // partagé → RAPIDE, ~0,3-2 s), qui déclenchent une revalidation en arrière-
+    // plan. Ainsi les données périmées (ex. projet clôturé encore listé dans
+    // "RDV à fixer") se corrigent vite, sans bloquer ni bannière.
     //
-    // NB : on n'utilise plus de "gate par version" (cache conservé tant que
-    // Notion n'a pas changé) : il pouvait laisser des données périmées à l'écran
-    // si un refetch échouait/était sauté — la fraîcheur prime pour l'opérationnel.
-    if (forceFresh) {
-      try { sonnerToast.loading("Actualisation des données…", { id: "dash-refresh" }); } catch {}
-    }
-    let pending = uniqueUrls.length;
+    // On n'utilise PLUS `?fresh` sur le chargement automatique : `?fresh` force
+    // la requête Notion complète (~10 s) et bloquait l'affichage du bon chiffre.
+    // Le refresh MANUEL (bouton) déclenche en plus un complément `?fresh` en
+    // arrière-plan (garantit les toutes dernières données, sans figer l'écran).
+    // ?rv (revalidate) : contourne le cache du SERVICE WORKER pour obtenir la
+    // réponse SERVEUR (cache mémoire chaud / repli snapshot → rapide ET à jour).
+    // Le serveur IGNORE `rv` (pas de requête Notion forcée, contrairement à
+    // `fresh`). On mappe via `url` (baseUrl) pour appliquer les données.
+    const rvUrl = (u: string) => `${u}${u.includes("?") ? "&" : "?"}rv=${Date.now()}`;
     uniqueUrls.forEach((url) => {
-      const useFresh = forceFresh || ACTIVE_FRESH.has(url);
-      fetchInto(useFresh ? freshUrl(url) : url, useFresh ? { cache: "no-store" } : undefined).finally(() => {
-        pending -= 1;
-        if (pending <= 0 && forceFresh) { try { sonnerToast.dismiss("dash-refresh"); } catch {} }
-      });
+      if (ACTIVE_FRESH.has(url)) fetchInto(rvUrl(url), { cache: "no-store" }, url);
+      else fetchInto(url);
     });
+
+    if (forceFresh) {
+      // Refresh manuel : indicateur bref + complément `fresh` (Notion) en
+      // arrière-plan pour garantir les toutes dernières données, sans figer.
+      try { sonnerToast.loading("Actualisation des données…", { id: "dash-refresh", duration: 2500 }); } catch {}
+      setTimeout(() => { try { sonnerToast.dismiss("dash-refresh"); } catch {} }, 2500);
+      uniqueUrls
+        .filter((u) => ACTIVE_FRESH.has(u))
+        .forEach((url) => { fetchInto(freshUrl(url), { cache: "no-store" }, url); });
+    }
   }, []);
 
   // Rafraîchit les listes actives quand l'app REVIENT AU PREMIER PLAN (PWA
@@ -1750,7 +1760,8 @@ function HomePage() {
       const allModes = Object.entries(MODE_API) as [string, string][];
       const urls = [...new Set(allModes.map(([, u]) => u))].filter((u) => ACTIVE.has(u));
       urls.forEach((url) => {
-        fetch(`${url}?fresh=${now}`, { cache: "no-store" })
+        // ?rv : contourne le cache SW, réponse serveur rapide (pas de Notion forcé).
+        fetch(`${url}?rv=${now}`, { cache: "no-store" })
           .then((r) => r.json())
           .then((data) => {
             if (!Array.isArray(data) || data.length === 0) return;

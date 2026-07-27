@@ -37,6 +37,10 @@ export async function GET(request: NextRequest) {
       try {
         const data = await task.fn();
         setCache(task.cacheKey, data);
+        // Persiste aussi le snapshot PARTAGÉ (KV) : c'est lui que server-cache
+        // sert aux instances serverless froides (repli rapide ~1-2 s au lieu de
+        // ~10 s Notion). En le réécrivant à chaque sync, le repli reste frais.
+        try { await setData(`snapshot-${task.cacheKey}`, data); } catch {}
         results[task.name] = { count: data.length, ms: Date.now() - t0 };
       } catch (err: any) {
         results[task.name] = { count: -1, ms: Date.now() - t0 };

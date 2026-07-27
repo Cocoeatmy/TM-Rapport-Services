@@ -7,7 +7,7 @@
 //   v11 : pré-cache explicite des pages /client/ et /projet/ + leurs données API
 //         via message PRECACHE_URLS — permet consultation hors-ligne garantie.
 
-const VERSION = "v29";
+const VERSION = "v30";
 const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;
@@ -179,10 +179,12 @@ self.addEventListener("fetch", (event) => {
 
   // === API : network-first avec timeout 400 ms ===
   if (url.pathname.startsWith("/api/")) {
-    // Rafraîchissement FORCÉ (?fresh) : réseau direct, sans toucher au cache
-    // (ni lecture périmée, ni écriture de doublons). Garantit les dernières
-    // modifs Notion au clic sur "Rafraîchir".
-    if (url.searchParams.has("fresh")) {
+    // ?fresh (refresh manuel) ET ?rv (revalidation rapide) : réseau direct, sans
+    // servir le cache SW périmé. Différence côté SERVEUR : `fresh` force la
+    // requête Notion complète (~10 s), `rv` sert le cache serveur / repli
+    // snapshot (rapide). Dans les deux cas le SW ne doit pas court-circuiter avec
+    // sa propre copie périmée.
+    if (url.searchParams.has("fresh") || url.searchParams.has("rv")) {
       event.respondWith(
         fetch(request).catch(() =>
           new Response(JSON.stringify([]), {
