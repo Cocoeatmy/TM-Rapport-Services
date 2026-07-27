@@ -14,7 +14,6 @@
 // - En cas d'erreur Notion (ex. rate-limit 429), on retourne les dernières
 //   données connues plutôt que de propager une 500 côté client.
 
-import { getData } from "./kv-store";
 import { redisEnabled, redisGetJSON, redisSetJSON } from "./redis-cache";
 
 /** Écrit une liste dans le cache Redis partagé (fire-and-forget). */
@@ -22,6 +21,22 @@ function persistShared(key: string, data: unknown): void {
   if (redisEnabled && SNAPSHOT_KEYS.has(key)) {
     redisSetJSON(`sc:${key}`, data).catch(() => {});
   }
+}
+
+/** Instance FROIDE : tente de servir la liste depuis Redis (compressé, rapide).
+ *  Met en cache mémoire (politique longue via setCache pour les SNAPSHOT_KEYS →
+ *  revalidation throttlée à 10 min, faible charge Notion). Renvoie {data} sinon null. */
+async function serveFromRedis<T>(key: string): Promise<{ data: T } | null> {
+  if (!redisEnabled || !SNAPSHOT_KEYS.has(key)) return null;
+  if (process.env.NEXT_PHASE === "phase-production-build") return null;
+  try {
+    const r = await redisGetJSON<T>(`sc:${key}`);
+    if (Array.isArray(r) && (r as unknown[]).length > 0) {
+      setCache(key, r);
+      return { data: r };
+    }
+  } catch { /* Redis indisponible → on continue vers Notion */ }
+  return null;
 }
 
 const cache = new Map<string, { data: unknown; expires: number; staleAt: number }>();
@@ -33,13 +48,13 @@ const FRESH_MS = 5 * 1000;          // 5 s — fenêtre où la donnée est consi
 // sert ce snapshot (~1-2 s) au lieu d'attaquer Notion en direct (~10 s), puis on
 // revalide en arrière-plan. C'est le seul cache "partagé entre instances" dont on
 // dispose (l'app n'a pas de store rapide type Redis).
-// UNIQUEMENT les listes RDV (taille raisonnable, confirmées dans Redis). On
-// EXCLUT volontairement les grosses listes (all-active ~1350, all-raw, cmd-termine)
-// : trop grosses pour Redis, et la lecture du snapshot avant la requête Notion
-// ferait déborder le délai max de la route (→ timeout → "Projets en cours" /
-// "Archives" vides). Elles gardent leur chemin direct d'origine.
+// TOUTES les listes sont servies par Redis (cache partagé rapide). La compression
+// gzip (voir redis-cache) permet d'y inclure les grosses listes (all-active,
+// all-raw ~1350 projets → ~300-500 Ko compressés).
 const SNAPSHOT_KEYS = new Set([
   "projects", "projects-mesures", "projects-services", "projects-sav",
+  "projects-all-active", "projects-cmd-termine", "projects-mesures-sans-commande",
+  "projects-all-raw",
 ]);
 
 // Cache de secours : conserve les données jusqu'à 30 min même après expiration
@@ -69,14 +84,21 @@ export function getCached<T>(key: string): T | null {
 
 export function setCache(key: string, data: unknown) {
   const now = Date.now();
-  // Les clés "project-<id>" ont une fraîcheur de 30 s.
-  // Le polling client est à 15 s → les deux premiers polls servent le cache,
-  // le Notion fetch n'est déclenché qu'une fois toutes les 30 s par instance.
-  // Évite le rate-limit Notion (3 req/s) quand plusieurs collaborateurs ont
-  // des projets ouverts simultanément.
-  // Les clés de listes ("projects", "projects-mesures", …) gardent 5 s.
-  const freshMs = key.startsWith("project-") ? 30_000 : FRESH_MS;
-  cache.set(key, { data, expires: now + TTL, staleAt: now + freshMs });
+  // Politique de fraîcheur par type de clé :
+  // - "project-<id>" : 30 s (polling client 15 s).
+  // - Listes en cache Redis (SNAPSHOT_KEYS) : politique LONGUE (10 min frais /
+  //   2 h TTL) → la revalidation Notion est throttlée à ~10 min (au lieu de 5 s),
+  //   ce qui évite de saturer Notion (rate-limit) tout en gardant Redis chaud.
+  // - Autres : 5 s.
+  let freshMs = FRESH_MS;
+  let ttl = TTL;
+  if (key.startsWith("project-")) {
+    freshMs = 30_000;
+  } else if (SNAPSHOT_KEYS.has(key)) {
+    freshMs = LONG_FRESH_MS;
+    ttl = LONG_TTL;
+  }
+  cache.set(key, { data, expires: now + ttl, staleAt: now + freshMs });
   // Met à jour également le fallback (durée de vie plus longue).
   fallbackCache.set(key, { data, storedAt: now });
 }
@@ -205,29 +227,12 @@ export async function cachedOrFetch<T>(
       // partagé (KV, ~1-2 s) tenu à jour par le cron. On le sert immédiatement
       // et on revalide en arrière-plan → l'utilisateur ne subit jamais l'attente
       // Notion complète sur un chargement normal.
-      // Pas pendant le build Next (prerender) : les lectures cache feraient
-      // déborder le timeout de 60 s des routes lourdes.
-      if (SNAPSHOT_KEYS.has(key) && process.env.NEXT_PHASE !== "phase-production-build") {
-        // 1) Cache Redis PARTAGÉ (rapide, ~50-100 ms) — le vrai correctif contre
-        //    le "10 s sur instance froide". Servi immédiatement + revalidation.
-        if (redisEnabled) {
-          const r = await redisGetJSON<T>(`sc:${key}`);
-          if (Array.isArray(r) && (r as unknown[]).length > 0) {
-            setCache(key, r);
-            revalidateInBackground(key, fetcher);
-            return r;
-          }
-        }
-        // 2) Repli : snapshot Notion-KV (plus lent que Redis, ~1-2 s).
-        try {
-          const snap = await getData(`snapshot-${key}`);
-          if (Array.isArray(snap) && snap.length > 0) {
-            setCache(key, snap as unknown as T);
-            revalidateInBackground(key, fetcher);
-            return snap as unknown as T;
-          }
-        } catch { /* snapshot indisponible → on continue vers Notion */ }
-      }
+      // Instance FROIDE : on tente le cache Redis PARTAGÉ (rapide, ~50-100 ms,
+      // compressé) avant d'attaquer Notion (~10-35 s). Servi immédiatement +
+      // revalidation en arrière-plan. (Pas pendant le build Next.)
+      const fromRedis = await serveFromRedis<T>(key);
+      if (fromRedis) return fromRedis.data;
+
       const data = await fetcher();
       setCache(key, data);
       persistShared(key, data);

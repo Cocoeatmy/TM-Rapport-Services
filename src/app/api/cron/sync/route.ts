@@ -38,10 +38,9 @@ export async function GET(request: NextRequest) {
       try {
         const data = await task.fn();
         setCache(task.cacheKey, data);
-        // Cache RAPIDE partagé (Redis) — servi en priorité aux instances froides.
+        // Cache RAPIDE partagé (Redis, compressé) — garde le cache chaud pour
+        // toutes les instances (servi en priorité aux instances froides).
         try { await redisSetJSON(`sc:${task.cacheKey}`, data); } catch {}
-        // Repli snapshot Notion-KV (utilisé si Redis non configuré / indisponible).
-        try { await setData(`snapshot-${task.cacheKey}`, data); } catch {}
         results[task.name] = { count: data.length, ms: Date.now() - t0 };
       } catch (err: any) {
         results[task.name] = { count: -1, ms: Date.now() - t0 };

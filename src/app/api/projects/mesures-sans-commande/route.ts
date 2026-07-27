@@ -1,14 +1,13 @@
 import { getProjectsMesuresSansCommande } from "@/lib/notion";
-import { cachedOrFetchLong } from "@/lib/server-cache";
+import { cachedOrFetch } from "@/lib/server-cache";
 import { cachedJson, errorResponse } from "@/lib/edge-cache";
 
 export const revalidate = 30;
 
 export async function GET() {
   try {
-    // Liste lourde qui change lentement → cache long (10 min frais / 2 h) pour
-    // limiter la charge Notion (évite le rate-limit qui vidait la tuile).
-    const projects = await cachedOrFetchLong(
+    // Servie par Redis (compressé) ; politique longue gérée dans setCache.
+    const projects = await cachedOrFetch(
       "projects-mesures-sans-commande",
       getProjectsMesuresSansCommande,
     );

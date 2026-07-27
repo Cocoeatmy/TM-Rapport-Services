@@ -14,6 +14,8 @@
 //   KV_REST_API_URL / KV_REST_API_TOKEN       (intégration Vercel Marketplace)
 //   UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN  (Upstash direct)
 
+import { gzipSync, gunzipSync } from "node:zlib";
+
 const REST_URL =
   process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
 const REST_TOKEN =
@@ -38,25 +40,38 @@ async function command(args: (string | number)[]): Promise<unknown> {
   return json.result ?? null;
 }
 
-/** Lit une valeur JSON. Retourne null si absente, erreur, ou Redis non configuré. */
+// Compression : les grosses listes (all-active ~2-3 Mo) dépasseraient la limite
+// de taille Redis. On gzip+base64 au-delà d'un seuil, avec un préfixe "gz:" pour
+// détecter à la lecture. Réduit aussi la bande passante (gain ~5-10×).
+const GZIP_THRESHOLD = 100_000; // ~100 Ko de JSON
+
+/** Lit une valeur JSON (décompresse si nécessaire). Retourne null si absente/erreur. */
 export async function redisGetJSON<T>(key: string): Promise<T | null> {
   if (!redisEnabled) return null;
   try {
     const v = await command(["GET", key]);
     if (v == null || typeof v !== "string") return null;
-    return JSON.parse(v) as T;
+    const json = v.startsWith("gz:")
+      ? gunzipSync(Buffer.from(v.slice(3), "base64")).toString("utf8")
+      : v;
+    return JSON.parse(json) as T;
   } catch {
     return null;
   }
 }
 
-/** Écrit une valeur JSON avec TTL (défaut 1 h). Silencieux en cas d'échec. */
+/** Écrit une valeur JSON avec TTL (défaut 1 h), compressée si volumineuse. */
 export async function redisSetJSON(key: string, data: unknown, ttlSec = 3600): Promise<void> {
   if (!redisEnabled) return;
   try {
-    await command(["SET", key, JSON.stringify(data), "EX", ttlSec]);
+    const json = JSON.stringify(data);
+    let payload = json;
+    if (json.length > GZIP_THRESHOLD) {
+      try { payload = "gz:" + gzipSync(Buffer.from(json, "utf8")).toString("base64"); } catch { /* garde le JSON brut */ }
+    }
+    await command(["SET", key, payload, "EX", ttlSec]);
   } catch {
-    // Silencieux : valeur trop grande, réseau, etc. → on retombe sur le
-    // comportement sans Redis (snapshot Notion / requête directe).
+    // Silencieux : valeur trop grande malgré compression, réseau, etc. → repli
+    // sur le comportement sans Redis (requête directe).
   }
 }
