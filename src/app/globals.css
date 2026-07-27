@@ -2,6 +2,31 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* ===== Économie de batterie (iOS / macOS) =====
+   Les fonds animés en boucle infinie (gradientShift, auroraFlow, oceanFlow,
+   cmmNebula…) repeignent un grand dégradé à 60 fps en continu → forte conso
+   GPU/batterie. On les met en pause dans deux cas : */
+
+/* 1) App PAS au premier plan (onglet caché / app en arrière-plan) : la classe
+      `anim-paused` est posée sur <html> par un listener visibilitychange. */
+html.anim-paused *,
+html.anim-paused *::before,
+html.anim-paused *::after {
+  animation-play-state: paused !important;
+}
+
+/* 2) L'utilisateur a activé "Réduire les animations" (réglage iOS/macOS souvent
+      utilisé pour économiser la batterie) → on coupe les animations de fond. */
+@media (prefers-reduced-motion: reduce) {
+  .lg-bg,
+  .aurora-bg,
+  .ocean-bg,
+  .cmm-bg,
+  [class*="-bg"] {
+    animation: none !important;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

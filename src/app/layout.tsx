@@ -58,6 +58,15 @@ export default function RootLayout({
             Gain : 100-300 ms sur la 1ère requête image distante. */}
         <link rel="preconnect" href="https://res.cloudinary.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+        {/* Économie de batterie : met les animations de fond en pause quand
+            l'app n'est pas au premier plan (onglet caché / app en arrière-plan).
+            Script inline (avant hydratation) → aucun coût React. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){function u(){document.documentElement.classList.toggle('anim-paused',document.hidden)}document.addEventListener('visibilitychange',u);u();})();",
+          }}
+        />
         {/* Applique le thème UI avant l'hydration React pour éviter un flash
             de style au chargement. Lit `tm-ui-mode` (classic|aurora|ocean). */}
         <script

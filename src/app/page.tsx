@@ -26,6 +26,25 @@ import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, Donu
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
 
+// Écriture localStorage du cache projets THROTTLÉE. Sérialiser tout le cache
+// (~2,5 Mo avec Archives) à CHAQUE mise à jour (poll 30 s, burst de fetchs au
+// chargement, etc.) coûte cher en CPU/batterie. On coalesce : au plus une
+// écriture toutes les 8 s, sur le dernier état connu (bord de fuite).
+let _cacheSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let _pendingCache: unknown = null;
+function saveProjectsCache(data: unknown) {
+  _pendingCache = data;
+  if (_cacheSaveTimer) return;
+  _cacheSaveTimer = setTimeout(() => {
+    _cacheSaveTimer = null;
+    try {
+      localStorage.setItem("tm-projects-cache", JSON.stringify(_pendingCache));
+      localStorage.setItem("tm-projects-cache-ts", String(Date.now()));
+    } catch {}
+    _pendingCache = null;
+  }, 8_000);
+}
+
 const MonteurDashboard = dynamic(() => import("@/components/monteur-dashboard").then(m => ({ default: m.MonteurDashboard })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
@@ -1652,10 +1671,7 @@ function HomePage() {
           if (snap.ok && snap.data && typeof snap.data === "object") {
             setProjectsData((prev) => {
               const merged = { ...prev, ...snap.data };
-              try {
-                localStorage.setItem("tm-projects-cache", JSON.stringify(merged));
-                localStorage.setItem("tm-projects-cache-ts", String(Date.now()));
-              } catch {}
+              saveProjectsCache(merged);
               return merged;
             });
             setLoading(false);
@@ -1694,10 +1710,7 @@ function HomePage() {
       setProjectsData((prev) => {
         const updated = { ...prev };
         modesForUrl.forEach(([key]) => { updated[key] = data; });
-        try {
-          localStorage.setItem("tm-projects-cache", JSON.stringify(updated));
-          localStorage.setItem("tm-projects-cache-ts", String(Date.now()));
-        } catch {}
+        saveProjectsCache(updated);
         return updated;
       });
       setLoading(false);
@@ -1769,10 +1782,7 @@ function HomePage() {
             setProjectsData((prev) => {
               const updated = { ...prev };
               modesForUrl.forEach(([key]) => { updated[key] = data; });
-              try {
-                localStorage.setItem("tm-projects-cache", JSON.stringify(updated));
-                localStorage.setItem("tm-projects-cache-ts", String(now));
-              } catch {}
+              saveProjectsCache(updated);
               return updated;
             });
           })
@@ -1796,7 +1806,7 @@ function HomePage() {
     if ((projectsData["archives"] || []).length === all.length) return;
     setProjectsData((prev) => {
       const updated = { ...prev, archives: all };
-      try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+      saveProjectsCache(updated);
       return updated;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1819,7 +1829,7 @@ function HomePage() {
       });
       setProjectsData((prev) => {
         const merged = { ...prev, ...newData };
-        try { localStorage.setItem("tm-projects-cache", JSON.stringify(merged)); } catch {}
+        saveProjectsCache(merged);
         return merged;
       });
     });
@@ -1852,7 +1862,7 @@ function HomePage() {
   // interruption UI. Garantit que les changements Notion apparaissent en
   // ≤ 10 s sans aucune action de l'utilisateur.
   useEffect(() => {
-    const POLL_MS = 10_000; // 10 s
+    const POLL_MS = 30_000; // 30 s (Redis + refresh au retour au 1er plan + mutations couvrent la fraîcheur ; moins de conso batterie)
     const poll = () => {
       if (typeof document !== "undefined" && document.hidden) return; // page en arrière-plan : skip
       const url = MODE_API[mode];
@@ -1868,7 +1878,7 @@ function HomePage() {
             Object.entries(MODE_API).forEach(([key, u]) => {
               if (u === url) updated[key] = data;
             });
-            try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+            saveProjectsCache(updated);
             return updated;
           });
         })
@@ -1886,7 +1896,7 @@ function HomePage() {
       Object.entries(prev).forEach(([key, list]) => {
         updated[key] = (list || []).filter((p) => p.id !== projectId);
       });
-      try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+      saveProjectsCache(updated);
       return updated;
     });
 
@@ -2031,7 +2041,7 @@ function HomePage() {
         return { ...p, [dateField]: newDate };
       });
       updated[mode] = list;
-      try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+      saveProjectsCache(updated);
       return updated;
     });
 
@@ -2092,7 +2102,7 @@ function HomePage() {
         return { ...p, [statusField]: newStatus };
       });
       updated[mode] = list;
-      try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+      saveProjectsCache(updated);
       return updated;
     });
 
@@ -2211,7 +2221,7 @@ function HomePage() {
                 const all = Array.isArray(data) ? data : [];
                 setProjectsData((prev) => {
                   const updated = { ...prev, archives: all };
-                  try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+                  saveProjectsCache(updated);
                   return updated;
                 });
               }).catch(() => {});
@@ -2242,7 +2252,7 @@ function HomePage() {
                 const all = Array.isArray(data) ? data : [];
                 setProjectsData((prev) => {
                   const updated = { ...prev, archives: all };
-                  try { localStorage.setItem("tm-projects-cache", JSON.stringify(updated)); } catch {}
+                  saveProjectsCache(updated);
                   return updated;
                 });
               }).catch(() => {});

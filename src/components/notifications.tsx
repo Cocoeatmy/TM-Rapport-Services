@@ -183,8 +183,18 @@ export function NotificationBell() {
 
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 15000);
-    return () => clearInterval(interval);
+    // 60 s + rien en arrière-plan (au lieu de 15 s en continu) → économie
+    // batterie. Un refresh immédiat a lieu au retour au premier plan.
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      refresh();
+    }, 60000);
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [refresh]);
 
   const unreadCount = notifs.filter((n) => !n.read).length;

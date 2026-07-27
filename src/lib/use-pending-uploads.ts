@@ -70,7 +70,12 @@ export function usePendingUploads(projectId: string | undefined): PendingPreview
     const onRemoved = () => refresh();
     window.addEventListener("tm-pending-upload-added", onAdded);
     window.addEventListener("tm-pending-upload-removed", onRemoved);
-    const poll = setInterval(refresh, 5000);
+    // Poll de sécurité (l'essentiel passe par les events add/remove ci-dessus) :
+    // 20 s au lieu de 5 s, et rien en arrière-plan → économie batterie.
+    const poll = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      refresh();
+    }, 20000);
 
     return () => {
       cancelled = true;

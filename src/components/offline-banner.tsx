@@ -133,7 +133,13 @@ export function OfflineBanner() {
     window.addEventListener("tm-cache-warmed",               handleWarmed);
     window.addEventListener("tm-upload-permanently-failed",  refresh);
 
-    const interval = setInterval(refresh, 5000);
+    // Poll de sécurité (l'essentiel passe par les events online/offline/upload
+    // ci-dessus) : 20 s au lieu de 5 s, et rien quand l'app est en arrière-plan
+    // → économise la batterie.
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      refresh();
+    }, 20000);
 
     return () => {
       cancelled = true;
