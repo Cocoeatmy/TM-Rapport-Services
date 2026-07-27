@@ -1,19 +1,10 @@
-import { NextRequest, NextResponse, after } from "next/server";
-import { getProject, updateProject, getProjects, getProjectsMesures, getProjectsServices, getProjectsSAV } from "@/lib/notion";
+import { NextRequest, NextResponse } from "next/server";
+import { getProject, updateProject } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
 import { redisGetJSON, redisSetJSON } from "@/lib/redis-cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
-
-// Fetchers des listes actives (par clé de cache) — pour rafraîchir après un
-// changement d'état.
-const LIST_FETCHERS: Record<string, () => Promise<unknown[]>> = {
-  "projects": getProjects as () => Promise<unknown[]>,
-  "projects-mesures": getProjectsMesures as () => Promise<unknown[]>,
-  "projects-services": getProjectsServices as () => Promise<unknown[]>,
-  "projects-sav": getProjectsSAV as () => Promise<unknown[]>,
-};
 
 /**
  * Réagit INSTANTANÉMENT à un changement d'état d'un projet (fermeture, passage
@@ -21,9 +12,10 @@ const LIST_FETCHERS: Record<string, () => Promise<unknown[]>> = {
  *  1) Patch OPTIMISTE dans Redis : on applique le nouvel état au projet dans les
  *     listes en cache → dès le prochain rafraîchissement, tous les appareils
  *     voient le changement (le projet clôturé disparaît de "RDV à fixer").
- *  2) Rafraîchissement COMPLET en arrière-plan (force) : réconcilie l'état réel
- *     Notion (appartenance aux listes filtrées) et met à jour mémoire + Redis.
- * Non bloquant : n'attend jamais la fin (la réponse PATCH est immédiate).
+ *  2) Invalidation du cache mémoire des listes concernées → la prochaine requête
+ *     naturelle revalide depuis Notion (pas de force-fetch → évite le rate-limit).
+ * Le patch optimiste (1) suffit au cas courant (clôture) ; le cron réconcilie
+ * l'appartenance exacte aux listes filtrées en filet de sécurité.
  */
 async function onStatusChange(id: string, updates: Record<string, unknown>): Promise<void> {
   // Quelles listes sont impactées par les champs d'état modifiés.
@@ -44,16 +36,12 @@ async function onStatusChange(id: string, updates: Record<string, unknown>): Pro
     } catch { /* silencieux */ }
   }));
 
-  // 2) Rafraîchissement complet APRÈS la réponse (via `after` → l'exécution
-  //    survit à la fin du handler en serverless), pour réconcilier l'état réel
-  //    Notion dans mémoire + Redis.
-  after(async () => {
-    await Promise.all([...keys].map((key) => {
-      invalidateCache(key);
-      const fn = LIST_FETCHERS[key];
-      return fn ? cachedOrFetch(key, fn, true).then(() => {}).catch(() => {}) : Promise.resolve();
-    }));
-  });
+  // 2) Réconciliation : on invalide simplement le cache mémoire des listes
+  //    concernées. Le patch optimiste ci-dessus garde Redis correct pour tous ;
+  //    la prochaine requête naturelle (foreground/refresh d'un client) revalide
+  //    depuis Notion et met à jour mémoire + Redis. On ÉVITE un force-fetch
+  //    Notion à chaque changement d'état (source majeure de rate-limit).
+  keys.forEach((key) => invalidateCache(key));
 }
 
 // ── Merge multi-cabin time fields ─────────────────────────────────────────────
