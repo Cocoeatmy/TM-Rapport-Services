@@ -1,9 +1,60 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getProject, updateProject } from "@/lib/notion";
+import { NextRequest, NextResponse, after } from "next/server";
+import { getProject, updateProject, getProjects, getProjectsMesures, getProjectsServices, getProjectsSAV } from "@/lib/notion";
 import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
+import { redisGetJSON, redisSetJSON } from "@/lib/redis-cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
+
+// Fetchers des listes actives (par clé de cache) — pour rafraîchir après un
+// changement d'état.
+const LIST_FETCHERS: Record<string, () => Promise<unknown[]>> = {
+  "projects": getProjects as () => Promise<unknown[]>,
+  "projects-mesures": getProjectsMesures as () => Promise<unknown[]>,
+  "projects-services": getProjectsServices as () => Promise<unknown[]>,
+  "projects-sav": getProjectsSAV as () => Promise<unknown[]>,
+};
+
+/**
+ * Réagit INSTANTANÉMENT à un changement d'état d'un projet (fermeture, passage
+ * en "RDV à fixer", etc.) pour supprimer toute latence app ↔ Notion :
+ *  1) Patch OPTIMISTE dans Redis : on applique le nouvel état au projet dans les
+ *     listes en cache → dès le prochain rafraîchissement, tous les appareils
+ *     voient le changement (le projet clôturé disparaît de "RDV à fixer").
+ *  2) Rafraîchissement COMPLET en arrière-plan (force) : réconcilie l'état réel
+ *     Notion (appartenance aux listes filtrées) et met à jour mémoire + Redis.
+ * Non bloquant : n'attend jamais la fin (la réponse PATCH est immédiate).
+ */
+async function onStatusChange(id: string, updates: Record<string, unknown>): Promise<void> {
+  // Quelles listes sont impactées par les champs d'état modifiés.
+  const keys = new Set<string>();
+  if ("etatCMD" in updates) { keys.add("projects"); keys.add("projects-services"); }
+  if ("etatMesures" in updates) keys.add("projects-mesures");
+  if ("etatSAV" in updates) keys.add("projects-sav");
+  if (keys.size === 0) return;
+
+  // 1) Patch optimiste immédiat dans Redis.
+  await Promise.all([...keys].map(async (key) => {
+    try {
+      const list = await redisGetJSON<Array<{ id?: string }>>(`sc:${key}`);
+      if (!Array.isArray(list)) return;
+      let changed = false;
+      const next = list.map((p) => (p && p.id === id ? (changed = true, { ...p, ...updates }) : p));
+      if (changed) await redisSetJSON(`sc:${key}`, next);
+    } catch { /* silencieux */ }
+  }));
+
+  // 2) Rafraîchissement complet APRÈS la réponse (via `after` → l'exécution
+  //    survit à la fin du handler en serverless), pour réconcilier l'état réel
+  //    Notion dans mémoire + Redis.
+  after(async () => {
+    await Promise.all([...keys].map((key) => {
+      invalidateCache(key);
+      const fn = LIST_FETCHERS[key];
+      return fn ? cachedOrFetch(key, fn, true).then(() => {}).catch(() => {}) : Promise.resolve();
+    }));
+  });
+}
 
 // ── Merge multi-cabin time fields ─────────────────────────────────────────────
 // Format Notion: "Cab1:2026-05-20:08:30 | Cab2:2026-05-21:09:15"
@@ -246,6 +297,20 @@ export async function PATCH(
     invalidateCache(`project-${id}`);
     invalidateCache("projects");
     invalidateCache("projects-mesures");
+
+    // Si un ÉTAT a changé (clôture, passage en "RDV à fixer", etc.) → mise à
+    // jour INSTANTANÉE du cache partagé Redis + réconciliation en arrière-plan,
+    // pour zéro latence app ↔ Notion sur ce qui alimente les panneaux.
+    const statusUpdates: Record<string, unknown> = {};
+    for (const f of ["etatCMD", "etatMesures", "etatSAV"]) {
+      if (Object.prototype.hasOwnProperty.call(body, f)) {
+        statusUpdates[f] = (body as Record<string, unknown>)[f];
+      }
+    }
+    if (Object.keys(statusUpdates).length > 0) {
+      await onStatusChange(id, statusUpdates);
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     const isRateLimit = error?.status === 429 || error?.code === "rate_limited";
