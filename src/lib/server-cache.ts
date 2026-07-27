@@ -33,9 +33,13 @@ const FRESH_MS = 5 * 1000;          // 5 s — fenêtre où la donnée est consi
 // sert ce snapshot (~1-2 s) au lieu d'attaquer Notion en direct (~10 s), puis on
 // revalide en arrière-plan. C'est le seul cache "partagé entre instances" dont on
 // dispose (l'app n'a pas de store rapide type Redis).
+// UNIQUEMENT les listes RDV (taille raisonnable, confirmées dans Redis). On
+// EXCLUT volontairement les grosses listes (all-active ~1350, all-raw, cmd-termine)
+// : trop grosses pour Redis, et la lecture du snapshot avant la requête Notion
+// ferait déborder le délai max de la route (→ timeout → "Projets en cours" /
+// "Archives" vides). Elles gardent leur chemin direct d'origine.
 const SNAPSHOT_KEYS = new Set([
   "projects", "projects-mesures", "projects-services", "projects-sav",
-  "projects-all-active", "projects-cmd-termine", "projects-all-raw",
 ]);
 
 // Cache de secours : conserve les données jusqu'à 30 min même après expiration
