@@ -15,6 +15,14 @@
 //   données connues plutôt que de propager une 500 côté client.
 
 import { getData } from "./kv-store";
+import { redisEnabled, redisGetJSON, redisSetJSON } from "./redis-cache";
+
+/** Écrit une liste dans le cache Redis partagé (fire-and-forget). */
+function persistShared(key: string, data: unknown): void {
+  if (redisEnabled && SNAPSHOT_KEYS.has(key)) {
+    redisSetJSON(`sc:${key}`, data).catch(() => {});
+  }
+}
 
 const cache = new Map<string, { data: unknown; expires: number; staleAt: number }>();
 const TTL = 5 * 60 * 1000;          // 5 min — durée totale avant purge
@@ -129,6 +137,7 @@ export function revalidateInBackground<T>(
     try {
       const data = await fetcher();
       setCache(key, data);
+      persistShared(key, data);
     } catch (err) {
       // Silencieux : on garde la donnée périmée jusqu'à la prochaine tentative.
       console.error(`[server-cache] revalidate failed for ${key}:`, (err as Error).message);
@@ -162,6 +171,7 @@ export async function cachedOrFetch<T>(
       try {
         const data = await fetcher();
         setCache(key, data);
+        persistShared(key, data);
         return data;
       } catch (err: any) {
         const fallback = getFallback<T>(key);
@@ -191,9 +201,20 @@ export async function cachedOrFetch<T>(
       // partagé (KV, ~1-2 s) tenu à jour par le cron. On le sert immédiatement
       // et on revalide en arrière-plan → l'utilisateur ne subit jamais l'attente
       // Notion complète sur un chargement normal.
-      // Pas pendant le build Next (prerender) : la lecture snapshot ferait
+      // Pas pendant le build Next (prerender) : les lectures cache feraient
       // déborder le timeout de 60 s des routes lourdes.
       if (SNAPSHOT_KEYS.has(key) && process.env.NEXT_PHASE !== "phase-production-build") {
+        // 1) Cache Redis PARTAGÉ (rapide, ~50-100 ms) — le vrai correctif contre
+        //    le "10 s sur instance froide". Servi immédiatement + revalidation.
+        if (redisEnabled) {
+          const r = await redisGetJSON<T>(`sc:${key}`);
+          if (Array.isArray(r) && (r as unknown[]).length > 0) {
+            setCache(key, r);
+            revalidateInBackground(key, fetcher);
+            return r;
+          }
+        }
+        // 2) Repli : snapshot Notion-KV (plus lent que Redis, ~1-2 s).
         try {
           const snap = await getData(`snapshot-${key}`);
           if (Array.isArray(snap) && snap.length > 0) {
@@ -205,6 +226,7 @@ export async function cachedOrFetch<T>(
       }
       const data = await fetcher();
       setCache(key, data);
+      persistShared(key, data);
       return data;
     } catch (err: any) {
       // Fallback : retourner les dernières données connues pour éviter une 500.

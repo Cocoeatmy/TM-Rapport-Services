@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProjects, getProjectsMesures, getProjectsServices, getProjectsSAV, getAllActiveProjects, flushRelationCacheToKV } from "@/lib/notion";
 import { setCache } from "@/lib/server-cache";
 import { setData } from "@/lib/kv-store";
+import { redisSetJSON } from "@/lib/redis-cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -37,9 +38,9 @@ export async function GET(request: NextRequest) {
       try {
         const data = await task.fn();
         setCache(task.cacheKey, data);
-        // Persiste aussi le snapshot PARTAGÉ (KV) : c'est lui que server-cache
-        // sert aux instances serverless froides (repli rapide ~1-2 s au lieu de
-        // ~10 s Notion). En le réécrivant à chaque sync, le repli reste frais.
+        // Cache RAPIDE partagé (Redis) — servi en priorité aux instances froides.
+        try { await redisSetJSON(`sc:${task.cacheKey}`, data); } catch {}
+        // Repli snapshot Notion-KV (utilisé si Redis non configuré / indisponible).
         try { await setData(`snapshot-${task.cacheKey}`, data); } catch {}
         results[task.name] = { count: data.length, ms: Date.now() - t0 };
       } catch (err: any) {
