@@ -1009,19 +1009,19 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
 
               const avantPhotos = [...(buckets.AVANT_INTERVENTION || []), ...(buckets.AVANT_MONTAGE || [])];
               const demontagePhotos = buckets.DEMONTAGE || [];
-              // APRES_INTERVENTION est stocké dans le même champ Notion "Photos montage terminé"
-              // que MONTAGE_GAUCHE/CENTRE/DROITE → on les regroupe tous sous "Photos montage"
-              // pour éviter toute confusion (upload manuel, etc.)
               const montagePhotos = [
                 ...(buckets.MONTAGE_GAUCHE || []),
                 ...(buckets.MONTAGE_CENTRE || []),
                 ...(buckets.MONTAGE_DROITE || []),
-                ...(buckets.APRES_INTERVENTION || []),
               ];
+              // « Photos après intervention » : section distincte (comme QR Code /
+              // Garanties). Les photos uploadées via l'app portent le préfixe
+              // "Apres intervention" → detectBucket les classe correctement.
+              const apresPhotos = buckets.APRES_INTERVENTION || [];
               const qrPhotos = buckets.QR_CODE || [];
               const garPhotos = buckets.GARANTIE || [];
 
-              const hasAny = avantPhotos.length > 0 || demontagePhotos.length > 0 || montagePhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0;
+              const hasAny = avantPhotos.length > 0 || demontagePhotos.length > 0 || montagePhotos.length > 0 || apresPhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0;
               if (!hasAny) return null;
 
               return (
@@ -1061,6 +1061,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                   {avantPhotos.length > 0 && renderBucketGrid("Photos avant intervention", avantPhotos, `cab-${cabKey}-avant`)}
                   {demontagePhotos.length > 0 && renderBucketGrid("Photos démontage", demontagePhotos, `cab-${cabKey}-demontage`)}
                   {montagePhotos.length > 0 && renderBucketGrid("Photos montage", montagePhotos, `cab-${cabKey}-montage`)}
+                  {apresPhotos.length > 0 && renderBucketGrid("Photos après intervention", apresPhotos, `cab-${cabKey}-apres`)}
                   {renderQrGarantieRow(qrPhotos, garPhotos, `cab-${cabKey}-qrgar`)}
                   <View style={styles.footer} fixed>
                     <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
