@@ -1,8 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Send, Loader2, CheckCheck } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { getQueue, processQueue, isOnline } from "@/lib/offline";
+
+/** Avion en papier façon Telegram (Lucide n'inclut pas les logos de marque). */
+function TelegramIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M9.417 15.181l-.397 5.584c.568 0 .814-.244 1.109-.537l2.663-2.545 5.518 4.041c1.012.564 1.725.267 1.998-.931l3.622-16.972.001-.001c.321-1.496-.541-2.081-1.527-1.714L2.226 10.242c-1.453.564-1.431 1.374-.247 1.741l5.443 1.693L19.865 5.765c.595-.394 1.136-.176.691.218z" />
+    </svg>
+  );
+}
 import {
   processPendingUploads,
   countPendingUploads,
@@ -119,10 +128,8 @@ export function SendPendingButton() {
     >
       {sending ? (
         <Loader2 className="w-4 h-4 animate-spin" />
-      ) : hasPending ? (
-        <Send className="w-4 h-4" />
       ) : (
-        <CheckCheck className="w-4 h-4" />
+        <TelegramIcon className="w-[18px] h-[18px]" />
       )}
       {hasPending && !sending && (
         <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-[#3b1e6e] shadow">
