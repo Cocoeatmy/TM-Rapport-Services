@@ -50,7 +50,7 @@ import { SiteTimer } from "@/components/site-timer";
 // StockUsage supprimée (section retirée)
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
-import { Star, Share2, RefreshCw, PenLine, ImageDown } from "lucide-react";
+import { Star, Share2, RefreshCw, PenLine, ImageDown, Lock } from "lucide-react";
 import { toggleFavorite, isFavorite } from "@/lib/favorites";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1739,6 +1739,84 @@ function EditableTextField({ label, value, projectId, fieldName, notionField, mu
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Note de montage à USAGE INTERNE — jamais envoyée au client (ni dans le PDF,
+ * ni dans le portail client). Zone toujours éditable, sauvegarde automatique
+ * débouncée (1,5 s) vers la propriété Notion « Commentaires interne ».
+ * Style volontairement distinct (fond ambré/sombre + cadenas) pour qu'on ne la
+ * confonde jamais avec le rapport visible par le client.
+ */
+function InternalNoteField({
+  projectId,
+  value,
+  onUpdate,
+}: {
+  projectId: string;
+  value: string;
+  onUpdate: (v: string) => void;
+}) {
+  const [draft, setDraft] = useState(value || "");
+  const [savedAt, setSavedAt] = useState<"idle" | "saving" | "saved">("idle");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editedRef = useRef(false);
+
+  // Le projet se charge en deux temps (init local puis données Notion fraîches).
+  // Tant que l'utilisateur n'a pas tapé, on adopte la valeur serveur pour ne
+  // jamais afficher une note vide alors que Notion en contient déjà une.
+  useEffect(() => {
+    if (!editedRef.current) setDraft(value || "");
+  }, [value]);
+
+  const scheduleSave = (next: string) => {
+    editedRef.current = true;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setSavedAt("saving");
+    timerRef.current = setTimeout(async () => {
+      try {
+        await offlineFetch(`/api/projects/${projectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ noteInterneMontage: next }),
+        });
+        onUpdate(next);
+        setSavedAt("saved");
+      } catch {
+        setSavedAt("idle");
+      }
+    }, 1500);
+  };
+
+  return (
+    <div className="rounded-2xl border-2 border-amber-300 dark:border-amber-700/60 bg-amber-50/80 dark:bg-amber-950/30 p-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="w-6 h-6 rounded-lg bg-amber-200/80 dark:bg-amber-800/50 flex items-center justify-center shrink-0">
+          <Lock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 leading-tight">
+            Note interne
+          </p>
+          <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-tight">
+            Non visible par le client — communication entre collaborateurs
+          </p>
+        </div>
+        {savedAt === "saved" && (
+          <span className="ml-auto flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+            <Check className="w-3 h-3" /> Enregistré
+          </span>
+        )}
+      </div>
+      <Textarea
+        placeholder="Informations réservées à l'équipe (accès, difficultés, à prévoir pour le SAV…)"
+        value={draft}
+        onChange={(e) => { setDraft(e.target.value); scheduleSave(e.target.value); }}
+        rows={3}
+        className="bg-white/70 dark:bg-slate-900/40 border-amber-200 dark:border-amber-800/50 focus-visible:ring-amber-400"
+      />
     </div>
   );
 }
@@ -5789,6 +5867,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       <>
                         <div>
                           <Label>Rapport du monteur <span className="text-red-500">*</span></Label>
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Visible par le client dans le rapport</p>
                           <div className="mt-2 space-y-2">
                             {[
                               "L'installation s'est déroulée sans encombre.",
@@ -5854,6 +5933,11 @@ function ProjectPageContent({ id }: { id: string }) {
                             />
                           </div>
                         </div>
+                        <InternalNoteField
+                          projectId={id}
+                          value={project.noteInterneMontage}
+                          onUpdate={(v) => setProject({ ...project, noteInterneMontage: v })}
+                        />
                         {rapport.trim() && (
                           <button
                             type="button"
@@ -6753,6 +6837,16 @@ function ProjectPageContent({ id }: { id: string }) {
                   <DefautsList projectId={id} refreshKey={defautRefreshKey} />
                 </CardContent>
               </Card>
+            )}
+
+            {/* Note interne (niveau projet) — en multi-cabine seulement : en
+                mono-cabine elle est déjà rendue dans la carte du rapport. */}
+            {isCabineMode && (
+              <InternalNoteField
+                projectId={id}
+                value={project.noteInterneMontage}
+                onUpdate={(v) => setProject({ ...project, noteInterneMontage: v })}
+              />
             )}
 
             {/* Signature client */}

@@ -146,6 +146,9 @@ export interface Project {
   heureDepart: string;
   commentairesMontages: string;
   rapportMonteur: string;
+  /** Note de montage à usage interne — JAMAIS exposée au client (ni PDF, ni
+   *  portail client). Communication entre collaborateurs uniquement. */
+  noteInterneMontage: string;
   photosAvant: FileItem[];
   photosDemontage: FileItem[];
   photosMontage: FileItem[];
@@ -367,6 +370,7 @@ export function mapPageToProject(page: any): Project {
     nbCabinesInstallees: extractNumber(p["Nb. Cabines installées"]),
     commentairesMontages: extractText(p["Commentaires Montages"]),
     rapportMonteur: extractText(p["Rapport monteur"]),
+    noteInterneMontage: extractText(p["Commentaires interne"]),
     photosAvant: extractFiles(p["Photos avant montage"]),
     photosDemontage: extractFiles(p["Photos démontage"]),
     photosMontage: extractFiles(p["Photos montage terminé"]),
@@ -916,6 +920,7 @@ export async function updateProject(
     nbCabinesInstallees?: number;
     commentairesMontages?: string;
     rapportMonteur?: string;
+    noteInterneMontage?: string;
     dateMontage?: string | null;
     dateMesures?: string | null;
     dateDemandeProjet?: string | null;
@@ -976,6 +981,11 @@ export async function updateProject(
   if (data.rapportMonteur !== undefined) {
     properties["Rapport monteur"] = {
       rich_text: toRichText(data.rapportMonteur),
+    };
+  }
+  if (data.noteInterneMontage !== undefined) {
+    properties["Commentaires interne"] = {
+      rich_text: toRichText(data.noteInterneMontage),
     };
   }
   if (data.dateMontage !== undefined) {
