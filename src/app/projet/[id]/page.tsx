@@ -5966,10 +5966,21 @@ function ProjectPageContent({ id }: { id: string }) {
                   <CardContent className="space-y-4 pt-4">
                     {monoActiveTab === "rapport" && (
                       <>
-                        <div>
-                          <Label>Rapport du monteur <span className="text-red-500">*</span></Label>
-                          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Visible par le client dans le rapport</p>
-                          <div className="mt-2 space-y-2">
+                        <div className="rounded-2xl border-2 border-blue-200 dark:border-blue-900/50 bg-blue-50/40 dark:bg-blue-950/20 p-4 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center shrink-0">
+                              <FileText className="w-3.5 h-3.5 text-[#1e3a5f] dark:text-blue-300" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-[#1e3a5f] dark:text-blue-200 leading-tight">
+                                Rapport du monteur <span className="text-red-500">*</span>
+                              </p>
+                              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
+                                Visible par le client dans le rapport
+                              </p>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
                             {[
                               "L'installation s'est déroulée sans encombre.",
                               "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",
@@ -6012,20 +6023,19 @@ function ProjectPageContent({ id }: { id: string }) {
                             value={rapport}
                             onChange={(e) => { setRapport(e.target.value); scheduleAutoSave(); }}
                             rows={3}
-                            className="mt-3"
+                            className="bg-white/70 dark:bg-slate-900/40"
                           />
-                          {rapport.trim().length > 10 && (
-                            <button
-                              type="button"
-                              onClick={handleReformulate}
-                              disabled={reformulating}
-                              className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50"
-                            >
-                              {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                              {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
-                            </button>
-                          )}
-                          <div className="mt-3">
+                          <button
+                            type="button"
+                            onClick={handleReformulate}
+                            disabled={reformulating || rapport.trim().length < 10}
+                            title={rapport.trim().length < 10 ? "Écrivez d'abord quelques mots" : undefined}
+                            className="flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                            {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+                          </button>
+                          <div>
                             <VoiceRecorder
                               onTranscript={(text) => {
                                 setRapport((prev) => (prev ? prev + "\n" + text : text));
