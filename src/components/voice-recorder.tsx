@@ -5,6 +5,10 @@ import { Mic, Loader2, RotateCcw, Plus, Sparkles, AlertCircle, Square } from "lu
 
 interface VoiceRecorderProps {
   onTranscript: (text: string) => void;
+  /** Palette de couleur. "amber" pour la zone Note interne, sinon bleu (défaut). */
+  accent?: "blue" | "amber";
+  /** Libellé du bouton d'ajout (défaut « Ajouter au rapport »). */
+  addLabel?: string;
 }
 
 type Status = "idle" | "recording" | "transcribing" | "done" | "error";
@@ -19,7 +23,8 @@ function extFromMime(mime: string): string {
   return "webm";
 }
 
-export function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
+export function VoiceRecorder({ onTranscript, accent = "blue", addLabel = "Ajouter au rapport" }: VoiceRecorderProps) {
+  const amber = accent === "amber";
   const [status, setStatus] = useState<Status>("idle");
   const [transcript, setTranscript] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -121,7 +126,11 @@ export function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
   const isTranscribing = status === "transcribing";
 
   return (
-    <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm p-4 space-y-3">
+    <div className={`rounded-2xl border backdrop-blur-sm p-4 space-y-3 ${
+      amber
+        ? "border-amber-200 dark:border-amber-800/50 bg-white/70 dark:bg-slate-900/40"
+        : "border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-slate-800/60"
+    }`}>
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -130,7 +139,9 @@ export function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
           className={`w-11 h-11 rounded-full flex items-center justify-center transition-all shrink-0 disabled:opacity-60 ${
             isRecording
               ? "bg-red-500 text-white shadow-lg shadow-red-500/30"
-              : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600 active:scale-95"
+              : amber
+                ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 active:scale-95"
+                : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600 active:scale-95"
           }`}
           aria-label={isRecording ? "Arrêter l'enregistrement" : "Démarrer la dictée"}
         >
@@ -163,13 +174,21 @@ export function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
             value={transcript}
             onChange={(e) => setTranscript(e.target.value)}
             rows={3}
-            className="w-full text-sm p-3 rounded-xl bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/30"
+            className={`w-full text-sm p-3 rounded-xl bg-gray-50 dark:bg-slate-700/50 border text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 ${
+              amber
+                ? "border-amber-200 dark:border-amber-800/50 focus:ring-amber-400/40"
+                : "border-gray-200 dark:border-slate-600 focus:ring-[#1e3a5f]/30"
+            }`}
           />
           <button
             type="button"
             onClick={reformulate}
             disabled={reformulating || transcript.trim().length < 3}
-            className="flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50"
+            className={`flex items-center gap-1.5 text-xs disabled:opacity-50 ${
+              amber
+                ? "text-amber-700 dark:text-amber-400 hover:text-amber-800"
+                : "text-purple-600 dark:text-purple-400 hover:text-purple-700"
+            }`}
           >
             {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
             {reformulating ? "Reformulation en cours…" : "Reformuler avec l'IA"}
@@ -179,10 +198,12 @@ export function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
               type="button"
               onClick={addToReport}
               disabled={!transcript.trim()}
-              className="flex-1 flex items-center justify-center gap-2 h-9 rounded-xl bg-[#1e3a5f] text-white text-sm font-medium hover:bg-[#2a4a73] active:scale-[0.98] transition-all disabled:opacity-50"
+              className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-xl text-white text-sm font-medium active:scale-[0.98] transition-all disabled:opacity-50 ${
+                amber ? "bg-amber-600 hover:bg-amber-700" : "bg-[#1e3a5f] hover:bg-[#2a4a73]"
+              }`}
             >
               <Plus className="w-4 h-4" />
-              Ajouter au rapport
+              {addLabel}
             </button>
             <button
               type="button"

@@ -1761,6 +1761,7 @@ function InternalNoteField({
 }) {
   const [draft, setDraft] = useState(value || "");
   const [savedAt, setSavedAt] = useState<"idle" | "saving" | "saved">("idle");
+  const [reformulating, setReformulating] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editedRef = useRef(false);
 
@@ -1790,6 +1791,34 @@ function InternalNoteField({
     }, 1500);
   };
 
+  const applyText = (text: string) => {
+    setDraft(text);
+    scheduleSave(text);
+  };
+
+  const handleReformulate = async () => {
+    if (!draft.trim() || draft.trim().length < 10 || reformulating) return;
+    setReformulating(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Reformule cette note interne de chantier de manière claire et concise, à destination des collaborateurs. Garde le sens exact mais améliore la formulation. Réponds uniquement avec le texte reformulé, sans introduction ni commentaire :\n\n${draft}`,
+        }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        const out = (d.answer || d.response || "").trim();
+        if (out) applyText(out);
+      }
+    } catch {
+      /* silencieux — l'utilisateur garde son texte */
+    } finally {
+      setReformulating(false);
+    }
+  };
+
   return (
     <div className="rounded-2xl border-2 border-amber-300 dark:border-amber-700/60 bg-amber-50/80 dark:bg-amber-950/30 p-4 space-y-2">
       <div className="flex items-center gap-2">
@@ -1817,6 +1846,24 @@ function InternalNoteField({
         rows={3}
         className="bg-white/70 dark:bg-slate-900/40 border-amber-200 dark:border-amber-800/50 focus-visible:ring-amber-400"
       />
+      {draft.trim().length > 10 && (
+        <button
+          type="button"
+          onClick={handleReformulate}
+          disabled={reformulating}
+          className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 hover:text-amber-800 disabled:opacity-50"
+        >
+          {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+        </button>
+      )}
+      <div className="pt-1">
+        <VoiceRecorder
+          accent="amber"
+          addLabel="Ajouter à la note"
+          onTranscript={(text) => applyText(draft ? draft + "\n" + text : text)}
+        />
+      </div>
     </div>
   );
 }
