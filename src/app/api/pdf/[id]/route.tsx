@@ -1272,12 +1272,23 @@ export async function GET(
     }
     const buffer = Buffer.concat(chunks);
 
-    // Nom de fichier voulu : « Rapport de montage – TM 2600615 – <nom complet du
-    // projet> » (séparateurs en tiret long, N° OFR avec espace, projet complet,
-    // sans date). NB : Telegram peut re-remplacer espaces/tirets par des «_» côté
-    // client — ça reste hors de notre contrôle, mais le contenu/ordre est correct.
-    const ofrClean = (project.ofrTM || "")
-      .replace(/[\r\n]+/g, " ")   // OFR multi-lignes → une ligne
+    // Nom de fichier voulu : « Rapport de montage - TM 2600615 - <nom complet du
+    // projet> - <date> ».
+    //
+    // IMPORTANT (Telegram) : on force un nom 100% ASCII (sans accents, tiret
+    // simple). Un seul caractère non-ASCII (é, à, tiret long «–») faisait
+    // basculer l'encodage du nom en RFC 5987 (filename*=UTF-8''…), que Telegram
+    // re-transforme en underscores et tronque. En ASCII pur avec espaces/tirets,
+    // Telegram préserve le nom lisible.
+    const toAscii = (s: string) =>
+      s
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")   // supprime les accents (à→a, é→e, ç→c)
+        .replace(/[–—]/g, "-")   // tirets longs → tiret simple
+        .replace(/[\r\n]+/g, " ")
+        .replace(/[^\x20-\x7E]/g, "")       // ne garde que l'ASCII imprimable
+        .replace(/[\\/:*?"<>|]/g, " ");     // caractères interdits en nom de fichier
+    const ofrClean = toAscii(project.ofrTM || "")
       .replace(/-/g, " ")          // "TM-2600615" → "TM 2600615"
       .replace(/\s+/g, " ")
       .trim();
@@ -1285,11 +1296,9 @@ export async function GET(
     const dateMontageStr = project.dateMontage
       ? new Date(project.dateMontage.split("T")[0] + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "2-digit" }).replace(/\//g, ".")
       : new Date().toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "2-digit" }).replace(/\//g, ".");
-    const filename = `Rapport de montage – ${ofrClean} – ${project.projet || ""} – ${dateMontageStr}.pdf`
-      .normalize("NFC") // Notion renvoie parfois du NFD (a + combining accent) → on recompose avant le filtre
-      .replace(/[\r\n]+/g, " ")
-      .replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ &+.,'\-–]/g, "_")
-      .replace(/__+/g, "_")
+    const filename = (
+      `Rapport de montage - ${ofrClean} - ${toAscii(project.projet || "")} - ${dateMontageStr}.pdf`
+    )
       .replace(/\s+/g, " ")
       .trim();
 
