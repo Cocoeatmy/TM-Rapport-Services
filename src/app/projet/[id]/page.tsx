@@ -1639,6 +1639,16 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
   );
 }
 
+// Mentions de présence du client dans le rapport du monteur. Doivent
+// correspondre EXACTEMENT au libellé des boutons de la section « Rapport du
+// monteur » pour que la coche se synchronise dans les deux sens.
+const PRESENCE_CLIENT = "Client présent lors du montage, travaux validés par client.";
+const PRESENCE_PERSONNE = "Personne sur site lors du montage.";
+/** Le rapport indique-t-il déjà si un client était présent ou non ? */
+function hasPresenceStatement(rapport: string): boolean {
+  return rapport.includes(PRESENCE_CLIENT) || rapport.includes(PRESENCE_PERSONNE);
+}
+
 function EditableTextField({ label, value, projectId, fieldName, notionField, multiline, onUpdate, hideLabel }: {
   label: string; value: string; projectId: string; fieldName: string; notionField: string; multiline?: boolean; onUpdate: (v: string) => void; hideLabel?: boolean;
 }) {
@@ -2703,7 +2713,11 @@ function ProjectPageContent({ id }: { id: string }) {
   const [missingPhotosPrompt, setMissingPhotosPrompt] = useState<{
     kind: "save" | "send";
     missing: string[];
+    /** Si vrai, on force aussi le choix « client présent / personne sur site ». */
+    needsPresence?: boolean;
   } | null>(null);
+  // Demande de signature obligatoire (client présent mais pas encore signé).
+  const [signatureRequiredPrompt, setSignatureRequiredPrompt] = useState(false);
   // Dernière version connue côté serveur des champs éditables texte.
   // Sert au merge intelligent du polling : si le serveur a changé ET
   // que la valeur locale correspond encore à la snapshot (= l'utilisateur
@@ -4252,17 +4266,58 @@ function ProjectPageContent({ id }: { id: string }) {
     }
   };
 
-  const handleSendReport = async (opts: { force?: boolean } = {}) => {
+  // Présence sélectionnée dans le rapport (dérivée du texte → aucun état en double).
+  const presenceInRapport: "client" | "personne" | null =
+    rapport.includes(PRESENCE_CLIENT) ? "client"
+    : rapport.includes(PRESENCE_PERSONNE) ? "personne"
+    : null;
+
+  /** Coche l'une des deux mentions de présence (exclusives) dans le rapport. */
+  const applyPresence = (choice: "client" | "personne") => {
+    const stmt = choice === "client" ? PRESENCE_CLIENT : PRESENCE_PERSONNE;
+    setRapport((prev) => {
+      const cleaned = prev
+        .replace(PRESENCE_CLIENT, "")
+        .replace(PRESENCE_PERSONNE, "")
+        .replace(/\n{2,}/g, "\n")
+        .trim();
+      return (cleaned ? cleaned + "\n" : "") + stmt;
+    });
+    scheduleAutoSave();
+  };
+
+  const handleSendReport = async (opts: { force?: boolean; skipSignature?: boolean } = {}) => {
     if (!project) return;
-    if (!opts.force) {
-      const missing = missingBucketLabels(project, {
+
+    const computeMissing = () =>
+      missingBucketLabels(project, {
         multiCabine: isCabineMode,
         nbCabines: isCabineMode ? cabines.length : (project.nbCabines || 0),
       });
+
+    // ── Porte 1 : présence du client OBLIGATOIRE (jamais contournable) ──
+    // Le monteur doit avoir indiqué « Client présent… » ou « Personne sur
+    // site… ». Sinon on rouvre l'alerte en réclamant ce choix (+ photos).
+    if (!hasPresenceStatement(rapport)) {
+      setMissingPhotosPrompt({ kind: "send", missing: computeMissing(), needsPresence: true });
+      return;
+    }
+
+    // ── Porte 2 : photos manquantes (contournable via « Continuer quand même ») ──
+    if (!opts.force) {
+      const missing = computeMissing();
       if (missing.length > 0) {
-        setMissingPhotosPrompt({ kind: "send", missing });
+        setMissingPhotosPrompt({ kind: "send", missing, needsPresence: false });
         return;
       }
+    }
+
+    // ── Porte 3 : signature OBLIGATOIRE si client présent (contournable en dernier
+    // recours si le client n'a pas pu signer). Placée APRÈS les photos pour que
+    // le monteur voie d'abord l'alerte photos. ──
+    if (!opts.skipSignature && rapport.includes(PRESENCE_CLIENT) && !signature) {
+      setSignatureRequiredPrompt(true);
+      return;
     }
     setSending(true);
     try {
@@ -6897,7 +6952,7 @@ function ProjectPageContent({ id }: { id: string }) {
             )}
 
             {/* Signature client */}
-            <Card>
+            <Card id="signature-card">
               <CardContent className="pt-4">
                 <SignaturePad
                   label="Signature du client"
@@ -7238,45 +7293,151 @@ function ProjectPageContent({ id }: { id: string }) {
             className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-amber-500 text-white px-5 py-4 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
-              <h3 className="text-base font-semibold">Photos manquantes</h3>
+            {(() => {
+              const hasMissing = missingPhotosPrompt.missing.length > 0;
+              const needsPresence = !!missingPhotosPrompt.needsPresence;
+              const presenceMissing = needsPresence && !presenceInRapport;
+              const title = needsPresence
+                ? (hasMissing ? "Avant d'envoyer le rapport" : "Client sur place ?")
+                : "Photos manquantes";
+              return (
+                <>
+                  <div className="bg-amber-500 text-white px-5 py-4 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5" />
+                    <h3 className="text-base font-semibold">{title}</h3>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    {/* Bloc PRÉSENCE — coche la bonne case du rapport du monteur. */}
+                    {needsPresence && (
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-700 dark:text-gray-200">
+                          Merci d'indiquer si un client était présent lors du montage :
+                        </p>
+                        {([
+                          { key: "client" as const, label: PRESENCE_CLIENT },
+                          { key: "personne" as const, label: PRESENCE_PERSONNE },
+                        ]).map((opt) => {
+                          const selected = presenceInRapport === opt.key;
+                          return (
+                            <button
+                              key={opt.key}
+                              type="button"
+                              onClick={() => applyPresence(opt.key)}
+                              className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${
+                                selected
+                                  ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200 font-medium"
+                                  : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300"
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                  selected ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"
+                                }`}>
+                                  {selected && <span className="text-white text-xs">✓</span>}
+                                </span>
+                                {opt.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                        {presenceInRapport === "client" && (
+                          <p className="text-[11px] text-blue-600 dark:text-blue-300">
+                            La signature du client sera demandée avant l'envoi.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Bloc PHOTOS manquantes. */}
+                    {hasMissing && (
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-700 dark:text-gray-200">
+                          {missingPhotosPrompt.kind === "send"
+                            ? "Certaines photos n'ont pas encore été ajoutées :"
+                            : "Certaines photos n'ont pas encore été ajoutées :"}
+                        </p>
+                        <ul className="text-sm space-y-1 max-h-52 overflow-y-auto bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+                          {missingPhotosPrompt.missing.map((label) => (
+                            <li key={label} className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
+                              <span className="mt-0.5 text-amber-500">•</span>
+                              <span>{label}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          Êtes-vous sûr de vouloir continuer sans ces photos ?
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-5 pb-5 flex gap-2">
+                    <button
+                      onClick={() => setMissingPhotosPrompt(null)}
+                      className="flex-1 h-10 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700"
+                    >
+                      {hasMissing ? "Ajouter les photos" : "Annuler"}
+                    </button>
+                    <button
+                      disabled={presenceMissing}
+                      onClick={() => {
+                        const kind = missingPhotosPrompt.kind;
+                        setMissingPhotosPrompt(null);
+                        if (kind === "send") handleSendReport({ force: true });
+                        else handleSave({ force: true });
+                      }}
+                      className="flex-1 h-10 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {hasMissing ? "Continuer quand même" : "Valider et continuer"}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Signature obligatoire — client présent mais rapport pas encore signé. */}
+      {signatureRequiredPrompt && typeof document !== "undefined" && createPortal(
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 70, transform: "translateZ(0)" }}
+          className="flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setSignatureRequiredPrompt(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-[#1e3a5f] text-white px-5 py-4 flex items-center gap-2">
+              <PenLine className="w-5 h-5" />
+              <h3 className="text-base font-semibold">Signature du client requise</h3>
             </div>
             <div className="p-5 space-y-3">
               <p className="text-sm text-gray-700 dark:text-gray-200">
-                {missingPhotosPrompt.kind === "send"
-                  ? "Vous êtes sur le point d'envoyer le rapport, mais certaines photos n'ont pas encore été ajoutées :"
-                  : "Vous êtes sur le point d'enregistrer le rapport, mais certaines photos n'ont pas encore été ajoutées :"}
-              </p>
-              <ul className="text-sm space-y-1 max-h-60 overflow-y-auto bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
-                {missingPhotosPrompt.missing.map((label) => (
-                  <li key={label} className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
-                    <span className="mt-0.5 text-amber-500">•</span>
-                    <span>{label}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Êtes-vous sûr de vouloir continuer sans ces photos ?
+                Vous avez indiqué que le client était présent et a validé les travaux.
+                La signature du client est nécessaire avant d'envoyer le rapport.
               </p>
             </div>
-            <div className="px-5 pb-5 flex gap-2">
+            <div className="px-5 pb-5 space-y-2">
               <button
-                onClick={() => setMissingPhotosPrompt(null)}
-                className="flex-1 h-10 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700"
+                onClick={() => {
+                  setSignatureRequiredPrompt(false);
+                  const el = document.getElementById("signature-card");
+                  if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                }}
+                className="w-full h-11 rounded-lg bg-[#1e3a5f] hover:bg-[#2a4a73] text-white text-sm font-semibold"
               >
-                Ajouter les photos
+                Faire signer le client
               </button>
               <button
                 onClick={() => {
-                  const kind = missingPhotosPrompt.kind;
-                  setMissingPhotosPrompt(null);
-                  if (kind === "send") handleSendReport({ force: true });
-                  else handleSave({ force: true });
+                  setSignatureRequiredPrompt(false);
+                  handleSendReport({ skipSignature: true, force: true });
                 }}
-                className="flex-1 h-10 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium"
+                className="w-full h-9 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
-                Continuer quand même
+                Le client n'a pas pu signer — envoyer sans signature
               </button>
             </div>
           </div>
