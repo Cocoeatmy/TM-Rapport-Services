@@ -68,6 +68,17 @@ export default function RootLayout({
               "(function(){function u(){document.documentElement.classList.toggle('anim-paused',document.hidden)}document.addEventListener('visibilitychange',u);u();})();",
           }}
         />
+        {/* Fluidité au scroll (surtout sur GPU/RAM modestes) : pendant qu'on
+            scrolle, on met en pause l'animation du fond dégradé. Le fond paraît
+            identique mais on supprime les repaints plein écran continus qui,
+            combinés aux backdrop-filter des cartes, provoquent des micro-lags.
+            Retour à l'état animé 180 ms après l'arrêt du scroll. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){var t,on=false,d=document.documentElement;function off(){on=false;d.classList.remove('is-scrolling');}function s(){if(!on){on=true;d.classList.add('is-scrolling');}clearTimeout(t);t=setTimeout(off,180);}window.addEventListener('scroll',s,{passive:true,capture:true});})();",
+          }}
+        />
         {/* Applique le thème UI avant l'hydration React pour éviter un flash
             de style au chargement. Lit `tm-ui-mode` (classic|aurora|ocean). */}
         <script

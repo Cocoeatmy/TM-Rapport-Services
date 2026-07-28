@@ -15,6 +15,20 @@ html.anim-paused *::after {
   animation-play-state: paused !important;
 }
 
+/* 1bis) Pendant le SCROLL : on met en pause uniquement les fonds animés (pas
+      tout le reste). Le fond dégradé qui s'anime en continu est re-échantillonné
+      par chaque backdrop-filter à chaque frame → micro-saccades sur GPU modeste.
+      Le figer le temps du scroll est invisible mais supprime ces repaints.
+      La classe `is-scrolling` est posée/retirée par un listener dans layout.tsx. */
+html.is-scrolling .lg-bg,
+html.is-scrolling .lg-bg::before,
+html.is-scrolling .lg-bg::after,
+html.is-scrolling [class*="-bg"],
+html.is-scrolling [class*="-bg"]::before,
+html.is-scrolling [class*="-bg"]::after {
+  animation-play-state: paused !important;
+}
+
 /* 2) L'utilisateur a activé "Réduire les animations" (réglage iOS/macOS souvent
       utilisé pour économiser la batterie) → on coupe les animations de fond. */
 @media (prefers-reduced-motion: reduce) {
