@@ -1281,7 +1281,11 @@ export async function GET(
       .replace(/-/g, " ")          // "TM-2600615" → "TM 2600615"
       .replace(/\s+/g, " ")
       .trim();
-    const filename = `Rapport de montage – ${ofrClean} – ${project.projet || ""}.pdf`
+    // Date du RDV de montage (jj.mm.aa) ajoutée en fin de nom.
+    const dateMontageStr = project.dateMontage
+      ? new Date(project.dateMontage.split("T")[0] + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "2-digit" }).replace(/\//g, ".")
+      : new Date().toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "2-digit" }).replace(/\//g, ".");
+    const filename = `Rapport de montage – ${ofrClean} – ${project.projet || ""} – ${dateMontageStr}.pdf`
       .normalize("NFC") // Notion renvoie parfois du NFD (a + combining accent) → on recompose avant le filtre
       .replace(/[\r\n]+/g, " ")
       .replace(/[^a-zA-Z0-9àâäéèêëïîôùûüçÀÂÄÉÈÊËÏÎÔÙÛÜÇ &+.,'\-–]/g, "_")
