@@ -192,21 +192,34 @@ export function bucketsPresent(
   return present;
 }
 
-/** Liste les buckets manquants au format texte, pour un projet mono ou multi-cabine. */
+// Groupes de photos vérifiés à l'envoi du rapport (version ACTUELLE). Un groupe
+// est « présent » si AU MOINS un de ses buckets a une photo. Les 3 photos de
+// montage (gauche/centre/droite) sont regroupées en une seule ligne, et l'ancien
+// bucket "AVANT_MONTAGE" (jamais uploadé) est retiré.
+const MISSING_CHECK_GROUPS: { label: string; buckets: PhotoBucketKey[] }[] = [
+  { label: "Photos avant intervention", buckets: ["AVANT_INTERVENTION"] },
+  { label: "Photos démontage", buckets: ["DEMONTAGE"] },
+  { label: "Photos montage (1 gauche, 1 centre, 1 droite)", buckets: ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE"] },
+  { label: "Photos après intervention", buckets: ["APRES_INTERVENTION"] },
+  { label: "Photos QR Code", buckets: ["QR_CODE"] },
+  { label: "Photos Garantie", buckets: ["GARANTIE"] },
+];
+
+/** Liste les groupes de photos manquants au format texte, mono ou multi-cabine. */
 export function missingBucketLabels(
   project: ProjectPhotoSources,
   options: { multiCabine: boolean; nbCabines: number },
 ): string[] {
+  const missingGroups = (present: Set<PhotoBucketKey>) =>
+    MISSING_CHECK_GROUPS.filter((g) => !g.buckets.some((b) => present.has(b))).map((g) => g.label);
+
   if (!options.multiCabine || options.nbCabines <= 1) {
-    const present = bucketsPresent(project);
-    return BUCKET_ORDER.filter((b) => !present.has(b)).map((b) => BUCKET_LABEL[b]);
+    return missingGroups(bucketsPresent(project));
   }
   const out: string[] = [];
   for (let i = 1; i <= options.nbCabines; i++) {
-    const present = bucketsPresent(project, i);
-    const missing = BUCKET_ORDER.filter((b) => !present.has(b));
-    for (const b of missing) {
-      out.push(`Cabine ${i} — ${BUCKET_LABEL[b]}`);
+    for (const label of missingGroups(bucketsPresent(project, i))) {
+      out.push(`Cabine ${i} — ${label}`);
     }
   }
   return out;
