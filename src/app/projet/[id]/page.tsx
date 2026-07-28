@@ -1856,17 +1856,16 @@ function InternalNoteField({
         rows={3}
         className="bg-white/70 dark:bg-slate-900/40 border-amber-200 dark:border-amber-800/50 focus-visible:ring-amber-400"
       />
-      {draft.trim().length > 10 && (
-        <button
-          type="button"
-          onClick={handleReformulate}
-          disabled={reformulating}
-          className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 hover:text-amber-800 disabled:opacity-50"
-        >
-          {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-          {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={handleReformulate}
+        disabled={reformulating || draft.trim().length < 10}
+        title={draft.trim().length < 10 ? "Écrivez d'abord quelques mots" : undefined}
+        className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 hover:text-amber-800 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+        {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+      </button>
       <div className="pt-1">
         <VoiceRecorder
           accent="amber"
