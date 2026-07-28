@@ -4925,10 +4925,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         }
 
         // ── Filtre par état (panneaux "RDV … à fixer") ─────────────────────────
-        // On calcule les états réellement présents (chips), puis on masque ceux
-        // décochés. Le compteur du titre reflète la liste filtrée.
+        // On calcule les états présents (chips), puis on masque ceux décochés.
+        // Le TOTAL (rdvTotalCount) est mémorisé AVANT filtrage → il correspond
+        // toujours au chiffre de la tuile du dashboard. Quand un filtre est actif,
+        // le titre affiche "X / total" pour lever toute ambiguïté.
         const rdvStatusFieldFn = showSummaryPanel ? RDV_STATUS_FIELD[showSummaryPanel] : undefined;
         let rdvStatusOptions: string[] = [];
+        const rdvTotalCount = panelProjects.length;
         if (rdvStatusFieldFn) {
           const present = new Set(panelProjects.map(rdvStatusFieldFn).filter(Boolean));
           const order = (showSummaryPanel && RDV_STATUS_ORDER[showSummaryPanel]) || [];
@@ -4939,6 +4942,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const hidden = hiddenStatusOf(showSummaryPanel);
           if (hidden.size > 0) panelProjects = panelProjects.filter((p) => !hidden.has(rdvStatusFieldFn(p)));
         }
+        const rdvFiltered = rdvStatusFieldFn && panelProjects.length !== rdvTotalCount;
 
         const isRdvAFixer = false; // rdv-a-fixer has its own return above
         const isDossiersEnCours = (showSummaryPanel as string) === "dossiers-en-cours";
@@ -4949,7 +4953,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         return (
           <div className="glass-card no-lift rounded-2xl p-4 space-y-1.5">
             <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{panelTitle} ({panelProjects.length})</p>
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {panelTitle} ({rdvFiltered ? `${panelProjects.length} / ${rdvTotalCount}` : (rdvStatusFieldFn ? rdvTotalCount : panelProjects.length)})
+              </p>
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 {/* Filtre par état — chips cliquables (afficher/masquer). Placé
                     juste à gauche du sélecteur Par date / Par région. */}
