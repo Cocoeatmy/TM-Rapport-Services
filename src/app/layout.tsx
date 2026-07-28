@@ -7,6 +7,7 @@ import { AIChatbot } from "@/components/ai-chatbot";
 import { NotificationBell } from "@/components/notifications";
 import { RefreshButton } from "@/components/refresh-button";
 import { ForceSyncButton } from "@/components/force-sync-button";
+import { SendPendingButton } from "@/components/send-pending-button";
 import { CreateProjectButton } from "@/components/create-project-button";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineBanner } from "@/components/offline-banner";
@@ -93,6 +94,7 @@ export default function RootLayout({
               <NotificationBell />
               <RefreshButton />
               <SyncButton />
+              <SendPendingButton />
               <ForceSyncButton />
               <UserMenu />
             </div>
