@@ -23,6 +23,13 @@ export function SyncButton() {
   const [queueCount, setQueueCount] = useState(0);
   const [forceSyncCheckedAt, setForceSyncCheckedAt] = useState(0);
   const [, setTick] = useState(0); // force le recalcul de la couleur du nuage
+  // Force le nuage au VERT pendant un court instant après une synchro réussie
+  // (manuelle, auto, ou envoi d'un item en file). Sans ça, le nuage restait à sa
+  // couleur d'ancienneté (souvent rouge/orange) même juste après un envoi, et les
+  // collaborateurs croyaient que rien n'était synchronisé.
+  const [greenUntil, setGreenUntil] = useState(0);
+  const GREEN_HOLD_MS = 3 * 60000; // 3 minutes
+  const markSynced = useCallback(() => setGreenUntil(Date.now() + GREEN_HOLD_MS), [GREEN_HOLD_MS]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,10 +94,15 @@ export function SyncButton() {
       if (isOnline()) autoSync();
     };
 
+    // Un item retiré de la file = envoi réussi (y compris déclenché ailleurs,
+    // ex. bouton Telegram / force-sync) → nuage vert, même si ce composant n'a
+    // pas lancé la synchro lui-même.
+    const onPendingRemoved = () => { refreshCount(); setLastSync(Date.now()); markSynced(); };
+
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     window.addEventListener("tm-pending-upload-added", onPendingChange);
-    window.addEventListener("tm-pending-upload-removed", onPendingChange);
+    window.addEventListener("tm-pending-upload-removed", onPendingRemoved);
     window.addEventListener("tm-offline-queued", onPendingChange);
 
     // Auto-sync au retour au premier plan (bypass backoff + retry failed)
@@ -138,7 +150,7 @@ export function SyncButton() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("tm-pending-upload-added", onPendingChange);
-      window.removeEventListener("tm-pending-upload-removed", onPendingChange);
+      window.removeEventListener("tm-pending-upload-removed", onPendingRemoved);
       window.removeEventListener("tm-offline-queued", onPendingChange);
       document.removeEventListener("visibilitychange", handleVisibility);
       clearInterval(interval);
@@ -189,6 +201,8 @@ export function SyncButton() {
     if (totalSuccess > 0) {
       toast.success(`${totalSuccess} opération(s) synchronisée(s)`);
       setQueueCount(getQueue().length + (await countPendingUploads()));
+      setLastSync(Date.now());
+      markSynced(); // nuage vert ≥ 3 min → preuve visuelle que l'envoi est parti
     }
     autoSyncingRef.current = false;
   };
@@ -270,6 +284,7 @@ export function SyncButton() {
       const uploadResult = await processPendingUploads();
 
       setLastSync(Date.now());
+      markSynced(); // nuage vert ≥ 3 min après une synchro manuelle
       setQueueCount(getQueue().length + (await countPendingUploads()));
 
       const parts: string[] = [];
@@ -313,7 +328,10 @@ export function SyncButton() {
 
   // Couleur du nuage selon l'ancienneté de la dernière synchro :
   // 0–10 min → vert, 11–30 min → orange, ≥ 31 min → rouge.
+  // Exception : juste après une synchro réussie, on force le vert pendant
+  // GREEN_HOLD_MS (preuve visuelle pour les collaborateurs).
   const cloudColor = () => {
+    if (greenUntil && Date.now() < greenUntil) return "text-green-500";
     const serverTs = serverSyncTime ? new Date(serverSyncTime).getTime() : 0;
     const mostRecent = Math.max(lastSync, serverTs);
     if (!mostRecent) return "text-red-500";
