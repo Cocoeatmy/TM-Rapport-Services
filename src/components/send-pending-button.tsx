@@ -122,8 +122,8 @@ export function SendPendingButton() {
       }
       className={`relative w-9 h-9 shrink-0 rounded-full border flex items-center justify-center transition-all active:scale-95 disabled:opacity-60 ${
         hasPending
-          ? "bg-blue-600 hover:bg-blue-700 border-white/20 text-white"
-          : "bg-white/15 border-white/20 text-white/70 hover:bg-white/25"
+          ? "bg-white hover:bg-blue-50 border-white/40 text-blue-600 shadow"
+          : "bg-white/15 border-white/20 text-white/60 hover:bg-white/25"
       }`}
     >
       {sending ? (

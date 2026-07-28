@@ -85,7 +85,6 @@ export default function RootLayout({
           <div className="flex items-center justify-between gap-2 px-4 py-3 overflow-x-auto md:overflow-visible scrollbar-hide">
             <div className="flex items-center gap-1.5 cmm-header-left shrink-0">
               <HomeButton />
-              <AIChatbot />
               <BackButton />
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -105,6 +104,9 @@ export default function RootLayout({
         <main className="flex-1">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>
+        {/* Assistant IA : bouton flottant fixe (bas à droite), masqué sur la
+            page projet. Rendu au niveau page (positionnement fixed). */}
+        <AIChatbot />
         <Toaster position="top-center" richColors />
         <script
           dangerouslySetInnerHTML={{

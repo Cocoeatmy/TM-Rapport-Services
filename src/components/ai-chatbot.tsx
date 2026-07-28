@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Bot, Send, X, Loader2, Sparkles } from "lucide-react";
 
 interface Message {
@@ -87,6 +88,9 @@ export function AIChatbot() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  // Masqué sur la page projet (création de rapport) pour ne pas gêner.
+  const hidden = !!pathname && pathname.startsWith("/projet/");
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -120,21 +124,24 @@ export function AIChatbot() {
     }
   };
 
+  // Sur la page projet : on masque complètement l'assistant (bouton + panneau).
+  if (hidden) return null;
+
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
         aria-label="Assistant IA"
         title="Assistant IA"
-        className="w-9 h-9 shrink-0 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-white flex items-center justify-center hover:scale-105 transition-transform active:scale-95 border border-white/20"
+        className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-white flex items-center justify-center shadow-xl hover:scale-105 transition-transform active:scale-95 border border-white/20"
       >
-        <Sparkles className="w-4 h-4" />
+        <Sparkles className="w-6 h-6" />
       </button>
     );
   }
 
   return (
-    <div className="fixed top-24 right-4 w-80 sm:w-96 glass-card rounded-2xl shadow-2xl z-50 flex flex-col" style={{ maxHeight: "70vh" }}>
+    <div className="fixed bottom-5 right-5 w-80 sm:w-96 glass-card rounded-2xl shadow-2xl z-50 flex flex-col" style={{ maxHeight: "70vh" }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-purple-600 to-blue-600 rounded-t-2xl">
         <div className="flex items-center gap-2 text-white">
