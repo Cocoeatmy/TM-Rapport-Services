@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { thumbnailUrl, previewUrl } from "@/lib/image-url";
 
@@ -21,6 +21,8 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
   const [before, setBefore] = useState<BeforeAfterPhoto[]>([]);
   const [after, setAfter] = useState<BeforeAfterPhoto[]>([]);
   const [showComparison, setShowComparison] = useState(false);
+  // Section repliée par défaut → page plus légère (moins de photos affichées).
+  const [open, setOpen] = useState(false);
 
   // Toujours synchroniser avec les props (source de vérité = Notion via page.tsx)
   useEffect(() => {
@@ -33,12 +35,32 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
 
   if (!hasBefore && !hasAfter) return null;
 
+  const nbPhotos = before.length + after.length;
+
   return (
     <div className="space-y-4">
-      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-        Comparatif Avant / Apres
-      </label>
+      {/* En-tête repliable : un clic déplie / replie le comparatif. */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 text-left"
+        aria-expanded={open}
+      >
+        <ChevronRight
+          className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+        />
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          Comparatif Avant / Apres
+        </span>
+        {!open && nbPhotos > 0 && (
+          <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">
+            {nbPhotos} photo{nbPhotos > 1 ? "s" : ""}
+          </span>
+        )}
+      </button>
 
+      {open && (
+      <>
       {/* Thumbnails preview */}
       <div className="grid grid-cols-2 gap-3">
         {/* AVANT */}
@@ -159,6 +181,8 @@ export function BeforeAfterPhotos({ projectId, projectName, initialBefore, initi
             ))}
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
