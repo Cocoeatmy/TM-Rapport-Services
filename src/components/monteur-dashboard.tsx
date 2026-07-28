@@ -4931,15 +4931,22 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         // le titre affiche "X / total" pour lever toute ambiguïté.
         const rdvStatusFieldFn = showSummaryPanel ? RDV_STATUS_FIELD[showSummaryPanel] : undefined;
         let rdvStatusOptions: string[] = [];
+        let rdvHiddenCount = 0;
         const rdvTotalCount = panelProjects.length;
         if (rdvStatusFieldFn) {
+          const hidden = hiddenStatusOf(showSummaryPanel);
+          rdvHiddenCount = hidden.size;
+          // Chips = états PRÉSENTS ∪ états MASQUÉS. Inclure les masqués garantit
+          // qu'on peut TOUJOURS réactiver un état, même s'il ne reste plus aucun
+          // projet visible (ex. tous les "RDV à fixer" placés, il ne reste que
+          // des "Attendre news" masqués → le filtre doit rester réactivable).
           const present = new Set(panelProjects.map(rdvStatusFieldFn).filter(Boolean));
+          const union = new Set([...present, ...hidden]);
           const order = (showSummaryPanel && RDV_STATUS_ORDER[showSummaryPanel]) || [];
-          rdvStatusOptions = [...present].sort((a, b) => {
+          rdvStatusOptions = [...union].sort((a, b) => {
             const ia = order.indexOf(a), ib = order.indexOf(b);
             return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
           });
-          const hidden = hiddenStatusOf(showSummaryPanel);
           if (hidden.size > 0) panelProjects = panelProjects.filter((p) => !hidden.has(rdvStatusFieldFn(p)));
         }
         const rdvFiltered = rdvStatusFieldFn && panelProjects.length !== rdvTotalCount;
@@ -4959,7 +4966,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 {/* Filtre par état — chips cliquables (afficher/masquer). Placé
                     juste à gauche du sélecteur Par date / Par région. */}
-                {rdvStatusFieldFn && rdvStatusOptions.length >= 2 && (
+                {rdvStatusFieldFn && (rdvStatusOptions.length >= 2 || rdvHiddenCount > 0) && (
                   <div className="flex items-center gap-1 flex-wrap">
                     {rdvStatusOptions.map((st) => {
                       const off = hiddenStatusOf(showSummaryPanel).has(st);
@@ -5012,7 +5019,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 <span className="w-14 text-right">Cabines</span>
               </div>
             )}
-            {panelProjects.length === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
+            {panelProjects.length === 0 && (
+              rdvFiltered && rdvTotalCount > 0 ? (
+                <p className="text-sm text-gray-400 py-2">
+                  {rdvTotalCount} projet(s) masqué(s) par le filtre — réactivez un état ci-dessus pour les afficher.
+                </p>
+              ) : (
+                <p className="text-sm text-gray-400 py-2">Aucun projet</p>
+              )
+            )}
 
             {/* Projets en cours : liste triée par Date Offre décroissante avec séparateurs par mois */}
             {isDossiersEnCours && (() => {
