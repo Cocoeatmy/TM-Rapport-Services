@@ -7160,12 +7160,9 @@ function ProjectPageContent({ id }: { id: string }) {
               </div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Rapport envoyé</h3>
             </div>
-            <div className="px-6 pb-2">
+            <div className="px-6 pb-2 text-center">
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                Le rapport a bien été envoyé. Inutile de le renvoyer.
-              </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                Le lien client a été copié dans le presse-papiers.
+                Le rapport a bien été envoyé.
               </p>
             </div>
             <div className="p-5">
@@ -7173,7 +7170,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 onClick={() => setShowSentConfirm(false)}
                 className="w-full h-11 rounded-xl bg-green-600 hover:bg-green-700 text-white text-base font-semibold active:scale-[0.98] transition-all"
               >
-                OK, c'est noté
+                OK
               </button>
             </div>
           </div>
