@@ -2165,12 +2165,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     });
   const allSoucisCount = allSoucisProjects.length;
 
-  // À facturer : projets dont la propriété "Facturations" = "A facturer"
-  // Les projets facturables ont souvent etatCMD = "Terminé" → absents de
-  // `projects` (actifs uniquement) → on cherche aussi dans terminatedProjects.
+  // À facturer : TROIS conditions cumulatives (le statut Notion « Facturations »
+  // vaut « A facturer » par défaut sur presque tous les projets, y compris ceux
+  // en cours → filtrer sur ce seul critère gonflait le compteur). Il faut aussi :
+  //   • État - CMD = « Terminé »
+  //   • Rapport de montage = « Rapport traité »
+  // Les projets facturables sont terminés → absents de `projects` (actifs) → on
+  // cherche aussi dans terminatedProjects.
   const aFacturerProjects = [...projects, ...terminatedProjects]
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i) // déduplique
-    .filter((p) => p.facturations === "A facturer")
+    .filter((p) => p.facturations === "A facturer" && p.etatCMD === "Terminé" && p.rapportDeMontage === "Rapport traité")
     .sort((a, b) => ((a.dateOffre || "") > (b.dateOffre || "") ? -1 : 1));
   const aFacturerCount = aFacturerProjects.length;
 

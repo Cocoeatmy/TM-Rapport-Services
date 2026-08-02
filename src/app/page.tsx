@@ -1604,7 +1604,10 @@ function HomePage() {
     archives: "/api/projects/all",
     "projets-tous": "/api/projects/all",
     sanitaires: "/api/projects/all-active",
-    "a-facturer": "/api/projects/all-active",
+    // À facturer : les projets facturables sont TERMINÉS (État-CMD = « Terminé »),
+    // donc absents de all-active. On lit la liste des Terminé (cmd-termine) puis on
+    // filtre sur Rapport traité + Facturations = « A facturer ».
+    "a-facturer": "/api/projects/cmd-termine",
   };
 
   const [rapportSearch, setRapportSearch] = useState("");
@@ -5581,8 +5584,13 @@ function HomePage() {
 
       {/* VUE À FACTURER */}
       {mode === "a-facturer" && (() => {
-        const allActive = projectsData["a-facturer"] || projectsData["all-active"] || [];
-        const afProjects = allActive.filter((p: any) => p.facturations === "A facturer");
+        const allActive = projectsData["a-facturer"] || projectsData["cmd-termine"] || [];
+        // 3 conditions cumulatives : le statut Notion « Facturations » vaut
+        // « A facturer » par défaut sur presque tous les projets → il faut aussi
+        // État-CMD = « Terminé » ET Rapport de montage = « Rapport traité ».
+        const afProjects = allActive.filter(
+          (p: any) => p.facturations === "A facturer" && p.etatCMD === "Terminé" && p.rapportDeMontage === "Rapport traité",
+        );
         const q = deferredSearch.toLowerCase();
         const afFiltered = afProjects.filter((p: any) => matchesSearch(p, q, searchIndex.get(p.id)));
         return (
