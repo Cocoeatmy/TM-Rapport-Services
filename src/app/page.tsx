@@ -1517,18 +1517,38 @@ function HomePage() {
       if (consults && consults.summary) setConsultationsData(consults);
     };
 
-    /** Récupère les données depuis les 6 API Notion et met à jour le cache. */
+    /** Récupère les données depuis les 6 API et met à jour le cache.
+     *  AFFICHAGE PROGRESSIF : chaque réponse est appliquée dès qu'elle arrive,
+     *  sans attendre les autres. Les KPI (issus de "services") s'affichent donc
+     *  immédiatement, même si "cabine-attribution" ou "consultations" traînent. */
     const fetchFromAPI = (showSpinner: boolean) => {
       if (showSpinner) setStatsLoading(true);
-      Promise.all([
-        fetch("/api/stats/services").then((r) => r.json()).catch(() => []),
-        fetch("/api/stats/clients").then((r) => r.json()).catch(() => []),
-        fetch("/api/stats/marques").then((r) => r.json()).catch(() => []),
-        fetch("/api/stats/series").then((r) => r.json()).catch(() => []),
-        fetch("/api/cabine-attribution").then((r) => r.json()).catch(() => []),
-        fetch("/api/stats/consultations").then((r) => r.ok ? r.json() : null).catch(() => null),
-      ]).then((results) => {
-        applyResults(results);
+      const pSvc = fetch("/api/stats/services").then((r) => r.json()).catch(() => []);
+      const pCli = fetch("/api/stats/clients").then((r) => r.json()).catch(() => []);
+      const pMrq = fetch("/api/stats/marques").then((r) => r.json()).catch(() => []);
+      const pSer = fetch("/api/stats/series").then((r) => r.json()).catch(() => []);
+      const pAttr = fetch("/api/cabine-attribution").then((r) => r.json()).catch(() => []);
+      const pCon = fetch("/api/stats/consultations").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+
+      // Applique chaque jeu de données indépendamment → rendu au fil de l'eau.
+      pSvc.then((svc) => {
+        if (Array.isArray(svc)) setStatsServices(svc);
+        setStatsLoading(false); // les KPI dépendent de "services" → on lève le spinner ici
+      });
+      pCli.then((cli) => { if (Array.isArray(cli)) setStatsClients(cli); });
+      pMrq.then((mrq) => { if (Array.isArray(mrq)) setStatsMarques(mrq); });
+      pSer.then((ser) => { if (Array.isArray(ser)) setStatsSeries(ser); });
+      pAttr.then((attrs) => {
+        if (Array.isArray(attrs)) {
+          const attrMap: Record<string, string[]> = {};
+          attrs.forEach((a: { projectId: string; attribution: string[] }) => { attrMap[a.projectId] = a.attribution; });
+          setCabineAttributions(attrMap);
+        }
+      });
+      pCon.then((consults) => { if (consults && consults.summary) setConsultationsData(consults); });
+
+      // Mise en cache une fois TOUT résolu (mais l'affichage n'a pas attendu).
+      Promise.all([pSvc, pCli, pMrq, pSer, pAttr, pCon]).then((results) => {
         setStatsLoading(false);
         // Ne PAS mettre en cache un résultat vide/échoué (services manquant) :
         // sinon le stale-while-revalidate (<1h) figerait des stats à 0 pendant

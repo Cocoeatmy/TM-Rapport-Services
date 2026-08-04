@@ -18,7 +18,7 @@ import { redisEnabled, redisGetJSON, redisSetJSON } from "./redis-cache";
 
 /** Écrit une liste dans le cache Redis partagé (fire-and-forget). */
 function persistShared(key: string, data: unknown): void {
-  if (redisEnabled && SNAPSHOT_KEYS.has(key)) {
+  if (redisEnabled && REDIS_KEYS.has(key)) {
     redisSetJSON(`sc:${key}`, data).catch(() => {});
   }
 }
@@ -27,12 +27,12 @@ function persistShared(key: string, data: unknown): void {
  *  Met en cache mémoire (politique longue via setCache pour les SNAPSHOT_KEYS →
  *  revalidation throttlée à 10 min, faible charge Notion). Renvoie {data} sinon null. */
 async function serveFromRedis<T>(key: string): Promise<{ data: T } | null> {
-  if (!redisEnabled || !SNAPSHOT_KEYS.has(key)) return null;
+  if (!redisEnabled || !REDIS_KEYS.has(key)) return null;
   if (process.env.NEXT_PHASE === "phase-production-build") return null;
   try {
     const r = await redisGetJSON<T>(`sc:${key}`);
     if (Array.isArray(r) && (r as unknown[]).length > 0) {
-      setCache(key, r);
+      setCacheLong(key, r); // politique longue (stats + listes peu volatiles)
       return { data: r };
     }
   } catch { /* Redis indisponible → on continue vers Notion */ }
@@ -56,6 +56,17 @@ const SNAPSHOT_KEYS = new Set([
   "projects-all-active", "projects-cmd-termine", "projects-mesures-sans-commande",
   "projects-all-raw",
 ]);
+
+// Clés des statistiques (pré-calculées la nuit par le cron stats-precalc). Elles
+// sont peu volatiles → parfaites pour Redis. Sans ça, un lambda FROID lisait le
+// snapshot dans le KV Notion (lent) ou paginait Notion en direct (~12 s × 4).
+const STATS_KEYS = new Set([
+  "stats-services", "stats-clients", "stats-marques", "stats-series",
+]);
+
+// Toutes les clés servies/persistées via Redis (cache partagé rapide entre
+// instances) : listes de projets + statistiques.
+const REDIS_KEYS = new Set([...SNAPSHOT_KEYS, ...STATS_KEYS]);
 
 // Cache de secours : conserve les données jusqu'à 30 min même après expiration
 // du cache principal. Utilisé uniquement quand Notion est indisponible / rate-limité.
@@ -94,7 +105,7 @@ export function setCache(key: string, data: unknown) {
   let ttl = TTL;
   if (key.startsWith("project-")) {
     freshMs = 30_000;
-  } else if (SNAPSHOT_KEYS.has(key)) {
+  } else if (REDIS_KEYS.has(key)) {
     freshMs = LONG_FRESH_MS;
     ttl = LONG_TTL;
   }
@@ -115,6 +126,10 @@ export function setCacheLong(key: string, data: unknown) {
   const now = Date.now();
   cache.set(key, { data, expires: now + LONG_TTL, staleAt: now + LONG_FRESH_MS });
   fallbackCache.set(key, { data, storedAt: now });
+  // Persiste dans Redis (partagé entre instances) pour les clés éligibles :
+  // le cron stats-precalc appelle setCacheLong → le snapshot devient lisible
+  // instantanément par n'importe quel lambda froid.
+  persistShared(key, data);
 }
 
 /**
@@ -277,8 +292,14 @@ export async function cachedOrFetchLong<T>(
 
   const p = (async () => {
     try {
+      // Instance FROIDE : on tente d'abord le cache Redis PARTAGÉ (~50-100 ms,
+      // compressé) avant d'attaquer Notion/KV (lent). setCacheLong (déclenché
+      // par le cron ou une lecture live précédente) y a écrit le snapshot.
+      const fromRedis = await serveFromRedis<T>(key);
+      if (fromRedis) return fromRedis.data;
+
       const data = await fetcher();
-      setCacheLong(key, data);   // TTL 2h au lieu de 5 min
+      setCacheLong(key, data);   // TTL 2h + persistance Redis
       return data;
     } catch (err: any) {
       const fallback = getFallback<T>(key);
