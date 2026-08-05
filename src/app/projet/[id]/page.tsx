@@ -4748,7 +4748,13 @@ function ProjectPageContent({ id }: { id: string }) {
           return (
             <div className="flex items-start gap-3">
               <button
-                onClick={() => router.push(`/?mode=${mode}`)}
+                onClick={() => {
+                  // Retour à la VRAIE page précédente (une page à la fois). Repli
+                  // sur le dashboard du bon onglet si le projet a été ouvert
+                  // directement (deep-link, nouvel onglet → pas d'historique).
+                  if (typeof window !== "undefined" && window.history.length > 1) router.back();
+                  else router.push(`/?mode=${mode}`);
+                }}
                 className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200"
               >
                 <ArrowLeft className="w-5 h-5" />

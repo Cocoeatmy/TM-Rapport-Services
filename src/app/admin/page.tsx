@@ -479,7 +479,12 @@ export default function AdminPage() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <button
-          onClick={() => router.push("/")}
+          onClick={() => {
+            // Retour à la vraie page précédente (une page à la fois), repli sur
+            // l'accueil si pas d'historique (ouverture directe).
+            if (typeof window !== "undefined" && window.history.length > 1) router.back();
+            else router.push("/");
+          }}
           className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 shrink-0"
         >
           <ArrowLeft className="w-5 h-5" />
