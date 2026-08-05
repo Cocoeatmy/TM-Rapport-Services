@@ -1324,11 +1324,11 @@ function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string
                 )}
               </span>
               <div className="flex items-center gap-1.5">
-                <button onClick={() => toggleDisplay(d.id, visible)}
-                  className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${visible ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300" : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"}`}
-                  title={visible ? "Affiché sur le rapport — cliquer pour masquer" : "Masqué du rapport — cliquer pour afficher"}>
+                {/* Statut (lecture seule) — le contrôle est la case « Ne pas afficher » à droite. */}
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full border ${visible ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300" : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"}`}>
                   {visible ? "Sur rapport ✓" : "Masqué"}
-                </button>
+                </span>
                 <button onClick={() => isEditing ? setEditing(null) : startEdit(d)}
                   className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors" title="Modifier">
                   <Pencil className="w-3.5 h-3.5" />
@@ -1337,6 +1337,17 @@ function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string
                   className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors" title="Supprimer ce défaut">
                   {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 </button>
+                {/* Case à cocher : NE PAS afficher ce défaut sur le rapport. */}
+                <label className="flex items-center gap-1 pl-1 text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer select-none"
+                  title="Cocher pour ne pas afficher ce défaut sur le rapport">
+                  <input
+                    type="checkbox"
+                    checked={!visible}
+                    onChange={() => toggleDisplay(d.id, visible)}
+                    className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-red-500 focus:ring-red-400"
+                  />
+                  Ne pas afficher
+                </label>
               </div>
             </div>
 
