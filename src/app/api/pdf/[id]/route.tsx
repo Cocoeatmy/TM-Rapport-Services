@@ -1385,6 +1385,9 @@ export async function GET(
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"`,
+        // PDF généré à la volée : jamais mis en cache (navigateur/CDN), sinon
+        // une modification (défaut masqué…) n'apparaît pas à la régénération.
+        "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     });
   } catch (error: any) {

@@ -7,7 +7,7 @@
 //   v11 : pré-cache explicite des pages /client/ et /projet/ + leurs données API
 //         via message PRECACHE_URLS — permet consultation hors-ligne garantie.
 
-const VERSION = "v30";
+const VERSION = "v31";
 const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;
@@ -176,6 +176,13 @@ self.addEventListener("fetch", (event) => {
     }
     return;
   }
+
+  // === PDF généré : JAMAIS de cache SW ===
+  // La génération prend plusieurs secondes (> timeout réseau du SW). En
+  // network-first-avec-timeout, le SW servait donc toujours l'ANCIEN PDF caché
+  // → une modification (ex. défaut masqué) n'apparaissait qu'à la génération
+  // suivante. On laisse le navigateur récupérer le PDF directement (réseau).
+  if (url.pathname.startsWith("/api/pdf/")) return;
 
   // === API : network-first avec timeout 400 ms ===
   if (url.pathname.startsWith("/api/")) {
