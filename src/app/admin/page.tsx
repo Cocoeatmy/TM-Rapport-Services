@@ -123,7 +123,7 @@ export default function AdminPage() {
   // Cartes de stats REPLIÉES par défaut : un Set des cartes OUVERTES (vide au
   // départ = tout fermé). L'utilisateur déplie/replie chaque carte via son
   // en-tête (chevron).
-  const [openCards, setOpenCards] = useState<Set<string>>(new Set());
+  const [openCards, setOpenCards] = useState<Set<string>>(() => new Set(["chantiers"]));
   const toggleCard = (id: string) => {
     setOpenCards((prev) => {
       const next = new Set(prev);
@@ -791,7 +791,7 @@ export default function AdminPage() {
         <Card className="glass-card">
           <CardContent className="pt-4 text-center">
             <p className="text-3xl font-bold text-[#1e3a5f] dark:text-cyan-300">{totalProjets}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">Projets en cours</p>
+            <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">Projets</p>
             {compareMode && compareType === "period" && (
               <p className="text-[11px] mt-1 text-amber-600 dark:text-amber-400 font-medium">
                 vs {totalProjetsB} <span className="text-gray-400 font-normal">({labelB})</span>
@@ -1295,12 +1295,28 @@ export default function AdminPage() {
                   {Object.entries(fournisseurSoucis)
                     .filter(([, v]) => v.soucis > 0)
                     .sort(([, a], [, b]) => (b.soucis / b.total) - (a.soucis / a.total))
-                    .map(([f, v]) => (
-                      <div key={f} className="flex items-center justify-between text-xs py-1 border-b border-gray-50">
-                        <span>{f}</span>
-                        <span className="font-semibold text-red-600">{v.soucis}/{v.total} ({((v.soucis / v.total) * 100).toFixed(0)}%)</span>
-                      </div>
-                    ))}
+                    .map(([f, v]) => {
+                      const key = `soucis-${f}`;
+                      const isOpen = expandedKeys.has(key);
+                      // Projets EN SOUCIS pour ce fournisseur.
+                      const concerned = filteredProjects.filter((p) => p.soucisMontage && p.fournisseurs.includes(f));
+                      return (
+                        <div key={f} className="border-b border-gray-50">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpand(key)}
+                            className="w-full flex items-center justify-between text-xs py-1.5 px-1 -mx-1 rounded-lg hover:bg-white/40 transition-colors"
+                          >
+                            <span className="flex items-center gap-1">
+                              {isOpen ? <ChevronUp className="w-3 h-3 text-gray-400" /> : <ChevronDown className="w-3 h-3 text-gray-400" />}
+                              {f}
+                            </span>
+                            <span className="font-semibold text-red-600">{v.soucis}/{v.total} ({((v.soucis / v.total) * 100).toFixed(0)}%)</span>
+                          </button>
+                          {isOpen && concerned.length > 0 && <ProjectList items={concerned} />}
+                        </div>
+                      );
+                    })}
                 </>
               );
             })()}
@@ -1322,10 +1338,19 @@ export default function AdminPage() {
 
               return (
                 <>
-                  <div className="text-center py-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand("sav-list")}
+                    className="w-full text-center py-2 rounded-lg hover:bg-white/40 transition-colors"
+                    title="Voir les projets concernés"
+                  >
                     <p className="text-3xl font-bold text-orange-600">{savProjects.length}</p>
-                    <p className="text-xs text-gray-500">projets avec SAV</p>
-                  </div>
+                    <p className="text-xs text-gray-500 flex items-center justify-center gap-1">
+                      projets avec SAV
+                      {expandedKeys.has("sav-list") ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </p>
+                  </button>
+                  {expandedKeys.has("sav-list") && savProjects.length > 0 && <ProjectList items={savProjects} />}
                   {recurring.length > 0 ? (
                     <>
                       <p className="text-xs font-semibold text-orange-600">⚠ Clients récurrents :</p>
@@ -1735,9 +1760,16 @@ export default function AdminPage() {
         {/* Carte géographique */}
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col gap-0.5">
+            <div className="flex items-center justify-between gap-2">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => toggleCard("chantiers")}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggleCard("chantiers"); }}
+                className="flex flex-col gap-0.5 cursor-pointer select-none min-w-0"
+              >
                 <CardTitle className="text-base flex items-center gap-2">
+                  {openCards.has("chantiers") ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
                   <MapPin className="w-4 h-4 text-green-500" />
                   Chantiers en cours
                 </CardTitle>
@@ -1771,7 +1803,7 @@ export default function AdminPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className={openCards.has("chantiers") ? "" : "hidden"}>
             {chantierView === "carte" ? (
               <InteractiveMap projects={filteredProjects} />
             ) : (
