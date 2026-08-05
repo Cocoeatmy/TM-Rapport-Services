@@ -42,6 +42,34 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import type { Project } from "@/lib/notion";
 
+// Liste de projets affichée sous une ligne dépliée. Définie au niveau MODULE
+// (et non dans le corps du composant) : sinon c'était une nouvelle fonction à
+// chaque rendu → React la remontait sans cesse (flicker + coût).
+function ProjectList({ items }: { items: Project[] }) {
+  return (
+    <div className="mt-2 space-y-1.5 border-t border-gray-100 pt-2">
+      {items.map((p) => (
+        <a
+          key={p.id}
+          href={`/projet/${p.id}?mode=cmd`}
+          className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 active:bg-white/80 transition-colors text-xs"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-2 mt-0.5">{p.projet || "Sans nom"}</p>
+            <p className="text-gray-500 truncate">{p.adresseChantier || p.nomChantier || "---"}</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge variant="outline" className="text-[10px]">
+              {p.nbCabines || 0} cab.
+            </Badge>
+            <ExternalLink className="w-3 h-3 text-gray-300" />
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [projectsEnCours, setProjectsEnCours] = useState<Project[]>([]);
@@ -86,8 +114,11 @@ export default function AdminPage() {
     }).finally(() => setLoading(false));
   }, [router]);
 
-  // State pour les sections dépliées
-  const [expanded, setExpanded] = useState<string | null>(null);
+  // Sections/lignes dépliées : un Set → chaque ligne s'ouvre/se ferme de façon
+  // INDÉPENDANTE (avant : un seul `string | null` → ouvrir une ligne fermait
+  // les autres, et selon l'ordre de rendu certaines paraissaient impossibles à
+  // rouvrir/refermer).
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
 
   // Filtre temps à 3 niveaux :
   //   - yearFilter : "all" ou "YYYY"
@@ -109,7 +140,12 @@ export default function AdminPage() {
   const [monthRangeEndB, setMonthRangeEndB] = useState<string | null>(null);
 
   const toggleExpand = (key: string) => {
-    setExpanded(expanded === key ? null : key);
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
   if (!isAdmin || loading) {
@@ -413,28 +449,6 @@ export default function AdminPage() {
   const totalProjetsB = filteredProjectsB.length;
 
   // Composant mini-liste de projets
-  const ProjectList = ({ items }: { items: Project[] }) => (
-    <div className="mt-2 space-y-1.5 border-t border-gray-100 pt-2">
-      {items.map((p) => (
-        <a
-          key={p.id}
-          href={`/projet/${p.id}?mode=cmd`}
-          className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-white/60 active:bg-white/80 transition-colors text-xs"
-        >
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-2 mt-0.5">{p.projet || "Sans nom"}</p>
-            <p className="text-gray-500 truncate">{p.adresseChantier || p.nomChantier || "---"}</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Badge variant="outline" className="text-[10px]">
-              {p.nbCabines || 0} cab.
-            </Badge>
-            <ExternalLink className="w-3 h-3 text-gray-300" />
-          </div>
-        </a>
-      ))}
-    </div>
-  );
 
   return (
     <div className="w-full px-4 sm:px-6 py-4 pb-8">
@@ -502,7 +516,7 @@ export default function AdminPage() {
       {/* Onglets En cours / Terminés */}
       <div className="flex gap-1 mb-4 glass-tabs p-1.5 rounded-2xl max-w-xs">
         <button
-          onClick={() => { setAdminTab("en-cours"); setYearFilter("all"); clearMonthRange(); setExpanded(null); }}
+          onClick={() => { setAdminTab("en-cours"); setYearFilter("all"); clearMonthRange(); setExpandedKeys(new Set()); }}
           className={`flex-1 text-sm font-medium py-2 rounded-lg transition-all duration-200 ${
             adminTab === "en-cours"
               ? "glass-tab-active text-[#1e3a5f]"
@@ -512,7 +526,7 @@ export default function AdminPage() {
           En cours ({projectsEnCours.length})
         </button>
         <button
-          onClick={() => { setAdminTab("termines"); setYearFilter("all"); clearMonthRange(); setExpanded(null); }}
+          onClick={() => { setAdminTab("termines"); setYearFilter("all"); clearMonthRange(); setExpandedKeys(new Set()); }}
           className={`flex-1 text-sm font-medium py-2 rounded-lg transition-all duration-200 ${
             adminTab === "termines"
               ? "glass-tab-active text-[#1e3a5f]"
@@ -892,7 +906,7 @@ export default function AdminPage() {
                   const max = Math.max(...monteurMontageStats.map((s) => s.cabines), 1);
                   const color = getCollaboratorColor(stat.name).dot;
                   const key = `montage-${stat.name}`;
-                  const isOpen = expanded === key;
+                  const isOpen = expandedKeys.has(key);
                   return (
                     <div key={stat.name}>
                       <button
@@ -1077,7 +1091,7 @@ export default function AdminPage() {
           <CardContent className="space-y-2.5">
             {equipeStats.map((stat) => {
               const key = `equipe-${stat.name}`;
-              const isOpen = expanded === key;
+              const isOpen = expandedKeys.has(key);
               const maxCabines = Math.max(...equipeStats.map((s) => s.cabines), 1);
               const names = stat.name.split(" & ");
               const isBinome = names.length > 1;
@@ -1146,7 +1160,7 @@ export default function AdminPage() {
           <CardContent className="space-y-2">
             {seriesStats.slice(0, 10).map(([serie, count]) => {
               const key = `serie-${serie}`;
-              const isOpen = expanded === key;
+              const isOpen = expandedKeys.has(key);
               const maxCount = Math.max(...seriesStats.map(([, c]) => c), 1);
               const matchedProjects = filteredProjects.filter((p) => p.seriesCabines.includes(serie));
               return (
@@ -1189,7 +1203,7 @@ export default function AdminPage() {
           <CardContent className="space-y-2">
             {fournisseurStats.slice(0, 10).map(([fournisseur, count]) => {
               const key = `fournisseur-${fournisseur}`;
-              const isOpen = expanded === key;
+              const isOpen = expandedKeys.has(key);
               const maxCount = Math.max(...fournisseurStats.map(([, c]) => c), 1);
               const matchedProjects = filteredProjects.filter((p) => p.fournisseurs.includes(fournisseur));
               return (
@@ -1229,7 +1243,7 @@ export default function AdminPage() {
               .sort(([, a], [, b]) => b - a)
               .map(([status, count]) => {
                 const key = `statut-${status}`;
-                const isOpen = expanded === key;
+                const isOpen = expandedKeys.has(key);
                 const matchedProjects = filteredProjects.filter((p) => (p.etatCMD || "Non défini") === status);
                 return (
                   <div key={status}>
@@ -1435,7 +1449,7 @@ export default function AdminPage() {
                   <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Par collaborateur (plus rapide en haut)</p>
                   {collabStats.slice(0, 8).map((stat) => {
                     const key = `temps-collab-${stat.name}`;
-                    const isOpen = expanded === key;
+                    const isOpen = expandedKeys.has(key);
                     const matchedProjects = projectsWithTime.filter((p) => (p.project.collaborateurs || "Non assigné") === stat.name).map((p) => p.project);
                     return (
                       <div key={stat.name}>
@@ -1598,7 +1612,7 @@ export default function AdminPage() {
                   </div>
                   {regionStats.slice(0, 15).map((stat) => {
                     const key = `geo-${stat.name}`;
-                    const isOpen = expanded === key;
+                    const isOpen = expandedKeys.has(key);
                     const pct = totalRegionProjets > 0 ? ((stat.projets / totalRegionProjets) * 100).toFixed(0) : "0";
                     return (
                       <div key={stat.name}>
@@ -1685,7 +1699,7 @@ export default function AdminPage() {
                     const charge = capaciteHebdo > 0 ? (w.cabines / capaciteHebdo) * 100 : 0;
                     const barColor = charge > 80 ? "#ef4444" : charge > 50 ? "#f59e0b" : "#8b5cf6";
                     const key = `prevision-${i}`;
-                    const isOpen = expanded === key;
+                    const isOpen = expandedKeys.has(key);
                     const clickable = w.projets > 0;
                     return (
                       <div key={i}>
