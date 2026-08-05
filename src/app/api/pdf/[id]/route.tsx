@@ -129,10 +129,17 @@ async function loadDefautsForProject(projectId: string, project?: Project): Prom
   // filtre côté serveur les défauts marqués "ne pas afficher" pour
   // qu'ils n'apparaissent jamais dans le rapport client.
   const kv = await getData<DefautRequest>("defauts");
-  const fromKv = kv.filter((d) => d.projectId === projectId && d.displayInRapport !== false);
-  if (fromKv.length > 0) return fromKv;
-  // Fallback : si rien en KV (p.ex. défauts saisis directement dans
-  // Notion), on parse le texte concaténé de la colonne "Infos -
+  // Défauts de CE projet présents en KV, AVANT le filtre d'affichage.
+  const projectKv = kv.filter((d) => d.projectId === projectId);
+  // Si le projet a au moins un défaut en KV, le KV fait AUTORITÉ : on respecte
+  // le flag "displayInRapport" et on ne retombe JAMAIS sur le texte Notion.
+  // (Bug corrigé : masquer le seul défaut vidait le filtre → l'ancien code
+  //  basculait sur le fallback texte, qui réaffichait le défaut masqué.)
+  if (projectKv.length > 0) {
+    return projectKv.filter((d) => d.displayInRapport !== false);
+  }
+  // Fallback : AUCUN défaut en KV (p.ex. défauts saisis directement dans
+  // Notion) → on parse le texte concaténé de la colonne "Infos -
   // Défauts signalé". Ces entrées-là sont toujours affichées (pas de
   // métadonnée displayInRapport disponible).
   if (project?.infoDefautsSignale) {
