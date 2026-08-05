@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { getProjects } from "@/lib/notion";
+import { getAllProjectsRaw } from "@/lib/notion";
 import { formatSwissDate } from "@/lib/time-utils";
 import { Resend } from "resend";
 import ReactPDF, {
@@ -375,9 +375,23 @@ export async function POST(request: NextRequest) {
   if (!user || user.role !== "admin") return NextResponse.json({ error: "Admin requis" }, { status: 403 });
 
   try {
-    const projects = await getProjects();
+    // Mois / année choisis par l'admin (défaut = mois courant).
+    const body = await request.json().catch(() => ({} as any));
     const now = new Date();
-    const monthName = formatSwissDate(now, { month: "long", year: "numeric" });
+    const year = Number(body?.year) || now.getFullYear();
+    const month = Number(body?.month) || now.getMonth() + 1; // 1-12
+    const monthName = formatSwissDate(new Date(year, month - 1, 15), { month: "long", year: "numeric" });
+    const monthStart = new Date(year, month - 1, 1).getTime();
+    const monthEnd = new Date(year, month, 1).getTime();
+
+    // Projets DONT LE MONTAGE tombe dans le mois choisi (tous statuts confondus).
+    const inMonth = (iso: string | null | undefined) => {
+      if (!iso) return false;
+      const t = new Date(iso).getTime();
+      return t >= monthStart && t < monthEnd;
+    };
+    const allProjects = await getAllProjectsRaw();
+    const projects = allProjects.filter((p) => inMonth(p.dateMontage));
 
     // Stats
     const totalProjets = projects.length;
@@ -387,9 +401,9 @@ export async function POST(request: NextRequest) {
     const nbSoucis = projects.filter((p) => p.soucisMontage).length;
     const tauxSoucis = totalProjets > 0 ? nbSoucis / totalProjets : 0;
 
-    // Pièces manquantes & défauts
-    const allPieces = await loadAllPieces();
-    const allDefauts = await loadAllDefauts();
+    // Pièces manquantes & défauts signalés DANS le mois choisi.
+    const allPieces = (await loadAllPieces()).filter((x) => x.timestamp >= monthStart && x.timestamp < monthEnd);
+    const allDefauts = (await loadAllDefauts()).filter((x) => x.timestamp >= monthStart && x.timestamp < monthEnd);
     const nbPieces = allPieces.length;
     const nbDefauts = allDefauts.length;
 
@@ -439,7 +453,7 @@ export async function POST(request: NextRequest) {
     }
     const pdfBuffer = Buffer.concat(chunks);
 
-    const filename = `rapport-mensuel-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}.pdf`;
+    const filename = `rapport-mensuel-${year}-${String(month).padStart(2, "0")}.pdf`;
 
     // Send email with PDF attachment
     await resend.emails.send({

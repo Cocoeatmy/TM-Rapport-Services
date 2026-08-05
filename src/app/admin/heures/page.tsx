@@ -264,6 +264,16 @@ export default function HeuresPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [monthOffset, setMonthOffset] = useState(0);
+  // Filtre d'affichage : collaborateurs sélectionnés (vide = tous affichés).
+  const [selectedCollabs, setSelectedCollabs] = useState<Set<string>>(new Set());
+  const toggleCollab = (name: string) => {
+    setSelectedCollabs((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
   // Map projectId → attribution[] (index = cabine - 1, valeur = monteur)
   const [attributionMap, setAttributionMap] = useState<Map<string, string[]>>(new Map());
 
@@ -371,8 +381,27 @@ export default function HeuresPage() {
     a.localeCompare(b)
   );
 
-  // Grand total
-  const grandTotal = monthEntries.reduce((s, e) => s + e.minutes, 0);
+  // ── Filtre collaborateurs ───────────────────────────────────────────────
+  // Liste des collaborateurs disponibles (solo + membres de binômes/équipes).
+  const availableCollabs = Array.from(
+    new Set([
+      ...collabMap.keys(),
+      ...Array.from(teamMap.keys()).flatMap((k) => k.split(" & ").map((n) => n.trim())),
+    ]),
+  ).sort((a, b) => a.localeCompare(b));
+
+  const collabShown = (name: string) => selectedCollabs.size === 0 || selectedCollabs.has(name);
+  const visibleCollabEntries = collabEntries.filter(([c]) => collabShown(c));
+  // Un binôme reste visible si AU MOINS un de ses membres est sélectionné.
+  const visibleTeamEntries = teamEntries.filter(([team]) =>
+    team.split(" & ").some((n) => collabShown(n.trim())),
+  );
+
+  // Grand total : reflète le filtre (somme des cartes affichées).
+  const grandTotal = [
+    ...visibleCollabEntries.flatMap(([, e]) => e),
+    ...visibleTeamEntries.flatMap(([, e]) => e),
+  ].reduce((s, e) => s + e.minutes, 0);
 
   return (
     <div className="w-full px-4 sm:px-6 py-4 pb-8">
@@ -421,6 +450,47 @@ export default function HeuresPage() {
         </button>
       </div>
 
+      {/* Filtre collaborateurs */}
+      {availableCollabs.length > 1 && (
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              Collaborateurs {selectedCollabs.size > 0 && `(${selectedCollabs.size} sélectionné${selectedCollabs.size > 1 ? "s" : ""})`}
+            </p>
+            {selectedCollabs.size > 0 && (
+              <button
+                onClick={() => setSelectedCollabs(new Set())}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Tout afficher
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {availableCollabs.map((name) => {
+              const active = selectedCollabs.has(name);
+              const colors = getCollaboratorColor(name);
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => toggleCollab(name)}
+                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${
+                    active
+                      ? "border-transparent text-white shadow-sm"
+                      : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 bg-white/60 dark:bg-white/5 hover:bg-white"
+                  }`}
+                  style={active ? { backgroundColor: colors.dot } : undefined}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: active ? "#fff" : colors.dot }} />
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Grand total card */}
       <div className="glass-card rounded-2xl p-4 text-center mb-6">
         <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
@@ -431,15 +501,15 @@ export default function HeuresPage() {
         </p>
       </div>
 
-      {collabEntries.length === 0 && (
+      {visibleCollabEntries.length === 0 && visibleTeamEntries.length === 0 && (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>Aucune heure enregistree pour ce mois</p>
+          <p>{selectedCollabs.size > 0 ? "Aucune heure pour ce filtre" : "Aucune heure enregistree pour ce mois"}</p>
         </div>
       )}
 
       {/* Per-collaborator tables */}
-      {collabEntries.map(([collab, entries]) => {
+      {visibleCollabEntries.map(([collab, entries]) => {
         const colors = getCollaboratorColor(collab);
         const sorted = [...entries].sort((a, b) => {
           const dateCmp = a.date.localeCompare(b.date);
@@ -559,13 +629,13 @@ export default function HeuresPage() {
       })}
 
       {/* Binômes / Teams */}
-      {teamEntries.length > 0 && (
+      {visibleTeamEntries.length > 0 && (
         <>
           <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mt-6 mb-3 flex items-center gap-2">
             <UsersIcon className="w-4 h-4" />
             Binômes & Teams
           </h2>
-          {teamEntries.map(([team, entries]) => {
+          {visibleTeamEntries.map(([team, entries]) => {
             const names = team.split(" & ");
             const sorted = [...entries].sort((a, b) => {
           const dateCmp = a.date.localeCompare(b.date);

@@ -80,6 +80,28 @@ export default function AdminPage() {
   const [widgets, setWidgets] = useState<WidgetConfig[]>([]);
   const [logs, setLogs] = useState<{ id: string; timestamp: number; user: string; projectId: string; projectName: string; action: string; details: string }[]>([]);
   const [showLogs, setShowLogs] = useState(false);
+  // Modale « Rapport mensuel » : choix du mois/année à recevoir par e-mail.
+  const [monthlyModal, setMonthlyModal] = useState(false);
+  const [reportMonth, setReportMonth] = useState<number>(() => new Date().getMonth() + 1);
+  const [reportYear, setReportYear] = useState<number>(() => new Date().getFullYear());
+  const [sendingReport, setSendingReport] = useState(false);
+  const sendMonthlyReport = async () => {
+    setSendingReport(true);
+    try {
+      const res = await fetch("/api/rapport-mensuel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: reportMonth, year: reportYear }),
+      });
+      const data = await res.json();
+      if (res.ok) { setMonthlyModal(false); alert("Rapport mensuel envoyé par e-mail !"); }
+      else alert("Erreur : " + (data.error || "Erreur"));
+    } catch {
+      alert("Erreur réseau");
+    } finally {
+      setSendingReport(false);
+    }
+  };
   const [chantierView, setChantierView] = useState<"liste" | "carte">("liste");
 
   useEffect(() => {
@@ -500,19 +522,25 @@ export default function AdminPage() {
       <div className="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
         <ExportExcel projects={projects} />
         <button
-          onClick={async () => {
-            const res = await fetch("/api/rapport-mensuel", { method: "POST" });
-            const data = await res.json();
-            if (res.ok) alert("Rapport mensuel envoyé par email !");
-            else alert("Erreur: " + (data.error || "Erreur"));
-          }}
+          onClick={() => setMonthlyModal(true)}
           className="shrink-0 flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95"
         >
           <Mail className="w-4 h-4 text-blue-600" />
           Rapport mensuel
         </button>
         <button
-          onClick={() => { setShowLogs(!showLogs); if (!showLogs) loadLogs(); }}
+          onClick={() => {
+            const willOpen = !showLogs;
+            setShowLogs(willOpen);
+            if (willOpen) {
+              loadLogs();
+              // La carte des logs est en bas de page → on défile jusqu'à elle,
+              // sinon rien ne semblait se passer au clic.
+              setTimeout(() => {
+                document.getElementById("logs-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }, 100);
+            }
+          }}
           className="shrink-0 flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95"
         >
           <ScrollText className="w-4 h-4 text-amber-600" />
@@ -1891,7 +1919,7 @@ export default function AdminPage() {
 
       {/* Logs d'activité */}
       {showLogs && (
-        <Card className="glass-card mt-4">
+        <Card id="logs-card" className="glass-card mt-4 scroll-mt-20">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <ScrollText className="w-4 h-4 text-amber-500" />
@@ -1922,6 +1950,72 @@ export default function AdminPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Modale : choix du mois/année pour le rapport mensuel par e-mail. */}
+      {monthlyModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => { if (!sendingReport) setMonthlyModal(false); }}
+        >
+          <div
+            className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-[#1e3a5f] text-white px-5 py-4 flex items-center gap-2">
+              <Mail className="w-5 h-5" />
+              <h3 className="text-base font-semibold">Rapport mensuel par e-mail</h3>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Choisissez le mois et l'année du rapport à recevoir par e-mail.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">Mois</label>
+                  <select
+                    value={reportMonth}
+                    onChange={(e) => setReportMonth(Number(e.target.value))}
+                    className="mt-1 w-full h-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-700 px-2 text-sm"
+                  >
+                    {["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"].map((m, i) => (
+                      <option key={m} value={i + 1}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">Année</label>
+                  <select
+                    value={reportYear}
+                    onChange={(e) => setReportYear(Number(e.target.value))}
+                    className="mt-1 w-full h-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-700 px-2 text-sm"
+                  >
+                    {Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button
+                onClick={() => setMonthlyModal(false)}
+                disabled={sendingReport}
+                className="flex-1 h-10 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={sendMonthlyReport}
+                disabled={sendingReport}
+                className="flex-1 h-10 rounded-lg bg-[#1e3a5f] hover:bg-[#163055] text-white text-sm font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {sendingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                {sendingReport ? "Envoi…" : "Recevoir par e-mail"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
