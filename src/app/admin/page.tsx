@@ -1488,6 +1488,14 @@ export default function AdminPage() {
                 if (!address || !address.trim()) return "Inconnu";
                 const trimmed = address.trim();
 
+                // 1) Adresses FRANÇAISES → « France ». Mot « France » explicite,
+                //    ou code postal à 5 chiffres (FR) alors qu'aucune mention
+                //    « Suisse » n'est présente (les CP suisses ont 4 chiffres).
+                if (/\bfrance\b/i.test(trimmed)) return "France";
+                if (/\b\d{5}\b/.test(trimmed) && !/\b(suisse|schweiz|svizzera|switzerland)\b/i.test(trimmed)) {
+                  return "France";
+                }
+
                 // Swiss cantons / major cities mapping
                 const cantonKeywords: Record<string, string> = {
                   "Vaud": "Vaud",
@@ -1515,19 +1523,22 @@ export default function AdminPage() {
                   "Schaffhausen": "Schaffhouse", "Schaffhouse": "Schaffhouse",
                 };
 
-                // Try matching canton name in the address
+                // 2) Nom de canton présent en MOT ENTIER (pas en sous-chaîne :
+                //    sinon « uri » matchait n'importe quel mot, « Bern » matchait
+                //    « Berne », etc. → mauvais classement).
+                const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
                 for (const [keyword, canton] of Object.entries(cantonKeywords)) {
-                  if (trimmed.toLowerCase().includes(keyword.toLowerCase())) {
+                  if (new RegExp(`\\b${esc(keyword)}\\b`, "i").test(trimmed)) {
                     return canton;
                   }
                 }
 
-                // Try to extract city from postal code pattern "NNNN City"
+                // 3) Code postal suisse (4 chiffres) « NNNN Ville » → canton.
                 const postalMatch = trimmed.match(/\b(\d{4})\s+([A-ZÀ-Ÿa-zà-ÿ\-]+)/);
                 if (postalMatch) {
                   const code = parseInt(postalMatch[1]);
                   // Swiss postal code ranges for cantons
-                  if (code >= 1000 && code <= 1099) return "Lausanne (VD)";
+                  if (code >= 1000 && code <= 1099) return "Vaud"; // Lausanne → Vaud
                   if (code >= 1100 && code <= 1199) return "Vaud";
                   if (code >= 1200 && code <= 1299) return "Genève";
                   if (code >= 1300 && code <= 1399) return "Vaud";
