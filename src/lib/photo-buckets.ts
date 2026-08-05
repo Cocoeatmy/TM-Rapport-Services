@@ -205,6 +205,82 @@ const MISSING_CHECK_GROUPS: { label: string; buckets: PhotoBucketKey[] }[] = [
   { label: "Photos Garantie", buckets: ["GARANTIE"] },
 ];
 
+// ── Photos OBLIGATOIRES avec nombre minimum (bloquant à l'envoi) ────────────
+// Le montage regroupe gauche/centre/droite : min 3 photos au total, peu importe
+// la répartition. Avant et après intervention : min 2 chacun.
+export interface RequiredPhotoShortfall {
+  label: string;
+  have: number;
+  min: number;
+}
+const REQUIRED_PHOTO_GROUPS: { label: string; buckets: PhotoBucketKey[]; min: number }[] = [
+  { label: "Photos avant intervention", buckets: ["AVANT_INTERVENTION"], min: 2 },
+  { label: "Photos montage", buckets: ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE"], min: 3 },
+  { label: "Photos après intervention", buckets: ["APRES_INTERVENTION"], min: 2 },
+];
+// Groupes RECOMMANDÉS (rappel contournable) — pas de minimum imposé.
+const OPTIONAL_PHOTO_GROUPS: { label: string; buckets: PhotoBucketKey[] }[] = [
+  { label: "Photos démontage", buckets: ["DEMONTAGE"] },
+  { label: "Photos QR Code", buckets: ["QR_CODE"] },
+  { label: "Photos Garantie", buckets: ["GARANTIE"] },
+];
+
+/** Compte les photos d'un projet pour un bucket donné (option : par cabine). */
+function countBucket(
+  project: ProjectPhotoSources,
+  bucket: PhotoBucketKey,
+  cabineIdx?: number,
+): number {
+  const field = BUCKET_NOTION_FIELD[bucket];
+  const list = project[field] as { name: string }[] | undefined;
+  return filterByBucket(list, bucket, cabineIdx, defaultBucketForField(field)).length;
+}
+
+/** Total de photos présentes pour un groupe (somme de ses buckets). */
+function countGroup(
+  project: ProjectPhotoSources,
+  buckets: PhotoBucketKey[],
+  cabineIdx?: number,
+): number {
+  return buckets.reduce((sum, b) => sum + countBucket(project, b, cabineIdx), 0);
+}
+
+/**
+ * Photos OBLIGATOIRES manquantes (avec compteur have/min). Bloque l'envoi.
+ * Mono ou multi-cabine (préfixe « Cabine N — » dans ce dernier cas).
+ */
+export function missingRequiredPhotos(
+  project: ProjectPhotoSources,
+  options: { multiCabine: boolean; nbCabines: number },
+): RequiredPhotoShortfall[] {
+  const shortfalls = (cabineIdx: number | undefined, prefix: string): RequiredPhotoShortfall[] =>
+    REQUIRED_PHOTO_GROUPS.flatMap((g) => {
+      const have = countGroup(project, g.buckets, cabineIdx);
+      return have >= g.min ? [] : [{ label: `${prefix}${g.label}`, have, min: g.min }];
+    });
+
+  if (!options.multiCabine || options.nbCabines <= 1) return shortfalls(undefined, "");
+  const out: RequiredPhotoShortfall[] = [];
+  for (let i = 1; i <= options.nbCabines; i++) out.push(...shortfalls(i, `Cabine ${i} — `));
+  return out;
+}
+
+/** Groupes RECOMMANDÉS absents (présence ≥1), au format texte. Contournable. */
+export function missingOptionalPhotoLabels(
+  project: ProjectPhotoSources,
+  options: { multiCabine: boolean; nbCabines: number },
+): string[] {
+  const missing = (cabineIdx: number | undefined, prefix: string): string[] =>
+    OPTIONAL_PHOTO_GROUPS.filter((g) => countGroup(project, g.buckets, cabineIdx) === 0).map(
+      (g) => `${prefix}${g.label}`,
+    );
+
+  if (!options.multiCabine || options.nbCabines <= 1) return missing(undefined, "");
+  const out: string[] = [];
+  for (let i = 1; i <= options.nbCabines; i++) out.push(...missing(i, `Cabine ${i} — `));
+  return out;
+}
+
 /** Liste les groupes de photos manquants au format texte, mono ou multi-cabine. */
 export function missingBucketLabels(
   project: ProjectPhotoSources,

@@ -24,10 +24,16 @@ export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted }:
   const [reference, setReference] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  // Photo de l'ÉCLATÉ du produit (obligatoire, sauf « Pas d'éclaté »).
+  const [eclatePhotos, setEclatePhotos] = useState<File[]>([]);
+  const [eclatePreviews, setEclatePreviews] = useState<string[]>([]);
+  const [pasEclate, setPasEclate] = useState(false);
   const [sending, setSending] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+  const eclateCameraRef = useRef<HTMLInputElement>(null);
+  const eclateGalleryRef = useRef<HTMLInputElement>(null);
 
   const handleAI = async () => {
     if (!description.trim() || description.trim().length < 10) return;
@@ -52,30 +58,63 @@ export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted }:
     setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleEclateFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const newFiles = await Promise.all(Array.from(files).map((f) => compressImage(f)));
+    setEclatePhotos((prev) => [...prev, ...newFiles]);
+    setEclatePreviews((prev) => [...prev, ...newFiles.map((f) => URL.createObjectURL(f))]);
+    setPasEclate(false); // une photo d'éclaté annule la coche « Pas d'éclaté »
+  };
+
+  const removeEclate = (index: number) => {
+    URL.revokeObjectURL(eclatePreviews[index]);
+    setEclatePhotos((prev) => prev.filter((_, i) => i !== index));
+    setEclatePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const reset = () => {
     setDescription("");
     setReference("");
     photoPreviews.forEach((p) => URL.revokeObjectURL(p));
     setPhotos([]);
     setPhotoPreviews([]);
+    eclatePreviews.forEach((p) => URL.revokeObjectURL(p));
+    setEclatePhotos([]);
+    setEclatePreviews([]);
+    setPasEclate(false);
     if (cameraRef.current) cameraRef.current.value = "";
     if (galleryRef.current) galleryRef.current.value = "";
+    if (eclateCameraRef.current) eclateCameraRef.current.value = "";
+    if (eclateGalleryRef.current) eclateGalleryRef.current.value = "";
   };
 
   const handleSubmit = async () => {
     if (!description.trim()) return;
+    // OBLIGATOIRE : photo de l'éclaté OU case « Pas d'éclaté ».
+    if (!pasEclate && eclatePhotos.length === 0) {
+      toast.error("Ajoutez la photo de l'éclaté du produit, ou cochez « Pas d'éclaté ».", { duration: 6000 });
+      return;
+    }
     setSending(true);
     try {
       const photoUrls: string[] = [];
 
-      if (photos.length > 0) {
+      // L'éclaté est envoyé avec les photos de la pièce (préfixe distinct dans
+      // le nom de fichier pour le retrouver). La décision « Pas d'éclaté » est
+      // consignée dans la description.
+      const allPhotos: { file: File; name: string }[] = [
+        ...photos.map((p, i) => ({ file: p, name: `piece-${i + 1}` })),
+        ...eclatePhotos.map((p, i) => ({ file: p, name: `eclate-${i + 1}` })),
+      ];
+
+      if (allPhotos.length > 0) {
         let uploadOk = false;
         for (let attempt = 1; attempt <= 2; attempt++) {
           try {
             const formData = new FormData();
-            photos.forEach((p, i) => {
-              const ext = p.name.split(".").pop() || "jpg";
-              formData.append("files", new File([p], `piece-${i + 1}.${ext}`, { type: p.type }));
+            allPhotos.forEach(({ file, name }) => {
+              const ext = file.name.split(".").pop() || "jpg";
+              formData.append("files", new File([file], `${name}.${ext}`, { type: file.type }));
             });
             formData.append("projectId", projectId);
             formData.append("category", "pieces");
@@ -100,10 +139,14 @@ export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted }:
         }
       }
 
+      const finalDescription = pasEclate
+        ? `${description.trim()} (Pas d'éclaté)`
+        : description.trim();
+
       const res = await offlineFetch("/api/pieces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, projectName, description, reference, photoUrls, ...(cabineLabel ? { cabineLabel } : {}) }),
+        body: JSON.stringify({ projectId, projectName, description: finalDescription, reference, photoUrls, ...(cabineLabel ? { cabineLabel } : {}) }),
       });
       if (res.ok) {
         toast.success("Demande de pièce envoyée");
@@ -167,9 +210,9 @@ export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted }:
         />
       </div>
 
-      {/* Photos */}
+      {/* Photos de la pièce */}
       <div>
-        <Label className="text-xs">Photos de la pièce / éclaté</Label>
+        <Label className="text-xs">Photos de la pièce</Label>
         {photoPreviews.length > 0 && (
           <div className="grid grid-cols-3 gap-2 mt-1 mb-2">
             {photoPreviews.map((preview, i) => (
@@ -205,10 +248,71 @@ export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted }:
         <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handlePhotoFiles(e.target.files)} />
       </div>
 
+      {/* Photo de l'ÉCLATÉ du produit — obligatoire sauf « Pas d'éclaté ». */}
+      <div className="rounded-xl border-2 border-orange-200 bg-orange-50/50 p-3 space-y-2">
+        <Label className="text-xs font-semibold text-orange-700">
+          Photo de l'éclaté du produit <span className="text-red-500">*</span>
+        </Label>
+        {!pasEclate && (
+          <>
+            {eclatePreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {eclatePreviews.map((preview, i) => (
+                  <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-orange-200">
+                    <img src={preview} alt={`Éclaté ${i + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => removeEclate(i)}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => eclateCameraRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 border-dashed border-orange-300 text-sm text-orange-600 hover:border-orange-400 active:bg-orange-100 transition-colors"
+              >
+                <Camera className="w-4 h-4" />
+                Photo
+              </button>
+              <button
+                onClick={() => eclateGalleryRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 border-dashed border-orange-300 text-sm text-orange-600 hover:border-orange-400 active:bg-orange-100 transition-colors"
+              >
+                <ImagePlus className="w-4 h-4" />
+                Galerie
+              </button>
+            </div>
+            <input ref={eclateCameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleEclateFiles(e.target.files)} />
+            <input ref={eclateGalleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleEclateFiles(e.target.files)} />
+          </>
+        )}
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none pt-0.5">
+          <input
+            type="checkbox"
+            checked={pasEclate}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setPasEclate(checked);
+              if (checked) {
+                eclatePreviews.forEach((p) => URL.revokeObjectURL(p));
+                setEclatePhotos([]);
+                setEclatePreviews([]);
+              }
+            }}
+            className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+          />
+          Pas d'éclaté (aucun éclaté fourni avec la cabine)
+        </label>
+      </div>
+
       <div className="flex gap-2">
         <button
           onClick={handleSubmit}
-          disabled={sending || !description.trim()}
+          disabled={sending || !description.trim() || (!pasEclate && eclatePhotos.length === 0)}
           className="flex-1 h-9 rounded-lg bg-orange-500 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}

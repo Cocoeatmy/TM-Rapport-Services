@@ -110,6 +110,9 @@ import {
   detectBucket,
   filterByBucket,
   missingBucketLabels,
+  missingRequiredPhotos,
+  missingOptionalPhotoLabels,
+  type RequiredPhotoShortfall,
   extractCabine,
 } from "@/lib/photo-buckets";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
@@ -2711,7 +2714,10 @@ function ProjectPageContent({ id }: { id: string }) {
   const [reformulatingCabineIdx, setReformulatingCabineIdx] = useState<number | null>(null);
   const [missingPhotosPrompt, setMissingPhotosPrompt] = useState<{
     kind: "save" | "send";
+    /** Groupes RECOMMANDÉS absents (rappel contournable). */
     missing: string[];
+    /** Photos OBLIGATOIRES manquantes (avec compteur) → BLOQUE l'envoi. */
+    required?: RequiredPhotoShortfall[];
     /** Si vrai, on force aussi le choix « client présent / personne sur site ». */
     needsPresence?: boolean;
   } | null>(null);
@@ -4288,27 +4294,26 @@ function ProjectPageContent({ id }: { id: string }) {
   const handleSendReport = async (opts: { force?: boolean; skipSignature?: boolean } = {}) => {
     if (!project) return;
 
-    const computeMissing = () =>
-      missingBucketLabels(project, {
-        multiCabine: isCabineMode,
-        nbCabines: isCabineMode ? cabines.length : (project.nbCabines || 0),
-      });
+    const photoOpts = {
+      multiCabine: isCabineMode,
+      nbCabines: isCabineMode ? cabines.length : (project.nbCabines || 0),
+    };
+    const computeRequired = () => missingRequiredPhotos(project, photoOpts);
+    const computeOptional = () => missingOptionalPhotoLabels(project, photoOpts);
 
-    // ── Porte 1 : présence du client OBLIGATOIRE (jamais contournable) ──
-    // Le monteur doit avoir indiqué « Client présent… » ou « Personne sur
-    // site… ». Sinon on rouvre l'alerte en réclamant ce choix (+ photos).
-    if (!hasPresenceStatement(rapport)) {
-      setMissingPhotosPrompt({ kind: "send", missing: computeMissing(), needsPresence: true });
+    const needsPresence = !hasPresenceStatement(rapport);
+    const required = computeRequired();   // BLOQUANT (minimums non atteints)
+    const optional = computeOptional();   // recommandé (contournable)
+
+    // ── Porte 1 : présence + photos ──
+    // • Présence client OBLIGATOIRE (jamais contournable).
+    // • Photos OBLIGATOIRES : minimums avant 2 / montage 3 / après 2 → BLOQUANT.
+    // • Photos recommandées (démontage/QR/garantie) : rappel contournable.
+    // On ouvre l'alerte si l'un de ces points est en défaut. Le bouton « Envoyer »
+    // ne s'active que quand présence choisie ET aucune photo obligatoire manquante.
+    if (needsPresence || required.length > 0 || (!opts.force && optional.length > 0)) {
+      setMissingPhotosPrompt({ kind: "send", missing: optional, required, needsPresence });
       return;
-    }
-
-    // ── Porte 2 : photos manquantes (contournable via « Continuer quand même ») ──
-    if (!opts.force) {
-      const missing = computeMissing();
-      if (missing.length > 0) {
-        setMissingPhotosPrompt({ kind: "send", missing, needsPresence: false });
-        return;
-      }
     }
 
     // ── Porte 3 : signature OBLIGATOIRE si client présent (contournable en dernier
@@ -7303,10 +7308,17 @@ function ProjectPageContent({ id }: { id: string }) {
             onClick={(e) => e.stopPropagation()}
           >
             {(() => {
+              const required = missingPhotosPrompt.required || [];
+              const hasRequired = required.length > 0;
               const hasMissing = missingPhotosPrompt.missing.length > 0;
               const needsPresence = !!missingPhotosPrompt.needsPresence;
               const presenceMissing = needsPresence && !presenceInRapport;
-              const title = needsPresence
+              // Le bouton d'envoi est BLOQUÉ tant qu'il manque des photos
+              // obligatoires ou que la présence n'est pas renseignée.
+              const blocked = hasRequired || presenceMissing;
+              const title = hasRequired
+                ? "Photos obligatoires manquantes"
+                : needsPresence
                 ? (hasMissing ? "Avant d'envoyer le rapport" : "Client sur place ?")
                 : "Photos manquantes";
               return (
@@ -7357,15 +7369,38 @@ function ProjectPageContent({ id }: { id: string }) {
                       </div>
                     )}
 
-                    {/* Bloc PHOTOS manquantes. */}
+                    {/* Bloc PHOTOS OBLIGATOIRES (bloquant, ROUGE) — avec compteur. */}
+                    {hasRequired && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                          Ces photos sont obligatoires avant l'envoi :
+                        </p>
+                        <ul className="text-sm space-y-1.5 max-h-56 overflow-y-auto bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                          {required.map((r) => {
+                            const manque = r.min - r.have;
+                            return (
+                              <li key={r.label} className="flex items-start justify-between gap-2 text-red-900 dark:text-red-200">
+                                <span className="flex items-start gap-2">
+                                  <span className="mt-0.5 text-red-500">•</span>
+                                  <span>{r.label}</span>
+                                </span>
+                                <span className="shrink-0 font-semibold whitespace-nowrap">
+                                  {r.have}/{r.min} — il manque {manque}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Bloc PHOTOS RECOMMANDÉES (contournable, AMBRÉ). */}
                     {hasMissing && (
                       <div className="space-y-2">
                         <p className="text-sm text-gray-700 dark:text-gray-200">
-                          {missingPhotosPrompt.kind === "send"
-                            ? "Certaines photos n'ont pas encore été ajoutées :"
-                            : "Certaines photos n'ont pas encore été ajoutées :"}
+                          Photos recommandées non ajoutées :
                         </p>
-                        <ul className="text-sm space-y-1 max-h-52 overflow-y-auto bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+                        <ul className="text-sm space-y-1 max-h-40 overflow-y-auto bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
                           {missingPhotosPrompt.missing.map((label) => (
                             <li key={label} className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
                               <span className="mt-0.5 text-amber-500">•</span>
@@ -7373,9 +7408,11 @@ function ProjectPageContent({ id }: { id: string }) {
                             </li>
                           ))}
                         </ul>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">
-                          Êtes-vous sûr de vouloir continuer sans ces photos ?
-                        </p>
+                        {!hasRequired && (
+                          <p className="text-sm text-gray-600 dark:text-gray-300">
+                            Vous pouvez continuer sans ces photos.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -7384,10 +7421,11 @@ function ProjectPageContent({ id }: { id: string }) {
                       onClick={() => setMissingPhotosPrompt(null)}
                       className="flex-1 h-10 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700"
                     >
-                      {hasMissing ? "Ajouter les photos" : "Annuler"}
+                      {hasRequired || hasMissing ? "Ajouter les photos" : "Annuler"}
                     </button>
                     <button
-                      disabled={presenceMissing}
+                      disabled={blocked}
+                      title={hasRequired ? "Ajoutez d'abord les photos obligatoires" : undefined}
                       onClick={() => {
                         const kind = missingPhotosPrompt.kind;
                         setMissingPhotosPrompt(null);
@@ -7396,7 +7434,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       }}
                       className="flex-1 h-10 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {hasMissing ? "Continuer quand même" : "Valider et continuer"}
+                      {hasMissing && !hasRequired ? "Continuer quand même" : "Envoyer le rapport"}
                     </button>
                   </div>
                 </>

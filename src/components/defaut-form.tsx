@@ -89,6 +89,11 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
 
   const handleSubmit = async () => {
     if (selectedTypes.length === 0 && !description.trim()) return;
+    // OBLIGATOIRE : au moins 1 photo du défaut.
+    if (photos.length === 0) {
+      toast.error("Ajoutez au moins 1 photo du défaut.", { duration: 5000 });
+      return;
+    }
     setSending(true);
     try {
       const photoUrls: string[] = [];
@@ -306,10 +311,13 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
         Afficher ce défaut sur le rapport client
       </label>
 
+      {photos.length === 0 && (
+        <p className="text-xs text-red-600">Au moins 1 photo du défaut est obligatoire.</p>
+      )}
       <div className="flex gap-2">
         <button
           onClick={handleSubmit}
-          disabled={sending || (selectedTypes.length === 0 && !description.trim())}
+          disabled={sending || (selectedTypes.length === 0 && !description.trim()) || photos.length === 0}
           className="flex-1 h-9 rounded-lg bg-red-500 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
