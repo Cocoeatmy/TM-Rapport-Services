@@ -78,14 +78,15 @@ export async function POST(request: NextRequest) {
         : body.photoUrl ? [body.photoUrl] : [];
 
       if (newPhotoUrls.length > 0) {
-        const existingFiles = (page as any).properties["Photos - Pièces manquante"]?.files || [];
+        // Colonne UNIFIÉE des photos de signalement (pièces + défauts).
+        const existingFiles = (page as any).properties["Photos pour signalements"]?.files || [];
         const mappedExisting = existingFiles.map((f: any) => ({
           type: "external" as const,
           name: f.name || "photo.jpg",
           external: { url: f.type === "external" ? f.external?.url : f.file?.url || "" },
         })).filter((f: any) => f.external.url);
 
-        properties["Photos - Pièces manquante"] = {
+        properties["Photos pour signalements"] = {
           files: [
             ...mappedExisting,
             ...newPhotoUrls.map((url, i) => ({

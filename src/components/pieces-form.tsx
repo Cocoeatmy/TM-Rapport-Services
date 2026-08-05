@@ -118,7 +118,8 @@ export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted }:
             });
             formData.append("projectId", projectId);
             formData.append("category", "pieces");
-            formData.append("notionField", "Photos - Pièces manquante");
+            // Pas de notionField ici : /api/pieces écrit lui-même les photos dans
+            // la colonne « Photos pour signalements » (évite un double-écriture).
             const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
             if (uploadRes.ok) {
               const uploadData = await uploadRes.json();

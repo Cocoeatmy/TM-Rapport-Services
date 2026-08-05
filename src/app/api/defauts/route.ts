@@ -80,9 +80,9 @@ export async function POST(request: NextRequest) {
         },
       };
 
-      // Add photos if present
+      // Add photos if present → colonne UNIFIÉE « Photos pour signalements ».
       if (body.photoUrls?.length > 0) {
-        const existingFiles = (page as any).properties["Photos - Défauts signalé"]?.files || [];
+        const existingFiles = (page as any).properties["Photos pour signalements"]?.files || [];
         const mappedExisting = existingFiles.map((f: any) => ({
           type: "external" as const,
           name: f.name || "photo.jpg",
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
           external: { url },
         }));
 
-        properties["Photos - Défauts signalé"] = {
+        properties["Photos pour signalements"] = {
           files: [...mappedExisting, ...newFiles],
         };
       }
