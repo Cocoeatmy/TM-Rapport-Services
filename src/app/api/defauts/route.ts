@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { getData, setData } from "@/lib/kv-store";
+import { getData, getDataFresh, setData } from "@/lib/kv-store";
 import { notion } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
 
@@ -159,7 +159,15 @@ export async function PATCH(request: NextRequest) {
 
   const body = await request.json();
   const { id, status, comment, displayInRapport, description } = body;
-  const defauts = await getData<DefautRequest>(KEY);
+  // Lecture FRAÎCHE (bypass cache) : évite qu'une instance au cache périmé ne
+  // trouve pas le défaut (→ 404 silencieux) ou n'écrase des modifications
+  // récentes. En cas d'erreur Notion, on abandonne (pas d'écrasement).
+  let defauts: DefautRequest[];
+  try {
+    defauts = await getDataFresh<DefautRequest>(KEY);
+  } catch {
+    return NextResponse.json({ error: "Notion indisponible, réessayez" }, { status: 503 });
+  }
   const idx = defauts.findIndex((d) => d.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
 

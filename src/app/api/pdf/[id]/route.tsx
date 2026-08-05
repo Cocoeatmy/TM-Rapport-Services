@@ -15,7 +15,7 @@ import ReactPDF, {
   Font,
 } from "@react-pdf/renderer";
 import React from "react";
-import { getData } from "@/lib/kv-store";
+import { getData, getDataFresh } from "@/lib/kv-store";
 import { formatSwissDate, formatSwissDateTime } from "@/lib/time-utils";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
 import {
@@ -128,7 +128,15 @@ async function loadDefautsForProject(projectId: string, project?: Project): Prom
   // métadonnées per-défaut (status, displayInRapport, comments). On
   // filtre côté serveur les défauts marqués "ne pas afficher" pour
   // qu'ils n'apparaissent jamais dans le rapport client.
-  const kv = await getData<DefautRequest>("defauts");
+  // Lecture FRAÎCHE (bypass du cache 60 s) : le cache mémoire du KV est PAR
+  // instance serverless. Sans ça, le PDF pouvait être généré sur une instance
+  // au cache périmé et réafficher un défaut qu'on venait de masquer.
+  let kv: DefautRequest[];
+  try {
+    kv = await getDataFresh<DefautRequest>("defauts");
+  } catch {
+    kv = await getData<DefautRequest>("defauts"); // repli si Notion erreur
+  }
   // Défauts de CE projet présents en KV, AVANT le filtre d'affichage.
   const projectKv = kv.filter((d) => d.projectId === projectId);
   // Si le projet a au moins un défaut en KV, le KV fait AUTORITÉ : on respecte

@@ -1263,12 +1263,19 @@ function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string
   const toggleDisplay = async (id: string, current: boolean) => {
     const next = !current;
     setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, displayInRapport: next } : d));
-    try {
-      await fetch("/api/defauts", { method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, displayInRapport: next }) });
-    } catch {
+    const revert = () => {
       setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, displayInRapport: current } : d));
-      toast.error("Erreur de mise à jour");
+      toast.error("Échec : le réglage n'a pas été enregistré. Réessayez.");
+    };
+    try {
+      const res = await fetch("/api/defauts", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, displayInRapport: next }) });
+      // Un fetch ne jette PAS sur 404/500 → on vérifie explicitement res.ok,
+      // sinon la case restait cochée alors que rien n'était persisté.
+      if (!res.ok) { revert(); return; }
+      toast.success(next ? "Affiché sur le rapport" : "Masqué du rapport");
+    } catch {
+      revert();
     }
   };
 
