@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -119,6 +119,30 @@ export default function AdminPage() {
   // les autres, et selon l'ordre de rendu certaines paraissaient impossibles à
   // rouvrir/refermer).
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+
+  // Cartes de stats REPLIÉES par défaut : un Set des cartes OUVERTES (vide au
+  // départ = tout fermé). L'utilisateur déplie/replie chaque carte via son
+  // en-tête (chevron).
+  const [openCards, setOpenCards] = useState<Set<string>>(new Set());
+  const toggleCard = (id: string) => {
+    setOpenCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  /** En-tête de carte cliquable (déplie/replie) avec chevron. */
+  const cardHeader = (id: string, icon: ReactNode, title: string, titleColor = "") => (
+    <CardHeader className="pb-2 cursor-pointer select-none" onClick={() => toggleCard(id)}>
+      <CardTitle className={`text-base flex items-center justify-between gap-2 ${titleColor}`}>
+        <span className="flex items-center gap-2">{icon}{title}</span>
+        {openCards.has(id)
+          ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
+          : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
+      </CardTitle>
+    </CardHeader>
+  );
 
   // Filtre temps à 3 niveaux :
   //   - yearFilter : "all" ou "YYYY"
@@ -799,13 +823,8 @@ export default function AdminPage() {
       <div className="grid sm:grid-cols-2 gap-4 mb-4">
         {/* Montage par monteur */}
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 text-[#1e3a5f] dark:text-blue-300">
-              <Box className="w-4 h-4" />
-              Montage par monteur
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
+          {cardHeader("montage-monteur", <Box className="w-4 h-4" />, "Montage par monteur", "text-[#1e3a5f] dark:text-blue-300")}
+          <CardContent className={`space-y-2.5 ${openCards.has("montage-monteur") ? "" : "hidden"}`}>
             {compareMode && compareType === "period" ? (
               montageComparison.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-6">Aucune donnée sur les deux périodes.</p>
@@ -941,13 +960,8 @@ export default function AdminPage() {
 
         {/* Heures par monteur */}
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 text-[#1e3a5f] dark:text-blue-300">
-              <Clock className="w-4 h-4 text-teal-500" />
-              Heures par monteur
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
+          {cardHeader("heures-monteur", <Clock className="w-4 h-4 text-teal-500" />, "Heures par monteur", "text-[#1e3a5f] dark:text-blue-300")}
+          <CardContent className={`space-y-2.5 ${openCards.has("heures-monteur") ? "" : "hidden"}`}>
             {compareMode && compareType === "period" ? (
               heuresComparison.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-6">Aucune donnée sur les deux périodes.</p>
@@ -1082,13 +1096,8 @@ export default function AdminPage() {
       <div className="grid sm:grid-cols-2 gap-4">
         {/* Cabines par équipe */}
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Cabines par équipe
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
+          {cardHeader("cab-equipe", <Users className="w-4 h-4" />, "Cabines par équipe")}
+          <CardContent className={`space-y-2.5 ${openCards.has("cab-equipe") ? "" : "hidden"}`}>
             {equipeStats.map((stat) => {
               const key = `equipe-${stat.name}`;
               const isOpen = expandedKeys.has(key);
@@ -1151,13 +1160,8 @@ export default function AdminPage() {
 
         {/* Cabines par série */}
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Box className="w-4 h-4" />
-              Cabines par série
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+          {cardHeader("cab-serie", <Box className="w-4 h-4" />, "Cabines par série")}
+          <CardContent className={`space-y-2 ${openCards.has("cab-serie") ? "" : "hidden"}`}>
             {seriesStats.slice(0, 10).map(([serie, count]) => {
               const key = `serie-${serie}`;
               const isOpen = expandedKeys.has(key);
@@ -1194,13 +1198,8 @@ export default function AdminPage() {
 
         {/* Par fournisseur */}
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Cabines par fournisseur
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+          {cardHeader("cab-fournisseur", <BarChart3 className="w-4 h-4" />, "Cabines par fournisseur")}
+          <CardContent className={`space-y-2 ${openCards.has("cab-fournisseur") ? "" : "hidden"}`}>
             {fournisseurStats.slice(0, 10).map(([fournisseur, count]) => {
               const key = `fournisseur-${fournisseur}`;
               const isOpen = expandedKeys.has(key);
@@ -1232,13 +1231,8 @@ export default function AdminPage() {
 
         {/* Par statut */}
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="w-4 h-4" />
-              Projets par statut
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
+          {cardHeader("projets-statut", <Clock className="w-4 h-4" />, "Projets par statut")}
+          <CardContent className={`space-y-1 ${openCards.has("projets-statut") ? "" : "hidden"}`}>
             {Object.entries(statusMap)
               .sort(([, a], [, b]) => b - a)
               .map(([status, count]) => {
@@ -1270,13 +1264,8 @@ export default function AdminPage() {
       <div className="grid sm:grid-cols-2 gap-4 mt-4">
         {/* Taux de soucis montage */}
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-red-500" />
-              Taux de soucis montage
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+          {cardHeader("taux-soucis", <BarChart3 className="w-4 h-4 text-red-500" />, "Taux de soucis montage")}
+          <CardContent className={`space-y-2 ${openCards.has("taux-soucis") ? "" : "hidden"}`}>
             {(() => {
               const totalWithData = filteredProjects.length;
               const withSoucis = filteredProjects.filter((p) => p.soucisMontage).length;
@@ -1315,13 +1304,8 @@ export default function AdminPage() {
 
         {/* Récurrence SAV */}
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="w-4 h-4 text-orange-500" />
-              Récurrence SAV
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+          {cardHeader("recurrence-sav", <Clock className="w-4 h-4 text-orange-500" />, "Récurrence SAV")}
+          <CardContent className={`space-y-2 ${openCards.has("recurrence-sav") ? "" : "hidden"}`}>
             {(() => {
               const savProjects = filteredProjects.filter((p) => p.sav);
               const savByClient: Record<string, number> = {};
@@ -1358,13 +1342,8 @@ export default function AdminPage() {
 
         {/* Temps moyen par cabine */}
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="w-4 h-4 text-teal-500" />
-              Temps moyen par cabine
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+          {cardHeader("temps-moyen", <Clock className="w-4 h-4 text-teal-500" />, "Temps moyen par cabine")}
+          <CardContent className={`space-y-2 ${openCards.has("temps-moyen") ? "" : "hidden"}`}>
             {(() => {
               // Parse time from formats: "HH:MM" or "date collab HH:MM | ..."
               const parseTime = (raw: string): number | null => {
@@ -1501,13 +1480,8 @@ export default function AdminPage() {
 
         {/* Répartition géographique */}
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-indigo-500" />
-              Répartition géographique
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+          {cardHeader("repartition-geo", <MapPin className="w-4 h-4 text-indigo-500" />, "Répartition géographique")}
+          <CardContent className={`space-y-2 ${openCards.has("repartition-geo") ? "" : "hidden"}`}>
             {(() => {
               // Extract region from address patterns like "1000 Lausanne Vaud", "1208 Genève", etc.
               const extractRegion = (address: string): string => {
@@ -1653,13 +1627,8 @@ export default function AdminPage() {
 
         {/* Prévisions de charge */}
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-purple-500" />
-              Prévisions de charge
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          {cardHeader("previsions", <BarChart3 className="w-4 h-4 text-purple-500" />, "Prévisions de charge")}
+          <CardContent className={openCards.has("previsions") ? "" : "hidden"}>
             {(() => {
               const today = new Date();
               // Capacité : 5 monteurs × 3.5 cab/jour (moyenne 3-4) × 5 jours
