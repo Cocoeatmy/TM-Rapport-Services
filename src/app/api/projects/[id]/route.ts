@@ -317,7 +317,10 @@ export async function PATCH(
       : isPermanentClientError
       ? `Mise à jour impossible (${error.status}) : ${error?.message || "élément introuvable ou invalide"}`
       : error.message || "Erreur lors de la mise à jour";
-    console.error(`[PATCH /api/projects/${id}] ${status}:`, error?.message || error);
+    // Les erreurs « client » (404/400 : projet supprimé, données invalides) sont
+    // attendues et non-critiques → warn, pas error (évite les fausses alertes).
+    const log = isPermanentClientError ? console.warn : console.error;
+    log(`[PATCH /api/projects/${id}] ${status}:`, error?.message || error);
     return NextResponse.json({ error: message }, { status });
   }
 }
