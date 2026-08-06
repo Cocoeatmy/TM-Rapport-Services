@@ -4351,6 +4351,27 @@ function ProjectPageContent({ id }: { id: string }) {
       setSignatureRequiredPrompt(true);
       return;
     }
+
+    // ── Heure de départ automatique (MONO-CABINE uniquement) ──
+    // Certains monteurs oublient d'arrêter le chrono. Si, en mono-cabine, l'heure
+    // de départ est vide MAIS qu'il y a des photos de montage (le montage a donc
+    // bien eu lieu), on fixe automatiquement l'heure de départ à l'instant de
+    // l'envoi. Impossible en multi-cabine (une heure par cabine → ambigu).
+    let effectiveDepart = heureDepart;
+    if (!isCabineMode && !isMultiDay && !heureDepart.trim()) {
+      const nbMontagePhotos =
+        filterByBucket(project.photosMontage, "MONTAGE_GAUCHE").length +
+        filterByBucket(project.photosMontage, "MONTAGE_CENTRE").length +
+        filterByBucket(project.photosMontage, "MONTAGE_DROITE").length;
+      if (nbMontagePhotos > 0) {
+        const now = new Date();
+        effectiveDepart = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+        setHeureDepart(effectiveDepart); // reflète dans l'UI
+        serverSnapshotRef.current.heureDepart = effectiveDepart;
+        toast.info(`Heure de départ non saisie — fixée à l'envoi (${effectiveDepart})`);
+      }
+    }
+
     setSending(true);
     try {
       // 1. Save the report data first
@@ -4367,7 +4388,7 @@ function ProjectPageContent({ id }: { id: string }) {
             ? cabines.map((c, i) => c.depart ? `Cab${i + 1}:${c.depart}` : "").filter(Boolean).join(" | ")
             : isMultiDay
               ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
-              : heureDepart,
+              : effectiveDepart,
           commentairesMontages: commentaires,
           rapportMonteur: normalizeRapportMonteur(
             isCabineMode
@@ -4388,7 +4409,7 @@ function ProjectPageContent({ id }: { id: string }) {
         : heureArrivee;
       const departFinal = isMultiDay
         ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
-        : heureDepart;
+        : effectiveDepart;
       const pdfParams = new URLSearchParams();
       if (arriveeFinal) pdfParams.set("arrivee", arriveeFinal);
       if (departFinal) pdfParams.set("depart", departFinal);
