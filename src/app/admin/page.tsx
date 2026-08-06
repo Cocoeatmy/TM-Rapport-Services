@@ -1789,15 +1789,8 @@ export default function AdminPage() {
         <Card className="glass-card">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => toggleCard("chantiers")}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggleCard("chantiers"); }}
-                className="flex flex-col gap-0.5 cursor-pointer select-none min-w-0"
-              >
+              <div className="flex flex-col gap-0.5 min-w-0">
                 <CardTitle className="text-base flex items-center gap-2">
-                  {openCards.has("chantiers") ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
                   <MapPin className="w-4 h-4 text-green-500" />
                   Chantiers en cours
                 </CardTitle>
@@ -1807,26 +1800,40 @@ export default function AdminPage() {
                   <span className="font-semibold text-gray-600 dark:text-gray-300">{totalCabines}</span> cabine{totalCabines > 1 ? "s" : ""}
                 </p>
               </div>
-              <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg">
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Sélecteur Liste/Carte — visible seulement quand la carte est dépliée. */}
+                {openCards.has("chantiers") && (
+                  <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg">
+                    <button
+                      onClick={() => setChantierView("liste")}
+                      className={`text-[10px] font-medium px-2.5 py-1 rounded-md transition-all ${
+                        chantierView === "liste"
+                          ? "bg-white shadow-sm text-gray-900"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      Liste
+                    </button>
+                    <button
+                      onClick={() => setChantierView("carte")}
+                      className={`text-[10px] font-medium px-2.5 py-1 rounded-md transition-all ${
+                        chantierView === "carte"
+                          ? "bg-white shadow-sm text-gray-900"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      Carte
+                    </button>
+                  </div>
+                )}
+                {/* Chevron de repli/dépli — à DROITE, comme les autres cartes. */}
                 <button
-                  onClick={() => setChantierView("liste")}
-                  className={`text-[10px] font-medium px-2.5 py-1 rounded-md transition-all ${
-                    chantierView === "liste"
-                      ? "bg-white shadow-sm text-gray-900"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  type="button"
+                  onClick={() => toggleCard("chantiers")}
+                  title={openCards.has("chantiers") ? "Replier" : "Déplier"}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors shrink-0"
                 >
-                  Liste
-                </button>
-                <button
-                  onClick={() => setChantierView("carte")}
-                  className={`text-[10px] font-medium px-2.5 py-1 rounded-md transition-all ${
-                    chantierView === "carte"
-                      ? "bg-white shadow-sm text-gray-900"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  Carte
+                  {openCards.has("chantiers") ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
               </div>
             </div>
