@@ -130,6 +130,7 @@ export function ProjectChat({ projectId }: { projectId: string }) {
     zIndex: 60,
     transform: "translateZ(0)",
     WebkitTransform: "translateZ(0)",
+    willChange: "transform" as const,
   };
 
   if (!open) {

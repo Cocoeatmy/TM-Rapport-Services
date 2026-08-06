@@ -3615,9 +3615,19 @@ function ProjectPageContent({ id }: { id: string }) {
   useEffect(() => {
     // 1. Cache-first: charger depuis le cache des projets instantanément
     let hadCache = false;
+    // 1a. Clé DÉDIÉE déposée par la recherche/dashboard au moment du clic →
+    //     affichage immédiat même si le projet n'est pas dans tm-projects-cache.
+    try {
+      const direct = localStorage.getItem(`tm-project-${id}`);
+      if (direct) {
+        localStorage.removeItem(`tm-project-${id}`); // usage unique (données fraîches suivent)
+        const p = JSON.parse(direct);
+        if (p?.id === id) { initProject(p); setLoading(false); hadCache = true; }
+      }
+    } catch {}
     try {
       const cached = localStorage.getItem("tm-projects-cache");
-      if (cached) {
+      if (!hadCache && cached) {
         const allCached = JSON.parse(cached);
         for (const key of Object.keys(allCached)) {
           const arr = allCached[key];
@@ -5966,27 +5976,29 @@ function ProjectPageContent({ id }: { id: string }) {
                   <CardHeader className="pb-0">
                     <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Rapport & Photos</CardTitle>
                   </CardHeader>
-                  {/* ── Onglets Rapport / Photos (mono-cabine) ── */}
-                  <div className="flex border-b border-gray-100 dark:border-slate-700 mx-6">
+                  {/* ── Onglets Rapport / Photos (mono-cabine) : contrôle segmenté
+                        (pilules) → clairement cliquable, segment actif rempli de
+                        la couleur du thème. ── */}
+                  <div className="mx-6 mt-1 flex gap-1.5 p-1 rounded-xl bg-gray-100 dark:bg-slate-800">
                     <button
                       type="button"
                       onClick={() => setMonoActiveTab("rapport")}
-                      className={`flex-1 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
                         monoActiveTab === "rapport"
-                          ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300"
-                          : "text-gray-400 hover:text-gray-600"
+                          ? "bg-[#1e3a5f] text-white shadow-sm"
+                          : "text-[#1e3a5f] dark:text-blue-200 hover:bg-white/70 dark:hover:bg-white/5"
                       }`}
                     >
                       Rapport
-                      {!rapport.trim() && <span className="w-2 h-2 rounded-full bg-red-400 dark:bg-red-500" />}
+                      {!rapport.trim() && <span className={`w-2 h-2 rounded-full ${monoActiveTab === "rapport" ? "bg-red-300" : "bg-red-400 dark:bg-red-500"}`} />}
                     </button>
                     <button
                       type="button"
                       onClick={() => setMonoActiveTab("photos")}
-                      className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] ${
                         monoActiveTab === "photos"
-                          ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300"
-                          : "text-gray-400 hover:text-gray-600"
+                          ? "bg-[#1e3a5f] text-white shadow-sm"
+                          : "text-[#1e3a5f] dark:text-blue-200 hover:bg-white/70 dark:hover:bg-white/5"
                       }`}
                     >
                       Photos

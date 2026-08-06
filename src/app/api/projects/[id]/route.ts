@@ -303,11 +303,19 @@ export async function PATCH(
   } catch (error: any) {
     const isRateLimit = error?.status === 429 || error?.code === "rate_limited";
     const isTimeout = error?.code === "notionhq_client_request_timeout";
-    const status = isRateLimit ? 429 : isTimeout ? 504 : 500;
+    // Erreur client Notion NON transitoire (404 page inexistante/supprimée,
+    // 400 validation, 403…) : on renvoie le VRAI statut 4xx pour que la file
+    // offline traite l'item comme PERMANENT et l'abandonne, au lieu de le
+    // rejouer indéfiniment (cause d'une synchro « coincée à vie »).
+    const isPermanentClientError =
+      typeof error?.status === "number" && error.status >= 400 && error.status < 500 && error.status !== 429 && error.status !== 408;
+    const status = isRateLimit ? 429 : isTimeout ? 504 : isPermanentClientError ? error.status : 500;
     const message = isRateLimit
       ? "Notion est momentanément surchargé. Réessayez dans quelques secondes."
       : isTimeout
       ? "La requête a expiré. Réessayez."
+      : isPermanentClientError
+      ? `Mise à jour impossible (${error.status}) : ${error?.message || "élément introuvable ou invalide"}`
       : error.message || "Erreur lors de la mise à jour";
     console.error(`[PATCH /api/projects/${id}] ${status}:`, error?.message || error);
     return NextResponse.json({ error: message }, { status });

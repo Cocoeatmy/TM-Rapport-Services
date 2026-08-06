@@ -179,6 +179,11 @@ function updateQueueItem(updated: QueueItem) {
 // Backoff exponentiel : 1, 2, 4, 8, 16, 32 min. Au-delà de
 // MAX_RETRIES essais, on log et on retire (sinon une opération
 // fondamentalement cassée bloquerait toute la queue indéfiniment).
+/** Âge maximum d'un item en file : au-delà, il est abandonné (garde-fou anti
+ *  « synchro coincée à vie » — une mutation vieille de +24 h est de toute façon
+ *  périmée, la donnée a changé depuis). */
+const MAX_QUEUE_AGE_MS = 24 * 60 * 60 * 1000;
+
 export async function processQueue(): Promise<{ success: number; failed: number; skipped: number }> {
   const queue = getQueue();
   let success = 0;
@@ -187,6 +192,14 @@ export async function processQueue(): Promise<{ success: number; failed: number;
   const now = Date.now();
 
   for (const item of queue) {
+    // Garde-fou d'ÂGE : un item trop vieux (poison / projet supprimé) est
+    // abandonné, quel que soit son compteur de retries.
+    if (item.timestamp && now - item.timestamp > MAX_QUEUE_AGE_MS) {
+      console.warn("[offline] Item abandonné (trop ancien)", item.url, item.method);
+      removeFromQueue(item.id);
+      failed++;
+      continue;
+    }
     if (item.nextAttemptAt && item.nextAttemptAt > now) {
       skipped++;
       continue;

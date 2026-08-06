@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WifiOff, CloudUpload, RefreshCw, AlertTriangle, ChevronDown } from "lucide-react";
-import { isOnline, getQueue, warmOfflineCache, getLastCacheWarmTs } from "@/lib/offline";
+import { WifiOff, CloudUpload, RefreshCw, AlertTriangle, ChevronDown, X } from "lucide-react";
+import { isOnline, getQueue, removeFromQueue, warmOfflineCache, getLastCacheWarmTs } from "@/lib/offline";
 import type { QueueItem } from "@/lib/offline";
 import {
   countPendingUploads,
@@ -166,6 +166,14 @@ export function OfflineBanner() {
     }
   };
 
+  /** Abandonne manuellement un item de synchro coincé. */
+  const handleRemoveItem = (id: string) => {
+    removeFromQueue(id);
+    const items = getQueue();
+    setQueueItems(items);
+    countPendingUploads().then((up) => setQueueCount(items.length + up));
+  };
+
   const handleManualWarm = async () => {
     setWarming(true);
     try {
@@ -290,9 +298,21 @@ export function OfflineBanner() {
                   {describeQueueItem(item)}
                 </span>
               </div>
-              <span className="text-[10px] text-gray-400 shrink-0">
-                {formatTime(item.timestamp)}
-              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] text-gray-400">
+                  {formatTime(item.timestamp)}
+                </span>
+                {item.type !== "upload" && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleRemoveItem(item.id); }}
+                    title="Abandonner cette opération coincée"
+                    className="w-5 h-5 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
 

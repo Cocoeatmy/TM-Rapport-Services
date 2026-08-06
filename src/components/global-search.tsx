@@ -148,6 +148,10 @@ export function GlobalSearch() {
 
   const navigate = (p: Project) => {
     closeSearch();
+    // Affichage INSTANTANÉ : on dépose le projet trouvé dans une clé dédiée que
+    // la page projet lit en priorité (évite le spinner + fetch Notion ~5 s quand
+    // le projet n'est pas dans tm-projects-cache).
+    try { localStorage.setItem(`tm-project-${p.id}`, JSON.stringify(p)); } catch {}
     router.push(`/projet/${p.id}`);
   };
 

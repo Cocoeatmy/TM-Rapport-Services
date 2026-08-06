@@ -162,14 +162,16 @@ html.is-scrolling [class*="-bg"]::after {
   }
   body {
     @apply bg-background text-foreground;
-    /* Empêche le scroll horizontal "fantôme" de la page (espace vide à droite
-       sur iOS quand on glisse vers la gauche). `clip` au lieu de `hidden` :
-       ne crée pas de conteneur de défilement, donc ne casse pas les `sticky`. */
-    overflow-x: clip;
+    /* PAS d'overflow-x sur BODY : sur iOS Safari, un overflow sur <body> casse
+       le `position: fixed` des enfants (le bouton chat « scrollait » avec le
+       contenu au lieu de rester figé). Le clip horizontal est assuré par <html>
+       ci-dessous, ce qui empêche le scroll horizontal fantôme sans ce défaut. */
     max-width: 100%;
   }
   html {
     @apply font-sans;
+    /* `clip` (pas `hidden`) : ne crée pas de conteneur de défilement, donc ne
+       casse pas les `sticky`, tout en empêchant le scroll horizontal fantôme. */
     overflow-x: clip;
     max-width: 100%;
   }
