@@ -1,6 +1,10 @@
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
 
+/** chat_id Telegram par défaut (admin / test). Exporté pour le rapport quotidien. */
+export const DEFAULT_TELEGRAM_CHAT_ID = CHAT_ID;
+export const telegramConfigured = !!BOT_TOKEN;
+
 async function telegramApi(method: string, formData: FormData) {
   const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
     method: "POST",
@@ -11,6 +15,32 @@ async function telegramApi(method: string, formData: FormData) {
     throw new Error(`Telegram ${method} failed: ${res.status} ${text}`);
   }
   return res.json();
+}
+
+/** Échappe le texte pour le mode HTML de Telegram. */
+export function escapeHtml(text: string): string {
+  return String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Envoie un message texte (HTML) à un chat Telegram donné.
+ * Le mode HTML est plus simple que MarkdownV2 (peu de caractères à échapper).
+ */
+export async function sendTelegramText(chatId: string, html: string): Promise<{ success: boolean; error?: string }> {
+  if (!BOT_TOKEN) return { success: false, error: "TELEGRAM_BOT_TOKEN manquant" };
+  if (!chatId) return { success: false, error: "chat_id manquant" };
+  try {
+    const form = new FormData();
+    form.append("chat_id", chatId);
+    form.append("text", html);
+    form.append("parse_mode", "HTML");
+    form.append("disable_web_page_preview", "true");
+    await telegramApi("sendMessage", form);
+    return { success: true };
+  } catch (error: any) {
+    console.error("Telegram sendMessage error:", error?.message || error);
+    return { success: false, error: error?.message || "Erreur Telegram" };
+  }
 }
 
 export async function sendReportToTelegram({

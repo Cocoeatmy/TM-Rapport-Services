@@ -17,6 +17,7 @@ import {
   ScrollText,
   ExternalLink,
   Mail,
+  Send,
   Database,
   Package,
 } from "lucide-react";
@@ -85,6 +86,7 @@ export default function AdminPage() {
   const [reportMonth, setReportMonth] = useState<number>(() => new Date().getMonth() + 1);
   const [reportYear, setReportYear] = useState<number>(() => new Date().getFullYear());
   const [sendingReport, setSendingReport] = useState(false);
+  const [sendingDaily, setSendingDaily] = useState(false);
   const sendMonthlyReport = async () => {
     setSendingReport(true);
     try {
@@ -527,6 +529,38 @@ export default function AdminPage() {
         >
           <Mail className="w-4 h-4 text-blue-600" />
           Rapport mensuel
+        </button>
+        <button
+          onClick={async () => {
+            if (sendingDaily) return;
+            setSendingDaily(true);
+            try {
+              const res = await fetch("/api/daily-report", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ test: true }),
+              });
+              const data = await res.json();
+              if (res.ok) {
+                alert(
+                  data.montagesDuJour === 0
+                    ? "Aucun montage aujourd'hui — message envoyé sur ton Telegram."
+                    : `Rapport du jour envoyé sur ton Telegram (${data.envoyes} montage(s)${data.preview ? " — aperçu de tous les montages du jour" : ""}).`,
+                );
+              } else {
+                alert("Erreur : " + (data.error || "envoi impossible"));
+              }
+            } catch {
+              alert("Erreur réseau");
+            } finally {
+              setSendingDaily(false);
+            }
+          }}
+          disabled={sendingDaily}
+          className="shrink-0 flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl glass-card hover:bg-white/80 transition-all active:scale-95 disabled:opacity-50"
+        >
+          <Send className="w-4 h-4 text-sky-500" />
+          {sendingDaily ? "Envoi…" : "Rapport du jour (test)"}
         </button>
         <button
           onClick={() => {
