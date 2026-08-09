@@ -35,12 +35,17 @@ function projectBlock(p: Project): string {
   L.push(`━━━━━━━━━━━━━━`);
   L.push(`🔧 <b>${escapeHtml(p.ofrTM || "—")}</b> — ${escapeHtml(titre)}`);
 
+  // Heure du RDV : présente uniquement si « Date Montage » comporte une heure
+  // (ISO « …T08:30… »). On affiche l'heure telle que saisie dans Notion.
+  const rdvTime = (p.dateMontage || "").match(/T(\d{2}:\d{2})/)?.[1];
+  if (rdvTime) L.push(`🕐 <b>Heure RDV :</b> ${escapeHtml(rdvTime)}`);
+
   line("📍", "Adresse :", p.adresseChantier);
   line("📞", "Contacts RDV :", p.contactsRDV);
   line("🛠", "Services :", (p.typeServices || []).join(", "));
   const cab = p.nbCabines != null ? `${p.nbCabines}` : "";
   if (cab) L.push(`🚿 <b>Cabines :</b> ${escapeHtml(cab)}`);
-  line("📌", "Emplacement :", p.emplacementCabine);
+  line("📌", "Emplacement cabine :", p.emplacementCabine);
   line("👷", "Collaborateur :", p.collaborateurs);
 
   // Documents pour Montage : liens cliquables
