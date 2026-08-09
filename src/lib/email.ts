@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
@@ -7,14 +8,49 @@ const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 // de test Resend — qui n'autorise l'envoi QU'À l'adresse du compte.
 export const EMAIL_FROM = process.env.RESEND_FROM || "TM Rapport Services <onboarding@resend.dev>";
 
-/** Envoi e-mail HTML simple. Retourne {success, error}. */
+// Envoi via GMAIL (SMTP) — permet d'écrire à N'IMPORTE QUI sans domaine vérifié.
+// Activé dès que GMAIL_USER + GMAIL_APP_PASSWORD sont définis (mot de passe
+// d'application Google, jamais le mot de passe du compte).
+const GMAIL_USER = process.env.GMAIL_USER || "";
+const GMAIL_APP_PASSWORD = (process.env.GMAIL_APP_PASSWORD || "").replace(/\s+/g, ""); // Google affiche le code par blocs
+export const gmailEnabled = !!(GMAIL_USER && GMAIL_APP_PASSWORD);
+
+let gmailTransport: nodemailer.Transporter | null = null;
+function getGmailTransport() {
+  if (!gmailTransport) {
+    gmailTransport = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+    });
+  }
+  return gmailTransport;
+}
+
+/**
+ * Envoi e-mail HTML simple. Retourne {success, error}.
+ * Priorité à Gmail SMTP si configuré (envoi à tous), sinon Resend.
+ */
 export async function sendEmail(to: string, subject: string, html: string): Promise<{ success: boolean; error?: string }> {
+  if (gmailEnabled) {
+    try {
+      await getGmailTransport().sendMail({
+        from: `TM Rapport Services <${GMAIL_USER}>`,
+        to,
+        subject,
+        html,
+      });
+      return { success: true };
+    } catch (error: any) {
+      console.error("sendEmail (gmail) error:", error?.message || error);
+      return { success: false, error: error?.message || "Erreur e-mail (Gmail)" };
+    }
+  }
   try {
     const res = await resend.emails.send({ from: EMAIL_FROM, to, subject, html });
     if ((res as any)?.error) return { success: false, error: (res as any).error?.message || "Resend error" };
     return { success: true };
   } catch (error: any) {
-    console.error("sendEmail error:", error?.message || error);
+    console.error("sendEmail (resend) error:", error?.message || error);
     return { success: false, error: error?.message || "Erreur e-mail" };
   }
 }
