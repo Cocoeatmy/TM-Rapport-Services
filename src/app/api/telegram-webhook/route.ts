@@ -77,14 +77,36 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
   const user = token ? await verifyToken(token) : null;
-  if (!user || user.role !== "admin") {
-    return NextResponse.json({ error: "Admin requis" }, { status: 403 });
+  if (!user) {
+    return NextResponse.json({ error: "Connexion requise" }, { status: 401 });
   }
   if (!telegramConfigured) {
     return NextResponse.json({ error: "TELEGRAM_BOT_TOKEN manquant" }, { status: 500 });
   }
 
   const action = request.nextUrl.searchParams.get("action") || "info";
+
+  // `me` : lien du bot (username public) — accessible à tout utilisateur connecté
+  // (pratique pour partager le lien depuis le téléphone d'un collaborateur).
+  if (action === "me") {
+    try {
+      const res = await telegramApiJson("getMe", {});
+      const username = res?.result?.username;
+      return NextResponse.json({
+        ok: true,
+        username,
+        link: username ? `https://t.me/${username}` : null,
+        name: res?.result?.first_name,
+      });
+    } catch (e: any) {
+      return NextResponse.json({ error: e?.message || "Erreur" }, { status: 500 });
+    }
+  }
+
+  // Les autres actions (set/info/delete du webhook) restent réservées à l'admin.
+  if (user.role !== "admin") {
+    return NextResponse.json({ error: "Admin requis" }, { status: 403 });
+  }
   try {
     if (action === "set") {
       const origin =
