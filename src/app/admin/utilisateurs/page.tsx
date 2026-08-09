@@ -13,6 +13,7 @@ import {
   UserPlus,
   Trash2,
   Mail,
+  Phone,
   Lock,
   Box,
   ChevronDown,
@@ -30,6 +31,7 @@ interface UserData {
   email: string;
   name: string;
   role: string;
+  phone?: string;
 }
 
 export default function UtilisateursPage() {
@@ -55,6 +57,7 @@ export default function UtilisateursPage() {
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
 
   useEffect(() => {
     fetch("/api/auth")
@@ -152,12 +155,12 @@ export default function UtilisateursPage() {
   };
 
   const handleUpdateUserInfo = async (currentEmail: string) => {
-    if (!editName.trim() && !editEmail.trim()) return;
     setSaving(true);
     try {
       const body: Record<string, string> = { email: currentEmail };
       if (editName.trim()) body.name = editName.trim();
       if (editEmail.trim() && editEmail.trim() !== currentEmail) body.newEmail = editEmail.trim();
+      body.phone = editPhone.trim(); // toujours envoyé (chaîne vide = effacer)
       const res = await fetch("/api/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -301,6 +304,10 @@ export default function UtilisateursPage() {
                       <Mail className="w-3 h-3" />
                       {u.email}
                     </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
+                      <Phone className="w-3 h-3" />
+                      {u.phone ? u.phone : <span className="italic text-gray-400">Aucun téléphone</span>}
+                    </p>
 
                     {/* Actions */}
                     {isEditingInfo ? (
@@ -324,17 +331,27 @@ export default function UtilisateursPage() {
                             className="h-9 text-sm mt-1"
                           />
                         </div>
+                        <div>
+                          <Label className="text-xs text-gray-500">Téléphone (pour le rapport quotidien)</Label>
+                          <Input
+                            type="tel"
+                            value={editPhone}
+                            onChange={(e) => setEditPhone(e.target.value)}
+                            placeholder="+41 79 000 00 00"
+                            className="h-9 text-sm mt-1"
+                          />
+                        </div>
                         <div className="flex gap-2 pt-1">
                           <button
                             onClick={() => handleUpdateUserInfo(u.email)}
-                            disabled={saving || (!editName.trim() && editEmail.trim() === u.email)}
+                            disabled={saving}
                             className="h-9 px-4 rounded-lg bg-[#1e3a5f] text-white text-sm font-medium disabled:opacity-50 flex items-center gap-1.5"
                           >
                             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                             Enregistrer
                           </button>
                           <button
-                            onClick={() => { setEditingUserEmail(null); setEditName(""); setEditEmail(""); }}
+                            onClick={() => { setEditingUserEmail(null); setEditName(""); setEditEmail(""); setEditPhone(""); }}
                             className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-600"
                           >
                             Annuler
@@ -379,7 +396,7 @@ export default function UtilisateursPage() {
                     ) : (
                       <div className="flex items-center gap-3 mt-2">
                         <button
-                          onClick={() => { setEditingUserEmail(u.email); setEditName(u.name); setEditEmail(u.email); setEditingEmail(null); setExpandedUser(null); }}
+                          onClick={() => { setEditingUserEmail(u.email); setEditName(u.name); setEditEmail(u.email); setEditPhone(u.phone || ""); setEditingEmail(null); setExpandedUser(null); }}
                           className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-200 flex items-center gap-1"
                         >
                           <Pencil className="w-3 h-3" />
