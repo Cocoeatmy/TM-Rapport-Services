@@ -50,19 +50,26 @@ async function getOrCreateBackupPageId(key: string): Promise<string> {
   const title = `[DATA] ${key}`;
 
   try {
-    // Search for existing child page under storage parent
-    const children = await notion.blocks.children.list({
-      block_id: STORAGE_PAGE_ID,
-      page_size: 100,
-    });
-
-    for (const block of children.results) {
-      const b = block as any;
-      if (b.type === "child_page" && b.child_page?.title === title) {
-        pageIdCache[key] = b.id;
-        return pageIdCache[key];
+    // Search for existing child page under storage parent — AVEC PAGINATION.
+    // Bug corrigé : sans pagination, au-delà de 100 pages [DATA] la page
+    // recherchée n'était pas trouvée → une NOUVELLE page dupliquée était créée à
+    // chaque accès → écritures/lectures dispersées → perte de données.
+    let cursor: string | undefined;
+    do {
+      const children = await notion.blocks.children.list({
+        block_id: STORAGE_PAGE_ID,
+        page_size: 100,
+        start_cursor: cursor,
+      });
+      for (const block of children.results) {
+        const b = block as any;
+        if (b.type === "child_page" && b.child_page?.title === title) {
+          pageIdCache[key] = b.id;
+          return pageIdCache[key];
+        }
       }
-    }
+      cursor = children.has_more ? (children.next_cursor ?? undefined) : undefined;
+    } while (cursor);
 
     // Create the page as a child of the storage page
     const page = await notion.pages.create({

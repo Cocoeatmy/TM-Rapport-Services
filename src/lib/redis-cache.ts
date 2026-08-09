@@ -60,6 +60,39 @@ export async function redisGetJSON<T>(key: string): Promise<T | null> {
   }
 }
 
+// ── HASH persistant (données durables : téléphones…) ─────────────────────────
+// Un HASH stocke des paires champ→valeur. HSET écrit UN champ de façon ATOMIQUE
+// (pas de lecture-modification-écriture → aucune collision) et SANS expiration
+// (pas de TTL) → parfait pour des données qui ne doivent jamais disparaître.
+// Ces fonctions PROPAGENT les erreurs (contrairement aux caches ci-dessus) pour
+// que l'appelant sache si l'écriture a échoué.
+
+/** Écrit un champ d'un hash (atomique, persistant). Throw si échec. */
+export async function redisHSet(key: string, field: string, value: string): Promise<void> {
+  if (!redisEnabled) throw new Error("Redis non configuré");
+  await command(["HSET", key, field, value]);
+}
+
+/** Lit tout un hash → objet {champ: valeur}. Throw si échec. */
+export async function redisHGetAll(key: string): Promise<Record<string, string>> {
+  if (!redisEnabled) throw new Error("Redis non configuré");
+  const r = await command(["HGETALL", key]);
+  const out: Record<string, string> = {};
+  if (Array.isArray(r)) {
+    // Format REST Upstash : [champ1, val1, champ2, val2, …]
+    for (let i = 0; i + 1 < r.length; i += 2) out[String(r[i])] = String(r[i + 1]);
+  } else if (r && typeof r === "object") {
+    for (const [k, v] of Object.entries(r as Record<string, unknown>)) out[k] = String(v);
+  }
+  return out;
+}
+
+/** Supprime un champ d'un hash. Throw si échec. */
+export async function redisHDel(key: string, field: string): Promise<void> {
+  if (!redisEnabled) throw new Error("Redis non configuré");
+  await command(["HDEL", key, field]);
+}
+
 /** Écrit une valeur JSON avec TTL (défaut 1 h), compressée si volumineuse. */
 export async function redisSetJSON(key: string, data: unknown, ttlSec = 3600): Promise<void> {
   if (!redisEnabled) return;
