@@ -2,6 +2,23 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
+// Expéditeur : configurable via RESEND_FROM une fois un domaine vérifié dans
+// Resend (ex. "TM Rapport <rapport@douche-montage.ch>"). Par défaut, l'expéditeur
+// de test Resend — qui n'autorise l'envoi QU'À l'adresse du compte.
+export const EMAIL_FROM = process.env.RESEND_FROM || "TM Rapport Services <onboarding@resend.dev>";
+
+/** Envoi e-mail HTML simple. Retourne {success, error}. */
+export async function sendEmail(to: string, subject: string, html: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await resend.emails.send({ from: EMAIL_FROM, to, subject, html });
+    if ((res as any)?.error) return { success: false, error: (res as any).error?.message || "Resend error" };
+    return { success: true };
+  } catch (error: any) {
+    console.error("sendEmail error:", error?.message || error);
+    return { success: false, error: error?.message || "Erreur e-mail" };
+  }
+}
+
 export async function sendPdfByEmail({
   projectName,
   ofrTM,

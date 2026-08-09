@@ -544,8 +544,8 @@ export default function AdminPage() {
               if (res.ok) {
                 alert(
                   data.montagesDuJour === 0
-                    ? "Aucun montage aujourd'hui — message envoyé sur ton Telegram."
-                    : `Rapport du jour envoyé sur ton Telegram (${data.envoyes} montage(s)${data.preview ? " — aperçu de tous les montages du jour" : ""}).`,
+                    ? "Aucun montage aujourd'hui — e-mail de test envoyé à ton adresse."
+                    : `Rapport du jour envoyé par e-mail à ton adresse (${data.envoyes} montage(s)${data.preview ? " — aperçu de tous les montages du jour" : ""}).`,
                 );
               } else {
                 alert("Erreur : " + (data.error || "envoi impossible"));
