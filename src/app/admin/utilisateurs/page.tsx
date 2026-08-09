@@ -14,6 +14,7 @@ import {
   Trash2,
   Mail,
   Phone,
+  Send,
   Lock,
   Box,
   ChevronDown,
@@ -32,6 +33,7 @@ interface UserData {
   name: string;
   role: string;
   phone?: string;
+  telegramRegistered?: boolean;
 }
 
 export default function UtilisateursPage() {
@@ -307,6 +309,14 @@ export default function UtilisateursPage() {
                     <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
                       <Phone className="w-3 h-3" />
                       {u.phone ? u.phone : <span className="italic text-gray-400">Aucun téléphone</span>}
+                    </p>
+                    <p className="text-xs flex items-center gap-1 mt-0.5">
+                      <Send className="w-3 h-3 text-sky-500" />
+                      {u.telegramRegistered ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">Inscrit au bot Telegram ✓</span>
+                      ) : (
+                        <span className="italic text-gray-400">Non inscrit au bot Telegram</span>
+                      )}
                     </p>
 
                     {/* Actions */}

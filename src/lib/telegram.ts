@@ -26,7 +26,11 @@ export function escapeHtml(text: string): string {
  * Envoie un message texte (HTML) à un chat Telegram donné.
  * Le mode HTML est plus simple que MarkdownV2 (peu de caractères à échapper).
  */
-export async function sendTelegramText(chatId: string, html: string): Promise<{ success: boolean; error?: string }> {
+export async function sendTelegramText(
+  chatId: string,
+  html: string,
+  replyMarkup?: unknown,
+): Promise<{ success: boolean; error?: string }> {
   if (!BOT_TOKEN) return { success: false, error: "TELEGRAM_BOT_TOKEN manquant" };
   if (!chatId) return { success: false, error: "chat_id manquant" };
   try {
@@ -35,12 +39,28 @@ export async function sendTelegramText(chatId: string, html: string): Promise<{ 
     form.append("text", html);
     form.append("parse_mode", "HTML");
     form.append("disable_web_page_preview", "true");
+    if (replyMarkup) form.append("reply_markup", JSON.stringify(replyMarkup));
     await telegramApi("sendMessage", form);
     return { success: true };
   } catch (error: any) {
     console.error("Telegram sendMessage error:", error?.message || error);
     return { success: false, error: error?.message || "Erreur Telegram" };
   }
+}
+
+/** Appelle une méthode de l'API Telegram avec un corps JSON (setWebhook…). */
+export async function telegramApiJson(method: string, body: Record<string, unknown>): Promise<any> {
+  if (!BOT_TOKEN) throw new Error("TELEGRAM_BOT_TOKEN manquant");
+  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.ok === false) {
+    throw new Error(`Telegram ${method}: ${json.description || res.status}`);
+  }
+  return json;
 }
 
 export async function sendReportToTelegram({

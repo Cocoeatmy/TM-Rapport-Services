@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken, getAllUsers, updateUserPassword, updateUserRole, addUser, deleteUser, updateUserInfo } from "@/lib/auth";
 import { getUserPhones, setUserPhone, renameUserPhone, deleteUserPhone } from "@/lib/user-phones";
+import { getUserChatIds, deleteUserChatId } from "@/lib/user-chatids";
 
 async function checkAdmin(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
@@ -14,11 +15,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
   const users = getAllUsers();
-  // Fusionne les téléphones (stockés dans le KV persistant).
+  // Fusionne téléphones + statut d'inscription Telegram (chat_id présent).
   let phones: Record<string, string> = {};
-  try { phones = await getUserPhones(); } catch { /* KV indispo → sans téléphone */ }
+  let chatIds: Record<string, string> = {};
+  try { phones = await getUserPhones(); } catch { /* indispo → sans téléphone */ }
+  try { chatIds = await getUserChatIds(); } catch { /* indispo → non inscrit */ }
   return NextResponse.json(
-    users.map((u) => ({ ...u, phone: phones[u.email.toLowerCase()] || "" })),
+    users.map((u) => ({
+      ...u,
+      phone: phones[u.email.toLowerCase()] || "",
+      telegramRegistered: !!chatIds[u.email.toLowerCase()],
+    })),
   );
 }
 
@@ -83,5 +90,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Impossible de supprimer cet utilisateur" }, { status: 400 });
   }
   try { await deleteUserPhone(email); } catch {}
+  try { await deleteUserChatId(email); } catch {}
   return NextResponse.json({ success: true });
 }
