@@ -15,8 +15,19 @@ export function isMontageOnDay(p: Project, dayIso: string): boolean {
   return p.dateMontage.slice(0, 10) === dayIso;
 }
 
-/** Le collaborateur (par prénom, insensible à la casse) est-il sur ce projet ? */
+/** Projet « Team » : collaborateur = équipe entière → concerne TOUT le monde. */
+export function isTeamProject(p: Project): boolean {
+  return (p.collaborateurs || "").toLowerCase().includes("team");
+}
+
+/**
+ * Le collaborateur est-il concerné par ce projet ?
+ *  • Projet « Team »        → OUI pour tout le monde.
+ *  • Binôme « A & B »       → la chaîne contient les deux prénoms → chacun matche.
+ *  • Sinon                  → son prénom apparaît dans « Collaborateurs montages ».
+ */
 export function collaboratorOnProject(p: Project, collaboratorName: string): boolean {
+  if (isTeamProject(p)) return true;
   const first = collaboratorName.split(" ")[0].toLowerCase().trim();
   if (!first) return false;
   return (p.collaborateurs || "").toLowerCase().includes(first);

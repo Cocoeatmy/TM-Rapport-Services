@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken, getAllUsers } from "@/lib/auth";
+import { verifyToken } from "@/lib/auth";
 import { getAllActiveProjects } from "@/lib/notion";
 import { sendEmail } from "@/lib/email";
-import { getUserPhones } from "@/lib/user-phones";
 import { buildDailyReportEmailHtml, isMontageOnDay, collaboratorOnProject, isoDay } from "@/lib/daily-report";
+import { sendDailyReportsToAll } from "@/lib/send-daily-reports";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -56,21 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Mode RÉEL : chaque collaborateur reçoit SES montages ──
-    const users = getAllUsers(); // {email, name, role}
-    let phones: Record<string, string> = {};
-    try { phones = await getUserPhones(); } catch { /* non requis pour l'e-mail */ }
-    void phones;
-
-    const results: { name: string; email: string; count: number; ok: boolean; error?: string }[] = [];
-    for (const u of users) {
-      if (!u.email) continue;
-      const mine = montagesDuJour.filter((p) => collaboratorOnProject(p, u.name));
-      if (mine.length === 0) continue; // pas de montage → pas d'e-mail
-      const html = buildDailyReportEmailHtml(mine, { dayIso, greetName: u.name.split(" ")[0] });
-      const r = await sendEmail(u.email, `Rapport du jour — ${mine.length} montage${mine.length > 1 ? "s" : ""}`, html);
-      results.push({ name: u.name, email: u.email, count: mine.length, ok: r.success, error: r.error });
-    }
-
+    const { results } = await sendDailyReportsToAll(dayIso);
     return NextResponse.json({
       success: true,
       mode: isCron ? "cron" : "all",

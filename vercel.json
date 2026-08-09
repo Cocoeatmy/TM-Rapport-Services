@@ -29,6 +29,14 @@
     {
       "path": "/api/cron/stats-precalc",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/daily-report",
+      "schedule": "45 4 * * 1-5"
+    },
+    {
+      "path": "/api/cron/daily-report",
+      "schedule": "45 5 * * 1-5"
     }
   ]
 }
