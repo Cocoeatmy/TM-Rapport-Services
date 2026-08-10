@@ -1,4 +1,5 @@
 import { notion, databaseId } from "./notion";
+import { redisEnabled, redisHGetAll, redisHSet } from "./redis-cache";
 
 // ---------------------------------------------------------------------------
 // In-memory cache  (survives across requests in the same serverless process)
@@ -44,45 +45,65 @@ const STORAGE_PAGE_ID = "3431895b9179804eb9bfc51868936cf2";
  * Find or create a Notion page that stores data for a given key.
  * Pages are children of the TM App Storage page (not in the projects DB).
  */
+// Mapping clé→pageId mémorisé dans Redis (HASH « kvpages »), PARTAGÉ entre
+// instances et PERSISTANT. C'est LA correction du problème : sans lui, chaque
+// instance froide re-listait les pages Notion pour retrouver sa page — et comme
+// le magasin a accumulé des MILLIERS de pages en doublon (force-sync-signal,
+// chat-*), ce listing devenait très lent (→ requêtes qui expirent, app figée) et
+// recréait sans cesse des doublons. Avec Redis, on résout l'ID une seule fois.
+let kvPagesRedis: Record<string, string> | null = null;
+async function loadKvPagesFromRedis(): Promise<Record<string, string>> {
+  if (kvPagesRedis) return kvPagesRedis;
+  try {
+    kvPagesRedis = redisEnabled ? await redisHGetAll("kvpages") : {};
+  } catch {
+    kvPagesRedis = {};
+  }
+  return kvPagesRedis;
+}
+function rememberPageId(key: string, id: string) {
+  pageIdCache[key] = id;
+  if (kvPagesRedis) kvPagesRedis[key] = id;
+  if (redisEnabled) redisHSet("kvpages", key, id).catch(() => {});
+}
+
 async function getOrCreateBackupPageId(key: string): Promise<string> {
   if (pageIdCache[key]) return pageIdCache[key];
 
   const title = `[DATA] ${key}`;
 
   try {
-    // Search for existing child page under storage parent — AVEC PAGINATION.
-    // Bug corrigé : sans pagination, au-delà de 100 pages [DATA] la page
-    // recherchée n'était pas trouvée → une NOUVELLE page dupliquée était créée à
-    // chaque accès → écritures/lectures dispersées → perte de données.
-    let cursor: string | undefined;
-    do {
-      const children = await notion.blocks.children.list({
-        block_id: STORAGE_PAGE_ID,
-        page_size: 100,
-        start_cursor: cursor,
-      });
-      for (const block of children.results) {
-        const b = block as any;
-        if (b.type === "child_page" && b.child_page?.title === title) {
-          pageIdCache[key] = b.id;
-          return pageIdCache[key];
-        }
-      }
-      cursor = children.has_more ? (children.next_cursor ?? undefined) : undefined;
-    } while (cursor);
+    // 1) Redis (rapide, partagé) : si l'ID est connu, AUCUN listing Notion.
+    const redisMap = await loadKvPagesFromRedis();
+    if (redisMap[key]) {
+      pageIdCache[key] = redisMap[key];
+      return redisMap[key];
+    }
 
-    // Create the page as a child of the storage page
+    // 2) Sinon, on cherche dans les 100 PREMIÈRES pages seulement (les pages
+    //    « canoniques » d'origine y figurent — créées tôt). PAS de pagination
+    //    complète : le magasin contient des milliers de pages, la parcourir
+    //    entièrement fige l'app. Une fois trouvé, on mémorise dans Redis.
+    const children = await notion.blocks.children.list({
+      block_id: STORAGE_PAGE_ID,
+      page_size: 100,
+    });
+    for (const block of children.results) {
+      const b = block as any;
+      if (b.type === "child_page" && b.child_page?.title === title) {
+        rememberPageId(key, b.id);
+        return b.id;
+      }
+    }
+
+    // 3) Introuvable → on crée la page, puis on mémorise son ID dans Redis pour
+    //    que TOUTES les instances la réutilisent (plus jamais de doublon).
     const page = await notion.pages.create({
       parent: { page_id: STORAGE_PAGE_ID },
-      properties: {
-        title: {
-          title: [{ text: { content: title } }],
-        },
-      },
+      properties: { title: { title: [{ text: { content: title } }] } },
     });
-
-    pageIdCache[key] = page.id;
-    return pageIdCache[key];
+    rememberPageId(key, page.id);
+    return page.id;
   } catch (err) {
     console.error(`[kv-store] Failed to get/create page for "${key}":`, err);
     throw err;
