@@ -5274,6 +5274,23 @@ function ProjectPageContent({ id }: { id: string }) {
                 </div>
               )}
             </div>
+            {/* Monteur sous-traitance — ADMIN UNIQUEMENT. Saisie libre du nom du
+                monteur pour les projets sous-traités. Sync Notion « Monteurs
+                sous-traitance ». */}
+            {isAdmin && (
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
+                <InlineField
+                  icon={PenLine}
+                  label="Monteur sous-traitance"
+                  value={project.monteursSousTraitance}
+                  projectId={id}
+                  fieldName="monteursSousTraitance"
+                  isAdmin={isAdmin}
+                  onUpdate={(v) => setProject((prev) => prev ? { ...prev, monteursSousTraitance: v ?? "" } : prev)}
+                />
+                <p className="text-[10px] text-gray-400 mt-1 ml-6">Saisie libre — projets sous-traités (admin uniquement).</p>
+              </div>
+            )}
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <div className="flex items-start gap-2">

@@ -211,6 +211,8 @@ export interface Project {
   nomsCabines: string;
   /** Monteurs responsables par cabine : "Cab1:Micael | Cab2:Claudio | ..." */
   attributionCabines: string;
+  /** Monteur(s) sous-traitance saisi(s) à la main (admin) — projets sous-traités. */
+  monteursSousTraitance: string;
   /** Nombre de cabines dont le montage est terminé (photos uploadées) */
   nbCabinesInstallees: number | null;
 }
@@ -367,6 +369,7 @@ export function mapPageToProject(page: any): Project {
     heureDepart: extractText(p["Heure départ"]),
     nomsCabines: extractText(p["Lot (nom de cabine)"]),
     attributionCabines: extractText(p["Monteur responsable"]),
+    monteursSousTraitance: extractText(p["Monteurs sous-traitance"]),
     nbCabinesInstallees: extractNumber(p["Nb. Cabines installées"]),
     commentairesMontages: extractText(p["Commentaires Montages"]),
     rapportMonteur: extractText(p["Rapport monteur"]),
@@ -917,6 +920,7 @@ export async function updateProject(
     heureDepart?: string;
     nomsCabines?: string;
     attributionCabines?: string;
+    monteursSousTraitance?: string;
     nbCabinesInstallees?: number;
     commentairesMontages?: string;
     rapportMonteur?: string;
@@ -961,6 +965,11 @@ export async function updateProject(
   if (data.nomsCabines !== undefined) {
     properties["Lot (nom de cabine)"] = {
       rich_text: toRichText(data.nomsCabines),
+    };
+  }
+  if (data.monteursSousTraitance !== undefined) {
+    properties["Monteurs sous-traitance"] = {
+      rich_text: toRichText(data.monteursSousTraitance),
     };
   }
   if (data.attributionCabines !== undefined) {
