@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { notionWrite } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
+import { redisEnabled, redisLockAcquire, redisLockRelease } from "@/lib/redis-cache";
 
 /**
  * Rattache une ou plusieurs URLs Cloudinary (déjà uploadées) à un champ "Files"
@@ -15,8 +16,10 @@ import { invalidateCache } from "@/lib/server-cache";
  */
 export const maxDuration = 30;
 
-// Verrou par champ pour sérialiser les écritures concurrentes sur la même
-// propriété (read-modify-write) → évite qu'un upload en écrase un autre.
+// Verrou EN MÉMOIRE par champ : sérialise les écritures concurrentes DANS UN
+// MÊME conteneur. Insuffisant seul en serverless (plusieurs conteneurs Vercel),
+// d'où le verrou distribué Redis ci-dessous. Conservé comme 2ᵉ barrière + repli
+// quand Redis n'est pas configuré (dev local).
 const writeLocks = new Map<string, Promise<unknown>>();
 function withFieldLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const previous = writeLocks.get(key) ?? Promise.resolve();
@@ -26,6 +29,43 @@ function withFieldLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
+/** Signale une contention de verrou → 429 pour que le client remette en file (jamais de perte). */
+class LockBusyError extends Error {
+  status = 429;
+  constructor() { super("Écriture concurrente en cours, réessayez"); }
+}
+
+/**
+ * Sérialise le read-modify-write sur `${projectId}:${notionField}` à travers
+ * TOUS les conteneurs via un verrou distribué Redis. Attend jusqu'à ~15 s pour
+ * l'acquérir (les écritures Notion durent < 1 s → la file se vide vite). Si
+ * impossible, lève LockBusyError → le client met la photo en file et réessaie
+ * automatiquement : AUCUNE photo n'est perdue. Repli sur le verrou mémoire seul
+ * si Redis n'est pas configuré.
+ */
+async function withDistributedFieldLock<T>(projectId: string, notionField: string, fn: () => Promise<T>): Promise<T> {
+  const memKey = `${projectId}:${notionField}`;
+  if (!redisEnabled) {
+    return withFieldLock(memKey, fn);
+  }
+  const lockKey = `lock:attach:${memKey}`;
+  const TTL_MS = 20_000;      // expiration auto (anti-deadlock)
+  const DEADLINE = Date.now() + 15_000;
+  let token: string | null = null;
+  while (Date.now() < DEADLINE) {
+    token = await redisLockAcquire(lockKey, TTL_MS);
+    if (token) break;
+    await new Promise((r) => setTimeout(r, 250 + Math.floor(Math.random() * 200)));
+  }
+  if (!token) throw new LockBusyError();
+  try {
+    // 2ᵉ barrière mémoire : ordonne les écritures intra-conteneur.
+    return await withFieldLock(memKey, fn);
+  } finally {
+    await redisLockRelease(lockKey, token);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { projectId, notionField, photos } = await request.json();
@@ -33,7 +73,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "projectId, notionField et photos requis" }, { status: 400 });
     }
 
-    await withFieldLock(`${projectId}:${notionField}`, async () => {
+    await withDistributedFieldLock(projectId, notionField, async () => {
       const page = await notionWrite.pages.retrieve({ page_id: projectId }) as any;
       const existingFiles = page.properties[notionField]?.files || [];
 
@@ -90,7 +130,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Photo attach error:", error);
-    return NextResponse.json({ error: error.message || "Erreur rattachement" }, { status: 500 });
+    // Contention de verrou → 429 : erreur TRANSITOIRE. Le client remet la photo
+    // en file d'attente et réessaie tout seul (jamais de perte).
+    const status = error?.status === 429 ? 429 : 500;
+    if (status !== 429) console.error("Photo attach error:", error);
+    return NextResponse.json(
+      { error: error?.message || "Erreur rattachement" },
+      { status },
+    );
   }
 }

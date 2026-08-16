@@ -93,6 +93,42 @@ export async function redisHDel(key: string, field: string): Promise<void> {
   await command(["HDEL", key, field]);
 }
 
+// ── Verrou distribué (SET NX PX) ─────────────────────────────────────────────
+// Sérialise une section critique à travers TOUS les conteneurs serverless (le
+// verrou en mémoire d'un process ne protège QUE ce conteneur). Indispensable
+// pour les read-modify-write sur un champ Notion partagé (rattachement photo) :
+// sans lui, deux requêtes concurrentes sur des conteneurs Vercel différents
+// s'écrasent → PERTE DE PHOTO.
+
+/**
+ * Tente d'acquérir un verrou. Retourne un token opaque si acquis, null sinon.
+ * Le verrou expire tout seul après ttlMs (anti-deadlock si un process meurt).
+ */
+export async function redisLockAcquire(key: string, ttlMs = 20000): Promise<string | null> {
+  if (!redisEnabled) return null;
+  const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try {
+    const r = await command(["SET", key, token, "NX", "PX", ttlMs]);
+    return r === "OK" ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Libère le verrou UNIQUEMENT si le token correspond (ne libère pas celui d'un autre). */
+export async function redisLockRelease(key: string, token: string): Promise<void> {
+  if (!redisEnabled) return;
+  try {
+    await command([
+      "EVAL",
+      "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end",
+      1, key, token,
+    ]);
+  } catch {
+    // Si EVAL échoue, le TTL finira par expirer le verrou (blocage borné).
+  }
+}
+
 /** Écrit une valeur JSON avec TTL (défaut 1 h), compressée si volumineuse. */
 export async function redisSetJSON(key: string, data: unknown, ttlSec = 3600): Promise<void> {
   if (!redisEnabled) return;
