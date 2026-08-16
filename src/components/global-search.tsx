@@ -53,6 +53,11 @@ export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
+  // Repli serveur : quand on est dans une page projet, l'index local est partiel
+  // (la homepage qui alimente window.__TM_PROJECTS__ n'est pas montée). On
+  // interroge alors l'API de recherche Notion pour TOUJOURS trouver un projet.
+  const [serverResults, setServerResults] = useState<Project[]>([]);
+  const [serverLoading, setServerLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Filtres avancés
@@ -75,6 +80,30 @@ export function GlobalSearch() {
     const fresh = loadProjects();
     if (fresh.length > projects.length) setProjects(fresh);
   }, [query, open, projects.length]);
+
+  // Repli serveur (debounce 300 ms) : interroge Notion pour les projets
+  // absents de l'index local. Garantit qu'un projet existant est toujours
+  // trouvé, même depuis une page /projet/[id].
+  useEffect(() => {
+    if (!open) return;
+    const q = query.trim();
+    if (q.length < 2) { setServerResults([]); setServerLoading(false); return; }
+    let cancelled = false;
+    setServerLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/projects/search?q=${encodeURIComponent(q)}`);
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        if (!cancelled) setServerResults(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setServerResults([]);
+      } finally {
+        if (!cancelled) setServerLoading(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [query, open]);
 
   const searchIndex = useMemo(() => buildIndex(projects), [projects]);
 
@@ -103,29 +132,45 @@ export function GlobalSearch() {
   const toggleCMD = (s: string) => setStatusCMD((cur) => cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]);
   const toggleMesures = (s: string) => setStatusMesures((cur) => cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]);
 
-  // Filtrage combiné : texte + filtres avancés
-  // Sans query : affiche tous les projets si au moins un filtre actif
+  // Filtres avancés (année / état / toggles) — appliqués aux résultats locaux
+  // ET serveur.
+  const passesAdvanced = useCallback((p: Project) => {
+    if (yearFilter !== "all" && !p.dateMontage?.startsWith(yearFilter)) return false;
+    if (statusCMD.length > 0 && !statusCMD.includes(p.etatCMD)) return false;
+    if (statusMesures.length > 0 && !statusMesures.includes(p.etatMesures)) return false;
+    if (avecSAV && !p.sav) return false;
+    if (avecSoucis && !p.soucisMontage) return false;
+    return true;
+  }, [yearFilter, statusCMD, statusMesures, avecSAV, avecSoucis]);
+
+  // Filtrage combiné : texte + filtres avancés, fusion local + serveur.
+  // Sans query : affiche tous les projets locaux si au moins un filtre actif.
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     const hasQuery = q.length >= 2;
     const hasFilters = activeFilterCount > 0;
     if (!hasQuery && !hasFilters) return [];
 
-    return projects.filter((p) => {
-      // Filtre texte
-      if (hasQuery && !(searchIndex.get(p.id) ?? "").includes(q)) return false;
-      // Filtre année
-      if (yearFilter !== "all" && !p.dateMontage?.startsWith(yearFilter)) return false;
-      // Filtre état CMD
-      if (statusCMD.length > 0 && !statusCMD.includes(p.etatCMD)) return false;
-      // Filtre état mesures
-      if (statusMesures.length > 0 && !statusMesures.includes(p.etatMesures)) return false;
-      // Toggles
-      if (avecSAV && !p.sav) return false;
-      if (avecSoucis && !p.soucisMontage) return false;
-      return true;
-    });
-  }, [query, projects, searchIndex, yearFilter, statusCMD, statusMesures, avecSAV, avecSoucis, activeFilterCount]);
+    const seen = new Set<string>();
+    const out: Project[] = [];
+    // 1) Résultats locaux (instantanés)
+    for (const p of projects) {
+      if (hasQuery && !(searchIndex.get(p.id) ?? "").includes(q)) continue;
+      if (!passesAdvanced(p)) continue;
+      if (seen.has(p.id)) continue;
+      seen.add(p.id); out.push(p);
+    }
+    // 2) Résultats serveur (déjà filtrés par texte côté Notion) — complètent
+    //    ceux absents du cache local. On respecte les filtres avancés.
+    if (hasQuery) {
+      for (const p of serverResults) {
+        if (!p?.id || seen.has(p.id)) continue;
+        if (!passesAdvanced(p)) continue;
+        seen.add(p.id); out.push(p);
+      }
+    }
+    return out;
+  }, [query, projects, searchIndex, serverResults, passesAdvanced, activeFilterCount]);
 
   const closeSearch = useCallback(() => {
     setOpen(false);
@@ -359,15 +404,15 @@ export function GlobalSearch() {
                     Tapez au moins 2 caractères ou activez un filtre
                   </p>
                 )}
-                {(hasQuery || hasFilters) && results.length === 0 && (
+                {(hasQuery || hasFilters) && results.length === 0 && serverLoading && (
+                  <p className="text-center text-sm text-gray-400 py-10">
+                    Recherche en cours…
+                  </p>
+                )}
+                {(hasQuery || hasFilters) && results.length === 0 && !serverLoading && (
                   <p className="text-center text-sm text-gray-400 py-10">
                     Aucun résultat
                     {hasQuery && <> pour <strong>« {query} »</strong></>}
-                    {projects.length === 0 && (
-                      <span className="block text-xs mt-1 text-orange-400">
-                        (données pas encore chargées — réessayez dans quelques secondes)
-                      </span>
-                    )}
                   </p>
                 )}
                 {results.length > 0 && (
@@ -381,8 +426,8 @@ export function GlobalSearch() {
 
               {/* Footer */}
               <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-400">
-                {projects.length} projet{projects.length > 1 ? "s" : ""} disponible{projects.length > 1 ? "s" : ""}
-                {results.length > 0 && results.length < projects.length && ` · ${results.length} correspondant${results.length > 1 ? "s" : ""}`}
+                {projects.length} projet{projects.length > 1 ? "s" : ""} en cache
+                {results.length > 0 && ` · ${results.length} résultat${results.length > 1 ? "s" : ""}`}
               </div>
             </div>
           </div>
