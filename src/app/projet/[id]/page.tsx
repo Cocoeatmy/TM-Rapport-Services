@@ -1141,7 +1141,7 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
   };
 
   const visiblePieces = cabineLabel
-    ? pieces.filter((p) => p.cabineLabel === cabineLabel)
+    ? pieces.filter((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabineLabel))
     : pieces;
 
   if (!loaded || visiblePieces.length === 0) return null;
@@ -1304,7 +1304,7 @@ function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string
   };
 
   const visibleDefauts = cabineLabel
-    ? defauts.filter((d) => d.cabineLabel === cabineLabel)
+    ? defauts.filter((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabineLabel))
     : defauts;
 
   if (!loaded || visibleDefauts.length === 0) return null;
@@ -1668,6 +1668,16 @@ const PRESENCE_PERSONNE = "Personne sur site lors du montage.";
 /** Le rapport indique-t-il déjà si un client était présent ou non ? */
 function hasPresenceStatement(rapport: string): boolean {
   return rapport.includes(PRESENCE_CLIENT) || rapport.includes(PRESENCE_PERSONNE);
+}
+
+/**
+ * Normalise un libellé de lot pour comparaison tolérante (espaces, tirets,
+ * ponctuation, casse ignorés). « B02 - Douche » ≡ « B02 Douche » ≡ « b02douche ».
+ * Sert à relier les signalements (dont le libellé a pu être saisi/renommé
+ * différemment) à la bonne carte de cabine.
+ */
+function normCabineLabel(s: string | undefined | null): string {
+  return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 // ── Monteur sous-traitance PAR CABINE ────────────────────────────────────────
@@ -6359,10 +6369,10 @@ function ProjectPageContent({ id }: { id: string }) {
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="font-medium text-sm truncate">{cabine.nom}</span>
                               {/* Icônes signalement : pièce manquante (orange) + défaut (rouge) */}
-                              {cabineSignalements.pieces.some((p) => p.cabineLabel === cabine.nom) && (
+                              {cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom)) && (
                                 <Package className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                               )}
-                              {cabineSignalements.defauts.some((d) => d.cabineLabel === cabine.nom) && (
+                              {cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom)) && (
                                 <span
                                   role="button"
                                   tabIndex={0}
