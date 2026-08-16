@@ -50,7 +50,7 @@ import { SiteTimer } from "@/components/site-timer";
 // StockUsage supprimée (section retirée)
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
-import { Star, Share2, RefreshCw, PenLine, ImageDown, Lock } from "lucide-react";
+import { Star, Share2, RefreshCw, PenLine, ImageDown, Lock, Search } from "lucide-react";
 import { toggleFavorite, isFavorite } from "@/lib/favorites";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1670,6 +1670,46 @@ function hasPresenceStatement(rapport: string): boolean {
   return rapport.includes(PRESENCE_CLIENT) || rapport.includes(PRESENCE_PERSONNE);
 }
 
+// ── Monteur sous-traitance PAR CABINE ────────────────────────────────────────
+// Encodé dans la colonne Notion « Monteurs sous-traitance » comme les monteurs
+// responsables : "Cab1:Nom | Cab2:Nom | …".
+function parseSousTraitance(raw: string): Record<number, string> {
+  const map: Record<number, string> = {};
+  (raw || "").split("|").forEach((part) => {
+    const m = /^\s*Cab(\d+)\s*:(.*)$/.exec(part.trim());
+    if (m) { const v = m[2].trim(); if (v) map[parseInt(m[1], 10)] = v; }
+  });
+  return map;
+}
+function encodeSousTraitance(map: Record<number, string>): string {
+  return Object.entries(map)
+    .filter(([, v]) => v && v.trim())
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([k, v]) => `Cab${k}:${v.trim()}`)
+    .join(" | ");
+}
+
+/** Champ texte « monteur sous-traitance » d'UNE cabine (admin). Sauvegarde au blur. */
+function CabineSousTraitantInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  const commit = () => {
+    const v = draft.replace(/[|:]/g, " ").replace(/\s+/g, " ").trim(); // pas de | ni : (délimiteurs)
+    if (v !== value) onSave(v);
+  };
+  return (
+    <input
+      type="text"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+      placeholder="Nom du sous-traitant…"
+      className="mt-1 w-full h-9 px-3 text-sm rounded-lg border border-orange-200 dark:border-orange-800/50 bg-orange-50/40 dark:bg-orange-950/20 focus:outline-none focus:ring-2 focus:ring-orange-400/40"
+    />
+  );
+}
+
 function EditableTextField({ label, value, projectId, fieldName, notionField, multiline, onUpdate, hideLabel }: {
   label: string; value: string; projectId: string; fieldName: string; notionField: string; multiline?: boolean; onUpdate: (v: string) => void; hideLabel?: boolean;
 }) {
@@ -2886,6 +2926,22 @@ function ProjectPageContent({ id }: { id: string }) {
     "tm.douche.montage.5@gmail.com": "Loïc",
   };
   const autoCollab = currentUser?.email ? (EMAIL_TO_COLLAB[currentUser.email] ?? null) : null;
+
+  // ── Recherche de lot (projets à nombreuses cabines) ──────────────────────
+  const [cabineSearch, setCabineSearch] = useState("");
+  /** Déplie et fait défiler jusqu'au lot correspondant (nom de cabine). */
+  const jumpToCabine = (query: string) => {
+    const q = query.trim().toLowerCase().replace(/\s+/g, "");
+    if (!q) return;
+    const idx = cabines.findIndex(
+      (c) => (c.nom || "").toLowerCase().replace(/\s+/g, "").includes(q),
+    );
+    if (idx < 0) { toast.error(`Lot « ${query.trim()} » introuvable`); return; }
+    setCabines((prev) => prev.map((c, i) => (i === idx ? { ...c, open: true } : c)));
+    setTimeout(() => {
+      document.querySelector(`[data-cabineidx="${idx}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+  };
 
   // ── Drag-and-drop reorder cabines ────────────────────────────────────────
   const [cabineDragMode, setCabineDragMode] = useState(false);
@@ -5274,10 +5330,10 @@ function ProjectPageContent({ id }: { id: string }) {
                 </div>
               )}
             </div>
-            {/* Monteur sous-traitance — ADMIN UNIQUEMENT. Saisie libre du nom du
-                monteur pour les projets sous-traités. Sync Notion « Monteurs
-                sous-traitance ». */}
-            {isAdmin && (
+            {/* Monteur sous-traitance (MONO-CABINE) — ADMIN UNIQUEMENT. En
+                multi-cabine, le champ est PAR CABINE (dans chaque carte). Sync
+                Notion « Monteurs sous-traitance ». */}
+            {isAdmin && !isCabineMode && (
               <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
                 <InlineField
                   icon={PenLine}
@@ -6189,13 +6245,29 @@ function ProjectPageContent({ id }: { id: string }) {
             {isCabineMode && (
               <>
                 <div id="cabines-list" className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-700">
-                      {installedCabineCount > 0
-                        ? <><span className="text-green-600">{installedCabineCount}</span>/{cabines.length} cabine{cabines.length > 1 ? "s" : ""}</>
-                        : <>{cabines.length} cabine{cabines.length > 1 ? "s" : ""}</>
-                      }
-                    </h3>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h3 className="text-sm font-semibold text-gray-700 shrink-0">
+                        {installedCabineCount > 0
+                          ? <><span className="text-green-600">{installedCabineCount}</span>/{cabines.length} cabine{cabines.length > 1 ? "s" : ""}</>
+                          : <>{cabines.length} cabine{cabines.length > 1 ? "s" : ""}</>
+                        }
+                      </h3>
+                      {/* Recherche de lot (>10 cabines) — déplie et défile jusqu'au lot. */}
+                      {cabines.length > 10 && !cabineDragMode && (
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={cabineSearch}
+                            onChange={(e) => setCabineSearch(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); jumpToCabine(cabineSearch); } }}
+                            placeholder="Rechercher un lot (ex. G.15)…"
+                            className="h-8 w-44 sm:w-52 pl-8 pr-2 text-xs rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/30"
+                          />
+                        </div>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
                       {cabineDragMode ? (
                         <button
@@ -6505,6 +6577,29 @@ function ProjectPageContent({ id }: { id: string }) {
                                   })}
                                 </div>
                               </div>
+
+                              {/* Monteur sous-traitance (par cabine) — ADMIN UNIQUEMENT */}
+                              {isAdmin && (
+                                <div>
+                                  <Label className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                                    <PenLine className="w-3 h-3 text-orange-500" /> Monteur sous-traitance
+                                  </Label>
+                                  <CabineSousTraitantInput
+                                    value={parseSousTraitance(project.monteursSousTraitance)[idx + 1] || ""}
+                                    onSave={(v) => {
+                                      const map = parseSousTraitance(project.monteursSousTraitance);
+                                      if (v) map[idx + 1] = v; else delete map[idx + 1];
+                                      const encoded = encodeSousTraitance(map);
+                                      setProject((prev) => prev ? { ...prev, monteursSousTraitance: encoded } : prev);
+                                      offlineFetch(`/api/projects/${id}`, {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ monteursSousTraitance: encoded }),
+                                      }).catch(console.error);
+                                    }}
+                                  />
+                                </div>
+                              )}
 
                               {/* Jour de montage */}
                               <div>
