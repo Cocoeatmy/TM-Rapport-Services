@@ -137,6 +137,30 @@ function mergeCabineAttribution(existing: string, incoming: string): string {
   return result;
 }
 
+/**
+ * Merge du « monteur sous-traitance » PAR CABINE (colonne Notion « Monteurs
+ * sous-traitance », encodée "Cab1:X | Cab2:Y").
+ * `incoming` est un DELTA d'une seule cabine ("Cab3:Nom" pour définir, "Cab3:"
+ * pour effacer) : le client n'envoie que la cabine modifiée, donc un slot vide
+ * = suppression EXPLICITE (pas d'ambiguïté d'état incomplet, à la différence de
+ * l'attribution des monteurs responsables).
+ */
+function mergeCabineSousTraitance(existing: string, incoming: string): string {
+  const map = parseCabineMap(existing);
+  const re = /Cab(\d+)\s*:([^|]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(incoming))) {
+    const num = parseInt(m[1], 10);
+    const val = m[2].trim();
+    if (val) map.set(num, val); else map.delete(num);
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .filter(([, val]) => val)
+    .map(([num, val]) => `Cab${num}:${val}`)
+    .join(" | ");
+}
+
 /** Retire des cabines de la chaîne d'attribution (suppression EXPLICITE). */
 function clearCabinesFromAttribution(attribution: string, cabs: number[]): string {
   const map = parseCabineMap(attribution);
@@ -244,6 +268,7 @@ export async function PATCH(
       body.heureDepart !== undefined ||
       body.nomsCabines !== undefined ||
       body.attributionCabines !== undefined ||
+      body.monteursSousTraitance !== undefined ||
       hasClear;
 
     if (needsMerge) {
@@ -266,6 +291,12 @@ export async function PATCH(
         }
         if (body.attributionCabines !== undefined) {
           body.attributionCabines = mergeCabineAttribution(existing.attributionCabines || "", body.attributionCabines);
+        }
+        // Delta d'une seule cabine → merge sur l'existant Notion (multi-cabine).
+        // En mono-cabine le client envoie une valeur libre sans "Cab" : on la
+        // laisse telle quelle (le merge ne s'applique qu'au format multi).
+        if (body.monteursSousTraitance !== undefined && String(body.monteursSousTraitance).includes("Cab")) {
+          body.monteursSousTraitance = mergeCabineSousTraitance(existing.monteursSousTraitance || "", body.monteursSousTraitance);
         }
         // Suppression EXPLICITE de monteurs (action « réinitialiser la cabine »).
         // Appliquée APRÈS le merge, sur l'attribution déjà fusionnée (ou l'existant).

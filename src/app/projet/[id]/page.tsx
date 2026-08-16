@@ -6587,14 +6587,16 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <CabineSousTraitantInput
                                     value={parseSousTraitance(project.monteursSousTraitance)[idx + 1] || ""}
                                     onSave={(v) => {
+                                      // Optimiste : maj de l'affichage local (map complète).
                                       const map = parseSousTraitance(project.monteursSousTraitance);
                                       if (v) map[idx + 1] = v; else delete map[idx + 1];
-                                      const encoded = encodeSousTraitance(map);
-                                      setProject((prev) => prev ? { ...prev, monteursSousTraitance: encoded } : prev);
+                                      setProject((prev) => prev ? { ...prev, monteursSousTraitance: encodeSousTraitance(map) } : prev);
+                                      // Serveur : DELTA d'une seule cabine (vide = suppression),
+                                      // mergé côté API pour ne jamais écraser les autres cabines.
                                       offlineFetch(`/api/projects/${id}`, {
                                         method: "PATCH",
                                         headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ monteursSousTraitance: encoded }),
+                                        body: JSON.stringify({ monteursSousTraitance: `Cab${idx + 1}:${v}` }),
                                       }).catch(console.error);
                                     }}
                                   />
