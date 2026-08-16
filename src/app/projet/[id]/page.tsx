@@ -6457,10 +6457,13 @@ function ProjectPageContent({ id }: { id: string }) {
                             <button
                               type="button"
                               onClick={() => {
+                                // Sous-traité (nom saisi dans « Monteur sous-traitance ») →
+                                // heure d'arrivée NON obligatoire.
+                                const estSousTraite = !!parseSousTraitance(project.monteursSousTraitance)[idx + 1];
                                 const missing: string[] = [];
                                 if (!cabine.monteur) missing.push("monteur responsable");
                                 if (!cabine.date) missing.push("jour de montage");
-                                if (!cabine.arrivee) missing.push("heure d'arrivée");
+                                if (!cabine.arrivee && !estSousTraite) missing.push("heure d'arrivée");
                                 if (missing.length > 0) {
                                   toast.error(`Renseignez d'abord : ${missing.join(", ")}`);
                                   return;
@@ -6474,7 +6477,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               }`}
                             >
                               Photos
-                              {(!cabine.monteur || !cabine.date || !cabine.arrivee) && (
+                              {(!cabine.monteur || !cabine.date || (!cabine.arrivee && !parseSousTraitance(project.monteursSousTraitance)[idx + 1])) && (
                                 <span className="text-[11px] text-gray-300 dark:text-slate-500">🔒</span>
                               )}
                             </button>
