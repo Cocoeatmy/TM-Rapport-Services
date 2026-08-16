@@ -39,6 +39,7 @@ interface PieceRequest {
   status: "demande" | "commande" | "recu";
   timestamp: number;
   cabineLabel?: string;
+  displayInRapport?: boolean;
 }
 
 interface DefautRequest {
@@ -100,10 +101,12 @@ function parseDefautsFromNotion(text: string): DefautRequest[] {
 }
 
 async function loadPiecesForProject(projectId: string, project?: Project): Promise<PieceRequest[]> {
-  // KV-store en priorité : source de vérité per-pièce avec photos individuelles
+  // KV-store en priorité : source de vérité per-pièce avec photos individuelles.
+  // On filtre les pièces marquées « ne pas afficher » (displayInRapport===false)
+  // pour qu'elles n'apparaissent jamais sur le rapport client.
   const all = await getData<PieceRequest>("pieces");
   const fromKv = all.filter((p) => p.projectId === projectId);
-  if (fromKv.length > 0) return fromKv;
+  if (fromKv.length > 0) return fromKv.filter((p) => p.displayInRapport !== false);
   // Fallback : pièces saisies directement dans Notion (ancien système)
   if (project?.infoPiecesManquantes) {
     const parsed = parsePiecesFromNotion(project.infoPiecesManquantes);

@@ -213,8 +213,9 @@ export interface Project {
   attributionCabines: string;
   /** Monteur(s) sous-traitance saisi(s) à la main (admin) — projets sous-traités. */
   monteursSousTraitance: string;
-  /** Cabines dont le montage est PARTIEL (pièce manquante…), encodé "Cab1:1 | Cab5:1". */
-  montagePartiel: string;
+  /** État du montage PAR CABINE, encodé "Cab1:Montage terminé | Cab5:Montage partiel".
+   *  Valeurs : "Montage terminé" | "Montage partiel" | "Montage pas possible". */
+  etatMontage: string;
   /** Nombre de cabines dont le montage est terminé (photos uploadées) */
   nbCabinesInstallees: number | null;
 }
@@ -372,7 +373,7 @@ export function mapPageToProject(page: any): Project {
     nomsCabines: extractText(p["Lot (nom de cabine)"]),
     attributionCabines: extractText(p["Monteur responsable"]),
     monteursSousTraitance: extractText(p["Monteurs sous-traitance"]),
-    montagePartiel: extractText(p["Montage partiel"]),
+    etatMontage: extractText(p["État du montage"]),
     nbCabinesInstallees: extractNumber(p["Nb. Cabines installées"]),
     commentairesMontages: extractText(p["Commentaires Montages"]),
     rapportMonteur: extractText(p["Rapport monteur"]),
@@ -924,7 +925,7 @@ export async function updateProject(
     nomsCabines?: string;
     attributionCabines?: string;
     monteursSousTraitance?: string;
-    montagePartiel?: string;
+    etatMontage?: string;
     nbCabinesInstallees?: number;
     commentairesMontages?: string;
     rapportMonteur?: string;
@@ -976,9 +977,9 @@ export async function updateProject(
       rich_text: toRichText(data.monteursSousTraitance),
     };
   }
-  if (data.montagePartiel !== undefined) {
-    properties["Montage partiel"] = {
-      rich_text: toRichText(data.montagePartiel),
+  if (data.etatMontage !== undefined) {
+    properties["État du montage"] = {
+      rich_text: toRichText(data.etatMontage),
     };
   }
   if (data.attributionCabines !== undefined) {

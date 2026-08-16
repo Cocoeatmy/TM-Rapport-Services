@@ -1,17 +1,28 @@
 /**
- * Normalisation du « Rapport du monteur » assemblé, avant affichage (PDF) et
- * avant sauvegarde (app). Objectifs :
- *  - supprimer les lignes vides (plus de gros blocs de retours à la ligne) ;
- *  - trier les blocs par titre de cabine / n° de lot en tri naturel
- *    (B33-203 avant B33-303, 5.9 avant 5.10) ;
- *  - conserver le rapport général (texte sans identifiant) en tête, dans
- *    l'ordre de saisie ;
- *  - garder les lignes de continuation rattachées à leur cabine lors du tri.
+ * Normalisation et structuration du « Rapport du monteur ».
  *
- * Un « titre de cabine » est une ligne du type « B33-403 : … » ou « 5.101 : … »,
- * c.-à-d. un identifiant contenant au moins un chiffre, suivi de « : ».
+ * Modèle : le rapport se compose de
+ *   - une partie GÉNÉRALE (phrases type + précisions libres), en tête ;
+ *   - une ligne (ou bloc multi-lignes) PAR LOT, au format « Nom : texte ».
+ *
+ * La section par lot est désormais GÉNÉRÉE depuis les données des cabines
+ * (triée, noms à jour) — voir `buildCabineReportLines`. Au chargement, on
+ * ré-éclate un rapport existant en (général + par cabine) via
+ * `splitRapportByCabine` pour alimenter ce modèle.
  */
-const HEADER_RE = /^([A-Za-z0-9.\-]*\d[A-Za-z0-9.\-]*)\s*:\s+.*$/;
+
+/** Normalise un libellé de lot pour comparaison tolérante (espaces/tirets/casse). */
+function norm(s: string | undefined | null): string {
+  return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Un « titre de lot » est une ligne « <id> : … » dont l'identifiant contient au
+ * moins un chiffre. On accepte désormais les ESPACES et lettres accentuées dans
+ * l'identifiant (« B01 - Douche : … », « B02 sdb : … »), avec une longueur
+ * bornée pour ne pas confondre avec une phrase générale contenant « : ».
+ */
+const HEADER_RE = /^([A-Za-z0-9][\wÀ-ÿ .\-]{0,30}?\d[\wÀ-ÿ .\-]{0,30}?)\s*:\s+.*$/;
 
 export function normalizeRapportMonteur(raw: string | null | undefined): string {
   if (!raw) return "";
@@ -26,7 +37,7 @@ export function normalizeRapportMonteur(raw: string | null | undefined): string 
     if (!line) continue; // on saute les lignes vides
     const m = line.match(HEADER_RE);
     if (m) {
-      current = { id: m[1], lines: [line] };
+      current = { id: m[1].trim(), lines: [line] };
       blocks.push(current);
     } else if (current) {
       current.lines.push(line); // continuation de la cabine courante
@@ -35,16 +46,80 @@ export function normalizeRapportMonteur(raw: string | null | undefined): string 
     }
   }
 
-  // Tri naturel des cabines par identifiant (Array.sort est stable : les
-  // doublons restent dans l'ordre de saisie, les continuations suivent leur
-  // bloc puisqu'elles vivent dans `lines`).
-  blocks.sort((a, b) => a.id.localeCompare(b.id, "fr", { numeric: true }));
+  // Tri naturel des cabines par identifiant (alphabétique puis numérique).
+  // Array.sort est stable : les continuations suivent leur bloc (dans `lines`).
+  blocks.sort((a, b) => a.id.localeCompare(b.id, "fr", { numeric: true, sensitivity: "base" }));
 
-  // Chaque "chunk" = rapport général OU un bloc cabine (en-tête + continuations,
-  // collés par "\n"). On sépare les chunks par UNE ligne vide : un seul saut de
-  // ligne entre chaque lot, jamais de blocs vides empilés.
   const chunks: string[] = [];
   if (general.length) chunks.push(general.join("\n"));
   for (const b of blocks) chunks.push(b.lines.join("\n"));
   return chunks.join("\n\n");
+}
+
+/**
+ * Génère la section « par lot » d'un rapport à partir des cabines : une entrée
+ * « Nom : texte » par cabine ayant un rapport, TRIÉE alphabétiquement puis
+ * numériquement, avec le nom À JOUR (donc un renommage se répercute tout seul).
+ * Les blocs sont séparés par une ligne vide.
+ */
+export function buildCabineReportLines(cabines: { nom: string; rapport: string }[]): string {
+  return cabines
+    .filter((c) => c.rapport && c.rapport.trim())
+    .map((c) => ({ nom: (c.nom || "").trim(), rapport: c.rapport.trim() }))
+    .sort((a, b) => a.nom.localeCompare(b.nom, "fr", { numeric: true, sensitivity: "base" }))
+    .map((c) => `${c.nom} : ${c.rapport}`)
+    .join("\n\n");
+}
+
+/**
+ * Ré-éclate un rapport (texte libre) en partie GÉNÉRALE + texte PAR CABINE,
+ * en rattachant chaque bloc « Nom : … » à la cabine dont le nom correspond
+ * (comparaison tolérante). Les blocs non reconnus restent dans le général
+ * (aucune perte). Sert au chargement pour alimenter le modèle structuré.
+ */
+export function splitRapportByCabine(
+  raw: string | null | undefined,
+  noms: string[],
+): { general: string; perCabine: Record<number, string> } {
+  const general: string[] = [];
+  const per: Record<number, string[]> = {};
+  const nomKeys = noms.map(norm);
+  let currentIdx: number | null = null;
+
+  for (const rawLine of (raw || "").split("\n")) {
+    const line = rawLine.trim();
+    if (!line) {
+      if (currentIdx === null) general.push("");
+      else per[currentIdx].push("");
+      continue;
+    }
+    const m = line.match(/^(.+?)\s*:\s+(.*)$/);
+    let matchedIdx: number | null = null;
+    if (m) {
+      const key = norm(m[1]);
+      if (key) {
+        const i = nomKeys.findIndex((k) => k && k === key);
+        if (i >= 0) matchedIdx = i;
+      }
+    }
+    if (matchedIdx !== null && m) {
+      currentIdx = matchedIdx;
+      if (!per[matchedIdx]) per[matchedIdx] = [];
+      per[matchedIdx].push(m[2]);
+    } else if (currentIdx !== null) {
+      per[currentIdx].push(line); // continuation du dernier lot
+    } else {
+      general.push(line);
+    }
+  }
+
+  const perCabine: Record<number, string> = {};
+  for (const [k, arr] of Object.entries(per)) {
+    const txt = arr.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    if (txt) perCabine[Number(k)] = txt;
+  }
+  return {
+    general: general.join("\n").replace(/\n{3,}/g, "\n\n").trim(),
+    perCabine,
+  };
 }

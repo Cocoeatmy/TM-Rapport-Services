@@ -23,6 +23,8 @@ interface PieceRequest {
   timestamp: number;
   comments: PieceComment[];
   cabineLabel?: string;
+  /** Afficher cette pièce sur le rapport client (PDF). Absent/true = affichée. */
+  displayInRapport?: boolean;
 }
 
 const KEY = "pieces";
@@ -158,7 +160,7 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const { id, status, comment, description, reference } = body;
+  const { id, status, comment, description, reference, displayInRapport } = body;
   const pieces = await getData<PieceRequest>(KEY);
   const idx = pieces.findIndex((p) => p.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
@@ -170,6 +172,7 @@ export async function PATCH(request: NextRequest) {
   if (status) pieces[idx].status = status;
   if (typeof description === "string") pieces[idx].description = description;
   if (typeof reference === "string") pieces[idx].reference = reference;
+  if (typeof displayInRapport === "boolean") pieces[idx].displayInRapport = displayInRapport;
 
   await setData(KEY, pieces);
   return NextResponse.json({ success: true });

@@ -269,7 +269,7 @@ export async function PATCH(
       body.nomsCabines !== undefined ||
       body.attributionCabines !== undefined ||
       body.monteursSousTraitance !== undefined ||
-      body.montagePartiel !== undefined ||
+      body.etatMontage !== undefined ||
       hasClear;
 
     if (needsMerge) {
@@ -299,9 +299,9 @@ export async function PATCH(
         if (body.monteursSousTraitance !== undefined && String(body.monteursSousTraitance).includes("Cab")) {
           body.monteursSousTraitance = mergeCabineSousTraitance(existing.monteursSousTraitance || "", body.monteursSousTraitance);
         }
-        // Montage partiel : même encodage/merge par cabine (delta d'une cabine).
-        if (body.montagePartiel !== undefined && String(body.montagePartiel).includes("Cab")) {
-          body.montagePartiel = mergeCabineSousTraitance(existing.montagePartiel || "", body.montagePartiel);
+        // État du montage : même encodage/merge par cabine (delta d'une cabine).
+        if (body.etatMontage !== undefined && String(body.etatMontage).includes("Cab")) {
+          body.etatMontage = mergeCabineSousTraitance(existing.etatMontage || "", body.etatMontage);
         }
         // Suppression EXPLICITE de monteurs (action « réinitialiser la cabine »).
         // Appliquée APRÈS le merge, sur l'attribution déjà fusionnée (ou l'existant).

@@ -1084,6 +1084,7 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
     photoUrl?: string;
     status?: string;
     cabineLabel?: string;
+    displayInRapport?: boolean;
   };
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -1091,6 +1092,22 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{ description: string; reference: string }>({ description: "", reference: "" });
   const [saving, setSaving] = useState(false);
+
+  // Affiche / masque cette pièce sur le rapport client (PDF), comme les défauts.
+  const toggleDisplay = async (id: string, current: boolean) => {
+    const next = !current;
+    setPieces((prev) => prev.map((p) => p.id === id ? { ...p, displayInRapport: next } : p));
+    const revert = () => {
+      setPieces((prev) => prev.map((p) => p.id === id ? { ...p, displayInRapport: current } : p));
+      toast.error("Échec : le réglage n'a pas été enregistré. Réessayez.");
+    };
+    try {
+      const res = await fetch("/api/pieces", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, displayInRapport: next }) });
+      if (!res.ok) { revert(); return; }
+      toast.success(next ? "Affichée sur le rapport" : "Masquée du rapport");
+    } catch { revert(); }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -1153,6 +1170,7 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
       </p>
       {visiblePieces.map((p, idx) => {
         const num = idx + 1;
+        const pieceVisible = p.displayInRapport !== false;
         const isDeleting = deleting === p.id;
         const isEditing = editing === p.id;
         const photos = p.photoUrls?.length ? p.photoUrls : (p.photoUrl ? [p.photoUrl] : []);
@@ -1164,7 +1182,12 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
                     savoir immédiatement où va la pièce. Vue par cabine : numéro suffit. */}
                 {!cabineLabel && p.cabineLabel ? p.cabineLabel : `Pièce n°${num}`}
               </span>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
+                {/* Statut (lecture seule) — contrôlé par la case « Ne pas afficher ». */}
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full border ${pieceVisible ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300" : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"}`}>
+                  {pieceVisible ? "Sur rapport ✓" : "Masquée"}
+                </span>
                 <button onClick={() => isEditing ? setEditing(null) : startEdit(p)}
                   className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors" title="Modifier">
                   <Pencil className="w-3.5 h-3.5" />
@@ -1173,6 +1196,17 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
                   className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors" title="Supprimer">
                   {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 </button>
+                {/* Case à cocher : NE PAS afficher cette pièce sur le rapport. */}
+                <label className="flex items-center gap-1 pl-1 text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer select-none"
+                  title="Cocher pour ne pas afficher cette pièce sur le rapport">
+                  <input
+                    type="checkbox"
+                    checked={!pieceVisible}
+                    onChange={() => toggleDisplay(p.id, pieceVisible)}
+                    className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-orange-500 focus:ring-orange-400"
+                  />
+                  Ne pas afficher
+                </label>
               </div>
             </div>
 
@@ -1322,13 +1356,11 @@ function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string
             {/* En-tête : numéro + actions */}
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-bold text-red-700 dark:text-red-400">Défaut n°{num}</span>
-                {/* Lot : affiché dans la liste globale (pas dans un onglet cabine où c'est redondant) */}
-                {!cabineLabel && d.cabineLabel && (
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#1e3a5f]/10 text-[#1e3a5f] dark:bg-blue-900/30 dark:text-blue-300">
-                    Lot&nbsp;: {d.cabineLabel}
-                  </span>
-                )}
+                {/* Titre = LOT en évidence (vue globale), comme les pièces manquantes.
+                    Dans un onglet cabine (cabineLabel défini) : « Défaut n°X » suffit. */}
+                <span className="text-xs font-bold text-red-700 dark:text-red-400">
+                  {!cabineLabel && d.cabineLabel ? d.cabineLabel : `Défaut n°${num}`}
+                </span>
               </span>
               <div className="flex items-center gap-1.5">
                 {/* Statut (lecture seule) — le contrôle est la case « Ne pas afficher » à droite. */}
@@ -1697,6 +1729,18 @@ function encodeSousTraitance(map: Record<number, string>): string {
     .sort(([a], [b]) => Number(a) - Number(b))
     .map(([k, v]) => `Cab${k}:${v.trim()}`)
     .join(" | ");
+}
+
+/** État du montage possible d'une cabine (colonne Notion « État du montage »). */
+const ETATS_MONTAGE = ["Montage terminé", "Montage partiel", "Montage pas possible"] as const;
+/** Classe de couleur du numéro de lot selon l'état explicite. "" = pas d'état → couleur auto. */
+function etatMontageBadgeClass(etat: string | undefined): string {
+  switch (etat) {
+    case "Montage pas possible": return "bg-red-600 ring-2 ring-red-300 dark:ring-red-500/50";
+    case "Montage partiel": return "bg-violet-600 ring-2 ring-violet-300 dark:ring-violet-500/50";
+    case "Montage terminé": return "bg-green-600";
+    default: return "";
+  }
 }
 
 /** Champ texte « monteur sous-traitance » d'UNE cabine (admin). Sauvegarde au blur. */
@@ -6356,13 +6400,12 @@ function ProjectPageContent({ id }: { id: string }) {
                             <GripVertical className="w-4 h-4 text-gray-400 shrink-0" />
                           ) : (
                             <span className={`w-8 h-8 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0 transition-colors ${
-                              parseSousTraitance(project?.montagePartiel || "")[idx + 1]
-                                ? "bg-violet-600 ring-2 ring-violet-300 dark:ring-violet-500/50"
-                                : installedCabineIndices.has(idx)
+                              etatMontageBadgeClass(parseSousTraitance(project?.etatMontage || "")[idx + 1])
+                              || (installedCabineIndices.has(idx)
                                 ? "bg-green-600"
                                 : (!!cabine.arrivee || (project?.photosAvant || []).some(f => new RegExp(`\\.Cab${idx + 1}\\.`).test(f.name || "")))
                                 ? "bg-orange-500"
-                                : "bg-[#1e3a5f]"
+                                : "bg-[#1e3a5f]")
                             }`}>
                               {idx + 1}
                             </span>
@@ -6622,29 +6665,28 @@ function ProjectPageContent({ id }: { id: string }) {
                               <div>
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
                                   <Label className="text-xs text-gray-600 dark:text-gray-300">Jour de montage</Label>
-                                  {/* Montage partiel : le lot n'est pas terminé (ex. pièce
-                                      manquante). Coché → numéro de lot en VIOLET. */}
-                                  <label className="flex items-center gap-1.5 cursor-pointer select-none text-xs font-medium text-violet-700 dark:text-violet-300">
-                                    <input
-                                      type="checkbox"
-                                      checked={!!parseSousTraitance(project?.montagePartiel || "")[idx + 1]}
-                                      onChange={(e) => {
-                                        const checked = e.target.checked;
-                                        // Optimiste : maj locale (map complète).
-                                        const map = parseSousTraitance(project?.montagePartiel || "");
-                                        if (checked) map[idx + 1] = "1"; else delete map[idx + 1];
-                                        setProject((prev) => prev ? { ...prev, montagePartiel: encodeSousTraitance(map) } : prev);
-                                        // Serveur : delta d'une seule cabine (mergé côté API).
-                                        offlineFetch(`/api/projects/${id}`, {
-                                          method: "PATCH",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({ montagePartiel: `Cab${idx + 1}:${checked ? "1" : ""}` }),
-                                        }).catch(console.error);
-                                      }}
-                                      className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500 accent-violet-600"
-                                    />
-                                    Montage partiel
-                                  </label>
+                                  {/* État du montage (3 états). Change la couleur du numéro
+                                      de lot : terminé=vert, partiel=violet, pas possible=rouge. */}
+                                  <select
+                                    value={parseSousTraitance(project?.etatMontage || "")[idx + 1] || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value; // "" = non défini
+                                      const map = parseSousTraitance(project?.etatMontage || "");
+                                      if (val) map[idx + 1] = val; else delete map[idx + 1];
+                                      setProject((prev) => prev ? { ...prev, etatMontage: encodeSousTraitance(map) } : prev);
+                                      offlineFetch(`/api/projects/${id}`, {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ etatMontage: `Cab${idx + 1}:${val}` }),
+                                      }).catch(console.error);
+                                    }}
+                                    className="text-xs font-medium rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-violet-400/40"
+                                  >
+                                    <option value="">État du montage…</option>
+                                    {ETATS_MONTAGE.map((etat) => (
+                                      <option key={etat} value={etat}>{etat}</option>
+                                    ))}
+                                  </select>
                                 </div>
                                 <Input
                                   type="date"
