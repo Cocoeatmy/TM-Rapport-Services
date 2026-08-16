@@ -96,7 +96,7 @@ import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
-import { normalizeRapportMonteur } from "@/lib/rapport";
+import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
 import { fetchWithRetry, invalidateApiCache } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
@@ -3082,7 +3082,7 @@ function ProjectPageContent({ id }: { id: string }) {
       if (!id) return; // projet pas encore chargé
 
       const reportToSave = cabMode
-        ? rapport + "\n\n" + cab.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
+        ? [rapport.trim(), buildCabineReportLines(cab)].filter(Boolean).join("\n\n")
         : rapport;
 
       const arriveeToSave = cabMode
@@ -3509,7 +3509,28 @@ function ProjectPageContent({ id }: { id: string }) {
     const firstInit = editablesInitializedRef.current !== data.id;
     editablesInitializedRef.current = data.id;
     const prevSnap = { ...serverSnapshotRef.current };
-    const sRapport = data.rapportMonteur || "";
+    const sRapportRaw = data.rapportMonteur || "";
+    // ── Rapport général : on SÉPARE la partie générale des lignes PAR LOT. ──
+    // Les lignes « Nom : texte » deviennent la propriété de chaque cabine (source
+    // de vérité → tri auto, renommage auto, gras) ; la zone « Rapport général »
+    // ne conserve que le texte général. `splitPerCabine` alimente les cabines.
+    const nbForSplit = data.nbCabines || 1;
+    let splitPerCabine: Record<number, string> = {};
+    let sRapport = sRapportRaw;
+    if (nbForSplit > 1) {
+      const nomsMapEarly = new Map<number, string>();
+      { const re = /Cab(\d+)\s*:([^|]*)/g; let mm: RegExpExecArray | null;
+        while ((mm = re.exec(data.nomsCabines || ""))) nomsMapEarly.set(parseInt(mm[1], 10), mm[2].trim()); }
+      let storedNomsEarly: string[] | null = null;
+      try { const s = localStorage.getItem(`tm-cabin-noms-${data.id}`); if (s) storedNomsEarly = JSON.parse(s); } catch {}
+      const nomsForSplit = Array.from({ length: nbForSplit }, (_, i) => {
+        const nn = nomsMapEarly.get(i + 1) || "";
+        return (nn && nn !== `Cabine ${i + 1}`) ? nn : (storedNomsEarly?.[i] || `Cabine ${i + 1}`);
+      });
+      const sp = splitRapportByCabine(sRapportRaw, nomsForSplit);
+      sRapport = sp.general;
+      splitPerCabine = sp.perCabine;
+    }
     const sCommentaires = data.commentairesMontages || "";
     const sHA = data.heureArrivee || "";
     const sHD = data.heureDepart || "";
@@ -3621,7 +3642,7 @@ function ProjectPageContent({ id }: { id: string }) {
               nom: notionNomIsCustom
                 ? notionNom
                 : storedNoms?.[i] || `Cabine ${i + 1}`,
-              rapport: "",
+              rapport: splitPerCabine[i] || "",
               open: false,
               monteur: notionMonteur || storedMonteurs?.[i] || "",
               arrivee: arriveeMap[i] || "",
@@ -3656,6 +3677,9 @@ function ProjectPageContent({ id }: { id: string }) {
               arrivee: recentlyReset ? c.arrivee : (arriveeMap[i] !== undefined ? arriveeMap[i] : c.arrivee),
               depart:  recentlyReset ? c.depart  : (departMap[i]  !== undefined ? departMap[i]  : c.depart),
               date:    recentlyReset ? c.date    : (dateMap[i]    !== undefined ? dateMap[i]    : c.date),
+              // Rapport par lot : on garde l'édition locale en cours (non vide) ;
+              // sinon on prend la valeur serveur (issue du découpage du rapport).
+              rapport: recentlyReset ? c.rapport : (c.rapport && c.rapport.trim() ? c.rapport : (splitPerCabine[i] || "")),
             };
           })
         );
@@ -4066,7 +4090,7 @@ function ProjectPageContent({ id }: { id: string }) {
     // d'écraser la saisie courante avec une réponse Notion vide).
     const reportToSave = normalizeRapportMonteur(
       isCabineMode
-        ? rapport + "\n\n" + cabines.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
+        ? [rapport.trim(), buildCabineReportLines(cabines)].filter(Boolean).join("\n\n")
         : rapport
     );
     // Priorité 1 : mode multi-cabine → heures par cabine
@@ -4186,12 +4210,7 @@ function ProjectPageContent({ id }: { id: string }) {
         .join(" | ");
 
       const reportToSave = normalizeRapportMonteur(
-        rapport +
-          "\n\n" +
-          cabines
-            .map((c) => (c.rapport ? `${c.nom} : ${c.rapport}` : ""))
-            .filter(Boolean)
-            .join("\n")
+        [rapport.trim(), buildCabineReportLines(cabines)].filter(Boolean).join("\n\n")
       );
 
       const res = await offlineFetch(`/api/projects/${id}`, {
@@ -4320,13 +4339,7 @@ function ProjectPageContent({ id }: { id: string }) {
       })
       .filter((s): s is string => s !== null)
       .join(" | ");
-    const newRapportToSave =
-      rapport +
-      "\n\n" +
-      newCabines
-        .map((c) => (c.rapport ? `${c.nom} : ${c.rapport}` : ""))
-        .filter(Boolean)
-        .join("\n");
+    const newRapportToSave = [rapport.trim(), buildCabineReportLines(newCabines)].filter(Boolean).join("\n\n");
 
     // 4. Mise à jour UI immédiate (badge repasse en bleu, données disparaissent)
     // Enregistre le timestamp de reset pour protéger contre la restauration par le polling.
@@ -4502,7 +4515,7 @@ function ProjectPageContent({ id }: { id: string }) {
           commentairesMontages: commentaires,
           rapportMonteur: normalizeRapportMonteur(
             isCabineMode
-              ? rapport + "\n\n" + cabines.map((c) => c.rapport ? `${c.nom} : ${c.rapport}` : "").filter(Boolean).join("\n")
+              ? [rapport.trim(), buildCabineReportLines(cabines)].filter(Boolean).join("\n\n")
               : rapport
           ),
         }),
@@ -7015,7 +7028,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         })}
                       </div>
                       <Textarea
-                        placeholder="Précisions supplémentaires..."
+                        placeholder="Remarques générales (facultatif)…"
                         value={rapport}
                         onChange={(e) => { setRapport(e.target.value); scheduleAutoSave(); }}
                         rows={3}
@@ -7032,6 +7045,37 @@ function ProjectPageContent({ id }: { id: string }) {
                           {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
                         </button>
                       )}
+
+                      {/* Section PAR LOT — générée automatiquement depuis les cabines :
+                          triée (A→B, 1→99), noms À JOUR (renommage répercuté) et en
+                          GRAS. Cliquer un lot ouvre son rapport pour l'éditer. */}
+                      {(() => {
+                        const items = cabines
+                          .map((c, i) => ({ i, nom: c.nom, rapport: c.rapport }))
+                          .filter((c) => c.rapport && c.rapport.trim())
+                          .sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr", { numeric: true, sensitivity: "base" }));
+                        if (items.length === 0) return null;
+                        return (
+                          <div className="mt-4 border-t border-gray-100 dark:border-slate-700 pt-3">
+                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
+                              Par lot <span className="font-normal text-gray-400">(généré automatiquement — cliquer pour modifier)</span>
+                            </p>
+                            <div className="space-y-1.5">
+                              {items.map((c) => (
+                                <button
+                                  key={c.i}
+                                  type="button"
+                                  onClick={() => setRapportModalCabineIdx(c.i)}
+                                  className="w-full text-left text-sm px-3 py-2 rounded-lg bg-gray-50 dark:bg-slate-800/60 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                  <span className="font-bold text-[#1e3a5f] dark:text-blue-200">{c.nom}</span>
+                                  <span className="text-gray-700 dark:text-gray-300"> : {c.rapport}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   )}
                 </Card>
@@ -7093,6 +7137,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       onChange={(e) => {
                         const idx = rapportModalCabineIdx;
                         setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, rapport: e.target.value } : c));
+                        scheduleAutoSave();
                       }}
                       rows={2}
                       className="mt-3"

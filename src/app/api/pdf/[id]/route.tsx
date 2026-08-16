@@ -803,6 +803,19 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                       </View>
                     );
                   }
+                  // Titre de lot alphanumérique : "B01 - Douche : texte"
+                  // → NOM du lot en GRAS, le reste en texte normal (même ligne).
+                  const mLot = line.match(/^(.{1,40}?\d[^:]{0,40}?)\s*:\s+(.*)$/);
+                  if (mLot) {
+                    return (
+                      <View key={i} wrap={false} style={{ marginBottom: 3 }}>
+                        <Text style={{ fontSize: 9, lineHeight: 1.4 }}>
+                          <Text style={{ fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>{mLot[1].trim()}</Text>
+                          <Text> : {mLot[2]}</Text>
+                        </Text>
+                      </View>
+                    );
+                  }
                   // Ligne débutant par une majuscule = titre de cabine/section
                   // (ex: "SDD VIP", "Cabine standard") → bold, pleine largeur
                   if (/^[A-ZÀÂÇÉÈÊËÎÏÔÙÛÜŸÆŒ]/.test(line.trim())) {

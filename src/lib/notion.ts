@@ -213,7 +213,8 @@ export interface Project {
   attributionCabines: string;
   /** Monteur(s) sous-traitance saisi(s) à la main (admin) — projets sous-traités. */
   monteursSousTraitance: string;
-  /** État du montage PAR CABINE, encodé "Cab1:Montage terminé | Cab5:Montage partiel".
+  /** État du montage PAR CABINE (colonne Notion Texte « État du montage »),
+   *  encodé "Cab1:Montage terminé | Cab5:Montage partiel".
    *  Valeurs : "Montage terminé" | "Montage partiel" | "Montage pas possible". */
   etatMontage: string;
   /** Nombre de cabines dont le montage est terminé (photos uploadées) */

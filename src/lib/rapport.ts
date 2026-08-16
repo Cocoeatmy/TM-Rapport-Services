@@ -86,6 +86,20 @@ export function splitRapportByCabine(
   const nomKeys = noms.map(norm);
   let currentIdx: number | null = null;
 
+  // Retrouve l'index de cabine d'un libellé de lot :
+  //  1) correspondance exacte (normalisée) ;
+  //  2) sinon correspondance par PRÉFIXE UNIQUE (« A02 » ↔ « A02 - Bains »),
+  //     uniquement si UNE seule cabine correspond (jamais d'appariement ambigu).
+  const findCabine = (label: string): number => {
+    const key = norm(label);
+    if (!key) return -1;
+    const exact = nomKeys.findIndex((k) => k && k === key);
+    if (exact >= 0) return exact;
+    const matches: number[] = [];
+    nomKeys.forEach((k, idx) => { if (k && (k.startsWith(key) || key.startsWith(k))) matches.push(idx); });
+    return matches.length === 1 ? matches[0] : -1;
+  };
+
   for (const rawLine of (raw || "").split("\n")) {
     const line = rawLine.trim();
     if (!line) {
@@ -96,11 +110,8 @@ export function splitRapportByCabine(
     const m = line.match(/^(.+?)\s*:\s+(.*)$/);
     let matchedIdx: number | null = null;
     if (m) {
-      const key = norm(m[1]);
-      if (key) {
-        const i = nomKeys.findIndex((k) => k && k === key);
-        if (i >= 0) matchedIdx = i;
-      }
+      const i = findCabine(m[1]);
+      if (i >= 0) matchedIdx = i;
     }
     if (matchedIdx !== null && m) {
       currentIdx = matchedIdx;
