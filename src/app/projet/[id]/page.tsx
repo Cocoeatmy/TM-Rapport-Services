@@ -6356,7 +6356,9 @@ function ProjectPageContent({ id }: { id: string }) {
                             <GripVertical className="w-4 h-4 text-gray-400 shrink-0" />
                           ) : (
                             <span className={`w-8 h-8 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0 transition-colors ${
-                              installedCabineIndices.has(idx)
+                              parseSousTraitance(project?.montagePartiel || "")[idx + 1]
+                                ? "bg-violet-600 ring-2 ring-violet-300 dark:ring-violet-500/50"
+                                : installedCabineIndices.has(idx)
                                 ? "bg-green-600"
                                 : (!!cabine.arrivee || (project?.photosAvant || []).some(f => new RegExp(`\\.Cab${idx + 1}\\.`).test(f.name || "")))
                                 ? "bg-orange-500"
@@ -6616,9 +6618,34 @@ function ProjectPageContent({ id }: { id: string }) {
                                 </div>
                               )}
 
-                              {/* Jour de montage */}
+                              {/* Jour de montage + case « Montage partiel » */}
                               <div>
-                                <Label className="text-xs text-gray-600 dark:text-gray-300">Jour de montage</Label>
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <Label className="text-xs text-gray-600 dark:text-gray-300">Jour de montage</Label>
+                                  {/* Montage partiel : le lot n'est pas terminé (ex. pièce
+                                      manquante). Coché → numéro de lot en VIOLET. */}
+                                  <label className="flex items-center gap-1.5 cursor-pointer select-none text-xs font-medium text-violet-700 dark:text-violet-300">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!parseSousTraitance(project?.montagePartiel || "")[idx + 1]}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        // Optimiste : maj locale (map complète).
+                                        const map = parseSousTraitance(project?.montagePartiel || "");
+                                        if (checked) map[idx + 1] = "1"; else delete map[idx + 1];
+                                        setProject((prev) => prev ? { ...prev, montagePartiel: encodeSousTraitance(map) } : prev);
+                                        // Serveur : delta d'une seule cabine (mergé côté API).
+                                        offlineFetch(`/api/projects/${id}`, {
+                                          method: "PATCH",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ montagePartiel: `Cab${idx + 1}:${checked ? "1" : ""}` }),
+                                        }).catch(console.error);
+                                      }}
+                                      className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500 accent-violet-600"
+                                    />
+                                    Montage partiel
+                                  </label>
+                                </div>
                                 <Input
                                   type="date"
                                   value={cabine.date}
