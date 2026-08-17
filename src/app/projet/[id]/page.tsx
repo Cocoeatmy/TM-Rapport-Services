@@ -6472,14 +6472,20 @@ function ProjectPageContent({ id }: { id: string }) {
                                 </span>
                               )}
                             </div>
-                            {/* Sous-titre : monteur + date — affiché seulement si les DEUX sont renseignés.
-                                Monteur seul (date absente) = installation pas encore complète → rien.
-                                Ni l'un ni l'autre = cabine pas encore installée → rien. */}
-                            {cabine.monteur && cabine.date && (
-                              <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate leading-tight mt-0.5">
-                                {cabine.monteur} · {cabine.date.split("-").reverse().join(".")}
-                              </p>
-                            )}
+                            {/* Sous-titre : QUI a monté + date. Monteur employé → affiché
+                                seulement avec la date (install complète). À défaut de monteur,
+                                on affiche le SOUS-TRAITANT (même sans date), pour toujours
+                                savoir qui a procédé au montage. */}
+                            {(() => {
+                              const sousTraitant = parseSousTraitance(project.monteursSousTraitance)[idx + 1] || "";
+                              const who = cabine.monteur || sousTraitant;
+                              if (!who || (!cabine.date && !sousTraitant)) return null;
+                              return (
+                                <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate leading-tight mt-0.5">
+                                  {who}{cabine.date ? ` · ${cabine.date.split("-").reverse().join(".")}` : ""}
+                                </p>
+                              );
+                            })()}
                           </div>
                         </button>
 
