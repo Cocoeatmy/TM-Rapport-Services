@@ -5700,11 +5700,13 @@ function ProjectPageContent({ id }: { id: string }) {
           // N'affiche que les cabines avec photos montage (= installées), groupées par date
           const cabinesByDate: Record<string, { nom: string; monteur: string }[]> = {};
           if (isCabineMode) {
+            const sousTraitMap = parseSousTraitance(project?.monteursSousTraitance || "");
             cabines.forEach((c, i) => {
               if (!installedCabineIndices.has(i)) return;
               const key = c.date || "__nodate__";
               if (!cabinesByDate[key]) cabinesByDate[key] = [];
-              cabinesByDate[key].push({ nom: c.nom || `Cabine ${i + 1}`, monteur: c.monteur || "" });
+              // À défaut de monteur (employé), afficher le sous-traitant.
+              cabinesByDate[key].push({ nom: c.nom || `Cabine ${i + 1}`, monteur: c.monteur || sousTraitMap[i + 1] || "" });
             });
           }
           const sortedDates = Object.keys(cabinesByDate).sort((a, b) =>
@@ -6027,13 +6029,15 @@ function ProjectPageContent({ id }: { id: string }) {
                     });
                   });
 
-                  // Regroupement par date
+                  // Regroupement par date. À défaut de monteur (employé), on
+                  // affiche le SOUS-TRAITANT (les heures restent vides « — »).
+                  const sousTraitMap = parseSousTraitance(project?.monteursSousTraitance || "");
                   const byDay = new Map<string, { nom: string; monteur: string; minutes: number }[]>();
                   cabines.forEach((c, i) => {
                     if (!c.date) return;
                     const nom = c.nom || `Cabine ${i + 1}`;
                     if (!byDay.has(c.date)) byDay.set(c.date, []);
-                    byDay.get(c.date)!.push({ nom, monteur: c.monteur || "", minutes: cabMin(c) });
+                    byDay.get(c.date)!.push({ nom, monteur: c.monteur || sousTraitMap[i + 1] || "", minutes: cabMin(c) });
                   });
 
                   const totalMin = cabines.reduce((s, c) => s + cabMin(c), 0);
