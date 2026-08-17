@@ -6018,12 +6018,15 @@ function ProjectPageContent({ id }: { id: string }) {
                     return diff > 0 ? diff : 0;
                   };
 
-                  // Regroupement par collaborateur
+                  // Regroupement par collaborateur. À défaut de monteur employé,
+                  // on compte le SOUS-TRAITANT (sans heures → total « — »).
+                  const stMapCollab = parseSousTraitance(project?.monteursSousTraitance || "");
                   const byCollab = new Map<string, { count: number; minutes: number }>();
-                  cabines.forEach((c) => {
-                    const monteurs = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
+                  cabines.forEach((c, i) => {
                     const min = cabMin(c);
-                    monteurs.forEach((m) => {
+                    const monteurs = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
+                    const names = monteurs.length > 0 ? monteurs : (stMapCollab[i + 1] ? [stMapCollab[i + 1]] : []);
+                    names.forEach((m) => {
                       const cur = byCollab.get(m) || { count: 0, minutes: 0 };
                       byCollab.set(m, { count: cur.count + 1, minutes: cur.minutes + min });
                     });
@@ -6073,9 +6076,11 @@ function ProjectPageContent({ id }: { id: string }) {
                                     <p className="text-xs text-gray-500 dark:text-gray-400">
                                       {count} cabine{count > 1 ? "s" : ""}
                                     </p>
-                                    <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                                      moy.&nbsp;{fmtMin(Math.round(minutes / count))}/cab
-                                    </p>
+                                    {minutes > 0 && (
+                                      <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                                        moy.&nbsp;{fmtMin(Math.round(minutes / count))}/cab
+                                      </p>
+                                    )}
                                   </div>
                                   <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 min-w-[52px] text-right">
                                     {fmtMin(minutes)}
