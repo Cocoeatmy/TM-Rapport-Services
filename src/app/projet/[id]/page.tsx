@@ -1746,17 +1746,29 @@ function etatMontageBadgeClass(etat: string | undefined): string {
 /** Champ texte « monteur sous-traitance » d'UNE cabine (admin). Sauvegarde au blur. */
 function CabineSousTraitantInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => { setDraft(value); }, [value]);
-  const commit = () => {
-    const v = draft.replace(/[|:]/g, " ").replace(/\s+/g, " ").trim(); // pas de | ni : (délimiteurs)
+  const focusedRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ne pas écraser la saisie en cours quand la valeur externe change (optimiste).
+  useEffect(() => { if (!focusedRef.current) setDraft(value); }, [value]);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  const commit = (raw: string) => {
+    const v = raw.replace(/[|:]/g, " ").replace(/\s+/g, " ").trim(); // pas de | ni : (délimiteurs)
     if (v !== value) onSave(v);
   };
   return (
     <input
       type="text"
       value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
+      onChange={(e) => {
+        const val = e.target.value;
+        setDraft(val);
+        // Sauvegarde PENDANT la frappe (débounce) → les photos se débloquent
+        // sans attendre de quitter le champ, et l'enregistrement tient du 1er coup.
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => commit(val), 700);
+      }}
+      onFocus={() => { focusedRef.current = true; }}
+      onBlur={() => { focusedRef.current = false; if (timerRef.current) clearTimeout(timerRef.current); commit(draft); }}
       onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
       placeholder="Nom du sous-traitant…"
       className="mt-1 w-full h-9 px-3 text-sm rounded-lg border border-orange-200 dark:border-orange-800/50 bg-orange-50/40 dark:bg-orange-950/20 focus:outline-none focus:ring-2 focus:ring-orange-400/40"
@@ -6526,12 +6538,16 @@ function ProjectPageContent({ id }: { id: string }) {
                               type="button"
                               onClick={() => {
                                 // Sous-traité (nom saisi dans « Monteur sous-traitance ») →
-                                // heure d'arrivée NON obligatoire.
+                                // photos DÉBLOQUÉES immédiatement : ni monteur, ni jour, ni
+                                // heures ne sont exigés (on ne suit pas les heures des
+                                // sous-traitants, ce ne sont pas nos employés).
                                 const estSousTraite = !!parseSousTraitance(project.monteursSousTraitance)[idx + 1];
                                 const missing: string[] = [];
-                                if (!cabine.monteur) missing.push("monteur responsable");
-                                if (!cabine.date) missing.push("jour de montage");
-                                if (!cabine.arrivee && !estSousTraite) missing.push("heure d'arrivée");
+                                if (!estSousTraite) {
+                                  if (!cabine.monteur) missing.push("monteur responsable");
+                                  if (!cabine.date) missing.push("jour de montage");
+                                  if (!cabine.arrivee) missing.push("heure d'arrivée");
+                                }
                                 if (missing.length > 0) {
                                   toast.error(`Renseignez d'abord : ${missing.join(", ")}`);
                                   return;
@@ -6545,7 +6561,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               }`}
                             >
                               Photos
-                              {(!cabine.monteur || !cabine.date || (!cabine.arrivee && !parseSousTraitance(project.monteursSousTraitance)[idx + 1])) && (
+                              {!parseSousTraitance(project.monteursSousTraitance)[idx + 1] && (!cabine.monteur || !cabine.date || !cabine.arrivee) && (
                                 <span className="text-[11px] text-gray-300 dark:text-slate-500">🔒</span>
                               )}
                             </button>
@@ -6662,6 +6678,9 @@ function ProjectPageContent({ id }: { id: string }) {
                                       const map = parseSousTraitance(project.monteursSousTraitance);
                                       if (v) map[idx + 1] = v; else delete map[idx + 1];
                                       setProject((prev) => prev ? { ...prev, monteursSousTraitance: encodeSousTraitance(map) } : prev);
+                                      // Protège la saisie du revert par le polling (fenêtre 30 s)
+                                      // → l'enregistrement tient dès la 1re fois.
+                                      window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "monteursSousTraitance" } }));
                                       // Serveur : DELTA d'une seule cabine (vide = suppression),
                                       // mergé côté API pour ne jamais écraser les autres cabines.
                                       offlineFetch(`/api/projects/${id}`, {
@@ -6687,6 +6706,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                       const map = parseSousTraitance(project?.etatMontage || "");
                                       if (val) map[idx + 1] = val; else delete map[idx + 1];
                                       setProject((prev) => prev ? { ...prev, etatMontage: encodeSousTraitance(map) } : prev);
+                                      window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "etatMontage" } }));
                                       offlineFetch(`/api/projects/${id}`, {
                                         method: "PATCH",
                                         headers: { "Content-Type": "application/json" },
