@@ -706,13 +706,16 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                           <Text style={styles.timeValue}>{fmtDate(dateMap[i])}</Text>
                         </View>
                       ) : null}
+                      {/* Sous-traité → on n'affiche AUCUNE heure (on ne suit pas le
+                          temps des sous-traitants ; on ignore d'éventuelles heures
+                          auto-remplies à l'upload photo). */}
                       <View style={{ ...styles.timeBox, flex: 1, marginRight: 4 }}>
                         <Text style={styles.timeLabel}>Arrivée</Text>
-                        <Text style={styles.timeValue}>{arriveeMap[i] || "--:--"}</Text>
+                        <Text style={styles.timeValue}>{sousTraitMap[i] ? "--:--" : (arriveeMap[i] || "--:--")}</Text>
                       </View>
                       <View style={{ ...styles.timeBox, flex: 1 }}>
                         <Text style={styles.timeLabel}>Départ</Text>
-                        <Text style={styles.timeValue}>{departMap[i] || "--:--"}</Text>
+                        <Text style={styles.timeValue}>{sousTraitMap[i] ? "--:--" : (departMap[i] || "--:--")}</Text>
                       </View>
                     </View>
                     );
