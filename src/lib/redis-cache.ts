@@ -129,6 +129,26 @@ export async function redisLockRelease(key: string, token: string): Promise<void
   }
 }
 
+// ── LISTE Redis (journal d'activité : append O(1), forte rétention) ──────────
+/** Ajoute une valeur en TÊTE de liste (LPUSH). Throw si échec. */
+export async function redisLPush(key: string, value: string): Promise<void> {
+  if (!redisEnabled) throw new Error("Redis non configuré");
+  await command(["LPUSH", key, value]);
+}
+/** Tronque la liste à [start, stop] (LTRIM) — plafonne la taille. */
+export async function redisLTrim(key: string, start: number, stop: number): Promise<void> {
+  if (!redisEnabled) return;
+  try { await command(["LTRIM", key, start, stop]); } catch { /* best-effort */ }
+}
+/** Lit une plage de la liste (LRANGE) → tableau de chaînes. */
+export async function redisLRange(key: string, start: number, stop: number): Promise<string[]> {
+  if (!redisEnabled) return [];
+  try {
+    const r = await command(["LRANGE", key, start, stop]);
+    return Array.isArray(r) ? r.map(String) : [];
+  } catch { return []; }
+}
+
 /** Écrit une valeur JSON avec TTL (défaut 1 h), compressée si volumineuse. */
 export async function redisSetJSON(key: string, data: unknown, ttlSec = 3600): Promise<void> {
   if (!redisEnabled) return;

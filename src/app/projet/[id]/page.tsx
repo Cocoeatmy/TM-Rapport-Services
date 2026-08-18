@@ -546,11 +546,10 @@ function ProjectHistory({ projectId, onCountChange }: { projectId: string; onCou
 
   const loadLogs = async () => {
     try {
-      const res = await fetch("/api/logs");
+      const res = await fetch(`/api/logs?projectId=${encodeURIComponent(projectId)}`);
       if (res.ok) {
-        const all = await res.json();
-        if (Array.isArray(all)) {
-          const filtered = all.filter((l: any) => l.projectId === projectId);
+        const filtered = await res.json();
+        if (Array.isArray(filtered)) {
           setLogs(filtered);
           onCountChange?.(filtered.length);
         }
@@ -5101,9 +5100,10 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
 
-      {/* Historique des modifications (toggle) */}
+      {/* Historique des modifications (toggle) — même gabarit/alignement que les
+          panneaux du dessous (padding du rail macOS inclus). */}
       {showHistory && isAdmin && (
-        <div className="px-4 mt-2">
+        <div className={`px-4 sm:px-6 mt-4 ${isMac ? "!pl-24" : ""}`}>
           <ProjectHistory projectId={id} onCountChange={setHistoryCount} />
         </div>
       )}
