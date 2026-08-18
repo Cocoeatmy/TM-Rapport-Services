@@ -665,6 +665,17 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               const [y, mo, dd] = d.split("-");
               return `${dd}.${mo}.${y}`;
             };
+            // Sous-traitant par cabine ("Cab1:Nom | Cab2:Nom") → repli quand aucun
+            // monteur employé n'est attribué (montage fait en sous-traitance).
+            const parseSousTrait = (raw: string): Record<number, string> => {
+              const map: Record<number, string> = {};
+              if (!raw) return map;
+              const re = /Cab(\d+)\s*:([^|]*)/g;
+              let m: RegExpExecArray | null;
+              while ((m = re.exec(raw))) { const v = m[2].trim(); if (v) map[parseInt(m[1], 10) - 1] = v; }
+              return map;
+            };
+            const sousTraitMap = parseSousTrait(project.monteursSousTraitance || "");
             const arriveeMap = parseCab(project.heureArrivee || "");
             const departMap = parseCab(project.heureDepart || "");
             const dateMap = parseCabDates(project.heureArrivee || "");
@@ -678,7 +689,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                     // Utilise le nom personnalisé si défini et différent du défaut
                     const customNom = cabineAttribution?.noms?.[i];
                     const cabLabel = (customNom && customNom !== `Cabine ${i + 1}`) ? customNom : `Cabine ${i + 1}`;
-                    const monteurNom = cabineAttribution?.attribution?.[i] || null;
+                    const monteurNom = cabineAttribution?.attribution?.[i] || sousTraitMap[i] || null;
                     return (
                     <View key={i} wrap={false} style={{ flexDirection: "row", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                       <View style={{ width: 80, alignSelf: "center" }}>
