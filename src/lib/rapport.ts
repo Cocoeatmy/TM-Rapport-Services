@@ -46,13 +46,46 @@ export function normalizeRapportMonteur(raw: string | null | undefined): string 
     }
   }
 
+  // Texte APRÈS « id : » d'une ligne d'en-tête (pour repérer les continuations
+  // qui ne font que redoubler le texte du lot).
+  const headerText = (line: string) => line.replace(/^[^:]*:\s*/, "").trim();
+
+  // ── Déduplication (répare les rapports historiques accumulés) ──────────────
+  // 1) Dans chaque bloc : lignes en double + continuation identique à l'en-tête.
+  for (const b of blocks) {
+    const ht = headerText(b.lines[0]);
+    const seen = new Set<string>();
+    b.lines = b.lines.filter((ln, i) => {
+      if (seen.has(ln)) return false;
+      seen.add(ln);
+      if (i > 0 && ln === ht) return false; // « texte » nu qui redouble « id : texte »
+      return true;
+    });
+  }
+  // 2) Blocs entièrement identiques (même id + même contenu) → un seul.
+  const seenBlocks = new Set<string>();
+  const uniqueBlocks = blocks.filter((b) => {
+    const key = `${b.id}|${b.lines.join("\n")}`;
+    if (seenBlocks.has(key)) return false;
+    seenBlocks.add(key);
+    return true;
+  });
+
   // Tri naturel des cabines par identifiant (alphabétique puis numérique).
-  // Array.sort est stable : les continuations suivent leur bloc (dans `lines`).
-  blocks.sort((a, b) => a.id.localeCompare(b.id, "fr", { numeric: true, sensitivity: "base" }));
+  uniqueBlocks.sort((a, b) => a.id.localeCompare(b.id, "fr", { numeric: true, sensitivity: "base" }));
+
+  // 3) Général : lignes en double + lignes nues qui redoublent le texte d'un lot.
+  const blockTexts = new Set(uniqueBlocks.map((b) => headerText(b.lines[0])));
+  const seenGen = new Set<string>();
+  const cleanGeneral = general.filter((ln) => {
+    if (seenGen.has(ln) || blockTexts.has(ln)) return false;
+    seenGen.add(ln);
+    return true;
+  });
 
   const chunks: string[] = [];
-  if (general.length) chunks.push(general.join("\n"));
-  for (const b of blocks) chunks.push(b.lines.join("\n"));
+  if (cleanGeneral.length) chunks.push(cleanGeneral.join("\n"));
+  for (const b of uniqueBlocks) chunks.push(b.lines.join("\n"));
   return chunks.join("\n\n");
 }
 
@@ -126,7 +159,16 @@ export function splitRapportByCabine(
 
   const perCabine: Record<number, string> = {};
   for (const [k, arr] of Object.entries(per)) {
-    const txt = arr.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    // Déduplique les lignes (rapports historiques doublés) tout en gardant l'ordre.
+    const seen = new Set<string>();
+    const deduped = arr.filter((ln) => {
+      const t = ln.trim();
+      if (!t) return true; // on garde les sauts pour le nettoyage \n{3,} ci-dessous
+      if (seen.has(t)) return false;
+      seen.add(t);
+      return true;
+    });
+    const txt = deduped.join("\n").replace(/\n{3,}/g, "\n\n").trim();
     if (txt) perCabine[Number(k)] = txt;
   }
   return {
