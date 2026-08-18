@@ -50,7 +50,7 @@ import { SiteTimer } from "@/components/site-timer";
 // StockUsage supprimée (section retirée)
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
-import { Star, Share2, RefreshCw, PenLine, ImageDown, Lock, Search } from "lucide-react";
+import { Star, Share2, RefreshCw, PenLine, ImageDown, Lock, Search, Save } from "lucide-react";
 import { toggleFavorite, isFavorite } from "@/lib/favorites";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -4695,6 +4695,48 @@ function ProjectPageContent({ id }: { id: string }) {
 
   const isAdmin = currentUser?.role === "admin";
 
+  // ── Actions du rapport (partagées entre les boutons du bas et les boutons
+  //    ronds de l'en-tête macOS) ─────────────────────────────────────────────
+  const handleSaveClick = () => {
+    if (!isCabineMode && !rapport.trim()) { setShowRapportRequiredModal(true); return; }
+    handleSave();
+  };
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      const res = await fetch(`/api/pdf/${id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      let filename = "Rapport de montage.pdf";
+      const cd = res.headers.get("Content-Disposition");
+      const m = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      if (m?.[1]) filename = decodeURIComponent(m[1]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error("Téléchargement PDF échoué:", e);
+      alert("Impossible de générer le PDF. Veuillez réessayer.");
+    } finally { setDownloadingPdf(false); }
+  };
+  const handleDownloadPhotos = async () => {
+    setDownloadingPhotos(true);
+    try {
+      const res = await fetch(`/api/photos/${id}/download`);
+      if (!res.ok) throw new Error("Erreur serveur");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `${project.nomChantier || id} - Photos.zip`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Impossible de télécharger les photos. Veuillez réessayer.");
+    } finally { setDownloadingPhotos(false); }
+  };
+
   // Cabines dont au moins une photo "montage" ou "après intervention" a été uploadée.
   // Les noms de fichiers multi-cabine encodent l'index via `.Cab{N}.` (1-based).
   // On se base sur project.photosMontage qui contient les buckets MONTAGE_* et APRES_INTERVENTION.
@@ -4866,6 +4908,45 @@ function ProjectPageContent({ id }: { id: string }) {
           // OFR (mode rapport). Définis une seule fois ici.
           const actionButtons = (
             <>
+              {/* Actions rapides du rapport (macOS, quand le panneau rapport est
+                  ouvert) : mêmes fonctions que les boutons du bas de page. */}
+              {isMac && macTabs.has("rapport") && (
+                <>
+                  <button
+                    onClick={handleSaveClick}
+                    disabled={saving}
+                    title="Enregistrer le rapport"
+                    className="w-9 h-9 flex items-center justify-center rounded-full bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 active:scale-90 transition-all disabled:opacity-50"
+                  >
+                    {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                  </button>
+                  <button
+                    onClick={() => handleSendReport()}
+                    disabled={sending}
+                    title="Envoyer le rapport"
+                    className="w-9 h-9 flex items-center justify-center rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/30 active:scale-90 transition-all disabled:opacity-50"
+                  >
+                    {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                  </button>
+                  <button
+                    onClick={handleDownloadPdf}
+                    disabled={downloadingPdf}
+                    title="Actualiser et télécharger le PDF"
+                    className="w-9 h-9 flex items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-90 transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-5 h-5 ${downloadingPdf ? "animate-spin" : ""}`} />
+                  </button>
+                  <button
+                    onClick={handleDownloadPhotos}
+                    disabled={downloadingPhotos}
+                    title="Télécharger toutes les photos"
+                    className="w-9 h-9 flex items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-90 transition-all disabled:opacity-50"
+                  >
+                    {downloadingPhotos ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageDown className="w-5 h-5" />}
+                  </button>
+                  <span className="w-px h-5 self-center bg-gray-200 dark:bg-slate-600 mx-0.5" />
+                </>
+              )}
               {isAdmin && (
                 <button
                   onClick={() => setShowEditModal(true)}
@@ -7341,20 +7422,14 @@ function ProjectPageContent({ id }: { id: string }) {
             {/* Actions CMD */}
             <div className="space-y-3 pt-2">
               <Button
-                onClick={() => {
-                  if (!isCabineMode && !rapport.trim()) {
-                    setShowRapportRequiredModal(true);
-                    return;
-                  }
-                  handleSave();
-                }}
+                onClick={handleSaveClick}
                 disabled={saving}
                 className="w-full h-12 rounded-xl text-base font-medium save-btn text-white"
               >
                 {saving ? (
                   <Loader2 className="w-5 h-5 animate-spin mr-2" />
                 ) : (
-                  <FileText className="w-5 h-5 mr-2" />
+                  <Save className="w-5 h-5 mr-2" />
                 )}
                 Enregistrer le rapport
               </Button>
@@ -7376,32 +7451,7 @@ function ProjectPageContent({ id }: { id: string }) {
               <button
                 type="button"
                 disabled={downloadingPdf}
-                onClick={async () => {
-                  setDownloadingPdf(true);
-                  try {
-                    const res = await fetch(`/api/pdf/${id}`);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    const blob = await res.blob();
-                    // Récupère le nom de fichier depuis l'en-tête, sinon fallback.
-                    let filename = "Rapport de montage.pdf";
-                    const cd = res.headers.get("Content-Disposition");
-                    const m = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-                    if (m?.[1]) filename = decodeURIComponent(m[1]);
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    setTimeout(() => URL.revokeObjectURL(url), 1000);
-                  } catch (e) {
-                    console.error("Téléchargement PDF échoué:", e);
-                    alert("Impossible de générer le PDF. Veuillez réessayer.");
-                  } finally {
-                    setDownloadingPdf(false);
-                  }
-                }}
+                onClick={handleDownloadPdf}
                 className="w-full h-12 rounded-xl text-base font-medium flex items-center justify-center gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800 disabled:opacity-60"
               >
                 <RefreshCw className={`w-5 h-5 ${downloadingPdf ? "animate-spin" : ""}`} />
@@ -7415,26 +7465,7 @@ function ProjectPageContent({ id }: { id: string }) {
               <button
                 type="button"
                 disabled={downloadingPhotos}
-                onClick={async () => {
-                  setDownloadingPhotos(true);
-                  try {
-                    const res = await fetch(`/api/photos/${id}/download`);
-                    if (!res.ok) throw new Error("Erreur serveur");
-                    const blob = await res.blob();
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `${project.nomChantier || id} - Photos.zip`;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    URL.revokeObjectURL(url);
-                  } catch {
-                    alert("Impossible de télécharger les photos. Veuillez réessayer.");
-                  } finally {
-                    setDownloadingPhotos(false);
-                  }
-                }}
+                onClick={handleDownloadPhotos}
                 className="w-full h-12 rounded-xl text-base font-medium flex items-center justify-center gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-all border border-blue-200 dark:border-blue-800 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {downloadingPhotos ? (
