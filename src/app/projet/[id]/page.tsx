@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState, use, useCallback } from "react";
+import { Suspense, useEffect, useRef, useState, use, useCallback, type Dispatch, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -1259,7 +1259,7 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
 
 /** Liste les défauts du projet (depuis /api/defauts) avec numérotation,
  *  toggle rapport client, et suppression per-défaut. */
-function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string; refreshKey?: number; cabineLabel?: string }) {
+function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }: { projectId: string; refreshKey?: number; cabineLabel?: string; project?: Project | null; setProject?: Dispatch<SetStateAction<Project | null>> }) {
   type Defaut = {
     id: string;
     typesLabel?: string;
@@ -1310,6 +1310,17 @@ function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string
     } catch {
       revert();
     }
+  };
+
+  // « Défaut réglé » ⇆ case Notion « Soucis montages clôturé » (projet, bidir).
+  const soucisCloture = !!project?.soucisMontageCloture;
+  const toggleCloture = (v: boolean) => {
+    setProject?.((prev) => prev ? { ...prev, soucisMontageCloture: v } : prev);
+    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "soucisMontageCloture" } }));
+    offlineFetch(`/api/projects/${projectId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ soucisMontageCloture: v }),
+    }).catch(console.error);
   };
 
   const handleDelete = async (id: string, num: number) => {
@@ -1386,6 +1397,20 @@ function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string
                   />
                   Ne pas afficher
                 </label>
+                {/* Case « Défaut réglé » ⇆ Notion « Soucis montages clôturé »
+                    (projet, bidirectionnel). Coché → bloc travaux ci-dessous. */}
+                {project && setProject && (
+                  <label className="flex items-center gap-1 pl-1 text-[10px] font-medium text-green-700 dark:text-green-400 cursor-pointer select-none"
+                    title="Cocher quand le défaut a été réglé (synchronisé avec Notion)">
+                    <input
+                      type="checkbox"
+                      checked={soucisCloture}
+                      onChange={() => toggleCloture(!soucisCloture)}
+                      className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-green-600 focus:ring-green-500 accent-green-600"
+                    />
+                    Défaut réglé
+                  </label>
+                )}
               </div>
             </div>
 
@@ -1436,6 +1461,33 @@ function DefautsList({ projectId, refreshKey, cabineLabel }: { projectId: string
           </div>
         );
       })}
+
+      {/* Bloc « Travaux exécutés » — visible quand le défaut est réglé (case
+          « Défaut réglé »). Photos + texte, champs PROJET synchronisés Notion
+          (« Photos soucis montage réglé » / « Explications travaux exécuté »). */}
+      {project && setProject && soucisCloture && (
+        <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10 p-3 space-y-3">
+          <p className="text-xs font-semibold text-green-700 dark:text-green-400">Travaux exécutés (souci réglé)</p>
+          <PhotoUpload
+            category="soucis-regle"
+            label="Photos du souci réglé"
+            projectId={projectId}
+            notionField="Photos soucis montage réglé"
+            filePrefix="Photos-Soucis-Regle"
+            existingPhotos={project.photosSoucisRegle || []}
+            onUpload={(files) => setProject((prev) => prev ? { ...prev, photosSoucisRegle: [...(prev.photosSoucisRegle || []), ...files] } : prev)}
+            onDelete={(files) => {
+              setProject((prev) => prev ? { ...prev, photosSoucisRegle: files } : prev);
+              offlineFetch(`/api/projects/${projectId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photosSoucisRegle: files }) }).catch(console.error);
+            }}
+          />
+          <ExplicationTravauxField
+            projectId={projectId}
+            value={project.explicationsTravaux || ""}
+            onUpdate={(v) => setProject((prev) => prev ? { ...prev, explicationsTravaux: v } : prev)}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1740,6 +1792,36 @@ function etatMontageBadgeClass(etat: string | undefined): string {
     case "Montage terminé": return "bg-green-600";
     default: return "";
   }
+}
+
+/** Texte « Explications travaux exécuté » (projet). Sauvegarde au blur + Notion. */
+function ExplicationTravauxField({ projectId, value, onUpdate }: { projectId: string; value: string; onUpdate: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const focusedRef = useRef(false);
+  useEffect(() => { if (!focusedRef.current) setDraft(value); }, [value]);
+  const commit = () => {
+    if (draft === value) return;
+    onUpdate(draft);
+    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "explicationsTravaux" } }));
+    offlineFetch(`/api/projects/${projectId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ explicationsTravaux: draft }),
+    }).catch(console.error);
+  };
+  return (
+    <div>
+      <label className="text-[10px] text-gray-500 dark:text-gray-400 block mb-1">Explications — travaux exécutés</label>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={() => { focusedRef.current = true; }}
+        onBlur={() => { focusedRef.current = false; commit(); }}
+        rows={3}
+        placeholder="Décrire ce qui a été fait pour régler le souci…"
+        className="w-full text-sm border rounded-lg px-3 py-2 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-green-400/40"
+      />
+    </div>
+  );
 }
 
 /** Champ texte « monteur sous-traitance » d'UNE cabine (admin). Sauvegarde au blur. */
@@ -6425,7 +6507,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         <div className="pt-1 space-y-3">
                           <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalements</p>
                           <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
-                          <DefautsList projectId={id} refreshKey={defautRefreshKey} />
+                          <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
                           <PiecesForm
                             projectId={id}
                             projectName={project.projet}
@@ -7005,6 +7087,8 @@ function ProjectPageContent({ id }: { id: string }) {
                                   projectId={id}
                                   refreshKey={defautRefreshKey}
                                   cabineLabel={cabine.nom}
+                                  project={project}
+                                  setProject={setProject}
                                 />
                                 {/* Formulaires d'ajout */}
                                 <PiecesForm
@@ -7398,7 +7482,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
-                  <DefautsList projectId={id} refreshKey={defautRefreshKey} />
+                  <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
                 </CardContent>
               </Card>
             )}

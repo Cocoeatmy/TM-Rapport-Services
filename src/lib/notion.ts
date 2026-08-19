@@ -180,6 +180,12 @@ export interface Project {
   soucisMontage: boolean;
   dateSoucisMontage: string | null;
   causeSoucis: string;
+  /** Souci de montage clôturé (défaut réglé) — case Notion « Soucis montages clôturé ». */
+  soucisMontageCloture: boolean;
+  /** Photos du souci réglé — Notion « Photos soucis montage réglé ». */
+  photosSoucisRegle: FileItem[];
+  /** Explication des travaux exécutés — Notion « Explications travaux exécuté ». */
+  explicationsTravaux: string;
   causeSAV: string;
   etatSAV: string;
   dateRDVSAV: string | null;
@@ -410,6 +416,9 @@ export function mapPageToProject(page: any): Project {
     soucisMontage: p["Soucis montage"]?.checkbox || false,
     dateSoucisMontage: extractDate(p["Date - Soucis montage"]),
     causeSoucis: extractSelect(p["Cause Soucis montages"]),
+    soucisMontageCloture: p["Soucis montages clôturé"]?.checkbox || false,
+    photosSoucisRegle: extractFiles(p["Photos soucis montage réglé"]),
+    explicationsTravaux: extractText(p["Explications travaux exécuté"]),
     causeSAV: extractSelect(p["Cause SAV"]),
     etatSAV: extractStatus(p["État - SAV"]),
     dateRDVSAV: extractDate(p["Date - RDV SAV"]),
@@ -927,6 +936,9 @@ export async function updateProject(
     attributionCabines?: string;
     monteursSousTraitance?: string;
     etatMontage?: string;
+    soucisMontageCloture?: boolean;
+    explicationsTravaux?: string;
+    photosSoucisRegle?: { name: string; url: string }[];
     nbCabinesInstallees?: number;
     commentairesMontages?: string;
     rapportMonteur?: string;
@@ -1279,6 +1291,15 @@ export async function updateProject(
   writeFilesField("photosGaranties", "Photos garanties", "garantie");
   writeFilesField("photosPiecesManquantes", "Photos - Pièces manquante", "piece");
   writeFilesField("photosDefautsSignale", "Photos - Défauts signalé", "defaut");
+  writeFilesField("photosSoucisRegle", "Photos soucis montage réglé", "soucis-regle");
+
+  // Souci de montage clôturé (case) + explication des travaux (texte).
+  if (data.soucisMontageCloture !== undefined) {
+    properties["Soucis montages clôturé"] = { checkbox: !!data.soucisMontageCloture };
+  }
+  if (data.explicationsTravaux !== undefined) {
+    properties["Explications travaux exécuté"] = { rich_text: toRichText(data.explicationsTravaux) };
+  }
 
   await notionUpdateWithRetry({
     page_id: pageId,
