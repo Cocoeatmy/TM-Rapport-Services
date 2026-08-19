@@ -1665,6 +1665,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [mesuresFilterYear, setMesuresFilterYear] = useState("");
   const [mesuresFilterFrom, setMesuresFilterFrom] = useState("");
   const [mesuresFilterTo, setMesuresFilterTo] = useState("");
+  const [mesuresFilterClient, setMesuresFilterClient] = useState(""); // clé client (voir clientKeyOf)
   const [dossiersFilterYear, setDossiersFilterYear] = useState("");
   const [dossiersFilterType, setDossiersFilterType] = useState("");
   const [dossiersFilterFrom, setDossiersFilterFrom] = useState("");
@@ -4298,8 +4299,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const isAnnulees = mesuresSubView === "annulees";
           const rawList = isAnnulees ? mesuresAnnuleesData : mesuresSansCommandeProjects;
           const displayLoading = isAnnulees ? mesuresAnnuleesLoading : mesuresSansCommandeLoading;
-          // Filtrage mesures
-          const displayList = rawList.filter(p => {
+          // Prix d'une mesure : 110 CHF pour 1 à 3 cabines, puis +35 CHF par cabine
+          // AU-DELÀ de 3 (info "Nb. Cabines"). 0 cabine → 0.
+          const mesurePrice = (nb?: number | null) => { const n = nb || 0; return n <= 0 ? 0 : 110 + Math.max(0, n - 3) * 35; };
+          const fmtCHF = (n: number) => `${n.toLocaleString("fr-CH")} CHF`;
+          // Filtrage par DATE (année / plage)
+          const dateFilteredList = rawList.filter(p => {
             const dateStr = (p.dateMesures || "").split("T")[0];
             if (mesuresFilterYear && !dateStr.startsWith(mesuresFilterYear)) return false;
             if (mesuresFilterFrom && dateStr < mesuresFilterFrom) return false;
@@ -4309,7 +4314,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const mesuresYears = Array.from(new Set(
             rawList.map(p => (p.dateMesures || "").split("T")[0].slice(0, 4)).filter(Boolean)
           )).sort((a, b) => b.localeCompare(a));
-          const hasMesuresFilter = !!(mesuresFilterYear || mesuresFilterFrom || mesuresFilterTo);
+          const hasMesuresFilter = !!(mesuresFilterYear || mesuresFilterFrom || mesuresFilterTo || mesuresFilterClient);
           const hoverClass    = isAnnulees ? "hover:bg-red-200/60 dark:hover:bg-red-800/30" : "hover:bg-blue-200/60 dark:hover:bg-blue-800/30";
           const arrowClass    = isAnnulees ? "group-hover:text-red-400" : "group-hover:text-cyan-400";
           const dateClass     = isAnnulees ? "text-red-600 dark:text-red-400" : "text-cyan-700 dark:text-cyan-300";
@@ -4342,18 +4347,36 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               .replace(/\b(sarl|s a r l|sa|gmbh|ag|cie|snc|scrl)\b/g, "")
               .replace(/\s+/g, " ")
               .trim();
-          const clientGroups: Record<string, { label: string; count: number }> = {};
+          const clientKeyFor = (p: Project) => clientKeyOf(clientLabelOf(p.projet)) || clientLabelOf(p.projet).toLowerCase();
+          // ── Filtre « Type de client » : options = clients distincts (grossistes +
+          //    sanitaires, dérivés du nom de projet, agences fusionnées). ──
+          const clientOptionsMap: Record<string, string> = {};
+          dateFilteredList.forEach((p) => {
+            const k = clientKeyFor(p); const label = clientLabelOf(p.projet);
+            if (k && (!clientOptionsMap[k] || label.length > clientOptionsMap[k].length)) clientOptionsMap[k] = label;
+          });
+          const clientOptions = Object.entries(clientOptionsMap)
+            .map(([key, name]) => ({ key, name }))
+            .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+          // Liste finale = date + client (tri "plus récent en haut" déjà fait par la route).
+          const displayList = mesuresFilterClient
+            ? dateFilteredList.filter((p) => clientKeyFor(p) === mesuresFilterClient)
+            : dateFilteredList;
+          const totalManque = displayList.reduce((s, p) => s + mesurePrice(p.nbCabines), 0);
+
+          const clientGroups: Record<string, { label: string; count: number; montant: number }> = {};
           displayList.forEach((p) => {
             const label = clientLabelOf(p.projet);
             const key = clientKeyOf(label) || label.toLowerCase();
-            if (!clientGroups[key]) clientGroups[key] = { label, count: 0 };
+            if (!clientGroups[key]) clientGroups[key] = { label, count: 0, montant: 0 };
             clientGroups[key].count++;
+            clientGroups[key].montant += mesurePrice(p.nbCabines);
             // Garde le libellé le plus complet comme représentant du groupe.
             if (label.length > clientGroups[key].label.length) clientGroups[key].label = label;
           });
           const clientStats = Object.entries(clientGroups)
-            .map(([key, { label, count }]) => ({ key, name: label, count, pct: displayList.length ? Math.round((count / displayList.length) * 1000) / 10 : 0 }))
-            .sort((a, b) => b.count - a.count);
+            .map(([key, { label, count, montant }]) => ({ key, name: label, count, montant, pct: displayList.length ? Math.round((count / displayList.length) * 1000) / 10 : 0 }))
+            .sort((a, b) => b.montant - a.montant);
           const maxClientCount = clientStats.length ? clientStats[0].count : 1;
           const barColor = isAnnulees ? "bg-red-500" : "bg-cyan-500";
 
@@ -4493,24 +4516,49 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 w-28 ml-1" />
                 <input type="date" value={mesuresFilterTo} onChange={e => setMesuresFilterTo(e.target.value)}
                   className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 w-28" />
+                {/* Filtre « Type de client » (grossistes + sanitaires) */}
+                <select
+                  value={mesuresFilterClient}
+                  onChange={(e) => { setMesuresFilterClient(e.target.value); setMesuresStatsClient(null); }}
+                  className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 max-w-[160px]"
+                  title="Filtrer par type de client"
+                >
+                  <option value="">Tous les clients</option>
+                  {clientOptions.map((c) => (
+                    <option key={c.key} value={c.key}>{c.name}</option>
+                  ))}
+                </select>
                 {hasMesuresFilter && (
-                  <button onClick={() => { setMesuresFilterYear(""); setMesuresFilterFrom(""); setMesuresFilterTo(""); }}
+                  <button onClick={() => { setMesuresFilterYear(""); setMesuresFilterFrom(""); setMesuresFilterTo(""); setMesuresFilterClient(""); }}
                     className="text-[10px] px-2.5 py-1 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200 transition-colors">
                     Effacer
                   </button>
                 )}
               </div>
 
+              {/* Manque à gagner (liste filtrée) — 110 CHF pour 1-3 cabines, +35 CHF/cabine au-delà. */}
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {isAnnulees ? "Manque à gagner" : "Montant des mesures"}
+                  <span className="text-amber-500/70 font-normal">· {displayList.length} projet{displayList.length > 1 ? "s" : ""}</span>
+                </span>
+                <span className="text-sm font-bold text-amber-700 dark:text-amber-300 tabular-nums">{fmtCHF(totalManque)}</span>
+              </div>
+
               {mesuresShowStats ? (
                 /* ── Vue statistiques : répartition par client ── */
                 <div className="space-y-1.5 pt-1">
-                  <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                    {isAnnulees ? "Mesures annulées par client" : "Mesures à commander par client"}
-                    <span className="text-gray-400 font-normal"> · {displayList.length} au total</span>
+                  <p className="text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center justify-between gap-2">
+                    <span>
+                      {isAnnulees ? "Manque à gagner par client" : "Montant des mesures par client"}
+                      <span className="text-gray-400 font-normal"> · {displayList.length} au total</span>
+                    </span>
+                    <span className="text-amber-600 dark:text-amber-400 font-bold tabular-nums">{fmtCHF(totalManque)}</span>
                   </p>
                   {clientStats.length === 0 ? (
                     <p className="text-sm text-gray-400 py-4 text-center">Aucune donnée</p>
-                  ) : clientStats.map(({ key, name, count, pct }) => {
+                  ) : clientStats.map(({ key, name, count, pct, montant }) => {
                     const expanded = mesuresStatsClient === key;
                     const clientProjects = expanded ? displayList.filter((p) => clientKeyOf(clientLabelOf(p.projet)) === key) : [];
                     return (
@@ -4528,7 +4576,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         >
                           {count}
                         </button>
-                        <span className="w-12 text-right text-[10px] text-gray-400 tabular-nums">{pct}%</span>
+                        <span className="w-20 text-right text-[10px] font-semibold text-amber-600 dark:text-amber-400 tabular-nums" title="Manque à gagner">{fmtCHF(montant)}</span>
+                        <span className="w-10 text-right text-[10px] text-gray-400 tabular-nums">{pct}%</span>
                       </div>
                       {expanded && (
                         <div className="mt-1 mb-2 ml-1 pl-2 border-l-2 border-cyan-200 dark:border-cyan-800 space-y-0.5">
