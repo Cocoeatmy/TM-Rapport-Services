@@ -6102,14 +6102,17 @@ function ProjectPageContent({ id }: { id: string }) {
                   // Regroupement par collaborateur. À défaut de monteur employé,
                   // on compte le SOUS-TRAITANT (sans heures → total « — »).
                   const stMapCollab = parseSousTraitance(project?.monteursSousTraitance || "");
-                  const byCollab = new Map<string, { count: number; minutes: number }>();
+                  const byCollab = new Map<string, { count: number; minutes: number; days: Set<string> }>();
                   cabines.forEach((c, i) => {
                     const min = cabMin(c);
                     const monteurs = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
                     const names = monteurs.length > 0 ? monteurs : (stMapCollab[i + 1] ? [stMapCollab[i + 1]] : []);
                     names.forEach((m) => {
-                      const cur = byCollab.get(m) || { count: 0, minutes: 0 };
-                      byCollab.set(m, { count: cur.count + 1, minutes: cur.minutes + min });
+                      let cur = byCollab.get(m);
+                      if (!cur) { cur = { count: 0, minutes: 0, days: new Set<string>() }; byCollab.set(m, cur); }
+                      cur.count += 1;
+                      cur.minutes += min;
+                      if (c.date) cur.days.add(c.date); // nombre de jours DISTINCTS travaillés
                     });
                   });
 
@@ -6144,8 +6147,9 @@ function ProjectPageContent({ id }: { id: string }) {
                             Par collaborateur
                           </p>
                           <div className="space-y-1.5">
-                            {[...byCollab.entries()].map(([name, { count, minutes }]) => {
+                            {[...byCollab.entries()].map(([name, { count, minutes, days }]) => {
                               const colors = getCollaboratorColor(name);
+                              const nbJours = days.size;
                               return (
                                 <div key={name} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-700/50">
                                   <span
@@ -6156,6 +6160,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <div className="text-right">
                                     <p className="text-xs text-gray-500 dark:text-gray-400">
                                       {count} cabine{count > 1 ? "s" : ""}
+                                      {nbJours > 0 && <> · {nbJours} jour{nbJours > 1 ? "s" : ""}</>}
                                     </p>
                                     {minutes > 0 && (
                                       <p className="text-[10px] text-gray-400 dark:text-gray-500">
