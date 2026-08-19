@@ -879,11 +879,11 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
             )}
             {defauts.length > 0 && (
               <View style={{ marginBottom: 3 }}>
-                <Text style={{ fontSize: 9, color: "#dc2626", fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
-                  Défauts signalés : {defauts.length}
+                <Text style={{ fontSize: 9, color: project.soucisMontageCloture ? "#15803d" : "#dc2626", fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
+                  Défauts signalés : {defauts.length}{project.soucisMontageCloture ? " — Réglé / Clôturé ✓" : ""}
                 </Text>
                 {defauts.map((d, i) => (
-                  <Text key={d.id} style={{ fontSize: 9, color: "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
+                  <Text key={d.id} style={{ fontSize: 9, color: project.soucisMontageCloture ? "#166534" : "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
                     • Défaut n°{i + 1}{d.cabineLabel ? ` — Cabine ${d.cabineLabel}` : ""} — {(d.types || []).join(", ") || d.description || "Sans description"}
                   </Text>
                 ))}
@@ -1192,7 +1192,10 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
       {/* Défauts signalés */}
       {defauts.length > 0 && (
         <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
-          <Text style={{ ...styles.sectionTitle, color: "#b91c1c", borderBottomColor: "#fecaca" }} fixed>Défauts signalés</Text>
+          {/* Souci réglé (case « Soucis montages clôturé ») → tout passe au VERT. */}
+          <Text style={{ ...styles.sectionTitle, color: project.soucisMontageCloture ? "#15803d" : "#b91c1c", borderBottomColor: project.soucisMontageCloture ? "#bbf7d0" : "#fecaca" }} fixed>
+            Défauts signalés{project.soucisMontageCloture ? " — Réglé / Clôturé ✓" : ""}
+          </Text>
 
           {defauts.map((defaut, idx) => (
             // wrap (défaut) : la carte PEUT se répartir sur plusieurs pages
@@ -1201,9 +1204,16 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               {/* En-tête (n° + cabine + types + statut + description + auteur)
                   gardé soudé : ne se coupe jamais entre deux pages. */}
               <View wrap={false}>
-                <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#b91c1c", marginBottom: 4 }}>
-                  Défaut n°{idx + 1}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: project.soucisMontageCloture ? "#15803d" : "#b91c1c" }}>
+                    Défaut n°{idx + 1}
+                  </Text>
+                  {project.soucisMontageCloture && (
+                    <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#15803d", backgroundColor: "#dcfce7", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 3 }}>
+                      Réglé ✓
+                    </Text>
+                  )}
+                </View>
                 {defaut.cabineLabel && (
                   <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 4 }}>
                     Cabine : {defaut.cabineLabel}
@@ -1248,6 +1258,32 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               })()}
             </View>
           ))}
+
+          {/* Travaux exécutés (souci réglé) : explication + photos. */}
+          {project.soucisMontageCloture && (project.explicationsTravaux || (project.photosSoucisRegle || []).length > 0) && (
+            <View style={{ marginTop: 10, borderLeftWidth: 3, borderLeftColor: "#15803d", paddingLeft: 10, paddingVertical: 6 }}>
+              <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#15803d", marginBottom: 4 }}>
+                Travaux exécutés — souci réglé
+              </Text>
+              {project.explicationsTravaux ? (
+                <Text style={{ fontSize: 9, lineHeight: 1.4, marginBottom: 6 }}>{project.explicationsTravaux}</Text>
+              ) : null}
+              {(project.photosSoucisRegle || []).length > 0 && (() => {
+                const urls = (project.photosSoucisRegle || []).map((f: { url: string }) => f.url);
+                const rows: string[][] = [];
+                for (let i = 0; i < urls.length; i += 2) rows.push(urls.slice(i, i + 2));
+                return rows.map((row, rowIdx) => (
+                  <View key={rowIdx} style={styles.defautPhotosGrid} wrap={false}>
+                    {row.map((url, i) => (
+                      <View key={i} style={styles.defautPhotoWrap}>
+                        <Image src={optimizeImageUrl(url)} style={styles.defautPhoto} />
+                      </View>
+                    ))}
+                  </View>
+                ));
+              })()}
+            </View>
+          )}
 
           <View style={styles.footer} fixed>
             <Text>TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
