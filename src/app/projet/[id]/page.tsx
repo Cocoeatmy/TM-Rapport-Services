@@ -1475,9 +1475,16 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
             notionField="Photos soucis montage réglé"
             filePrefix="Photos-Soucis-Regle"
             existingPhotos={project.photosSoucisRegle || []}
-            onUpload={(files) => setProject((prev) => prev ? { ...prev, photosSoucisRegle: [...(prev.photosSoucisRegle || []), ...files] } : prev)}
+            onUpload={(files) => {
+              setProject((prev) => prev ? { ...prev, photosSoucisRegle: [...(prev.photosSoucisRegle || []), ...files] } : prev);
+              // Protège la liste locale du « revert » par le polling tant que
+              // Notion n'a pas encore répercuté l'ajout (sinon les photos
+              // disparaissent quelques secondes puis reviennent).
+              window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "photosSoucisRegle" } }));
+            }}
             onDelete={(files) => {
               setProject((prev) => prev ? { ...prev, photosSoucisRegle: files } : prev);
+              window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "photosSoucisRegle" } }));
               offlineFetch(`/api/projects/${projectId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photosSoucisRegle: files }) }).catch(console.error);
             }}
           />
@@ -1794,19 +1801,42 @@ function etatMontageBadgeClass(etat: string | undefined): string {
   }
 }
 
-/** Texte « Explications travaux exécuté » (projet). Sauvegarde au blur + Notion. */
+/** Texte « Explications travaux exécuté » (projet). Sauvegarde au blur + Notion,
+ *  avec reformulation IA (comme le rapport du monteur). */
 function ExplicationTravauxField({ projectId, value, onUpdate }: { projectId: string; value: string; onUpdate: (v: string) => void }) {
   const [draft, setDraft] = useState(value);
+  const [reformulating, setReformulating] = useState(false);
   const focusedRef = useRef(false);
   useEffect(() => { if (!focusedRef.current) setDraft(value); }, [value]);
-  const commit = () => {
-    if (draft === value) return;
-    onUpdate(draft);
+  const commit = (text?: string) => {
+    const v = text ?? draft;
+    if (v === value) return;
+    onUpdate(v);
     window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "explicationsTravaux" } }));
     offlineFetch(`/api/projects/${projectId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ explicationsTravaux: draft }),
+      body: JSON.stringify({ explicationsTravaux: v }),
     }).catch(console.error);
+  };
+  const reformulate = async () => {
+    if (!draft.trim()) return;
+    setReformulating(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Reformule ce texte décrivant les travaux exécutés pour régler un souci de montage de cabine de douche, de manière professionnelle, claire et concise. Garde le sens exact mais améliore la formulation. Réponds uniquement avec le texte reformulé, sans introduction ni commentaire :\n\n${draft}`,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const out = (data.answer || data.response || "").trim();
+        if (out) { setDraft(out); commit(out); }
+      }
+    } catch {} finally {
+      setReformulating(false);
+    }
   };
   return (
     <div>
@@ -1820,6 +1850,17 @@ function ExplicationTravauxField({ projectId, value, onUpdate }: { projectId: st
         placeholder="Décrire ce qui a été fait pour régler le souci…"
         className="w-full text-sm border rounded-lg px-3 py-2 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-green-400/40"
       />
+      {draft.trim().length > 10 && (
+        <button
+          type="button"
+          onClick={reformulate}
+          disabled={reformulating}
+          className="mt-1.5 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-50"
+        >
+          {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+        </button>
+      )}
     </div>
   );
 }
