@@ -333,6 +333,14 @@ export async function PATCH(
     }
     if (Object.keys(statusUpdates).length > 0) {
       await onStatusChange(id, statusUpdates);
+      // Un changement d'état (CMD / Mesures / SAV) DÉPLACE le projet entre les
+      // listes (à commander ↔ annulées ↔ terminé…) → invalider ces listes
+      // (mémoire + snapshot Redis partagé) pour zéro latence app ↔ Notion.
+      for (const k of [
+        "projects-mesures-sans-commande", "projects-mesures-annulees",
+        "projects-all-active", "projects-cmd-termine", "projects-mesures-termine",
+        "projects-services", "projects-services-termine", "projects-sav", "projects-sav-termine",
+      ]) invalidateCache(k);
     }
 
     return NextResponse.json({ success: true });

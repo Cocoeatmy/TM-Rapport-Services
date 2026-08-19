@@ -45,6 +45,12 @@ async function command(args: (string | number)[]): Promise<unknown> {
 // détecter à la lecture. Réduit aussi la bande passante (gain ~5-10×).
 const GZIP_THRESHOLD = 100_000; // ~100 Ko de JSON
 
+/** Supprime une ou plusieurs clés (best-effort, ne throw pas). */
+export async function redisDel(...keys: string[]): Promise<void> {
+  if (!redisEnabled || keys.length === 0) return;
+  try { await command(["DEL", ...keys]); } catch { /* best-effort */ }
+}
+
 /** Lit une valeur JSON (décompresse si nécessaire). Retourne null si absente/erreur. */
 export async function redisGetJSON<T>(key: string): Promise<T | null> {
   if (!redisEnabled) return null;

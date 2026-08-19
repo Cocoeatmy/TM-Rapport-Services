@@ -14,12 +14,24 @@
 // - En cas d'erreur Notion (ex. rate-limit 429), on retourne les dernières
 //   données connues plutôt que de propager une 500 côté client.
 
-import { redisEnabled, redisGetJSON, redisSetJSON } from "./redis-cache";
+import { redisEnabled, redisGetJSON, redisSetJSON, redisDel } from "./redis-cache";
 
 /** Écrit une liste dans le cache Redis partagé (fire-and-forget). */
 function persistShared(key: string, data: unknown): void {
   if (redisEnabled && REDIS_KEYS.has(key)) {
     redisSetJSON(`sc:${key}`, data).catch(() => {});
+  }
+}
+
+/** Supprime le snapshot Redis partagé (fire-and-forget). Sans clé → toutes les
+ *  clés partagées. Indispensable pour que l'invalidation soit RÉELLE : sinon un
+ *  lambda froid re-sert le snapshot périmé et le recharge en mémoire. */
+function clearShared(key?: string): void {
+  if (!redisEnabled) return;
+  if (key) {
+    if (REDIS_KEYS.has(key)) redisDel(`sc:${key}`).catch(() => {});
+  } else {
+    redisDel(...[...REDIS_KEYS].map((k) => `sc:${k}`)).catch(() => {});
   }
 }
 
@@ -325,4 +337,7 @@ export function invalidateCache(key?: string) {
     cache.clear();
     fallbackCache.clear();
   }
+  // Vide AUSSI le snapshot Redis partagé, sinon un lambda froid re-sert la
+  // donnée périmée (et la recharge en mémoire) → invalidation sans effet réel.
+  clearShared(key);
 }
