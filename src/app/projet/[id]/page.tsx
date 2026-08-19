@@ -3469,21 +3469,42 @@ function ProjectPageContent({ id }: { id: string }) {
     scheduleAutoSave();
   };
 
+  // ── Filet de sécurité anti-perte des interventions (mono-cabine) ──────────
+  // Sauvegarde locale immédiate des pointages : si une écriture Notion se perd
+  // (réseau, race, reload), la liste est restaurée au chargement (voir plus bas
+  // dans initProject). Reflète aussi les suppressions (donc pas de résurrection).
+  useEffect(() => {
+    if (isCabineMode || typeof window === "undefined") return;
+    try {
+      if (isMultiDay && pointages.length > 0) {
+        localStorage.setItem(`tm-pointages-${id}`, JSON.stringify(pointages));
+      } else if (!isMultiDay) {
+        localStorage.removeItem(`tm-pointages-${id}`);
+      }
+    } catch {}
+  }, [pointages, isMultiDay, isCabineMode, id]);
+
   // ── Bascule mode simple ⇆ plusieurs interventions (mono-cabine) ──────────────
   // Active le tableau de pointages (date + collaborateur(s) + heures) pour un
   // montage qui a nécessité plusieurs déplacements. La 1re ligne reprend les
   // heures déjà saisies + les collaborateurs du montage.
   const enableMultiInterventions = () => {
-    setPointages((prev) =>
-      prev.length
-        ? prev
-        : [{
-            date: project?.dateMontage?.slice(0, 10) || today,
-            collaborateur: project?.collaborateurs || "",
-            arrivee: heureArrivee || "",
-            depart: heureDepart || "",
-          }]
-    );
+    setPointages((prev) => {
+      if (prev.length) return prev;
+      // Si les heures sont déjà au format daté (relecture serveur d'une 1re
+      // intervention), on les parse pour ne rien perdre ; sinon on crée la 1re
+      // intervention à partir des heures simples affichées.
+      if (isMultiDayHours(heureArrivee, heureDepart)) {
+        const pts = parsePointages(heureArrivee, heureDepart);
+        if (pts.length) return pts;
+      }
+      return [{
+        date: project?.dateMontage?.slice(0, 10) || today,
+        collaborateur: project?.collaborateurs || "",
+        arrivee: heureArrivee || "",
+        depart: heureDepart || "",
+      }];
+    });
     setIsMultiDay(true);
     scheduleAutoSave();
   };
@@ -3747,12 +3768,20 @@ function ProjectPageContent({ id }: { id: string }) {
       // ("2026-06-09 Micael 08:30 | …"), on réactive le mode pointages et on
       // recharge la liste. Sinon on reste en mode simple (heures HH:MM).
       // Uniquement au 1er chargement, pour ne pas écraser une saisie en cours.
-      if (isMultiDayHours(data.heureArrivee, data.heureDepart)) {
-        const pts = parsePointages(data.heureArrivee, data.heureDepart);
-        if (pts.length) {
-          setPointages(pts);
-          setIsMultiDay(true);
-        }
+      const serverPts = isMultiDayHours(data.heureArrivee, data.heureDepart)
+        ? parsePointages(data.heureArrivee, data.heureDepart)
+        : [];
+      // Filet anti-perte : si le backup local a PLUS d'interventions que le
+      // serveur (une écriture Notion s'est perdue), on restaure le backup.
+      let backup: PointageEntry[] | null = null;
+      try {
+        const s = localStorage.getItem(`tm-pointages-${data.id}`);
+        if (s) { const arr = JSON.parse(s); if (Array.isArray(arr)) backup = arr; }
+      } catch {}
+      const chosen = backup && backup.length > serverPts.length ? backup : serverPts;
+      if (chosen.length) {
+        setPointages(chosen);
+        setIsMultiDay(true);
       }
     }
   };
