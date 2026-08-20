@@ -27,6 +27,8 @@ interface DefautRequest {
   // sans ce champ sont traités comme "à afficher").
   displayInRapport?: boolean;
   cabineLabel?: string;
+  /** Défaut réglé (par défaut, indépendant). Rollup projet = tous réglés. */
+  resolved?: boolean;
 }
 
 const KEY = "defauts";
@@ -158,7 +160,7 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const { id, status, comment, displayInRapport, description } = body;
+  const { id, status, comment, displayInRapport, description, resolved } = body;
   // Lecture FRAÎCHE (bypass cache) : évite qu'une instance au cache périmé ne
   // trouve pas le défaut (→ 404 silencieux) ou n'écrase des modifications
   // récentes. En cas d'erreur Notion, on abandonne (pas d'écrasement).
@@ -178,7 +180,28 @@ export async function PATCH(request: NextRequest) {
   if (status) defauts[idx].status = status;
   if (typeof displayInRapport === "boolean") defauts[idx].displayInRapport = displayInRapport;
   if (typeof description === "string") defauts[idx].description = description;
+  if (typeof resolved === "boolean") defauts[idx].resolved = resolved;
 
   await setData(KEY, defauts);
+
+  // Rollup vers la case Notion PROJET « Soucis montages clôturé » : cochée
+  // uniquement quand TOUS les défauts du projet sont réglés. (Non bloquant.)
+  if (typeof resolved === "boolean") {
+    const projectId = defauts[idx].projectId;
+    if (projectId) {
+      try {
+        const projectDefauts = defauts.filter((d) => d.projectId === projectId);
+        const allResolved = projectDefauts.length > 0 && projectDefauts.every((d) => d.resolved);
+        await notion.pages.update({
+          page_id: projectId,
+          properties: { "Soucis montages clôturé": { checkbox: allResolved } },
+        });
+        invalidateCache(`project-${projectId}`);
+      } catch (err) {
+        console.error("Notion soucis-cloture rollup error:", err);
+      }
+    }
+  }
+
   return NextResponse.json({ success: true });
 }

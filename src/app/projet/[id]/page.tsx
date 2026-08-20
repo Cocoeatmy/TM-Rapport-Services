@@ -1271,6 +1271,7 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
     status?: string;
     displayInRapport?: boolean;
     cabineLabel?: string;
+    resolved?: boolean;
   };
   const [defauts, setDefauts] = useState<Defaut[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -1312,16 +1313,28 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
     }
   };
 
-  // « Défaut réglé » ⇆ case Notion « Soucis montages clôturé » (projet, bidir).
-  const soucisCloture = !!project?.soucisMontageCloture;
-  const toggleCloture = (v: boolean) => {
-    setProject?.((prev) => prev ? { ...prev, soucisMontageCloture: v } : prev);
-    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "soucisMontageCloture" } }));
-    offlineFetch(`/api/projects/${projectId}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ soucisMontageCloture: v }),
-    }).catch(console.error);
+  // « Défaut réglé » : PAR DÉFAUT (indépendant). Stocké dans le KV du défaut ;
+  // le serveur met à jour la case Notion projet « Soucis montages clôturé »
+  // (cochée seulement quand TOUS les défauts sont réglés).
+  const toggleResolved = (id: string, current: boolean) => {
+    const next = !current;
+    setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, resolved: next } : d));
+    fetch("/api/defauts", { method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, resolved: next }) })
+      .then((res) => {
+        if (!res.ok) { setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, resolved: current } : d)); toast.error("Échec : réglage non enregistré."); return; }
+        toast.success(next ? "Défaut marqué réglé" : "Défaut rouvert");
+        // Reflet local de la case projet pour le bloc travaux + cohérence.
+        setProject?.((prev) => {
+          if (!prev) return prev;
+          const all = defauts.every((d) => d.id === id ? next : d.resolved);
+          return { ...prev, soucisMontageCloture: all && defauts.length > 0 };
+        });
+      })
+      .catch(() => { setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, resolved: current } : d)); toast.error("Erreur réseau."); });
   };
+  // Au moins un défaut réglé → on affiche le bloc « Travaux exécutés » (projet).
+  const anyResolved = defauts.some((d) => d.resolved);
 
   const handleDelete = async (id: string, num: number) => {
     if (!confirm(`Supprimer le Défaut n°${num} ? Cette action est irréversible.`)) return;
@@ -1397,15 +1410,15 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
                   />
                   Ne pas afficher
                 </label>
-                {/* Case « Défaut réglé » ⇆ Notion « Soucis montages clôturé »
-                    (projet, bidirectionnel). Coché → bloc travaux ci-dessous. */}
+                {/* Case « Défaut réglé » — PAR DÉFAUT (indépendant). Le projet est
+                    « clôturé » dans Notion quand TOUS les défauts sont réglés. */}
                 {project && setProject && (
                   <label className="flex items-center gap-1 pl-1 text-[10px] font-medium text-green-700 dark:text-green-400 cursor-pointer select-none"
-                    title="Cocher quand le défaut a été réglé (synchronisé avec Notion)">
+                    title="Cocher quand CE défaut a été réglé">
                     <input
                       type="checkbox"
-                      checked={soucisCloture}
-                      onChange={() => toggleCloture(!soucisCloture)}
+                      checked={!!d.resolved}
+                      onChange={() => toggleResolved(d.id, !!d.resolved)}
                       className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-green-600 focus:ring-green-500 accent-green-600"
                     />
                     Défaut réglé
@@ -1465,7 +1478,7 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
       {/* Bloc « Travaux exécutés » — visible quand le défaut est réglé (case
           « Défaut réglé »). Photos + texte, champs PROJET synchronisés Notion
           (« Photos soucis montage réglé » / « Explications travaux exécuté »). */}
-      {project && setProject && soucisCloture && (
+      {project && setProject && anyResolved && (
         <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10 p-3 space-y-3">
           <p className="text-xs font-semibold text-green-700 dark:text-green-400">Travaux exécutés (souci réglé)</p>
           <PhotoUpload

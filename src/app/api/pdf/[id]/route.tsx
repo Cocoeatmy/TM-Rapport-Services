@@ -55,6 +55,7 @@ interface DefautRequest {
   timestamp: number;
   displayInRapport?: boolean;
   cabineLabel?: string;
+  resolved?: boolean;
 }
 
 function parsePiecesFromNotion(text: string): PieceRequest[] {
@@ -879,12 +880,12 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
             )}
             {defauts.length > 0 && (
               <View style={{ marginBottom: 3 }}>
-                <Text style={{ fontSize: 9, color: project.soucisMontageCloture ? "#15803d" : "#dc2626", fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
-                  Défauts signalés : {defauts.length}{project.soucisMontageCloture ? " — Réglé / Clôturé ✓" : ""}
+                <Text style={{ fontSize: 9, color: (defauts.length > 0 && defauts.every((d) => d.resolved)) ? "#15803d" : "#dc2626", fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
+                  Défauts signalés : {defauts.length}{(defauts.length > 0 && defauts.every((d) => d.resolved)) ? " — Réglé / Clôturé ✓" : ""}
                 </Text>
                 {defauts.map((d, i) => (
-                  <Text key={d.id} style={{ fontSize: 9, color: project.soucisMontageCloture ? "#166534" : "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
-                    • Défaut n°{i + 1}{d.cabineLabel ? ` — Cabine ${d.cabineLabel}` : ""} — {(d.types || []).join(", ") || d.description || "Sans description"}
+                  <Text key={d.id} style={{ fontSize: 9, color: d.resolved ? "#166534" : "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
+                    • Défaut n°{i + 1}{d.resolved ? " (réglé ✓)" : ""}{d.cabineLabel ? ` — Cabine ${d.cabineLabel}` : ""} — {(d.types || []).join(", ") || d.description || "Sans description"}
                   </Text>
                 ))}
               </View>
@@ -1192,9 +1193,10 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
       {/* Défauts signalés */}
       {defauts.length > 0 && (
         <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
-          {/* Souci réglé (case « Soucis montages clôturé ») → tout passe au VERT. */}
-          <Text style={{ ...styles.sectionTitle, color: project.soucisMontageCloture ? "#15803d" : "#b91c1c", borderBottomColor: project.soucisMontageCloture ? "#bbf7d0" : "#fecaca" }} fixed>
-            Défauts signalés{project.soucisMontageCloture ? " — Réglé / Clôturé ✓" : ""}
+          {/* Réglé PAR DÉFAUT : chaque défaut est vert si réglé ; le titre est
+              vert seulement quand TOUS les défauts sont réglés. */}
+          <Text style={{ ...styles.sectionTitle, color: (defauts.length > 0 && defauts.every((d) => d.resolved)) ? "#15803d" : "#b91c1c", borderBottomColor: (defauts.length > 0 && defauts.every((d) => d.resolved)) ? "#bbf7d0" : "#fecaca" }} fixed>
+            Défauts signalés{(defauts.length > 0 && defauts.every((d) => d.resolved)) ? " — Réglé / Clôturé ✓" : ""}
           </Text>
 
           {defauts.map((defaut, idx) => (
@@ -1205,10 +1207,10 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                   gardé soudé : ne se coupe jamais entre deux pages. */}
               <View wrap={false}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: project.soucisMontageCloture ? "#15803d" : "#b91c1c" }}>
+                  <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: defaut.resolved ? "#15803d" : "#b91c1c" }}>
                     Défaut n°{idx + 1}
                   </Text>
-                  {project.soucisMontageCloture && (
+                  {defaut.resolved && (
                     <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#15803d", backgroundColor: "#dcfce7", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 3 }}>
                       Réglé ✓
                     </Text>
@@ -1260,7 +1262,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
           ))}
 
           {/* Travaux exécutés (souci réglé) : explication + photos. */}
-          {project.soucisMontageCloture && (project.explicationsTravaux || (project.photosSoucisRegle || []).length > 0) && (
+          {defauts.some((d) => d.resolved) && (project.explicationsTravaux || (project.photosSoucisRegle || []).length > 0) && (
             <View style={{ marginTop: 10, borderLeftWidth: 3, borderLeftColor: "#15803d", paddingLeft: 10, paddingVertical: 6 }}>
               <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#15803d", marginBottom: 4 }}>
                 Travaux exécutés — souci réglé
