@@ -3,6 +3,7 @@
 
 import type { Project } from "@/lib/notion";
 import { escapeHtml } from "@/lib/telegram";
+import { docLink } from "@/lib/doc-link";
 
 /** ISO local (YYYY-MM-DD) d'une date. */
 export function isoDay(d: Date): string {
@@ -59,12 +60,12 @@ function projectBlock(p: Project): string {
   line("📌", "Emplacement cabine :", p.emplacementCabine);
   line("👷", "Collaborateur :", p.collaborateurs);
 
-  // Documents pour Montage : liens cliquables
+  // Documents pour Montage : liens SIGNÉS (URL Notion fraîche au clic, cf. /api/doc).
   const docs = p.documentsMontagee || [];
   if (docs.length > 0) {
     const links = docs
       .slice(0, 8)
-      .map((d, i) => `<a href="${escapeHtml(d.url)}">${escapeHtml(d.name || `Document ${i + 1}`)}</a>`)
+      .map((d, i) => `<a href="${escapeHtml(docLink(p.id, "montage", i))}">${escapeHtml(d.name || `Document ${i + 1}`)}</a>`)
       .join(" · ");
     L.push(`📄 <b>Documents :</b> ${links}`);
   }
@@ -123,8 +124,11 @@ function projectCardHtml(p: Project): string {
 
   const docs = p.documentsMontagee || [];
   if (docs.length > 0) {
+    // Lien SIGNÉ via /api/doc (et non l'URL Notion brute) : les URL Notion sont
+    // des liens S3 pré-signés qui EXPIRENT (~1 h) → morts quand on clique plus
+    // tard. Le proxy re-récupère l'URL fraîche au clic.
     const links = docs.slice(0, 12)
-      .map((d, i) => `<a href="${escapeHtml(d.url)}" style="color:#1e3a5f">${escapeHtml(d.name || `Document ${i + 1}`)}</a>`)
+      .map((d, i) => `<a href="${escapeHtml(docLink(p.id, "montage", i))}" style="color:#1e3a5f">${escapeHtml(d.name || `Document ${i + 1}`)}</a>`)
       .join(" · ");
     rows.push(`<tr><td style="padding:6px 0;color:#64748b;font-size:13px;vertical-align:top">Documents</td><td style="padding:6px 0 6px 12px;font-size:13px">${links}</td></tr>`);
   }
