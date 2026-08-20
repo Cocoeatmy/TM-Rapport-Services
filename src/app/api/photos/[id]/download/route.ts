@@ -104,6 +104,46 @@ export async function GET(
     }
   }
 
+  // Signalements : pièces manquantes, défauts signalés, et photos du souci réglé
+  // (champs projet Notion). Label fixe — cabine encodée dans le nom si présente.
+  const signalementFields: { key: "photosPiecesManquantes" | "photosDefautsSignale" | "photosSoucisRegle"; label: string }[] = [
+    { key: "photosPiecesManquantes", label: "Photo piece manquante" },
+    { key: "photosDefautsSignale",   label: "Photo defaut signale" },
+    { key: "photosSoucisRegle",      label: "Photo travaux executes" },
+  ];
+  for (const { key, label } of signalementFields) {
+    const files = (project[key] ?? []) as { name: string; url: string }[];
+    for (const file of files) {
+      const cabineIdx = extractCabine(file.name); // 1-based ou null
+      all.push({ url: file.url, cabineIdx, label });
+    }
+  }
+
+  // Repli KV-store : certaines photos de signalements ne vivent que dans le KV
+  // (par signalement). On les ajoute — la déduplication par URL évite les doublons.
+  try {
+    const pieces = await getData<{ projectId: string; photoUrls?: string[]; photoUrl?: string }>("pieces");
+    for (const p of pieces.filter((x) => x.projectId === id)) {
+      const urls = p.photoUrls?.length ? p.photoUrls : (p.photoUrl ? [p.photoUrl] : []);
+      for (const url of urls) all.push({ url, cabineIdx: null, label: "Photo piece manquante" });
+    }
+  } catch { /* KV indisponible → on garde les champs Notion */ }
+  try {
+    const defauts = await getData<{ projectId: string; photoUrls?: string[] }>("defauts");
+    for (const d of defauts.filter((x) => x.projectId === id)) {
+      for (const url of (d.photoUrls || [])) all.push({ url, cabineIdx: null, label: "Photo defaut signale" });
+    }
+  } catch { /* idem */ }
+
+  // Déduplication par URL en gardant la PREMIÈRE occurrence (champ Notion, qui
+  // porte la cabine) plutôt que la copie KV (cabineIdx null).
+  {
+    const seen = new Set<string>();
+    const deduped = all.filter((e) => (seen.has(e.url) ? false : (seen.add(e.url), true)));
+    all.length = 0;
+    all.push(...deduped);
+  }
+
   // Regroupement par (cabineIdx, label) pour numérotation séquentielle
   // Clé = "<cabineIdx|0>::<label>"
   const groups = new Map<string, PhotoEntry[]>();
