@@ -1175,28 +1175,30 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
         const photos = p.photoUrls?.length ? p.photoUrls : (p.photoUrl ? [p.photoUrl] : []);
         return (
           <div key={p.id} className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/40 dark:bg-orange-900/10 p-3">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-xs font-bold text-orange-700 dark:text-orange-400">
-                {/* Vue globale (pas de filtre cabine) : affiche le nom de la cabine pour
-                    savoir immédiatement où va la pièce. Vue par cabine : numéro suffit. */}
-                {!cabineLabel && p.cabineLabel ? p.cabineLabel : `Pièce n°${num}`}
-              </span>
-              <div className="flex items-center gap-1.5">
-                {/* Statut (lecture seule) — contrôlé par la case « Ne pas afficher ». */}
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full border ${pieceVisible ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300" : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"}`}>
-                  {pieceVisible ? "Sur rapport ✓" : "Masquée"}
+            <div className="mb-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-orange-700 dark:text-orange-400 min-w-0 truncate">
+                  {/* Vue globale : nom de la cabine ; vue par cabine : numéro. */}
+                  {!cabineLabel && p.cabineLabel ? p.cabineLabel : `Pièce n°${num}`}
                 </span>
-                <button onClick={() => isEditing ? setEditing(null) : startEdit(p)}
-                  className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors" title="Modifier">
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => handleDelete(p.id, num)} disabled={isDeleting}
-                  className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors" title="Supprimer">
-                  {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                </button>
-                {/* Case à cocher : NE PAS afficher cette pièce sur le rapport. */}
-                <label className="flex items-center gap-1 pl-1 text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer select-none"
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${pieceVisible ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300" : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"}`}>
+                    {pieceVisible ? "Sur rapport ✓" : "Masquée"}
+                  </span>
+                  <button onClick={() => isEditing ? setEditing(null) : startEdit(p)}
+                    className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors" title="Modifier">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => handleDelete(p.id, num)} disabled={isDeleting}
+                    className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors" title="Supprimer">
+                    {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+              {/* Case sur sa propre ligne, à droite. */}
+              <div className="flex items-center justify-end mt-1.5">
+                <label className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer select-none whitespace-nowrap"
                   title="Cocher pour ne pas afficher cette pièce sur le rapport">
                   <input
                     type="checkbox"
@@ -1377,31 +1379,32 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
         const isEditing = editing === d.id;
         return (
           <div key={d.id} className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-900/10 p-3">
-            {/* En-tête : numéro + actions */}
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="flex items-center gap-1.5 flex-wrap">
-                {/* Titre = LOT en évidence (vue globale), comme les pièces manquantes.
-                    Dans un onglet cabine (cabineLabel défini) : « Défaut n°X » suffit. */}
-                <span className="text-xs font-bold text-red-700 dark:text-red-400">
+            {/* En-tête : titre + statut/actions (ligne 1) ; cases à cocher (ligne 2,
+                alignées à droite) → jamais de retour à la ligne disgracieux. */}
+            <div className="mb-2">
+              <div className="flex items-center justify-between gap-2">
+                {/* Titre = LOT en évidence (vue globale) ; sinon « Défaut n°X ». */}
+                <span className="text-xs font-bold text-red-700 dark:text-red-400 min-w-0 truncate">
                   {!cabineLabel && d.cabineLabel ? d.cabineLabel : `Défaut n°${num}`}
                 </span>
-              </span>
-              <div className="flex items-center gap-1.5">
-                {/* Statut (lecture seule) — le contrôle est la case « Ne pas afficher » à droite. */}
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full border ${visible ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300" : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"}`}>
-                  {visible ? "Sur rapport ✓" : "Masqué"}
-                </span>
-                <button onClick={() => isEditing ? setEditing(null) : startEdit(d)}
-                  className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors" title="Modifier">
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => handleDelete(d.id, num)} disabled={isDeleting}
-                  className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors" title="Supprimer ce défaut">
-                  {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                </button>
-                {/* Case à cocher : NE PAS afficher ce défaut sur le rapport. */}
-                <label className="flex items-center gap-1 pl-1 text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer select-none"
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${visible ? "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300" : "bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-gray-600 text-gray-500"}`}>
+                    {visible ? "Sur rapport ✓" : "Masqué"}
+                  </span>
+                  <button onClick={() => isEditing ? setEditing(null) : startEdit(d)}
+                    className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors" title="Modifier">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => handleDelete(d.id, num)} disabled={isDeleting}
+                    className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors" title="Supprimer ce défaut">
+                    {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+              {/* Cases à cocher sur leur propre ligne, à droite. */}
+              <div className="flex items-center justify-end gap-4 mt-1.5">
+                <label className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer select-none whitespace-nowrap"
                   title="Cocher pour ne pas afficher ce défaut sur le rapport">
                   <input
                     type="checkbox"
@@ -1411,10 +1414,8 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
                   />
                   Ne pas afficher
                 </label>
-                {/* Case « Défaut réglé » — PAR DÉFAUT (indépendant). Le projet est
-                    « clôturé » dans Notion quand TOUS les défauts sont réglés. */}
                 {project && setProject && (
-                  <label className="flex items-center gap-1 pl-1 text-[10px] font-medium text-green-700 dark:text-green-400 cursor-pointer select-none"
+                  <label className="flex items-center gap-1 text-[10px] font-medium text-green-700 dark:text-green-400 cursor-pointer select-none whitespace-nowrap"
                     title="Cocher quand CE défaut a été réglé">
                     <input
                       type="checkbox"
