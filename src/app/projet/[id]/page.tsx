@@ -4912,6 +4912,15 @@ function ProjectPageContent({ id }: { id: string }) {
   );
   const installedCabineCount = installedCabineIndices.size;
 
+  // Nombre de LOTS ayant au moins un signalement (pièce manquante ou défaut) —
+  // affiché entre parenthèses sur le bouton filtre « Avec signalement ».
+  const signalementLotsCount = cabines.reduce((n, c) => {
+    const has =
+      cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(c.nom)) ||
+      cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(c.nom));
+    return has ? n + 1 : n;
+  }, 0);
+
   // Statut du rapport pour la pastille sur l'icône "Rapport" (macOS).
   // Cabine : basé sur les cabines installées. Simple : checklist 5 critères.
   const reportPercent = isCabineMode
@@ -6621,7 +6630,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           }`}
                         >
                           <AlertCircle className="w-3.5 h-3.5" />
-                          Avec signalement
+                          Avec signalement{signalementLotsCount > 0 ? ` (${signalementLotsCount})` : ""}
                         </button>
                       )}
                     </div>
