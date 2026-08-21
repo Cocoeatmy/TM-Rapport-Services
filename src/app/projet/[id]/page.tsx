@@ -6662,8 +6662,10 @@ function ProjectPageContent({ id }: { id: string }) {
                           title="N'afficher que les lots avec signalement ou défaut"
                           className={`h-8 shrink-0 flex items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg border transition-colors ${
                             showOnlySignalements
-                              ? "border-red-400 bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300 dark:border-red-500"
-                              : "border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400 hover:border-red-300 hover:text-red-500"
+                              ? "border-red-400 bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300 dark:border-red-500" // actif → rempli
+                              : signalementLotsCount > 0
+                              ? "border-red-400 text-red-600 dark:text-red-400 dark:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/20" // signalement présent → contour rouge
+                              : "border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400 hover:border-red-300 hover:text-red-500" // aucun → gris
                           }`}
                         >
                           <AlertCircle className="w-3.5 h-3.5" />
