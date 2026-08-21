@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getAllProjectsRaw } from "@/lib/notion";
-import { getCached, setCache } from "@/lib/server-cache";
+import { getCached, setCache, cachedOrFetch } from "@/lib/server-cache";
 import { getStats } from "@/lib/stats-data";
 import { computeMonteurCabStats } from "@/lib/monteur-stats";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30; // 1er appel : charge tous les projets (mis en cache 5 min)
+export const maxDuration = 60; // 1er appel froid : projets (snapshot Redis) + Gemini — marge pour éviter le 504
 
 const TZ = "Europe/Zurich";
 
@@ -228,7 +228,9 @@ Règles :
     // les limites de tokens.
     let cachedMini = getCached<MiniProject[]>("ai-projects-all");
     if (!cachedMini) {
-      const projects = await getAllProjectsRaw(); // TOUS les projets (toutes étapes/états)
+      // Snapshot Redis PARTAGÉ (rapide, ~100 ms sur instance froide) au lieu de
+      // paginer Notion (~20-30 s → timeout 504 → « Erreur de connexion »).
+      const projects = await cachedOrFetch("projects-all-raw", getAllProjectsRaw);
       cachedMini = projects.map((p) => {
         const names = [
           ...(p.grossistesNames || []),
