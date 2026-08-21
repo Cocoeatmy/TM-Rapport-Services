@@ -61,6 +61,28 @@ export async function GET(req: NextRequest) {
     const origin = req.nextUrl.origin;
     const link = `${origin}/client/${token}`;
 
+    // ── Notes pré-formatées selon le type de RDV (pour l'agent calendrier) ─────
+    // Bloc « auto » avec sentinelle → l'agent peut le remplacer sans toucher aux
+    // notes écrites à la main.
+    const type = (sp.get("type") || "").toLowerCase();
+    const nb = project.nbCabines != null ? String(project.nbCabines) : "";
+    const notesLines: string[] = [];
+    const add = (label: string, val?: string) => { if (val && val.trim()) notesLines.push(`${label} : ${val.trim()}`); };
+    if (type === "montage") {
+      add("Nb. cabines", nb);
+      add("Emplacement cabine", project.emplacementCabine);
+      add("Contacts RDV", project.contactsRDV);
+      add("Commentaires montage", project.commentairesMontages);
+    } else if (type === "mesures") {
+      add("Nb. cabines", nb);
+      add("Contacts RDV", project.contactsRDV);
+      add("Commentaires mesures", project.commentairesMesures);
+    } else if (type === "services") {
+      add("Contacts RDV", project.contactsRDV);
+    }
+    const NOTES_SENTINEL = "——— Infos projet (auto) ———";
+    const notes = notesLines.length ? `${NOTES_SENTINEL}\n${notesLines.join("\n")}` : "";
+
     if (sp.get("format") === "text") {
       return new NextResponse(link, {
         status: 200,
@@ -73,6 +95,7 @@ export async function GET(req: NextRequest) {
       tm,
       projet: project.projet,
       link,
+      notes,
     });
   } catch (err: any) {
     return NextResponse.json(

@@ -64,9 +64,11 @@ function run(argv) {
   const events = store.eventsMatchingPredicate(pred);
   const count = events.count;
 
-  // Types acceptés : Montage / Services / SAV / Garantie, éventuellement
-  // préfixés par "PROV" (séparateur " : " ou " - "). Exclut Mesures, Visite, etc.
-  const TYPE_RE = /^(?:PROV\s*[:\-]\s*)?(?:Montage|Services|SAV|Garantie)\b/i;
+  // Types acceptés : Montage / Mesures / Services / SAV / Garantie, éventuellement
+  // préfixés par "PROV" (séparateur " : " ou " - "). Exclut Visite, etc.
+  const TYPE_RE = /^(?:PROV\s*[:\-]\s*)?(Montage|Mesures|Services|SAV|Garantie)\b/i;
+  // Sentinelle du bloc d'infos auto (doit correspondre à /api/share-link).
+  const SENTINEL = '——— Infos projet (auto) ———';
   let filled = 0;
 
   for (let i = 0; i < count; i++) {
@@ -74,34 +76,61 @@ function run(argv) {
 
     const title = ObjC.unwrap(ev.title) || '';
     if (!title) continue;
-    if (!TYPE_RE.test(title)) continue;
-
-    // URL déjà présente ? on saute.
-    const abs = ObjC.unwrap(ev.URL ? ev.URL.absoluteString : $()) || '';
-    if (abs) continue;
+    const tMatch = title.match(TYPE_RE);
+    if (!tMatch) continue;
+    const type = tMatch[1].toLowerCase(); // montage|mesures|services|sav|garantie
+    const wantsNotes = (type === 'montage' || type === 'mesures' || type === 'services');
 
     // Extraire "TM-<chiffres>".
     const m = title.match(/TM-\d+/);
     if (!m) continue;
     const tm = m[0];
 
-    // Récupérer le lien client.
-    const reqURL = baseURL + '/api/share-link?format=text&key=' + apiKey + '&tm=' + tm;
-    let link = '';
-    try {
-      link = app.doShellScript("/usr/bin/curl -fsS --max-time 20 '" + reqURL + "'");
-    } catch (e) {
-      link = '';
-    }
-    if (typeof link !== 'string' || link.indexOf('http') !== 0) continue;
+    const curURL = ObjC.unwrap(ev.URL ? ev.URL.absoluteString : $()) || '';
+    const curNotes = ObjC.unwrap(ev.notes) || '';
+    const hasSentinel = curNotes.indexOf(SENTINEL) >= 0;
 
-    // Écrire l'URL et enregistrer.
-    ev.URL = $.NSURL.URLWithString($(link.trim()));
+    // Déjà traité ? URL présente ET (pas de notes attendues OU bloc déjà là).
+    // Évite de re-solliciter l'API et la boucle WatchPath après écriture.
+    if (curURL && (!wantsNotes || hasSentinel)) continue;
+
+    // Récupérer lien + notes (JSON) selon le type.
+    const reqURL = baseURL + '/api/share-link?key=' + apiKey + '&type=' + type + '&tm=' + tm;
+    let raw = '';
+    try {
+      raw = app.doShellScript("/usr/bin/curl -fsS --max-time 20 '" + reqURL + "'");
+    } catch (e) { raw = ''; }
+    let data = null;
+    try { data = JSON.parse(raw); } catch (e) { data = null; }
+    if (!data || !data.ok || typeof data.link !== 'string' || data.link.indexOf('http') !== 0) continue;
+
+    // ── URL : posée seulement si vide (préserve une URL saisie à la main). ──
+    const urlToSet = curURL || data.link.trim();
+    const urlChanged = (urlToSet !== curURL);
+
+    // ── Notes : remplace le bloc auto sans toucher aux notes manuelles. ──
+    const autoBlock = (typeof data.notes === 'string') ? data.notes : '';
+    let userPart = curNotes;
+    const si = curNotes.indexOf(SENTINEL);
+    if (si >= 0) userPart = curNotes.slice(0, si);
+    userPart = userPart.replace(/\s+$/, '');
+    let newNotes = curNotes;
+    if (autoBlock) {
+      newNotes = userPart ? (userPart + '\n\n' + autoBlock) : autoBlock;
+    } else if (si >= 0) {
+      newNotes = userPart; // plus de bloc attendu → on retire l'ancien
+    }
+    const notesChanged = (newNotes !== curNotes);
+
+    if (!urlChanged && !notesChanged) continue; // rien à écrire
+
+    if (urlChanged) ev.URL = $.NSURL.URLWithString($(urlToSet));
+    if (notesChanged) ev.notes = $(newNotes);
     try {
       store.saveEventSpanCommitError(ev, 0 /* EKSpanThisEvent */, true, $());
       filled++;
     } catch (e) { /* ignore */ }
   }
 
-  return 'RDV remplis: ' + filled + ' (sur ' + count + ' RDV dans la fenêtre)';
+  return 'RDV enrichis: ' + filled + ' (sur ' + count + ' RDV dans la fenêtre)';
 }
