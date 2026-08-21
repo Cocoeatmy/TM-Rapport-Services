@@ -93,12 +93,12 @@ export default function RootLayout({
         <div className="sticky top-0 z-50">
         <OfflineBanner />
         <header id="main-header" className="glass-header text-white">
-          <div className="flex items-center justify-between gap-2 px-4 py-3 overflow-x-auto md:overflow-visible scrollbar-hide">
-            <div className="flex items-center gap-1.5 cmm-header-left shrink-0">
+          <div className="flex items-center justify-between gap-1 px-2 sm:px-4 py-3 overflow-x-auto md:overflow-visible scrollbar-hide">
+            <div className="flex items-center gap-1 cmm-header-left shrink-0">
               <HomeButton />
               <BackButton />
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <GlobalSearch />
               <CreateProjectButton />
               <NotificationBell />
