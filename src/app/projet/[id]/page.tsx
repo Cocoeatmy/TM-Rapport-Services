@@ -3383,6 +3383,17 @@ function ProjectPageContent({ id }: { id: string }) {
   const [showHeuresCard, setShowHeuresCard] = useState(false);
   const [downloadingPhotos, setDownloadingPhotos] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  // Quel type de rapport est en cours (pour n'animer que le bon bouton) :
+  // "interne" (avec heures) ou "client" (sans heures).
+  const [sendKind, setSendKind] = useState<null | "interne" | "client">(null);
+  const [downloadKind, setDownloadKind] = useState<null | "interne" | "client">(null);
+  // Fenêtre de choix interne/client (déclenchée par les icônes du header qui
+  // reprennent les fonctions Envoyer / Actualiser-télécharger).
+  const [audienceChoice, setAudienceChoice] = useState<null | "send" | "download">(null);
+  // Mémorise le type demandé (interne/client) pour le propager à travers les
+  // fenêtres de confirmation (photos manquantes / signature) qui rappellent
+  // handleSendReport sans l'argument d'origine.
+  const pendingSendClientRef = useRef(false);
   const [historyCount, setHistoryCount] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(60);
   const [headerScrollOpacity, setHeaderScrollOpacity] = useState(1);
@@ -4634,8 +4645,14 @@ function ProjectPageContent({ id }: { id: string }) {
     scheduleAutoSave();
   };
 
-  const handleSendReport = async (opts: { force?: boolean; skipSignature?: boolean } = {}) => {
+  const handleSendReport = async (opts: { force?: boolean; skipSignature?: boolean; client?: boolean } = {}) => {
     if (!project) return;
+
+    // Type de rapport : "client" = SANS heures. On mémorise le choix dans la ref
+    // pour le conserver lorsque les fenêtres photos/signature rappellent la
+    // fonction sans repasser l'argument.
+    const client = opts.client ?? pendingSendClientRef.current;
+    pendingSendClientRef.current = client;
 
     const photoOpts = {
       multiCabine: isCabineMode,
@@ -4688,6 +4705,7 @@ function ProjectPageContent({ id }: { id: string }) {
     }
 
     setSending(true);
+    setSendKind(client ? "client" : "interne");
     try {
       // 1. Save the report data first
       const saveRes = await offlineFetch(`/api/projects/${id}`, {
@@ -4728,6 +4746,9 @@ function ProjectPageContent({ id }: { id: string }) {
       const pdfParams = new URLSearchParams();
       if (arriveeFinal) pdfParams.set("arrivee", arriveeFinal);
       if (departFinal) pdfParams.set("depart", departFinal);
+      // Rapport client → PDF SANS heures (mail/Telegram interne reçoit alors la
+      // version exacte que verra le client).
+      if (client) pdfParams.set("client", "1");
       // send=1 : c'est l'envoi DÉLIBÉRÉ du rapport → déclenche mail + Telegram.
       // Les simples consultations du PDF (portail, téléchargement) ne le passent
       // pas et n'envoient donc aucun mail.
@@ -4781,6 +4802,7 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Erreur reseau");
     } finally {
       setSending(false);
+      setSendKind(null);
     }
   };
 
@@ -4881,10 +4903,12 @@ function ProjectPageContent({ id }: { id: string }) {
     if (!isCabineMode && !rapport.trim()) { setShowRapportRequiredModal(true); return; }
     handleSave();
   };
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async (client = false) => {
     setDownloadingPdf(true);
+    setDownloadKind(client ? "client" : "interne");
     try {
-      const res = await fetch(`/api/pdf/${id}`);
+      // client=1 → PDF SANS les heures d'arrivée/départ (version client).
+      const res = await fetch(`/api/pdf/${id}${client ? "?client=1" : ""}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       let filename = "Rapport de montage.pdf";
@@ -4899,7 +4923,7 @@ function ProjectPageContent({ id }: { id: string }) {
     } catch (e) {
       console.error("Téléchargement PDF échoué:", e);
       alert("Impossible de générer le PDF. Veuillez réessayer.");
-    } finally { setDownloadingPdf(false); }
+    } finally { setDownloadingPdf(false); setDownloadKind(null); }
   };
   const handleDownloadPhotos = async () => {
     setDownloadingPhotos(true);
@@ -5110,17 +5134,17 @@ function ProjectPageContent({ id }: { id: string }) {
                     {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                   </button>
                   <button
-                    onClick={() => handleSendReport()}
+                    onClick={() => setAudienceChoice("send")}
                     disabled={sending}
-                    title="Envoyer le rapport"
+                    title="Envoyer le rapport (interne / client)"
                     className="w-9 h-9 flex items-center justify-center rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/30 active:scale-90 transition-all disabled:opacity-50"
                   >
                     {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                   </button>
                   <button
-                    onClick={handleDownloadPdf}
+                    onClick={() => setAudienceChoice("download")}
                     disabled={downloadingPdf}
-                    title="Actualiser et télécharger le PDF"
+                    title="Actualiser et télécharger le PDF (interne / client)"
                     className="w-9 h-9 flex items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-90 transition-all disabled:opacity-50"
                   >
                     <RefreshCw className={`w-5 h-5 ${downloadingPdf ? "animate-spin" : ""}`} />
@@ -7766,29 +7790,75 @@ function ProjectPageContent({ id }: { id: string }) {
                 Enregistrer le rapport
               </Button>
 
-              <Button
-                variant="outline"
-                className="w-full h-12 rounded-xl text-base font-medium glass-btn text-white"
-                onClick={() => handleSendReport()}
-                disabled={sending}
-              >
-                {sending ? (
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                ) : (
-                  <Send className="w-5 h-5 mr-2" />
-                )}
-                Envoyer le rapport
-              </Button>
+              {/* Deux envois distincts : INTERNE (avec heures, inchangé) et
+                  CLIENT (sans les heures d'arrivée/départ). */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 h-auto min-h-[3.25rem] py-2 rounded-xl glass-btn text-white flex flex-col items-center justify-center gap-0.5 leading-tight"
+                  onClick={() => handleSendReport({ client: false })}
+                  disabled={sending}
+                  title="Envoyer le rapport interne (avec les heures)"
+                >
+                  <span className="flex items-center gap-1.5 text-sm font-semibold">
+                    {sending && sendKind === "interne" ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    Rapport interne
+                  </span>
+                  <span className="text-[10px] opacity-80">avec les heures</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 h-auto min-h-[3.25rem] py-2 rounded-xl glass-btn text-white flex flex-col items-center justify-center gap-0.5 leading-tight"
+                  onClick={() => handleSendReport({ client: true })}
+                  disabled={sending}
+                  title="Envoyer le rapport client (sans les heures)"
+                >
+                  <span className="flex items-center gap-1.5 text-sm font-semibold">
+                    {sending && sendKind === "client" ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    Rapport client
+                  </span>
+                  <span className="text-[10px] opacity-80">sans les heures</span>
+                </Button>
+              </div>
 
-              <button
-                type="button"
-                disabled={downloadingPdf}
-                onClick={handleDownloadPdf}
-                className="w-full h-12 rounded-xl text-base font-medium flex items-center justify-center gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800 disabled:opacity-60"
-              >
-                <RefreshCw className={`w-5 h-5 ${downloadingPdf ? "animate-spin" : ""}`} />
-                {downloadingPdf ? "Génération du PDF…" : "Actualiser et télécharger le PDF"}
-              </button>
+              {/* Actualiser + télécharger : version INTERNE (avec heures) et
+                  version CLIENT (sans les heures). */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={downloadingPdf}
+                  onClick={() => handleDownloadPdf(false)}
+                  title="Actualiser et télécharger le rapport interne (avec les heures)"
+                  className="flex-1 h-auto min-h-[3.25rem] py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 leading-tight bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800 disabled:opacity-60"
+                >
+                  <span className="flex items-center gap-1.5 text-sm font-semibold">
+                    <RefreshCw className={`w-4 h-4 ${downloadingPdf && downloadKind === "interne" ? "animate-spin" : ""}`} />
+                    PDF interne
+                  </span>
+                  <span className="text-[10px] opacity-80">avec les heures</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={downloadingPdf}
+                  onClick={() => handleDownloadPdf(true)}
+                  title="Actualiser et télécharger le rapport client (sans les heures)"
+                  className="flex-1 h-auto min-h-[3.25rem] py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 leading-tight bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800 disabled:opacity-60"
+                >
+                  <span className="flex items-center gap-1.5 text-sm font-semibold">
+                    <RefreshCw className={`w-4 h-4 ${downloadingPdf && downloadKind === "client" ? "animate-spin" : ""}`} />
+                    PDF client
+                  </span>
+                  <span className="text-[10px] opacity-80">sans les heures</span>
+                </button>
+              </div>
               <p className="text-[10px] text-gray-400 text-center -mt-2">
                 Régénère le rapport avec toutes les dernières photos et données
               </p>
@@ -8181,6 +8251,64 @@ function ProjectPageContent({ id }: { id: string }) {
                 className="w-full h-9 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 Le client n'a pas pu signer — envoyer sans signature
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Choix interne / client — déclenché par les icônes du header (envoyer /
+          actualiser-télécharger) qui reprennent les fonctions du bas de page. */}
+      {audienceChoice && typeof document !== "undefined" && createPortal(
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 70, transform: "translateZ(0)" }}
+          className="flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setAudienceChoice(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-[#1e3a5f] text-white px-5 py-4 flex items-center gap-2">
+              {audienceChoice === "send" ? <Send className="w-5 h-5" /> : <RefreshCw className="w-5 h-5" />}
+              <h3 className="text-base font-semibold">
+                {audienceChoice === "send" ? "Envoyer le rapport" : "Actualiser et télécharger"}
+              </h3>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-gray-600 dark:text-gray-300">Quelle version du rapport ?</p>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  onClick={() => {
+                    const a = audienceChoice;
+                    setAudienceChoice(null);
+                    if (a === "send") handleSendReport({ client: false });
+                    else handleDownloadPdf(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 active:scale-[0.99] transition-all"
+                >
+                  <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100">Rapport interne</span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">Avec les heures d&apos;arrivée et de départ</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const a = audienceChoice;
+                    setAudienceChoice(null);
+                    if (a === "send") handleSendReport({ client: true });
+                    else handleDownloadPdf(true);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-xl border-2 border-[#1e3a5f]/30 dark:border-blue-400/40 bg-blue-50/40 dark:bg-blue-900/10 hover:bg-blue-50 dark:hover:bg-blue-900/20 active:scale-[0.99] transition-all"
+                >
+                  <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100">Rapport client</span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">Sans les heures — version à partager au client</span>
+                </button>
+              </div>
+              <button
+                onClick={() => setAudienceChoice(null)}
+                className="w-full h-9 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                Annuler
               </button>
             </div>
           </div>

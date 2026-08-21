@@ -438,7 +438,8 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
         {/* Rapport PDF */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <a
-            href={`/api/pdf/${project.id}`}
+            // client=1 : rapport SANS les heures d'arrivée/départ (version client).
+            href={`/api/pdf/${project.id}?client=1`}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => {

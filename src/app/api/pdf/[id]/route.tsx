@@ -566,11 +566,14 @@ async function loadCabineAttribution(projectId: string): Promise<CabineAttributi
   }
 }
 
-function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
+function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: {
   project: any;
   pieces: PieceRequest[];
   defauts: DefautRequest[];
   cabineAttribution?: CabineAttribution | null;
+  /** Rapport CLIENT : masque la section « Horaires » (heures arrivée/départ)
+      pour ne pas révéler la durée d'intervention. */
+  hideHours?: boolean;
 }) {
   // "Généré le" = instant de génération du PDF (et PAS la date de
   // montage qui serait trompeuse — le label dit bien "Généré"). Le
@@ -674,7 +677,9 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
           )}
         </View>
 
-        {/* Horaires */}
+        {/* Horaires — masqués sur le rapport CLIENT (hideHours) : les heures
+            d'arrivée/départ révèlent la durée d'intervention. */}
+        {!hideHours && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Horaires</Text>
           {(() => {
@@ -812,6 +817,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
             );
           })()}
         </View>
+        )}
 
         {/* Rapport — wrap={false} : titre + rapport restent ensemble (jamais
             à cheval sur deux pages). Bascule en entier sur la page suivante
@@ -1348,6 +1354,9 @@ export async function GET(
     if (arriveeOverride) project.heureArrivee = arriveeOverride;
     if (departOverride) project.heureDepart = departOverride;
 
+    // Rapport CLIENT (?client=1) : masque les heures d'arrivée/départ.
+    const hideHours = request.nextUrl.searchParams.get("client") === "1";
+
     const pieces = await loadPiecesForProject(id, project);
     const defauts = await loadDefautsForProject(id, project);
 
@@ -1383,7 +1392,7 @@ export async function GET(
     }
 
     const pdfStream = await ReactPDF.renderToStream(
-      <RapportPDF project={project} pieces={pieces} defauts={defauts} cabineAttribution={cabineAttribution} />
+      <RapportPDF project={project} pieces={pieces} defauts={defauts} cabineAttribution={cabineAttribution} hideHours={hideHours} />
     );
 
     const chunks: Buffer[] = [];
