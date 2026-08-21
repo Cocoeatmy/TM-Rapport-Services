@@ -167,6 +167,10 @@ html.is-scrolling [class*="-bg"]::after {
        contenu au lieu de rester figé). Le clip horizontal est assuré par <html>
        ci-dessous, ce qui empêche le scroll horizontal fantôme sans ce défaut. */
     max-width: 100%;
+    /* Supprime le rebond « rubber-band » iOS (bandes blanches quand on glisse à
+       droite/gauche ou en bas). Le pull-to-refresh est géré en JS (composant
+       PullToRefresh, événements tactiles) → il continue de fonctionner. */
+    overscroll-behavior: none;
   }
   html {
     @apply font-sans;
@@ -174,6 +178,8 @@ html.is-scrolling [class*="-bg"]::after {
        casse pas les `sticky`, tout en empêchant le scroll horizontal fantôme. */
     overflow-x: clip;
     max-width: 100%;
+    /* Idem body : pas de rebond élastique (aucune bande blanche hors champ). */
+    overscroll-behavior: none;
   }
 }
 
