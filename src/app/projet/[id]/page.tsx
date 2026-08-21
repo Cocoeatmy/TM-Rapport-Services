@@ -6877,7 +6877,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           </div>
 
                           {/* ── Onglet Infos ────────────────────────────────── */}
-                          {cabine.activeTab !== "photos" && (
+                          {cabine.activeTab === "infos" && (
                             <div className="space-y-4 px-4">
                               {/* Nom de la cabine */}
                               <div>
