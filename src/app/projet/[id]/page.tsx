@@ -1241,11 +1241,12 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
             </p>
 
             {photos.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                 {photos.map((url, i) => (
-                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                    <img src={thumbnailUrl(url, 120)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async"
-                      className="w-16 h-16 object-cover rounded-md border border-orange-200 dark:border-orange-700 hover:opacity-90 transition-opacity" />
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                    <img src={thumbnailUrl(url, 500)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async"
+                      style={{ aspectRatio: "4/3" }}
+                      className="w-full object-cover rounded-lg border border-orange-200 dark:border-orange-700 hover:opacity-90 transition-opacity" />
                   </a>
                 ))}
               </div>
@@ -1462,11 +1463,12 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
 
             {/* Photos */}
             {d.photoUrls && d.photoUrls.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                 {d.photoUrls.map((url, i) => (
-                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                    <img src={thumbnailUrl(url, 120)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async"
-                      className="w-16 h-16 object-cover rounded-md border border-red-200 dark:border-red-700 hover:opacity-90 transition-opacity" />
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                    <img src={thumbnailUrl(url, 500)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async"
+                      style={{ aspectRatio: "4/3" }}
+                      className="w-full object-cover rounded-lg border border-red-200 dark:border-red-700 hover:opacity-90 transition-opacity" />
                   </a>
                 ))}
               </div>
