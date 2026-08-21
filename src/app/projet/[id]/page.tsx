@@ -7800,15 +7800,12 @@ function ProjectPageContent({ id }: { id: string }) {
                   disabled={sending}
                   title="Envoyer le rapport interne (avec les heures)"
                 >
-                  <span className="flex items-center gap-1.5 text-sm font-semibold">
-                    {sending && sendKind === "interne" ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                    Rapport interne
-                  </span>
-                  <span className="text-[10px] opacity-80">avec les heures</span>
+                  {sending && sendKind === "interne" ? (
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  ) : (
+                    <Send className="w-4 h-4 shrink-0" />
+                  )}
+                  <span className="text-sm font-semibold text-center">Envoyer rapport interne</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -7817,15 +7814,12 @@ function ProjectPageContent({ id }: { id: string }) {
                   disabled={sending}
                   title="Envoyer le rapport client (sans les heures)"
                 >
-                  <span className="flex items-center gap-1.5 text-sm font-semibold">
-                    {sending && sendKind === "client" ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                    Rapport client
-                  </span>
-                  <span className="text-[10px] opacity-80">sans les heures</span>
+                  {sending && sendKind === "client" ? (
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  ) : (
+                    <Send className="w-4 h-4 shrink-0" />
+                  )}
+                  <span className="text-sm font-semibold text-center">Envoyer rapport clients</span>
                 </Button>
               </div>
 
@@ -7839,11 +7833,8 @@ function ProjectPageContent({ id }: { id: string }) {
                   title="Actualiser et télécharger le rapport interne (avec les heures)"
                   className="flex-1 h-auto min-h-[3.25rem] py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 leading-tight bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800 disabled:opacity-60"
                 >
-                  <span className="flex items-center gap-1.5 text-sm font-semibold">
-                    <RefreshCw className={`w-4 h-4 ${downloadingPdf && downloadKind === "interne" ? "animate-spin" : ""}`} />
-                    PDF interne
-                  </span>
-                  <span className="text-[10px] opacity-80">avec les heures</span>
+                  <RefreshCw className={`w-4 h-4 shrink-0 ${downloadingPdf && downloadKind === "interne" ? "animate-spin" : ""}`} />
+                  <span className="text-sm font-semibold text-center">Actualisé et télécharger PDF interne</span>
                 </button>
                 <button
                   type="button"
@@ -7852,11 +7843,8 @@ function ProjectPageContent({ id }: { id: string }) {
                   title="Actualiser et télécharger le rapport client (sans les heures)"
                   className="flex-1 h-auto min-h-[3.25rem] py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 leading-tight bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800 disabled:opacity-60"
                 >
-                  <span className="flex items-center gap-1.5 text-sm font-semibold">
-                    <RefreshCw className={`w-4 h-4 ${downloadingPdf && downloadKind === "client" ? "animate-spin" : ""}`} />
-                    PDF client
-                  </span>
-                  <span className="text-[10px] opacity-80">sans les heures</span>
+                  <RefreshCw className={`w-4 h-4 shrink-0 ${downloadingPdf && downloadKind === "client" ? "animate-spin" : ""}`} />
+                  <span className="text-sm font-semibold text-center">Actualisé et télécharger PDF clients</span>
                 </button>
               </div>
               <p className="text-[10px] text-gray-400 text-center -mt-2">
