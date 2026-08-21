@@ -6231,7 +6231,15 @@ function ProjectPageContent({ id }: { id: string }) {
                             <Input
                               type="time"
                               value={entry.depart}
-                              onChange={(e) => updatePointage(idx, "depart", e.target.value)}
+                              min={entry.arrivee || undefined}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v && entry.arrivee && v < entry.arrivee) {
+                                  toast.error("L'heure de départ ne peut pas être avant l'arrivée.");
+                                  return;
+                                }
+                                updatePointage(idx, "depart", v);
+                              }}
                               className="mt-0.5 h-10 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100"
                             />
                           </div>
@@ -7142,8 +7150,14 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <Input
                                     type="time"
                                     value={cabine.depart}
+                                    min={cabine.arrivee || undefined}
                                     onChange={(e) => {
                                       const v = e.target.value;
+                                      // Le départ ne peut pas précéder l'arrivée.
+                                      if (v && cabine.arrivee && v < cabine.arrivee) {
+                                        toast.error("L'heure de départ ne peut pas être avant l'arrivée.");
+                                        return;
+                                      }
                                       setCabines((prev) =>
                                         prev.map((c, i) => (i === idx ? { ...c, depart: v } : c))
                                       );

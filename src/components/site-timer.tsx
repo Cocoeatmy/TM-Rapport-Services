@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Clock, Play, Square } from "lucide-react";
+import { toast } from "sonner";
 
 interface SiteTimerProps {
   projectId: string;
@@ -146,6 +147,11 @@ export function SiteTimer({ projectId, heureArrivee, heureDepart, onArrival, onD
 
   // Manual départ change: stop chrono
   const handleDepartManual = (val: string) => {
+    // Le départ ne peut pas précéder l'arrivée.
+    if (val && localArrivee && val < localArrivee) {
+      toast.error("L'heure de départ ne peut pas être avant l'arrivée.");
+      return;
+    }
     setLocalDepart(val);
     onDepartChange(val);
     if (val && running) {
@@ -204,6 +210,7 @@ export function SiteTimer({ projectId, heureArrivee, heureDepart, onArrival, onD
           <input
             type="time"
             value={localDepart}
+            min={localArrivee || undefined}
             onChange={(e) => handleDepartManual(e.target.value)}
             className="mt-1 h-11 w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 px-3 text-sm"
           />
