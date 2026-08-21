@@ -3130,6 +3130,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
   // ── Recherche de lot (projets à nombreuses cabines) ──────────────────────
   const [cabineSearch, setCabineSearch] = useState("");
+  const [showOnlySignalements, setShowOnlySignalements] = useState(false); // filtre lots avec pièce/défaut
   /** Déplie et fait défiler jusqu'au lot correspondant (nom de cabine). */
   const jumpToCabine = (query: string) => {
     const q = query.trim().toLowerCase().replace(/\s+/g, "");
@@ -6606,6 +6607,23 @@ function ProjectPageContent({ id }: { id: string }) {
                           />
                         </div>
                       )}
+                      {/* Filtre : n'afficher que les lots AVEC signalement (pièce
+                          manquante = orange, défaut = rouge). Couleurs des titres. */}
+                      {!cabineDragMode && (
+                        <button
+                          type="button"
+                          onClick={() => setShowOnlySignalements((v) => !v)}
+                          title="N'afficher que les lots avec signalement ou défaut"
+                          className={`h-8 shrink-0 flex items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg border transition-colors ${
+                            showOnlySignalements
+                              ? "border-red-400 bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300 dark:border-red-500"
+                              : "border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400 hover:border-red-300 hover:text-red-500"
+                          }`}
+                        >
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          Avec signalement
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {cabineDragMode ? (
@@ -6630,7 +6648,14 @@ function ProjectPageContent({ id }: { id: string }) {
                     </div>
                   </div>
 
-                  {cabines.map((cabine, idx) => (
+                  {cabines
+                    .map((cabine, idx) => ({ cabine, idx }))
+                    .filter(({ cabine }) =>
+                      !showOnlySignalements ||
+                      cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom)) ||
+                      cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom))
+                    )
+                    .map(({ cabine, idx }) => (
                     <Card
                       key={idx}
                       data-cabineidx={idx}
@@ -7257,6 +7282,12 @@ function ProjectPageContent({ id }: { id: string }) {
                       )}
                     </Card>
                   ))}
+                  {showOnlySignalements && !cabines.some((c) =>
+                    cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(c.nom)) ||
+                    cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(c.nom))
+                  ) && (
+                    <p className="text-sm text-gray-400 text-center py-6">Aucun lot avec signalement ou défaut.</p>
+                  )}
                 </div>
 
                 {/* Rapport global multi-cabines */}
