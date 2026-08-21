@@ -3131,6 +3131,7 @@ function ProjectPageContent({ id }: { id: string }) {
   // ── Recherche de lot (projets à nombreuses cabines) ──────────────────────
   const [cabineSearch, setCabineSearch] = useState("");
   const [showOnlySignalements, setShowOnlySignalements] = useState(false); // filtre lots avec pièce/défaut
+  const [heuresFilterCollab, setHeuresFilterCollab] = useState(""); // filtre : clic sur un collaborateur du suivi des heures
   /** Déplie et fait défiler jusqu'au lot correspondant (nom de cabine). */
   const jumpToCabine = (query: string) => {
     const q = query.trim().toLowerCase().replace(/\s+/g, "");
@@ -6325,8 +6326,15 @@ function ProjectPageContent({ id }: { id: string }) {
                             {[...byCollab.entries()].map(([name, { count, minutes, days }]) => {
                               const colors = getCollaboratorColor(name);
                               const nbJours = days.size;
+                              const active = heuresFilterCollab === name;
                               return (
-                                <div key={name} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-700/50">
+                                <button
+                                  key={name}
+                                  type="button"
+                                  onClick={() => setHeuresFilterCollab(active ? "" : name)}
+                                  title={active ? "Cliquer pour tout réafficher" : "Cliquer pour ne voir que ses lots"}
+                                  className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl transition-colors ${active ? "bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-400" : "bg-gray-50 dark:bg-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700"}`}
+                                >
                                   <span
                                     className="w-2 h-2 rounded-full shrink-0"
                                     style={{ backgroundColor: colors.dot }}
@@ -6346,10 +6354,15 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 min-w-[52px] text-right">
                                     {fmtMin(minutes)}
                                   </span>
-                                </div>
+                                </button>
                               );
                             })}
                           </div>
+                          {heuresFilterCollab && (
+                            <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-1.5 px-1">
+                              Filtré sur <b>{heuresFilterCollab}</b> — <button type="button" onClick={() => setHeuresFilterCollab("")} className="underline">tout afficher</button>
+                            </p>
+                          )}
                         </div>
                       )}
 
@@ -6362,7 +6375,12 @@ function ProjectPageContent({ id }: { id: string }) {
                           <div className="space-y-2">
                             {[...byDay.entries()]
                               .sort(([a], [b]) => a.localeCompare(b))
-                              .map(([date, items]) => {
+                              .map(([date, allItems]) => {
+                                // Filtre par collaborateur (clic dans « Par collaborateur »).
+                                const items = heuresFilterCollab
+                                  ? allItems.filter((it) => (it.monteur || "").split(" & ").map((s) => s.trim()).includes(heuresFilterCollab))
+                                  : allItems;
+                                if (items.length === 0) return null;
                                 const dayTotal = items.reduce((s, i) => s + i.minutes, 0);
                                 const dateLabel = (() => {
                                   try {
@@ -6633,6 +6651,18 @@ function ProjectPageContent({ id }: { id: string }) {
                           Avec signalement{signalementLotsCount > 0 ? ` (${signalementLotsCount})` : ""}
                         </button>
                       )}
+                      {/* Chip du filtre collaborateur (activé depuis « Suivi des heures »). */}
+                      {heuresFilterCollab && (
+                        <button
+                          type="button"
+                          onClick={() => setHeuresFilterCollab("")}
+                          title="Retirer le filtre collaborateur"
+                          className="h-8 shrink-0 flex items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg border border-blue-400 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-500"
+                        >
+                          Lots de {heuresFilterCollab}
+                          <span className="text-blue-400">✕</span>
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {cabineDragMode ? (
@@ -6659,11 +6689,19 @@ function ProjectPageContent({ id }: { id: string }) {
 
                   {cabines
                     .map((cabine, idx) => ({ cabine, idx }))
-                    .filter(({ cabine }) =>
-                      !showOnlySignalements ||
-                      cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom)) ||
-                      cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom))
-                    )
+                    .filter(({ cabine, idx }) => {
+                      // Filtre « Avec signalement »
+                      if (showOnlySignalements &&
+                        !cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom)) &&
+                        !cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom))) return false;
+                      // Filtre par collaborateur (clic dans « Suivi des heures »)
+                      if (heuresFilterCollab) {
+                        const monteurs = (cabine.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
+                        const list = monteurs.length > 0 ? monteurs : [parseSousTraitance(project?.monteursSousTraitance || "")[idx + 1] || ""];
+                        if (!list.includes(heuresFilterCollab)) return false;
+                      }
+                      return true;
+                    })
                     .map(({ cabine, idx }) => (
                     <Card
                       key={idx}
@@ -7291,11 +7329,18 @@ function ProjectPageContent({ id }: { id: string }) {
                       )}
                     </Card>
                   ))}
-                  {showOnlySignalements && !cabines.some((c) =>
-                    cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(c.nom)) ||
-                    cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(c.nom))
-                  ) && (
-                    <p className="text-sm text-gray-400 text-center py-6">Aucun lot avec signalement ou défaut.</p>
+                  {(showOnlySignalements || heuresFilterCollab) && !cabines.some((c, i) => {
+                    if (showOnlySignalements &&
+                      !cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(c.nom)) &&
+                      !cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(c.nom))) return false;
+                    if (heuresFilterCollab) {
+                      const monteurs = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
+                      const list = monteurs.length > 0 ? monteurs : [parseSousTraitance(project?.monteursSousTraitance || "")[i + 1] || ""];
+                      if (!list.includes(heuresFilterCollab)) return false;
+                    }
+                    return true;
+                  }) && (
+                    <p className="text-sm text-gray-400 text-center py-6">Aucun lot ne correspond au filtre.</p>
                   )}
                 </div>
 
