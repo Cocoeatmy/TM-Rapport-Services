@@ -183,6 +183,18 @@ html.is-scrolling [class*="-bg"]::after {
   }
 }
 
+/* Barre du haut sur mobile : les icônes d'action (36px) sont réduites à 32px
+   pour que TOUTES tiennent à l'écran — jusqu'à 9 (retour + recherche + créer +
+   cloche + nuage + avion + orange + menu) — sans chevauchement ni découpe, tout
+   en gardant l'espacement gap-2 (8px, le double de l'ancien) → moins de mauvais
+   taps. Sélecteur `#main-header .w-9.h-9` : spécificité > utilitaires Tailwind. */
+@media (max-width: 639px) {
+  #main-header .w-9.h-9 {
+    width: 2rem;
+    height: 2rem;
+  }
+}
+
 /* ===== Liquid Glass Design System ===== */
 
 /* Dark mode backgrounds */

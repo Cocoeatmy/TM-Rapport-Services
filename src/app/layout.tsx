@@ -106,9 +106,10 @@ export default function RootLayout({
                   le bas) fait déjà « recharger » → moins d'icônes, plus d'espace. */}
               <span className="hidden sm:flex items-center"><RefreshButton /></span>
               <SyncButton />
-              {/* SendPendingButton masqué sur mobile : un tap sur le nuage envoie
-                  déjà les éléments en attente → redondant, on libère de la place. */}
-              <span className="hidden sm:flex items-center"><SendPendingButton /></span>
+              {/* SendPendingButton (avion) : quand il est coloré, des photos ne
+                  sont pas encore uploadées → l'utilisateur relance en tapant.
+                  Gardé visible pour TOUS les utilisateurs. */}
+              <SendPendingButton />
               {/* ForceSyncButton (orange) : lance la synchro des photos de TOUS les
                   téléphones des collaborateurs → gardé visible (admin). */}
               <ForceSyncButton />
