@@ -3132,6 +3132,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [cabineSearch, setCabineSearch] = useState("");
   const [showOnlySignalements, setShowOnlySignalements] = useState(false); // filtre lots avec pièce/défaut
   const [heuresFilterCollab, setHeuresFilterCollab] = useState(""); // filtre : clic sur un collaborateur du suivi des heures
+  const [showSignalementsCard, setShowSignalementsCard] = useState(false); // carte « Signalements enregistrés » repliable
   /** Déplie et fait défiler jusqu'au lot correspondant (nom de cabine). */
   const jumpToCabine = (query: string) => {
     const q = query.trim().toLowerCase().replace(/\s+/g, "");
@@ -7620,17 +7621,37 @@ function ProjectPageContent({ id }: { id: string }) {
                 En mono-cabine, liste + formulaires sont dans l'onglet Photos.
                 Les FORMULAIRES de signalement à la racine ont été retirés : ils ne
                 rattachaient pas le signalement à un lot précis (demande utilisateur). */}
-            {isCabineMode && (
+            {isCabineMode && (() => {
+              const nbSignalements = cabineSignalements.pieces.length + cabineSignalements.defauts.length;
+              return (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Signalements enregistrés</CardTitle>
+                  <button
+                    type="button"
+                    onClick={() => setShowSignalementsCard((v) => !v)}
+                    className="w-full flex items-center justify-between gap-2"
+                  >
+                    <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300">
+                      <span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />
+                      Signalements enregistrés{nbSignalements > 0 ? ` (${nbSignalements})` : ""}
+                    </CardTitle>
+                    {showSignalementsCard
+                      ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
+                      : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
+                  </button>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
-                  <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
-                </CardContent>
+                {showSignalementsCard && (
+                  <CardContent className="space-y-4 border-t pt-3">
+                    <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
+                    <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
+                    {nbSignalements === 0 && (
+                      <p className="text-sm text-gray-400 text-center py-2">Aucun signalement enregistré.</p>
+                    )}
+                  </CardContent>
+                )}
               </Card>
-            )}
+              );
+            })()}
 
             {/* Note interne (niveau projet) — en multi-cabine seulement : en
                 mono-cabine elle est déjà rendue dans la carte du rapport. */}
