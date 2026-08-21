@@ -2032,6 +2032,7 @@ function InternalNoteField({
   onUpdate: (v: string) => void;
 }) {
   const [draft, setDraft] = useState(value || "");
+  const [open, setOpen] = useState(false); // repliable
   const [savedAt, setSavedAt] = useState<"idle" | "saving" | "saved">("idle");
   const [reformulating, setReformulating] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2091,15 +2092,16 @@ function InternalNoteField({
     }
   };
 
+  const noteCount = (draft || "").split("\n").map((l) => l.trim()).filter(Boolean).length;
   return (
     <div className="rounded-2xl border-2 border-amber-300 dark:border-amber-700/60 bg-amber-50/80 dark:bg-amber-950/30 p-4 space-y-2">
-      <div className="flex items-center gap-2">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="w-full flex items-center gap-2 text-left">
         <span className="w-6 h-6 rounded-lg bg-amber-200/80 dark:bg-amber-800/50 flex items-center justify-center shrink-0">
           <Lock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300" />
         </span>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 leading-tight">
-            Note interne
+            Note interne{noteCount > 0 ? ` (${noteCount})` : ""}
           </p>
           <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-tight">
             Non visible par le client — communication entre collaborateurs
@@ -2110,31 +2112,38 @@ function InternalNoteField({
             <Check className="w-3 h-3" /> Enregistré
           </span>
         )}
-      </div>
-      <Textarea
-        placeholder="Informations réservées à l'équipe (accès, difficultés, à prévoir pour le SAV…)"
-        value={draft}
-        onChange={(e) => { setDraft(e.target.value); scheduleSave(e.target.value); }}
-        rows={3}
-        className="bg-white/70 dark:bg-slate-900/40 border-amber-200 dark:border-amber-800/50 focus-visible:ring-amber-400"
-      />
-      <button
-        type="button"
-        onClick={handleReformulate}
-        disabled={reformulating || draft.trim().length < 10}
-        title={draft.trim().length < 10 ? "Écrivez d'abord quelques mots" : undefined}
-        className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 hover:text-amber-800 disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-        {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+        {open
+          ? <ChevronUp className={`w-4 h-4 text-amber-500 shrink-0 ${savedAt === "saved" ? "" : "ml-auto"}`} />
+          : <ChevronDown className={`w-4 h-4 text-amber-500 shrink-0 ${savedAt === "saved" ? "" : "ml-auto"}`} />}
       </button>
-      <div className="pt-1">
-        <VoiceRecorder
-          accent="amber"
-          addLabel="Ajouter à la note"
-          onTranscript={(text) => applyText(draft ? draft + "\n" + text : text)}
-        />
-      </div>
+      {open && (
+        <>
+          <Textarea
+            placeholder="Informations réservées à l'équipe (accès, difficultés, à prévoir pour le SAV…)"
+            value={draft}
+            onChange={(e) => { setDraft(e.target.value); scheduleSave(e.target.value); }}
+            rows={3}
+            className="bg-white/70 dark:bg-slate-900/40 border-amber-200 dark:border-amber-800/50 focus-visible:ring-amber-400"
+          />
+          <button
+            type="button"
+            onClick={handleReformulate}
+            disabled={reformulating || draft.trim().length < 10}
+            title={draft.trim().length < 10 ? "Écrivez d'abord quelques mots" : undefined}
+            className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 hover:text-amber-800 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {reformulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {reformulating ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+          </button>
+          <div className="pt-1">
+            <VoiceRecorder
+              accent="amber"
+              addLabel="Ajouter à la note"
+              onTranscript={(text) => applyText(draft ? draft + "\n" + text : text)}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -3133,6 +3142,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [showOnlySignalements, setShowOnlySignalements] = useState(false); // filtre lots avec pièce/défaut
   const [heuresFilterCollab, setHeuresFilterCollab] = useState(""); // filtre : clic sur un collaborateur du suivi des heures
   const [showSignalementsCard, setShowSignalementsCard] = useState(false); // carte « Signalements enregistrés » repliable
+  const [showSignatureCard, setShowSignatureCard] = useState(false); // carte « Signature du client » repliable
   /** Déplie et fait défiler jusqu'au lot correspondant (nom de cabine). */
   const jumpToCabine = (query: string) => {
     const q = query.trim().toLowerCase().replace(/\s+/g, "");
@@ -7665,9 +7675,22 @@ function ProjectPageContent({ id }: { id: string }) {
 
             {/* Signature client */}
             <Card id="signature-card">
-              <CardContent className="pt-4">
+              <CardHeader className="pb-2">
+                <button type="button" onClick={() => setShowSignatureCard((v) => !v)} className="w-full flex items-center justify-between gap-2">
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300">
+                    <span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />
+                    Signature du client
+                    {signature && <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">✓ signée</span>}
+                  </CardTitle>
+                  {showSignatureCard
+                    ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
+                    : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
+                </button>
+              </CardHeader>
+              {showSignatureCard && (
+              <CardContent className="pt-1 border-t">
                 <SignaturePad
-                  label="Signature du client"
+                  label=""
                   existingSignature={signature}
                   onSave={async (dataUrl) => {
                     // Affichage immédiat : le data-URL local rend la
@@ -7701,6 +7724,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   }}
                 />
               </CardContent>
+              )}
             </Card>
 
             {/* Actions CMD */}

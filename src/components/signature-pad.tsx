@@ -253,7 +253,7 @@ export function SignaturePad({ onSave, existingSignature, label = "Signature du 
 
   return (
     <div>
-      <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">{label}</label>
+      {label ? <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">{label}</label> : null}
       <div ref={containerRef} className="relative border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl overflow-hidden bg-white dark:bg-slate-800">
         <canvas
           ref={canvasRef}
