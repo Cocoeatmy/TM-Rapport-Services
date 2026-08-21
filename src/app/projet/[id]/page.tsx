@@ -6067,7 +6067,11 @@ function ProjectPageContent({ id }: { id: string }) {
         })()}
         {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
           <>
-            {/* Heures & statistiques */}
+            {/* Heures & statistiques — en MULTI-CABINE c'est la vue STATS agrégée
+                (heures/perf par collaborateur) → réservée à l'ADMIN. En
+                mono-cabine c'est la SAISIE des heures de l'employé → toujours
+                visible. */}
+            {!(isCabineMode && !isAdmin) && (
             <Card>
               <CardHeader className="pb-2">
                 <button
@@ -6449,6 +6453,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
               </CardContent>}
             </Card>
+            )}
 
             <Separator />
 
