@@ -6327,6 +6327,9 @@ function ProjectPageContent({ id }: { id: string }) {
                               const colors = getCollaboratorColor(name);
                               const nbJours = days.size;
                               const active = heuresFilterCollab === name;
+                              // Part des cabines installées par ce collaborateur sur le
+                              // total DÉJÀ installé (ex. Jacobo 3 / 24).
+                              const pctInstalle = installedCabineCount > 0 ? Math.round((count / installedCabineCount) * 1000) / 10 : 0;
                               return (
                                 <button
                                   key={name}
@@ -6340,6 +6343,11 @@ function ProjectPageContent({ id }: { id: string }) {
                                     style={{ backgroundColor: colors.dot }}
                                   />
                                   <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{name}</span>
+                                  {installedCabineCount > 0 && (
+                                    <span className="shrink-0 text-xs font-bold text-blue-600 dark:text-blue-400 tabular-nums min-w-[46px] text-right" title={`${count} sur ${installedCabineCount} cabines installées`}>
+                                      {pctInstalle}%
+                                    </span>
+                                  )}
                                   <div className="text-right">
                                     <p className="text-xs text-gray-500 dark:text-gray-400">
                                       {count} cabine{count > 1 ? "s" : ""}
