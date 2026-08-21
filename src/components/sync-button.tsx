@@ -46,6 +46,10 @@ export function SyncButton() {
       .then((r) => r.json())
       .then((data) => {
         if (data.timestamp) setServerSyncTime(data.timestamp);
+        // Serveur joignable au lancement → l'app charge des données FRAÎCHES
+        // (fetch live). On marque donc comme synchronisé → nuage VERT, au lieu
+        // de rester rouge sur l'ancienneté du cache local.
+        if (!cancelled) { setLastSync(Date.now()); markSynced(); }
       })
       .catch(() => {});
 
@@ -137,6 +141,10 @@ export function SyncButton() {
       try {
         const res = await fetch("/api/force-sync");
         const data = await res.json();
+        // Serveur joignable ET rien en file → tout est à jour → nuage VERT.
+        // (Si une file est en cours, autoSync ci-dessus la traite et marque le
+        // vert à la fin ; on ne force donc le vert que file vide.)
+        if (isOnline() && totalQueued === 0) { setLastSync(Date.now()); markSynced(); }
         if (data.requestedAt && data.requestedAt > forceSyncCheckedAt) {
           setForceSyncCheckedAt(data.requestedAt);
           await resetBackoffForAll();
