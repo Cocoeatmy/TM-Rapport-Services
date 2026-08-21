@@ -7834,7 +7834,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   className="flex-1 h-auto min-h-[3.25rem] py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 leading-tight bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800 disabled:opacity-60"
                 >
                   <RefreshCw className={`w-4 h-4 shrink-0 ${downloadingPdf && downloadKind === "interne" ? "animate-spin" : ""}`} />
-                  <span className="text-sm font-semibold text-center">Actualisé et télécharger PDF interne</span>
+                  <span className="text-sm font-semibold text-center">PDF interne</span>
                 </button>
                 <button
                   type="button"
@@ -7844,7 +7844,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   className="flex-1 h-auto min-h-[3.25rem] py-2 rounded-xl flex flex-col items-center justify-center gap-0.5 leading-tight bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 active:scale-95 transition-all border border-red-200 dark:border-red-800 disabled:opacity-60"
                 >
                   <RefreshCw className={`w-4 h-4 shrink-0 ${downloadingPdf && downloadKind === "client" ? "animate-spin" : ""}`} />
-                  <span className="text-sm font-semibold text-center">Actualisé et télécharger PDF clients</span>
+                  <span className="text-sm font-semibold text-center">PDF clients</span>
                 </button>
               </div>
               <p className="text-[10px] text-gray-400 text-center -mt-2">

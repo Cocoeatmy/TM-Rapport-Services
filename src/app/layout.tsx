@@ -102,9 +102,8 @@ export default function RootLayout({
               <GlobalSearch />
               <CreateProjectButton />
               <NotificationBell />
-              {/* RefreshButton masqué sur mobile : le pull-to-refresh (glisser vers
-                  le bas) fait déjà « recharger » → moins d'icônes, plus d'espace. */}
-              <span className="hidden sm:flex items-center"><RefreshButton /></span>
+              {/* Bouton Actualiser : visible pour TOUS (admin + employé). */}
+              <RefreshButton />
               <SyncButton />
               {/* SendPendingButton (avion) : quand il est coloré, des photos ne
                   sont pas encore uploadées → l'utilisateur relance en tapant.
