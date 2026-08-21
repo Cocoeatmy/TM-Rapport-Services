@@ -11,6 +11,7 @@ import ReactPDF, {
   Text,
   View,
   Image,
+  Link,
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
@@ -462,6 +463,42 @@ function optimizeImageUrl(url: string): string {
   }
   // Notion S3: ajouter rien (pas modifiable)
   return url;
+}
+
+// URL de TÉLÉCHARGEMENT (au clic sur la photo dans le PDF) : pleine résolution.
+// Cloudinary `fl_attachment` → Content-Disposition: attachment → le navigateur
+// télécharge le fichier au lieu de l'afficher. Fallback (Notion S3) : URL brute.
+function downloadImageUrl(url: string): string {
+  if (!url) return url;
+  if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
+    return url.replace("/upload/", "/upload/fl_attachment/");
+  }
+  return url;
+}
+
+// Photo cliquable dans le PDF → télécharge l'image. On reporte l'encombrement
+// (taille + marges + arrondi) de l'image sur le <Link> (= l'élément de flux) pour
+// préserver EXACTEMENT la mise en page ; l'image remplit ensuite le lien.
+function PhotoLink({ url, style }: { url: string; style: any }) {
+  const s = style || {};
+  const linkStyle: any = { textDecoration: "none" };
+  for (const k of [
+    "width", "height", "margin", "marginTop", "marginBottom",
+    "marginLeft", "marginRight", "borderRadius", "flex", "minWidth", "maxWidth",
+  ] as const) {
+    if (s[k] !== undefined) linkStyle[k] = s[k];
+  }
+  const imgStyle: any = {
+    width: "100%",
+    height: "100%",
+    objectFit: s.objectFit || "contain",
+  };
+  if (s.borderRadius !== undefined) imgStyle.borderRadius = s.borderRadius;
+  return (
+    <Link src={downloadImageUrl(url)} style={linkStyle}>
+      <Image src={optimizeImageUrl(url)} style={imgStyle} />
+    </Link>
+  );
 }
 
 function pieceStatusLabel(status: string): string {
@@ -987,7 +1024,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                 <View style={styles.photoRow}>
                   {rows[0].map((p, i) => (
                     <View key={i} style={styles.photoContainer}>
-                      <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
+                      <PhotoLink url={p.url} style={styles.photo} />
                     </View>
                   ))}
                 </View>
@@ -997,7 +1034,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                 <View key={rowIdx} style={styles.photoRow} wrap={false}>
                   {row.map((p, i) => (
                     <View key={i} style={styles.photoContainer}>
-                      <Image src={optimizeImageUrl(p.url)} style={styles.photo} />
+                      <PhotoLink url={p.url} style={styles.photo} />
                     </View>
                   ))}
                 </View>
@@ -1024,7 +1061,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                 <View style={{ flexDirection: "row", gap: 4, flexWrap: "nowrap" }}>
                   {photos.map((p, i) => (
                     <View key={i} style={{ flex: 1, height: rowHeight, minWidth: Math.max(40, Math.floor(220 / Math.max(n, 1))) }}>
-                      <Image src={optimizeImageUrl(p.url)} style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 4 }} />
+                      <PhotoLink url={p.url} style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 4 }} />
                     </View>
                   ))}
                 </View>
@@ -1174,11 +1211,11 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
               {piece.photoUrls && piece.photoUrls.length > 0 ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
                   {piece.photoUrls.map((url: string, pi: number) => (
-                    <Image key={pi} src={optimizeImageUrl(url)} style={styles.piecePhoto} />
+                    <PhotoLink key={pi} url={url} style={styles.piecePhoto} />
                   ))}
                 </View>
               ) : piece.photoUrl ? (
-                <Image src={optimizeImageUrl(piece.photoUrl)} style={styles.piecePhoto} />
+                <PhotoLink url={piece.photoUrl} style={styles.piecePhoto} />
               ) : null}
             </View>
           ))}
@@ -1252,7 +1289,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                   <View key={rowIdx} style={styles.defautPhotosGrid} wrap={false}>
                     {row.map((url, i) => (
                       <View key={i} style={styles.defautPhotoWrap}>
-                        <Image src={optimizeImageUrl(url)} style={styles.defautPhoto} />
+                        <PhotoLink url={url} style={styles.defautPhoto} />
                       </View>
                     ))}
                   </View>
@@ -1278,7 +1315,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution }: {
                   <View key={rowIdx} style={styles.defautPhotosGrid} wrap={false}>
                     {row.map((url, i) => (
                       <View key={i} style={styles.defautPhotoWrap}>
-                        <Image src={optimizeImageUrl(url)} style={styles.defautPhoto} />
+                        <PhotoLink url={url} style={styles.defautPhoto} />
                       </View>
                     ))}
                   </View>
