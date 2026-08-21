@@ -106,10 +106,12 @@ export default function RootLayout({
                   le bas) fait déjà « recharger » → moins d'icônes, plus d'espace. */}
               <span className="hidden sm:flex items-center"><RefreshButton /></span>
               <SyncButton />
-              <SendPendingButton />
-              {/* ForceSyncButton (admin, rare) masqué sur mobile : la synchro
-                  personnelle se fait via le nuage. */}
-              <span className="hidden sm:flex items-center"><ForceSyncButton /></span>
+              {/* SendPendingButton masqué sur mobile : un tap sur le nuage envoie
+                  déjà les éléments en attente → redondant, on libère de la place. */}
+              <span className="hidden sm:flex items-center"><SendPendingButton /></span>
+              {/* ForceSyncButton (orange) : lance la synchro des photos de TOUS les
+                  téléphones des collaborateurs → gardé visible (admin). */}
+              <ForceSyncButton />
               <UserMenu />
             </div>
           </div>
