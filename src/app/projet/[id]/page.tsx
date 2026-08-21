@@ -6634,7 +6634,7 @@ function ProjectPageContent({ id }: { id: string }) {
               <>
                 <div id="cabines-list" className="space-y-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
                       <h3 className="text-sm font-semibold text-gray-700 shrink-0">
                         {installedCabineCount > 0
                           ? <><span className="text-green-600">{installedCabineCount}</span>/{cabines.length} cabine{cabines.length > 1 ? "s" : ""}</>
