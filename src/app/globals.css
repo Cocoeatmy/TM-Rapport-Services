@@ -41,6 +41,24 @@ html.is-scrolling [class*="-bg"]::after {
   }
 }
 
+/* 3) AU REPOS AUSSI — le vrai correctif batterie : on FIGE les grands dégradés
+      de fond animés en boucle. Même app immobile au premier plan, un dégradé
+      plein écran qui s'anime en continu (et qui force chaque flou « glass » à se
+      recalculer à chaque frame) est la 1ʳᵉ cause de consommation batterie de
+      l'app, sur iOS COMME sur macOS, tous thèmes confondus (classic, aurora,
+      ocean, cleanmymac). Le rendu reste STRICTEMENT identique — le dégradé est
+      juste immobile. Une seule règle suffit : toutes les variantes de fond
+      (gradientShift / auroraFlow / oceanFlow / cmmNebula) sont posées sur
+      `.lg-bg` SANS `!important`, donc ce `!important` les neutralise toutes.
+      Les animations utiles (apparitions, spinners de chargement, pulsations)
+      ne sont PAS touchées. */
+.lg-bg,
+.lg-bg::before,
+.lg-bg::after,
+html[data-ui="ocean"] .glass-header::before {
+  animation: none !important;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
