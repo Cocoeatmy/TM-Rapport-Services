@@ -75,6 +75,13 @@ function fmtDate(d?: string | null): string {
   if (!d) return "—";
   try { return formatSwissDate(d); } catch { return "—"; }
 }
+// Plage de dates : « 25 août 2026 → 26 août 2026 » si fin ≠ début, sinon 1 date.
+function fmtDateRange(start?: string | null, end?: string | null): string {
+  if (!start) return "—";
+  const s = fmtDate(start);
+  if (end && end.slice(0, 10) !== start.slice(0, 10)) return `${s} → ${fmtDate(end)}`;
+  return s;
+}
 // NFC : recompose les accents décomposés (ex. o + ̂ → ô). Les titres Notion
 // arrivent parfois en NFD, que la police Helvetica du PDF n'assemble pas
 // (« Ilôt » s'affichait « Ilo t »).
@@ -155,7 +162,7 @@ function FichePDF({ project }: { project: Project }) {
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Rendez-vous</Text>
           <LineRow label="Mesures" value={dateAndWho(fmtDate(project.dateMesures), project.mesuresTraiteePar)} />
-          <LineRow label="Montage" value={dateAndWho(fmtDate(project.dateMontage), project.collaborateurs)} />
+          <LineRow label="Montage" value={dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)} />
           <LineRow label="SAV" value={dateAndWho(fmtDate(project.dateRDVSAV), project.collaborateursSAV)} />
           <LineRow label="Garantie" value={dateAndWho(fmtDate(project.dateRDVGarantie), project.collaborateurGarantie)} />
           <LineRow label="Services" value="à venir" />

@@ -5844,6 +5844,12 @@ function ProjectPageContent({ id }: { id: string }) {
                 return String(v);
               };
               const fmt = (d?: string | null) => (d ? formatDate(d) : "—");
+              // Plage de dates (Montage peut s'étaler sur plusieurs jours).
+              const fmtRange = (start?: string | null, end?: string | null) => {
+                if (!start) return "—";
+                if (end && end.slice(0, 10) !== start.slice(0, 10)) return `${fmt(start)} → ${fmt(end)}`;
+                return fmt(start);
+              };
               // "date — personne(s)" ; masque le tiret si l'un des deux manque.
               const join2 = (a: string, b?: string) => {
                 const parts = [a && a !== "—" ? a : "", (b || "").trim()].filter(Boolean);
@@ -5865,7 +5871,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   title: "Rendez-vous",
                   rows: [
                     ["Mesures", join2(fmt(project.dateMesures), project.mesuresTraiteePar)],
-                    ["Montage", join2(fmt(project.dateMontage), project.collaborateurs)],
+                    ["Montage", join2(fmtRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)],
                     ["SAV", join2(fmt(project.dateRDVSAV), project.collaborateursSAV)],
                     ["Garantie", join2(fmt(project.dateRDVGarantie), project.collaborateurGarantie)],
                     ["Services", <span className="text-gray-400 italic">à venir</span>],
