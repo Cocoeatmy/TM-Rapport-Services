@@ -14,7 +14,6 @@ import { verifyToken } from "@/lib/auth";
 import { signFiche } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
-import { FOURNISSEUR_LOGOS } from "@/lib/fournisseur-logos";
 import ReactPDF, {
   Document,
   Page,
@@ -93,17 +92,6 @@ function dateAndWho(date: string, who?: string): string {
   return parts.length ? nfc(parts.join(" — ")) : "—";
 }
 
-// Logos fournisseurs : embarqués en base64 (src/lib/fournisseur-logos.ts) →
-// aucun accès disque/réseau, 100% fiable en serverless. Clé = mot-clé cherché
-// dans le nom Notion du fournisseur (ex. « Nelo GmbH » → nelo). Repli sur le nom.
-function resolveFournisseurLogos(names: string[]): { name: string; url: string }[] {
-  return (names || []).filter(Boolean).map((n) => {
-    const low = n.toLowerCase();
-    const key = Object.keys(FOURNISSEUR_LOGOS).find((k) => low.includes(k));
-    return { name: nfc(n), url: key ? FOURNISSEUR_LOGOS[key] : "" };
-  });
-}
-
 // Cellule « libellé au-dessus, valeur en gras » (grilles Général & Contact).
 function Cell({ label, value, width }: { label: string; value: string; width: string }) {
   return (
@@ -124,7 +112,6 @@ function LineRow({ label, value }: { label: string; value: string }) {
 }
 
 function FichePDF({ project }: { project: Project }) {
-  const logos = resolveFournisseurLogos(project.fournisseurs);
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -148,21 +135,7 @@ function FichePDF({ project }: { project: Project }) {
           <Text style={styles.sectionTitle}>Général</Text>
           <View style={{ flexDirection: "row" }}>
             <Cell label="Nb. cabines" value={joinVal(project.nbCabines)} width="33%" />
-            {/* Fournisseurs : logos si disponibles, sinon nom */}
-            <View style={{ width: "34%", paddingRight: 10, marginBottom: 6 }}>
-              <Text style={{ fontSize: 8, color: "#888", marginBottom: 2 }}>Fournisseurs</Text>
-              {logos.length === 0 ? (
-                <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>—</Text>
-              ) : (
-                logos.map((l, i) =>
-                  l.url ? (
-                    <Image key={i} src={l.url} style={{ width: 100, height: 24, objectFit: "contain", marginTop: 2 }} />
-                  ) : (
-                    <Text key={i} style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{l.name}</Text>
-                  )
-                )
-              )}
-            </View>
+            <Cell label="Fournisseurs" value={joinVal(project.fournisseurs)} width="34%" />
             <Cell label="Séries cabines" value={joinVal(project.seriesCabines)} width="33%" />
           </View>
           <View style={{ flexDirection: "row" }}>
