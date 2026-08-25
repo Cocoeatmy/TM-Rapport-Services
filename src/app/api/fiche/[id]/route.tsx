@@ -154,6 +154,31 @@ function LineRow({ label, value, docUrl }: { label: string; value: string; docUr
     </View>
   );
 }
+// Ligne avec barre de progression entre le libellé et la valeur.
+function ProgressRow({ label, pct, caption, color, value, docUrl }: {
+  label: string; pct: number; caption: string; color: string; value: string; docUrl?: string;
+}) {
+  const w = Math.max(0, Math.min(100, pct));
+  return (
+    <View style={styles.row}>
+      <View style={{ width: 170, flexDirection: "row", alignItems: "center" }}>
+        <Text style={{ color: "#666", fontSize: 9 }}>{label}</Text>
+        {docUrl ? (
+          <Link src={docUrl} style={{ marginLeft: 5, textDecoration: "none" }}>
+            <DownloadArrow />
+          </Link>
+        ) : null}
+      </View>
+      <View style={{ width: 105, marginRight: 10, justifyContent: "center" }}>
+        <View style={{ height: 7, borderRadius: 4, backgroundColor: "#e5e7eb" }}>
+          <View style={{ width: `${w}%`, height: 7, borderRadius: 4, backgroundColor: color }} />
+        </View>
+        <Text style={{ fontSize: 7, color: "#666", marginTop: 2 }}>{caption}</Text>
+      </View>
+      <Text style={styles.value}>{value}</Text>
+    </View>
+  );
+}
 
 function FichePDF({ project, mesuresDocUrl, reportUrl }: { project: Project; mesuresDocUrl?: string; reportUrl?: string }) {
   return (
@@ -223,13 +248,41 @@ function FichePDF({ project, mesuresDocUrl, reportUrl }: { project: Project; mes
         {/* Rendez-vous */}
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Rendez-vous</Text>
-          {/* Mesures : date + traité par si RDV fixé, sinon l'état ; flèche → docs. */}
-          <LineRow
-            label="Mesures"
-            value={dateAndWho(project.dateMesures ? fmtDate(project.dateMesures) : joinVal(project.etatMesures), project.mesuresTraiteePar)}
-            docUrl={mesuresDocUrl}
-          />
-          <LineRow label="Montage" value={dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)} />
+          {/* Mesures : barre 100% dès qu'une date existe ; sinon l'état, sans barre.
+              Flèche → galerie des documents montage. */}
+          {project.dateMesures ? (
+            <ProgressRow
+              label="Mesures"
+              pct={100}
+              caption="100%"
+              color="#15803d"
+              value={dateAndWho(fmtDate(project.dateMesures), project.mesuresTraiteePar)}
+              docUrl={mesuresDocUrl}
+            />
+          ) : (
+            <LineRow
+              label="Mesures"
+              value={dateAndWho(joinVal(project.etatMesures), project.mesuresTraiteePar)}
+              docUrl={mesuresDocUrl}
+            />
+          )}
+          {/* Montage : progression cabines installées / total. */}
+          {(() => {
+            const total = project.nbCabines || 0;
+            const installed = project.nbCabinesInstallees || 0;
+            const pct = total > 0 ? Math.round((installed / total) * 100) : 0;
+            const value = dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs);
+            if (total <= 0) return <LineRow label="Montage" value={value} />;
+            return (
+              <ProgressRow
+                label="Montage"
+                pct={pct}
+                caption={`${installed}/${total} · ${pct}%`}
+                color={pct >= 100 ? "#15803d" : "#2563eb"}
+                value={value}
+              />
+            );
+          })()}
           <LineRow label="SAV" value={dateAndWho(fmtDate(project.dateRDVSAV), project.collaborateursSAV)} />
           <LineRow label="Garantie" value={dateAndWho(fmtDate(project.dateRDVGarantie), project.collaborateurGarantie)} />
           <LineRow label="Services" value="à venir" />
