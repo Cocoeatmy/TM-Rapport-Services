@@ -1786,6 +1786,21 @@ function normCabineLabel(s: string | undefined | null): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+// ── Rapport cabine : phrases « classiques » prédéfinies dans l'app ────────────
+// Boutons à cocher standards. Tout texte du rapport qui RESTE une fois ces
+// phrases retirées = texte ajouté MANUELLEMENT (précisions propres au monteur).
+const RAPPORT_CABINE_CLASSIQUES = [
+  "L'installation s'est déroulée sans encombre.",
+  "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",
+] as const;
+/** true si le rapport contient du texte ajouté à la main (au-delà des phrases
+ *  classiques). Sert à afficher une icône « rapport personnalisé » sur le lot. */
+function hasManualRapport(rapport: string | undefined | null): boolean {
+  let s = rapport || "";
+  for (const phrase of RAPPORT_CABINE_CLASSIQUES) s = s.split(phrase).join("");
+  return s.replace(/\s+/g, "").length > 0;
+}
+
 // ── Monteur sous-traitance PAR CABINE ────────────────────────────────────────
 // Encodé dans la colonne Notion « Monteurs sous-traitance » comme les monteurs
 // responsables : "Cab1:Nom | Cab2:Nom | …".
@@ -3121,7 +3136,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [heureDepart, setHeureDepart] = useState("");
   const [commentaires, setCommentaires] = useState("");
   const [rapport, setRapport] = useState("");
-  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string; activeTab: "infos" | "photos" | "signalements"; qrEnabled: boolean; garantieEnabled: boolean }[]>([]);
+  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string; activeTab: "infos" | "photos" | "signalements" | "rapport"; qrEnabled: boolean; garantieEnabled: boolean }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [expandedCabineDate, setExpandedCabineDate] = useState<string | null>(null);
   const [rapportModalCabineIdx, setRapportModalCabineIdx] = useState<number | null>(null);
@@ -6891,6 +6906,28 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <AlertTriangle className="w-4 h-4 text-red-500" />
                                 </span>
                               )}
+                              {/* Icône « rapport personnalisé » (violet) : le rapport
+                                  contient un texte ajouté à la main, au-delà des phrases
+                                  classiques. Clic → ouvre l'onglet Rapport. */}
+                              {hasManualRapport(cabine.rapport) && (
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  title="Rapport personnalisé — voir le texte ajouté"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCabines((prev) =>
+                                      prev.map((c, i) =>
+                                        i === idx ? { ...c, open: true, activeTab: "rapport" } : c
+                                      )
+                                    );
+                                  }}
+                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.currentTarget.click(); }}
+                                  className="shrink-0 cursor-pointer rounded hover:opacity-75 transition-opacity"
+                                >
+                                  <FileText className="w-4 h-4 text-violet-500" />
+                                </span>
+                              )}
                             </div>
                             {/* Sous-titre : QUI a monté + date. Monteur employé → affiché
                                 seulement avec la date (install complète). À défaut de monteur,
@@ -6956,7 +6993,7 @@ function ProjectPageContent({ id }: { id: string }) {
                             <button
                               type="button"
                               onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "infos" } : c))}
-                              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                              className={`flex-1 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
                                 cabine.activeTab === "infos"
                                   ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300"
                                   : "text-gray-400 hover:text-gray-600"
@@ -6984,7 +7021,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                 }
                                 setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "photos" } : c));
                               }}
-                              className={`flex-1 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+                              className={`flex-1 py-2.5 text-xs sm:text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
                                 cabine.activeTab === "photos"
                                   ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300"
                                   : "text-gray-400 hover:text-gray-600"
@@ -6995,12 +7032,30 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <span className="text-[11px] text-gray-300 dark:text-slate-500">🔒</span>
                               )}
                             </button>
+                            {/* Onglet Rapport (rapport cabine) — libre d'accès. Couleur
+                                VIOLETTE, comme l'icône « rapport personnalisé ». Le point
+                                s'affiche quand un texte a été ajouté à la main. */}
+                            <button
+                              type="button"
+                              onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "rapport" } : c))}
+                              className={`flex-1 py-2.5 text-xs sm:text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+                                cabine.activeTab === "rapport"
+                                  ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-500 dark:border-violet-400"
+                                  : "text-gray-400 hover:text-gray-600"
+                              }`}
+                            >
+                              <FileText className="w-3.5 h-3.5 shrink-0" />
+                              Rapport
+                              {hasManualRapport(cabine.rapport) && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
+                              )}
+                            </button>
                             {/* Onglet Signalements (pièces manquantes + défauts) — libre
                                 d'accès. Couleur ROUGE, comme le titre « Défauts signalés ». */}
                             <button
                               type="button"
                               onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "signalements" } : c))}
-                              className={`flex-1 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                              className={`flex-1 py-2.5 text-xs sm:text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
                                 cabine.activeTab === "signalements"
                                   ? "text-red-600 dark:text-red-400 border-b-2 border-red-500 dark:border-red-400"
                                   : "text-gray-400 hover:text-gray-600"
@@ -7327,14 +7382,41 @@ function ProjectPageContent({ id }: { id: string }) {
                                 )}
                               </div>
 
-                              {/* Rapport cabine */}
-                              <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
+                              {/* Bouton Enregistrer — onglet Photos */}
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => handleSaveCabineData(idx)}
+                                className="w-full py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-medium flex items-center justify-center gap-2 active:opacity-80 disabled:opacity-50 transition-all"
+                              >
+                                {saving ? (
+                                  <><Loader2 className="w-4 h-4 animate-spin" />Enregistrement...</>
+                                ) : (
+                                  <><Check className="w-4 h-4" />Enregistrer</>
+                                )}
+                              </button>
+
+                              {/* Remonter en haut — onglet Photos */}
+                              <div className="flex justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                                  className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/40 dark:hover:text-blue-400 transition-colors"
+                                  title="Remonter en haut de page"
+                                >
+                                  <ArrowUp className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ── Onglet Rapport ──────────────────────────────── */}
+                          {cabine.activeTab === "rapport" && (
+                            <div className="space-y-4 px-4">
+                              <div>
                                 <Label>Rapport cabine</Label>
                                 <div className="mt-2 space-y-1.5">
-                                  {[
-                                    "L'installation s'est déroulée sans encombre.",
-                                    "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",
-                                  ].map((option) => {
+                                  {RAPPORT_CABINE_CLASSIQUES.map((option) => {
                                     const isSelected = cabine.rapport.includes(option);
                                     return (
                                       <button
@@ -7370,8 +7452,10 @@ function ProjectPageContent({ id }: { id: string }) {
                                     );
                                   })}
                                 </div>
+                                {/* Texte libre : tout ce qui va AU-DELÀ des phrases classiques
+                                    = ajout manuel → déclenche l'icône violette sur le lot. */}
                                 <Textarea
-                                  placeholder="Précisions pour cette cabine..."
+                                  placeholder="Précisions ajoutées à la main pour cette cabine..."
                                   value={cabine.rapport}
                                   onChange={(e) => {
                                     const v = e.target.value;
@@ -7380,7 +7464,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                     );
                                     scheduleAutoSave();
                                   }}
-                                  rows={2}
+                                  rows={4}
                                   className="mt-2"
                                 />
                                 <button
@@ -7396,7 +7480,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                 </button>
                               </div>
 
-                              {/* Bouton Enregistrer — onglet Photos */}
+                              {/* Bouton Enregistrer — onglet Rapport */}
                               <button
                                 type="button"
                                 disabled={saving}
@@ -7410,7 +7494,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                 )}
                               </button>
 
-                              {/* Remonter en haut — onglet Photos */}
+                              {/* Remonter en haut — onglet Rapport */}
                               <div className="flex justify-center">
                                 <button
                                   type="button"
