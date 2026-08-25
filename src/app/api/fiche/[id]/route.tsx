@@ -14,6 +14,8 @@ import { verifyToken } from "@/lib/auth";
 import { signFiche } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
+import { readFileSync } from "fs";
+import { join } from "path";
 import ReactPDF, {
   Document,
   Page,
@@ -110,11 +112,27 @@ const FOURNISSEUR_LOGOS: Record<string, string> = {
   matway: "Matway-Logo.png",
   tema: "Tema-Logo.png",
 };
-function resolveFournisseurLogos(names: string[], origin: string): { name: string; url: string }[] {
+// Lit le logo sur le disque et le renvoie en data URI base64 (embarqué dans le
+// PDF, aucun fetch réseau → fiable en serverless). Cache en mémoire. Repli "".
+const logoCache = new Map<string, string>();
+function logoDataUri(file: string): string {
+  if (logoCache.has(file)) return logoCache.get(file)!;
+  let uri = "";
+  try {
+    const buf = readFileSync(join(process.cwd(), "public", "logos", "fournisseurs", file));
+    const ext = /\.jpe?g$/i.test(file) ? "jpeg" : "png";
+    uri = `data:image/${ext};base64,${buf.toString("base64")}`;
+  } catch {
+    uri = "";
+  }
+  logoCache.set(file, uri);
+  return uri;
+}
+function resolveFournisseurLogos(names: string[]): { name: string; url: string }[] {
   return (names || []).filter(Boolean).map((n) => {
     const low = n.toLowerCase();
     const key = Object.keys(FOURNISSEUR_LOGOS).find((k) => low.includes(k));
-    return { name: nfc(n), url: key ? `${origin}/logos/fournisseurs/${FOURNISSEUR_LOGOS[key]}` : "" };
+    return { name: nfc(n), url: key ? logoDataUri(FOURNISSEUR_LOGOS[key]) : "" };
   });
 }
 
@@ -137,8 +155,8 @@ function LineRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FichePDF({ project, origin }: { project: Project; origin: string }) {
-  const logos = resolveFournisseurLogos(project.fournisseurs, origin);
+function FichePDF({ project }: { project: Project }) {
+  const logos = resolveFournisseurLogos(project.fournisseurs);
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -273,7 +291,7 @@ export async function GET(
 
   try {
     const project = await getProject(id);
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} origin={req.nextUrl.origin} />);
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
