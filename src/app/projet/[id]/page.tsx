@@ -3158,6 +3158,7 @@ function ProjectPageContent({ id }: { id: string }) {
   // ── Recherche de lot (projets à nombreuses cabines) ──────────────────────
   const [cabineSearch, setCabineSearch] = useState("");
   const [showOnlySignalements, setShowOnlySignalements] = useState(false); // filtre lots avec pièce/défaut
+  const [showOnlyRapport, setShowOnlyRapport] = useState(false); // filtre lots avec rapport personnalisé
   const [heuresFilterCollab, setHeuresFilterCollab] = useState(""); // filtre : clic sur un collaborateur du suivi des heures
   const [showSignalementsCard, setShowSignalementsCard] = useState(false); // carte « Signalements enregistrés » repliable
   const [showSignatureCard, setShowSignatureCard] = useState(false); // carte « Signature du client » repliable
@@ -3179,6 +3180,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const openCabineByIndex = (idx: number) => {
     if (idx < 0) return;
     setShowOnlySignalements(false);
+    setShowOnlyRapport(false);
     setCabines((prev) => prev.map((c, i) => (i === idx ? { ...c, open: true } : c)));
     setTimeout(() => {
       document.querySelector(`[data-cabineidx="${idx}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -4985,6 +4987,10 @@ function ProjectPageContent({ id }: { id: string }) {
     return has ? n + 1 : n;
   }, 0);
 
+  // Nombre de LOTS ayant un rapport personnalisé (texte ajouté à la main) —
+  // affiché entre parenthèses sur le bouton filtre « Avec rapport ».
+  const rapportLotsCount = cabines.reduce((n, c) => (hasManualRapport(c.rapport) ? n + 1 : n), 0);
+
   // Statut du rapport pour la pastille sur l'icône "Rapport" (macOS).
   // Cabine : basé sur les cabines installées. Simple : checklist 5 critères.
   const reportPercent = isCabineMode
@@ -6758,6 +6764,25 @@ function ProjectPageContent({ id }: { id: string }) {
                           Avec signalement{signalementLotsCount > 0 ? ` (${signalementLotsCount})` : ""}
                         </button>
                       )}
+                      {/* Filtre : n'afficher que les lots AVEC rapport personnalisé
+                          (texte ajouté à la main = icône violette sur le lot). */}
+                      {!cabineDragMode && (
+                        <button
+                          type="button"
+                          onClick={() => setShowOnlyRapport((v) => !v)}
+                          title="N'afficher que les lots avec un rapport personnalisé"
+                          className={`h-8 shrink-0 flex items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg border transition-colors ${
+                            showOnlyRapport
+                              ? "border-violet-400 bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-500" // actif → rempli
+                              : rapportLotsCount > 0
+                              ? "border-violet-400 text-violet-600 dark:text-violet-400 dark:border-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20" // rapport présent → contour violet
+                              : "border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400 hover:border-violet-300 hover:text-violet-500" // aucun → gris
+                          }`}
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          Avec rapport{rapportLotsCount > 0 ? ` (${rapportLotsCount})` : ""}
+                        </button>
+                      )}
                       {/* Chip du filtre collaborateur (activé depuis « Suivi des heures »). */}
                       {heuresFilterCollab && (
                         <button
@@ -6801,6 +6826,8 @@ function ProjectPageContent({ id }: { id: string }) {
                       if (showOnlySignalements &&
                         !cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom)) &&
                         !cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom))) return false;
+                      // Filtre « Avec rapport » (texte personnalisé)
+                      if (showOnlyRapport && !hasManualRapport(cabine.rapport)) return false;
                       // Filtre par collaborateur (clic dans « Suivi des heures »)
                       if (heuresFilterCollab) {
                         const monteurs = (cabine.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
@@ -7511,10 +7538,11 @@ function ProjectPageContent({ id }: { id: string }) {
                       )}
                     </Card>
                   ))}
-                  {(showOnlySignalements || heuresFilterCollab) && !cabines.some((c, i) => {
+                  {(showOnlySignalements || showOnlyRapport || heuresFilterCollab) && !cabines.some((c, i) => {
                     if (showOnlySignalements &&
                       !cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(c.nom)) &&
                       !cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(c.nom))) return false;
+                    if (showOnlyRapport && !hasManualRapport(c.rapport)) return false;
                     if (heuresFilterCollab) {
                       const monteurs = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
                       const list = monteurs.length > 0 ? monteurs : [parseSousTraitance(project?.monteursSousTraitance || "")[i + 1] || ""];
