@@ -6989,11 +6989,11 @@ function ProjectPageContent({ id }: { id: string }) {
                       {cabine.open && (
                         <CardContent className="border-t pt-0 pb-4 px-0">
                           {/* ── Onglets Infos / Photos / Signalements ──────────── */}
-                          <div className="flex border-b border-gray-100 dark:border-slate-700 mb-4">
+                          <div className="flex justify-evenly sm:justify-normal border-b border-gray-100 dark:border-slate-700 mb-4">
                             <button
                               type="button"
                               onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "infos" } : c))}
-                              className={`flex-1 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
+                              className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 ${
                                 cabine.activeTab === "infos"
                                   ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300"
                                   : "text-gray-400 hover:text-gray-600"
@@ -7021,7 +7021,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                 }
                                 setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "photos" } : c));
                               }}
-                              className={`flex-1 py-2.5 text-xs sm:text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+                              className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1 ${
                                 cabine.activeTab === "photos"
                                   ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300"
                                   : "text-gray-400 hover:text-gray-600"
@@ -7038,7 +7038,7 @@ function ProjectPageContent({ id }: { id: string }) {
                             <button
                               type="button"
                               onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "rapport" } : c))}
-                              className={`flex-1 py-2.5 text-xs sm:text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+                              className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1 ${
                                 cabine.activeTab === "rapport"
                                   ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-500 dark:border-violet-400"
                                   : "text-gray-400 hover:text-gray-600"
@@ -7055,7 +7055,7 @@ function ProjectPageContent({ id }: { id: string }) {
                             <button
                               type="button"
                               onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "signalements" } : c))}
-                              className={`flex-1 py-2.5 text-xs sm:text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                              className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1.5 ${
                                 cabine.activeTab === "signalements"
                                   ? "text-red-600 dark:text-red-400 border-b-2 border-red-500 dark:border-red-400"
                                   : "text-gray-400 hover:text-gray-600"
