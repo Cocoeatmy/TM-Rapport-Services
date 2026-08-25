@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProject, type Project } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
-import { signFiche } from "@/lib/doc-link";
+import { signFiche, docLink } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
@@ -20,6 +20,9 @@ import ReactPDF, {
   Text,
   View,
   Image,
+  Link,
+  Svg,
+  Path,
   StyleSheet,
 } from "@react-pdf/renderer";
 import React from "react";
@@ -108,17 +111,33 @@ function Cell({ label, value, width }: { label: string; value: string; width: st
     </View>
   );
 }
+// Petite flèche « téléchargement » (icône vectorielle).
+function DownloadArrow() {
+  return (
+    <Svg width={11} height={11} viewBox="0 0 24 24">
+      <Path d="M12 3 L12 15 M7 10 L12 15 L17 10 M5 20 L19 20" stroke="#1e3a5f" strokeWidth={2} fill="none" />
+    </Svg>
+  );
+}
 // Ligne « libellé à gauche, valeur à droite » (sections Lieu / Commande / RDV).
-function LineRow({ label, value }: { label: string; value: string }) {
+// docUrl : si fourni, ajoute une flèche cliquable à côté du libellé.
+function LineRow({ label, value, docUrl }: { label: string; value: string; docUrl?: string }) {
   return (
     <View style={styles.row}>
-      <Text style={styles.label}>{label}</Text>
+      <View style={{ width: 170, flexDirection: "row", alignItems: "center" }}>
+        <Text style={{ color: "#666", fontSize: 9 }}>{label}</Text>
+        {docUrl ? (
+          <Link src={docUrl} style={{ marginLeft: 5, textDecoration: "none" }}>
+            <DownloadArrow />
+          </Link>
+        ) : null}
+      </View>
       <Text style={styles.value}>{value}</Text>
     </View>
   );
 }
 
-function FichePDF({ project }: { project: Project }) {
+function FichePDF({ project, mesuresDocUrl }: { project: Project; mesuresDocUrl?: string }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -154,7 +173,7 @@ function FichePDF({ project }: { project: Project }) {
         {/* Numéro de commande */}
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Numéro de commande</Text>
-          <LineRow label="Mesures fournisseur" value={joinVal(project.servMesuresFournisseurs)} />
+          <LineRow label="Mesures fournisseur" value={joinVal(project.servMesuresFournisseurs)} docUrl={mesuresDocUrl} />
           <LineRow label="Montage fournisseur" value={joinVal(project.servCmdFournisseurs)} />
         </View>
 
@@ -239,7 +258,13 @@ export async function GET(
 
   try {
     const project = await getProject(id);
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} />);
+    // Lien signé (proxy /api/doc → URL Notion fraîche) vers le 1er document
+    // « Documents pour Montage », si présent. Flèche cliquable dans le PDF.
+    const mesuresDocUrl =
+      (project.documentsMontagee || []).length > 0
+        ? docLink(id, "montage", 0, req.nextUrl.origin)
+        : undefined;
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
