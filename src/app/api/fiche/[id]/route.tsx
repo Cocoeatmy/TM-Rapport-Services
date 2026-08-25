@@ -37,7 +37,8 @@ const styles = StyleSheet.create({
     borderBottomColor: "#1e3a5f",
   },
   title: { fontSize: 20, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 10 },
-  subtitle: { fontSize: 10, color: "#666", marginTop: 4 },
+  tm: { fontSize: 15, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 6 },
+  subtitle: { fontSize: 10, color: "#666", marginTop: 2 },
   section: { marginBottom: 14 },
   sectionTitle: {
     fontSize: 12,
@@ -85,73 +86,85 @@ function dateAndWho(date: string, who?: string): string {
   return parts.length ? parts.join(" — ") : "—";
 }
 
-function FichePDF({ project }: { project: Project }) {
-  const sections: { title: string; rows: [string, string][] }[] = [
-    {
-      title: "Général",
-      rows: [
-        ["Nb. cabines", joinVal(project.nbCabines)],
-        ["Fournisseurs", joinVal(project.fournisseurs)],
-        ["Séries cabines", joinVal(project.seriesCabines)],
-        ["Nb. de cartons", joinVal(project.nbCartons)],
-        ["Emplacement de cabine", joinVal(project.emplacementCabine)],
-      ],
-    },
-    {
-      title: "Rendez-vous",
-      rows: [
-        ["Mesures", dateAndWho(fmtDate(project.dateMesures), project.mesuresTraiteePar)],
-        ["Montage", dateAndWho(fmtDate(project.dateMontage), project.collaborateurs)],
-        ["SAV", dateAndWho(fmtDate(project.dateRDVSAV), project.collaborateursSAV)],
-        ["Garantie", dateAndWho(fmtDate(project.dateRDVGarantie), project.collaborateurGarantie)],
-        ["Services", "à venir"],
-      ],
-    },
-    {
-      title: "Lieu du rendez-vous",
-      rows: [["Adresse chantier", joinVal(project.adresseChantier)]],
-    },
-    {
-      title: "Numéro de commande",
-      rows: [
-        ["Mesures fournisseur", joinVal(project.servMesuresFournisseurs)],
-        ["Montage fournisseur", joinVal(project.servCmdFournisseurs)],
-      ],
-    },
-    {
-      title: "Contact",
-      rows: [
-        ["Grossiste", joinVal(project.grossistesNames)],
-        ["Installateur", "—"],
-        ["Architecte", "—"],
-        ["DT", "—"],
-        ["Client final", "—"],
-      ],
-    },
-  ];
+// Cellule « libellé au-dessus, valeur en gras » (grilles Général & Contact).
+function Cell({ label, value, width }: { label: string; value: string; width: string }) {
+  return (
+    <View style={{ width, paddingRight: 10, marginBottom: 6 }}>
+      <Text style={{ fontSize: 8, color: "#888", marginBottom: 2 }}>{label}</Text>
+      <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{value}</Text>
+    </View>
+  );
+}
+// Ligne « libellé à gauche, valeur à droite » (sections Lieu / Commande / RDV).
+function LineRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.value}>{value}</Text>
+    </View>
+  );
+}
 
+function FichePDF({ project }: { project: Project }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* En-tête : logo + titre + n° projet (gros/gras) + nom du chantier */}
         <View style={styles.header}>
           <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
           <Text style={styles.title}>Fiche de travail</Text>
-          <Text style={styles.subtitle}>
-            {project.ofrTM || "TM-—"}{project.projet ? `  ·  ${project.projet}` : ""}
-          </Text>
+          <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
+          {project.projet ? <Text style={styles.subtitle}>{project.projet}</Text> : null}
         </View>
 
-        {sections.map((s) => (
-          <View key={s.title} style={styles.section} wrap={false}>
-            <Text style={styles.sectionTitle}>{s.title}</Text>
-            {s.rows.map(([label, value]) => (
-              <View key={label} style={styles.row}>
-                <Text style={styles.label}>{label}</Text>
-                <Text style={styles.value}>{value}</Text>
-              </View>
-            ))}
+        {/* Lieu du rendez-vous */}
+        <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Lieu du rendez-vous</Text>
+          <LineRow label="Adresse chantier" value={joinVal(project.adresseChantier)} />
+        </View>
+
+        {/* Général — grille : (Nb cabines | Fournisseurs | Séries) puis (Emplacement | Nb cartons) */}
+        <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Général</Text>
+          <View style={{ flexDirection: "row" }}>
+            <Cell label="Nb. cabines" value={joinVal(project.nbCabines)} width="33%" />
+            <Cell label="Fournisseurs" value={joinVal(project.fournisseurs)} width="34%" />
+            <Cell label="Séries cabines" value={joinVal(project.seriesCabines)} width="33%" />
           </View>
-        ))}
+          <View style={{ flexDirection: "row" }}>
+            <Cell label="Emplacement de cabine" value={joinVal(project.emplacementCabine)} width="50%" />
+            <Cell label="Nb. de cartons" value={joinVal(project.nbCartons)} width="50%" />
+          </View>
+        </View>
+
+        {/* Numéro de commande */}
+        <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Numéro de commande</Text>
+          <LineRow label="Mesures fournisseur" value={joinVal(project.servMesuresFournisseurs)} />
+          <LineRow label="Montage fournisseur" value={joinVal(project.servCmdFournisseurs)} />
+        </View>
+
+        {/* Rendez-vous */}
+        <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Rendez-vous</Text>
+          <LineRow label="Mesures" value={dateAndWho(fmtDate(project.dateMesures), project.mesuresTraiteePar)} />
+          <LineRow label="Montage" value={dateAndWho(fmtDate(project.dateMontage), project.collaborateurs)} />
+          <LineRow label="SAV" value={dateAndWho(fmtDate(project.dateRDVSAV), project.collaborateursSAV)} />
+          <LineRow label="Garantie" value={dateAndWho(fmtDate(project.dateRDVGarantie), project.collaborateurGarantie)} />
+          <LineRow label="Services" value="à venir" />
+        </View>
+
+        {/* Contact — colonnes (comme la fiche fournisseur) */}
+        <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Contact</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            <Cell label="GROSSISTE" value={joinVal(project.grossistesNames)} width="33.33%" />
+            <Cell label="INSTALLATEUR" value="—" width="33.33%" />
+            <Cell label="ARCHITECTE" value="—" width="33.33%" />
+            <Cell label="DT" value="—" width="33.33%" />
+            <Cell label="CLIENT FINAL" value="—" width="33.33%" />
+          </View>
+        </View>
 
         <Text style={styles.footer} fixed>
           TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch
