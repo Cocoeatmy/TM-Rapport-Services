@@ -14,6 +14,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/client/") ||
     pathname.startsWith("/api/share-link") || // protégé par sa propre clé (SHARE_LINK_KEY)
     pathname.startsWith("/api/doc") || // liens documents des emails (protégé par signature HMAC)
+    pathname.startsWith("/api/fiche") || // PDF Fiche de travail (protégé par signature HMAC ou cookie admin)
     pathname.startsWith("/api/reminders") ||
     pathname.startsWith("/api/notion-webhook") || // webhook Notion (pas de cookie auth)
     pathname.startsWith("/client/") ||

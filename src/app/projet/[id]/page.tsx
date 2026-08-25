@@ -3411,6 +3411,8 @@ function ProjectPageContent({ id }: { id: string }) {
   const [showHeuresCard, setShowHeuresCard] = useState(false);
   const [downloadingPhotos, setDownloadingPhotos] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingFiche, setDownloadingFiche] = useState(false);
+  const [copyingFicheLink, setCopyingFicheLink] = useState(false);
   // Quel type de rapport est en cours (pour n'animer que le bon bouton) :
   // "interne" (avec heures) ou "client" (sans heures).
   const [sendKind, setSendKind] = useState<null | "interne" | "client">(null);
@@ -4953,6 +4955,41 @@ function ProjectPageContent({ id }: { id: string }) {
       alert("Impossible de générer le PDF. Veuillez réessayer.");
     } finally { setDownloadingPdf(false); setDownloadKind(null); }
   };
+  // ── Fiche de travail : PDF + lien public (calendrier) ──────────────────────
+  const handleDownloadFiche = async () => {
+    setDownloadingFiche(true);
+    try {
+      const res = await fetch(`/api/fiche/${id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      let filename = "Fiche de travail.pdf";
+      const cd = res.headers.get("Content-Disposition");
+      const m = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      if (m?.[1]) filename = decodeURIComponent(m[1]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error("Téléchargement Fiche échoué:", e);
+      toast.error("Impossible de générer le PDF de la fiche.");
+    } finally { setDownloadingFiche(false); }
+  };
+  const handleCopyFicheLink = async () => {
+    setCopyingFicheLink(true);
+    try {
+      const res = await fetch(`/api/fiche/${id}?link=1`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data?.url) throw new Error("no url");
+      await navigator.clipboard.writeText(data.url);
+      toast.success("Lien de la fiche copié", { description: "Collez-le dans un événement de calendrier." });
+    } catch (e) {
+      console.error("Lien Fiche échoué:", e);
+      toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
+    } finally { setCopyingFicheLink(false); }
+  };
   const handleDownloadPhotos = async () => {
     setDownloadingPhotos(true);
     try {
@@ -5877,6 +5914,28 @@ function ProjectPageContent({ id }: { id: string }) {
                 </div>
               ));
             })()}
+            {/* Export PDF + lien public (calendrier) */}
+            <div className="flex flex-col sm:flex-row gap-2 pt-1">
+              <button
+                type="button"
+                disabled={downloadingFiche}
+                onClick={handleDownloadFiche}
+                className="flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95 transition-all disabled:opacity-60"
+              >
+                {downloadingFiche ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                Télécharger le PDF
+              </button>
+              <button
+                type="button"
+                disabled={copyingFicheLink}
+                onClick={handleCopyFicheLink}
+                title="Copier un lien public vers ce PDF (pour les calendriers)"
+                className="flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 active:scale-95 transition-all disabled:opacity-60"
+              >
+                {copyingFicheLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                Copier le lien
+              </button>
+            </div>
             <p className="text-[10px] text-gray-400 text-center pt-1">
               Fiche visible uniquement par l&apos;admin — en cours de mise en place.
             </p>

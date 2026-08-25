@@ -19,3 +19,13 @@ export function docLink(projectId: string, field: "montage" | "mesures", index: 
   const s = signDoc(projectId, field, index);
   return `${baseUrl}/api/doc?p=${encodeURIComponent(projectId)}&f=${field}&i=${index}&s=${s}`;
 }
+
+/** Signature HMAC d'un projet pour la Fiche de travail (lien public calendrier). */
+export function signFiche(projectId: string): string {
+  return createHmac("sha256", SECRET).update(`fiche|${projectId}`).digest("hex").slice(0, 32);
+}
+
+/** Lien public signé vers le PDF de la Fiche de travail (pour calendriers, etc.). */
+export function ficheLink(projectId: string, baseUrl = appBaseUrl()): string {
+  return `${baseUrl}/api/fiche/${encodeURIComponent(projectId)}?s=${signFiche(projectId)}`;
+}
