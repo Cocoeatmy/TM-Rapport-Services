@@ -40,6 +40,15 @@ const styles = StyleSheet.create({
     borderBottomColor: "#1e3a5f",
   },
   title: { fontSize: 20, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 10 },
+  reportBtn: {
+    backgroundColor: "#1e3a5f",
+    borderRadius: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    textDecoration: "none",
+    maxWidth: 175,
+  },
+  reportBtnText: { color: "#ffffff", fontSize: 9.5, fontFamily: "Helvetica-Bold", textAlign: "center" },
   tm: { fontSize: 15, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 6 },
   subtitle: { fontSize: 10, color: "#666", marginTop: 2 },
   section: { marginBottom: 14 },
@@ -146,13 +155,21 @@ function LineRow({ label, value, docUrl }: { label: string; value: string; docUr
   );
 }
 
-function FichePDF({ project, mesuresDocUrl }: { project: Project; mesuresDocUrl?: string }) {
+function FichePDF({ project, mesuresDocUrl, reportUrl }: { project: Project; mesuresDocUrl?: string; reportUrl?: string }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* En-tête : logo + titre + n° projet (gros/gras) + nom du chantier */}
+        {/* En-tête : logo + titre + n° projet (gros/gras) + nom du chantier.
+            À droite : bouton vers le rapport de montage (upload photos + horaires). */}
         <View style={styles.header}>
-          <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
+            {reportUrl ? (
+              <Link src={reportUrl} style={styles.reportBtn}>
+                <Text style={styles.reportBtnText}>Ouvrir le rapport de montage</Text>
+              </Link>
+            ) : null}
+          </View>
           <Text style={styles.title}>Fiche de travail</Text>
           <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
@@ -295,7 +312,9 @@ export async function GET(
       (project.documentsMontagee || []).length > 0
         ? `${req.nextUrl.origin}/api/fiche/${encodeURIComponent(id)}/docs?s=${signFiche(id)}`
         : undefined;
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} />);
+    // Lien vers la page du rapport de montage (upload photos + horaires).
+    const reportUrl = `${req.nextUrl.origin}/projet/${encodeURIComponent(id)}`;
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} reportUrl={reportUrl} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
