@@ -188,7 +188,7 @@ function FichePDF({ project, mesuresDocUrl }: { project: Project; mesuresDocUrl?
           {/* Mesures : date + traité par si RDV fixé, sinon l'état ; flèche → docs. */}
           <LineRow
             label="Mesures"
-            value={project.dateMesures ? dateAndWho(fmtDate(project.dateMesures), project.mesuresTraiteePar) : joinVal(project.etatMesures)}
+            value={dateAndWho(project.dateMesures ? fmtDate(project.dateMesures) : joinVal(project.etatMesures), project.mesuresTraiteePar)}
             docUrl={mesuresDocUrl}
           />
           <LineRow label="Montage" value={dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)} />

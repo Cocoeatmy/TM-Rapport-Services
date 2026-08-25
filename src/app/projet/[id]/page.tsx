@@ -5870,7 +5870,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 {
                   title: "Rendez-vous",
                   rows: [
-                    ["Mesures", project.dateMesures ? join2(fmt(project.dateMesures), project.mesuresTraiteePar) : val(project.etatMesures)],
+                    ["Mesures", join2(project.dateMesures ? fmt(project.dateMesures) : val(project.etatMesures), project.mesuresTraiteePar)],
                     ["Montage", join2(fmtRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)],
                     ["SAV", join2(fmt(project.dateRDVSAV), project.collaborateursSAV)],
                     ["Garantie", join2(fmt(project.dateRDVGarantie), project.collaborateurGarantie)],
