@@ -6345,12 +6345,12 @@ function ProjectPageContent({ id }: { id: string }) {
                   // Regroupement par date. À défaut de monteur (employé), on
                   // affiche le SOUS-TRAITANT (les heures restent vides « — »).
                   const sousTraitMap = parseSousTraitance(project?.monteursSousTraitance || "");
-                  const byDay = new Map<string, { nom: string; monteur: string; minutes: number }[]>();
+                  const byDay = new Map<string, { nom: string; monteur: string; minutes: number; arrivee: string; depart: string }[]>();
                   cabines.forEach((c, i) => {
                     if (!c.date) return;
                     const nom = c.nom || `Cabine ${i + 1}`;
                     if (!byDay.has(c.date)) byDay.set(c.date, []);
-                    byDay.get(c.date)!.push({ nom, monteur: c.monteur || sousTraitMap[i + 1] || "", minutes: cabMin(c) });
+                    byDay.get(c.date)!.push({ nom, monteur: c.monteur || sousTraitMap[i + 1] || "", minutes: cabMin(c), arrivee: c.arrivee || "", depart: c.depart || "" });
                   });
 
                   const totalMin = cabines.reduce((s, c) => s + cabMin(c), 0);
@@ -6445,10 +6445,21 @@ function ProjectPageContent({ id }: { id: string }) {
                                     return new Date(date + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" });
                                   } catch { return date; }
                                 })();
+                                // Plage horaire globale de la journée : 1ʳᵉ arrivée → dernier départ
+                                // (parmi les lots qui ont des heures saisies).
+                                const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+                                const fmtHM = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+                                const timed = items.filter((it) => it.arrivee && it.depart);
+                                const dayRange = timed.length
+                                  ? `${fmtHM(Math.min(...timed.map((it) => toMin(it.arrivee))))} → ${fmtHM(Math.max(...timed.map((it) => toMin(it.depart))))}`
+                                  : "";
                                 return (
                                   <div key={date} className="rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
-                                    <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-slate-700/60">
+                                    <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-gray-50 dark:bg-slate-700/60">
                                       <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{dateLabel}</span>
+                                      {dayRange && (
+                                        <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 tabular-nums">{dayRange}</span>
+                                      )}
                                       <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">{fmtMin(dayTotal)}</span>
                                     </div>
                                     <div className="divide-y divide-gray-50 dark:divide-slate-700/50">
@@ -6457,6 +6468,9 @@ function ProjectPageContent({ id }: { id: string }) {
                                           <span className="flex-1 text-xs text-gray-700 dark:text-gray-300 truncate">{item.nom}</span>
                                           {item.monteur && (
                                             <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[90px]">{item.monteur}</span>
+                                          )}
+                                          {item.arrivee && item.depart && (
+                                            <span className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums shrink-0">{item.arrivee} → {item.depart}</span>
                                           )}
                                           <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[40px] text-right shrink-0">{fmtMin(item.minutes)}</span>
                                         </div>
