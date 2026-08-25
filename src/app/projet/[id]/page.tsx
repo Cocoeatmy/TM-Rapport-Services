@@ -5870,7 +5870,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 {
                   title: "Rendez-vous",
                   rows: [
-                    ["Mesures", join2(fmt(project.dateMesures), project.mesuresTraiteePar)],
+                    ["Mesures", project.dateMesures ? join2(fmt(project.dateMesures), project.mesuresTraiteePar) : val(project.etatMesures)],
                     ["Montage", join2(fmtRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)],
                     ["SAV", join2(fmt(project.dateRDVSAV), project.collaborateursSAV)],
                     ["Garantie", join2(fmt(project.dateRDVGarantie), project.collaborateurGarantie)],
@@ -5884,6 +5884,11 @@ function ProjectPageContent({ id }: { id: string }) {
                 {
                   title: "Numéro de commande",
                   rows: [
+                    ["N° OFR Grossiste", val(project.ofrGrossiste)],
+                    ["N° CMD Grossiste", val(project.cmdGrossiste)],
+                    ["N° CMD Fournisseurs", val(project.cmdFournisseurs)],
+                    ["N° CMD TM", val(project.cmdTM)],
+                    ["N° CMD TM - Usine", val(project.cmdTMUsine)],
                     ["Mesures fournisseur", val(project.servMesuresFournisseurs)],
                     ["Montage fournisseur", val(project.servCmdFournisseurs)],
                   ],

@@ -173,14 +173,24 @@ function FichePDF({ project, mesuresDocUrl }: { project: Project; mesuresDocUrl?
         {/* Numéro de commande */}
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Numéro de commande</Text>
-          <LineRow label="Mesures fournisseur" value={joinVal(project.servMesuresFournisseurs)} docUrl={mesuresDocUrl} />
+          <LineRow label="N° OFR Grossiste" value={joinVal(project.ofrGrossiste)} />
+          <LineRow label="N° CMD Grossiste" value={joinVal(project.cmdGrossiste)} />
+          <LineRow label="N° CMD Fournisseurs" value={joinVal(project.cmdFournisseurs)} />
+          <LineRow label="N° CMD TM" value={joinVal(project.cmdTM)} />
+          <LineRow label="N° CMD TM - Usine" value={joinVal(project.cmdTMUsine)} />
+          <LineRow label="Mesures fournisseur" value={joinVal(project.servMesuresFournisseurs)} />
           <LineRow label="Montage fournisseur" value={joinVal(project.servCmdFournisseurs)} />
         </View>
 
         {/* Rendez-vous */}
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Rendez-vous</Text>
-          <LineRow label="Mesures" value={dateAndWho(fmtDate(project.dateMesures), project.mesuresTraiteePar)} />
+          {/* Mesures : date + traité par si RDV fixé, sinon l'état ; flèche → docs. */}
+          <LineRow
+            label="Mesures"
+            value={project.dateMesures ? dateAndWho(fmtDate(project.dateMesures), project.mesuresTraiteePar) : joinVal(project.etatMesures)}
+            docUrl={mesuresDocUrl}
+          />
           <LineRow label="Montage" value={dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)} />
           <LineRow label="SAV" value={dateAndWho(fmtDate(project.dateRDVSAV), project.collaborateursSAV)} />
           <LineRow label="Garantie" value={dateAndWho(fmtDate(project.dateRDVGarantie), project.collaborateurGarantie)} />
