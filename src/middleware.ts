@@ -20,6 +20,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/client/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/icons") ||
+    pathname.startsWith("/logos") || // logos publics (utilisés dans le PDF Fiche)
     pathname === "/manifest.json" ||
     pathname === "/favicon.ico" ||
     pathname === "/sw.js" // service worker : toujours accessible (sinon corruption au renouvellement de session)

@@ -75,15 +75,47 @@ function fmtDate(d?: string | null): string {
   if (!d) return "—";
   try { return formatSwissDate(d); } catch { return "—"; }
 }
+// NFC : recompose les accents décomposés (ex. o + ̂ → ô). Les titres Notion
+// arrivent parfois en NFD, que la police Helvetica du PDF n'assemble pas
+// (« Ilôt » s'affichait « Ilo t »).
+function nfc(s: string): string {
+  return (s || "").normalize("NFC");
+}
 function joinVal(v: unknown): string {
-  if (Array.isArray(v)) return v.filter(Boolean).join(", ") || "—";
+  if (Array.isArray(v)) return nfc(v.filter(Boolean).join(", ")) || "—";
   if (v === null || v === undefined || v === "") return "—";
-  return String(v);
+  return nfc(String(v));
 }
 // "date — personne(s)" ; masque le séparateur si l'un manque.
 function dateAndWho(date: string, who?: string): string {
   const parts = [date && date !== "—" ? date : "", (who || "").trim()].filter(Boolean);
-  return parts.length ? parts.join(" — ") : "—";
+  return parts.length ? nfc(parts.join(" — ")) : "—";
+}
+
+// Logos fournisseurs (public/logos/fournisseurs). Clé = mot-clé cherché dans le
+// nom Notion du fournisseur (ex. « Nelo GmbH » → nelo).
+const FOURNISSEUR_LOGOS: Record<string, string> = {
+  nelo: "Nelo-logo.png",
+  duka: "Duka-logo.png",
+  duscholux: "Duscholux-logo.png",
+  kermi: "Kermi-logo.png",
+  koralle: "Koralle-logo.png",
+  novellini: "Novellini-logo.png",
+  ronal: "ronal-logo.png",
+  samo: "Samo-logo.png",
+  vismaravetro: "Vismaravetro-logo.png",
+  bringhen: "Bringhen-logo.png",
+  bms: "BMS-Logo.png",
+  dubat: "Dubat-Logo.png",
+  matway: "Matway-Logo.png",
+  tema: "Tema-Logo.png",
+};
+function resolveFournisseurLogos(names: string[], origin: string): { name: string; url: string }[] {
+  return (names || []).filter(Boolean).map((n) => {
+    const low = n.toLowerCase();
+    const key = Object.keys(FOURNISSEUR_LOGOS).find((k) => low.includes(k));
+    return { name: nfc(n), url: key ? `${origin}/logos/fournisseurs/${FOURNISSEUR_LOGOS[key]}` : "" };
+  });
 }
 
 // Cellule « libellé au-dessus, valeur en gras » (grilles Général & Contact).
@@ -105,7 +137,8 @@ function LineRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FichePDF({ project }: { project: Project }) {
+function FichePDF({ project, origin }: { project: Project; origin: string }) {
+  const logos = resolveFournisseurLogos(project.fournisseurs, origin);
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -114,7 +147,7 @@ function FichePDF({ project }: { project: Project }) {
           <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
           <Text style={styles.title}>Fiche de travail</Text>
           <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
-          {project.projet ? <Text style={styles.subtitle}>{project.projet}</Text> : null}
+          {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
         </View>
 
         {/* Lieu du rendez-vous */}
@@ -123,17 +156,32 @@ function FichePDF({ project }: { project: Project }) {
           <LineRow label="Adresse chantier" value={joinVal(project.adresseChantier)} />
         </View>
 
-        {/* Général — grille : (Nb cabines | Fournisseurs | Séries) puis (Emplacement | Nb cartons) */}
+        {/* Général — grille : (Nb cabines | Fournisseurs | Séries) puis
+            (Emplacement | Nb cartons) alignés sous les colonnes du dessus. */}
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Général</Text>
           <View style={{ flexDirection: "row" }}>
             <Cell label="Nb. cabines" value={joinVal(project.nbCabines)} width="33%" />
-            <Cell label="Fournisseurs" value={joinVal(project.fournisseurs)} width="34%" />
+            {/* Fournisseurs : logos si disponibles, sinon nom */}
+            <View style={{ width: "34%", paddingRight: 10, marginBottom: 6 }}>
+              <Text style={{ fontSize: 8, color: "#888", marginBottom: 2 }}>Fournisseurs</Text>
+              {logos.length === 0 ? (
+                <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>—</Text>
+              ) : (
+                logos.map((l, i) =>
+                  l.url ? (
+                    <Image key={i} src={l.url} style={{ width: 100, height: 24, objectFit: "contain", marginTop: 2 }} />
+                  ) : (
+                    <Text key={i} style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{l.name}</Text>
+                  )
+                )
+              )}
+            </View>
             <Cell label="Séries cabines" value={joinVal(project.seriesCabines)} width="33%" />
           </View>
           <View style={{ flexDirection: "row" }}>
-            <Cell label="Emplacement de cabine" value={joinVal(project.emplacementCabine)} width="50%" />
-            <Cell label="Nb. de cartons" value={joinVal(project.nbCartons)} width="50%" />
+            <Cell label="Emplacement de cabine" value={joinVal(project.emplacementCabine)} width="33%" />
+            <Cell label="Nb. de cartons" value={joinVal(project.nbCartons)} width="34%" />
           </View>
         </View>
 
@@ -225,7 +273,7 @@ export async function GET(
 
   try {
     const project = await getProject(id);
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} />);
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} origin={req.nextUrl.origin} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
