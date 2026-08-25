@@ -14,8 +14,7 @@ import { verifyToken } from "@/lib/auth";
 import { signFiche } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
-import { readFileSync } from "fs";
-import { join } from "path";
+import { FOURNISSEUR_LOGOS } from "@/lib/fournisseur-logos";
 import ReactPDF, {
   Document,
   Page,
@@ -94,45 +93,14 @@ function dateAndWho(date: string, who?: string): string {
   return parts.length ? nfc(parts.join(" — ")) : "—";
 }
 
-// Logos fournisseurs (public/logos/fournisseurs). Clé = mot-clé cherché dans le
-// nom Notion du fournisseur (ex. « Nelo GmbH » → nelo).
-const FOURNISSEUR_LOGOS: Record<string, string> = {
-  nelo: "Nelo-logo.png",
-  duka: "Duka-logo.png",
-  duscholux: "Duscholux-logo.png",
-  kermi: "Kermi-logo.png",
-  koralle: "Koralle-logo.png",
-  novellini: "Novellini-logo.png",
-  ronal: "ronal-logo.png",
-  samo: "Samo-logo.png",
-  vismaravetro: "Vismaravetro-logo.png",
-  bringhen: "Bringhen-logo.png",
-  bms: "BMS-Logo.png",
-  dubat: "Dubat-Logo.png",
-  matway: "Matway-Logo.png",
-  tema: "Tema-Logo.png",
-};
-// Lit le logo sur le disque et le renvoie en data URI base64 (embarqué dans le
-// PDF, aucun fetch réseau → fiable en serverless). Cache en mémoire. Repli "".
-const logoCache = new Map<string, string>();
-function logoDataUri(file: string): string {
-  if (logoCache.has(file)) return logoCache.get(file)!;
-  let uri = "";
-  try {
-    const buf = readFileSync(join(process.cwd(), "public", "logos", "fournisseurs", file));
-    const ext = /\.jpe?g$/i.test(file) ? "jpeg" : "png";
-    uri = `data:image/${ext};base64,${buf.toString("base64")}`;
-  } catch {
-    uri = "";
-  }
-  logoCache.set(file, uri);
-  return uri;
-}
+// Logos fournisseurs : embarqués en base64 (src/lib/fournisseur-logos.ts) →
+// aucun accès disque/réseau, 100% fiable en serverless. Clé = mot-clé cherché
+// dans le nom Notion du fournisseur (ex. « Nelo GmbH » → nelo). Repli sur le nom.
 function resolveFournisseurLogos(names: string[]): { name: string; url: string }[] {
   return (names || []).filter(Boolean).map((n) => {
     const low = n.toLowerCase();
     const key = Object.keys(FOURNISSEUR_LOGOS).find((k) => low.includes(k));
-    return { name: nfc(n), url: key ? logoDataUri(FOURNISSEUR_LOGOS[key]) : "" };
+    return { name: nfc(n), url: key ? FOURNISSEUR_LOGOS[key] : "" };
   });
 }
 
