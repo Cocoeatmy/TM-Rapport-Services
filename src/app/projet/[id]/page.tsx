@@ -5884,13 +5884,14 @@ function ProjectPageContent({ id }: { id: string }) {
                 {
                   title: "Numéro de commande",
                   rows: [
-                    ["N° OFR Grossiste", val(project.ofrGrossiste)],
-                    ["N° CMD Grossiste", val(project.cmdGrossiste)],
-                    ["N° CMD Fournisseurs", val(project.cmdFournisseurs)],
+                    ["N° OFR TM", val(project.ofrTM)],
                     ["N° CMD TM", val(project.cmdTM)],
                     ["N° CMD TM - Usine", val(project.cmdTMUsine)],
-                    ["Mesures fournisseur", val(project.servMesuresFournisseurs)],
-                    ["Montage fournisseur", val(project.servCmdFournisseurs)],
+                    ["N° OFR Grossiste", val(project.ofrGrossiste)],
+                    ["N° CMD Grossiste", val(project.cmdGrossiste)],
+                    ["N° CMD Fournisseur", val(project.cmdFournisseurs)],
+                    ["N° Mesures Fournisseurs", val(project.servMesuresFournisseurs)],
+                    ["N° Montage Fournisseurs", val(project.servCmdFournisseurs)],
                   ],
                 },
                 {

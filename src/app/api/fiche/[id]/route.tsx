@@ -58,6 +58,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: "#eee",
   },
+  colHeader: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#1e3a5f",
+    marginBottom: 4,
+    paddingBottom: 2,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#ccc",
+  },
   label: { width: 170, color: "#666", fontSize: 9 },
   value: { flex: 1, fontFamily: "Helvetica-Bold", fontSize: 9, color: "#1a1a1a" },
   footer: {
@@ -170,16 +179,28 @@ function FichePDF({ project, mesuresDocUrl }: { project: Project; mesuresDocUrl?
           </View>
         </View>
 
-        {/* Numéro de commande */}
+        {/* Numéro de commande — 3 colonnes : TM | Grossiste | Fournisseur */}
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Numéro de commande</Text>
-          <LineRow label="N° OFR Grossiste" value={joinVal(project.ofrGrossiste)} />
-          <LineRow label="N° CMD Grossiste" value={joinVal(project.cmdGrossiste)} />
-          <LineRow label="N° CMD Fournisseurs" value={joinVal(project.cmdFournisseurs)} />
-          <LineRow label="N° CMD TM" value={joinVal(project.cmdTM)} />
-          <LineRow label="N° CMD TM - Usine" value={joinVal(project.cmdTMUsine)} />
-          <LineRow label="Mesures fournisseur" value={joinVal(project.servMesuresFournisseurs)} />
-          <LineRow label="Montage fournisseur" value={joinVal(project.servCmdFournisseurs)} />
+          <View style={{ flexDirection: "row" }}>
+            <View style={{ width: "33.33%", paddingRight: 12 }}>
+              <Text style={styles.colHeader}>TM</Text>
+              <Cell label="N° OFR TM" value={joinVal(project.ofrTM)} width="100%" />
+              <Cell label="N° CMD TM" value={joinVal(project.cmdTM)} width="100%" />
+              <Cell label="N° CMD TM - Usine" value={joinVal(project.cmdTMUsine)} width="100%" />
+            </View>
+            <View style={{ width: "33.33%", paddingRight: 12 }}>
+              <Text style={styles.colHeader}>Grossiste</Text>
+              <Cell label="N° OFR Grossiste" value={joinVal(project.ofrGrossiste)} width="100%" />
+              <Cell label="N° CMD Grossiste" value={joinVal(project.cmdGrossiste)} width="100%" />
+            </View>
+            <View style={{ width: "33.34%" }}>
+              <Text style={styles.colHeader}>Fournisseur</Text>
+              <Cell label="N° CMD Fournisseur" value={joinVal(project.cmdFournisseurs)} width="100%" />
+              <Cell label="N° Mesures Fournisseurs" value={joinVal(project.servMesuresFournisseurs)} width="100%" />
+              <Cell label="N° Montage Fournisseurs" value={joinVal(project.servCmdFournisseurs)} width="100%" />
+            </View>
+          </View>
         </View>
 
         {/* Rendez-vous */}

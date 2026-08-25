@@ -184,6 +184,11 @@ self.addEventListener("fetch", (event) => {
   // suivante. On laisse le navigateur récupérer le PDF directement (réseau).
   if (url.pathname.startsWith("/api/pdf/")) return;
 
+  // Idem pour la Fiche de travail (PDF + galerie docs) : jamais servie depuis le
+  // cache SW, sinon le 1er téléchargement après un déploiement rendait l'ANCIENNE
+  // version (le cache ne se rafraîchissait qu'à la requête suivante). Réseau direct.
+  if (url.pathname.startsWith("/api/fiche/")) return;
+
   // === API : network-first avec timeout 400 ms ===
   if (url.pathname.startsWith("/api/")) {
     // ?fresh (refresh manuel) ET ?rv (revalidation rapide) : réseau direct, sans
