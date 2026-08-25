@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProject, type Project } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
-import { signFiche, docLink } from "@/lib/doc-link";
+import { signFiche } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
@@ -258,11 +258,11 @@ export async function GET(
 
   try {
     const project = await getProject(id);
-    // Lien signé (proxy /api/doc → URL Notion fraîche) vers le 1er document
-    // « Documents pour Montage », si présent. Flèche cliquable dans le PDF.
+    // Flèche du PDF → page-galerie listant TOUS les documents « Documents pour
+    // Montage » (signée, ouvrable sans login). Affichée seulement s'il y en a.
     const mesuresDocUrl =
       (project.documentsMontagee || []).length > 0
-        ? docLink(id, "montage", 0, req.nextUrl.origin)
+        ? `${req.nextUrl.origin}/api/fiche/${encodeURIComponent(id)}/docs?s=${signFiche(id)}`
         : undefined;
     const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} />);
     const chunks: Buffer[] = [];
