@@ -5829,8 +5829,8 @@ function ProjectPageContent({ id }: { id: string }) {
                   rows: [
                     ["Mesures", join2(fmt(project.dateMesures), project.mesuresTraiteePar)],
                     ["Montage", join2(fmt(project.dateMontage), project.collaborateurs)],
-                    ["SAV", join2(fmt(project.dateRDVSAV), "")],
-                    ["Garantie", <span className="text-gray-400 italic">{TODO}</span>],
+                    ["SAV", join2(fmt(project.dateRDVSAV), project.collaborateursSAV)],
+                    ["Garantie", join2(fmt(project.dateRDVGarantie), project.collaborateurGarantie)],
                     ["Services", <span className="text-gray-400 italic">à venir</span>],
                   ],
                 },
@@ -5848,7 +5848,6 @@ function ProjectPageContent({ id }: { id: string }) {
                 {
                   title: "Contact",
                   rows: [
-                    ["Contacts projet", val(project.contacts)],
                     ["Grossiste", val(project.grossistesNames)],
                     ["Installateur", <span className="text-gray-400 italic">{TODO}</span>],
                     ["Architecte", <span className="text-gray-400 italic">{TODO}</span>],

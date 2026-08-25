@@ -189,6 +189,9 @@ export interface Project {
   causeSAV: string;
   etatSAV: string;
   dateRDVSAV: string | null;
+  collaborateursSAV: string;
+  dateRDVGarantie: string | null;
+  collaborateurGarantie: string;
   dateSAVRecu: string | null;
   sav: boolean;
   bonLivraison: string;
@@ -422,6 +425,18 @@ export function mapPageToProject(page: any): Project {
     causeSAV: extractSelect(p["Cause SAV"]),
     etatSAV: extractStatus(p["État - SAV"]),
     dateRDVSAV: extractDate(p["Date - RDV SAV"]),
+    // Collaborateurs SAV / Garantie : type Notion incertain (multi_select le plus
+    // probable, comme « Collaborateurs montages ») → on tente multi_select, puis
+    // select, puis texte, pour être robuste quel que soit le type choisi.
+    collaborateursSAV:
+      extractMultiSelect(p["Collaborateurs SAV"]).join(" & ") ||
+      extractSelect(p["Collaborateurs SAV"]) ||
+      extractText(p["Collaborateurs SAV"]),
+    dateRDVGarantie: extractDate(p["Date RDV Garantie"]),
+    collaborateurGarantie:
+      extractMultiSelect(p["Collaborateur Garantie"]).join(" & ") ||
+      extractSelect(p["Collaborateur Garantie"]) ||
+      extractText(p["Collaborateur Garantie"]),
     dateSAVRecu: extractDate(p["Date - SAV reçu le"]),
     sav: p["SAV"]?.checkbox || false,
     photosBonLivraison: extractFiles(p["Bon de livraison"]),
