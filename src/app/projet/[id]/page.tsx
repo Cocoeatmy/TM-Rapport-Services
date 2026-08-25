@@ -3159,6 +3159,16 @@ function ProjectPageContent({ id }: { id: string }) {
       document.querySelector(`[data-cabineidx="${idx}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 120);
   };
+  /** Ouvre et fait défiler jusqu'au lot d'index donné (clic depuis le suivi des
+   *  heures). On lève le filtre « Avec signalement » pour ne pas masquer la carte. */
+  const openCabineByIndex = (idx: number) => {
+    if (idx < 0) return;
+    setShowOnlySignalements(false);
+    setCabines((prev) => prev.map((c, i) => (i === idx ? { ...c, open: true } : c)));
+    setTimeout(() => {
+      document.querySelector(`[data-cabineidx="${idx}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+  };
 
   // ── Drag-and-drop reorder cabines ────────────────────────────────────────
   const [cabineDragMode, setCabineDragMode] = useState(false);
@@ -6345,12 +6355,12 @@ function ProjectPageContent({ id }: { id: string }) {
                   // Regroupement par date. À défaut de monteur (employé), on
                   // affiche le SOUS-TRAITANT (les heures restent vides « — »).
                   const sousTraitMap = parseSousTraitance(project?.monteursSousTraitance || "");
-                  const byDay = new Map<string, { nom: string; monteur: string; minutes: number; arrivee: string; depart: string }[]>();
+                  const byDay = new Map<string, { nom: string; monteur: string; minutes: number; arrivee: string; depart: string; idx: number }[]>();
                   cabines.forEach((c, i) => {
                     if (!c.date) return;
                     const nom = c.nom || `Cabine ${i + 1}`;
                     if (!byDay.has(c.date)) byDay.set(c.date, []);
-                    byDay.get(c.date)!.push({ nom, monteur: c.monteur || sousTraitMap[i + 1] || "", minutes: cabMin(c), arrivee: c.arrivee || "", depart: c.depart || "" });
+                    byDay.get(c.date)!.push({ nom, monteur: c.monteur || sousTraitMap[i + 1] || "", minutes: cabMin(c), arrivee: c.arrivee || "", depart: c.depart || "", idx: i });
                   });
 
                   const totalMin = cabines.reduce((s, c) => s + cabMin(c), 0);
@@ -6465,7 +6475,14 @@ function ProjectPageContent({ id }: { id: string }) {
                                     <div className="divide-y divide-gray-50 dark:divide-slate-700/50">
                                       {items.map((item, i) => (
                                         <div key={i} className="flex items-center gap-2 px-3 py-1.5">
-                                          <span className="flex-1 text-xs text-gray-700 dark:text-gray-300 truncate">{item.nom}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => openCabineByIndex(item.idx)}
+                                            title="Ouvrir ce lot"
+                                            className="flex-1 min-w-0 text-left text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline truncate"
+                                          >
+                                            {item.nom}
+                                          </button>
                                           {item.monteur && (
                                             <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[90px]">{item.monteur}</span>
                                           )}
