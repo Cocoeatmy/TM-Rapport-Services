@@ -40,6 +40,7 @@ import {
   RotateCcw,
   Hourglass,
   Minus,
+  FileSpreadsheet,
 } from "lucide-react";
 // MontageChecklist supprimée (section retirée)
 import { ProjectChat } from "@/components/project-chat";
@@ -5019,6 +5020,7 @@ function ProjectPageContent({ id }: { id: string }) {
     { id: "cabines", label: "Informations cabines", Icon: Package, bg: "bg-sky-100/80 dark:bg-sky-900/30", fg: "text-sky-600 dark:text-sky-400" },
     { id: "mesures", label: "Documents & commentaires (Mesures / Montage)", Icon: Ruler, bg: "bg-teal-100/80 dark:bg-teal-900/30", fg: "text-teal-600 dark:text-teal-400" },
     { id: "commentaires", label: "Commentaires", Icon: MessageSquare, bg: "bg-amber-100/80 dark:bg-amber-900/30", fg: "text-amber-600 dark:text-amber-400" },
+    { id: "fiche", label: "Fiche de travail", Icon: FileSpreadsheet, bg: "bg-indigo-100/80 dark:bg-indigo-900/30", fg: "text-indigo-600 dark:text-indigo-400" },
     { id: "rapport", label: "Rapport", Icon: ClipboardList, bg: "bg-emerald-100/80 dark:bg-emerald-900/30", fg: "text-emerald-600 dark:text-emerald-400" },
   ] as const;
 
@@ -5330,7 +5332,8 @@ function ProjectPageContent({ id }: { id: string }) {
           un carré arrondi ; l'onglet actif est entouré. Clic = déplie/replie. */}
       {isMac && (
         <div className="fixed left-2 top-[124px] z-30 flex flex-col gap-2">
-          {tabDefs.map(renderTabButton)}
+          {/* Onglet « Fiche de travail » : admin uniquement pour l'instant. */}
+          {tabDefs.filter((t) => t.id !== "fiche" || isAdmin).map(renderTabButton)}
         </div>
       )}
 
@@ -5340,7 +5343,7 @@ function ProjectPageContent({ id }: { id: string }) {
       {isIOS && !showRapport && (
         <div className="px-4 mt-3">
           <div className="flex justify-between items-center pb-1">
-            {tabDefs.filter((t) => t.id !== "rapport").map(renderTabButton)}
+            {tabDefs.filter((t) => t.id !== "rapport" && (t.id !== "fiche" || isAdmin)).map(renderTabButton)}
           </div>
         </div>
       )}
@@ -5783,6 +5786,104 @@ function ProjectPageContent({ id }: { id: string }) {
 
         </div>{/* fin colonne droite */}
         </div>{/* fin grille 2 colonnes */}
+
+        {/* === SECTION : Fiche de travail (admin uniquement, en cours de mise en place) === */}
+        {isAdmin && (
+        <Card className={macHidden("fiche") ? "!hidden" : ""}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2 font-semibold text-indigo-700 dark:text-indigo-300">
+              <span className="w-1 h-4 rounded-full bg-indigo-600 dark:bg-indigo-300 shrink-0" />
+              Fiche de travail
+            </CardTitle>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 pl-3">
+              {project.ofrTM || "TM-—"}{project.projet ? ` · ${project.projet}` : ""}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(() => {
+              const val = (v: unknown) => {
+                if (Array.isArray(v)) return v.filter(Boolean).join(", ") || "—";
+                if (v === null || v === undefined || v === "") return "—";
+                return String(v);
+              };
+              const fmt = (d?: string | null) => (d ? formatDate(d) : "—");
+              // "date — personne(s)" ; masque le tiret si l'un des deux manque.
+              const join2 = (a: string, b?: string) => {
+                const parts = [a && a !== "—" ? a : "", (b || "").trim()].filter(Boolean);
+                return parts.length ? parts.join(" — ") : "—";
+              };
+              const TODO = "à configurer dans Notion";
+              const sections: { title: string; rows: [string, React.ReactNode][] }[] = [
+                {
+                  title: "Général",
+                  rows: [
+                    ["Nb. cabines", val(project.nbCabines)],
+                    ["Fournisseurs", val(project.fournisseurs)],
+                    ["Séries cabines", val(project.seriesCabines)],
+                    ["Nb. de cartons", val(project.nbCartons)],
+                    ["Emplacement de cabine", val(project.emplacementCabine)],
+                  ],
+                },
+                {
+                  title: "Rendez-vous",
+                  rows: [
+                    ["Mesures", join2(fmt(project.dateMesures), project.mesuresTraiteePar)],
+                    ["Montage", join2(fmt(project.dateMontage), project.collaborateurs)],
+                    ["SAV", join2(fmt(project.dateRDVSAV), "")],
+                    ["Garantie", <span className="text-gray-400 italic">{TODO}</span>],
+                    ["Services", <span className="text-gray-400 italic">à venir</span>],
+                  ],
+                },
+                {
+                  title: "Lieu du RDV",
+                  rows: [["Adresse chantier", val(project.adresseChantier)]],
+                },
+                {
+                  title: "Numéro de commande",
+                  rows: [
+                    ["Mesures fournisseur", val(project.servMesuresFournisseurs)],
+                    ["Montage fournisseur", val(project.servCmdFournisseurs)],
+                  ],
+                },
+                {
+                  title: "Contact",
+                  rows: [
+                    ["Contacts projet", val(project.contacts)],
+                    ["Grossiste", val(project.grossistesNames)],
+                    ["Installateur", <span className="text-gray-400 italic">{TODO}</span>],
+                    ["Architecte", <span className="text-gray-400 italic">{TODO}</span>],
+                    ["DT", <span className="text-gray-400 italic">{TODO}</span>],
+                    ["Client final", <span className="text-gray-400 italic">{TODO}</span>],
+                  ],
+                },
+              ];
+              return sections.map((s) => (
+                <div key={s.title}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400 mb-1">
+                    {s.title}
+                  </p>
+                  <div className="rounded-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
+                    {s.rows.map(([label, value], i) => (
+                      <div
+                        key={label}
+                        className={`flex items-start justify-between gap-3 px-3 py-2 ${
+                          i > 0 ? "border-t border-gray-50 dark:border-slate-700/50" : ""
+                        }`}
+                      >
+                        <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{label}</span>
+                        <span className="text-sm font-medium text-gray-800 dark:text-gray-100 text-right break-words">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
+            <p className="text-[10px] text-gray-400 text-center pt-1">
+              Fiche visible uniquement par l&apos;admin — en cours de mise en place.
+            </p>
+          </CardContent>
+        </Card>
+        )}
 
         {/* === Documents (plateformes SANS onglets : tout ici ; macOS + iOS : réparti
               en cartes propres avec titres Notion plus bas) === */}
