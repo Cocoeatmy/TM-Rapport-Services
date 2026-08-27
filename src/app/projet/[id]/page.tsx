@@ -7944,10 +7944,10 @@ function ProjectPageContent({ id }: { id: string }) {
                                             const next = active ? sel.filter((n) => n !== name) : [...sel, name];
                                             saveProjectField({ collaborateursSAV: next.join(" & "), sav: true });
                                           }}
-                                          className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                                          className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
                                             active
-                                              ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
-                                              : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-[#1e3a5f]/50"
+                                              ? "border-blue-600 bg-blue-600 text-white"
+                                              : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
                                           }`}
                                         >
                                           {name}
