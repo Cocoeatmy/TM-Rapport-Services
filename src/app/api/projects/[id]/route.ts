@@ -272,6 +272,10 @@ export async function PATCH(
       body.etatMontage !== undefined ||
       body.savRetouchesCabines !== undefined ||
       body.commentairesSav !== undefined ||
+      body.causeSavCabines !== undefined ||
+      body.datesRdvSavCabines !== undefined ||
+      body.collaborateursSavCabines !== undefined ||
+      body.datesSavClotureCabines !== undefined ||
       hasClear;
 
     if (needsMerge) {
@@ -312,6 +316,18 @@ export async function PATCH(
         }
         if (body.commentairesSav !== undefined && String(body.commentairesSav).includes("Cab")) {
           body.commentairesSav = mergeCabineSousTraitance(existing.commentairesSav || "", body.commentairesSav);
+        }
+        if (body.causeSavCabines !== undefined && String(body.causeSavCabines).includes("Cab")) {
+          body.causeSavCabines = mergeCabineSousTraitance(existing.causeSavCabines || "", body.causeSavCabines);
+        }
+        if (body.datesRdvSavCabines !== undefined && String(body.datesRdvSavCabines).includes("Cab")) {
+          body.datesRdvSavCabines = mergeCabineSousTraitance(existing.datesRdvSavCabines || "", body.datesRdvSavCabines);
+        }
+        if (body.collaborateursSavCabines !== undefined && String(body.collaborateursSavCabines).includes("Cab")) {
+          body.collaborateursSavCabines = mergeCabineSousTraitance(existing.collaborateursSavCabines || "", body.collaborateursSavCabines);
+        }
+        if (body.datesSavClotureCabines !== undefined && String(body.datesSavClotureCabines).includes("Cab")) {
+          body.datesSavClotureCabines = mergeCabineSousTraitance(existing.datesSavClotureCabines || "", body.datesSavClotureCabines);
         }
         // Suppression EXPLICITE de monteurs (action « réinitialiser la cabine »).
         // Appliquée APRÈS le merge, sur l'attribution déjà fusionnée (ou l'existant).

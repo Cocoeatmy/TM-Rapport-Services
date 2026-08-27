@@ -229,6 +229,11 @@ export interface Project {
   etatMontage: string;
   savRetouchesCabines: string;
   commentairesSav: string;
+  // Détails SAV PAR CABINE (encodés "CabN:valeur" — colonnes Texte).
+  causeSavCabines: string;
+  datesRdvSavCabines: string;
+  collaborateursSavCabines: string;
+  datesSavClotureCabines: string;
   photosSavRetouches: FileItem[];
   documentsSavDemande: FileItem[];
   savCloture: boolean;
@@ -392,6 +397,10 @@ export function mapPageToProject(page: any): Project {
     etatMontage: extractText(p["État du montage"]),
     savRetouchesCabines: extractText(p["SAV / Retouches cabines"]),
     commentairesSav: extractText(p["Commentaires SAV"]),
+    causeSavCabines: extractText(p["Cause SAV cabines"]),
+    datesRdvSavCabines: extractText(p["Dates RDV SAV cabines"]),
+    collaborateursSavCabines: extractText(p["Collaborateurs SAV cabines"]),
+    datesSavClotureCabines: extractText(p["Dates SAV clôturé cabines"]),
     photosSavRetouches: extractFiles(p["Photos SAV / Retouches cabines"]),
     documentsSavDemande: extractFiles(p["Documents SAV"]),
     savCloture: p["SAV Clôturé"]?.checkbox || false,
@@ -965,6 +974,10 @@ export async function updateProject(
     etatMontage?: string;
     savRetouchesCabines?: string;
     commentairesSav?: string;
+    causeSavCabines?: string;
+    datesRdvSavCabines?: string;
+    collaborateursSavCabines?: string;
+    datesSavClotureCabines?: string;
     savCloture?: boolean;
     sav?: boolean;
     causeSAV?: string;
@@ -1039,6 +1052,18 @@ export async function updateProject(
     properties["Commentaires SAV"] = {
       rich_text: toRichText(data.commentairesSav),
     };
+  }
+  if (data.causeSavCabines !== undefined) {
+    properties["Cause SAV cabines"] = { rich_text: toRichText(data.causeSavCabines) };
+  }
+  if (data.datesRdvSavCabines !== undefined) {
+    properties["Dates RDV SAV cabines"] = { rich_text: toRichText(data.datesRdvSavCabines) };
+  }
+  if (data.collaborateursSavCabines !== undefined) {
+    properties["Collaborateurs SAV cabines"] = { rich_text: toRichText(data.collaborateursSavCabines) };
+  }
+  if (data.datesSavClotureCabines !== undefined) {
+    properties["Dates SAV clôturé cabines"] = { rich_text: toRichText(data.datesSavClotureCabines) };
   }
   if (data.attributionCabines !== undefined) {
     properties["Monteur responsable"] = {

@@ -4137,13 +4137,15 @@ function ProjectPageContent({ id }: { id: string }) {
   // photos). Garde `project.sav` en garde-fou → aucune boucle.
   useEffect(() => {
     if (!project || project.sav) return;
+    const t = (s?: string) => !!(s && s.trim());
     const hasSav =
-      !!(project.commentairesSav && project.commentairesSav.trim()) ||
+      t(project.commentairesSav) || t(project.causeSavCabines) ||
+      t(project.datesRdvSavCabines) || t(project.collaborateursSavCabines) ||
       (project.documentsSavDemande || []).length > 0 ||
       (project.photosSavRetouches || []).length > 0;
     if (hasSav) saveProjectField({ sav: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.sav, project?.commentairesSav, project?.documentsSavDemande, project?.photosSavRetouches]);
+  }, [project?.sav, project?.commentairesSav, project?.causeSavCabines, project?.datesRdvSavCabines, project?.collaborateursSavCabines, project?.documentsSavDemande, project?.photosSavRetouches]);
 
   // Polling: re-fetch project data toutes les 15 s pour la collaboration
   // temps réel. Visibility-aware : si l'onglet n'est pas visible, on
@@ -4503,7 +4505,7 @@ function ProjectPageContent({ id }: { id: string }) {
    *  Sans vérification photo — l'utilisateur peut sauvegarder à tout moment. */
   // Sauvegarde d'un champ texte PAR CABINE (delta → merge serveur), optimiste.
   // field : colonne Notion encodée "CabN:valeur" (commentairesSav / savRetouchesCabines).
-  const saveCabineText = (field: "commentairesSav" | "savRetouchesCabines", cabineIdx: number, value: string) => {
+  const saveCabineText = (field: string, cabineIdx: number, value: string) => {
     const clean = value.replace(/\|/g, " / ").trim();
     setProject((prev) => {
       if (!prev) return prev;
@@ -5146,8 +5148,11 @@ function ProjectPageContent({ id }: { id: string }) {
   // photos (demande / réglé) pour cette cabine.
   const savCommentMap = parseCabineTextMulti(project?.commentairesSav || "");
   const savRetoucheMap = parseCabineTextMulti(project?.savRetouchesCabines || "");
+  const savCauseMap = parseCabineTextMulti(project?.causeSavCabines || "");
+  const savDateMap = parseCabineTextMulti(project?.datesRdvSavCabines || "");
+  const savCollabMap = parseCabineTextMulti(project?.collaborateursSavCabines || "");
   const cabineHasSav = (idx: number): boolean => {
-    if (savCommentMap[idx + 1] || savRetoucheMap[idx + 1]) return true;
+    if (savCommentMap[idx + 1] || savRetoucheMap[idx + 1] || savCauseMap[idx + 1] || savDateMap[idx + 1] || savCollabMap[idx + 1]) return true;
     const hasPhotoForCab = (list?: { name?: string }[]) =>
       (list || []).some((f) => {
         const m = (f.name || "").match(/\.Cab(\d+)\./);
@@ -7911,8 +7916,8 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <div>
                                   <Label>Cause du SAV</Label>
                                   <select
-                                    value={project?.causeSAV || ""}
-                                    onChange={(e) => saveProjectField({ causeSAV: e.target.value, ...(e.target.value ? { sav: true } : {}) })}
+                                    value={parseCabineTextMulti(project?.causeSavCabines || "")[idx + 1] || ""}
+                                    onChange={(e) => { saveCabineText("causeSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
                                     className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
                                   >
                                     <option value="">— Choisir une cause —</option>
@@ -7925,8 +7930,8 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <Label>Date d&apos;intervention SAV</Label>
                                   <input
                                     type="date"
-                                    value={(project?.dateRDVSAV || "").slice(0, 10)}
-                                    onChange={(e) => saveProjectField({ dateRDVSAV: e.target.value || null, ...(e.target.value ? { sav: true } : {}) })}
+                                    value={(parseCabineTextMulti(project?.datesRdvSavCabines || "")[idx + 1] || "").slice(0, 10)}
+                                    onChange={(e) => { saveCabineText("datesRdvSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
                                     className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
                                   />
                                 </div>
@@ -7934,7 +7939,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <Label>Collaborateur(s) SAV</Label>
                                   <div className="mt-1 flex flex-wrap gap-1.5">
                                     {COLLABORATEURS_LIST.map((name) => {
-                                      const sel = (project?.collaborateursSAV || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
+                                      const sel = (parseCabineTextMulti(project?.collaborateursSavCabines || "")[idx + 1] || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
                                       const active = sel.includes(name);
                                       return (
                                         <button
@@ -7942,7 +7947,8 @@ function ProjectPageContent({ id }: { id: string }) {
                                           type="button"
                                           onClick={() => {
                                             const next = active ? sel.filter((n) => n !== name) : [...sel, name];
-                                            saveProjectField({ collaborateursSAV: next.join(" & "), sav: true });
+                                            saveCabineText("collaborateursSavCabines", idx, next.join(" & "));
+                                            if (!project?.sav) saveProjectField({ sav: true });
                                           }}
                                           className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
                                             active
@@ -7976,30 +7982,35 @@ function ProjectPageContent({ id }: { id: string }) {
                                 />
                               </div>
 
-                              {/* SAV clôturé (coche verte, niveau projet) → coche Notion +
-                                  pose la date du jour dans « Date - SAV clôturé le ». */}
-                              <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
-                                <label className="flex items-center gap-2 cursor-pointer select-none">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!project?.savCloture}
-                                    onChange={(e) => {
-                                      const checked = e.target.checked;
-                                      const today = new Date().toISOString().slice(0, 10);
-                                      saveProjectField({ savCloture: checked, dateSavClotureLe: checked ? today : null });
-                                    }}
-                                    className="w-4 h-4 accent-green-600"
-                                  />
-                                  <span className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
-                                    <Check className="w-4 h-4" /> SAV clôturé
-                                  </span>
-                                </label>
-                                {project?.savCloture && project?.dateSavClotureLe && (
-                                  <p className="text-[11px] text-gray-400 mt-1 pl-6">
-                                    Clôturé le {project.dateSavClotureLe.slice(0, 10).split("-").reverse().join(".")}
-                                  </p>
-                                )}
-                              </div>
+                              {/* SAV clôturé PAR CABINE : la présence d'une date dans
+                                  « Dates SAV clôturé cabines » = clôturé (+ la date du jour). */}
+                              {(() => {
+                                const clotureDate = (parseCabineTextMulti(project?.datesSavClotureCabines || "")[idx + 1] || "").slice(0, 10);
+                                const isCloture = !!clotureDate;
+                                return (
+                                  <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={isCloture}
+                                        onChange={(e) => {
+                                          const today = new Date().toISOString().slice(0, 10);
+                                          saveCabineText("datesSavClotureCabines", idx, e.target.checked ? today : "");
+                                        }}
+                                        className="w-4 h-4 accent-green-600"
+                                      />
+                                      <span className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
+                                        <Check className="w-4 h-4" /> SAV clôturé
+                                      </span>
+                                    </label>
+                                    {isCloture && (
+                                      <p className="text-[11px] text-gray-400 mt-1 pl-6">
+                                        Clôturé le {clotureDate.split("-").reverse().join(".")}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })()}
 
                               {/* Bouton Enregistrer — onglet SAV (les champs s'enregistrent
                                   déjà en auto ; ce bouton est un filet de sécurité). */}
