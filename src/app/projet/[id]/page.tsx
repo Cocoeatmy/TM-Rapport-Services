@@ -193,6 +193,10 @@ function BucketPhotoUpload({
       );
       return { ...prev, [notionFieldKey]: [...current, ...toAdd] };
     });
+    // Protège ce champ photo du revert par le polling (fenêtre de grâce 30 s) :
+    // Notion peut mettre quelques secondes à répercuter la nouvelle photo ; sans
+    // ça, un rechargement intermédiaire la faisait disparaître ~10 s (clignotement).
+    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: notionFieldKey } }));
   };
 
   // Suppression : mise à jour immédiate de l'état React + PATCH Notion confirmé.
@@ -203,6 +207,7 @@ function BucketPhotoUpload({
     const nextFullList = buildNextFullList(project, newBucketFiles);
     // Mise à jour UI immédiate — la photo disparaît du rendu.
     setProject((prev) => prev ? { ...prev, [notionFieldKey]: nextFullList } : prev);
+    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: notionFieldKey } }));
 
     // PATCH Notion : on vérifie le résultat pour éviter que les photos
     // "reviennent" après un rechargement si le PATCH a échoué silencieusement.
@@ -248,6 +253,7 @@ function BucketPhotoUpload({
     const current = project[notionFieldKey] || [];
     const nextFullList = current.map((f) => (f.url === oldUrl ? { ...f, url: newUrl } : f));
     setProject((prev) => (prev ? { ...prev, [notionFieldKey]: nextFullList } : prev));
+    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: notionFieldKey } }));
     const res = await offlineFetch(`/api/projects/${projectId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
