@@ -41,6 +41,7 @@ import {
   Hourglass,
   Minus,
   FileSpreadsheet,
+  Wrench,
 } from "lucide-react";
 // MontageChecklist supprimée (section retirée)
 import { ProjectChat } from "@/components/project-chat";
@@ -1813,6 +1814,15 @@ function parseSousTraitance(raw: string): Record<number, string> {
   });
   return map;
 }
+// Parse une chaîne "Cab1:val | Cab2:val" en tolérant les valeurs MULTI-LIGNES
+// (regex [^|]* ≈ merge serveur). Utilisé pour SAV/Retouches (texte libre).
+function parseCabineTextMulti(raw: string): Record<number, string> {
+  const map: Record<number, string> = {};
+  const re = /Cab(\d+)\s*:([^|]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw || ""))) { const v = m[2].trim(); if (v) map[parseInt(m[1], 10)] = v; }
+  return map;
+}
 function encodeSousTraitance(map: Record<number, string>): string {
   return Object.entries(map)
     .filter(([, v]) => v && v.trim())
@@ -1926,6 +1936,36 @@ function CabineSousTraitantInput({ value, onSave }: { value: string; onSave: (v:
       onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
       placeholder="Nom du sous-traitant…"
       className="mt-1 w-full h-9 px-3 text-sm rounded-lg border border-orange-200 dark:border-orange-800/50 bg-orange-50/40 dark:bg-orange-950/20 focus:outline-none focus:ring-2 focus:ring-orange-400/40"
+    />
+  );
+}
+
+// Zone de texte SAV / Retouches / Réglages par cabine (debounce + anti-clobber).
+// Le `|` est interdit (délimiteur du modèle par-cabine) → remplacé par « / ».
+function CabineSavInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const focusedRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { if (!focusedRef.current) setDraft(value); }, [value]);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  const commit = (raw: string) => {
+    const v = raw.replace(/\|/g, " / ").trim();
+    if (v !== value) onSave(v);
+  };
+  return (
+    <Textarea
+      value={draft}
+      onChange={(e) => {
+        const val = e.target.value;
+        setDraft(val);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => commit(val), 700);
+      }}
+      onFocus={() => { focusedRef.current = true; }}
+      onBlur={() => { focusedRef.current = false; if (timerRef.current) clearTimeout(timerRef.current); commit(draft); }}
+      rows={4}
+      placeholder="Ex. : régler la porte, changer un joint, refaire le silicone, retouche peinture…"
+      className="mt-1"
     />
   );
 }
@@ -3137,7 +3177,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [heureDepart, setHeureDepart] = useState("");
   const [commentaires, setCommentaires] = useState("");
   const [rapport, setRapport] = useState("");
-  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string; activeTab: "infos" | "photos" | "signalements" | "rapport"; qrEnabled: boolean; garantieEnabled: boolean }[]>([]);
+  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string; activeTab: "infos" | "photos" | "signalements" | "rapport" | "sav"; qrEnabled: boolean; garantieEnabled: boolean }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [expandedCabineDate, setExpandedCabineDate] = useState<string | null>(null);
   const [rapportModalCabineIdx, setRapportModalCabineIdx] = useState<number | null>(null);
@@ -4421,6 +4461,23 @@ function ProjectPageContent({ id }: { id: string }) {
 
   /** Enregistrement rapide d'une cabine individuelle (heures + monteur + noms + rapport).
    *  Sans vérification photo — l'utilisateur peut sauvegarder à tout moment. */
+  // Sauvegarde SAV / Retouches d'UNE cabine (delta → merge serveur), optimiste.
+  const saveSavRetouche = (cabineIdx: number, value: string) => {
+    const clean = value.replace(/\|/g, " / ").trim();
+    setProject((prev) => {
+      if (!prev) return prev;
+      const map = parseCabineTextMulti(prev.savRetouchesCabines || "");
+      if (clean) map[cabineIdx + 1] = clean; else delete map[cabineIdx + 1];
+      return { ...prev, savRetouchesCabines: encodeSousTraitance(map) };
+    });
+    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "savRetouchesCabines" } }));
+    offlineFetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ savRetouchesCabines: `Cab${cabineIdx + 1}:${clean}` }),
+    }).catch(() => {});
+  };
+
   const handleSaveCabineData = async (cabineIdx: number) => {
     setSaving(true);
     try {
@@ -7266,6 +7323,23 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                               )}
                             </button>
+                            {/* Onglet SAV / Retouches (réglages à faire) — libre d'accès.
+                                Couleur AMBRE. Point si du texte est saisi. */}
+                            <button
+                              type="button"
+                              onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, activeTab: "sav" } : c))}
+                              className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1 ${
+                                cabine.activeTab === "sav"
+                                  ? "text-amber-600 dark:text-amber-400 border-b-2 border-amber-500 dark:border-amber-400"
+                                  : "text-gray-400 hover:text-gray-600"
+                              }`}
+                            >
+                              <Wrench className="w-3.5 h-3.5 shrink-0" />
+                              SAV
+                              {!!(parseCabineTextMulti(project?.savRetouchesCabines || "")[idx + 1]) && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                              )}
+                            </button>
                           </div>
 
                           {/* ── Onglet Infos ────────────────────────────────── */}
@@ -7693,6 +7767,37 @@ function ProjectPageContent({ id }: { id: string }) {
                               </button>
 
                               {/* Remonter en haut — onglet Rapport */}
+                              <div className="flex justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                                  className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/40 dark:hover:text-blue-400 transition-colors"
+                                  title="Remonter en haut de page"
+                                >
+                                  <ArrowUp className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ── Onglet SAV / Retouches ──────────────────────── */}
+                          {cabine.activeTab === "sav" && (
+                            <div className="space-y-4 px-4">
+                              <div>
+                                <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                                  <Wrench className="w-4 h-4" />
+                                  SAV / Retouches / Réglages à faire
+                                </Label>
+                                <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
+                                  Noter ici les interventions à prévoir sur cette cabine (SAV, retouche, réglage). Enregistré automatiquement.
+                                </p>
+                                <CabineSavInput
+                                  value={parseCabineTextMulti(project?.savRetouchesCabines || "")[idx + 1] || ""}
+                                  onSave={(v) => saveSavRetouche(idx, v)}
+                                />
+                              </div>
+
+                              {/* Remonter en haut — onglet SAV */}
                               <div className="flex justify-center">
                                 <button
                                   type="button"

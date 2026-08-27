@@ -270,6 +270,7 @@ export async function PATCH(
       body.attributionCabines !== undefined ||
       body.monteursSousTraitance !== undefined ||
       body.etatMontage !== undefined ||
+      body.savRetouchesCabines !== undefined ||
       hasClear;
 
     if (needsMerge) {
@@ -302,6 +303,11 @@ export async function PATCH(
         // État du montage : même encodage/merge par cabine (delta d'une cabine).
         if (body.etatMontage !== undefined && String(body.etatMontage).includes("Cab")) {
           body.etatMontage = mergeCabineSousTraitance(existing.etatMontage || "", body.etatMontage);
+        }
+        // SAV / Retouches par cabine : même encodage/merge (valeur multi-ligne OK,
+        // le merge utilise [^|]* qui tolère les sauts de ligne).
+        if (body.savRetouchesCabines !== undefined && String(body.savRetouchesCabines).includes("Cab")) {
+          body.savRetouchesCabines = mergeCabineSousTraitance(existing.savRetouchesCabines || "", body.savRetouchesCabines);
         }
         // Suppression EXPLICITE de monteurs (action « réinitialiser la cabine »).
         // Appliquée APRÈS le merge, sur l'attribution déjà fusionnée (ou l'existant).

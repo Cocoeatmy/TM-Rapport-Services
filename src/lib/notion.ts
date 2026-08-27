@@ -226,6 +226,7 @@ export interface Project {
    *  encodé "Cab1:Montage terminé | Cab5:Montage partiel".
    *  Valeurs : "Montage terminé" | "Montage partiel" | "Montage pas possible". */
   etatMontage: string;
+  savRetouchesCabines: string;
   /** Nombre de cabines dont le montage est terminé (photos uploadées) */
   nbCabinesInstallees: number | null;
 }
@@ -384,6 +385,7 @@ export function mapPageToProject(page: any): Project {
     attributionCabines: extractText(p["Monteur responsable"]),
     monteursSousTraitance: extractText(p["Monteurs sous-traitance"]),
     etatMontage: extractText(p["État du montage"]),
+    savRetouchesCabines: extractText(p["SAV / Retouches cabines"]),
     nbCabinesInstallees: extractNumber(p["Nb. Cabines installées"]),
     commentairesMontages: extractText(p["Commentaires Montages"]),
     rapportMonteur: extractText(p["Rapport monteur"]),
@@ -951,6 +953,7 @@ export async function updateProject(
     attributionCabines?: string;
     monteursSousTraitance?: string;
     etatMontage?: string;
+    savRetouchesCabines?: string;
     soucisMontageCloture?: boolean;
     explicationsTravaux?: string;
     photosSoucisRegle?: { name: string; url: string }[];
@@ -1008,6 +1011,11 @@ export async function updateProject(
   if (data.etatMontage !== undefined) {
     properties["État du montage"] = {
       rich_text: toRichText(data.etatMontage),
+    };
+  }
+  if (data.savRetouchesCabines !== undefined) {
+    properties["SAV / Retouches cabines"] = {
+      rich_text: toRichText(data.savRetouchesCabines),
     };
   }
   if (data.attributionCabines !== undefined) {
