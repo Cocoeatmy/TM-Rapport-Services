@@ -3587,15 +3587,21 @@ function ProjectPageContent({ id }: { id: string }) {
 
     if (isCabineMode && cabineIdx !== undefined) {
       const idx0 = cabineIdx - 1; // cabineIdx est 1-based
+      // Cabine SOUS-TRAITÉE (nom saisi dans « Monteur sous-traitance ») : on ne
+      // suit pas les heures des sous-traitants → pas d'auto-remplissage arrivée/
+      // départ à l'upload photo (demande utilisateur).
+      const estSousTraite = !!parseSousTraitance(project?.monteursSousTraitance || "")[cabineIdx];
       const next = cabines.map((c, i) => {
         if (i !== idx0) return c;
         const u = { ...c };
         // Jour du montage : toujours rempli avec aujourd'hui si vide
         if (!u.date) u.date = todayStr;
-        // Heure d'arrivée : photos avant intervention
-        if (bucket === "AVANT_INTERVENTION" && !u.arrivee) u.arrivee = captureTime;
-        // Heure de départ : photos montage ou après intervention
-        if (isMontageOrAfter(bucket) && !u.depart) u.depart = captureTime;
+        if (!estSousTraite) {
+          // Heure d'arrivée : photos avant intervention
+          if (bucket === "AVANT_INTERVENTION" && !u.arrivee) u.arrivee = captureTime;
+          // Heure de départ : photos montage ou après intervention
+          if (isMontageOrAfter(bucket) && !u.depart) u.depart = captureTime;
+        }
         // Monteur responsable : utilisateur actuel (si non admin)
         if (userCollab && !u.monteur) u.monteur = userCollab;
         return u;
