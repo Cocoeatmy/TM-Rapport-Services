@@ -227,6 +227,7 @@ export interface Project {
    *  Valeurs : "Montage terminé" | "Montage partiel" | "Montage pas possible". */
   etatMontage: string;
   savRetouchesCabines: string;
+  commentairesSav: string;
   photosSavRetouches: FileItem[];
   documentsSavDemande: FileItem[];
   savCloture: boolean;
@@ -389,6 +390,7 @@ export function mapPageToProject(page: any): Project {
     monteursSousTraitance: extractText(p["Monteurs sous-traitance"]),
     etatMontage: extractText(p["État du montage"]),
     savRetouchesCabines: extractText(p["SAV / Retouches cabines"]),
+    commentairesSav: extractText(p["Commentaires SAV"]),
     photosSavRetouches: extractFiles(p["Photos SAV / Retouches cabines"]),
     documentsSavDemande: extractFiles(p["Documents SAV - demande"]),
     savCloture: p["SAV Clôturé"]?.checkbox || false,
@@ -960,6 +962,7 @@ export async function updateProject(
     monteursSousTraitance?: string;
     etatMontage?: string;
     savRetouchesCabines?: string;
+    commentairesSav?: string;
     savCloture?: boolean;
     soucisMontageCloture?: boolean;
     explicationsTravaux?: string;
@@ -1023,6 +1026,11 @@ export async function updateProject(
   if (data.savRetouchesCabines !== undefined) {
     properties["SAV / Retouches cabines"] = {
       rich_text: toRichText(data.savRetouchesCabines),
+    };
+  }
+  if (data.commentairesSav !== undefined) {
+    properties["Commentaires SAV"] = {
+      rich_text: toRichText(data.commentairesSav),
     };
   }
   if (data.attributionCabines !== undefined) {

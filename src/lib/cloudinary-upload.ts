@@ -79,7 +79,9 @@ export async function uploadToCloudinary(
   let res: Response;
   try {
     res = await fetchWithTimeout(
-      `https://api.cloudinary.com/v1_1/${sign.cloudName}/image/upload`,
+      // `auto` : Cloudinary détecte image OU vidéo (la signature ne dépend pas
+      // du resource_type, seulement de folder+timestamp).
+      `https://api.cloudinary.com/v1_1/${sign.cloudName}/auto/upload`,
       { method: "POST", body: fd },
       CLOUDINARY_TIMEOUT_MS,
     );

@@ -5,7 +5,7 @@ import { Camera, ImagePlus, X, Loader2, Download, CloudUpload, RotateCcw, Rotate
 import { thumbnailUrl, rotateCloudinaryUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
 import { compressImage } from "@/lib/compress-image";
-import { uploadToCloudinary, attachPhotos } from "@/lib/cloudinary-upload";
+import { uploadToCloudinary, attachPhotos, UploadError } from "@/lib/cloudinary-upload";
 import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
 import { addPendingUpload, removePendingUpload, processPendingUploads } from "@/lib/idb-uploads";
 import { usePendingUploads } from "@/lib/use-pending-uploads";
@@ -30,6 +30,8 @@ interface PhotoUploadProps {
   onRotate?: (oldUrl: string, newUrl: string) => void;
   /** Appelé dès que l'utilisateur sélectionne des fichiers (avant upload/compression) */
   onFilesSelected?: (files: File[]) => void;
+  /** Types de fichiers acceptés (défaut : images seules). Ex. "image/*,video/*". */
+  accept?: string;
 }
 
 export function PhotoUpload({
@@ -44,6 +46,7 @@ export function PhotoUpload({
   onDelete,
   onRotate,
   onFilesSelected,
+  accept = "image/*",
 }: PhotoUploadProps) {
   // Nombre d'uploads actuellement en cours (≥ 1 = au moins un en arrière-plan)
   const [uploadingCount, setUploadingCount] = useState(0);
@@ -119,8 +122,10 @@ export function PhotoUpload({
     // Réduit une photo iPhone (10 Mo) à ~400 Ko → upload 20× plus rapide.
     // Fait EN ARRIÈRE-PLAN pendant que l'utilisateur peut déjà prendre
     // la photo suivante.
+    // Les vidéos ne passent PAS par la compression image (canvas) → uploadées
+    // telles quelles. Seules les images sont compressées.
     const compressed: File[] = await Promise.all(
-      renamed.map((f) => compressImage(f, 1600, 0.82))
+      renamed.map((f) => (f.type.startsWith("video/") ? Promise.resolve(f) : compressImage(f, 1600, 0.82)))
     );
 
     // Helper : enregistre les fichiers en IDB pour upload différé.
@@ -166,20 +171,27 @@ export function PhotoUpload({
       // Cloudinary → le re-essai ne renvoie jamais les octets.
       const newFiles: { name: string; url: string }[] = [];
       const failed: { file: File; uploadedUrl?: string; preview: string }[] = [];
+      // Échecs PERMANENTS (mauvaise config Notion : champ inexistant / mauvais
+      // type…) : on NE réessaie PAS (fini le « moulinage sans fin »), on affiche
+      // une erreur claire et on retire l'aperçu.
+      const permanentFailed: { preview: string; message: string }[] = [];
+      const isPermanent = (e: unknown) => e instanceof UploadError && e.permanent;
       for (let i = 0; i < compressed.length; i++) {
         const f = compressed[i];
         let url: string;
         try {
           url = await uploadToCloudinary(f, f.name, projectId, category);
-        } catch {
-          failed.push({ file: f, preview: newPreviews[i] });
+        } catch (e) {
+          if (isPermanent(e)) permanentFailed.push({ preview: newPreviews[i], message: (e as UploadError).message });
+          else failed.push({ file: f, preview: newPreviews[i] });
           continue;
         }
         try {
           if (notionField) await attachPhotos(projectId, notionField, [{ name: f.name, url }]);
           newFiles.push({ name: f.name, url });
-        } catch {
-          failed.push({ file: f, uploadedUrl: url, preview: newPreviews[i] });
+        } catch (e) {
+          if (isPermanent(e)) permanentFailed.push({ preview: newPreviews[i], message: (e as UploadError).message });
+          else failed.push({ file: f, uploadedUrl: url, preview: newPreviews[i] });
         }
       }
 
@@ -191,13 +203,21 @@ export function PhotoUpload({
         }
       }
 
-      // Retire les previews des photos réussies, garde celles en échec.
-      const failedPreviews = failed.map((x) => x.preview);
+      // Retire les previews des photos réussies ET des échecs PERMANENTS (qui ne
+      // seront pas réessayés) ; garde uniquement celles en échec TRANSITOIRE.
+      const keepPreviews = failed.map((x) => x.preview);
       setPreviews((prev) => {
-        const toRemove = newPreviews.filter((u) => !failedPreviews.includes(u));
+        const toRemove = newPreviews.filter((u) => !keepPreviews.includes(u));
         toRemove.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
         return prev.filter((u) => !toRemove.includes(u));
       });
+
+      if (permanentFailed.length > 0) {
+        toast.error(
+          `Enregistrement impossible dans Notion${notionField ? ` (champ « ${notionField} »)` : ""} : ${permanentFailed[0].message}. Vérifiez que la colonne existe et est de type « Fichiers ».`,
+          { duration: 12000 },
+        );
+      }
 
       if (failed.length > 0) {
         await queueOffline("error", failed.map((x) => ({ file: x.file, uploadedUrl: x.uploadedUrl })));
@@ -259,6 +279,16 @@ export function PhotoUpload({
     invalidateApiCache();
   };
 
+  // Vidéo Cloudinary : poster (1re image) au lieu d'une <img> cassée.
+  const isVideoUrl = (u: string) => u.includes("/video/upload/") || /\.(mp4|mov|webm|m4v|avi)(\?|$)/i.test(u);
+  const videoPosterUrl = (u: string) => {
+    const marker = "/video/upload/";
+    const i = u.indexOf(marker);
+    if (i < 0) return u;
+    const after = u.slice(i + marker.length).replace(/\.[a-z0-9]+(\?.*)?$/i, ".jpg");
+    return `${u.slice(0, i + marker.length)}so_0,w_400,c_fill,q_auto/${after}`;
+  };
+
   return (
     <div>
       <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">{label}</label>
@@ -273,12 +303,20 @@ export function PhotoUpload({
             style={{ aspectRatio: "4/3" }}
           >
             <img
-              src={img.isPreview ? img.src : thumbnailUrl(img.src, 300)}
+              src={img.isPreview ? img.src : (isVideoUrl(img.src) ? videoPosterUrl(img.src) : thumbnailUrl(img.src, 300))}
               alt={`${label} ${i + 1}`}
               loading="lazy"
               decoding="async"
               className={`w-full h-full object-cover transition-opacity ${img.isUploading ? "opacity-70" : ""}`}
             />
+            {/* Badge « vidéo » (poster affiché) */}
+            {!img.isPreview && isVideoUrl(img.src) && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="bg-black/55 rounded-full w-9 h-9 flex items-center justify-center">
+                  <span className="text-white text-[13px] ml-0.5">▶</span>
+                </div>
+              </div>
+            )}
 
             {/* Overlay spinner pendant l'upload (remplace le spinner global) */}
             {img.isUploading && (
@@ -404,7 +442,7 @@ export function PhotoUpload({
       <input
         ref={cameraRef}
         type="file"
-        accept="image/*"
+        accept={accept}
         capture="environment"
         className="hidden"
         onChange={(e) => handleFiles(e, "camera")}
@@ -413,7 +451,7 @@ export function PhotoUpload({
       <input
         ref={galleryRef}
         type="file"
-        accept="image/*"
+        accept={accept}
         multiple
         className="hidden"
         onChange={(e) => handleFiles(e, "gallery")}

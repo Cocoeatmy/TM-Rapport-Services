@@ -271,6 +271,7 @@ export async function PATCH(
       body.monteursSousTraitance !== undefined ||
       body.etatMontage !== undefined ||
       body.savRetouchesCabines !== undefined ||
+      body.commentairesSav !== undefined ||
       hasClear;
 
     if (needsMerge) {
@@ -308,6 +309,9 @@ export async function PATCH(
         // le merge utilise [^|]* qui tolère les sauts de ligne).
         if (body.savRetouchesCabines !== undefined && String(body.savRetouchesCabines).includes("Cab")) {
           body.savRetouchesCabines = mergeCabineSousTraitance(existing.savRetouchesCabines || "", body.savRetouchesCabines);
+        }
+        if (body.commentairesSav !== undefined && String(body.commentairesSav).includes("Cab")) {
+          body.commentairesSav = mergeCabineSousTraitance(existing.commentairesSav || "", body.commentairesSav);
         }
         // Suppression EXPLICITE de monteurs (action « réinitialiser la cabine »).
         // Appliquée APRÈS le merge, sur l'attribution déjà fusionnée (ou l'existant).

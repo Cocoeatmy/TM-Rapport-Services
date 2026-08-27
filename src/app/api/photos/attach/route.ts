@@ -67,8 +67,11 @@ async function withDistributedFieldLock<T>(projectId: string, notionField: strin
 }
 
 export async function POST(request: NextRequest) {
+  let notionField = "";
   try {
-    const { projectId, notionField, photos } = await request.json();
+    const body = await request.json();
+    const { projectId, photos } = body;
+    notionField = body.notionField;
     if (!projectId || !notionField || !Array.isArray(photos) || photos.length === 0) {
       return NextResponse.json({ error: "projectId, notionField et photos requis" }, { status: 400 });
     }
@@ -130,12 +133,26 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    // Contention de verrou → 429 : erreur TRANSITOIRE. Le client remet la photo
-    // en file d'attente et réessaie tout seul (jamais de perte).
-    const status = error?.status === 429 ? 429 : 500;
-    if (status !== 429) console.error("Photo attach error:", error);
+    // Classification de l'erreur pour que le client sache s'il doit RÉESSAYER
+    // ou ARRÊTER (fini le « moulinage sans fin ») :
+    //  • 429 (contention verrou / rate-limit Notion) → TRANSITOIRE (réessai auto).
+    //  • 400/404 ou validation Notion (champ inexistant, MAUVAIS TYPE, propriété
+    //    supprimée…) → PERMANENT : inutile de réessayer, on renvoie 400 pour que
+    //    le client affiche une erreur claire au lieu de boucler indéfiniment.
+    //  • Autres (5xx, réseau) → TRANSITOIRE.
+    const notionStatus = typeof error?.status === "number" ? error.status : 0;
+    const code = String(error?.code || "");
+    const permanent =
+      notionStatus === 400 || notionStatus === 404 ||
+      code === "validation_error" || code === "object_not_found";
+    const status = notionStatus === 429 ? 429 : permanent ? 400 : 500;
+    if (status !== 429) console.error("Photo attach error:", notionField, code, error?.message);
     return NextResponse.json(
-      { error: error?.message || "Erreur rattachement" },
+      {
+        error: error?.message || "Erreur rattachement",
+        field: notionField,
+        permanent,
+      },
       { status },
     );
   }

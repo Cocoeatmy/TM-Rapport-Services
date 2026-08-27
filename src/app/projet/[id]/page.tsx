@@ -130,6 +130,7 @@ function BucketPhotoUpload({
   setProject,
   onAutoFill,
   onLog,
+  accept,
 }: {
   bucket: PhotoBucketKey;
   cabineIdx?: number;
@@ -138,6 +139,7 @@ function BucketPhotoUpload({
   setProject: React.Dispatch<React.SetStateAction<Project | null>>;
   onAutoFill?: (bucket: PhotoBucketKey, captureTime: string, cabineIdx?: number) => void;
   onLog?: (action: string, details: string) => void;
+  accept?: string;
 }) {
   if (!project) return null;
   const notionFieldKey = BUCKET_NOTION_FIELD[bucket];
@@ -268,6 +270,7 @@ function BucketPhotoUpload({
         notionField={notionFieldName[notionFieldKey]}
         filePrefix={bucketFilePrefix(bucket, cabineIdx)}
         existingPhotos={existingPhotos}
+        accept={accept}
         onUpload={handleUpload}
         onDelete={handleDelete}
         onRotate={handleRotate}
@@ -4465,20 +4468,22 @@ function ProjectPageContent({ id }: { id: string }) {
 
   /** Enregistrement rapide d'une cabine individuelle (heures + monteur + noms + rapport).
    *  Sans vérification photo — l'utilisateur peut sauvegarder à tout moment. */
-  // Sauvegarde SAV / Retouches d'UNE cabine (delta → merge serveur), optimiste.
-  const saveSavRetouche = (cabineIdx: number, value: string) => {
+  // Sauvegarde d'un champ texte PAR CABINE (delta → merge serveur), optimiste.
+  // field : colonne Notion encodée "CabN:valeur" (commentairesSav / savRetouchesCabines).
+  const saveCabineText = (field: "commentairesSav" | "savRetouchesCabines", cabineIdx: number, value: string) => {
     const clean = value.replace(/\|/g, " / ").trim();
     setProject((prev) => {
       if (!prev) return prev;
-      const map = parseCabineTextMulti(prev.savRetouchesCabines || "");
+      const cur = (prev as unknown as Record<string, string>)[field] || "";
+      const map = parseCabineTextMulti(cur);
       if (clean) map[cabineIdx + 1] = clean; else delete map[cabineIdx + 1];
-      return { ...prev, savRetouchesCabines: encodeSousTraitance(map) };
+      return { ...prev, [field]: encodeSousTraitance(map) };
     });
-    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "savRetouchesCabines" } }));
+    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field } }));
     offlineFetch(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ savRetouchesCabines: `Cab${cabineIdx + 1}:${clean}` }),
+      body: JSON.stringify({ [field]: `Cab${cabineIdx + 1}:${clean}` }),
     }).catch(() => {});
   };
 
@@ -5090,10 +5095,12 @@ function ProjectPageContent({ id }: { id: string }) {
   // affiché entre parenthèses sur le bouton filtre « Avec rapport ».
   const rapportLotsCount = cabines.reduce((n, c) => (hasManualRapport(c.rapport) ? n + 1 : n), 0);
 
-  // Un lot a un SAV s'il a du texte SAV OU des photos (demande / réglé) pour cette cabine.
-  const savTextMap = parseCabineTextMulti(project?.savRetouchesCabines || "");
+  // Un lot a un SAV s'il a une réclamation, un descriptif d'intervention, OU des
+  // photos (demande / réglé) pour cette cabine.
+  const savCommentMap = parseCabineTextMulti(project?.commentairesSav || "");
+  const savRetoucheMap = parseCabineTextMulti(project?.savRetouchesCabines || "");
   const cabineHasSav = (idx: number): boolean => {
-    if (savTextMap[idx + 1]) return true;
+    if (savCommentMap[idx + 1] || savRetoucheMap[idx + 1]) return true;
     const hasPhotoForCab = (list?: { name?: string }[]) =>
       (list || []).some((f) => {
         const m = (f.name || "").match(/\.Cab(\d+)\./);
@@ -7390,7 +7397,7 @@ function ProjectPageContent({ id }: { id: string }) {
                             >
                               <Wrench className="w-3.5 h-3.5 shrink-0" />
                               SAV
-                              {!!(parseCabineTextMulti(project?.savRetouchesCabines || "")[idx + 1]) && (
+                              {cabineHasSav(idx) && (
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                               )}
                             </button>
@@ -7837,25 +7844,38 @@ function ProjectPageContent({ id }: { id: string }) {
                           {/* ── Onglet SAV / Retouches ──────────────────────── */}
                           {cabine.activeTab === "sav" && (
                             <div className="space-y-4 px-4">
+                              {/* Réclamation : brève description du SAV à traiter → « Commentaires SAV ». */}
                               <div>
                                 <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
                                   <Wrench className="w-4 h-4" />
-                                  SAV / Retouches / Réglages à faire
+                                  Réclamation — SAV à traiter
                                 </Label>
                                 <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
-                                  Noter ici les interventions à prévoir sur cette cabine (SAV, retouche, réglage). Enregistré automatiquement.
+                                  Brève explication du SAV / retouche demandé. Enregistré automatiquement.
                                 </p>
                                 <CabineSavInput
-                                  value={parseCabineTextMulti(project?.savRetouchesCabines || "")[idx + 1] || ""}
-                                  onSave={(v) => saveSavRetouche(idx, v)}
+                                  value={parseCabineTextMulti(project?.commentairesSav || "")[idx + 1] || ""}
+                                  onSave={(v) => saveCabineText("commentairesSav", idx, v)}
                                 />
                               </div>
 
-                              {/* Zone 1 : documents (photos) reçus pour DÉCLENCHER la demande SAV. */}
-                              <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
+                              {/* Documents de la DEMANDE (photos/vidéos reçus pour déclencher le SAV). */}
+                              <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*" />
 
-                              {/* Zone 2 : photos une fois le souci RÉGLÉ. */}
-                              <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
+                              {/* Photos/vidéos une fois le souci RÉGLÉ. */}
+                              <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*" />
+
+                              {/* Ce que nous avons fait → « SAV / Retouches cabines ». */}
+                              <div>
+                                <Label>Ce que nous avons fait</Label>
+                                <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
+                                  Décrire l&apos;intervention réalisée. Enregistré automatiquement.
+                                </p>
+                                <CabineSavInput
+                                  value={parseCabineTextMulti(project?.savRetouchesCabines || "")[idx + 1] || ""}
+                                  onSave={(v) => saveCabineText("savRetouchesCabines", idx, v)}
+                                />
+                              </div>
 
                               {/* SAV clôturé (coche verte, niveau projet). */}
                               <label className="flex items-center gap-2 cursor-pointer select-none pt-1 border-t border-gray-100 dark:border-slate-700">
