@@ -392,7 +392,7 @@ export function mapPageToProject(page: any): Project {
     savRetouchesCabines: extractText(p["SAV / Retouches cabines"]),
     commentairesSav: extractText(p["Commentaires SAV"]),
     photosSavRetouches: extractFiles(p["Photos SAV / Retouches cabines"]),
-    documentsSavDemande: extractFiles(p["Documents SAV - demande"]),
+    documentsSavDemande: extractFiles(p["Documents SAV"]),
     savCloture: p["SAV Clôturé"]?.checkbox || false,
     nbCabinesInstallees: extractNumber(p["Nb. Cabines installées"]),
     commentairesMontages: extractText(p["Commentaires Montages"]),
@@ -1331,7 +1331,7 @@ export async function updateProject(
   writeFilesField("photosDefautsSignale", "Photos - Défauts signalé", "defaut");
   writeFilesField("photosSoucisRegle", "Photos soucis montage réglé", "soucis-regle");
   writeFilesField("photosSavRetouches", "Photos SAV / Retouches cabines", "sav");
-  writeFilesField("documentsSavDemande", "Documents SAV - demande", "sav-demande");
+  writeFilesField("documentsSavDemande", "Documents SAV", "sav-demande");
   if (data.savCloture !== undefined) {
     properties["SAV Clôturé"] = { checkbox: !!data.savCloture };
   }

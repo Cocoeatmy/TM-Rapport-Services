@@ -150,7 +150,7 @@ function BucketPhotoUpload({
     photosQRCode: "Photos QR Code",
     photosGaranties: "Photos garanties",
     photosSavRetouches: "Photos SAV / Retouches cabines",
-    documentsSavDemande: "Documents SAV - demande",
+    documentsSavDemande: "Documents SAV",
   };
   const fieldDefault = defaultBucketForField(notionFieldKey);
   const allInField = project[notionFieldKey] || [];
