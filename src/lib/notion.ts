@@ -227,6 +227,7 @@ export interface Project {
    *  Valeurs : "Montage terminé" | "Montage partiel" | "Montage pas possible". */
   etatMontage: string;
   savRetouchesCabines: string;
+  photosSavRetouches: FileItem[];
   /** Nombre de cabines dont le montage est terminé (photos uploadées) */
   nbCabinesInstallees: number | null;
 }
@@ -386,6 +387,7 @@ export function mapPageToProject(page: any): Project {
     monteursSousTraitance: extractText(p["Monteurs sous-traitance"]),
     etatMontage: extractText(p["État du montage"]),
     savRetouchesCabines: extractText(p["SAV / Retouches cabines"]),
+    photosSavRetouches: extractFiles(p["Photos SAV / Retouches cabines"]),
     nbCabinesInstallees: extractNumber(p["Nb. Cabines installées"]),
     commentairesMontages: extractText(p["Commentaires Montages"]),
     rapportMonteur: extractText(p["Rapport monteur"]),
@@ -1315,6 +1317,7 @@ export async function updateProject(
   writeFilesField("photosPiecesManquantes", "Photos - Pièces manquante", "piece");
   writeFilesField("photosDefautsSignale", "Photos - Défauts signalé", "defaut");
   writeFilesField("photosSoucisRegle", "Photos soucis montage réglé", "soucis-regle");
+  writeFilesField("photosSavRetouches", "Photos SAV / Retouches cabines", "sav");
 
   // Souci de montage clôturé (case) + explication des travaux (texte).
   if (data.soucisMontageCloture !== undefined) {

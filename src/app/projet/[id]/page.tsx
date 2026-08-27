@@ -147,6 +147,7 @@ function BucketPhotoUpload({
     photosMontage: "Photos montage terminé",
     photosQRCode: "Photos QR Code",
     photosGaranties: "Photos garanties",
+    photosSavRetouches: "Photos SAV / Retouches cabines",
   };
   const fieldDefault = defaultBucketForField(notionFieldKey);
   const allInField = project[notionFieldKey] || [];
@@ -7796,6 +7797,9 @@ function ProjectPageContent({ id }: { id: string }) {
                                   onSave={(v) => saveSavRetouche(idx, v)}
                                 />
                               </div>
+
+                              {/* Photos SAV / Retouches (champ Notion dédié). */}
+                              <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
 
                               {/* Remonter en haut — onglet SAV */}
                               <div className="flex justify-center">
