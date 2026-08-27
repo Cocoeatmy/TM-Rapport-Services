@@ -148,6 +148,7 @@ function BucketPhotoUpload({
     photosQRCode: "Photos QR Code",
     photosGaranties: "Photos garanties",
     photosSavRetouches: "Photos SAV / Retouches cabines",
+    documentsSavDemande: "Documents SAV - demande",
   };
   const fieldDefault = defaultBucketForField(notionFieldKey);
   const allInField = project[notionFieldKey] || [];
@@ -3201,6 +3202,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [cabineSearch, setCabineSearch] = useState("");
   const [showOnlySignalements, setShowOnlySignalements] = useState(false); // filtre lots avec pièce/défaut
   const [showOnlyRapport, setShowOnlyRapport] = useState(false); // filtre lots avec rapport personnalisé
+  const [showOnlySav, setShowOnlySav] = useState(false); // filtre lots avec SAV / retouche
   const [heuresFilterCollab, setHeuresFilterCollab] = useState(""); // filtre : clic sur un collaborateur du suivi des heures
   const [showSignalementsCard, setShowSignalementsCard] = useState(false); // carte « Signalements enregistrés » repliable
   const [showSignatureCard, setShowSignatureCard] = useState(false); // carte « Signature du client » repliable
@@ -3223,6 +3225,7 @@ function ProjectPageContent({ id }: { id: string }) {
     if (idx < 0) return;
     setShowOnlySignalements(false);
     setShowOnlyRapport(false);
+    setShowOnlySav(false);
     setCabines((prev) => prev.map((c, i) => (i === idx ? { ...c, open: true } : c)));
     setTimeout(() => {
       document.querySelector(`[data-cabineidx="${idx}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -5086,6 +5089,19 @@ function ProjectPageContent({ id }: { id: string }) {
   // Nombre de LOTS ayant un rapport personnalisé (texte ajouté à la main) —
   // affiché entre parenthèses sur le bouton filtre « Avec rapport ».
   const rapportLotsCount = cabines.reduce((n, c) => (hasManualRapport(c.rapport) ? n + 1 : n), 0);
+
+  // Un lot a un SAV s'il a du texte SAV OU des photos (demande / réglé) pour cette cabine.
+  const savTextMap = parseCabineTextMulti(project?.savRetouchesCabines || "");
+  const cabineHasSav = (idx: number): boolean => {
+    if (savTextMap[idx + 1]) return true;
+    const hasPhotoForCab = (list?: { name?: string }[]) =>
+      (list || []).some((f) => {
+        const m = (f.name || "").match(/\.Cab(\d+)\./);
+        return m ? parseInt(m[1], 10) === idx + 1 : false;
+      });
+    return hasPhotoForCab(project?.documentsSavDemande) || hasPhotoForCab(project?.photosSavRetouches);
+  };
+  const savLotsCount = cabines.reduce((n, _c, i) => (cabineHasSav(i) ? n + 1 : n), 0);
 
   // Statut du rapport pour la pastille sur l'icône "Rapport" (macOS).
   // Cabine : basé sur les cabines installées. Simple : checklist 5 critères.
@@ -7012,6 +7028,24 @@ function ProjectPageContent({ id }: { id: string }) {
                           Avec rapport{rapportLotsCount > 0 ? ` (${rapportLotsCount})` : ""}
                         </button>
                       )}
+                      {/* Filtre : n'afficher que les lots AVEC SAV / retouche. */}
+                      {!cabineDragMode && (
+                        <button
+                          type="button"
+                          onClick={() => setShowOnlySav((v) => !v)}
+                          title="N'afficher que les lots avec un SAV / retouche"
+                          className={`h-8 shrink-0 flex items-center gap-1.5 px-2.5 text-xs font-medium rounded-lg border transition-colors ${
+                            showOnlySav
+                              ? "border-amber-400 bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-500"
+                              : savLotsCount > 0
+                              ? "border-amber-400 text-amber-600 dark:text-amber-400 dark:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                              : "border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400 hover:border-amber-300 hover:text-amber-500"
+                          }`}
+                        >
+                          <Wrench className="w-3.5 h-3.5" />
+                          Avec SAV{savLotsCount > 0 ? ` (${savLotsCount})` : ""}
+                        </button>
+                      )}
                       {/* Chip du filtre collaborateur (activé depuis « Suivi des heures »). */}
                       {heuresFilterCollab && (
                         <button
@@ -7057,6 +7091,8 @@ function ProjectPageContent({ id }: { id: string }) {
                         !cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom))) return false;
                       // Filtre « Avec rapport » (texte personnalisé)
                       if (showOnlyRapport && !hasManualRapport(cabine.rapport)) return false;
+                      // Filtre « Avec SAV »
+                      if (showOnlySav && !cabineHasSav(idx)) return false;
                       // Filtre par collaborateur (clic dans « Suivi des heures »)
                       if (heuresFilterCollab) {
                         const monteurs = (cabine.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
@@ -7182,6 +7218,23 @@ function ProjectPageContent({ id }: { id: string }) {
                                   className="shrink-0 cursor-pointer rounded hover:opacity-75 transition-opacity"
                                 >
                                   <FileText className="w-4 h-4 text-violet-500" />
+                                </span>
+                              )}
+                              {/* Icône SAV (ambre) : un SAV/retouche existe pour ce lot.
+                                  Clic → ouvre l'onglet SAV. */}
+                              {cabineHasSav(idx) && (
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  title="SAV / Retouche — voir"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, open: true, activeTab: "sav" } : c));
+                                  }}
+                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.currentTarget.click(); }}
+                                  className="shrink-0 cursor-pointer rounded hover:opacity-75 transition-opacity"
+                                >
+                                  <Wrench className="w-4 h-4 text-amber-500" />
                                 </span>
                               )}
                             </div>
@@ -7798,8 +7851,33 @@ function ProjectPageContent({ id }: { id: string }) {
                                 />
                               </div>
 
-                              {/* Photos SAV / Retouches (champ Notion dédié). */}
+                              {/* Zone 1 : documents (photos) reçus pour DÉCLENCHER la demande SAV. */}
+                              <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
+
+                              {/* Zone 2 : photos une fois le souci RÉGLÉ. */}
                               <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
+
+                              {/* SAV clôturé (coche verte, niveau projet). */}
+                              <label className="flex items-center gap-2 cursor-pointer select-none pt-1 border-t border-gray-100 dark:border-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={!!project?.savCloture}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setProject((prev) => prev ? { ...prev, savCloture: checked } : prev);
+                                    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "savCloture" } }));
+                                    offlineFetch(`/api/projects/${id}`, {
+                                      method: "PATCH",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ savCloture: checked }),
+                                    }).catch(() => {});
+                                  }}
+                                  className="w-4 h-4 accent-green-600"
+                                />
+                                <span className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
+                                  <Check className="w-4 h-4" /> SAV clôturé
+                                </span>
+                              </label>
 
                               {/* Remonter en haut — onglet SAV */}
                               <div className="flex justify-center">
@@ -7818,11 +7896,12 @@ function ProjectPageContent({ id }: { id: string }) {
                       )}
                     </Card>
                   ))}
-                  {(showOnlySignalements || showOnlyRapport || heuresFilterCollab) && !cabines.some((c, i) => {
+                  {(showOnlySignalements || showOnlyRapport || showOnlySav || heuresFilterCollab) && !cabines.some((c, i) => {
                     if (showOnlySignalements &&
                       !cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(c.nom)) &&
                       !cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(c.nom))) return false;
                     if (showOnlyRapport && !hasManualRapport(c.rapport)) return false;
+                    if (showOnlySav && !cabineHasSav(i)) return false;
                     if (heuresFilterCollab) {
                       const monteurs = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
                       const list = monteurs.length > 0 ? monteurs : [parseSousTraitance(project?.monteursSousTraitance || "")[i + 1] || ""];

@@ -228,6 +228,8 @@ export interface Project {
   etatMontage: string;
   savRetouchesCabines: string;
   photosSavRetouches: FileItem[];
+  documentsSavDemande: FileItem[];
+  savCloture: boolean;
   /** Nombre de cabines dont le montage est terminé (photos uploadées) */
   nbCabinesInstallees: number | null;
 }
@@ -388,6 +390,8 @@ export function mapPageToProject(page: any): Project {
     etatMontage: extractText(p["État du montage"]),
     savRetouchesCabines: extractText(p["SAV / Retouches cabines"]),
     photosSavRetouches: extractFiles(p["Photos SAV / Retouches cabines"]),
+    documentsSavDemande: extractFiles(p["Documents SAV - demande"]),
+    savCloture: p["SAV Clôturé"]?.checkbox || false,
     nbCabinesInstallees: extractNumber(p["Nb. Cabines installées"]),
     commentairesMontages: extractText(p["Commentaires Montages"]),
     rapportMonteur: extractText(p["Rapport monteur"]),
@@ -956,6 +960,7 @@ export async function updateProject(
     monteursSousTraitance?: string;
     etatMontage?: string;
     savRetouchesCabines?: string;
+    savCloture?: boolean;
     soucisMontageCloture?: boolean;
     explicationsTravaux?: string;
     photosSoucisRegle?: { name: string; url: string }[];
@@ -1318,6 +1323,10 @@ export async function updateProject(
   writeFilesField("photosDefautsSignale", "Photos - Défauts signalé", "defaut");
   writeFilesField("photosSoucisRegle", "Photos soucis montage réglé", "soucis-regle");
   writeFilesField("photosSavRetouches", "Photos SAV / Retouches cabines", "sav");
+  writeFilesField("documentsSavDemande", "Documents SAV - demande", "sav-demande");
+  if (data.savCloture !== undefined) {
+    properties["SAV Clôturé"] = { checkbox: !!data.savCloture };
+  }
 
   // Souci de montage clôturé (case) + explication des travaux (texte).
   if (data.soucisMontageCloture !== undefined) {

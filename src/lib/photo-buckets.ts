@@ -23,6 +23,7 @@ export type PhotoBucketKey =
   | "APRES_INTERVENTION"
   | "QR_CODE"
   | "GARANTIE"
+  | "SAV_DEMANDE"
   | "SAV_RETOUCHE";
 
 export const BUCKET_PREFIX: Record<PhotoBucketKey, string> = {
@@ -35,6 +36,7 @@ export const BUCKET_PREFIX: Record<PhotoBucketKey, string> = {
   APRES_INTERVENTION: "Apres intervention",
   QR_CODE: "QR Code",
   GARANTIE: "Garantie",
+  SAV_DEMANDE: "SAV demande",
   SAV_RETOUCHE: "SAV",
 };
 
@@ -48,7 +50,8 @@ export const BUCKET_LABEL: Record<PhotoBucketKey, string> = {
   APRES_INTERVENTION: "Photos après intervention",
   QR_CODE: "Photos QR Code",
   GARANTIE: "Photos Garantie",
-  SAV_RETOUCHE: "Photos SAV / Retouches",
+  SAV_DEMANDE: "Documents SAV (photos/vidéos de la demande)",
+  SAV_RETOUCHE: "Photos SAV / Retouches (une fois réglé)",
 };
 
 /** Texte d'instruction affiché en sous-titre dans le rapport (null = aucun). */
@@ -61,7 +64,7 @@ export const BUCKET_HINT: Partial<Record<PhotoBucketKey, string>> = {
 // Mapping bucket → champ Notion qui stocke ses fichiers.
 export const BUCKET_NOTION_FIELD: Record<
   PhotoBucketKey,
-  "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties" | "photosSavRetouches"
+  "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties" | "photosSavRetouches" | "documentsSavDemande"
 > = {
   AVANT_INTERVENTION: "photosAvant",
   AVANT_MONTAGE: "photosAvant",
@@ -72,6 +75,7 @@ export const BUCKET_NOTION_FIELD: Record<
   APRES_INTERVENTION: "photosMontage",
   QR_CODE: "photosQRCode",
   GARANTIE: "photosGaranties",
+  SAV_DEMANDE: "documentsSavDemande",
   SAV_RETOUCHE: "photosSavRetouches",
 };
 
@@ -86,6 +90,7 @@ export const BUCKET_ORDER: PhotoBucketKey[] = [
   "APRES_INTERVENTION",
   "QR_CODE",
   "GARANTIE",
+  "SAV_DEMANDE",
   "SAV_RETOUCHE",
 ];
 
@@ -93,13 +98,14 @@ export const BUCKET_ORDER: PhotoBucketKey[] = [
 // On choisit celui qui correspond à l'ancien comportement, afin que les
 // photos déjà uploadées avant ce refactor restent visibles à un seul endroit.
 export function defaultBucketForField(
-  field: "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties" | "photosSavRetouches",
+  field: "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties" | "photosSavRetouches" | "documentsSavDemande",
 ): PhotoBucketKey {
   if (field === "photosAvant") return "AVANT_INTERVENTION";
   if (field === "photosDemontage") return "DEMONTAGE";
   if (field === "photosMontage") return "MONTAGE_CENTRE";
   if (field === "photosQRCode") return "QR_CODE";
   if (field === "photosSavRetouches") return "SAV_RETOUCHE";
+  if (field === "documentsSavDemande") return "SAV_DEMANDE";
   return "GARANTIE";
 }
 
@@ -165,6 +171,7 @@ export interface ProjectPhotoSources {
   photosQRCode?: { name: string }[];
   photosGaranties?: { name: string }[];
   photosSavRetouches?: { name: string }[];
+  documentsSavDemande?: { name: string }[];
 }
 
 /** Buckets effectivement présents dans un projet (option : pour une cabine donnée). */

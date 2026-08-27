@@ -19,6 +19,7 @@ const BUCKET_DL_LABEL: Record<PhotoBucketKey, string> = {
   APRES_INTERVENTION:  "Photo après intervention",
   QR_CODE:             "QR Code",
   GARANTIE:            "Photo garantie",
+  SAV_DEMANDE:         "Document SAV demande",
   SAV_RETOUCHE:        "Photo SAV Retouche",
 };
 
@@ -91,6 +92,7 @@ export async function GET(
     { key: "photosMontage" as const,    fallback: "MONTAGE_CENTRE"     as PhotoBucketKey },
     { key: "photosQRCode" as const,     fallback: "QR_CODE"            as PhotoBucketKey },
     { key: "photosGaranties" as const,  fallback: "GARANTIE"           as PhotoBucketKey },
+    { key: "documentsSavDemande" as const, fallback: "SAV_DEMANDE"     as PhotoBucketKey },
     { key: "photosSavRetouches" as const, fallback: "SAV_RETOUCHE"     as PhotoBucketKey },
   ] as const;
 
