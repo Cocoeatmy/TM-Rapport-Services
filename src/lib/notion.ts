@@ -193,6 +193,7 @@ export interface Project {
   dateRDVGarantie: string | null;
   collaborateurGarantie: string;
   dateSAVRecu: string | null;
+  dateSavClotureLe: string | null;
   sav: boolean;
   bonLivraison: string;
   /** "Bon de livraison" est une propriété Notion de type Files → on l'expose
@@ -448,6 +449,7 @@ export function mapPageToProject(page: any): Project {
       extractSelect(p["Collaborateur Garantie"]) ||
       extractText(p["Collaborateur Garantie"]),
     dateSAVRecu: extractDate(p["Date - SAV reçu le"]),
+    dateSavClotureLe: extractDate(p["Date - SAV clôturé le"]),
     sav: p["SAV"]?.checkbox || false,
     photosBonLivraison: extractFiles(p["Bon de livraison"]),
     bonLivraison: (() => {
@@ -964,6 +966,11 @@ export async function updateProject(
     savRetouchesCabines?: string;
     commentairesSav?: string;
     savCloture?: boolean;
+    sav?: boolean;
+    causeSAV?: string;
+    dateRDVSAV?: string | null;
+    collaborateursSAV?: string;
+    dateSavClotureLe?: string | null;
     soucisMontageCloture?: boolean;
     explicationsTravaux?: string;
     photosSoucisRegle?: { name: string; url: string }[];
@@ -1334,6 +1341,31 @@ export async function updateProject(
   writeFilesField("documentsSavDemande", "Documents SAV", "sav-demande");
   if (data.savCloture !== undefined) {
     properties["SAV Clôturé"] = { checkbox: !!data.savCloture };
+  }
+  // Case « SAV » (auto-cochée dès qu'un SAV est indiqué).
+  if (data.sav !== undefined) {
+    properties["SAV"] = { checkbox: !!data.sav };
+  }
+  // Cause du SAV (liste déroulante Notion).
+  if (data.causeSAV !== undefined) {
+    properties["Cause SAV"] = { select: data.causeSAV ? { name: data.causeSAV } : null };
+  }
+  // Date d'intervention SAV.
+  if (data.dateRDVSAV !== undefined) {
+    properties["Date - RDV SAV"] = { date: data.dateRDVSAV ? { start: data.dateRDVSAV } : null };
+  }
+  // Date de clôture du SAV (posée automatiquement à la coche « SAV clôturé »).
+  if (data.dateSavClotureLe !== undefined) {
+    properties["Date - SAV clôturé le"] = { date: data.dateSavClotureLe ? { start: data.dateSavClotureLe } : null };
+  }
+  // Collaborateur(s) SAV — multi_select (comme « Collaborateurs montages »).
+  if (data.collaborateursSAV !== undefined) {
+    const noms = String(data.collaborateursSAV || "")
+      .split(/\s*&\s*|\s*,\s*/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((name) => ({ name }));
+    properties["Collaborateurs SAV"] = { multi_select: noms };
   }
 
   // Souci de montage clôturé (case) + explication des travaux (texte).

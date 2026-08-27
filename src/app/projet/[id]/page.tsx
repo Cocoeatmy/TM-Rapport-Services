@@ -3212,6 +3212,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [showOnlySignalements, setShowOnlySignalements] = useState(false); // filtre lots avec pièce/défaut
   const [showOnlyRapport, setShowOnlyRapport] = useState(false); // filtre lots avec rapport personnalisé
   const [showOnlySav, setShowOnlySav] = useState(false); // filtre lots avec SAV / retouche
+  const [causeSavOptions, setCauseSavOptions] = useState<string[]>([]); // options select « Cause SAV »
   const [heuresFilterCollab, setHeuresFilterCollab] = useState(""); // filtre : clic sur un collaborateur du suivi des heures
   const [showSignalementsCard, setShowSignalementsCard] = useState(false); // carte « Signalements enregistrés » repliable
   const [showSignatureCard, setShowSignatureCard] = useState(false); // carte « Signature du client » repliable
@@ -4124,6 +4125,26 @@ function ProjectPageContent({ id }: { id: string }) {
     return () => window.removeEventListener("tm-project-field-edited", onEdited);
   }, []);
 
+  // Options de la liste « Cause SAV » (select Notion) — chargées une fois.
+  useEffect(() => {
+    fetch(`/api/projects/field-options?fields=${encodeURIComponent("Cause SAV")}`)
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((d: Record<string, string[]>) => { const o = d?.["Cause SAV"]; if (Array.isArray(o)) setCauseSavOptions(o); })
+      .catch(() => {});
+  }, []);
+
+  // Coche automatiquement « SAV » dès qu'un contenu SAV existe (réclamation ou
+  // photos). Garde `project.sav` en garde-fou → aucune boucle.
+  useEffect(() => {
+    if (!project || project.sav) return;
+    const hasSav =
+      !!(project.commentairesSav && project.commentairesSav.trim()) ||
+      (project.documentsSavDemande || []).length > 0 ||
+      (project.photosSavRetouches || []).length > 0;
+    if (hasSav) saveProjectField({ sav: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.sav, project?.commentairesSav, project?.documentsSavDemande, project?.photosSavRetouches]);
+
   // Polling: re-fetch project data toutes les 15 s pour la collaboration
   // temps réel. Visibility-aware : si l'onglet n'est pas visible, on
   // saute le tick — pas la peine de saturer le réseau pour un projet
@@ -4496,6 +4517,20 @@ function ProjectPageContent({ id }: { id: string }) {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: `Cab${cabineIdx + 1}:${clean}` }),
+    }).catch(() => {});
+  };
+
+  // Sauvegarde générique de champ(s) PROJET (SAV : cause, date, collaborateurs,
+  // clôture…), optimiste + protégée du revert polling.
+  const saveProjectField = (patch: Record<string, unknown>) => {
+    setProject((prev) => (prev ? ({ ...prev, ...patch } as typeof prev) : prev));
+    Object.keys(patch).forEach((f) =>
+      window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: f } })),
+    );
+    offlineFetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
     }).catch(() => {});
   };
 
@@ -7871,6 +7906,58 @@ function ProjectPageContent({ id }: { id: string }) {
                                 />
                               </div>
 
+                              {/* Détails SAV (niveau projet) : cause, date d'intervention, collaborateur(s). */}
+                              <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
+                                <div>
+                                  <Label>Cause du SAV</Label>
+                                  <select
+                                    value={project?.causeSAV || ""}
+                                    onChange={(e) => saveProjectField({ causeSAV: e.target.value, ...(e.target.value ? { sav: true } : {}) })}
+                                    className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                  >
+                                    <option value="">— Choisir une cause —</option>
+                                    {causeSavOptions.map((o) => (
+                                      <option key={o} value={o}>{o}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <Label>Date d&apos;intervention SAV</Label>
+                                  <input
+                                    type="date"
+                                    value={(project?.dateRDVSAV || "").slice(0, 10)}
+                                    onChange={(e) => saveProjectField({ dateRDVSAV: e.target.value || null, ...(e.target.value ? { sav: true } : {}) })}
+                                    className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Collaborateur(s) SAV</Label>
+                                  <div className="mt-1 flex flex-wrap gap-1.5">
+                                    {COLLABORATEURS_LIST.map((name) => {
+                                      const sel = (project?.collaborateursSAV || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
+                                      const active = sel.includes(name);
+                                      return (
+                                        <button
+                                          key={name}
+                                          type="button"
+                                          onClick={() => {
+                                            const next = active ? sel.filter((n) => n !== name) : [...sel, name];
+                                            saveProjectField({ collaborateursSAV: next.join(" & "), sav: true });
+                                          }}
+                                          className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                                            active
+                                              ? "bg-[#1e3a5f] text-white border-[#1e3a5f]"
+                                              : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-[#1e3a5f]/50"
+                                          }`}
+                                        >
+                                          {name}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+
                               {/* Documents de la DEMANDE (photos/vidéos reçus pour déclencher le SAV). */}
                               <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*" />
 
@@ -7889,27 +7976,30 @@ function ProjectPageContent({ id }: { id: string }) {
                                 />
                               </div>
 
-                              {/* SAV clôturé (coche verte, niveau projet). */}
-                              <label className="flex items-center gap-2 cursor-pointer select-none pt-1 border-t border-gray-100 dark:border-slate-700">
-                                <input
-                                  type="checkbox"
-                                  checked={!!project?.savCloture}
-                                  onChange={(e) => {
-                                    const checked = e.target.checked;
-                                    setProject((prev) => prev ? { ...prev, savCloture: checked } : prev);
-                                    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "savCloture" } }));
-                                    offlineFetch(`/api/projects/${id}`, {
-                                      method: "PATCH",
-                                      headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ savCloture: checked }),
-                                    }).catch(() => {});
-                                  }}
-                                  className="w-4 h-4 accent-green-600"
-                                />
-                                <span className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
-                                  <Check className="w-4 h-4" /> SAV clôturé
-                                </span>
-                              </label>
+                              {/* SAV clôturé (coche verte, niveau projet) → coche Notion +
+                                  pose la date du jour dans « Date - SAV clôturé le ». */}
+                              <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!project?.savCloture}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      const today = new Date().toISOString().slice(0, 10);
+                                      saveProjectField({ savCloture: checked, dateSavClotureLe: checked ? today : null });
+                                    }}
+                                    className="w-4 h-4 accent-green-600"
+                                  />
+                                  <span className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
+                                    <Check className="w-4 h-4" /> SAV clôturé
+                                  </span>
+                                </label>
+                                {project?.savCloture && project?.dateSavClotureLe && (
+                                  <p className="text-[11px] text-gray-400 mt-1 pl-6">
+                                    Clôturé le {project.dateSavClotureLe.slice(0, 10).split("-").reverse().join(".")}
+                                  </p>
+                                )}
+                              </div>
 
                               {/* Bouton Enregistrer — onglet SAV (les champs s'enregistrent
                                   déjà en auto ; ce bouton est un filet de sécurité). */}
