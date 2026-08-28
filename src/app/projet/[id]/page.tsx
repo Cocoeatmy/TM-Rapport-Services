@@ -3466,6 +3466,9 @@ function ProjectPageContent({ id }: { id: string }) {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingFiche, setDownloadingFiche] = useState(false);
   const [copyingFicheLink, setCopyingFicheLink] = useState(false);
+  const [downloadingSav, setDownloadingSav] = useState(false);
+  const [copyingSavLink, setCopyingSavLink] = useState(false);
+  const [showSavCard, setShowSavCard] = useState(false);
   // Quel type de rapport est en cours (pour n'animer que le bon bouton) :
   // "interne" (avec heures) ou "client" (sans heures).
   const [sendKind, setSendKind] = useState<null | "interne" | "client">(null);
@@ -5104,6 +5107,41 @@ function ProjectPageContent({ id }: { id: string }) {
       console.error("Lien Fiche échoué:", e);
       toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
     } finally { setCopyingFicheLink(false); }
+  };
+  // ── Rapport SAV : PDF + lien public ────────────────────────────────────────
+  const handleDownloadSav = async () => {
+    setDownloadingSav(true);
+    try {
+      const res = await fetch(`/api/sav/${id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      let filename = "Rapport SAV.pdf";
+      const cd = res.headers.get("Content-Disposition");
+      const m = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      if (m?.[1]) filename = decodeURIComponent(m[1]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error("Téléchargement Rapport SAV échoué:", e);
+      toast.error("Impossible de générer le rapport SAV.");
+    } finally { setDownloadingSav(false); }
+  };
+  const handleCopySavLink = async () => {
+    setCopyingSavLink(true);
+    try {
+      const res = await fetch(`/api/sav/${id}?link=1`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data?.url) throw new Error("no url");
+      await navigator.clipboard.writeText(data.url);
+      toast.success("Lien du rapport SAV copié");
+    } catch (e) {
+      console.error("Lien SAV échoué:", e);
+      toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
+    } finally { setCopyingSavLink(false); }
   };
   const handleDownloadPhotos = async () => {
     setDownloadingPhotos(true);
@@ -6849,6 +6887,85 @@ function ProjectPageContent({ id }: { id: string }) {
 
               </CardContent>}
             </Card>
+            )}
+
+            {/* ── Suivi des SAV (par collaborateur) + rapport PDF ────────────── */}
+            {isCabineMode && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <button type="button" onClick={() => setShowSavCard((v) => !v)} className="w-full flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-400"><Wrench className="w-4 h-4" />Suivi des SAV</CardTitle>
+                    {showSavCard ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                  </button>
+                </CardHeader>
+                {showSavCard && <CardContent className="space-y-4">
+                  {(() => {
+                    const stMap = parseSousTraitance(project?.monteursSousTraitance || "");
+                    const map = new Map<string, { sav: number; montage: number }>();
+                    cabines.forEach((c, i) => {
+                      const monteurs = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
+                      const names = monteurs.length ? monteurs : (stMap[i + 1] ? [stMap[i + 1]] : []);
+                      const isMontage = installedCabineIndices.has(i);
+                      const hasSav = cabineHasSav(i);
+                      names.forEach((n) => {
+                        let cur = map.get(n);
+                        if (!cur) { cur = { sav: 0, montage: 0 }; map.set(n, cur); }
+                        if (isMontage) cur.montage += 1;
+                        if (hasSav) cur.sav += 1;
+                      });
+                    });
+                    const rows = [...map.entries()].filter(([, v]) => v.sav > 0 || v.montage > 0).sort((a, b) => b[1].sav - a[1].sav);
+                    const totalSav = rows.reduce((s, [, v]) => s + v.sav, 0);
+                    if (totalSav === 0) return <p className="text-xs text-gray-400 text-center py-2">Aucun SAV enregistré sur ce projet.</p>;
+                    return (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Par collaborateur — taux de réclamation</p>
+                        <div className="space-y-1.5">
+                          {rows.map(([name, { sav, montage }]) => {
+                            const taux = montage > 0 ? Math.round((sav / montage) * 1000) / 10 : 0;
+                            const active = heuresFilterCollab === name && showOnlySav;
+                            const colors = getCollaboratorColor(name);
+                            return (
+                              <button
+                                key={name}
+                                type="button"
+                                onClick={() => { if (active) { setHeuresFilterCollab(""); setShowOnlySav(false); } else { setHeuresFilterCollab(name); setShowOnlySav(true); } }}
+                                title={active ? "Cliquer pour tout réafficher" : "Cliquer pour ne voir que ses lots en SAV"}
+                                className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl transition-colors ${active ? "bg-amber-100 dark:bg-amber-900/40 ring-2 ring-amber-400" : "bg-gray-50 dark:bg-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700"}`}
+                              >
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: colors.dot }} />
+                                <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{name}</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{sav} SAV / {montage} mont.</span>
+                                <span className="text-sm font-bold text-amber-600 dark:text-amber-400 min-w-[46px] text-right" title={`${sav} SAV sur ${montage} montages`}>{taux}%</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {heuresFilterCollab && showOnlySav && (
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5 px-1">
+                            Filtré sur <b>{heuresFilterCollab}</b> (SAV) — <button type="button" onClick={() => { setHeuresFilterCollab(""); setShowOnlySav(false); }} className="underline">tout afficher</button>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Rapport PDF SAV (photos/vidéos cliquables) */}
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gray-100 dark:border-slate-700">
+                    <button type="button" disabled={downloadingSav} onClick={handleDownloadSav}
+                      className="flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingSav ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                      Rapport SAV (PDF)
+                    </button>
+                    <button type="button" disabled={copyingSavLink} onClick={handleCopySavLink}
+                      title="Copier un lien public vers ce rapport SAV"
+                      className="flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold border border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 active:scale-95 transition-all disabled:opacity-60">
+                      {copyingSavLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                      Copier le lien
+                    </button>
+                  </div>
+                </CardContent>}
+              </Card>
             )}
 
             <Separator />

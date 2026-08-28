@@ -189,6 +189,9 @@ self.addEventListener("fetch", (event) => {
   // version (le cache ne se rafraîchissait qu'à la requête suivante). Réseau direct.
   if (url.pathname.startsWith("/api/fiche/")) return;
 
+  // Idem pour le Rapport SAV (PDF) : jamais depuis le cache SW.
+  if (url.pathname.startsWith("/api/sav/")) return;
+
   // === API : network-first avec timeout 400 ms ===
   if (url.pathname.startsWith("/api/")) {
     // ?fresh (refresh manuel) ET ?rv (revalidation rapide) : réseau direct, sans

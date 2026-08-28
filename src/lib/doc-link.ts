@@ -29,3 +29,8 @@ export function signFiche(projectId: string): string {
 export function ficheLink(projectId: string, baseUrl = appBaseUrl()): string {
   return `${baseUrl}/api/fiche/${encodeURIComponent(projectId)}?s=${signFiche(projectId)}`;
 }
+
+/** Signature HMAC d'un projet pour le rapport SAV (lien public). */
+export function signSav(projectId: string): string {
+  return createHmac("sha256", SECRET).update(`sav|${projectId}`).digest("hex").slice(0, 32);
+}
