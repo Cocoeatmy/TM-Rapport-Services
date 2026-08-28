@@ -6680,12 +6680,17 @@ function ProjectPageContent({ id }: { id: string }) {
                   // Regroupement par date. À défaut de monteur (employé), on
                   // affiche le SOUS-TRAITANT (les heures restent vides « — »).
                   const sousTraitMap = parseSousTraitance(project?.monteursSousTraitance || "");
+                  const NO_DATE = "__nodate__"; // groupe « Sans date de montage »
                   const byDay = new Map<string, { nom: string; monteur: string; minutes: number; arrivee: string; depart: string; idx: number }[]>();
                   cabines.forEach((c, i) => {
-                    if (!c.date) return;
+                    // Cabine sans date : ignorée en vue générale, mais AFFICHÉE quand un
+                    // filtre collaborateur est actif (ex. sous-traitant « 31 cabines »
+                    // dont beaucoup sans date) → on la range dans le groupe « Sans date ».
+                    const key = c.date ? c.date : (heuresFilterCollab ? NO_DATE : "");
+                    if (!key) return;
                     const nom = c.nom || `Cabine ${i + 1}`;
-                    if (!byDay.has(c.date)) byDay.set(c.date, []);
-                    byDay.get(c.date)!.push({ nom, monteur: c.monteur || sousTraitMap[i + 1] || "", minutes: cabMin(c), arrivee: c.arrivee || "", depart: c.depart || "", idx: i });
+                    if (!byDay.has(key)) byDay.set(key, []);
+                    byDay.get(key)!.push({ nom, monteur: c.monteur || sousTraitMap[i + 1] || "", minutes: cabMin(c), arrivee: c.arrivee || "", depart: c.depart || "", idx: i });
                   });
 
                   const totalMin = cabines.reduce((s, c) => s + cabMin(c), 0);
@@ -6767,7 +6772,8 @@ function ProjectPageContent({ id }: { id: string }) {
                           </p>
                           <div className="space-y-2">
                             {[...byDay.entries()]
-                              .sort(([a], [b]) => a.localeCompare(b))
+                              // Dates triées, groupe « Sans date » toujours en dernier.
+                              .sort(([a], [b]) => (a === NO_DATE ? 1 : b === NO_DATE ? -1 : a.localeCompare(b)))
                               .map(([date, allItems]) => {
                                 // Filtre par collaborateur (clic dans « Par collaborateur »).
                                 const items = heuresFilterCollab
@@ -6775,11 +6781,13 @@ function ProjectPageContent({ id }: { id: string }) {
                                   : allItems;
                                 if (items.length === 0) return null;
                                 const dayTotal = items.reduce((s, i) => s + i.minutes, 0);
-                                const dateLabel = (() => {
-                                  try {
-                                    return new Date(date + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" });
-                                  } catch { return date; }
-                                })();
+                                const dateLabel = date === NO_DATE
+                                  ? "Sans date de montage"
+                                  : (() => {
+                                      try {
+                                        return new Date(date + "T00:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" });
+                                      } catch { return date; }
+                                    })();
                                 // Plage horaire globale de la journée : 1ʳᵉ arrivée → dernier départ
                                 // (parmi les lots qui ont des heures saisies).
                                 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
