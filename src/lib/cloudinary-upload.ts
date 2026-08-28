@@ -102,7 +102,7 @@ export async function uploadToCloudinary(
  * Rattache des URLs Cloudinary à un champ Notion (petit JSON, réessayable).
  * Lève UploadError(permanent) sur 4xx.
  */
-export async function attachPhotos(
+async function _attachPhotos(
   projectId: string,
   notionField: string,
   photos: UploadedPhoto[],
@@ -123,4 +123,26 @@ export async function attachPhotos(
     try { const d = await res.json(); if (d?.error) msg = String(d.error).slice(0, 140); } catch {}
     throw new UploadError(msg, permanent);
   }
+}
+
+// SÉRIALISATION CLIENT par (projet + champ Notion). Le rattachement fait un
+// read-modify-write côté serveur ; deux appels PARALLÈLES au MÊME champ (ex.
+// photos ajoutées à plusieurs lots à la fois → même « Photos montage terminé »)
+// peuvent s'écraser si le verrou distribué (Redis) n'est pas actif. En les
+// enchaînant ici, les requêtes partent une à une → aucune course dans l'onglet.
+const attachChains = new Map<string, Promise<unknown>>();
+export function attachPhotos(
+  projectId: string,
+  notionField: string,
+  photos: UploadedPhoto[],
+): Promise<void> {
+  const key = `${projectId}::${notionField}`;
+  const prev = attachChains.get(key) ?? Promise.resolve();
+  const run = prev
+    .catch(() => {}) // un échec précédent ne bloque pas la suite de la file
+    .then(() => _attachPhotos(projectId, notionField, photos));
+  // Le maillon suivant attend une version qui n'échoue JAMAIS ; on RENVOIE `run`
+  // (qui peut rejeter → la gestion d'erreur de l'appelant reste intacte).
+  attachChains.set(key, run.catch(() => {}));
+  return run as Promise<void>;
 }
