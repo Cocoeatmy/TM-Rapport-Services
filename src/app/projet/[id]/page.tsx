@@ -3332,12 +3332,12 @@ function ProjectPageContent({ id }: { id: string }) {
 
       const arriveeToSave = cabMode
         ? cab.map((c, i) => {
-            // N'inclure la cabine QUE si l'heure est renseignée.
-            // Sans ça, une cabine avec date mais sans heure génère
-            // "Cab2:2026-06-09:" qui écrase l'heure réelle côté serveur.
-            if (!c.arrivee) return "";
+            // Inclure la cabine si elle a une heure OU une DATE (cabines
+            // sous-traitées : date sans heure → "Cab2:2026-06-09:"). Le merge
+            // serveur préserve l'heure existante, donc la date n'écrase rien.
+            if (!c.arrivee && !c.date) return "";
             const ds = c.date ? `${c.date}:` : "";
-            return `Cab${i + 1}:${ds}${c.arrivee}`;
+            return `Cab${i + 1}:${ds}${c.arrivee || ""}`;
           }).filter(Boolean).join(" | ")
         : multiDay
           ? pts.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
@@ -3345,10 +3345,9 @@ function ProjectPageContent({ id }: { id: string }) {
 
       const departToSave = cabMode
         ? cab.map((c, i) => {
-            // Idem : on n'envoie rien si l'heure de départ est vide.
-            if (!c.depart) return "";
+            if (!c.depart && !c.date) return "";
             const ds = c.date ? `${c.date}:` : "";
-            return `Cab${i + 1}:${ds}${c.depart}`;
+            return `Cab${i + 1}:${ds}${c.depart || ""}`;
           }).filter(Boolean).join(" | ")
         : multiDay
           ? pts.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
@@ -4414,18 +4413,18 @@ function ProjectPageContent({ id }: { id: string }) {
     // Priorité 3 : cas simple → valeur unique
     const arriveeToSave = isCabineMode
       ? cabines.map((c, i) => {
-          if (!c.arrivee) return ""; // pas d'heure → on n'envoie rien (évite "Cab2:2026-06-09:")
+          if (!c.arrivee && !c.date) return ""; // ni heure ni date → skip
           const dateStr = c.date ? `${c.date}:` : "";
-          return `Cab${i + 1}:${dateStr}${c.arrivee}`;
+          return `Cab${i + 1}:${dateStr}${c.arrivee || ""}`; // date-seule → "CabN:date:"
         }).filter(Boolean).join(" | ")
       : isMultiDay
         ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
         : heureArrivee;
     const departToSave = isCabineMode
       ? cabines.map((c, i) => {
-          if (!c.depart) return ""; // pas d'heure → on n'envoie rien (évite "Cab2:2026-06-09:")
+          if (!c.depart && !c.date) return "";
           const dateStr = c.date ? `${c.date}:` : "";
-          return `Cab${i + 1}:${dateStr}${c.depart}`;
+          return `Cab${i + 1}:${dateStr}${c.depart || ""}`;
         }).filter(Boolean).join(" | ")
       : isMultiDay
         ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
@@ -4541,18 +4540,18 @@ function ProjectPageContent({ id }: { id: string }) {
     try {
       const arriveeToSave = cabines
         .map((c, i) => {
-          if (!c.arrivee) return ""; // pas d'heure → skip (évite "Cab2:2026-06-09:")
+          if (!c.arrivee && !c.date) return ""; // ni heure ni date → skip
           const dateStr = c.date ? `${c.date}:` : "";
-          return `Cab${i + 1}:${dateStr}${c.arrivee}`;
+          return `Cab${i + 1}:${dateStr}${c.arrivee || ""}`; // date-seule (sous-traité) → "CabN:date:"
         })
         .filter(Boolean)
         .join(" | ");
 
       const departToSave = cabines
         .map((c, i) => {
-          if (!c.depart) return ""; // pas d'heure → skip (évite "Cab2:2026-06-09:")
+          if (!c.depart && !c.date) return "";
           const dateStr = c.date ? `${c.date}:` : "";
-          return `Cab${i + 1}:${dateStr}${c.depart}`;
+          return `Cab${i + 1}:${dateStr}${c.depart || ""}`;
         })
         .filter(Boolean)
         .join(" | ");
@@ -4672,18 +4671,18 @@ function ProjectPageContent({ id }: { id: string }) {
     const newArriveeToSave = newCabines
       .map((c, i) => {
         if (i === idx) return `Cab${i + 1}:`; // vide explicite → suppression côté serveur
-        if (!c.arrivee) return null;
+        if (!c.arrivee && !c.date) return null;
         const ds = c.date ? `${c.date}:` : "";
-        return `Cab${i + 1}:${ds}${c.arrivee}`;
+        return `Cab${i + 1}:${ds}${c.arrivee || ""}`;
       })
       .filter((s): s is string => s !== null)
       .join(" | ");
     const newDepartToSave = newCabines
       .map((c, i) => {
         if (i === idx) return `Cab${i + 1}:`; // vide explicite → suppression côté serveur
-        if (!c.depart) return null;
+        if (!c.depart && !c.date) return null;
         const ds = c.date ? `${c.date}:` : "";
-        return `Cab${i + 1}:${ds}${c.depart}`;
+        return `Cab${i + 1}:${ds}${c.depart || ""}`;
       })
       .filter((s): s is string => s !== null)
       .join(" | ");
@@ -4858,12 +4857,12 @@ function ProjectPageContent({ id }: { id: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           heureArrivee: isCabineMode
-            ? cabines.map((c, i) => c.arrivee ? `Cab${i + 1}:${c.arrivee}` : "").filter(Boolean).join(" | ")
+            ? cabines.map((c, i) => (c.arrivee || c.date) ? `Cab${i + 1}:${c.date ? `${c.date}:` : ""}${c.arrivee || ""}` : "").filter(Boolean).join(" | ")
             : isMultiDay
               ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.arrivee}`).join(" | ")
               : heureArrivee,
           heureDepart: isCabineMode
-            ? cabines.map((c, i) => c.depart ? `Cab${i + 1}:${c.depart}` : "").filter(Boolean).join(" | ")
+            ? cabines.map((c, i) => (c.depart || c.date) ? `Cab${i + 1}:${c.date ? `${c.date}:` : ""}${c.depart || ""}` : "").filter(Boolean).join(" | ")
             : isMultiDay
               ? pointages.map((p) => `${p.date} ${p.collaborateur} ${p.depart}`).join(" | ")
               : effectiveDepart,

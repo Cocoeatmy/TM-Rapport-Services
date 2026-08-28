@@ -62,13 +62,6 @@ function parseCabineMap(raw: string): Map<number, string> {
   return map;
 }
 
-function hasDate(val: string): boolean {
-  // Exige une vraie heure après la date (HH:MM) — "2026-06-09:" seul ne compte PAS.
-  // Sans ça, une entrée "date-only" (c.date renseigné mais c.depart vide) écrase
-  // une heure valide déjà présente dans Notion lors du merge.
-  return /^\d{4}-\d{2}-\d{2}:\d{2}:\d{2}/.test(val);
-}
-
 /**
  * Merge noms de cabines : la valeur personnalisée gagne toujours sur le défaut.
  * Si incoming = "Cabine N" (défaut) et existing a une valeur → on garde existing.
@@ -192,17 +185,31 @@ function mergeCabineTimes(existing: string, incoming: string): string {
   // Union : incoming prend le dessus sauf si Notion a une valeur avec date
   // et incoming n'en a pas (client en format ancien/dégradé).
   // Exception : valeur null = réinitialisation explicite → on supprime.
+  // Fusionne un slot "date:heure" : la date entrante prime si présente, sinon on
+  // garde l'existante ; l'heure entrante prime si présente, sinon on GARDE
+  // l'heure existante (→ une entrée date-seule "2026-08-13:" ne détruit jamais
+  // une heure réelle déjà enregistrée). Corrige la perte de date des cabines
+  // SANS heure (sous-traitées).
+  const splitSlot = (v: string): { date: string; time: string } => {
+    const m = /^(\d{4}-\d{2}-\d{2}):?([\s\S]*)$/.exec(v || "");
+    if (m) return { date: m[1], time: m[2].trim() };
+    return { date: "", time: (v || "").trim() };
+  };
+  const mergeSlot = (exVal: string | undefined, inVal: string): string => {
+    const a = splitSlot(exVal || "");
+    const b = splitSlot(inVal);
+    const date = b.date || a.date;
+    const time = b.time || a.time;
+    return date ? `${date}:${time}` : time;
+  };
+
   const merged = new Map(exMap);
   inMap.forEach((inVal, cabNum) => {
     if (inVal === null) {
       // Suppression explicite (cabine réinitialisée) → retirer de Notion
       merged.delete(cabNum);
     } else {
-      const exVal = exMap.get(cabNum);
-      if (!exVal || hasDate(inVal) || !hasDate(exVal)) {
-        merged.set(cabNum, inVal);
-      }
-      // sinon : Notion a une date, client n'en a pas → on garde Notion
+      merged.set(cabNum, mergeSlot(exMap.get(cabNum), inVal));
     }
   });
 
