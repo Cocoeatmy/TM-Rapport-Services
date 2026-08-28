@@ -3188,7 +3188,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [heureDepart, setHeureDepart] = useState("");
   const [commentaires, setCommentaires] = useState("");
   const [rapport, setRapport] = useState("");
-  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string; activeTab: "infos" | "photos" | "signalements" | "rapport" | "sav"; qrEnabled: boolean; garantieEnabled: boolean }[]>([]);
+  const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string; activeTab: "infos" | "photos" | "signalements" | "rapport" | "sav"; qrEnabled: boolean; garantieEnabled: boolean; demontageEnabled: boolean }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [expandedCabineDate, setExpandedCabineDate] = useState<string | null>(null);
   const [rapportModalCabineIdx, setRapportModalCabineIdx] = useState<number | null>(null);
@@ -3935,6 +3935,7 @@ function ProjectPageContent({ id }: { id: string }) {
               activeTab: "infos" as const,
               qrEnabled: false,
               garantieEnabled: false,
+              demontageEnabled: false,
             };
           })
         );
@@ -7715,8 +7716,36 @@ function ProjectPageContent({ id }: { id: string }) {
 
                           {cabine.activeTab === "photos" && (
                             <div className="space-y-4 px-4">
+                              {/* Démontage (rare) : replié derrière une case, comme QR/Garantie.
+                                  Déplié si coché OU si des photos démontage existent déjà. */}
+                              {(() => {
+                                const hasDemontage = filterByBucket(project?.photosDemontage, "DEMONTAGE", idx + 1).length > 0;
+                                const open = cabine.demontageEnabled || hasDemontage;
+                                return (
+                                  <div className="space-y-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, demontageEnabled: !c.demontageEnabled } : c))}
+                                      className={`flex items-center gap-2 w-full px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+                                        open
+                                          ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/20 text-[#1e3a5f] dark:text-blue-300"
+                                          : "border-gray-200 dark:border-slate-600 text-gray-500 dark:text-gray-400"
+                                      }`}
+                                    >
+                                      <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                                        open ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-500"
+                                      }`}>
+                                        {open && <span className="text-white text-[10px]">✓</span>}
+                                      </span>
+                                      Démontage effectué
+                                    </button>
+                                    {open && (
+                                      <BucketPhotoUpload bucket="DEMONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
+                                    )}
+                                  </div>
+                                );
+                              })()}
                               <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
-                              <BucketPhotoUpload bucket="DEMONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
                               <CombinedMontageUpload cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
                               <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
 
