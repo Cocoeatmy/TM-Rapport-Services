@@ -100,7 +100,7 @@ function MediaThumb({ url }: { url: string }) {
   );
 }
 
-function SavPDF({ project }: { project: Project }) {
+function SavPDF({ project, collabFilter = "" }: { project: Project; collabFilter?: string }) {
   const total = project.nbCabines || 0;
   const names = parseCabMulti(project.nomsCabines);
   const attribution = parseCabMulti(project.attributionCabines);
@@ -116,8 +116,17 @@ function SavPDF({ project }: { project: Project }) {
     !!(reclam[n] || cause[n] || dateRdv[n] || collab[n] || fait[n]
       || photosForCab(project.documentsSavDemande, n).length || photosForCab(project.photosSavRetouches, n).length);
 
+  // Filtre par monteur / sous-traitant : ne garde que les lots dont il s'occupe.
+  const norm = (x: string) => nfc(x || "").toLowerCase().trim();
+  const wantCollab = norm(collabFilter);
+  const belongsTo = (n: number) => {
+    if (!wantCollab) return true;
+    const monteurs = (attribution[n] || "").split("&").map(norm).filter(Boolean);
+    return monteurs.includes(wantCollab) || norm(sousTrait[n]) === wantCollab;
+  };
+
   const savCabs: number[] = [];
-  for (let n = 1; n <= total; n++) if (cabHasSav(n)) savCabs.push(n);
+  for (let n = 1; n <= total; n++) if (cabHasSav(n) && belongsTo(n)) savCabs.push(n);
 
   return (
     <Document>
@@ -127,7 +136,8 @@ function SavPDF({ project }: { project: Project }) {
           <Text style={styles.title}>Rapport SAV</Text>
           <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
-          <Text style={styles.subtitle}>{savCabs.length} SAV / {total} cabine{total > 1 ? "s" : ""}</Text>
+          {collabFilter ? <Text style={{ ...styles.subtitle, fontFamily: "Helvetica-Bold", color: "#b45309" }}>SAV de {nfc(collabFilter)}</Text> : null}
+          <Text style={styles.subtitle}>{savCabs.length} SAV{collabFilter ? "" : ` / ${total} cabine${total > 1 ? "s" : ""}`}</Text>
         </View>
 
         {savCabs.length === 0 ? (
@@ -204,12 +214,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const sp = req.nextUrl.searchParams;
   const s = sp.get("s") || "";
+  const collab = (sp.get("collab") || "").trim();
   const wantLink = sp.get("link") === "1";
   const secret = process.env.SHARE_LINK_KEY || "";
 
   const sigValid = (() => {
     if (!secret || !s) return false;
-    const a = Buffer.from(s); const b = Buffer.from(signSav(id));
+    const a = Buffer.from(s); const b = Buffer.from(signSav(id, collab));
     return a.length === b.length && timingSafeEqual(a, b);
   })();
   const authed = await isAuthed(req);
@@ -217,19 +228,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (wantLink) {
     if (!authed) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     if (!secret) return NextResponse.json({ error: "SHARE_LINK_KEY non configuré" }, { status: 503 });
-    return NextResponse.json({ url: `${req.nextUrl.origin}/api/sav/${encodeURIComponent(id)}?s=${signSav(id)}` });
+    const q = collab ? `?s=${signSav(id, collab)}&collab=${encodeURIComponent(collab)}` : `?s=${signSav(id)}`;
+    return NextResponse.json({ url: `${req.nextUrl.origin}/api/sav/${encodeURIComponent(id)}${q}` });
   }
   if (!sigValid && !authed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   try {
     const project = await getProject(id);
-    const stream = await ReactPDF.renderToStream(<SavPDF project={project} />);
+    const stream = await ReactPDF.renderToStream(<SavPDF project={project} collabFilter={collab} />);
     const chunks: Buffer[] = [];
     // @ts-ignore
     for await (const c of stream) chunks.push(Buffer.from(c));
     const buffer = Buffer.concat(chunks);
     const ofr = asciiFilename((project.ofrTM || "").replace(/-/g, " "));
-    const filename = asciiFilename(`Rapport SAV - ${ofr} - ${project.projet || ""}`) + ".pdf";
+    const filename = asciiFilename(`Rapport SAV - ${ofr}${collab ? " - " + collab : ` - ${project.projet || ""}`}`) + ".pdf";
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": "application/pdf",

@@ -30,7 +30,9 @@ export function ficheLink(projectId: string, baseUrl = appBaseUrl()): string {
   return `${baseUrl}/api/fiche/${encodeURIComponent(projectId)}?s=${signFiche(projectId)}`;
 }
 
-/** Signature HMAC d'un projet pour le rapport SAV (lien public). */
-export function signSav(projectId: string): string {
-  return createHmac("sha256", SECRET).update(`sav|${projectId}`).digest("hex").slice(0, 32);
+/** Signature HMAC d'un projet pour le rapport SAV (lien public).
+ * `collab` optionnel : restreint le rapport aux SAV d'un monteur / sous-traitant. */
+export function signSav(projectId: string, collab = ""): string {
+  const base = collab ? `sav|${projectId}|${collab}` : `sav|${projectId}`;
+  return createHmac("sha256", SECRET).update(base).digest("hex").slice(0, 32);
 }
