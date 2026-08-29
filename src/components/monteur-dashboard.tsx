@@ -5497,7 +5497,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       {(() => {
                         const totalCab = group.projects.reduce((s, p) => s + (p.nbCabines || 0), 0);
                         const installedCab = group.projects.reduce((s, p) => s + Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0);
-                        const cabTxt = (showSummaryPanel === "rdv-montage-a-fixer" && installedCab > 0)
+                        const cabTxt = ((showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-fixe") && installedCab > 0)
                           ? `${installedCab}/${totalCab} cab.`
                           : `${totalCab} cab.`;
                         return `${group.projects.length} projet${group.projects.length > 1 ? "s" : ""} · ${cabTxt}`;
@@ -5523,11 +5523,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     const rdvNumFourn = rdvIsMes ? p.servMesuresFournisseurs : p.servCmdFournisseurs;
                     const rdvTmList = parseTMNumbers(p.ofrTM || "");
                     const rdvDaysCount = p.dateMontageEnd ? getWorkingDays(p.dateMontage || "", p.dateMontageEnd).length : 0;
-                    // Progression du montage (n'a de sens que pour le panneau Montage).
+                    // Progression du montage (panneaux « RDV Montage à fixer » et « RDV fixé »).
                     const isMontagePanel = showSummaryPanel === "rdv-montage-a-fixer";
                     const cabTotal = p.nbCabines || 0;
                     const cabInstalled = Math.min(p.nbCabinesInstallees || 0, cabTotal);
                     const cabRemaining = Math.max(cabTotal - cabInstalled, 0);
+                    // Affichage « posées/total » + « reste à poser » : Montage à fixer,
+                    // et RDV fixé (uniquement les montages, pas les mesures).
+                    const showCabProgress = (isMontagePanel || (showSummaryPanel === "rdv-fixe" && !isMesure)) && cabInstalled > 0;
                     return (
                       <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                         className={`${isRdvAFixerPanel ? "flex flex-col" : "flex items-center"} gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
@@ -5768,7 +5771,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         {showSummaryPanel === "rdv-montage-a-fixer" && p.nbCollaborateursMontage && (
                           <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">{p.nbCollaborateursMontage} pers.</span>
                         )}
-                        <Badge variant="outline" className="text-[10px] shrink-0">{p.nbCabines || 0} cab.</Badge>
+                        {showCabProgress && (
+                          <span className={`shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${cabRemaining > 0 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"}`}>
+                            {cabRemaining > 0 ? `${cabRemaining} à poser` : "✓ posé"}
+                          </span>
+                        )}
+                        <Badge variant="outline" className="text-[10px] shrink-0" title={showCabProgress ? `${cabInstalled} posées / ${cabTotal}` : undefined}>
+                          {showCabProgress ? `${cabInstalled}/${cabTotal} cab.` : `${cabTotal} cab.`}
+                        </Badge>
                         </div>
                       </Link>
                     );
