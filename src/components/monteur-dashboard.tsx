@@ -5494,7 +5494,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       );
                     })()}
                     <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-semibold bg-white/20 text-white">
-                      {group.projects.length} projet{group.projects.length > 1 ? "s" : ""} · {group.projects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
+                      {(() => {
+                        const totalCab = group.projects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+                        const installedCab = group.projects.reduce((s, p) => s + Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0);
+                        const cabTxt = (showSummaryPanel === "rdv-montage-a-fixer" && installedCab > 0)
+                          ? `${installedCab}/${totalCab} cab.`
+                          : `${totalCab} cab.`;
+                        return `${group.projects.length} projet${group.projects.length > 1 ? "s" : ""} · ${cabTxt}`;
+                      })()}
                     </span>
                   </div>
                   {group.projects.map((p, idx) => {
@@ -5516,6 +5523,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     const rdvNumFourn = rdvIsMes ? p.servMesuresFournisseurs : p.servCmdFournisseurs;
                     const rdvTmList = parseTMNumbers(p.ofrTM || "");
                     const rdvDaysCount = p.dateMontageEnd ? getWorkingDays(p.dateMontage || "", p.dateMontageEnd).length : 0;
+                    // Progression du montage (n'a de sens que pour le panneau Montage).
+                    const isMontagePanel = showSummaryPanel === "rdv-montage-a-fixer";
+                    const cabTotal = p.nbCabines || 0;
+                    const cabInstalled = Math.min(p.nbCabinesInstallees || 0, cabTotal);
+                    const cabRemaining = Math.max(cabTotal - cabInstalled, 0);
                     return (
                       <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                         className={`${isRdvAFixerPanel ? "flex flex-col" : "flex items-center"} gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
@@ -5536,9 +5548,20 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 {rdvNumFourn && <p className="mt-1 text-[9px] font-mono text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.5 rounded inline-block">N° {rdvNumFourn}</p>}
                               </div>
                               <div className="shrink-0 flex flex-col items-end gap-1">
-                                {rdvJ && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${rdvJ.bgClass} ${rdvJ.colorClass}`}>J+{rdvJ.days}</span>}
+                                {rdvJ && (
+                                  <span className="flex items-center gap-1">
+                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${rdvJ.bgClass} ${rdvJ.colorClass}`}>J+{rdvJ.days}</span>
+                                    {isMontagePanel && cabInstalled > 0 && (
+                                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${cabRemaining > 0 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"}`}>
+                                        {cabRemaining > 0 ? `${cabRemaining} à poser` : "✓ posé"}
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
                                 {bestLogo && <LogoImg src={bestLogo} />}
-                                <Badge variant="outline" className="text-[10px]">{p.nbCabines || 0} cab.</Badge>
+                                <Badge variant="outline" className="text-[10px]" title={isMontagePanel && cabInstalled > 0 ? `${cabInstalled} posées / ${cabTotal}` : undefined}>
+                                  {isMontagePanel && cabInstalled > 0 ? `${cabInstalled}/${cabTotal} cab.` : `${cabTotal} cab.`}
+                                </Badge>
                                 {rdvEtat && <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${rdvEtatCls}`}>{rdvEtat}</span>}
                                 {p.emplacementCabine && (
                                   <span className="flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400" title={p.emplacementCabine}>
@@ -5560,6 +5583,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 )}
                                 <span className="ml-auto flex items-center gap-2 shrink-0">
                                   {rdvJ && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${rdvJ.bgClass} ${rdvJ.colorClass}`}>J+{rdvJ.days}</span>}
+                                  {isMontagePanel && cabInstalled > 0 && (
+                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${cabRemaining > 0 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"}`}>
+                                      {cabRemaining > 0 ? `${cabRemaining} à poser` : "✓ posé"}
+                                    </span>
+                                  )}
                                   {rdvEtat && <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${rdvEtatCls}`}>{rdvEtat}</span>}
                                   {p.emplacementCabine && (
                                     <span className="flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400 max-w-[170px]" title={p.emplacementCabine}>
@@ -5574,7 +5602,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   {showSummaryPanel === "rdv-montage-a-fixer" && p.nbCollaborateursMontage && (
                                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">{p.nbCollaborateursMontage} pers.</span>
                                   )}
-                                  <Badge variant="outline" className="text-[10px]">{p.nbCabines || 0} cab.</Badge>
+                                  <Badge variant="outline" className="text-[10px]" title={isMontagePanel && cabInstalled > 0 ? `${cabInstalled} posées / ${cabTotal}` : undefined}>
+                                    {isMontagePanel && cabInstalled > 0 ? `${cabInstalled}/${cabTotal} cab.` : `${cabTotal} cab.`}
+                                  </Badge>
                                 </span>
                               </div>
                             </div>
