@@ -7,7 +7,7 @@
 //   v11 : pré-cache explicite des pages /client/ et /projet/ + leurs données API
 //         via message PRECACHE_URLS — permet consultation hors-ligne garantie.
 
-const VERSION = "v31";
+const VERSION = "v32";
 const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;
