@@ -6337,11 +6337,17 @@ function ProjectPageContent({ id }: { id: string }) {
 
           if (isCabineMode) {
             percent = cabines.length === 0 ? 0 : Math.round((installedCabineCount / cabines.length) * 100);
-            progressLabel = (
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
-                {installedCabineCount}/{cabines.length} cabine{cabines.length > 1 ? "s" : ""} installée{cabines.length > 1 ? "s" : ""}
-              </p>
-            );
+            {
+              const restantes = Math.max(cabines.length - installedCabineCount, 0);
+              progressLabel = (
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
+                  {installedCabineCount}/{cabines.length} cabine{cabines.length > 1 ? "s" : ""} installée{cabines.length > 1 ? "s" : ""}
+                  {restantes > 0 && (
+                    <span className="text-amber-600 dark:text-amber-400 font-semibold"> · reste {restantes} à poser</span>
+                  )}
+                </p>
+              );
+            }
           } else {
             const countPhotosForCab = (photos: { name: string; url: string }[] | undefined, cab: number | null): number => {
               if (!photos) return 0;
