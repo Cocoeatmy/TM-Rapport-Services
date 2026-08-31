@@ -7440,23 +7440,33 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <FileText className="w-4 h-4 text-violet-500" />
                                 </span>
                               )}
-                              {/* Icône SAV (ambre) : un SAV/retouche existe pour ce lot.
+                              {/* Icône SAV : un SAV/retouche existe pour ce lot.
+                                  Ambre = en cours ; vert + date = SAV clôturé (réglé).
                                   Clic → ouvre l'onglet SAV. */}
-                              {cabineHasSav(idx) && (
-                                <span
-                                  role="button"
-                                  tabIndex={0}
-                                  title="SAV / Retouche — voir"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, open: true, activeTab: "sav" } : c));
-                                  }}
-                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.currentTarget.click(); }}
-                                  className="shrink-0 cursor-pointer rounded hover:opacity-75 transition-opacity"
-                                >
-                                  <Wrench className="w-4 h-4 text-amber-500" />
-                                </span>
-                              )}
+                              {cabineHasSav(idx) && (() => {
+                                const savClotureDate = (parseCabineTextMulti(project?.datesSavClotureCabines || "")[idx + 1] || "").slice(0, 10);
+                                const savRegle = !!savClotureDate;
+                                return (
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    title={savRegle ? `SAV réglé le ${savClotureDate.split("-").reverse().join(".")} — voir` : "SAV / Retouche — voir"}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, open: true, activeTab: "sav" } : c));
+                                    }}
+                                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.currentTarget.click(); }}
+                                    className="shrink-0 cursor-pointer rounded hover:opacity-75 transition-opacity inline-flex items-center gap-1"
+                                  >
+                                    <Wrench className={`w-4 h-4 ${savRegle ? "text-green-500" : "text-amber-500"}`} />
+                                    {savRegle && (
+                                      <span className="text-[10px] font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
+                                        {savClotureDate.split("-").reverse().join(".")}
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             {/* Sous-titre : QUI a monté + date. Monteur employé → affiché
                                 seulement avec la date (install complète). À défaut de monteur,
