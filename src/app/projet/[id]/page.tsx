@@ -6908,17 +6908,20 @@ function ProjectPageContent({ id }: { id: string }) {
                 {showSavCard && <CardContent className="space-y-4">
                   {(() => {
                     const stMap = parseSousTraitance(project?.monteursSousTraitance || "");
-                    const map = new Map<string, { sav: number; montage: number }>();
+                    const clotureMap = parseCabineTextMulti(project?.datesSavClotureCabines || "");
+                    const map = new Map<string, { sav: number; regle: number; montage: number }>();
                     cabines.forEach((c, i) => {
                       const monteurs = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
                       const names = monteurs.length ? monteurs : (stMap[i + 1] ? [stMap[i + 1]] : []);
                       const isMontage = installedCabineIndices.has(i);
                       const hasSav = cabineHasSav(i);
+                      const isRegle = hasSav && !!(clotureMap[i + 1] || "").slice(0, 10);
                       names.forEach((n) => {
                         let cur = map.get(n);
-                        if (!cur) { cur = { sav: 0, montage: 0 }; map.set(n, cur); }
+                        if (!cur) { cur = { sav: 0, regle: 0, montage: 0 }; map.set(n, cur); }
                         if (isMontage) cur.montage += 1;
                         if (hasSav) cur.sav += 1;
+                        if (isRegle) cur.regle += 1;
                       });
                     });
                     const rows = [...map.entries()].filter(([, v]) => v.sav > 0 || v.montage > 0).sort((a, b) => b[1].sav - a[1].sav);
@@ -6928,11 +6931,12 @@ function ProjectPageContent({ id }: { id: string }) {
                       <div>
                         <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Par collaborateur — taux de réclamation</p>
                         <div className="space-y-1.5">
-                          {rows.map(([name, { sav, montage }]) => {
+                          {rows.map(([name, { sav, regle, montage }]) => {
                             const taux = montage > 0 ? Math.round((sav / montage) * 1000) / 10 : 0;
                             const active = heuresFilterCollab === name && showOnlySav;
                             const colors = getCollaboratorColor(name);
                             const rowBusy = savRowBusy === name;
+                            const enCours = sav - regle;
                             return (
                               <div
                                 key={name}
@@ -6946,7 +6950,11 @@ function ProjectPageContent({ id }: { id: string }) {
                                 >
                                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: colors.dot }} />
                                   <span className="flex-1 min-w-0 truncate text-sm font-medium text-gray-800 dark:text-gray-200">{name}</span>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{sav} SAV / {montage} mont.</span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0" title={regle > 0 ? `${regle} SAV réglé${regle > 1 ? "s" : ""}${enCours > 0 ? `, ${enCours} en cours` : ""}` : undefined}>
+                                    {sav} SAV
+                                    {regle > 0 && <span className="text-green-600 dark:text-green-400 font-semibold"> ({regle} réglé{regle > 1 ? "s" : ""})</span>}
+                                    {" "}/ {montage} mont.
+                                  </span>
                                   <span className="text-sm font-bold text-amber-600 dark:text-amber-400 min-w-[46px] text-right" title={`${sav} SAV sur ${montage} montages`}>{taux}%</span>
                                 </button>
                                 {sav > 0 && (
