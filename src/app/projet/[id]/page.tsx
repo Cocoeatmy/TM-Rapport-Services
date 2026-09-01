@@ -1799,6 +1799,39 @@ function normCabineLabel(s: string | undefined | null): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+/** Longueur de la plus longue sous-chaîne commune (chaînes déjà normalisées).
+ *  Sert à réattacher un signalement orphelin (lot renommé) au bon lot :
+ *  « cabine1etag » vs « sddetage » partagent « etag ». */
+function longestCommonSubstr(a: string, b: string): number {
+  if (!a || !b) return 0;
+  const m = a.length, n = b.length;
+  let prev = new Array(n + 1).fill(0);
+  let best = 0;
+  for (let i = 1; i <= m; i++) {
+    const cur = new Array(n + 1).fill(0);
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) { cur[j] = prev[j - 1] + 1; if (cur[j] > best) best = cur[j]; }
+    }
+    prev = cur;
+  }
+  return best;
+}
+
+/** Choisit le lot le plus probable pour un signalement dont le libellé ne
+ *  correspond à aucun nom actuel (lot renommé). Retourne l'index seulement si
+ *  le gagnant est NET (chevauchement ≥ 3 caractères et strictement meilleur). */
+function bestCabineForOrphan(label: string, cabineNames: string[]): number {
+  const nl = normCabineLabel(label);
+  if (nl.length < 3) return -1;
+  let bestIdx = -1, bestScore = 0, second = 0;
+  cabineNames.forEach((nm, i) => {
+    const s = longestCommonSubstr(nl, normCabineLabel(nm));
+    if (s > bestScore) { second = bestScore; bestScore = s; bestIdx = i; }
+    else if (s > second) second = s;
+  });
+  return bestScore >= 3 && bestScore > second ? bestIdx : -1;
+}
+
 // ── Rapport cabine : phrases « classiques » prédéfinies dans l'app ────────────
 // Boutons à cocher standards. Tout texte du rapport qui RESTE une fois ces
 // phrases retirées = texte ajouté MANUELLEMENT (précisions propres au monteur).
@@ -3216,6 +3249,33 @@ function ProjectPageContent({ id }: { id: string }) {
   const [rapport, setRapport] = useState("");
   const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string; activeTab: "infos" | "photos" | "signalements" | "rapport" | "sav"; qrEnabled: boolean; garantieEnabled: boolean; demontageEnabled: boolean }[]>([]);
   const [isCabineMode, setIsCabineMode] = useState(false);
+  // Récupération AUTOMATIQUE des signalements orphelins : si le libellé d'un
+  // signalement ne correspond plus à aucun lot (lot renommé avant le correctif),
+  // on le réattache au lot le plus probable (plus longue sous-chaîne commune,
+  // gagnant net) et on corrige le cabineLabel côté serveur + PDF.
+  const orphanFixedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isCabineMode || cabines.length === 0) return;
+    const names = cabines.map((c) => c.nom || "");
+    const normNames = names.map(normCabineLabel);
+    let changed = false;
+    const fix = <T extends { id: string; cabineLabel?: string }>(list: T[], endpoint: string): T[] =>
+      list.map((sig) => {
+        const nl = normCabineLabel(sig.cabineLabel);
+        if (!nl || normNames.includes(nl)) return sig;        // déjà relié à un lot
+        if (orphanFixedRef.current.has(sig.id)) return sig;    // déjà traité
+        orphanFixedRef.current.add(sig.id);                    // ne pas retenter en boucle
+        const idx = bestCabineForOrphan(sig.cabineLabel || "", names);
+        if (idx < 0 || !names[idx]) return sig;                // pas de gagnant net → on laisse
+        fetch(endpoint, { method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: sig.id, cabineLabel: names[idx] }) }).catch(() => {});
+        changed = true;
+        return { ...sig, cabineLabel: names[idx] };
+      });
+    const defauts = fix(cabineSignalements.defauts, "/api/defauts");
+    const pieces = fix(cabineSignalements.pieces, "/api/pieces");
+    if (changed) setCabineSignalements({ defauts, pieces });
+  }, [cabines, cabineSignalements, isCabineMode]);
   const [expandedCabineDate, setExpandedCabineDate] = useState<string | null>(null);
   const [rapportModalCabineIdx, setRapportModalCabineIdx] = useState<number | null>(null);
   const [resetConfirmIdx, setResetConfirmIdx] = useState<number | null>(null);
