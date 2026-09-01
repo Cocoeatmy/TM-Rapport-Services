@@ -455,6 +455,26 @@ function formatDate(dateStr: string | null): string {
   return formatSwissDate(dateStr);
 }
 
+// Dates d'intervention DISTINCTES (chantiers multi-jours) : lues depuis les
+// dates par cabine encodées dans « Heure arrivée » / « Heure départ »
+// ("CabN:YYYY-MM-DD:HH:MM"), avec repli sur dateMontage / dateMontageEnd.
+function collectMontageDates(project: { heureArrivee?: string | null; heureDepart?: string | null; dateMontage: string | null; dateMontageEnd?: string | null }): string[] {
+  const dates = new Set<string>();
+  const re = /Cab\d+\s*:(\d{4}-\d{2}-\d{2}):/g;
+  for (const raw of [project.heureArrivee || "", project.heureDepart || ""]) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(raw))) dates.add(m[1]);
+  }
+  if (dates.size === 0) {
+    // Repli : plage projet (mono-cabine ou sans dates par cabine).
+    const start = (project.dateMontage || "").split("T")[0];
+    const end = (project.dateMontageEnd || "").split("T")[0];
+    if (start) dates.add(start);
+    if (end) dates.add(end);
+  }
+  return [...dates].filter(Boolean).sort();
+}
+
 function optimizeImageUrl(url: string): string {
   if (!url) return url;
   // Cloudinary: insérer transformation pour compresser
@@ -639,14 +659,20 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
             <Text style={styles.label}>Nb. Cabines</Text>
             <Text style={styles.value}>{project.nbCabines ?? "---"}</Text>
           </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Date de montage</Text>
-            <Text style={styles.value}>
-              {project.dateMontageEnd && project.dateMontageEnd !== project.dateMontage
-                ? `${formatDate(project.dateMontage)} → ${formatDate(project.dateMontageEnd)}`
-                : formatDate(project.dateMontage)}
-            </Text>
-          </View>
+          {(() => {
+            const dates = collectMontageDates(project);
+            const multi = dates.length > 1;
+            return (
+              <View style={styles.row}>
+                <Text style={styles.label}>{multi ? "Dates de montage" : "Date de montage"}</Text>
+                <Text style={styles.value}>
+                  {dates.length > 0
+                    ? dates.map((d) => formatDate(d)).join(multi ? "  •  " : "")
+                    : formatDate(project.dateMontage)}
+                </Text>
+              </View>
+            );
+          })()}
           <View style={styles.row}>
             <Text style={styles.label}>Collaborateurs</Text>
             <Text style={styles.value}>{project.collaborateurs || "---"}</Text>
