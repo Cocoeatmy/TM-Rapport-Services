@@ -160,7 +160,7 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const { id, status, comment, description, reference, displayInRapport } = body;
+  const { id, status, comment, description, reference, displayInRapport, cabineLabel } = body;
   const pieces = await getData<PieceRequest>(KEY);
   const idx = pieces.findIndex((p) => p.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
@@ -173,6 +173,8 @@ export async function PATCH(request: NextRequest) {
   if (typeof description === "string") pieces[idx].description = description;
   if (typeof reference === "string") pieces[idx].reference = reference;
   if (typeof displayInRapport === "boolean") pieces[idx].displayInRapport = displayInRapport;
+  // Renommage d'une cabine : garde la pièce reliée au bon lot.
+  if (typeof cabineLabel === "string" && cabineLabel.trim()) pieces[idx].cabineLabel = cabineLabel.trim();
 
   await setData(KEY, pieces);
   return NextResponse.json({ success: true });

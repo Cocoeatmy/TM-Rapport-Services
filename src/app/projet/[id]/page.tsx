@@ -3136,6 +3136,32 @@ function ProjectPageContent({ id }: { id: string }) {
     });
   }, [id, pieceRefreshKey, defautRefreshKey]);
 
+  // Renommage d'un lot : réattache ses signalements (pièces + défauts) au
+  // nouveau nom. Sans ça, le rattachement se fait par libellé → l'icône
+  // disparaît de l'app et le PDF garde l'ancien titre.
+  const syncSignalementsRename = useCallback((oldNom: string, newNom: string) => {
+    if (normCabineLabel(oldNom) === normCabineLabel(newNom) || !newNom.trim()) return;
+    setCabineSignalements((prev) => {
+      const matchOld = (label?: string) => normCabineLabel(label) === normCabineLabel(oldNom);
+      const defautsToFix = prev.defauts.filter((d) => matchOld(d.cabineLabel));
+      const piecesToFix = prev.pieces.filter((p) => matchOld(p.cabineLabel));
+      defautsToFix.forEach((d) => {
+        fetch("/api/defauts", { method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: d.id, cabineLabel: newNom }) }).catch(() => {});
+      });
+      piecesToFix.forEach((p) => {
+        fetch("/api/pieces", { method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: p.id, cabineLabel: newNom }) }).catch(() => {});
+      });
+      if (defautsToFix.length === 0 && piecesToFix.length === 0) return prev;
+      // MAJ optimiste locale → l'icône reste visible immédiatement sur le lot renommé.
+      return {
+        defauts: prev.defauts.map((d) => matchOld(d.cabineLabel) ? { ...d, cabineLabel: newNom } : d),
+        pieces: prev.pieces.map((p) => matchOld(p.cabineLabel) ? { ...p, cabineLabel: newNom } : p),
+      };
+    });
+  }, []);
+
   const handleReformulateCabine = async (idx: number) => {
     const text = cabines[idx]?.rapport;
     if (!text?.trim()) return;
@@ -3249,6 +3275,9 @@ function ProjectPageContent({ id }: { id: string }) {
   const cabineLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cabineTouchSrcRef = useRef<number | null>(null);
   const nomKvDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Nom du lot au moment où l'utilisateur commence à l'éditer (focus), pour
+  // pouvoir réattacher les signalements existants lors d'un renommage.
+  const renameOldNomRef = useRef<string>("");
   /**
    * Garde-fou anti-revert CDN.
    *
@@ -7642,6 +7671,8 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <Label>Nom / Emplacement</Label>
                                 <Input
                                   value={cabine.nom}
+                                  onFocus={() => { renameOldNomRef.current = cabine.nom || ""; }}
+                                  onBlur={(e) => { syncSignalementsRename(renameOldNomRef.current, e.target.value); }}
                                   onChange={(e) => {
                                     const newNom = e.target.value;
                                     setCabines((prev) => {
