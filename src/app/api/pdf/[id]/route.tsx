@@ -475,6 +475,33 @@ function collectMontageDates(project: { heureArrivee?: string | null; heureDepar
   return [...dates].filter(Boolean).sort();
 }
 
+// Attribution par cabine : qui a monté quelle cabine (+ date), pour le rapport
+// CLIENT qui masque la section « Horaires » (donc n'affiche pas les monteurs).
+function cabineAssignments(
+  project: { nbCabines?: number | null; monteursSousTraitance?: string | null; heureArrivee?: string | null; collaborateurs?: string | null },
+  cabineAttribution?: CabineAttribution | null,
+): { label: string; who: string; date: string }[] {
+  const nb = project.nbCabines || 0;
+  if (nb < 1) return [];
+  const stMap: Record<number, string> = {};
+  const dateMap: Record<number, string> = {};
+  let m: RegExpExecArray | null;
+  const stRe = /Cab(\d+)\s*:([^|]*)/g;
+  const stRaw = project.monteursSousTraitance || "";
+  while ((m = stRe.exec(stRaw))) { const v = m[2].trim(); if (v) stMap[parseInt(m[1], 10) - 1] = v; }
+  const dRe = /Cab(\d+)\s*:(\d{4}-\d{2}-\d{2}):/g;
+  const dRaw = project.heureArrivee || "";
+  while ((m = dRe.exec(dRaw))) dateMap[parseInt(m[1], 10) - 1] = m[2];
+  const out: { label: string; who: string; date: string }[] = [];
+  for (let i = 0; i < nb; i++) {
+    const custom = cabineAttribution?.noms?.[i];
+    const label = (custom && custom !== `Cabine ${i + 1}`) ? custom : `Cabine ${i + 1}`;
+    const who = cabineAttribution?.attribution?.[i] || stMap[i] || project.collaborateurs || "";
+    out.push({ label, who, date: dateMap[i] || "" });
+  }
+  return out;
+}
+
 function optimizeImageUrl(url: string): string {
   if (!url) return url;
   // Cloudinary: insérer transformation pour compresser
@@ -844,6 +871,27 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
           })()}
         </View>
         )}
+
+        {/* Montage par cabine — qui a monté quelle cabine (+ date). Affiché sur
+            le rapport CLIENT (qui masque la section Horaires et donc les
+            monteurs), pour les chantiers multi-cabine. */}
+        {hideHours && (() => {
+          const rows = cabineAssignments(project, cabineAttribution).filter((r) => r.who || r.date);
+          if ((project.nbCabines || 0) < 2 || rows.length === 0) return null;
+          return (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Montage par cabine</Text>
+              {rows.map((r, i) => (
+                <View key={i} wrap={false} style={styles.row}>
+                  <Text style={{ ...styles.label, width: 120 }}>{r.label}</Text>
+                  <Text style={styles.value}>
+                    {r.who || "---"}{r.date ? `  •  ${formatDate(r.date)}` : ""}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          );
+        })()}
 
         {/* Rapport — wrap={false} : titre + rapport restent ensemble (jamais
             à cheval sur deux pages). Bascule en entier sur la page suivante
