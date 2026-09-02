@@ -8170,7 +8170,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                     type="date"
                                     value={(parseCabineTextMulti(project?.datesRdvSavCabines || "")[idx + 1] || "").slice(0, 10)}
                                     onChange={(e) => { saveCabineText("datesRdvSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-                                    className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                                    className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
                                   />
                                 </div>
                                 <div>
