@@ -5930,7 +5930,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 ) : <div />
               )}
             </div>
-            {/* Ligne 2 : Sanitaire | Contact Projet */}
+            {/* Ligne 2 : Sanitaire | Contact Grossiste */}
             <div className="grid grid-cols-2 gap-3">
               {project.sanitaireNames && project.sanitaireNames.length > 0 && (
                 <div className="flex items-start gap-2">
@@ -5949,7 +5949,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 <div className="flex items-start gap-2">
                   <Users className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-xs text-gray-500">Contact Projet</p>
+                    <p className="text-xs text-gray-500">Contact Grossiste</p>
                     <div className="flex flex-wrap gap-1 mt-0.5">
                       {project.contactsProjetNames.map((c) => (
                         <Badge key={c} variant="outline" className="text-xs">{c}</Badge>

@@ -372,7 +372,7 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
 
           {/* Note relations */}
           <p className="text-xs text-gray-400 dark:text-gray-500 italic">
-            Les relations (Grossistes, Fournisseurs, Sanitaire, Contact Projet) restent gérées directement dans Notion.
+            Les relations (Grossistes, Fournisseurs, Sanitaire, Contact Grossiste) restent gérées directement dans Notion.
           </p>
         </div>
 
