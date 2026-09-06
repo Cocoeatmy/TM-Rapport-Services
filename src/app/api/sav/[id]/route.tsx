@@ -7,7 +7,7 @@
  * téléchargement (Cloudinary fl_attachment).
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getProject, type Project } from "@/lib/notion";
+import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
 import { signSav } from "@/lib/doc-link";
@@ -118,6 +118,27 @@ function MediaThumb({ url }: { url: string }) {
         ) : null}
       </View>
     </Link>
+  );
+}
+
+function joinNames(arr?: string[]): string { return arr && arr.length ? arr.map((s) => nfc(s)).join(", ") : ""; }
+// Cellule Contact : entreprise (gras) + contacts (Nom / email / téléphone).
+function ContactCell({ label, company, contacts }: { label: string; company?: string; contacts?: ContactDetail[] }) {
+  const list = (contacts || []).filter((c) => c && (c.name || c.email || c.phone));
+  const hasCompany = !!company && company.trim() !== "";
+  return (
+    <View style={{ width: "33.33%", paddingRight: 10, marginBottom: 8 }}>
+      <Text style={{ fontSize: 7.5, color: "#888", marginBottom: 2 }}>{label}</Text>
+      {hasCompany ? <Text style={{ fontSize: 9.5, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{company}</Text> : null}
+      {list.map((c, i) => (
+        <View key={i} style={{ marginTop: 3 }}>
+          {c.name ? <Text style={{ fontSize: 8.5, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(c.name)}</Text> : null}
+          {c.email ? <Text style={{ fontSize: 7.5, color: "#555" }}>{c.email}</Text> : null}
+          {c.phone ? <Text style={{ fontSize: 7.5, color: "#555" }}>{c.phone}</Text> : null}
+        </View>
+      ))}
+      {!hasCompany && list.length === 0 ? <Text style={{ fontSize: 9.5, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>—</Text> : null}
+    </View>
   );
 }
 
@@ -244,6 +265,18 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0 }: { project: Pro
             </View>
           );
         })}
+
+        {/* Contact — même présentation que la fiche de travail. */}
+        <View style={{ marginTop: 14, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: "#ddd" }} wrap={false}>
+          <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 6 }}>Contact</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            <ContactCell label="GROSSISTE" company={joinNames(project.grossistesNames)} contacts={project.contactsGrossisteDetails} />
+            <ContactCell label="INSTALLATEUR" company={joinNames(project.sanitaireNames)} contacts={project.contactsSanitaireDetails} />
+            <ContactCell label="ARCHITECTE" company={joinNames(project.architecteNames)} contacts={project.contactsArchitecteDetails} />
+            <ContactCell label="DT" company={joinNames(project.dtNames)} contacts={project.contactsDTDetails} />
+            <ContactCell label="CLIENT FINAL" contacts={project.contactsClientsFinauxDetails} />
+          </View>
+        </View>
 
         <Text style={styles.footer} fixed>
           TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon | Tél : +41 79 555 24 74 | www.douche-montage.ch
