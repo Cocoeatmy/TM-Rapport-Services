@@ -1,16 +1,17 @@
 /**
  * /api/doc-proxy?u=<url Cloudinary>
  *
- * Sert un document (PDF/…) hébergé sur Cloudinary en le récupérant côté serveur
- * puis en le renvoyant avec les bons en-têtes (Content-Type + inline).
+ * Sert un document (PDF/…) Cloudinary en le récupérant côté serveur puis en le
+ * renvoyant avec les bons en-têtes (Content-Type + inline).
  *
- * Pourquoi : ce compte Cloudinary RESTREINT la diffusion des PDF/documents en
- * URL non signée (HTTP 401), en resource_type `image` COMME `raw`. Le proxy
- * régénère donc une URL SIGNÉE côté serveur (secret API) — les URL signées
- * contournent la restriction — puis récupère le fichier et le renvoie.
+ * Ce compte Cloudinary RESTREINT la diffusion des PDF/documents en URL non
+ * signée (HTTP 401), en `image` comme en `raw`, et même une URL de diffusion
+ * signée est refusée. On récupère donc le fichier via plusieurs voies, la plus
+ * fiable étant l'API de TÉLÉCHARGEMENT AUTHENTIFIÉE (private_download_url), qui
+ * fonctionne pour les ressources dont la diffusion est restreinte.
  *
- * Sécurité : réservé aux URLs res.cloudinary.com (pas de proxy ouvert / SSRF)
- * et protégé par le cookie d'auth (route non publique dans le middleware).
+ * Sécurité : réservé aux URLs res.cloudinary.com en entrée (pas de SSRF) et
+ * protégé par le cookie d'auth (route non publique dans le middleware).
  */
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
@@ -34,33 +35,6 @@ const CONTENT_TYPES: Record<string, string> = {
   mov: "video/quicktime",
 };
 
-/** Reconstruit une URL de diffusion SIGNÉE à partir d'une URL Cloudinary. */
-function signedFromUrl(url: URL): string | null {
-  // /{cloud}/{resource_type}/{type}/[transf/]v{version}/{public_id}.{ext}
-  const parts = url.pathname.split("/").filter(Boolean);
-  if (parts.length < 4) return null;
-  const resourceType = parts[1];              // raw | image | video
-  const deliveryType = parts[2];              // upload
-  const vIdx = parts.findIndex((p) => /^v\d+$/.test(p));
-  const publicParts = parts.slice(vIdx >= 0 ? vIdx + 1 : 3);
-  let publicId = publicParts.join("/");
-  const version = vIdx >= 0 ? parts[vIdx].slice(1) : undefined;
-  let format: string | undefined;
-  // Pour `raw`, l'extension fait partie du public_id ; pour image/video, non.
-  if (resourceType !== "raw") {
-    const m = publicId.match(/\.([a-z0-9]+)$/i);
-    if (m) { format = m[1]; publicId = publicId.slice(0, -(m[1].length + 1)); }
-  }
-  return cloudinary.utils.url(publicId, {
-    resource_type: resourceType,
-    type: deliveryType,
-    version,
-    format,
-    sign_url: true,
-    secure: true,
-  });
-}
-
 export async function GET(req: NextRequest) {
   const u = req.nextUrl.searchParams.get("u") || "";
   const dl = req.nextUrl.searchParams.get("dl") === "1";
@@ -74,27 +48,60 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "hôte non autorisé" }, { status: 403 });
   }
 
-  // On tente d'abord l'URL signée (contourne la restriction), puis l'URL brute.
-  const signed = signedFromUrl(url);
-  const candidates = [signed, url.toString()].filter(Boolean) as string[];
+  // Parse : /{cloud}/{resource_type}/{type}/[transf/]v{version}/{public_id}.{ext}
+  const parts = url.pathname.split("/").filter(Boolean);
+  const resourceType = parts[1] || "image";
+  const deliveryType = parts[2] || "upload";
+  const vIdx = parts.findIndex((p) => /^v\d+$/.test(p));
+  const version = vIdx >= 0 ? parts[vIdx].slice(1) : undefined;
+  const publicWithExt = parts.slice(vIdx >= 0 ? vIdx + 1 : 3).join("/");
+  const extMatch = publicWithExt.match(/\.([a-z0-9]+)$/i);
+  const ext = extMatch ? extMatch[1] : "";
+  const publicIdNoExt = ext ? publicWithExt.slice(0, -(ext.length + 1)) : publicWithExt;
+  // `raw` : le public_id inclut l'extension ; image/vidéo : non.
+  const publicIdForDelivery = resourceType === "raw" ? publicWithExt : publicIdNoExt;
+
+  const candidates: { label: string; url: string }[] = [];
+  // 1) Téléchargement authentifié (API) — marche même si la diffusion est restreinte.
+  try {
+    const d = cloudinary.utils.private_download_url(publicIdNoExt, ext, {
+      resource_type: resourceType as any,
+      type: deliveryType,
+    } as any);
+    if (d) candidates.push({ label: "download", url: d });
+  } catch { /* ignore */ }
+  // 2) URL de diffusion signée.
+  try {
+    const s = cloudinary.utils.url(publicIdForDelivery, {
+      resource_type: resourceType as any,
+      type: deliveryType,
+      version,
+      format: resourceType === "raw" ? undefined : ext || undefined,
+      sign_url: true,
+      secure: true,
+    });
+    if (s) candidates.push({ label: "signed", url: s });
+  } catch { /* ignore */ }
+  // 3) URL brute (au cas où).
+  candidates.push({ label: "raw", url: url.toString() });
+
   let upstream: Response | null = null;
   const diag: string[] = [];
-  for (const target of candidates) {
+  for (const c of candidates) {
     try {
-      const r = await fetch(target, { cache: "no-store" });
-      diag.push(`${r.status} ${target.replace(/s--[^/]+--/, "s--…--")}`);
+      const r = await fetch(c.url, { cache: "no-store" });
+      diag.push(`${c.label}:${r.status}`);
       if (r.ok && r.body) { upstream = r; break; }
     } catch (e: any) {
-      diag.push(`ERR ${String(e?.message || e)}`);
+      diag.push(`${c.label}:ERR`);
     }
   }
   if (!upstream) {
     return NextResponse.json({ error: "récupération impossible", diag }, { status: 502 });
   }
 
-  const ext = (url.pathname.split(".").pop() || "").toLowerCase();
-  const contentType = CONTENT_TYPES[ext] || upstream.headers.get("content-type") || "application/octet-stream";
-  const filename = decodeURIComponent(url.pathname.split("/").pop() || "document");
+  const contentType = CONTENT_TYPES[ext.toLowerCase()] || upstream.headers.get("content-type") || "application/octet-stream";
+  const filename = decodeURIComponent(publicWithExt.split("/").pop() || "document");
 
   return new NextResponse(upstream.body, {
     headers: {
