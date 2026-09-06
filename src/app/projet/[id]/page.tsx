@@ -3497,6 +3497,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [copyingFicheLink, setCopyingFicheLink] = useState(false);
   const [downloadingSav, setDownloadingSav] = useState(false);
   const [copyingSavLink, setCopyingSavLink] = useState(false);
+  const [downloadingSavCab, setDownloadingSavCab] = useState<number | null>(null);
   const [savRowBusy, setSavRowBusy] = useState("");
   const [showSavCard, setShowSavCard] = useState(false);
   // Quel type de rapport est en cours (pour n'animer que le bon bouton) :
@@ -5160,7 +5161,6 @@ function ProjectPageContent({ id }: { id: string }) {
     } finally { setDownloadingSav(false); }
   };
   // Rapport SAV d'UNE cabine (bouton dans l'onglet SAV). cabNum = index 1-based.
-  const [downloadingSavCab, setDownloadingSavCab] = useState<number | null>(null);
   const handleDownloadSavCabine = async (cabNum: number) => {
     setDownloadingSavCab(cabNum);
     try {
