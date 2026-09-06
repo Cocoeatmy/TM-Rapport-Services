@@ -4,6 +4,8 @@ import { getProject } from "@/lib/notion";
 import { getData } from "@/lib/kv-store";
 import { detectBucket, extractCabine, defaultBucketForField, PhotoBucketKey } from "@/lib/photo-buckets";
 import { verifyToken } from "@/lib/auth";
+import { signPhotosZip } from "@/lib/doc-link";
+import { timingSafeEqual } from "crypto";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Vercel Pro — jusqu'à 5 min possible, 60 s suffit pour un ZIP
@@ -50,13 +52,23 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  // Authentification
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  const user = await verifyToken(token);
-  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-
   const { id } = await params;
+
+  // Filtre optionnel sur un seul champ (ex. photosMontage) + accès public signé
+  // (fiche calendrier). Sinon, accès admin par cookie.
+  const fieldParam = request.nextUrl.searchParams.get("field") || "";
+  const sig = request.nextUrl.searchParams.get("s") || "";
+  const secret = process.env.SHARE_LINK_KEY || "";
+  const sigValid = !!(secret && sig && fieldParam) && (() => {
+    const a = Buffer.from(sig); const b = Buffer.from(signPhotosZip(id, fieldParam));
+    return a.length === b.length && timingSafeEqual(a, b);
+  })();
+  if (!sigValid) {
+    const token = request.cookies.get("auth-token")?.value;
+    if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    const user = await verifyToken(token);
+    if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
 
   // Récupération du projet
   let project: Awaited<ReturnType<typeof getProject>>;
@@ -98,7 +110,9 @@ export async function GET(
 
   const all: PhotoEntry[] = [];
 
-  for (const { key, fallback } of fields) {
+  // Si un champ précis est demandé (ex. photosMontage), on ne ZIP que celui-là.
+  const activeFields = fieldParam ? fields.filter((f) => f.key === fieldParam) : fields;
+  for (const { key, fallback } of activeFields) {
     const files = (project[key] ?? []) as { name: string; url: string }[];
     for (const file of files) {
       const bucket = detectBucket(file.name, fallback);
@@ -109,8 +123,8 @@ export async function GET(
   }
 
   // Signalements : pièces manquantes, défauts signalés, et photos du souci réglé
-  // (champs projet Notion). Label fixe — cabine encodée dans le nom si présente.
-  const signalementFields: { key: "photosPiecesManquantes" | "photosDefautsSignale" | "photosSoucisRegle"; label: string }[] = [
+  // (champs projet Notion). Ignorés quand un champ précis est demandé.
+  const signalementFields: { key: "photosPiecesManquantes" | "photosDefautsSignale" | "photosSoucisRegle"; label: string }[] = fieldParam ? [] : [
     { key: "photosPiecesManquantes", label: "Photo piece manquante" },
     { key: "photosDefautsSignale",   label: "Photo defaut signale" },
     { key: "photosSoucisRegle",      label: "Photo travaux executes" },
@@ -125,19 +139,22 @@ export async function GET(
 
   // Repli KV-store : certaines photos de signalements ne vivent que dans le KV
   // (par signalement). On les ajoute — la déduplication par URL évite les doublons.
-  try {
-    const pieces = await getData<{ projectId: string; photoUrls?: string[]; photoUrl?: string }>("pieces");
-    for (const p of pieces.filter((x) => x.projectId === id)) {
-      const urls = p.photoUrls?.length ? p.photoUrls : (p.photoUrl ? [p.photoUrl] : []);
-      for (const url of urls) all.push({ url, cabineIdx: null, label: "Photo piece manquante" });
-    }
-  } catch { /* KV indisponible → on garde les champs Notion */ }
-  try {
-    const defauts = await getData<{ projectId: string; photoUrls?: string[] }>("defauts");
-    for (const d of defauts.filter((x) => x.projectId === id)) {
-      for (const url of (d.photoUrls || [])) all.push({ url, cabineIdx: null, label: "Photo defaut signale" });
-    }
-  } catch { /* idem */ }
+  // Ignoré quand un champ précis est demandé (montage / SAV réglé).
+  if (!fieldParam) {
+    try {
+      const pieces = await getData<{ projectId: string; photoUrls?: string[]; photoUrl?: string }>("pieces");
+      for (const p of pieces.filter((x) => x.projectId === id)) {
+        const urls = p.photoUrls?.length ? p.photoUrls : (p.photoUrl ? [p.photoUrl] : []);
+        for (const url of urls) all.push({ url, cabineIdx: null, label: "Photo piece manquante" });
+      }
+    } catch { /* KV indisponible → on garde les champs Notion */ }
+    try {
+      const defauts = await getData<{ projectId: string; photoUrls?: string[] }>("defauts");
+      for (const d of defauts.filter((x) => x.projectId === id)) {
+        for (const url of (d.photoUrls || [])) all.push({ url, cabineIdx: null, label: "Photo defaut signale" });
+      }
+    } catch { /* idem */ }
+  }
 
   // Déduplication par URL en gardant la PREMIÈRE occurrence (champ Notion, qui
   // porte la cabine) plutôt que la copie KV (cabineIdx null).

@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProject, type Project } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
-import { signFiche } from "@/lib/doc-link";
+import { signFiche, signPhotosZip } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
@@ -198,7 +198,7 @@ function ProgressRow({ label, pct, caption, color, value, docUrl }: {
   );
 }
 
-function FichePDF({ project, mesuresDocUrl, reportUrl }: { project: Project; mesuresDocUrl?: string; reportUrl?: string }) {
+function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savPhotosUrl, reportUrl }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savPhotosUrl?: string; reportUrl?: string }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -313,7 +313,7 @@ function FichePDF({ project, mesuresDocUrl, reportUrl }: { project: Project; mes
             const hours = montageHoursStr(project.heureArrivee, project.heureDepart);
             const value = dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)
               + (hours ? `  ·  ${hours}` : "");
-            if (total <= 0) return <LineRow label="Montage" value={value} />;
+            if (total <= 0) return <LineRow label="Montage" value={value} docUrl={montagePhotosUrl} />;
             return (
               <ProgressRow
                 label="Montage"
@@ -321,10 +321,11 @@ function FichePDF({ project, mesuresDocUrl, reportUrl }: { project: Project; mes
                 caption={`${installed}/${total} · ${pct}%`}
                 color={pct >= 100 ? "#15803d" : "#2563eb"}
                 value={value}
+                docUrl={montagePhotosUrl}
               />
             );
           })()}
-          <LineRow label="SAV" value={dateAndWho(fmtDate(project.dateRDVSAV), project.collaborateursSAV)} />
+          <LineRow label="SAV" value={dateAndWho(fmtDate(project.dateRDVSAV), project.collaborateursSAV)} docUrl={savPhotosUrl} />
           <LineRow label="Garantie" value={dateAndWho(fmtDate(project.dateRDVGarantie), project.collaborateurGarantie)} />
           <LineRow label="Services" value="à venir" />
         </View>
@@ -406,9 +407,14 @@ export async function GET(
       (project.documentsMontagee || []).length > 0
         ? `${req.nextUrl.origin}/api/fiche/${encodeURIComponent(id)}/docs?s=${signFiche(id)}`
         : undefined;
+    // Flèches de téléchargement du ZIP des photos (liens signés, publics).
+    const zipUrl = (field: string) =>
+      `${req.nextUrl.origin}/api/photos/${encodeURIComponent(id)}/download?field=${field}&s=${signPhotosZip(id, field)}`;
+    const montagePhotosUrl = (project.photosMontage || []).length > 0 ? zipUrl("photosMontage") : undefined;
+    const savPhotosUrl = (project.photosSavRetouches || []).length > 0 ? zipUrl("photosSavRetouches") : undefined;
     // Lien vers la page du rapport de montage (upload photos + horaires).
     const reportUrl = `${req.nextUrl.origin}/projet/${encodeURIComponent(id)}`;
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} reportUrl={reportUrl} />);
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} savPhotosUrl={savPhotosUrl} reportUrl={reportUrl} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
