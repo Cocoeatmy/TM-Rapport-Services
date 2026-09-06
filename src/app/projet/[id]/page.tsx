@@ -6098,6 +6098,27 @@ function ProjectPageContent({ id }: { id: string }) {
                 return parts.length ? parts.join(" — ") : "—";
               };
               const TODO = "à configurer dans Notion";
+              // Cellule Contact : entreprise (gras) + contacts (Nom / email / tél).
+              const contactNode = (
+                company: string | undefined,
+                details?: { name: string; email: string; phone: string }[],
+              ): React.ReactNode => {
+                const list = (details || []).filter((c) => c && (c.name || c.email || c.phone));
+                const hasCompany = !!company && company !== "—";
+                if (!hasCompany && list.length === 0) return <span className="text-gray-400 italic">{TODO}</span>;
+                return (
+                  <span className="inline-block text-right">
+                    {hasCompany && <span className="block">{company}</span>}
+                    {list.map((c, i) => (
+                      <span key={i} className="block mt-1 first:mt-0">
+                        {c.name && <span className="block">{c.name}</span>}
+                        {c.email && <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">{c.email}</span>}
+                        {c.phone && <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">{c.phone}</span>}
+                      </span>
+                    ))}
+                  </span>
+                );
+              };
               const sections: { title: string; rows: [string, React.ReactNode][] }[] = [
                 {
                   title: "Général",
@@ -6139,11 +6160,11 @@ function ProjectPageContent({ id }: { id: string }) {
                 {
                   title: "Contact",
                   rows: [
-                    ["Grossiste", val(project.grossistesNames)],
-                    ["Installateur", <span className="text-gray-400 italic">{TODO}</span>],
-                    ["Architecte", <span className="text-gray-400 italic">{TODO}</span>],
-                    ["DT", <span className="text-gray-400 italic">{TODO}</span>],
-                    ["Client final", <span className="text-gray-400 italic">{TODO}</span>],
+                    ["Grossiste", contactNode(val(project.grossistesNames), project.contactsGrossisteDetails)],
+                    ["Installateur", contactNode(val(project.sanitaireNames), project.contactsSanitaireDetails)],
+                    ["Architecte", contactNode(val(project.architecteNames), project.contactsArchitecteDetails)],
+                    ["DT", contactNode(val(project.dtNames), project.contactsDTDetails)],
+                    ["Client final", contactNode(undefined, project.contactsClientsFinauxDetails)],
                   ],
                 },
               ];
