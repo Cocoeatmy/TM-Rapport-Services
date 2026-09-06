@@ -5248,6 +5248,26 @@ function ProjectPageContent({ id }: { id: string }) {
   const reportStatus: "done" | "progress" | "notStarted" =
     reportPercent >= 100 ? "done" : reportPercent > 0 ? "progress" : "notStarted";
 
+  // État SAV du projet (pour la pastille clé à molette sur l'icône Rapport) :
+  //  - "none"   : aucun SAV → pas de pastille
+  //  - "open"   : au moins un SAV non clôturé → clé orange
+  //  - "closed" : tous les SAV clôturés → clé verte
+  const savStatus: "none" | "open" | "closed" = (() => {
+    const cabs = new Set<number>();
+    for (const field of ["commentairesSav", "causeSavCabines", "datesRdvSavCabines", "collaborateursSavCabines", "savRetouchesCabines"] as const) {
+      const m = parseCabineTextMulti(project?.[field] || "");
+      Object.keys(m).forEach((k) => cabs.add(parseInt(k, 10)));
+    }
+    for (const f of [...(project?.documentsSavDemande || []), ...(project?.photosSavRetouches || [])]) {
+      const mm = /\.Cab(\d+)\./.exec(f.name || "");
+      if (mm) cabs.add(parseInt(mm[1], 10));
+    }
+    if (cabs.size === 0) return "none";
+    const cloture = parseCabineTextMulti(project?.datesSavClotureCabines || "");
+    const allClosed = [...cabs].every((n) => !!(cloture[n] || "").slice(0, 10));
+    return allClosed ? "closed" : "open";
+  })();
+
   // Définition des onglets (rail vertical macOS + barre horizontale iOS).
   // "rapport" n'est présent que sur macOS : sur iOS le rapport reste piloté
   // par le bouton dédié (« Consulter / Démarrer le rapport de montage »).
@@ -5332,6 +5352,18 @@ function ProjectPageContent({ id }: { id: string }) {
             ) : (
               <Minus className="w-[11px] h-[11px] text-white" strokeWidth={3} />
             )}
+          </span>
+        )}
+        {/* Pastille SAV (clé à molette) en bas à droite : orange = SAV en cours,
+            vert = SAV clôturé. Aucune pastille si le projet n'a pas de SAV. */}
+        {id === "rapport" && savStatus !== "none" && (
+          <span
+            className={`absolute -bottom-1 -right-1 w-[18px] h-[18px] rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 shadow ${
+              savStatus === "closed" ? "bg-green-500" : "bg-orange-500"
+            }`}
+            title={savStatus === "closed" ? "SAV clôturé" : "SAV en cours"}
+          >
+            <Wrench className="w-[10px] h-[10px] text-white" strokeWidth={2.5} />
           </span>
         )}
       </button>
