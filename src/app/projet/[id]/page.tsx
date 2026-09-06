@@ -3221,7 +3221,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [resetConfirmIdx, setResetConfirmIdx] = useState<number | null>(null);
   const [showRapportGeneral, setShowRapportGeneral] = useState(false);
   const [showRapportRequiredModal, setShowRapportRequiredModal] = useState(false);
-  const [monoActiveTab, setMonoActiveTab] = useState<"rapport" | "photos">("rapport");
+  const [monoActiveTab, setMonoActiveTab] = useState<"infos" | "photos" | "rapport" | "signalements" | "sav">("rapport");
 
   // ── Auto-fill depuis email connecté (hors admin) ──────────────────────────
   const EMAIL_TO_COLLAB: Record<string, string> = {
@@ -7048,37 +7048,87 @@ function ProjectPageContent({ id }: { id: string }) {
               <>
                 <Card>
                   <CardHeader className="pb-0">
-                    <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Rapport & Photos</CardTitle>
+                    <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Montage</CardTitle>
                   </CardHeader>
-                  {/* ── Onglets Rapport / Photos (mono-cabine) : contrôle segmenté
-                        (pilules) → clairement cliquable, segment actif rempli de
-                        la couleur du thème. ── */}
-                  <div className="mx-6 mt-1 flex gap-1.5 p-1 rounded-xl bg-gray-100 dark:bg-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => setMonoActiveTab("rapport")}
-                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
-                        monoActiveTab === "rapport"
-                          ? "bg-[#1e3a5f] text-white shadow-sm"
-                          : "text-[#1e3a5f] dark:text-blue-200 hover:bg-white/70 dark:hover:bg-white/5"
-                      }`}
-                    >
-                      Rapport
-                      {!rapport.trim() && <span className={`w-2 h-2 rounded-full ${monoActiveTab === "rapport" ? "bg-red-300" : "bg-red-400 dark:bg-red-500"}`} />}
+                  {/* ── Onglets (mono-cabine) : même présentation que le multi-cabine
+                        (Infos / Photos / Rapport / Signalements / SAV). Les données
+                        restent au niveau PROJET (format mono inchangé) ; le SAV
+                        utilise l'encodage par cabine avec l'index 1 (Cab1). ── */}
+                  {(() => {
+                    const monoHasSav = !!(
+                      (parseCabineTextMulti(project?.commentairesSav || "")[1]) ||
+                      (parseCabineTextMulti(project?.causeSavCabines || "")[1]) ||
+                      (parseCabineTextMulti(project?.datesRdvSavCabines || "")[1]) ||
+                      (parseCabineTextMulti(project?.collaborateursSavCabines || "")[1]) ||
+                      (parseCabineTextMulti(project?.savRetouchesCabines || "")[1]) ||
+                      filterByBucket(project?.documentsSavDemande, "SAV_DEMANDE", 1).length ||
+                      filterByBucket(project?.photosSavRetouches, "SAV_RETOUCHE", 1).length
+                    );
+                    const monoHasSignalement = (cabineSignalements.pieces.length + cabineSignalements.defauts.length) > 0;
+                    const savCloture = !!(parseCabineTextMulti(project?.datesSavClotureCabines || "")[1] || "").slice(0, 10);
+                    return (
+                  <div className="flex justify-evenly sm:justify-normal border-b border-gray-100 dark:border-slate-700 mb-4">
+                    <button type="button" onClick={() => setMonoActiveTab("infos")}
+                      className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 ${monoActiveTab === "infos" ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300" : "text-gray-400 hover:text-gray-600"}`}>
+                      Infos
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setMonoActiveTab("photos")}
-                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] ${
-                        monoActiveTab === "photos"
-                          ? "bg-[#1e3a5f] text-white shadow-sm"
-                          : "text-[#1e3a5f] dark:text-blue-200 hover:bg-white/70 dark:hover:bg-white/5"
-                      }`}
-                    >
+                    <button type="button" onClick={() => setMonoActiveTab("photos")}
+                      className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 ${monoActiveTab === "photos" ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300" : "text-gray-400 hover:text-gray-600"}`}>
                       Photos
                     </button>
+                    <button type="button" onClick={() => setMonoActiveTab("rapport")}
+                      className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1 ${monoActiveTab === "rapport" ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-500 dark:border-violet-400" : "text-gray-400 hover:text-gray-600"}`}>
+                      <FileText className="w-3.5 h-3.5 shrink-0" />
+                      Rapport
+                      {hasManualRapport(rapport) && <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />}
+                    </button>
+                    <button type="button" onClick={() => setMonoActiveTab("signalements")}
+                      className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1.5 ${monoActiveTab === "signalements" ? "text-red-600 dark:text-red-400 border-b-2 border-red-500 dark:border-red-400" : "text-gray-400 hover:text-gray-600"}`}>
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      Signalements
+                      {monoHasSignalement && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />}
+                    </button>
+                    <button type="button" onClick={() => setMonoActiveTab("sav")}
+                      className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1 ${monoActiveTab === "sav" ? "text-amber-600 dark:text-amber-400 border-b-2 border-amber-500 dark:border-amber-400" : "text-gray-400 hover:text-gray-600"}`}>
+                      <Wrench className="w-3.5 h-3.5 shrink-0" />
+                      SAV
+                      {monoHasSav && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${savCloture ? "bg-green-500" : "bg-amber-500"}`} />}
+                    </button>
                   </div>
-                  <CardContent className="space-y-4 pt-4">
+                    );
+                  })()}
+                  <CardContent className="space-y-4 pt-0">
+                    {monoActiveTab === "infos" && (
+                      <div className="space-y-3">
+                        <div>
+                          <Label>Nom / Emplacement</Label>
+                          <Input
+                            value={project.nomChantier || ""}
+                            onChange={(e) => { const v = e.target.value; setProject((prev) => prev ? { ...prev, nomChantier: v } : prev); }}
+                            onBlur={(e) => { offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nomChantier: e.target.value }) }).catch(() => {}); }}
+                            placeholder="Nom / emplacement du chantier"
+                            className="mt-1 h-11"
+                          />
+                        </div>
+                        <div>
+                          <Label>Collaborateur(s)</Label>
+                          <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{project.collaborateurs || "—"}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Heure d&apos;arrivée</Label>
+                            <input type="time" value={heureArrivee} onChange={(e) => { setHeureArrivee(e.target.value); scheduleAutoSave(); }}
+                              className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
+                          </div>
+                          <div>
+                            <Label>Heure de départ</Label>
+                            <input type="time" value={heureDepart} onChange={(e) => { setHeureDepart(e.target.value); scheduleAutoSave(); }}
+                              className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-gray-400">Les numéros, l&apos;adresse et les dates du projet sont modifiables dans la carte « Informations projet » ci-dessus.</p>
+                      </div>
+                    )}
                     {monoActiveTab === "rapport" && (
                       <>
                         <div className="rounded-2xl border-2 border-blue-200 dark:border-blue-900/50 bg-blue-50/40 dark:bg-blue-950/20 p-4 space-y-3">
@@ -7195,26 +7245,132 @@ function ProjectPageContent({ id }: { id: string }) {
                             ...filterByBucket(project.photosMontage, "APRES_INTERVENTION"),
                           ]}
                         />
-                        <Separator />
-                        {/* Signalements — déplacés ici depuis la racine du rapport.
-                            En mono-cabine, le signalement est rattaché au projet
-                            (pas de lots multiples à distinguer). */}
-                        <div className="pt-1 space-y-3">
-                          <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalements</p>
-                          <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
-                          <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
-                          <PiecesForm
-                            projectId={id}
-                            projectName={project.projet}
-                            onSubmitted={() => setPieceRefreshKey((k) => k + 1)}
-                          />
-                          <DefautForm
-                            projectId={id}
-                            projectName={project.projet}
-                            onSubmitted={() => setDefautRefreshKey((k) => k + 1)}
+                      </>
+                    )}
+                    {/* ── Onglet Signalements (pièces + défauts, niveau projet) ── */}
+                    {monoActiveTab === "signalements" && (
+                      <div className="space-y-3">
+                        <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
+                        <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
+                        <PiecesForm
+                          projectId={id}
+                          projectName={project.projet}
+                          onSubmitted={() => setPieceRefreshKey((k) => k + 1)}
+                        />
+                        <DefautForm
+                          projectId={id}
+                          projectName={project.projet}
+                          onSubmitted={() => setDefautRefreshKey((k) => k + 1)}
+                        />
+                      </div>
+                    )}
+                    {/* ── Onglet SAV / Retouches (niveau projet, encodage Cab1) ── */}
+                    {monoActiveTab === "sav" && (
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                            <Wrench className="w-4 h-4" />
+                            Réclamation — SAV à traiter
+                          </Label>
+                          <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
+                            Brève explication du SAV / retouche demandé. Enregistré automatiquement.
+                          </p>
+                          <CabineSavInput
+                            value={parseCabineTextMulti(project?.commentairesSav || "")[1] || ""}
+                            onSave={(v) => saveCabineText("commentairesSav", 0, v)}
                           />
                         </div>
-                      </>
+                        <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
+                          <div>
+                            <Label>Cause du SAV</Label>
+                            <select
+                              value={parseCabineTextMulti(project?.causeSavCabines || "")[1] || ""}
+                              onChange={(e) => { saveCabineText("causeSavCabines", 0, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+                              className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                            >
+                              <option value="">— Choisir une cause —</option>
+                              {causeSavOptions.map((o) => (
+                                <option key={o} value={o}>{o}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <Label>Date d&apos;intervention SAV</Label>
+                            <input
+                              type="date"
+                              value={(parseCabineTextMulti(project?.datesRdvSavCabines || "")[1] || "").slice(0, 10)}
+                              onChange={(e) => { saveCabineText("datesRdvSavCabines", 0, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+                              className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
+                            />
+                          </div>
+                          <div>
+                            <Label>Collaborateur(s) SAV</Label>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              {COLLABORATEURS_LIST.map((name) => {
+                                const sel = (parseCabineTextMulti(project?.collaborateursSavCabines || "")[1] || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
+                                const active = sel.includes(name);
+                                return (
+                                  <button
+                                    key={name}
+                                    type="button"
+                                    onClick={() => {
+                                      const next = active ? sel.filter((n) => n !== name) : [...sel, name];
+                                      saveCabineText("collaborateursSavCabines", 0, next.join(" & "));
+                                      if (!project?.sav) saveProjectField({ sav: true });
+                                    }}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
+                                      active
+                                        ? "border-blue-600 bg-blue-600 text-white"
+                                        : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
+                                    }`}
+                                  >
+                                    {name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                        <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*" />
+                        <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*" />
+                        <div>
+                          <Label>Ce que nous avons fait</Label>
+                          <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
+                            Décrire l&apos;intervention réalisée. Enregistré automatiquement.
+                          </p>
+                          <CabineSavInput
+                            value={parseCabineTextMulti(project?.savRetouchesCabines || "")[1] || ""}
+                            onSave={(v) => saveCabineText("savRetouchesCabines", 0, v)}
+                          />
+                        </div>
+                        {(() => {
+                          const clotureDate = (parseCabineTextMulti(project?.datesSavClotureCabines || "")[1] || "").slice(0, 10);
+                          const isCloture = !!clotureDate;
+                          return (
+                            <div className="pt-1 border-t border-gray-100 dark:border-slate-700">
+                              <label className="flex items-center gap-2 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={isCloture}
+                                  onChange={(e) => {
+                                    const today = new Date().toISOString().slice(0, 10);
+                                    saveCabineText("datesSavClotureCabines", 0, e.target.checked ? today : "");
+                                  }}
+                                  className="w-4 h-4 accent-green-600"
+                                />
+                                <span className="text-sm font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
+                                  <Check className="w-4 h-4" /> SAV clôturé
+                                </span>
+                              </label>
+                              {isCloture && (
+                                <p className="text-[11px] text-gray-400 mt-1 pl-6">
+                                  Clôturé le {clotureDate.split("-").reverse().join(".")}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     )}
                   </CardContent>
                 </Card>
