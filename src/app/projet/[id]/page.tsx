@@ -5904,91 +5904,24 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* === SECTION 2 : Informations client === */}
         <Card className={macHidden("client") ? "!hidden" : ""}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations contact</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations contact</CardTitle>
+              {project.typeClient && (
+                <Badge variant="secondary" className="text-xs shrink-0">{project.typeClient}</Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            {/* Ligne 1 : Type de client | Grossistes/Fournisseurs */}
-            <div className="grid grid-cols-2 gap-3">
-              {project.typeClient && (
-                <div className="flex items-start gap-2">
-                  <Tag className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Type de client</p>
-                    <Badge variant="secondary" className="text-xs mt-0.5">{project.typeClient}</Badge>
-                  </div>
-                </div>
-              )}
-              {/* Grossistes OU Fournisseurs selon Type de client */}
-              {project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur" ? (
-                project.fournisseursNames && project.fournisseursNames.length > 0 ? (
-                  <div className="flex items-start gap-2">
-                    <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-500">Fournisseurs</p>
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {project.fournisseursNames.map((f) => (
-                          <Badge key={f} variant="outline" className="text-xs">{f}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : <div />
-              ) : (
-                project.grossistesNames && project.grossistesNames.length > 0 ? (
-                  <div className="flex items-start gap-2">
-                    <Building2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-500">Grossistes</p>
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {project.grossistesNames.map((g) => (
-                          <Badge key={g} variant="outline" className="text-xs">{g}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : <div />
-              )}
-            </div>
-            {/* Ligne 2 : Sanitaire | Contact Grossiste */}
-            <div className="grid grid-cols-2 gap-3">
-              {((project.sanitaireNames && project.sanitaireNames.length > 0) || (project.contactsSanitaireDetails && project.contactsSanitaireDetails.some((c) => c.name || c.email || c.phone))) && (
-                <div className="flex items-start gap-2">
-                  <Building2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-gray-500">Sanitaire</p>
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {project.sanitaireNames?.map((s) => (
-                        <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
-                      ))}
-                      {project.contactsSanitaireDetails?.filter((c) => c.name).map((c, i) => (
-                        <Badge key={`cs${i}`} variant="outline" className="text-xs">{c.name}</Badge>
-                      ))}
-                    </div>
-                    {project.contactsSanitaireDetails?.filter((c) => c.phone || c.email).map((c, i) => (
-                      <p key={`csp${i}`} className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">
-                        {[c.phone, c.email].filter(Boolean).join(" · ")}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {project.contactsProjetNames && project.contactsProjetNames.length > 0 && (
-                <div className="flex items-start gap-2">
-                  <Users className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Contact Grossiste</p>
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {project.contactsProjetNames.map((c) => (
-                        <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* Ligne 3+ : Architecte, DT, Client final (entreprise + contacts). */}
+            {/* Un bloc par rôle (entreprise + son contact), 2 par ligne, dans
+                l'ordre Grossiste/Fournisseur → Sanitaire → Architecte → DT →
+                Client final. Les rôles non renseignés sont masqués. */}
             {(() => {
+              const isFourn = project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur";
               const roles: { label: string; companies?: string[]; details?: { name: string; email: string; phone: string }[] }[] = [
+                isFourn
+                  ? { label: "Fournisseurs", companies: project.fournisseursNames }
+                  : { label: "Grossistes", companies: project.grossistesNames, details: project.contactsGrossisteDetails },
+                { label: "Sanitaire", companies: project.sanitaireNames, details: project.contactsSanitaireDetails },
                 { label: "Architecte", companies: project.architecteNames, details: project.contactsArchitecteDetails },
                 { label: "DT", companies: project.dtNames, details: project.contactsDTDetails },
                 { label: "Client final", details: project.contactsClientsFinauxDetails },
@@ -5998,12 +5931,12 @@ function ProjectPageContent({ id }: { id: string }) {
                 <div className="grid grid-cols-2 gap-3">
                   {roles.map((r) => (
                     <div key={r.label} className="flex items-start gap-2">
-                      <Users className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
+                      <Building2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs text-gray-500">{r.label}</p>
                         <div className="flex flex-wrap gap-1 mt-0.5">
-                          {r.companies?.map((c) => <Badge key={c} variant="outline" className="text-xs">{c}</Badge>)}
-                          {r.details?.filter((c) => c.name).map((c, i) => <Badge key={`n${i}`} variant="secondary" className="text-xs">{c.name}</Badge>)}
+                          {r.companies?.map((c) => <Badge key={c} variant="secondary" className="text-xs">{c}</Badge>)}
+                          {r.details?.filter((c) => c.name).map((c, i) => <Badge key={`n${i}`} variant="outline" className="text-xs">{c.name}</Badge>)}
                         </div>
                         {r.details?.filter((c) => c.phone || c.email).map((c, i) => (
                           <p key={`p${i}`} className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">
