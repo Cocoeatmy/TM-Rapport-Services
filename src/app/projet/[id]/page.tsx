@@ -6097,7 +6097,6 @@ function ProjectPageContent({ id }: { id: string }) {
                 const parts = [a && a !== "—" ? a : "", (b || "").trim()].filter(Boolean);
                 return parts.length ? parts.join(" — ") : "—";
               };
-              const TODO = "à configurer dans Notion";
               // Cellule Contact : entreprise (gras) + contacts (Nom / email / tél).
               const contactNode = (
                 company: string | undefined,
@@ -6105,7 +6104,7 @@ function ProjectPageContent({ id }: { id: string }) {
               ): React.ReactNode => {
                 const list = (details || []).filter((c) => c && (c.name || c.email || c.phone));
                 const hasCompany = !!company && company !== "—";
-                if (!hasCompany && list.length === 0) return <span className="text-gray-400 italic">{TODO}</span>;
+                if (!hasCompany && list.length === 0) return "—";
                 return (
                   <span className="inline-block text-right">
                     {hasCompany && <span className="block">{company}</span>}
