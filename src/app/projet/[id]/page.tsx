@@ -3570,6 +3570,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [downloadingSav, setDownloadingSav] = useState(false);
   const [copyingSavLink, setCopyingSavLink] = useState(false);
   const [downloadingSavCab, setDownloadingSavCab] = useState<number | null>(null);
+  const [copyingSavCabLink, setCopyingSavCabLink] = useState<number | null>(null);
   // Aperçu CRM (clic sur un nom d'« Informations contact »).
   const [contactPreview, setContactPreview] = useState<{ id: string; name: string; phone?: string; email?: string } | null>(null);
   const [savRowBusy, setSavRowBusy] = useState("");
@@ -5287,6 +5288,20 @@ function ProjectPageContent({ id }: { id: string }) {
       console.error("Lien SAV échoué:", e);
       toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
     } finally { setCopyingSavLink(false); }
+  };
+  const handleCopySavCabineLink = async (cabNum: number) => {
+    setCopyingSavCabLink(cabNum);
+    try {
+      const res = await fetch(`/api/sav/${id}?link=1&cabine=${cabNum}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data?.url) throw new Error("no url");
+      await navigator.clipboard.writeText(data.url);
+      toast.success("Lien du rapport SAV copié");
+    } catch (e) {
+      console.error("Lien SAV (cabine) échoué:", e);
+      toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
+    } finally { setCopyingSavCabLink(null); }
   };
   const handleDownloadPhotos = async () => {
     setDownloadingPhotos(true);
@@ -7412,15 +7427,26 @@ function ProjectPageContent({ id }: { id: string }) {
                               <Wrench className="w-4 h-4" />
                               Réclamation — SAV à traiter
                             </Label>
-                            <button
-                              type="button"
-                              disabled={downloadingSavCab === 1}
-                              onClick={() => handleDownloadSavCabine(1)}
-                              className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
-                            >
-                              {downloadingSavCab === 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-                              Générer rapport SAV
-                            </button>
+                            <div className="shrink-0 flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={downloadingSavCab === 1}
+                                onClick={() => handleDownloadSavCabine(1)}
+                                className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
+                              >
+                                {downloadingSavCab === 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                                Générer rapport SAV
+                              </button>
+                              <button
+                                type="button"
+                                disabled={copyingSavCabLink === 1}
+                                onClick={() => handleCopySavCabineLink(1)}
+                                className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold border border-amber-600 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 active:scale-95 transition-all disabled:opacity-60"
+                              >
+                                {copyingSavCabLink === 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                                Copier le lien
+                              </button>
+                            </div>
                           </div>
                           <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
                             Brève explication du SAV / retouche demandé. Enregistré automatiquement.
@@ -8471,15 +8497,26 @@ function ProjectPageContent({ id }: { id: string }) {
                                     <Wrench className="w-4 h-4" />
                                     Réclamation — SAV à traiter
                                   </Label>
-                                  <button
-                                    type="button"
-                                    disabled={downloadingSavCab === idx + 1}
-                                    onClick={() => handleDownloadSavCabine(idx + 1)}
-                                    className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
-                                  >
-                                    {downloadingSavCab === idx + 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-                                    Générer rapport SAV
-                                  </button>
+                                  <div className="shrink-0 flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={downloadingSavCab === idx + 1}
+                                      onClick={() => handleDownloadSavCabine(idx + 1)}
+                                      className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
+                                    >
+                                      {downloadingSavCab === idx + 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                                      Générer rapport SAV
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={copyingSavCabLink === idx + 1}
+                                      onClick={() => handleCopySavCabineLink(idx + 1)}
+                                      className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold border border-amber-600 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 active:scale-95 transition-all disabled:opacity-60"
+                                    >
+                                      {copyingSavCabLink === idx + 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                                      Copier le lien
+                                    </button>
+                                  </div>
                                 </div>
                                 <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
                                   Brève explication du SAV / retouche demandé. Enregistré automatiquement.

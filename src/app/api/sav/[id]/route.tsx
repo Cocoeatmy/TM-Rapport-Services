@@ -317,7 +317,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const sigValid = (() => {
     if (!secret || !s) return false;
-    const a = Buffer.from(s); const b = Buffer.from(signSav(id, collab));
+    const a = Buffer.from(s); const b = Buffer.from(signSav(id, collab, cabine));
     return a.length === b.length && timingSafeEqual(a, b);
   })();
   const authed = await isAuthed(req);
@@ -325,8 +325,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (wantLink) {
     if (!authed) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     if (!secret) return NextResponse.json({ error: "SHARE_LINK_KEY non configuré" }, { status: 503 });
-    const q = collab ? `?s=${signSav(id, collab)}&collab=${encodeURIComponent(collab)}` : `?s=${signSav(id)}`;
-    return NextResponse.json({ url: `${req.nextUrl.origin}/api/sav/${encodeURIComponent(id)}${q}` });
+    const parts = [`s=${signSav(id, collab, cabine)}`];
+    if (collab) parts.push(`collab=${encodeURIComponent(collab)}`);
+    if (cabine) parts.push(`cabine=${cabine}`);
+    return NextResponse.json({ url: `${req.nextUrl.origin}/api/sav/${encodeURIComponent(id)}?${parts.join("&")}` });
   }
   if (!sigValid && !authed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
