@@ -69,6 +69,8 @@ const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: "Helvetica", fontSize: 10, color: "#1a1a1a" },
   header: { flexDirection: "column", marginBottom: 16, paddingBottom: 6, borderBottomWidth: 2, borderBottomColor: "#b45309" },
   title: { fontSize: 20, fontFamily: "Helvetica-Bold", color: "#b45309", marginTop: 10 },
+  reportBtn: { backgroundColor: "#b45309", borderRadius: 6, paddingVertical: 7, paddingHorizontal: 12, textDecoration: "none", maxWidth: 175 },
+  reportBtnText: { color: "#ffffff", fontSize: 9.5, fontFamily: "Helvetica-Bold", textAlign: "center" },
   tm: { fontSize: 15, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 6 },
   subtitle: { fontSize: 10, color: "#666", marginTop: 2 },
   cabTitle: { fontSize: 13, fontFamily: "Helvetica-Bold", color: "#b45309" },
@@ -142,7 +144,7 @@ function ContactCell({ label, company, contacts }: { label: string; company?: st
   );
 }
 
-function SavPDF({ project, collabFilter = "", cabineFilter = 0 }: { project: Project; collabFilter?: string; cabineFilter?: number }) {
+function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = "" }: { project: Project; collabFilter?: string; cabineFilter?: number; reportBaseUrl?: string }) {
   const total = project.nbCabines || 0;
   const names = parseCabMulti(project.nomsCabines);
   const attribution = parseCabMulti(project.attributionCabines);
@@ -184,7 +186,14 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0 }: { project: Pro
     <Document>
       <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }}>
         <View style={{ ...styles.header, borderBottomColor: titleColor }}>
-          <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
+            {reportBaseUrl ? (
+              <Link src={`${reportBaseUrl}&savCabine=${cabineFilter || savCabs[0] || 1}`} style={styles.reportBtn}>
+                <Text style={styles.reportBtnText}>Ouvrir le rapport SAV</Text>
+              </Link>
+            ) : null}
+          </View>
           <Text style={{ ...styles.title, color: titleColor }}>Rapport SAV{allClosed ? " — clôturé" : ""}</Text>
           <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
@@ -322,7 +331,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const project = await getProject(id);
-    const stream = await ReactPDF.renderToStream(<SavPDF project={project} collabFilter={collab} cabineFilter={cabine} />);
+    const reportBaseUrl = `${req.nextUrl.origin}/projet/${encodeURIComponent(id)}?mode=dashboard`;
+    const stream = await ReactPDF.renderToStream(<SavPDF project={project} collabFilter={collab} cabineFilter={cabine} reportBaseUrl={reportBaseUrl} />);
     const chunks: Buffer[] = [];
     // @ts-ignore
     for await (const c of stream) chunks.push(Buffer.from(c));

@@ -3561,6 +3561,25 @@ function ProjectPageContent({ id }: { id: string }) {
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [id, isCabineMode]);
 
+  // Deep-link « Ouvrir le rapport SAV » (depuis le PDF) : ?savCabine=N ouvre le
+  // lot N sur l'onglet SAV (ou l'onglet SAV en mono-cabine).
+  const savOpenedRef = useRef(false);
+  useEffect(() => {
+    const raw = searchParams.get("savCabine");
+    if (!raw || savOpenedRef.current) return;
+    const n = parseInt(raw, 10) || 1;
+    if (isCabineMode) {
+      if (cabines.length === 0) return;
+      const idx = Math.max(0, Math.min(n - 1, cabines.length - 1));
+      savOpenedRef.current = true;
+      setCabines((prev) => prev.map((c, i) => (i === idx ? { ...c, open: true, activeTab: "sav" } : c)));
+      setTimeout(() => document.getElementById("cabines-list")?.scrollIntoView({ behavior: "smooth", block: "start" }), 500);
+    } else {
+      savOpenedRef.current = true;
+      setMonoActiveTab("sav");
+    }
+  }, [searchParams, isCabineMode, cabines.length]);
+
   // ── Sync "Nb. Cabines installées" → Notion ──────────────────────────────────
   // Dès qu'une cabine reçoit ses photos de montage, on met à jour le compteur
   // dans Notion afin que la progression soit visible depuis la base de données.
