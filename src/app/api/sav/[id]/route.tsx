@@ -175,7 +175,10 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0 }: { project: Pro
           <Text style={{ fontSize: 11, color: "#888" }}>Aucun SAV enregistré pour ce projet.</Text>
         ) : savCabs.map((n) => {
           const nom = names[n] || `Cabine ${n}`;
-          const who = attribution[n] || sousTrait[n] || "";
+          // Monteur : par cabine (multi) sinon collaborateurs du projet (mono).
+          const who = attribution[n] || sousTrait[n] || project.collaborateurs || "";
+          // Date de montage : par cabine (multi) sinon date du projet (mono).
+          const montage = montageDates[n] || (project.dateMontage || "").slice(0, 10);
           const closedDate = (cloture[n] || "").slice(0, 10);
           const demandePhotos = photosForCab(project.documentsSavDemande, n);
           const reglePhotos = photosForCab(project.photosSavRetouches, n);
@@ -190,11 +193,11 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0 }: { project: Pro
                   : <Text style={styles.badgeOpen}>SAV en cours</Text>}
               </View>
 
-              {montageDates[n] ? (
-                <View style={styles.row}><Text style={styles.label}>Date de montage</Text><Text style={styles.value}>{fmtDate(montageDates[n]) || montageDates[n]}</Text></View>
+              {montage ? (
+                <View style={styles.row}><Text style={styles.label}>Date de montage</Text><Text style={styles.value}>{fmtDate(montage) || montage}</Text></View>
               ) : null}
               {who ? (
-                <View style={styles.row}><Text style={styles.label}>Monté par</Text><Text style={styles.value}>{nfc(who)}</Text></View>
+                <View style={styles.row}><Text style={styles.label}>Collaborateur de montage</Text><Text style={styles.value}>{nfc(who)}</Text></View>
               ) : null}
               {dateRecuSav ? (
                 <View style={styles.row}><Text style={styles.label}>Date de réception SAV</Text><Text style={styles.value}>{fmtDate(dateRecuSav) || dateRecuSav}</Text></View>
