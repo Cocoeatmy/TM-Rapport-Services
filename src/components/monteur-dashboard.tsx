@@ -2220,9 +2220,45 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     )
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
   const rdvServicesAFixerCount = rdvServicesAFixerProjects.length;
-  // RDV SAV à fixer : État - SAV = A contacter / Contact sans réponse / Attente news
-  const rdvSavAFixerProjects = projects
-    .filter((p) => ["A contacter", "Contact sans réponse", "Attente news"].includes(p.etatSAV || ""))
+  // ── SAV par cabine (nouveau système, onglet SAV des projets de montage) ──────
+  // Encodage "Cab1:valeur | Cab2:valeur". Un lot est « SAV à fixer » s'il a un
+  // SAV, PAS clôturé et SANS date d'intervention ; « réglé » s'il est clôturé.
+  const parseCabMap = (raw?: string | null): Record<number, string> => {
+    const m: Record<number, string> = {};
+    const re = /Cab(\d+)\s*:([^|]*)/g; let x: RegExpExecArray | null;
+    while ((x = re.exec(raw || ""))) { const v = x[2].trim(); if (v) m[parseInt(x[1], 10)] = v; }
+    return m;
+  };
+  const cabineSavCabs = (p: Project): Set<number> => {
+    const cabs = new Set<number>();
+    for (const raw of [p.commentairesSav, p.causeSavCabines, p.datesRdvSavCabines, p.collaborateursSavCabines, p.savRetouchesCabines]) {
+      Object.keys(parseCabMap(raw)).forEach((k) => cabs.add(parseInt(k, 10)));
+    }
+    for (const f of [...(p.documentsSavDemande || []), ...(p.photosSavRetouches || [])]) {
+      const mm = /\.Cab(\d+)\./.exec(f.name || ""); if (mm) cabs.add(parseInt(mm[1], 10));
+    }
+    return cabs;
+  };
+  // Au moins un lot SAV ouvert (ni clôturé, ni date d'intervention fixée).
+  const hasCabineSavAFixer = (p: Project): boolean => {
+    const cabs = cabineSavCabs(p);
+    if (cabs.size === 0) return false;
+    const rdv = parseCabMap(p.datesRdvSavCabines);
+    const cloture = parseCabMap(p.datesSavClotureCabines);
+    for (const n of cabs) if (!(cloture[n] || "").trim() && !(rdv[n] || "").trim()) return true;
+    return false;
+  };
+
+  // RDV SAV à fixer : ancienne base (État - SAV) + SAV par cabine ouverts.
+  // Dédup par N° OFR TM (si un projet est dans les deux bases, on ne le compte
+  // qu'une fois — priorité à l'ancienne base pour le rendu existant).
+  const rdvSavAncienneBase = projects
+    .filter((p) => ["A contacter", "Contact sans réponse", "Attente news"].includes(p.etatSAV || ""));
+  const tmDejaListes = new Set(rdvSavAncienneBase.map((p) => p.ofrTM).filter(Boolean));
+  const rdvSavParCabine = projects.filter(
+    (p) => (p as any)._source !== "sav" && hasCabineSavAFixer(p) && !(p.ofrTM && tmDejaListes.has(p.ofrTM)),
+  );
+  const rdvSavAFixerProjects = [...rdvSavAncienneBase, ...rdvSavParCabine]
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
   const rdvSavAFixerCount = rdvSavAFixerProjects.length;
 
