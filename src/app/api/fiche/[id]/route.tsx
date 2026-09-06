@@ -271,15 +271,26 @@ function FichePDF({ project, mesuresDocUrl, reportUrl }: { project: Project; mes
               fichier encodant .Cab{N}.), pas le champ Notion (souvent vide). */}
           {(() => {
             const total = project.nbCabines || 0;
+            const montagePhotos = project.photosMontage || [];
             const installedIdx = new Set(
-              (project.photosMontage || [])
+              montagePhotos
                 .map((f: { name?: string }) => {
                   const m = (f.name || "").match(/\.Cab(\d+)\./);
                   return m ? parseInt(m[1], 10) : null;
                 })
                 .filter((n): n is number => n !== null),
             );
-            const installed = installedIdx.size;
+            let installed = installedIdx.size;
+            // Repli : les projets mono-cabine (et anciens) stockent les photos
+            // montage SANS préfixe .CabN. → le comptage par index donne 0.
+            // On se rabat sur le compteur Notion, sinon sur « mono avec photos ».
+            if (installed === 0) {
+              if (project.nbCabinesInstallees && project.nbCabinesInstallees > 0) {
+                installed = Math.min(project.nbCabinesInstallees, total || project.nbCabinesInstallees);
+              } else if (total === 1 && montagePhotos.length > 0) {
+                installed = 1;
+              }
+            }
             const pct = total > 0 ? Math.round((installed / total) * 100) : 0;
             const value = dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs);
             if (total <= 0) return <LineRow label="Montage" value={value} />;
