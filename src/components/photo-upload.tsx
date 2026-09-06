@@ -281,12 +281,11 @@ export function PhotoUpload({
 
   // PDF : pas d'aperçu image → tuile dédiée (icône + « PDF »), cliquable.
   const isPdfUrl = (u: string) => /\.pdf(\?|$)/i.test(u);
-  // Ouverture PDF : via le proxy /api/doc-proxy (même origine, en-têtes
-  // corrects). Le lecteur PDF de Chrome échoue à streamer les fichiers `raw`
-  // Cloudinary en direct, et `fl_attachment` renvoie 401 (transformations
-  // strictes du compte). Le proxy contourne les deux.
-  const pdfViewUrl = (u: string) =>
-    u.includes("res.cloudinary.com") ? `/api/doc-proxy?u=${encodeURIComponent(u)}` : u;
+  // Ouverture PDF : lien DIRECT Cloudinary (origine externe) → s'ouvre dans le
+  // navigateur externe (Chrome) avec la visionneuse + bouton télécharger, hors
+  // de l'app installée. Nécessite « Allow delivery of PDF and ZIP files » activé
+  // dans les réglages Cloudinary (sinon 401).
+  const pdfViewUrl = (u: string) => u;
   // Vidéo Cloudinary : poster (1re image) au lieu d'une <img> cassée.
   const isVideoUrl = (u: string) => u.includes("/video/upload/") || /\.(mp4|mov|webm|m4v|avi)(\?|$)/i.test(u);
   const videoPosterUrl = (u: string) => {
@@ -352,7 +351,7 @@ export function PhotoUpload({
             {!img.isUploading && (
               <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 p-1.5 bg-gradient-to-t from-black/60 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                 <a
-                  href={isPdfUrl(img.src) ? `${pdfViewUrl(img.src)}&dl=1` : img.src}
+                  href={img.src}
                   download={`document-${i + 1}.${isPdfUrl(img.src) ? "pdf" : isVideoUrl(img.src) ? "mp4" : "jpg"}`}
                   target="_blank"
                   rel="noopener noreferrer"
