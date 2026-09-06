@@ -76,12 +76,18 @@ export async function uploadToCloudinary(
   fd.append("signature", sign.signature);
   fd.append("folder", sign.folder);
 
+  // Choix du resource_type Cloudinary :
+  //  - image/vidéo → `auto` (Cloudinary détecte).
+  //  - PDF & autres documents → `raw`. En `image`, Cloudinary BLOQUE par défaut
+  //    la diffusion des PDF (HTTP 401) ; en `raw`, le fichier est servi tel quel
+  //    sans cette restriction. La signature ne dépend pas du resource_type.
+  const mime = blob.type || "";
+  const isMedia = (mime.startsWith("image/") || mime.startsWith("video/")) && !/\.pdf$/i.test(name);
+  const resourceType = isMedia ? "auto" : "raw";
   let res: Response;
   try {
     res = await fetchWithTimeout(
-      // `auto` : Cloudinary détecte image OU vidéo (la signature ne dépend pas
-      // du resource_type, seulement de folder+timestamp).
-      `https://api.cloudinary.com/v1_1/${sign.cloudName}/auto/upload`,
+      `https://api.cloudinary.com/v1_1/${sign.cloudName}/${resourceType}/upload`,
       { method: "POST", body: fd },
       CLOUDINARY_TIMEOUT_MS,
     );
