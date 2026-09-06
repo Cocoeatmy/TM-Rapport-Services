@@ -5914,35 +5914,47 @@ function ProjectPageContent({ id }: { id: string }) {
           <CardContent className="space-y-2">
             {/* Un bloc par rôle (entreprise + son contact), 2 par ligne, dans
                 l'ordre Grossiste/Fournisseur → Sanitaire → Architecte → DT →
-                Client final. Les rôles non renseignés sont masqués. */}
+                Client final. Empilé verticalement. Noms cliquables → CRM. */}
             {(() => {
               const isFourn = project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur";
-              const roles: { label: string; companies?: string[]; details?: { name: string; email: string; phone: string }[] }[] = [
+              // companyMode = onglet CRM ciblé quand on clique le nom de l'entreprise.
+              const roles: { label: string; companies?: string[]; companyMode: string; details?: { name: string; email: string; phone: string }[] }[] = [
                 isFourn
-                  ? { label: "Fournisseurs", companies: project.fournisseursNames }
-                  : { label: "Grossistes", companies: project.grossistesNames, details: project.contactsGrossisteDetails },
-                { label: "Sanitaire", companies: project.sanitaireNames, details: project.contactsSanitaireDetails },
-                { label: "Architecte", companies: project.architecteNames, details: project.contactsArchitecteDetails },
-                { label: "DT", companies: project.dtNames, details: project.contactsDTDetails },
-                { label: "Client final", details: project.contactsClientsFinauxDetails },
+                  ? { label: "Fournisseurs", companies: project.fournisseursNames, companyMode: "clients-fournisseurs" }
+                  : { label: "Grossistes", companies: project.grossistesNames, companyMode: "clients-grossistes", details: project.contactsGrossisteDetails },
+                { label: "Sanitaire", companies: project.sanitaireNames, companyMode: "clients-entreprises", details: project.contactsSanitaireDetails },
+                { label: "Architecte", companies: project.architecteNames, companyMode: "clients-entreprises", details: project.contactsArchitecteDetails },
+                { label: "DT", companies: project.dtNames, companyMode: "clients-entreprises", details: project.contactsDTDetails },
+                { label: "Client final", companyMode: "clients-contacts", details: project.contactsClientsFinauxDetails },
               ].filter((r) => (r.companies && r.companies.length > 0) || (r.details && r.details.some((c) => c.name || c.email || c.phone)));
               if (roles.length === 0) return null;
+              // Lien cliquable vers le CRM (recherche par nom).
+              const crmLink = (crmMode: string, name: string) => (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/?mode=${crmMode}&q=${encodeURIComponent(name)}`)}
+                  className="block text-left text-sm font-medium text-[#1e3a5f] dark:text-blue-300 hover:underline"
+                >
+                  {name}
+                </button>
+              );
               return (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   {roles.map((r) => (
-                    <div key={r.label} className="flex items-start gap-2">
+                    <div key={r.label} className="flex items-start gap-2 min-w-0">
                       <Building2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs text-gray-500">{r.label}</p>
-                        <div className="flex flex-wrap gap-1 mt-0.5">
-                          {r.companies?.map((c) => <Badge key={c} variant="secondary" className="text-xs">{c}</Badge>)}
-                          {r.details?.filter((c) => c.name).map((c, i) => <Badge key={`n${i}`} variant="outline" className="text-xs">{c.name}</Badge>)}
+                        <div className="mt-0.5 space-y-0.5">
+                          {r.companies?.map((c) => <div key={c}>{crmLink(r.companyMode, c)}</div>)}
+                          {r.details?.filter((c) => c.name || c.email || c.phone).map((c, i) => (
+                            <div key={`d${i}`}>
+                              {c.name ? crmLink("clients-contacts", c.name) : null}
+                              {c.phone ? <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{c.phone}</p> : null}
+                              {c.email ? <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{c.email}</p> : null}
+                            </div>
+                          ))}
                         </div>
-                        {r.details?.filter((c) => c.phone || c.email).map((c, i) => (
-                          <p key={`p${i}`} className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">
-                            {[c.phone, c.email].filter(Boolean).join(" · ")}
-                          </p>
-                        ))}
                       </div>
                     </div>
                   ))}

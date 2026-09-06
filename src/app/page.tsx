@@ -2691,6 +2691,7 @@ function HomePage() {
             mode={mode as "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes"}
             isAdmin={currentUser?.role === "admin"}
             filterTag={isCmm ? crmTagFilter : null}
+            initialSearch={qParam || ""}
           />
         </>
       )}

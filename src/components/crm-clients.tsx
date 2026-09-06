@@ -924,11 +924,11 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
   );
 }
 
-export function CRMClients({ mode, isAdmin, filterTag }: { mode: ClientMode; isAdmin?: boolean; filterTag?: string | null }) {
+export function CRMClients({ mode, isAdmin, filterTag, initialSearch }: { mode: ClientMode; isAdmin?: boolean; filterTag?: string | null; initialSearch?: string }) {
   const [entries, setEntries] = useState<CRMEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch || "");
   const [editEntry, setEditEntry] = useState<CRMEntry | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [deleteEntry, setDeleteEntry] = useState<CRMEntry | null>(null);
