@@ -281,6 +281,12 @@ export function PhotoUpload({
 
   // PDF : pas d'aperçu image → tuile dédiée (icône + « PDF »), cliquable.
   const isPdfUrl = (u: string) => /\.pdf(\?|$)/i.test(u);
+  // Ouverture PDF : on force le TÉLÉCHARGEMENT (fl_attachment). Le lecteur PDF
+  // intégré de Chrome échoue à streamer les fichiers `raw` Cloudinary
+  // (« Échec de chargement du document PDF ») ; téléchargé, il s'ouvre dans le
+  // lecteur natif sans souci.
+  const pdfDownloadUrl = (u: string) =>
+    u.includes("res.cloudinary.com") ? u.replace("/upload/", "/upload/fl_attachment/") : u;
   // Vidéo Cloudinary : poster (1re image) au lieu d'une <img> cassée.
   const isVideoUrl = (u: string) => u.includes("/video/upload/") || /\.(mp4|mov|webm|m4v|avi)(\?|$)/i.test(u);
   const videoPosterUrl = (u: string) => {
@@ -306,11 +312,11 @@ export function PhotoUpload({
           >
             {!img.isPreview && isPdfUrl(img.src) ? (
               <a
-                href={img.src}
+                href={pdfDownloadUrl(img.src)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400"
-                title="Ouvrir le PDF"
+                title="Ouvrir / télécharger le PDF"
               >
                 <FileText className="w-8 h-8" />
                 <span className="text-[11px] font-semibold">PDF</span>
@@ -346,7 +352,7 @@ export function PhotoUpload({
             {!img.isUploading && (
               <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 p-1.5 bg-gradient-to-t from-black/60 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                 <a
-                  href={img.src}
+                  href={isPdfUrl(img.src) ? pdfDownloadUrl(img.src) : img.src}
                   download={`document-${i + 1}.${isPdfUrl(img.src) ? "pdf" : isVideoUrl(img.src) ? "mp4" : "jpg"}`}
                   target="_blank"
                   rel="noopener noreferrer"
