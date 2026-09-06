@@ -444,7 +444,7 @@ export function mapPageToProject(page: any): Project {
     explicationsTravaux: extractText(p["Explications travaux exécuté"]),
     causeSAV: extractSelect(p["Cause SAV"]),
     etatSAV: extractStatus(p["État - SAV"]),
-    dateRDVSAV: extractDate(p["Date - RDV SAV"]),
+    dateRDVSAV: extractText(p["Date - RDV SAV"]),
     // Collaborateurs SAV / Garantie : type Notion incertain (multi_select le plus
     // probable, comme « Collaborateurs montages ») → on tente multi_select, puis
     // select, puis texte, pour être robuste quel que soit le type choisi.
@@ -457,7 +457,7 @@ export function mapPageToProject(page: any): Project {
       extractMultiSelect(p["Collaborateur Garantie"]).join(" & ") ||
       extractSelect(p["Collaborateur Garantie"]) ||
       extractText(p["Collaborateur Garantie"]),
-    dateSAVRecu: extractDate(p["Date - SAV reçu le"]),
+    dateSAVRecu: extractText(p["Date - SAV reçu le"]),
     dateSavClotureLe: extractDate(p["Date - SAV clôturé le"]),
     sav: p["SAV"]?.checkbox || false,
     photosBonLivraison: extractFiles(p["Bon de livraison"]),
@@ -1194,9 +1194,8 @@ export async function updateProject(
     };
   }
   if (data.dateSAVRecu !== undefined) {
-    properties["Date - SAV reçu le"] = {
-      date: data.dateSAVRecu ? { start: data.dateSAVRecu } : null,
-    };
+    // Champ passé en TEXTE (dates par cabine "Cab1:… | Cab2:…").
+    properties["Date - SAV reçu le"] = { rich_text: toRichText(data.dateSAVRecu || "") };
   }
   if (data.contacts !== undefined) {
     // Vérifier que le champ existe bien en tant que rich_text.
@@ -1377,7 +1376,7 @@ export async function updateProject(
   }
   // Date d'intervention SAV.
   if (data.dateRDVSAV !== undefined) {
-    properties["Date - RDV SAV"] = { date: data.dateRDVSAV ? { start: data.dateRDVSAV } : null };
+    properties["Date - RDV SAV"] = { rich_text: toRichText(data.dateRDVSAV || "") };
   }
   // Date de clôture du SAV (posée automatiquement à la coche « SAV clôturé »).
   if (data.dateSavClotureLe !== undefined) {

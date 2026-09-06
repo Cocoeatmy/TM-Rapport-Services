@@ -133,7 +133,7 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0 }: { project: Pro
   const collab = parseCabMulti(project.collaborateursSavCabines);
   const cloture = parseCabMulti(project.datesSavClotureCabines);
   const fait = parseCabMulti(project.savRetouchesCabines);
-  const dateRecuSav = (project.dateSAVRecu || "").slice(0, 10);
+  const dateRecu = parseCabMulti(project.dateSAVRecu); // par cabine (texte)
 
   const cabHasSav = (n: number) =>
     !!(reclam[n] || cause[n] || dateRdv[n] || collab[n] || fait[n]
@@ -199,17 +199,19 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0 }: { project: Pro
               {who ? (
                 <View style={styles.row}><Text style={styles.label}>Collaborateur de montage</Text><Text style={styles.value}>{nfc(who)}</Text></View>
               ) : null}
-              {dateRecuSav ? (() => {
+              {(() => {
+                const recu = (dateRecu[n] || "").slice(0, 10);
+                if (!recu) return null;
                 // Nombre de jours écoulés entre le montage et la réception du SAV.
                 let delai = "";
                 if (montage) {
-                  const d = Math.round((new Date(dateRecuSav + "T12:00:00").getTime() - new Date(montage + "T12:00:00").getTime()) / 86400000);
+                  const d = Math.round((new Date(recu + "T12:00:00").getTime() - new Date(montage + "T12:00:00").getTime()) / 86400000);
                   if (!isNaN(d) && d >= 0) delai = ` (${d} jour${d > 1 ? "s" : ""})`;
                 }
                 return (
-                  <View style={styles.row}><Text style={styles.label}>Date de réception SAV</Text><Text style={styles.value}>{(fmtDate(dateRecuSav) || dateRecuSav) + delai}</Text></View>
+                  <View style={styles.row}><Text style={styles.label}>Date de réception SAV</Text><Text style={styles.value}>{(fmtDate(recu) || recu) + delai}</Text></View>
                 );
-              })() : null}
+              })()}
 
               {reclam[n] ? (
                 <View style={styles.row}><Text style={styles.label}>Réclamation</Text><Text style={styles.value}>{nfc(reclam[n])}</Text></View>

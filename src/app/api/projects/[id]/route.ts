@@ -283,6 +283,7 @@ export async function PATCH(
       body.datesRdvSavCabines !== undefined ||
       body.collaborateursSavCabines !== undefined ||
       body.datesSavClotureCabines !== undefined ||
+      body.dateSAVRecu !== undefined ||
       hasClear;
 
     if (needsMerge) {
@@ -332,6 +333,9 @@ export async function PATCH(
         }
         if (body.collaborateursSavCabines !== undefined && String(body.collaborateursSavCabines).includes("Cab")) {
           body.collaborateursSavCabines = mergeCabineSousTraitance(existing.collaborateursSavCabines || "", body.collaborateursSavCabines);
+        }
+        if (body.dateSAVRecu !== undefined && String(body.dateSAVRecu).includes("Cab")) {
+          body.dateSAVRecu = mergeCabineSousTraitance(existing.dateSAVRecu || "", body.dateSAVRecu);
         }
         if (body.datesSavClotureCabines !== undefined && String(body.datesSavClotureCabines).includes("Cab")) {
           body.datesSavClotureCabines = mergeCabineSousTraitance(existing.datesSavClotureCabines || "", body.datesSavClotureCabines);
