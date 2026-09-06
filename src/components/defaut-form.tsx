@@ -37,12 +37,15 @@ interface DefautFormProps {
   types?: readonly DefautType[];
   /** Marqueur de phase transmis à l'API (ex. « avant-intervention »). */
   phase?: string;
+  /** Icône du bouton / en-tête (défaut : bouclier d'alerte). */
+  icon?: React.ComponentType<{ className?: string }>;
 }
 
-export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, onSubmitted, title, types, phase }: DefautFormProps) {
+export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, onSubmitted, title, types, phase, icon }: DefautFormProps) {
   const TYPES = types ?? DEFAUT_TYPES;
   const usingCustomTypes = !!types;
   const heading = title ?? "Signaler un défaut";
+  const Icon = icon ?? ShieldAlert;
   const [open, setOpen] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [otherText, setOtherText] = useState("");
@@ -197,7 +200,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
         onClick={() => setOpen(true)}
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-red-300 text-sm text-red-600 hover:border-red-400 hover:bg-red-50 active:bg-red-100 transition-colors"
       >
-        <ShieldAlert className="w-4 h-4" />
+        <Icon className="w-4 h-4" />
         {heading}
       </button>
     );
@@ -206,7 +209,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
   return (
     <div className="glass-card rounded-xl p-4 space-y-3 border-l-4 border-red-400">
       <div className="flex items-center gap-2">
-        <ShieldAlert className="w-4 h-4 text-red-500" />
+        <Icon className="w-4 h-4 text-red-500" />
         <span className="text-sm font-semibold text-gray-700">{heading}</span>
       </div>
 
