@@ -5296,7 +5296,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const tabDefs = [
     { id: "projet", label: "Informations projet", Icon: FileText, bg: "bg-blue-100/80 dark:bg-blue-900/30", fg: "text-blue-600 dark:text-blue-400" },
     { id: "dates", label: "Informations dates", Icon: Clock, bg: "bg-cyan-100/80 dark:bg-cyan-900/30", fg: "text-cyan-600 dark:text-cyan-400" },
-    { id: "client", label: "Informations client", Icon: Users, bg: "bg-violet-100/80 dark:bg-violet-900/30", fg: "text-violet-600 dark:text-violet-400" },
+    { id: "client", label: "Informations contact", Icon: Users, bg: "bg-violet-100/80 dark:bg-violet-900/30", fg: "text-violet-600 dark:text-violet-400" },
     { id: "cabines", label: "Informations cabines", Icon: Package, bg: "bg-sky-100/80 dark:bg-sky-900/30", fg: "text-sky-600 dark:text-sky-400" },
     { id: "mesures", label: "Documents & commentaires (Mesures / Montage)", Icon: Ruler, bg: "bg-teal-100/80 dark:bg-teal-900/30", fg: "text-teal-600 dark:text-teal-400" },
     { id: "commentaires", label: "Commentaires", Icon: MessageSquare, bg: "bg-amber-100/80 dark:bg-amber-900/30", fg: "text-amber-600 dark:text-amber-400" },
@@ -5885,7 +5885,7 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* === SECTION 2 : Informations client === */}
         <Card className={macHidden("client") ? "!hidden" : ""}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations client</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations contact</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {/* Ligne 1 : Type de client | Grossistes/Fournisseurs */}
@@ -5959,6 +5959,36 @@ function ProjectPageContent({ id }: { id: string }) {
                 </div>
               )}
             </div>
+            {/* Ligne 3+ : Architecte, DT, Client final (entreprise + contacts). */}
+            {(() => {
+              const roles: { label: string; companies?: string[]; details?: { name: string; email: string; phone: string }[] }[] = [
+                { label: "Architecte", companies: project.architecteNames, details: project.contactsArchitecteDetails },
+                { label: "DT", companies: project.dtNames, details: project.contactsDTDetails },
+                { label: "Client final", details: project.contactsClientsFinauxDetails },
+              ].filter((r) => (r.companies && r.companies.length > 0) || (r.details && r.details.some((c) => c.name || c.email || c.phone)));
+              if (roles.length === 0) return null;
+              return (
+                <div className="grid grid-cols-2 gap-3">
+                  {roles.map((r) => (
+                    <div key={r.label} className="flex items-start gap-2">
+                      <Users className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-500">{r.label}</p>
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {r.companies?.map((c) => <Badge key={c} variant="outline" className="text-xs">{c}</Badge>)}
+                          {r.details?.filter((c) => c.name).map((c, i) => <Badge key={`n${i}`} variant="secondary" className="text-xs">{c.name}</Badge>)}
+                        </div>
+                        {r.details?.filter((c) => c.phone || c.email).map((c, i) => (
+                          <p key={`p${i}`} className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">
+                            {[c.phone, c.email].filter(Boolean).join(" · ")}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             {/* Contacts pour RDV + Appeler/WhatsApp */}
             {project.contactsRDV && (
               <div className="pt-1">
