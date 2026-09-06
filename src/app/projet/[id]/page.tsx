@@ -5936,7 +5936,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 <div className="flex items-start gap-2">
                   <Building2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-xs text-gray-500">Sanitaire (Entreprise)</p>
+                    <p className="text-xs text-gray-500">Sanitaire</p>
                     <div className="flex flex-wrap gap-1 mt-0.5">
                       {project.sanitaireNames.map((s) => (
                         <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>

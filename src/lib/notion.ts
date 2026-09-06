@@ -492,7 +492,12 @@ export function mapPageToProject(page: any): Project {
     fournisseursRelation: extractRelationIds(p["Fournisseurs"]),
     grossistesNames: [],
     fournisseursNames: [],
-    sanitaireRelation: extractRelationIds(p["Sanitaire (Entreprise)"]),
+    // « Sanitaire (Entreprise) » renommé « Sanitaire » sur Notion. Nouveau nom
+    // en priorité, repli sur l'ancien pendant la transition.
+    sanitaireRelation: (() => {
+      const a = extractRelationIds(p["Sanitaire"]);
+      return a.length > 0 ? a : extractRelationIds(p["Sanitaire (Entreprise)"]);
+    })(),
     sanitaireNames: [],
     // « Contact Projet » renommé « Contact Grossiste » sur Notion. On lit le
     // nouveau nom en priorité, avec repli sur les anciens (transition).
