@@ -5951,16 +5951,24 @@ function ProjectPageContent({ id }: { id: string }) {
             </div>
             {/* Ligne 2 : Sanitaire | Contact Grossiste */}
             <div className="grid grid-cols-2 gap-3">
-              {project.sanitaireNames && project.sanitaireNames.length > 0 && (
+              {((project.sanitaireNames && project.sanitaireNames.length > 0) || (project.contactsSanitaireDetails && project.contactsSanitaireDetails.some((c) => c.name || c.email || c.phone))) && (
                 <div className="flex items-start gap-2">
                   <Building2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-gray-500">Sanitaire</p>
                     <div className="flex flex-wrap gap-1 mt-0.5">
-                      {project.sanitaireNames.map((s) => (
+                      {project.sanitaireNames?.map((s) => (
                         <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
                       ))}
+                      {project.contactsSanitaireDetails?.filter((c) => c.name).map((c, i) => (
+                        <Badge key={`cs${i}`} variant="outline" className="text-xs">{c.name}</Badge>
+                      ))}
                     </div>
+                    {project.contactsSanitaireDetails?.filter((c) => c.phone || c.email).map((c, i) => (
+                      <p key={`csp${i}`} className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">
+                        {[c.phone, c.email].filter(Boolean).join(" · ")}
+                      </p>
+                    ))}
                   </div>
                 </div>
               )}
