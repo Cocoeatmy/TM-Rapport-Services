@@ -7307,6 +7307,15 @@ function ProjectPageContent({ id }: { id: string }) {
                           <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
                             Brève explication du SAV / retouche demandé. Enregistré automatiquement.
                           </p>
+                          <div className="mb-2">
+                            <Label>Date de réception SAV</Label>
+                            <input
+                              type="date"
+                              value={(project?.dateSAVRecu || "").slice(0, 10)}
+                              onChange={(e) => saveProjectField({ dateSAVRecu: e.target.value || null })}
+                              className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
+                            />
+                          </div>
                           <CabineSavInput
                             value={parseCabineTextMulti(project?.commentairesSav || "")[1] || ""}
                             onSave={(v) => saveCabineText("commentairesSav", 0, v)}
@@ -7373,6 +7382,15 @@ function ProjectPageContent({ id }: { id: string }) {
                           <CabineSavInput
                             value={parseCabineTextMulti(project?.savRetouchesCabines || "")[1] || ""}
                             onSave={(v) => saveCabineText("savRetouchesCabines", 0, v)}
+                          />
+                        </div>
+                        <div>
+                          <Label>Date SAV clôturé</Label>
+                          <input
+                            type="date"
+                            value={(project?.dateSavClotureLe || "").slice(0, 10)}
+                            onChange={(e) => saveProjectField({ dateSavClotureLe: e.target.value || null })}
+                            className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
                           />
                         </div>
                         {(() => {
@@ -8331,6 +8349,15 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
                                   Brève explication du SAV / retouche demandé. Enregistré automatiquement.
                                 </p>
+                                <div className="mb-2">
+                                  <Label>Date de réception SAV</Label>
+                                  <input
+                                    type="date"
+                                    value={(project?.dateSAVRecu || "").slice(0, 10)}
+                                    onChange={(e) => saveProjectField({ dateSAVRecu: e.target.value || null })}
+                                    className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
+                                  />
+                                </div>
                                 <CabineSavInput
                                   value={parseCabineTextMulti(project?.commentairesSav || "")[idx + 1] || ""}
                                   onSave={(v) => saveCabineText("commentairesSav", idx, v)}
@@ -8410,6 +8437,15 @@ function ProjectPageContent({ id }: { id: string }) {
 
                               {/* SAV clôturé PAR CABINE : la présence d'une date dans
                                   « Dates SAV clôturé cabines » = clôturé (+ la date du jour). */}
+                              <div>
+                                <Label>Date SAV clôturé</Label>
+                                <input
+                                  type="date"
+                                  value={(project?.dateSavClotureLe || "").slice(0, 10)}
+                                  onChange={(e) => saveProjectField({ dateSavClotureLe: e.target.value || null })}
+                                  className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
+                                />
+                              </div>
                               {(() => {
                                 const clotureDate = (parseCabineTextMulti(project?.datesSavClotureCabines || "")[idx + 1] || "").slice(0, 10);
                                 const isCloture = !!clotureDate;
