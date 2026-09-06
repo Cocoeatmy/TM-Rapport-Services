@@ -63,13 +63,20 @@ export async function GET(req: NextRequest) {
 
   const candidates: { label: string; url: string }[] = [];
   // 1) Téléchargement authentifié (API) — marche même si la diffusion est restreinte.
-  try {
-    const d = cloudinary.utils.private_download_url(publicIdNoExt, ext, {
-      resource_type: resourceType as any,
-      type: deliveryType,
-    } as any);
-    if (d) candidates.push({ label: "download", url: d });
-  } catch { /* ignore */ }
+  //    Pour `raw`, le public_id inclut l'extension et le format doit être vide ;
+  //    pour image/vidéo, public_id sans extension + format séparé.
+  const dlVariants = resourceType === "raw"
+    ? [{ pid: publicWithExt, fmt: "" }, { pid: publicIdNoExt, fmt: ext }]
+    : [{ pid: publicIdNoExt, fmt: ext }];
+  for (const v of dlVariants) {
+    try {
+      const d = cloudinary.utils.private_download_url(v.pid, v.fmt, {
+        resource_type: resourceType as any,
+        type: deliveryType,
+      } as any);
+      if (d) candidates.push({ label: `download(${v.fmt || "noext"})`, url: d });
+    } catch { /* ignore */ }
+  }
   // 2) URL de diffusion signée.
   try {
     const s = cloudinary.utils.url(publicIdForDelivery, {
