@@ -75,16 +75,21 @@ export async function GET(req: NextRequest) {
   }
 
   // On tente d'abord l'URL signée (contourne la restriction), puis l'URL brute.
-  const candidates = [signedFromUrl(url), url.toString()].filter(Boolean) as string[];
+  const signed = signedFromUrl(url);
+  const candidates = [signed, url.toString()].filter(Boolean) as string[];
   let upstream: Response | null = null;
+  const diag: string[] = [];
   for (const target of candidates) {
     try {
       const r = await fetch(target, { cache: "no-store" });
+      diag.push(`${r.status} ${target.replace(/s--[^/]+--/, "s--…--")}`);
       if (r.ok && r.body) { upstream = r; break; }
-    } catch { /* essaie le candidat suivant */ }
+    } catch (e: any) {
+      diag.push(`ERR ${String(e?.message || e)}`);
+    }
   }
   if (!upstream) {
-    return NextResponse.json({ error: "récupération impossible" }, { status: 502 });
+    return NextResponse.json({ error: "récupération impossible", diag }, { status: 502 });
   }
 
   const ext = (url.pathname.split(".").pop() || "").toLowerCase();
