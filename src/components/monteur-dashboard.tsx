@@ -2255,7 +2255,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const rdvSavAncienneBase = projects
     .filter((p) => ["A contacter", "Contact sans réponse", "Attente news"].includes(p.etatSAV || ""));
   const tmDejaListes = new Set(rdvSavAncienneBase.map((p) => p.ofrTM).filter(Boolean));
-  const rdvSavParCabine = projects.filter(
+  // Les SAV concernent souvent des projets DÉJÀ terminés (montage fini) → on
+  // combine actifs + terminés (dédup par id), comme « SAV (tous) ».
+  const montageForSav = [...projects, ...terminatedProjects]
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+  const rdvSavParCabine = montageForSav.filter(
     (p) => (p as any)._source !== "sav" && hasCabineSavAFixer(p) && !(p.ofrTM && tmDejaListes.has(p.ofrTM)),
   );
   const rdvSavAFixerProjects = [...rdvSavAncienneBase, ...rdvSavParCabine]
