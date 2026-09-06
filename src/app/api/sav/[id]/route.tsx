@@ -199,9 +199,17 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0 }: { project: Pro
               {who ? (
                 <View style={styles.row}><Text style={styles.label}>Collaborateur de montage</Text><Text style={styles.value}>{nfc(who)}</Text></View>
               ) : null}
-              {dateRecuSav ? (
-                <View style={styles.row}><Text style={styles.label}>Date de réception SAV</Text><Text style={styles.value}>{fmtDate(dateRecuSav) || dateRecuSav}</Text></View>
-              ) : null}
+              {dateRecuSav ? (() => {
+                // Nombre de jours écoulés entre le montage et la réception du SAV.
+                let delai = "";
+                if (montage) {
+                  const d = Math.round((new Date(dateRecuSav + "T12:00:00").getTime() - new Date(montage + "T12:00:00").getTime()) / 86400000);
+                  if (!isNaN(d) && d >= 0) delai = ` (${d} jour${d > 1 ? "s" : ""})`;
+                }
+                return (
+                  <View style={styles.row}><Text style={styles.label}>Date de réception SAV</Text><Text style={styles.value}>{(fmtDate(dateRecuSav) || dateRecuSav) + delai}</Text></View>
+                );
+              })() : null}
 
               {reclam[n] ? (
                 <View style={styles.row}><Text style={styles.label}>Réclamation</Text><Text style={styles.value}>{nfc(reclam[n])}</Text></View>
