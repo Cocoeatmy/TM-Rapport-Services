@@ -120,6 +120,24 @@ function dateAndWho(date: string, who?: string): string {
   return parts.length ? nfc(parts.join(" — ")) : "—";
 }
 
+// Plage horaire de montage « 08:00–12:30 (4h30) » à partir de « Heure arrivée »
+// et « Heure départ ». Tolère les préfixes par cabine (« CabN: », date).
+function montageHoursStr(ha?: string | null, hd?: string | null): string {
+  const timeOf = (raw?: string | null) => {
+    const cleaned = (raw || "").replace(/Cab\d+\s*:/g, "").replace(/\d{4}-\d{2}-\d{2}:/g, "");
+    const m = /(\d{1,2}):(\d{2})/.exec(cleaned);
+    return m ? `${m[1].padStart(2, "0")}:${m[2]}` : "";
+  };
+  const arr = timeOf(ha), dep = timeOf(hd);
+  if (arr && dep) {
+    const toMin = (t: string) => { const [a, b] = t.split(":").map(Number); return a * 60 + b; };
+    const diff = toMin(dep) - toMin(arr);
+    const dur = diff > 0 ? ` (${Math.floor(diff / 60)}h${String(diff % 60).padStart(2, "0")})` : "";
+    return `${arr}–${dep}${dur}`;
+  }
+  return arr || dep || "";
+}
+
 // Cellule « libellé au-dessus, valeur en gras » (grilles Général & Contact).
 function Cell({ label, value, width }: { label: string; value: string; width: string }) {
   return (
@@ -292,7 +310,9 @@ function FichePDF({ project, mesuresDocUrl, reportUrl }: { project: Project; mes
               }
             }
             const pct = total > 0 ? Math.round((installed / total) * 100) : 0;
-            const value = dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs);
+            const hours = montageHoursStr(project.heureArrivee, project.heureDepart);
+            const value = dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)
+              + (hours ? `  ·  ${hours}` : "");
             if (total <= 0) return <LineRow label="Montage" value={value} />;
             return (
               <ProgressRow
