@@ -7321,23 +7321,23 @@ function ProjectPageContent({ id }: { id: string }) {
                     {/* ── Onglet SAV / Retouches (niveau projet, encodage Cab1) ── */}
                     {monoActiveTab === "sav" && (
                       <div className="space-y-4">
-                        {/* Générer le rapport SAV (PDF). */}
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            disabled={downloadingSavCab === 1}
-                            onClick={() => handleDownloadSavCabine(1)}
-                            className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
-                          >
-                            {downloadingSavCab === 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-                            Générer rapport SAV
-                          </button>
-                        </div>
+                        {/* Titre + bouton « Générer rapport SAV » sur la même ligne. */}
                         <div>
-                          <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                            <Wrench className="w-4 h-4" />
-                            Réclamation — SAV à traiter
-                          </Label>
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                              <Wrench className="w-4 h-4" />
+                              Réclamation — SAV à traiter
+                            </Label>
+                            <button
+                              type="button"
+                              disabled={downloadingSavCab === 1}
+                              onClick={() => handleDownloadSavCabine(1)}
+                              className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
+                            >
+                              {downloadingSavCab === 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                              Générer rapport SAV
+                            </button>
+                          </div>
                           <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
                             Brève explication du SAV / retouche demandé. Enregistré automatiquement.
                           </p>
@@ -8374,24 +8374,24 @@ function ProjectPageContent({ id }: { id: string }) {
                           {/* ── Onglet SAV / Retouches ──────────────────────── */}
                           {cabine.activeTab === "sav" && (
                             <div className="space-y-4 px-4">
-                              {/* Générer le rapport SAV de CE lot (PDF). */}
-                              <div className="flex justify-end">
-                                <button
-                                  type="button"
-                                  disabled={downloadingSavCab === idx + 1}
-                                  onClick={() => handleDownloadSavCabine(idx + 1)}
-                                  className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
-                                >
-                                  {downloadingSavCab === idx + 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-                                  Générer rapport SAV
-                                </button>
-                              </div>
-                              {/* Réclamation : brève description du SAV à traiter → « Commentaires SAV ». */}
+                              {/* Réclamation : brève description du SAV à traiter → « Commentaires SAV ».
+                                  Titre + bouton « Générer rapport SAV » sur la même ligne. */}
                               <div>
-                                <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                                  <Wrench className="w-4 h-4" />
-                                  Réclamation — SAV à traiter
-                                </Label>
+                                <div className="flex items-center justify-between gap-2">
+                                  <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                                    <Wrench className="w-4 h-4" />
+                                    Réclamation — SAV à traiter
+                                  </Label>
+                                  <button
+                                    type="button"
+                                    disabled={downloadingSavCab === idx + 1}
+                                    onClick={() => handleDownloadSavCabine(idx + 1)}
+                                    className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
+                                  >
+                                    {downloadingSavCab === idx + 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                                    Générer rapport SAV
+                                  </button>
+                                </div>
                                 <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
                                   Brève explication du SAV / retouche demandé. Enregistré automatiquement.
                                 </p>
