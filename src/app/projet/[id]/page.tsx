@@ -7710,11 +7710,16 @@ function ProjectPageContent({ id }: { id: string }) {
                               {cabineHasSav(idx) && (() => {
                                 const savClotureDate = (parseCabineTextMulti(project?.datesSavClotureCabines || "")[idx + 1] || "").slice(0, 10);
                                 const savRegle = !!savClotureDate;
+                                // Tant que non clôturé : on affiche la date de RÉCEPTION du SAV
+                                // (ambre). Une fois clôturé : la date de clôture (vert).
+                                const savRecuDate = (parseCabineTextMulti(project?.dateSAVRecu || "")[idx + 1] || "").slice(0, 10);
+                                const dateAffichee = savRegle ? savClotureDate : savRecuDate;
+                                const fmt = (d: string) => d.split("-").reverse().join(".");
                                 return (
                                   <span
                                     role="button"
                                     tabIndex={0}
-                                    title={savRegle ? `SAV réglé le ${savClotureDate.split("-").reverse().join(".")} — voir` : "SAV / Retouche — voir"}
+                                    title={savRegle ? `SAV réglé le ${fmt(savClotureDate)} — voir` : savRecuDate ? `SAV reçu le ${fmt(savRecuDate)} — voir` : "SAV / Retouche — voir"}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, open: true, activeTab: "sav" } : c));
@@ -7723,9 +7728,9 @@ function ProjectPageContent({ id }: { id: string }) {
                                     className="shrink-0 cursor-pointer rounded hover:opacity-75 transition-opacity inline-flex items-center gap-1"
                                   >
                                     <Wrench className={`w-4 h-4 ${savRegle ? "text-green-500" : "text-amber-500"}`} />
-                                    {savRegle && (
-                                      <span className="text-[10px] font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
-                                        {savClotureDate.split("-").reverse().join(".")}
+                                    {dateAffichee && (
+                                      <span className={`text-[10px] font-semibold whitespace-nowrap ${savRegle ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}>
+                                        {fmt(dateAffichee)}
                                       </span>
                                     )}
                                   </span>
