@@ -90,6 +90,15 @@ const DefautForm = dynamic(() => import("@/components/defaut-form").then(m => ({
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
+// Types du signalement « défaut avant intervention » (constat pré-existant,
+// avant notre montage). « autre » ouvre un champ de saisie libre.
+const DEFAUT_AVANT_TYPES = [
+  { id: "receveur-raye", label: "Receveur rayé" },
+  { id: "jeton-receveur", label: "Jeton sur receveur" },
+  { id: "carrelage-fissure", label: "Carrelage fissuré" },
+  { id: "autre", label: "Autre" },
+] as const;
+
 const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m => ({ default: m.VoiceRecorder })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-10" />,
@@ -7405,6 +7414,14 @@ function ProjectPageContent({ id }: { id: string }) {
                       <div className="space-y-3">
                         <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
                         <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
+                        <DefautForm
+                          projectId={id}
+                          projectName={project.projet}
+                          title="Signaler défaut avant intervention"
+                          types={DEFAUT_AVANT_TYPES}
+                          phase="avant-intervention"
+                          onSubmitted={() => setDefautRefreshKey((k) => k + 1)}
+                        />
                         <PiecesForm
                           projectId={id}
                           projectName={project.projet}
@@ -8274,6 +8291,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalement — {cabine.nom}</p>
                               <PiecesList projectId={id} refreshKey={pieceRefreshKey} cabineLabel={cabine.nom} />
                               <DefautsList projectId={id} refreshKey={defautRefreshKey} cabineLabel={cabine.nom} project={project} setProject={setProject} />
+                              <DefautForm projectId={id} projectName={project.projet} cabineLabel={cabine.nom} title="Signaler défaut avant intervention" types={DEFAUT_AVANT_TYPES} phase="avant-intervention" onSubmitted={() => setDefautRefreshKey((k) => k + 1)} />
                               <PiecesForm projectId={id} projectName={project.projet} cabineLabel={cabine.nom} onSubmitted={() => setPieceRefreshKey((k) => k + 1)} />
                               <DefautForm projectId={id} projectName={project.projet} cabineLabel={cabine.nom} onSubmitted={() => setDefautRefreshKey((k) => k + 1)} />
                             </div>

@@ -10,14 +10,16 @@ import dynamic from "next/dynamic";
 import { compressImage } from "@/lib/compress-image";
 const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m => ({ default: m.VoiceRecorder })), { ssr: false });
 
-const DEFAUT_TYPES = [
+type DefautType = { id: string; label: string };
+
+const DEFAUT_TYPES: readonly DefautType[] = [
   { id: "usine", label: "Défaut d'usine" },
   { id: "mesures", label: "Erreur de mesures" },
   { id: "article", label: "Mauvais article" },
   { id: "couleur", label: "Erreur de couleur" },
   { id: "transport", label: "Dommage de transport" },
   { id: "montage", label: "Problème de montage" },
-] as const;
+];
 
 interface DefautFormProps {
   projectId: string;
@@ -28,11 +30,22 @@ interface DefautFormProps {
   cabineLabel?: string;
   /** Appelé après soumission réussie avec les URLs des photos uploadées. */
   onSubmitted?: (photoUrls: string[]) => void;
+  /** Titre du formulaire + libellé du bouton replié. Défaut « Signaler un défaut ». */
+  title?: string;
+  /** Liste des types proposés (remplace la liste par défaut). Le type d'id
+   * « autre » ouvre un champ de saisie libre. */
+  types?: readonly DefautType[];
+  /** Marqueur de phase transmis à l'API (ex. « avant-intervention »). */
+  phase?: string;
 }
 
-export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, onSubmitted }: DefautFormProps) {
+export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, onSubmitted, title, types, phase }: DefautFormProps) {
+  const TYPES = types ?? DEFAUT_TYPES;
+  const usingCustomTypes = !!types;
+  const heading = title ?? "Signaler un défaut";
   const [open, setOpen] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [otherText, setOtherText] = useState("");
   const [description, setDescription] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
@@ -78,6 +91,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
 
   const resetForm = () => {
     setSelectedTypes([]);
+    setOtherText("");
     setDescription("");
     photoPreviews.forEach((p) => URL.revokeObjectURL(p));
     setPhotos([]);
@@ -131,10 +145,14 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
         }
       }
 
-      const typesLabel = selectedTypes
-        .map((id) => DEFAUT_TYPES.find((t) => t.id === id)?.label)
-        .filter(Boolean)
-        .join(", ");
+      // Libellés lisibles des types sélectionnés ; « autre » → texte saisi.
+      const typeLabels = selectedTypes.map((sid) =>
+        sid === "autre" ? (otherText.trim() || "Autre") : (TYPES.find((t) => t.id === sid)?.label || sid)
+      );
+      const typesLabel = typeLabels.filter(Boolean).join(", ");
+      // Formulaire par défaut : on garde les ids (rétro-compat). Formulaire
+      // personnalisé : on envoie les libellés pour un affichage propre.
+      const typesToSend = usingCustomTypes ? typeLabels : selectedTypes;
 
       // offlineFetch : le défaut est mis en queue si offline ; les
       // photoUrls (Cloudinary) ne marchent que si l'upload est passé
@@ -146,11 +164,12 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
         body: JSON.stringify({
           projectId,
           projectName,
-          types: selectedTypes,
+          types: typesToSend,
           typesLabel,
           description,
           photoUrls,
           displayInRapport,
+          ...(phase ? { phase } : {}),
           // Lot du défaut : sélection manuelle > lot imposé par le contexte
           // cabine (prop cabineLabel) > unique option disponible. Garantit que
           // le lot est TOUJOURS enregistré quand on signale depuis une cabine.
@@ -179,7 +198,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-red-300 text-sm text-red-600 hover:border-red-400 hover:bg-red-50 active:bg-red-100 transition-colors"
       >
         <ShieldAlert className="w-4 h-4" />
-        Signaler un défaut
+        {heading}
       </button>
     );
   }
@@ -188,14 +207,14 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
     <div className="glass-card rounded-xl p-4 space-y-3 border-l-4 border-red-400">
       <div className="flex items-center gap-2">
         <ShieldAlert className="w-4 h-4 text-red-500" />
-        <span className="text-sm font-semibold text-gray-700">Signaler un défaut</span>
+        <span className="text-sm font-semibold text-gray-700">{heading}</span>
       </div>
 
       {/* Types de défaut - choix multiple */}
       <div>
         <Label className="text-xs">Type de défaut</Label>
         <div className="flex flex-wrap gap-1.5 mt-1">
-          {DEFAUT_TYPES.map((type) => {
+          {TYPES.map((type) => {
             const selected = selectedTypes.includes(type.id);
             return (
               <button
@@ -213,6 +232,16 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
             );
           })}
         </div>
+        {/* Saisie libre quand « Autre » est sélectionné. */}
+        {selectedTypes.includes("autre") && (
+          <input
+            type="text"
+            value={otherText}
+            onChange={(e) => setOtherText(e.target.value)}
+            placeholder="Précisez ce que vous avez constaté…"
+            className="mt-2 w-full text-sm border rounded-lg px-2.5 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200"
+          />
+        )}
       </div>
 
       {/* Cabine concernée — affiché uniquement si projet multi-cabine */}
