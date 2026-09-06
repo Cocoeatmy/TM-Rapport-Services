@@ -1211,16 +1211,36 @@ const DEFAULT_DASH_ORDER = [
   "__empty__", // Case vide — taquin pour faciliter les déplacements
 ];
 
-// Date de réception SAV la plus ANCIENNE d'un projet. Le champ « Date - SAV
-// reçu le » est désormais du TEXTE par cabine ("Cab1:2026-08-28 | Cab2:…") ;
-// on en extrait la date la plus ancienne (aussi compatible avec l'ancien
-// format « date simple »). Sert au regroupement + au calcul J+ du SAV.
+// Date de réception SAV pertinente pour « RDV SAV à fixer » (regroupement + J+).
+// « Date - SAV reçu le » est du TEXTE par cabine ("Cab1:2026-08-28 | Cab2:…").
+// On privilégie la réception d'un lot ENCORE OUVERT (ni date d'intervention, ni
+// clôture) ; on valide l'année (2000-2099) pour ignorer les dates aberrantes.
 function earliestSavRecuDate(p: Project): string {
-  const raw = p.dateSAVRecu || "";
-  const dates: string[] = [];
-  const re = /(\d{4}-\d{2}-\d{2})/g; let m: RegExpExecArray | null;
-  while ((m = re.exec(raw))) dates.push(m[1]);
-  return dates.length ? dates.sort()[0] : "";
+  const parse = (raw?: string | null): Record<number, string> => {
+    const map: Record<number, string> = {};
+    const re = /Cab(\d+)\s*:([^|]*)/g; let x: RegExpExecArray | null;
+    while ((x = re.exec(raw || ""))) { const v = x[2].trim(); if (v) map[parseInt(x[1], 10)] = v; }
+    return map;
+  };
+  const valid = (d: string) => /^20\d{2}-\d{2}-\d{2}$/.test(d);
+  const recu = parse(p.dateSAVRecu);
+  const rdv = parse(p.datesRdvSavCabines);
+  const clot = parse(p.datesSavClotureCabines);
+  const open: string[] = []; const all: string[] = [];
+  for (const k of Object.keys(recu)) {
+    const n = parseInt(k, 10);
+    const d = (recu[n] || "").slice(0, 10);
+    if (!valid(d)) continue;
+    all.push(d);
+    if (!(rdv[n] || "").trim() && !(clot[n] || "").trim()) open.push(d);
+  }
+  // Repli : ancien format « date simple » (pas d'encodage par cabine).
+  if (all.length === 0) {
+    const m = /(20\d{2}-\d{2}-\d{2})/.exec(p.dateSAVRecu || "");
+    if (m) all.push(m[1]);
+  }
+  const pick = open.length ? open : all;
+  return pick.length ? pick.sort()[0] : "";
 }
 
 // Panneaux groupés par une date Notion spécifique + toggle "date / région (NPA)".
