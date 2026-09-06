@@ -128,6 +128,8 @@ function joinNames(arr?: string[]): string { return arr && arr.length ? arr.map(
 function ContactCell({ label, company, contacts }: { label: string; company?: string; contacts?: ContactDetail[] }) {
   const list = (contacts || []).filter((c) => c && (c.name || c.email || c.phone));
   const hasCompany = !!company && company.trim() !== "";
+  // Rôle non renseigné → on ne l'affiche pas du tout.
+  if (!hasCompany && list.length === 0) return null;
   return (
     <View style={{ width: "33.33%", paddingRight: 10, marginBottom: 8 }}>
       <Text style={{ fontSize: 7.5, color: "#888", marginBottom: 2 }}>{label}</Text>
@@ -139,7 +141,6 @@ function ContactCell({ label, company, contacts }: { label: string; company?: st
           {c.phone ? <Text style={{ fontSize: 7.5, color: "#555" }}>{c.phone}</Text> : null}
         </View>
       ))}
-      {!hasCompany && list.length === 0 ? <Text style={{ fontSize: 9.5, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>—</Text> : null}
     </View>
   );
 }
@@ -275,9 +276,9 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
           );
         })}
 
-        {/* Contact — même présentation que la fiche de travail. */}
-        <View style={{ marginTop: 14, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: "#ddd" }} wrap={false}>
-          <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 6 }}>Contact</Text>
+        {/* Contact — même présentation que la fiche de travail (ligne sous le titre). */}
+        <View style={{ marginTop: 14 }} wrap={false}>
+          <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 6, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: "#e0e0e0" }}>Contact</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
             <ContactCell label="GROSSISTE" company={joinNames(project.grossistesNames)} contacts={project.contactsGrossisteDetails} />
             <ContactCell label="INSTALLATEUR" company={joinNames(project.sanitaireNames)} contacts={project.contactsSanitaireDetails} />

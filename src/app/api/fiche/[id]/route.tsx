@@ -151,6 +151,8 @@ function Cell({ label, value, width }: { label: string; value: string; width: st
 function ContactCell({ label, company, contacts, width }: { label: string; company?: string; contacts?: ContactDetail[]; width: string }) {
   const list = (contacts || []).filter((c) => c && (c.name || c.email || c.phone));
   const hasCompany = !!company && company !== "—" && company.trim() !== "";
+  // Rôle non renseigné → masqué.
+  if (!hasCompany && list.length === 0) return null;
   return (
     <View style={{ width, paddingRight: 10, marginBottom: 8 }}>
       <Text style={{ fontSize: 8, color: "#888", marginBottom: 2 }}>{label}</Text>
@@ -164,9 +166,6 @@ function ContactCell({ label, company, contacts, width }: { label: string; compa
           {c.phone ? <Text style={{ fontSize: 8, color: "#555" }}>{c.phone}</Text> : null}
         </View>
       ))}
-      {!hasCompany && list.length === 0 ? (
-        <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>—</Text>
-      ) : null}
     </View>
   );
 }
