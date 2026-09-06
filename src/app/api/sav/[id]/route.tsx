@@ -29,6 +29,14 @@ function parseCabMulti(raw: string | undefined | null): Record<number, string> {
   while ((m = re.exec(raw || ""))) { const v = m[2].trim(); if (v) map[parseInt(m[1], 10)] = v; }
   return map;
 }
+// Dates de montage par cabine, encodées dans « Heure arrivée » ("CabN:YYYY-MM-DD:HH:MM").
+function parseCabDates(raw: string | undefined | null): Record<number, string> {
+  const map: Record<number, string> = {};
+  const re = /Cab(\d+)\s*:(\d{4}-\d{2}-\d{2}):/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw || ""))) map[parseInt(m[1], 10)] = m[2];
+  return map;
+}
 function nfc(s: string) { return (s || "").normalize("NFC"); }
 function fmtDate(d?: string | null) { try { return d ? formatSwissDate(d) : ""; } catch { return ""; } }
 // Photos d'un champ appartenant à la cabine N (nom de fichier « .CabN. »).
@@ -113,17 +121,19 @@ function MediaThumb({ url }: { url: string }) {
   );
 }
 
-function SavPDF({ project, collabFilter = "" }: { project: Project; collabFilter?: string }) {
+function SavPDF({ project, collabFilter = "", cabineFilter = 0 }: { project: Project; collabFilter?: string; cabineFilter?: number }) {
   const total = project.nbCabines || 0;
   const names = parseCabMulti(project.nomsCabines);
   const attribution = parseCabMulti(project.attributionCabines);
   const sousTrait = parseCabMulti(project.monteursSousTraitance);
+  const montageDates = parseCabDates(project.heureArrivee);
   const reclam = parseCabMulti(project.commentairesSav);
   const cause = parseCabMulti(project.causeSavCabines);
   const dateRdv = parseCabMulti(project.datesRdvSavCabines);
   const collab = parseCabMulti(project.collaborateursSavCabines);
   const cloture = parseCabMulti(project.datesSavClotureCabines);
   const fait = parseCabMulti(project.savRetouchesCabines);
+  const dateRecuSav = (project.dateSAVRecu || "").slice(0, 10);
 
   const cabHasSav = (n: number) =>
     !!(reclam[n] || cause[n] || dateRdv[n] || collab[n] || fait[n]
@@ -139,18 +149,26 @@ function SavPDF({ project, collabFilter = "" }: { project: Project; collabFilter
   };
 
   const savCabs: number[] = [];
-  for (let n = 1; n <= total; n++) if (cabHasSav(n) && belongsTo(n)) savCabs.push(n);
+  for (let n = 1; n <= total; n++) {
+    if (!cabHasSav(n) || !belongsTo(n)) continue;
+    if (cabineFilter && n !== cabineFilter) continue;
+    savCabs.push(n);
+  }
+
+  // Titre orange tant qu'un SAV rendu n'est pas clôturé ; vert si tous clôturés.
+  const allClosed = savCabs.length > 0 && savCabs.every((n) => !!(cloture[n] || "").slice(0, 10));
+  const titleColor = allClosed ? "#15803d" : "#b45309";
 
   return (
     <Document>
       <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }}>
-        <View style={styles.header}>
+        <View style={{ ...styles.header, borderBottomColor: titleColor }}>
           <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
-          <Text style={styles.title}>Rapport SAV</Text>
+          <Text style={{ ...styles.title, color: titleColor }}>Rapport SAV{allClosed ? " — clôturé" : ""}</Text>
           <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
           {collabFilter ? <Text style={{ ...styles.subtitle, fontFamily: "Helvetica-Bold", color: "#b45309" }}>SAV de {nfc(collabFilter)}</Text> : null}
-          <Text style={styles.subtitle}>{savCabs.length} SAV{collabFilter ? "" : ` / ${total} cabine${total > 1 ? "s" : ""}`}</Text>
+          {!cabineFilter ? <Text style={styles.subtitle}>{savCabs.length} SAV{collabFilter ? "" : ` / ${total} cabine${total > 1 ? "s" : ""}`}</Text> : null}
         </View>
 
         {savCabs.length === 0 ? (
@@ -166,12 +184,21 @@ function SavPDF({ project, collabFilter = "" }: { project: Project; collabFilter
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <View>
                   <Text style={styles.cabTitle}>{nfc(nom)}</Text>
-                  {who ? <Text style={styles.cabSub}>{nfc(who)}</Text> : null}
                 </View>
                 {closedDate
                   ? <Text style={styles.badgeClosed}>Clôturé le {closedDate.split("-").reverse().join(".")}</Text>
                   : <Text style={styles.badgeOpen}>SAV en cours</Text>}
               </View>
+
+              {montageDates[n] ? (
+                <View style={styles.row}><Text style={styles.label}>Date de montage</Text><Text style={styles.value}>{fmtDate(montageDates[n]) || montageDates[n]}</Text></View>
+              ) : null}
+              {who ? (
+                <View style={styles.row}><Text style={styles.label}>Monté par</Text><Text style={styles.value}>{nfc(who)}</Text></View>
+              ) : null}
+              {dateRecuSav ? (
+                <View style={styles.row}><Text style={styles.label}>Date de réception SAV</Text><Text style={styles.value}>{fmtDate(dateRecuSav) || dateRecuSav}</Text></View>
+              ) : null}
 
               {reclam[n] ? (
                 <View style={styles.row}><Text style={styles.label}>Réclamation</Text><Text style={styles.value}>{nfc(reclam[n])}</Text></View>
@@ -228,6 +255,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const sp = req.nextUrl.searchParams;
   const s = sp.get("s") || "";
   const collab = (sp.get("collab") || "").trim();
+  const cabine = parseInt(sp.get("cabine") || "0", 10) || 0;
   const wantLink = sp.get("link") === "1";
   const secret = process.env.SHARE_LINK_KEY || "";
 
@@ -248,7 +276,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const project = await getProject(id);
-    const stream = await ReactPDF.renderToStream(<SavPDF project={project} collabFilter={collab} />);
+    const stream = await ReactPDF.renderToStream(<SavPDF project={project} collabFilter={collab} cabineFilter={cabine} />);
     const chunks: Buffer[] = [];
     // @ts-ignore
     for await (const c of stream) chunks.push(Buffer.from(c));

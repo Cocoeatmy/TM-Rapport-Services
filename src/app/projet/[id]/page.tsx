@@ -5159,6 +5159,28 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Impossible de générer le rapport SAV.");
     } finally { setDownloadingSav(false); }
   };
+  // Rapport SAV d'UNE cabine (bouton dans l'onglet SAV). cabNum = index 1-based.
+  const [downloadingSavCab, setDownloadingSavCab] = useState<number | null>(null);
+  const handleDownloadSavCabine = async (cabNum: number) => {
+    setDownloadingSavCab(cabNum);
+    try {
+      const res = await fetch(`/api/sav/${id}?cabine=${cabNum}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      let filename = "Rapport SAV.pdf";
+      const cd = res.headers.get("Content-Disposition");
+      const m = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      if (m?.[1]) filename = decodeURIComponent(m[1]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error("Téléchargement Rapport SAV (cabine) échoué:", e);
+      toast.error("Impossible de générer le rapport SAV.");
+    } finally { setDownloadingSavCab(null); }
+  };
   const handleCopySavLink = async (collab?: string) => {
     setCopyingSavLink(true);
     try {
@@ -7299,6 +7321,18 @@ function ProjectPageContent({ id }: { id: string }) {
                     {/* ── Onglet SAV / Retouches (niveau projet, encodage Cab1) ── */}
                     {monoActiveTab === "sav" && (
                       <div className="space-y-4">
+                        {/* Générer le rapport SAV (PDF). */}
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            disabled={downloadingSavCab === 1}
+                            onClick={() => handleDownloadSavCabine(1)}
+                            className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
+                          >
+                            {downloadingSavCab === 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                            Générer rapport SAV
+                          </button>
+                        </div>
                         <div>
                           <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
                             <Wrench className="w-4 h-4" />
@@ -8340,6 +8374,18 @@ function ProjectPageContent({ id }: { id: string }) {
                           {/* ── Onglet SAV / Retouches ──────────────────────── */}
                           {cabine.activeTab === "sav" && (
                             <div className="space-y-4 px-4">
+                              {/* Générer le rapport SAV de CE lot (PDF). */}
+                              <div className="flex justify-end">
+                                <button
+                                  type="button"
+                                  disabled={downloadingSavCab === idx + 1}
+                                  onClick={() => handleDownloadSavCabine(idx + 1)}
+                                  className="h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60"
+                                >
+                                  {downloadingSavCab === idx + 1 ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                                  Générer rapport SAV
+                                </button>
+                              </div>
                               {/* Réclamation : brève description du SAV à traiter → « Commentaires SAV ». */}
                               <div>
                                 <Label className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
