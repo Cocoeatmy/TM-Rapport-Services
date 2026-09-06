@@ -39,6 +39,7 @@ function photosForCab(files: { name?: string; url: string }[] | undefined, cab: 
   });
 }
 function isVideoUrl(u: string) { return u.includes("/video/upload/") || /\.(mp4|mov|webm|m4v|avi)(\?|$)/i.test(u); }
+function isPdfUrl(u: string) { return /\.pdf(\?|$)/i.test(u); }
 // URL de TÉLÉCHARGEMENT (fl_attachment force Content-Disposition: attachment).
 function downloadUrl(u: string) {
   if (u.includes("res.cloudinary.com")) return u.replace("/upload/", "/upload/fl_attachment/");
@@ -83,9 +84,19 @@ function DownloadArrow() {
   );
 }
 
-// Vignette cliquable → télécharge la photo/vidéo. Vidéo : poster + ▶.
+// Vignette cliquable → télécharge la photo/vidéo. Vidéo : poster + ▶. PDF : tuile.
 function MediaThumb({ url }: { url: string }) {
   const video = isVideoUrl(url);
+  if (isPdfUrl(url)) {
+    return (
+      <Link src={downloadUrl(url)} style={{ width: 110, height: 82, textDecoration: "none" }}>
+        <View style={{ width: 110, height: 82, borderRadius: 4, borderWidth: 1, borderColor: "#fca5a5", backgroundColor: "#fef2f2", alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ color: "#dc2626", fontSize: 14, fontFamily: "Helvetica-Bold" }}>PDF</Text>
+          <Text style={{ color: "#b91c1c", fontSize: 7, marginTop: 3 }}>cliquer pour ouvrir</Text>
+        </View>
+      </Link>
+    );
+  }
   return (
     <Link src={downloadUrl(url)} style={{ width: 110, height: 82, textDecoration: "none" }}>
       <View style={{ width: 110, height: 82, position: "relative" }}>

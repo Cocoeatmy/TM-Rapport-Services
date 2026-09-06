@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Camera, ImagePlus, X, Loader2, Download, CloudUpload, RotateCcw, RotateCw } from "lucide-react";
+import { Camera, ImagePlus, X, Loader2, Download, CloudUpload, RotateCcw, RotateCw, FileText } from "lucide-react";
 import { thumbnailUrl, rotateCloudinaryUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
 import { compressImage } from "@/lib/compress-image";
@@ -122,10 +122,10 @@ export function PhotoUpload({
     // Réduit une photo iPhone (10 Mo) à ~400 Ko → upload 20× plus rapide.
     // Fait EN ARRIÈRE-PLAN pendant que l'utilisateur peut déjà prendre
     // la photo suivante.
-    // Les vidéos ne passent PAS par la compression image (canvas) → uploadées
-    // telles quelles. Seules les images sont compressées.
+    // Seules les IMAGES passent par la compression (canvas). Les vidéos ET les
+    // PDF (ou tout autre type non-image) sont uploadés tels quels.
     const compressed: File[] = await Promise.all(
-      renamed.map((f) => (f.type.startsWith("video/") ? Promise.resolve(f) : compressImage(f, 1600, 0.82)))
+      renamed.map((f) => (f.type.startsWith("image/") ? compressImage(f, 1600, 0.82) : Promise.resolve(f)))
     );
 
     // Helper : enregistre les fichiers en IDB pour upload différé.
@@ -279,6 +279,8 @@ export function PhotoUpload({
     invalidateApiCache();
   };
 
+  // PDF : pas d'aperçu image → tuile dédiée (icône + « PDF »), cliquable.
+  const isPdfUrl = (u: string) => /\.pdf(\?|$)/i.test(u);
   // Vidéo Cloudinary : poster (1re image) au lieu d'une <img> cassée.
   const isVideoUrl = (u: string) => u.includes("/video/upload/") || /\.(mp4|mov|webm|m4v|avi)(\?|$)/i.test(u);
   const videoPosterUrl = (u: string) => {
@@ -302,13 +304,26 @@ export function PhotoUpload({
             className="relative rounded-xl overflow-hidden bg-gray-100 group"
             style={{ aspectRatio: "4/3" }}
           >
-            <img
-              src={img.isPreview ? img.src : (isVideoUrl(img.src) ? videoPosterUrl(img.src) : thumbnailUrl(img.src, 300))}
-              alt={`${label} ${i + 1}`}
-              loading="lazy"
-              decoding="async"
-              className={`w-full h-full object-cover transition-opacity ${img.isUploading ? "opacity-70" : ""}`}
-            />
+            {!img.isPreview && isPdfUrl(img.src) ? (
+              <a
+                href={img.src}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400"
+                title="Ouvrir le PDF"
+              >
+                <FileText className="w-8 h-8" />
+                <span className="text-[11px] font-semibold">PDF</span>
+              </a>
+            ) : (
+              <img
+                src={img.isPreview ? img.src : (isVideoUrl(img.src) ? videoPosterUrl(img.src) : thumbnailUrl(img.src, 300))}
+                alt={`${label} ${i + 1}`}
+                loading="lazy"
+                decoding="async"
+                className={`w-full h-full object-cover transition-opacity ${img.isUploading ? "opacity-70" : ""}`}
+              />
+            )}
             {/* Badge « vidéo » (poster affiché) */}
             {!img.isPreview && isVideoUrl(img.src) && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -332,7 +347,7 @@ export function PhotoUpload({
               <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 p-1.5 bg-gradient-to-t from-black/60 to-transparent sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                 <a
                   href={img.src}
-                  download={`photo-${i + 1}.jpg`}
+                  download={`document-${i + 1}.${isPdfUrl(img.src) ? "pdf" : isVideoUrl(img.src) ? "mp4" : "jpg"}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center hover:bg-white shadow active:scale-95"

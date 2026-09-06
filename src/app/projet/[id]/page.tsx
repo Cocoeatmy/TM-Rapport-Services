@@ -7331,8 +7331,8 @@ function ProjectPageContent({ id }: { id: string }) {
                             </div>
                           </div>
                         </div>
-                        <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*" />
-                        <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*" />
+                        <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
+                        <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
                         <div>
                           <Label>Ce que nous avons fait</Label>
                           <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
@@ -8359,10 +8359,10 @@ function ProjectPageContent({ id }: { id: string }) {
                               </div>
 
                               {/* Documents de la DEMANDE (photos/vidéos reçus pour déclencher le SAV). */}
-                              <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*" />
+                              <BucketPhotoUpload bucket="SAV_DEMANDE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
 
                               {/* Photos/vidéos une fois le souci RÉGLÉ. */}
-                              <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*" />
+                              <BucketPhotoUpload bucket="SAV_RETOUCHE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="image/*,video/*,application/pdf" />
 
                               {/* Ce que nous avons fait → « SAV / Retouches cabines ». */}
                               <div>
