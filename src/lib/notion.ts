@@ -122,6 +122,13 @@ export function invalidateSchemaCache() { schemaCache = null; rawPropsCache = nu
 // est gérée au niveau des routes API via `@/lib/server-cache`. Cela garantit
 // une seule source de vérité et une invalidation cohérente après PATCH/POST.
 
+/** Coordonnées d'un contact (page de la base Contacts). */
+export interface ContactDetail {
+  name: string;
+  email: string;
+  phone: string;
+}
+
 export interface Project {
   id: string;
   projet: string;
@@ -208,8 +215,23 @@ export interface Project {
   fournisseursNames: string[];
   sanitaireRelation: string[]; // IDs Sanitaire (Entreprise)
   sanitaireNames: string[];
-  contactsProjetRelation: string[]; // IDs Contacts projet
+  contactsProjetRelation: string[]; // IDs « Contact Grossiste » (ex-Contact Projet)
   contactsProjetNames: string[];
+  // ── Contacts de la fiche de travail (relations vers la base Contacts) ────────
+  dtRelation: string[];                 // « DT » (entreprise)
+  dtNames: string[];
+  architecteRelation: string[];         // « Architecte » (entreprise)
+  architecteNames: string[];
+  contactsSanitaireRelation: string[];        // « Contacts Sanitaire »
+  contactsDTRelation: string[];               // « Contacts DT »
+  contactsArchitecteRelation: string[];       // « Contacts Architecte »
+  contactsClientsFinauxRelation: string[];    // « Contacts Clients finaux »
+  // Détails résolus (nom, email, téléphone) — remplis dans getProject.
+  contactsGrossisteDetails?: ContactDetail[];
+  contactsSanitaireDetails?: ContactDetail[];
+  contactsDTDetails?: ContactDetail[];
+  contactsArchitecteDetails?: ContactDetail[];
+  contactsClientsFinauxDetails?: ContactDetail[];
   infoPiecesManquantes: string;
   infoDefautsSignale: string;
   photosPiecesManquantes: FileItem[];
@@ -509,6 +531,15 @@ export function mapPageToProject(page: any): Project {
       return [];
     })(),
     contactsProjetNames: [],
+    // Contacts fiche de travail (relations vers la base Contacts).
+    dtRelation: extractRelationIds(p["DT"]),
+    dtNames: [],
+    architecteRelation: extractRelationIds(p["Architecte"]),
+    architecteNames: [],
+    contactsSanitaireRelation: extractRelationIds(p["Contacts Sanitaire"]),
+    contactsDTRelation: extractRelationIds(p["Contacts DT"]),
+    contactsArchitecteRelation: extractRelationIds(p["Contacts Architecte"]),
+    contactsClientsFinauxRelation: extractRelationIds(p["Contacts Clients finaux"]),
     infoPiecesManquantes: extractText(p["Infos - Pièces manquantes"]),
     infoDefautsSignale: extractText(p["Infos - Défauts signalé"]),
     photosPiecesManquantes: extractFiles(p["Photos - Pièces manquante"]),
@@ -682,6 +713,45 @@ async function resolveRelationNames(ids: string[]): Promise<Record<string, strin
   const result: Record<string, string> = {};
   ids.forEach((id) => { result[id] = relationNameCache[id] || id; });
   return result;
+}
+
+/**
+ * Résout des pages « Contact » (relations) en coordonnées {nom, email, téléphone}.
+ * Détecte automatiquement la propriété de type `email` et celle de type
+ * `phone_number` — pas besoin de connaître leurs noms exacts. Le nom vient du
+ * titre de la page (repli : concat Prénom + Nom si présents).
+ */
+async function resolveContactDetails(ids: string[]): Promise<Record<string, ContactDetail>> {
+  const uniq = [...new Set(ids)].filter(Boolean);
+  const out: Record<string, ContactDetail> = {};
+  await Promise.all(uniq.map(async (id) => {
+    try {
+      const page = await notionRetrieveWithRetry(id);
+      const props: Record<string, any> = page.properties || {};
+      let name = "", email = "", phone = "", prenom = "", nom = "";
+      for (const key of Object.keys(props)) {
+        const pr = props[key];
+        if (!pr) continue;
+        if (pr.type === "title" && !name) name = (pr.title || []).map((t: any) => t.plain_text).join("").trim();
+        else if (pr.type === "email" && !email) email = pr.email || "";
+        else if (pr.type === "phone_number" && !phone) phone = pr.phone_number || "";
+        else if (pr.type === "rich_text") {
+          const val = (pr.rich_text || []).map((t: any) => t.plain_text).join("").trim();
+          if (val) {
+            if (/pr[ée]nom/i.test(key)) prenom = val;
+            else if (/^nom/i.test(key)) nom = val;
+            else if (!phone && /t[ée]l|phone|natel|mobile|portable/i.test(key)) phone = val;
+            else if (!email && /mail|courriel|e-?mail/i.test(key)) email = val;
+          }
+        }
+      }
+      const composed = [prenom, nom].filter(Boolean).join(" ").trim();
+      out[id] = { name: name || composed || "", email, phone };
+    } catch {
+      out[id] = { name: "", email: "", phone: "" };
+    }
+  }));
+  return out;
 }
 
 /**
@@ -930,9 +1000,19 @@ export async function getProject(pageId: string): Promise<Project> {
   // PARALLÈLE (deux lectures indépendantes) — réduit la latence d'ouverture
   // d'un projet, surtout sur instance froide (cold start) où chaque lecture
   // Notion compte. Le débordement mute project.photos* en place.
-  const allRelIds = [...new Set([...project.grossistesRelation, ...project.fournisseursRelation, ...project.sanitaireRelation, ...project.contactsProjetRelation])];
-  const [names] = await Promise.all([
+  // Noms d'entreprises (relations) : grossistes, fournisseurs, sanitaire, DT, architecte.
+  const allRelIds = [...new Set([
+    ...project.grossistesRelation, ...project.fournisseursRelation, ...project.sanitaireRelation,
+    ...project.contactsProjetRelation, ...project.dtRelation, ...project.architecteRelation,
+  ])];
+  // Contacts (personnes) → nom/email/téléphone.
+  const allContactIds = [...new Set([
+    ...project.contactsProjetRelation, ...project.contactsSanitaireRelation, ...project.contactsDTRelation,
+    ...project.contactsArchitecteRelation, ...project.contactsClientsFinauxRelation,
+  ])];
+  const [names, contacts] = await Promise.all([
     allRelIds.length > 0 ? resolveRelationNames(allRelIds) : Promise.resolve({} as Record<string, string>),
+    allContactIds.length > 0 ? resolveContactDetails(allContactIds) : Promise.resolve({} as Record<string, ContactDetail>),
     (async () => {
       try {
         const { mergeOverflowIntoProject } = await import("@/lib/photo-overflow");
@@ -945,7 +1025,15 @@ export async function getProject(pageId: string): Promise<Project> {
     project.fournisseursNames = project.fournisseursRelation.map((id) => names[id] || id);
     project.sanitaireNames = project.sanitaireRelation.map((id) => names[id] || id);
     project.contactsProjetNames = project.contactsProjetRelation.map((id) => names[id] || id);
+    project.dtNames = project.dtRelation.map((id) => names[id] || id);
+    project.architecteNames = project.architecteRelation.map((id) => names[id] || id);
   }
+  const toDetails = (relIds: string[]) => relIds.map((id) => contacts[id]).filter((c): c is ContactDetail => !!c && (!!c.name || !!c.email || !!c.phone));
+  project.contactsGrossisteDetails = toDetails(project.contactsProjetRelation);
+  project.contactsSanitaireDetails = toDetails(project.contactsSanitaireRelation);
+  project.contactsDTDetails = toDetails(project.contactsDTRelation);
+  project.contactsArchitecteDetails = toDetails(project.contactsArchitecteRelation);
+  project.contactsClientsFinauxDetails = toDetails(project.contactsClientsFinauxRelation);
   return project;
 }
 

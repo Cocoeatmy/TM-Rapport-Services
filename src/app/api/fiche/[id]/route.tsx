@@ -8,7 +8,7 @@
  * OU cookie d'authentification valide. Le lien signé sert aux calendriers.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getProject, type Project } from "@/lib/notion";
+import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
 import { signFiche, signPhotosZip } from "@/lib/doc-link";
@@ -144,6 +144,29 @@ function Cell({ label, value, width }: { label: string; value: string; width: st
     <View style={{ width, paddingRight: 10, marginBottom: 6 }}>
       <Text style={{ fontSize: 8, color: "#888", marginBottom: 2 }}>{label}</Text>
       <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{value}</Text>
+    </View>
+  );
+}
+// Cellule Contact : entreprise (gras) + contacts (Nom Prénom / email / téléphone).
+function ContactCell({ label, company, contacts, width }: { label: string; company?: string; contacts?: ContactDetail[]; width: string }) {
+  const list = (contacts || []).filter((c) => c && (c.name || c.email || c.phone));
+  const hasCompany = !!company && company !== "—" && company.trim() !== "";
+  return (
+    <View style={{ width, paddingRight: 10, marginBottom: 8 }}>
+      <Text style={{ fontSize: 8, color: "#888", marginBottom: 2 }}>{label}</Text>
+      {hasCompany ? (
+        <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(company!)}</Text>
+      ) : null}
+      {list.map((c, i) => (
+        <View key={i} style={{ marginTop: 3 }}>
+          {c.name ? <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(c.name)}</Text> : null}
+          {c.email ? <Text style={{ fontSize: 8, color: "#555" }}>{c.email}</Text> : null}
+          {c.phone ? <Text style={{ fontSize: 8, color: "#555" }}>{c.phone}</Text> : null}
+        </View>
+      ))}
+      {!hasCompany && list.length === 0 ? (
+        <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>—</Text>
+      ) : null}
     </View>
   );
 }
@@ -334,11 +357,11 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savPhotosUrl, repo
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Contact</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-            <Cell label="GROSSISTE" value={joinVal(project.grossistesNames)} width="33.33%" />
-            <Cell label="INSTALLATEUR" value="—" width="33.33%" />
-            <Cell label="ARCHITECTE" value="—" width="33.33%" />
-            <Cell label="DT" value="—" width="33.33%" />
-            <Cell label="CLIENT FINAL" value="—" width="33.33%" />
+            <ContactCell label="GROSSISTE" company={joinVal(project.grossistesNames)} contacts={project.contactsGrossisteDetails} width="33.33%" />
+            <ContactCell label="INSTALLATEUR" company={joinVal(project.sanitaireNames)} contacts={project.contactsSanitaireDetails} width="33.33%" />
+            <ContactCell label="ARCHITECTE" company={joinVal(project.architecteNames)} contacts={project.contactsArchitecteDetails} width="33.33%" />
+            <ContactCell label="DT" company={joinVal(project.dtNames)} contacts={project.contactsDTDetails} width="33.33%" />
+            <ContactCell label="CLIENT FINAL" contacts={project.contactsClientsFinauxDetails} width="33.33%" />
           </View>
         </View>
 
