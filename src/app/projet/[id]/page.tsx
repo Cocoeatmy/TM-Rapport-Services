@@ -7422,6 +7422,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           types={DEFAUT_AVANT_TYPES}
                           phase="avant-intervention"
                           icon={ScanEye}
+                          accent="indigo"
                           onSubmitted={() => setDefautRefreshKey((k) => k + 1)}
                         />
                         <PiecesForm
@@ -8293,7 +8294,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalement — {cabine.nom}</p>
                               <PiecesList projectId={id} refreshKey={pieceRefreshKey} cabineLabel={cabine.nom} />
                               <DefautsList projectId={id} refreshKey={defautRefreshKey} cabineLabel={cabine.nom} project={project} setProject={setProject} />
-                              <DefautForm projectId={id} projectName={project.projet} cabineLabel={cabine.nom} title="Signaler défaut avant intervention" types={DEFAUT_AVANT_TYPES} phase="avant-intervention" icon={ScanEye} onSubmitted={() => setDefautRefreshKey((k) => k + 1)} />
+                              <DefautForm projectId={id} projectName={project.projet} cabineLabel={cabine.nom} title="Signaler défaut avant intervention" types={DEFAUT_AVANT_TYPES} phase="avant-intervention" icon={ScanEye} accent="indigo" onSubmitted={() => setDefautRefreshKey((k) => k + 1)} />
                               <PiecesForm projectId={id} projectName={project.projet} cabineLabel={cabine.nom} onSubmitted={() => setPieceRefreshKey((k) => k + 1)} />
                               <DefautForm projectId={id} projectName={project.projet} cabineLabel={cabine.nom} onSubmitted={() => setDefautRefreshKey((k) => k + 1)} />
                             </div>

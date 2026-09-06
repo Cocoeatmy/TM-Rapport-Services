@@ -12,6 +12,30 @@ const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m
 
 type DefautType = { id: string; label: string };
 
+// Thèmes de couleur du formulaire. Classes en toutes lettres pour que
+// Tailwind les détecte (pas de concaténation dynamique).
+const ACCENTS = {
+  red: {
+    collapsed: "border-red-300 text-red-600 hover:border-red-400 hover:bg-red-50 active:bg-red-100",
+    bar: "border-red-400",
+    icon: "text-red-500",
+    chipSel: "bg-red-100 text-red-700 border border-red-300",
+    photoHover: "hover:border-red-400 hover:text-red-500 active:bg-red-50",
+    checkbox: "accent-red-500",
+    submit: "bg-red-500",
+  },
+  indigo: {
+    collapsed: "border-indigo-300 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 active:bg-indigo-100",
+    bar: "border-indigo-400",
+    icon: "text-indigo-500",
+    chipSel: "bg-indigo-100 text-indigo-700 border border-indigo-300",
+    photoHover: "hover:border-indigo-400 hover:text-indigo-500 active:bg-indigo-50",
+    checkbox: "accent-indigo-500",
+    submit: "bg-indigo-500",
+  },
+} as const;
+type AccentName = keyof typeof ACCENTS;
+
 const DEFAUT_TYPES: readonly DefautType[] = [
   { id: "usine", label: "Défaut d'usine" },
   { id: "mesures", label: "Erreur de mesures" },
@@ -39,13 +63,16 @@ interface DefautFormProps {
   phase?: string;
   /** Icône du bouton / en-tête (défaut : bouclier d'alerte). */
   icon?: React.ComponentType<{ className?: string }>;
+  /** Couleur d'accent du formulaire (défaut : rouge). */
+  accent?: AccentName;
 }
 
-export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, onSubmitted, title, types, phase, icon }: DefautFormProps) {
+export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, onSubmitted, title, types, phase, icon, accent }: DefautFormProps) {
   const TYPES = types ?? DEFAUT_TYPES;
   const usingCustomTypes = !!types;
   const heading = title ?? "Signaler un défaut";
   const Icon = icon ?? ShieldAlert;
+  const c = ACCENTS[accent ?? "red"];
   const [open, setOpen] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [otherText, setOtherText] = useState("");
@@ -198,7 +225,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
     return (
       <button
         onClick={() => setOpen(true)}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-red-300 text-sm text-red-600 hover:border-red-400 hover:bg-red-50 active:bg-red-100 transition-colors"
+        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed text-sm transition-colors ${c.collapsed}`}
       >
         <Icon className="w-4 h-4" />
         {heading}
@@ -207,9 +234,9 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
   }
 
   return (
-    <div className="glass-card rounded-xl p-4 space-y-3 border-l-4 border-red-400">
+    <div className={`glass-card rounded-xl p-4 space-y-3 border-l-4 ${c.bar}`}>
       <div className="flex items-center gap-2">
-        <Icon className="w-4 h-4 text-red-500" />
+        <Icon className={`w-4 h-4 ${c.icon}`} />
         <span className="text-sm font-semibold text-gray-700">{heading}</span>
       </div>
 
@@ -225,7 +252,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
                 onClick={() => toggleType(type.id)}
                 className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   selected
-                    ? "bg-red-100 text-red-700 border border-red-300"
+                    ? c.chipSel
                     : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
                 }`}
               >
@@ -313,14 +340,14 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
         <div className="flex gap-2 mt-1">
           <button
             onClick={() => cameraRef.current?.click()}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400 hover:border-red-400 hover:text-red-500 active:bg-red-50 transition-colors"
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400 transition-colors ${c.photoHover}`}
           >
             <Camera className="w-4 h-4" />
             Photo
           </button>
           <button
             onClick={() => galleryRef.current?.click()}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400 hover:border-red-400 hover:text-red-500 active:bg-red-50 transition-colors"
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400 transition-colors ${c.photoHover}`}
           >
             <ImagePlus className="w-4 h-4" />
             Galerie
@@ -338,7 +365,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
           type="checkbox"
           checked={displayInRapport}
           onChange={(e) => setDisplayInRapport(e.target.checked)}
-          className="w-4 h-4 accent-red-500 rounded"
+          className={`w-4 h-4 rounded ${c.checkbox}`}
         />
         Afficher ce défaut sur le rapport client
       </label>
@@ -350,7 +377,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
         <button
           onClick={handleSubmit}
           disabled={sending || (selectedTypes.length === 0 && !description.trim()) || photos.length === 0}
-          className="flex-1 h-9 rounded-lg bg-red-500 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5"
+          className={`flex-1 h-9 rounded-lg text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5 ${c.submit}`}
         >
           {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           Envoyer
