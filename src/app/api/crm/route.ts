@@ -150,6 +150,32 @@ async function fetchDatabase(type: string): Promise<CRMEntry[]> {
     };
   }).filter((e) => e.name.trim() !== "").sort((a, b) => a.name.localeCompare(b.name));
 
+  // Résout la relation « Entreprise » (IDs → nom de l'entreprise) pour
+  // l'affichage dans les fiches contact du CRM.
+  const entrepriseIds = [...new Set(
+    entries.flatMap((e) => (Array.isArray(e.properties["Entreprise"]) ? e.properties["Entreprise"] : [])),
+  )].filter((x): x is string => typeof x === "string");
+  if (entrepriseIds.length > 0) {
+    const nameById: Record<string, string> = {};
+    await Promise.all(entrepriseIds.map(async (id) => {
+      try {
+        const pg: any = await notion.pages.retrieve({ page_id: id });
+        let title = "";
+        for (const v of Object.values(pg.properties || {})) {
+          const pv: any = v;
+          if (pv?.type === "title") { title = (pv.title || []).map((t: any) => t.plain_text).join("").trim(); break; }
+        }
+        nameById[id] = title;
+      } catch { nameById[id] = ""; }
+    }));
+    entries.forEach((e) => {
+      const ids = e.properties["Entreprise"];
+      if (Array.isArray(ids)) {
+        e.properties["Entreprise"] = ids.map((id: any) => nameById[id]).filter(Boolean).join(", ");
+      }
+    });
+  }
+
   setCache(cacheKey, entries);
   return entries;
 }

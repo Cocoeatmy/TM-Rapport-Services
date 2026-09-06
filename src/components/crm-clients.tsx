@@ -410,7 +410,8 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
 
 // Keys to skip in display/edit (internal, read-only, or relation IDs)
 const SKIP_KEYS = new Set(["__entryName"]);
-const HIDDEN_KEYS = new Set(["Dossiers (CMD)", "Dossiers", "Contacts", "Opportunités", "Projets CRM", "Entreprise", "Grossistes", "Fournisseurs"]);
+// « Entreprise » n'est plus masquée : résolue en nom côté serveur, on l'affiche.
+const HIDDEN_KEYS = new Set(["Dossiers (CMD)", "Dossiers", "Contacts", "Opportunités", "Projets CRM", "Grossistes", "Fournisseurs"]);
 const READONLY_KEYS = new Set(["Nb. Projets", "Projets terminé", "Projets terminés"]);
 
 function formatDate(dateStr: string | null): string {
@@ -422,6 +423,7 @@ function formatDate(dateStr: string | null): string {
 
 function getIcon(key: string) {
   const k = key.toLowerCase();
+  if (k === "entreprise") return <Building className="w-3.5 h-3.5 text-blue-500 shrink-0" />;
   if (k.includes("email") || k.includes("mail")) return <Mail className="w-3.5 h-3.5 text-blue-500 shrink-0" />;
   if (k.includes("téléphone") || k.includes("portable") || k.includes("phone") || k.includes("mobile")) return <Phone className="w-3.5 h-3.5 text-green-500 shrink-0" />;
   if (k.includes("site") || k.includes("web") || k.includes("url")) return <Globe className="w-3.5 h-3.5 text-indigo-500 shrink-0" />;
@@ -593,6 +595,7 @@ function EntryCard({ entry, mode, isAdmin, onEdit, onDelete }: {
     .sort(([a], [b]) => {
       const priority = (k: string) => {
         const l = k.toLowerCase();
+        if (l === "entreprise") return -1;
         if (l.includes("adresse")) return 0;
         if (l.includes("email") || l.includes("mail")) return 1;
         if (l.includes("portable") || l.includes("mobile")) return 2;
