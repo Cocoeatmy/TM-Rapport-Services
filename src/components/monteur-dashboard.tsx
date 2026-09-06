@@ -1211,12 +1211,24 @@ const DEFAULT_DASH_ORDER = [
   "__empty__", // Case vide — taquin pour faciliter les déplacements
 ];
 
+// Date de réception SAV la plus ANCIENNE d'un projet. Le champ « Date - SAV
+// reçu le » est désormais du TEXTE par cabine ("Cab1:2026-08-28 | Cab2:…") ;
+// on en extrait la date la plus ancienne (aussi compatible avec l'ancien
+// format « date simple »). Sert au regroupement + au calcul J+ du SAV.
+function earliestSavRecuDate(p: Project): string {
+  const raw = p.dateSAVRecu || "";
+  const dates: string[] = [];
+  const re = /(\d{4}-\d{2}-\d{2})/g; let m: RegExpExecArray | null;
+  while ((m = re.exec(raw))) dates.push(m[1]);
+  return dates.length ? dates.sort()[0] : "";
+}
+
 // Panneaux groupés par une date Notion spécifique + toggle "date / région (NPA)".
 // Clé = id du panneau ; valeur = date à utiliser pour le regroupement.
 const PANEL_DATE_FIELD: Record<string, (p: Project) => string | null | undefined> = {
   "rdv-montage-a-fixer":  (p) => p.arrivageTM || p.arrivageGrossiste,
   "rdv-mesures-a-fixer":  (p) => p.dateMesuresRecue,
-  "rdv-sav-a-fixer":      (p) => p.dateSAVRecu,
+  "rdv-sav-a-fixer":      (p) => earliestSavRecuDate(p),
   "rdv-services-a-fixer": (p) => p.dateDemandeProjet,
   "soucis-en-cours":      (p) => p.dateSoucisMontage,
 };
@@ -5524,7 +5536,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     </span>
                     {/* J+x d'en-tête : seulement en mode "Par date" (en mode région,
                         la clé de groupe est un code postal, pas une date → J+x par ligne). */}
-                    {!isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer") && (() => {
+                    {!isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer" || showSummaryPanel === "rdv-sav-a-fixer") && (() => {
                       const info = getDaysInfoFromDate(group.dateKey);
                       if (!info) return null;
                       return (
@@ -5554,7 +5566,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     const bestLogo = getBestLogo(p.projet, p.fournisseurs || []);
                     const isRdvAFixerPanel = ["rdv-montage-a-fixer", "rdv-mesures-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer"].includes(showSummaryPanel || "");
                     const rdvIsMes = showSummaryPanel === "rdv-mesures-a-fixer";
-                    const rdvRefDate = rdvIsMes ? p.dateMesuresRecue : (p.arrivageTM || p.arrivageGrossiste);
+                    const rdvIsSav = showSummaryPanel === "rdv-sav-a-fixer";
+                    // SAV : J+x = jours depuis la RÉCEPTION du SAV (pas le montage).
+                    const rdvRefDate = rdvIsSav
+                      ? earliestSavRecuDate(p)
+                      : rdvIsMes ? p.dateMesuresRecue : (p.arrivageTM || p.arrivageGrossiste);
                     const rdvJ = getDaysInfoFromDate(rdvRefDate);
                     const rdvEtat = rdvIsMes ? p.etatMesures : p.etatCMD;
                     const rdvEtatCls = rdvIsMes
@@ -5674,9 +5690,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         </span>
                         {/* J+x par ligne en mode région (NPA) : les groupes ne sont
                             plus par date, donc on l'affiche sur chaque projet. */}
-                        {isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer") && (() => {
+                        {isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer" || showSummaryPanel === "rdv-sav-a-fixer") && (() => {
                           const refDate = showSummaryPanel === "rdv-montage-a-fixer"
                             ? (p.arrivageTM || p.arrivageGrossiste)
+                            : showSummaryPanel === "rdv-sav-a-fixer"
+                            ? earliestSavRecuDate(p)
                             : p.dateMesuresRecue;
                           const info = getDaysInfoFromDate(refDate);
                           if (!info) return null;
