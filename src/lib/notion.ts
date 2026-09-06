@@ -124,6 +124,7 @@ export function invalidateSchemaCache() { schemaCache = null; rawPropsCache = nu
 
 /** Coordonnées d'un contact (page de la base Contacts). */
 export interface ContactDetail {
+  id: string;
   name: string;
   email: string;
   phone: string;
@@ -746,9 +747,9 @@ async function resolveContactDetails(ids: string[]): Promise<Record<string, Cont
         }
       }
       const composed = [prenom, nom].filter(Boolean).join(" ").trim();
-      out[id] = { name: name || composed || "", email, phone };
+      out[id] = { id, name: name || composed || "", email, phone };
     } catch {
-      out[id] = { name: "", email: "", phone: "" };
+      out[id] = { id, name: "", email: "", phone: "" };
     }
   }));
   return out;

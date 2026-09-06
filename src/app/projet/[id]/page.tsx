@@ -1799,6 +1799,78 @@ function normCabineLabel(s: string | undefined | null): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+// Aperçu d'une fiche CRM (contact ou entreprise) dans une modale — clic depuis
+// « Informations contact » : on reste dans le projet (pas de navigation).
+function ContactPreviewModal({ entry, onClose }: {
+  entry: { id: string; name: string; phone?: string; email?: string };
+  onClose: () => void;
+}) {
+  const [data, setData] = useState<{ name: string; properties: Record<string, unknown> } | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetch(`/api/crm/entry?id=${encodeURIComponent(entry.id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) { setData(d); setLoading(false); } })
+      .catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [entry.id]);
+  const props = (data?.properties || {}) as Record<string, any>;
+  const getStr = (...keys: string[]) => { for (const k of keys) { const v = props[k]; if (typeof v === "string" && v.trim()) return v.trim(); } return ""; };
+  const phone = getStr("Portable", "Téléphone", "Telephone", "Natel", "Mobile") || entry.phone || "";
+  const email = getStr("Email", "E-mail", "Mail", "Courriel") || entry.email || "";
+  const entreprise = getStr("Entreprise");
+  const poste = getStr("Poste", "Fonction");
+  const tags = Array.isArray(props["Étiquettes"]) ? (props["Étiquettes"] as string[]) : [];
+  const waPhone = phone.replace(/[^0-9+]/g, "");
+  const Row = ({ label, value }: { label: string; value: string }) => value ? (
+    <div className="flex justify-between gap-3 py-1.5 border-t border-gray-100 dark:border-slate-700">
+      <span className="text-xs text-gray-500 shrink-0">{label}</span>
+      <span className="text-sm font-medium text-gray-800 dark:text-gray-100 text-right break-words">{value}</span>
+    </div>
+  ) : null;
+  return createPortal(
+    <div className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h3 className="text-lg font-semibold text-[#1e3a5f] dark:text-blue-200">{data?.name || entry.name}</h3>
+          <button type="button" onClick={onClose} className="w-7 h-7 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-gray-400 shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
+        ) : (
+          <>
+            {poste && <Badge variant="secondary" className="text-xs mb-1">{poste}</Badge>}
+            <div>
+              <Row label="Entreprise" value={entreprise} />
+              <Row label="Poste" value={poste && !entreprise ? poste : ""} />
+              {tags.length > 0 && (
+                <div className="flex justify-between gap-3 py-1.5 border-t border-gray-100 dark:border-slate-700">
+                  <span className="text-xs text-gray-500 shrink-0">Étiquettes</span>
+                  <span className="flex flex-wrap gap-1 justify-end">{tags.map((t) => <Badge key={t} variant="outline" className="text-xs">{t}</Badge>)}</span>
+                </div>
+              )}
+              <Row label="Téléphone" value={phone} />
+              <Row label="Email" value={email} />
+            </div>
+            {(phone || email) && (
+              <div className="flex gap-2 mt-3">
+                {phone && <a href={`tel:${waPhone}`} className="flex-1 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 text-sm font-medium flex items-center justify-center gap-1.5">📞 Appeler</a>}
+                {phone && <a href={`https://wa.me/${waPhone.replace(/^\+/, "")}`} target="_blank" rel="noopener noreferrer" className="flex-1 h-10 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-300 text-sm font-medium flex items-center justify-center gap-1.5">WhatsApp</a>}
+                {email && <a href={`mailto:${email}`} className="flex-1 h-10 rounded-xl bg-gray-50 dark:bg-slate-700 text-gray-600 dark:text-gray-200 text-sm font-medium flex items-center justify-center gap-1.5">✉️ Email</a>}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // ── Rapport cabine : phrases « classiques » prédéfinies dans l'app ────────────
 // Boutons à cocher standards. Tout texte du rapport qui RESTE une fois ces
 // phrases retirées = texte ajouté MANUELLEMENT (précisions propres au monteur).
@@ -3498,6 +3570,8 @@ function ProjectPageContent({ id }: { id: string }) {
   const [downloadingSav, setDownloadingSav] = useState(false);
   const [copyingSavLink, setCopyingSavLink] = useState(false);
   const [downloadingSavCab, setDownloadingSavCab] = useState<number | null>(null);
+  // Aperçu CRM (clic sur un nom d'« Informations contact »).
+  const [contactPreview, setContactPreview] = useState<{ id: string; name: string; phone?: string; email?: string } | null>(null);
   const [savRowBusy, setSavRowBusy] = useState("");
   const [showSavCard, setShowSavCard] = useState(false);
   // Quel type de rapport est en cours (pour n'animer que le bon bouton) :
@@ -5917,25 +5991,26 @@ function ProjectPageContent({ id }: { id: string }) {
                 Client final. Empilé verticalement. Noms cliquables → CRM. */}
             {(() => {
               const isFourn = project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur";
-              // companyMode = onglet CRM ciblé quand on clique le nom de l'entreprise.
-              const roles: { label: string; companies?: string[]; companyMode: string; details?: { name: string; email: string; phone: string }[] }[] = [
+              const zip = (names?: string[], ids?: string[]) => (names || []).map((n, i) => ({ name: n, id: (ids || [])[i] || "" }));
+              const roles: { label: string; companies: { name: string; id: string }[]; details?: { id: string; name: string; email: string; phone: string }[] }[] = [
                 isFourn
-                  ? { label: "Fournisseurs", companies: project.fournisseursNames, companyMode: "clients-fournisseurs" }
-                  : { label: "Grossistes", companies: project.grossistesNames, companyMode: "clients-grossistes", details: project.contactsGrossisteDetails },
-                { label: "Sanitaire", companies: project.sanitaireNames, companyMode: "clients-entreprises", details: project.contactsSanitaireDetails },
-                { label: "Architecte", companies: project.architecteNames, companyMode: "clients-entreprises", details: project.contactsArchitecteDetails },
-                { label: "DT", companies: project.dtNames, companyMode: "clients-entreprises", details: project.contactsDTDetails },
-                { label: "Client final", companyMode: "clients-contacts", details: project.contactsClientsFinauxDetails },
-              ].filter((r) => (r.companies && r.companies.length > 0) || (r.details && r.details.some((c) => c.name || c.email || c.phone)));
+                  ? { label: "Fournisseurs", companies: zip(project.fournisseursNames, project.fournisseursRelation) }
+                  : { label: "Grossistes", companies: zip(project.grossistesNames, project.grossistesRelation), details: project.contactsGrossisteDetails },
+                { label: "Sanitaire", companies: zip(project.sanitaireNames, project.sanitaireRelation), details: project.contactsSanitaireDetails },
+                { label: "Architecte", companies: zip(project.architecteNames, project.architecteRelation), details: project.contactsArchitecteDetails },
+                { label: "DT", companies: zip(project.dtNames, project.dtRelation), details: project.contactsDTDetails },
+                { label: "Client final", companies: [], details: project.contactsClientsFinauxDetails },
+              ].filter((r) => r.companies.length > 0 || (r.details && r.details.some((c) => c.name || c.email || c.phone)));
               if (roles.length === 0) return null;
-              // Lien cliquable vers le CRM (recherche par nom).
-              const crmLink = (crmMode: string, name: string) => (
+              // Nom cliquable → ouvre l'aperçu CRM en modale (reste dans le projet).
+              const nameBtn = (label: string, id: string, extra?: { phone?: string; email?: string }) => (
                 <button
                   type="button"
-                  onClick={() => router.push(`/?mode=${crmMode}&q=${encodeURIComponent(name)}`)}
-                  className="block text-left text-sm font-medium text-[#1e3a5f] dark:text-blue-300 hover:underline"
+                  disabled={!id}
+                  onClick={() => id && setContactPreview({ id, name: label, phone: extra?.phone, email: extra?.email })}
+                  className="block text-left text-sm font-medium text-[#1e3a5f] dark:text-blue-300 enabled:hover:underline disabled:cursor-default disabled:text-gray-800 disabled:dark:text-gray-100"
                 >
-                  {name}
+                  {label}
                 </button>
               );
               return (
@@ -5946,10 +6021,10 @@ function ProjectPageContent({ id }: { id: string }) {
                       <div className="min-w-0">
                         <p className="text-xs text-gray-500">{r.label}</p>
                         <div className="mt-0.5 space-y-0.5">
-                          {r.companies?.map((c) => <div key={c}>{crmLink(r.companyMode, c)}</div>)}
+                          {r.companies.map((co) => <div key={co.id || co.name}>{nameBtn(co.name, co.id)}</div>)}
                           {r.details?.filter((c) => c.name || c.email || c.phone).map((c, i) => (
-                            <div key={`d${i}`}>
-                              {c.name ? crmLink("clients-contacts", c.name) : null}
+                            <div key={c.id || `d${i}`}>
+                              {c.name ? nameBtn(c.name, c.id, { phone: c.phone, email: c.email }) : null}
                               {c.phone ? <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{c.phone}</p> : null}
                               {c.email ? <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{c.email}</p> : null}
                             </div>
@@ -9148,6 +9223,11 @@ function ProjectPageContent({ id }: { id: string }) {
 
       {/* Chat flottant */}
       <ProjectChat projectId={id} />
+
+      {/* Aperçu CRM d'un contact / entreprise (Informations contact) */}
+      {contactPreview && typeof document !== "undefined" && (
+        <ContactPreviewModal entry={contactPreview} onClose={() => setContactPreview(null)} />
+      )}
 
       {/* Confirmation : réinitialisation cabine */}
       {resetConfirmIdx !== null && typeof document !== "undefined" && createPortal(
