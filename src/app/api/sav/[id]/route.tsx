@@ -88,8 +88,10 @@ function DownloadArrow() {
 function MediaThumb({ url }: { url: string }) {
   const video = isVideoUrl(url);
   if (isPdfUrl(url)) {
+    // PDF : lien direct (SANS fl_attachment — les fichiers `raw` renvoient 401
+    // avec une transformation quand le compte a les transformations strictes).
     return (
-      <Link src={downloadUrl(url)} style={{ width: 110, height: 82, textDecoration: "none" }}>
+      <Link src={url} style={{ width: 110, height: 82, textDecoration: "none" }}>
         <View style={{ width: 110, height: 82, borderRadius: 4, borderWidth: 1, borderColor: "#fca5a5", backgroundColor: "#fef2f2", alignItems: "center", justifyContent: "center" }}>
           <Text style={{ color: "#dc2626", fontSize: 14, fontFamily: "Helvetica-Bold" }}>PDF</Text>
           <Text style={{ color: "#b91c1c", fontSize: 7, marginTop: 3 }}>cliquer pour ouvrir</Text>
