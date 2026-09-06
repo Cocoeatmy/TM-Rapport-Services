@@ -1,23 +1,28 @@
 /**
  * /api/doc-proxy?u=<url Cloudinary>
  *
- * Sert un document (PDF/document) hébergé sur Cloudinary en le récupérant côté
- * serveur puis en le renvoyant avec les bons en-têtes (Content-Type + inline).
+ * Sert un document (PDF/…) hébergé sur Cloudinary en le récupérant côté serveur
+ * puis en le renvoyant avec les bons en-têtes (Content-Type + inline).
  *
- * Pourquoi : les PDF uploadés en resource_type `raw` se diffusent bien (200)
- * mais le lecteur PDF intégré de Chrome échoue à les streamer directement
- * (« Échec de chargement du document PDF »). Ajouter `fl_attachment` renverrait
- * un 401 quand le compte Cloudinary a les transformations strictes activées.
- * En passant par ce proxy (même origine, réponse complète, en-têtes corrects),
- * le PDF s'ouvre normalement.
+ * Pourquoi : ce compte Cloudinary RESTREINT la diffusion des PDF/documents en
+ * URL non signée (HTTP 401), en resource_type `image` COMME `raw`. Le proxy
+ * régénère donc une URL SIGNÉE côté serveur (secret API) — les URL signées
+ * contournent la restriction — puis récupère le fichier et le renvoie.
  *
  * Sécurité : réservé aux URLs res.cloudinary.com (pas de proxy ouvert / SSRF)
  * et protégé par le cookie d'auth (route non publique dans le middleware).
  */
 import { NextRequest, NextResponse } from "next/server";
+import { v2 as cloudinary } from "cloudinary";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const CONTENT_TYPES: Record<string, string> = {
   pdf: "application/pdf",
@@ -29,9 +34,36 @@ const CONTENT_TYPES: Record<string, string> = {
   mov: "video/quicktime",
 };
 
+/** Reconstruit une URL de diffusion SIGNÉE à partir d'une URL Cloudinary. */
+function signedFromUrl(url: URL): string | null {
+  // /{cloud}/{resource_type}/{type}/[transf/]v{version}/{public_id}.{ext}
+  const parts = url.pathname.split("/").filter(Boolean);
+  if (parts.length < 4) return null;
+  const resourceType = parts[1];              // raw | image | video
+  const deliveryType = parts[2];              // upload
+  const vIdx = parts.findIndex((p) => /^v\d+$/.test(p));
+  const publicParts = parts.slice(vIdx >= 0 ? vIdx + 1 : 3);
+  let publicId = publicParts.join("/");
+  const version = vIdx >= 0 ? parts[vIdx].slice(1) : undefined;
+  let format: string | undefined;
+  // Pour `raw`, l'extension fait partie du public_id ; pour image/video, non.
+  if (resourceType !== "raw") {
+    const m = publicId.match(/\.([a-z0-9]+)$/i);
+    if (m) { format = m[1]; publicId = publicId.slice(0, -(m[1].length + 1)); }
+  }
+  return cloudinary.utils.url(publicId, {
+    resource_type: resourceType,
+    type: deliveryType,
+    version,
+    format,
+    sign_url: true,
+    secure: true,
+  });
+}
+
 export async function GET(req: NextRequest) {
   const u = req.nextUrl.searchParams.get("u") || "";
-  const dl = req.nextUrl.searchParams.get("dl") === "1"; // forcer le téléchargement
+  const dl = req.nextUrl.searchParams.get("dl") === "1";
   let url: URL;
   try {
     url = new URL(u);
@@ -42,14 +74,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "hôte non autorisé" }, { status: 403 });
   }
 
-  let upstream: Response;
-  try {
-    upstream = await fetch(url.toString(), { cache: "no-store" });
-  } catch {
-    return NextResponse.json({ error: "récupération impossible" }, { status: 502 });
+  // On tente d'abord l'URL signée (contourne la restriction), puis l'URL brute.
+  const candidates = [signedFromUrl(url), url.toString()].filter(Boolean) as string[];
+  let upstream: Response | null = null;
+  for (const target of candidates) {
+    try {
+      const r = await fetch(target, { cache: "no-store" });
+      if (r.ok && r.body) { upstream = r; break; }
+    } catch { /* essaie le candidat suivant */ }
   }
-  if (!upstream.ok || !upstream.body) {
-    return NextResponse.json({ error: `amont ${upstream.status}` }, { status: 502 });
+  if (!upstream) {
+    return NextResponse.json({ error: "récupération impossible" }, { status: 502 });
   }
 
   const ext = (url.pathname.split(".").pop() || "").toLowerCase();
