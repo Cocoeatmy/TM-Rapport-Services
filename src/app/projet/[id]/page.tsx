@@ -3581,6 +3581,8 @@ function ProjectPageContent({ id }: { id: string }) {
   const [copyingSavLink, setCopyingSavLink] = useState(false);
   const [downloadingSavCab, setDownloadingSavCab] = useState<number | null>(null);
   const [copyingSavCabLink, setCopyingSavCabLink] = useState<number | null>(null);
+  const [downloadingSynthese, setDownloadingSynthese] = useState(false);
+  const [copyingSyntheseLink, setCopyingSyntheseLink] = useState(false);
   // Aperçu CRM (clic sur un nom d'« Informations contact »).
   const [contactPreview, setContactPreview] = useState<{ id: string; name: string; phone?: string; email?: string } | null>(null);
   const [savRowBusy, setSavRowBusy] = useState("");
@@ -5313,6 +5315,40 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
     } finally { setCopyingSavCabLink(null); }
   };
+  const handleDownloadSynthese = async () => {
+    setDownloadingSynthese(true);
+    try {
+      const res = await fetch(`/api/synthese/${id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      let filename = "Suivi chantier.pdf";
+      const cd = res.headers.get("Content-Disposition");
+      const m = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      if (m?.[1]) filename = decodeURIComponent(m[1]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error("Téléchargement Suivi chantier échoué:", e);
+      toast.error("Impossible de générer le rapport de suivi.");
+    } finally { setDownloadingSynthese(false); }
+  };
+  const handleCopySyntheseLink = async () => {
+    setCopyingSyntheseLink(true);
+    try {
+      const res = await fetch(`/api/synthese/${id}?link=1`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data?.url) throw new Error("no url");
+      await navigator.clipboard.writeText(data.url);
+      toast.success("Lien du rapport de suivi copié");
+    } catch (e) {
+      console.error("Lien Suivi chantier échoué:", e);
+      toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
+    } finally { setCopyingSyntheseLink(false); }
+  };
   const handleDownloadPhotos = async () => {
     setDownloadingPhotos(true);
     try {
@@ -6082,7 +6118,31 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* === SECTION 4 : Informations cabines === */}
         <Card className={macHidden("cabines") ? "!hidden" : ""}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations cabines</CardTitle>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations cabines</CardTitle>
+              {/* Rapport de suivi du chantier : vue d'ensemble de tous les lots
+                  (état colorié + rapport + SAV). PDF + lien public signé. */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={downloadingSynthese}
+                  onClick={handleDownloadSynthese}
+                  className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-[#1e3a5f] hover:bg-[#16304f] text-white active:scale-95 transition-all disabled:opacity-60"
+                >
+                  {downloadingSynthese ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
+                  Rapport de suivi (PDF)
+                </button>
+                <button
+                  type="button"
+                  disabled={copyingSyntheseLink}
+                  onClick={handleCopySyntheseLink}
+                  className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold border border-[#1e3a5f] text-[#1e3a5f] dark:text-blue-300 dark:border-blue-300 hover:bg-[#1e3a5f]/5 active:scale-95 transition-all disabled:opacity-60"
+                >
+                  {copyingSyntheseLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                  Copier le lien
+                </button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-3">
