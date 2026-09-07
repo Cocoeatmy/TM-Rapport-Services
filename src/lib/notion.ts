@@ -730,21 +730,32 @@ async function resolveContactDetails(ids: string[]): Promise<Record<string, Cont
       const page = await notionRetrieveWithRetry(id);
       const props: Record<string, any> = page.properties || {};
       let name = "", email = "", phone = "", prenom = "", nom = "";
+      // Reconnaissance par la FORME de la valeur (dernier recours, si le nom de
+      // colonne n'indique pas mail/tél). Un e-mail contient « @ » ; un numéro
+      // ne contient que chiffres/espaces/+/()/-/. et au moins 6 chiffres.
+      const looksEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+      const looksPhone = (v: string) => /^[+(]?[\d][\d\s().\/-]{5,}$/.test(v.trim()) && (v.replace(/\D/g, "").length >= 6);
+      const keyIsPhone = (k: string) => /t[ée]l|phone|natel|mobile|portable|gsm/i.test(k);
+      const keyIsEmail = (k: string) => /mail|courriel|e-?mail/i.test(k);
+      // Applique une valeur libre au bon champ (par nom de colonne, sinon forme).
+      const applyFreeValue = (key: string, val: string) => {
+        if (!val) return;
+        if (/pr[ée]nom/i.test(key)) { if (!prenom) prenom = val; return; }
+        if (/^nom/i.test(key)) { if (!nom) nom = val; return; }
+        if (!phone && keyIsPhone(key)) { phone = val; return; }
+        if (!email && keyIsEmail(key)) { email = val; return; }
+        if (!email && looksEmail(val)) { email = val; return; }
+        if (!phone && looksPhone(val)) { phone = val; return; }
+      };
       for (const key of Object.keys(props)) {
         const pr = props[key];
         if (!pr) continue;
         if (pr.type === "title" && !name) name = (pr.title || []).map((t: any) => t.plain_text).join("").trim();
         else if (pr.type === "email" && !email) email = pr.email || "";
         else if (pr.type === "phone_number" && !phone) phone = pr.phone_number || "";
-        else if (pr.type === "rich_text") {
-          const val = (pr.rich_text || []).map((t: any) => t.plain_text).join("").trim();
-          if (val) {
-            if (/pr[ée]nom/i.test(key)) prenom = val;
-            else if (/^nom/i.test(key)) nom = val;
-            else if (!phone && /t[ée]l|phone|natel|mobile|portable/i.test(key)) phone = val;
-            else if (!email && /mail|courriel|e-?mail/i.test(key)) email = val;
-          }
-        }
+        else if (pr.type === "url") applyFreeValue(key, (pr.url || "").replace(/^mailto:/i, "").replace(/^tel:/i, "").trim());
+        else if (pr.type === "rich_text") applyFreeValue(key, (pr.rich_text || []).map((t: any) => t.plain_text).join("").trim());
+        else if (pr.type === "formula" && pr.formula?.type === "string") applyFreeValue(key, (pr.formula.string || "").trim());
       }
       const composed = [prenom, nom].filter(Boolean).join(" ").trim();
       out[id] = { id, name: name || composed || "", email, phone };
