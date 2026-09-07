@@ -17,7 +17,7 @@ import { splitRapportByCabine } from "@/lib/rapport";
 import { formatSwissDate } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
-  Document, Page, Text, View, Image, StyleSheet,
+  Document, Page, Text, View, Image, Svg, Path, StyleSheet,
 } from "@react-pdf/renderer";
 import React from "react";
 
@@ -147,6 +147,36 @@ function LegendItem({ color, label }: { color: string; label: string }) {
 
 const PIECE_STATUS: Record<string, string> = { demande: "à commander", commande: "commandée", recu: "reçue" };
 const SIG_COLORS = { piece: "#ea580c", defaut: "#dc2626", avant: "#4f46e5" };
+
+// Icônes vectorielles (tracés lucide) affichées devant chaque sous-ligne.
+const IC = {
+  user: ["M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0z", "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"],
+  doc: ["M7 3h10v18H7z", "M10 9h6", "M10 13h6", "M10 17h4"],
+  wrench: ["M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"],
+  package: ["M12 2 21 7v10l-9 5-9-5V7z", "M3 7l9 5 9-5", "M12 12v10"],
+  shield: ["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z", "M12 8v4", "M12 16h0.01"],
+  eye: ["M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z", "M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"],
+} as const;
+
+function Icn({ paths, color, size = 9 }: { paths: readonly string[]; color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      {paths.map((d, i) => <Path key={i} d={d} stroke={color} strokeWidth={2} fill="none" />)}
+    </Svg>
+  );
+}
+
+// Sous-ligne d'un lot : icône colorée + texte (qui peut passer à la ligne).
+function SubRow({ paths, iconColor, textColor = "#333", bold = false, children }: {
+  paths: readonly string[]; iconColor: string; textColor?: string; bold?: boolean; children: React.ReactNode;
+}) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start", marginTop: 2 }}>
+      <View style={{ width: 13, marginTop: 0.5 }}><Icn paths={paths} color={iconColor} /></View>
+      <Text style={{ fontSize: 8.5, color: textColor, flex: 1, fontFamily: bold ? "Helvetica-Bold" : "Helvetica" }}>{children}</Text>
+    </View>
+  );
+}
 
 function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project; pieces?: Piece[]; defauts?: Defaut[] }) {
   const total = project.nbCabines || 0;
@@ -307,14 +337,14 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
             // Signalements rattachés à ce lot (par libellé de cabine ; mono = lot 1).
             const belongs = (label?: string) =>
               normLabel(label) === normLabel(nom) || (!label && total === 1 && n === 1);
-            const sigLines: { txt: string; color: string }[] = [];
+            const sigLines: { txt: string; color: string; kind: "piece" | "defaut" | "avant" }[] = [];
             for (const p of pieces) {
               if (!belongs(p.cabineLabel)) continue;
               const ref = (p.reference || "").trim();
               const desc = (p.description || "").trim();
               const body = [ref, desc].filter(Boolean).join(" — ") || "pièce";
               const st = PIECE_STATUS[p.status || ""] || "";
-              sigLines.push({ txt: `Pièce manquante : ${nfc(body)}${st ? ` (${st})` : ""}`, color: SIG_COLORS.piece });
+              sigLines.push({ txt: `Pièce manquante : ${nfc(body)}${st ? ` (${st})` : ""}`, color: SIG_COLORS.piece, kind: "piece" });
             }
             for (const d of defauts) {
               if (!belongs(d.cabineLabel)) continue;
@@ -324,7 +354,7 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
               const avant = d.phase === "avant-intervention";
               const prefix = avant ? "Constat avant intervention" : "Défaut";
               const suffix = avant ? "" : (d.resolved ? " (réglé)" : " (à traiter)");
-              sigLines.push({ txt: `${prefix} : ${nfc(body)}${suffix}`, color: avant ? SIG_COLORS.avant : SIG_COLORS.defaut });
+              sigLines.push({ txt: `${prefix} : ${nfc(body)}${suffix}`, color: avant ? SIG_COLORS.avant : SIG_COLORS.defaut, kind: avant ? "avant" : "defaut" });
             }
             return (
               <View key={n} style={styles.cab} wrap={false}>
@@ -338,11 +368,11 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
                     <View style={{ flex: 1 }} />
                     {dateHours ? <Text style={styles.meta}>{dateHours}</Text> : null}
                   </View>
-                  {who ? <Text style={styles.sub}><Text style={styles.subLabel}>Monteur : </Text>{nfc(who)}</Text> : null}
-                  {rapport ? <Text style={styles.sub}><Text style={styles.subLabel}>Rapport : </Text>{nfc(rapport)}</Text> : null}
-                  {savLine ? <Text style={{ ...styles.sub, color: savLine.color, fontFamily: "Helvetica-Bold" }}>{savLine.txt}</Text> : null}
+                  {who ? <SubRow paths={IC.user} iconColor="#64748b"><Text style={styles.subLabel}>Monteur : </Text>{nfc(who)}</SubRow> : null}
+                  {rapport ? <SubRow paths={IC.doc} iconColor={COLORS.navy}><Text style={styles.subLabel}>Rapport : </Text>{nfc(rapport)}</SubRow> : null}
+                  {savLine ? <SubRow paths={IC.wrench} iconColor={savLine.color} textColor={savLine.color} bold>{savLine.txt}</SubRow> : null}
                   {sigLines.map((sg, i) => (
-                    <Text key={i} style={{ ...styles.sub, color: sg.color }}>{"• " + sg.txt}</Text>
+                    <SubRow key={i} paths={sg.kind === "piece" ? IC.package : sg.kind === "avant" ? IC.eye : IC.shield} iconColor={sg.color} textColor={sg.color}>{sg.txt}</SubRow>
                   ))}
                 </View>
               </View>
