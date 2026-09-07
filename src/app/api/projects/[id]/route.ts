@@ -165,7 +165,10 @@ function clearCabinesFromAttribution(attribution: string, cabs: number[]): strin
     .join(" | ");
 }
 
-function mergeCabineTimes(existing: string, incoming: string): string {
+// `clearEmptyFor` : cabines SOUS-TRAITÉES → une heure entrante VIDE efface
+// réellement l'heure (au lieu de préserver l'existante). Les heures des
+// sous-traitants ne sont pas suivies : l'utilisateur doit pouvoir les effacer.
+function mergeCabineTimes(existing: string, incoming: string, clearEmptyFor?: Set<number>): string {
   // Si le payload n'est pas au format multi-cabin, on passe tel quel
   if (!incoming.includes("Cab")) return incoming;
 
@@ -195,11 +198,13 @@ function mergeCabineTimes(existing: string, incoming: string): string {
     if (m) return { date: m[1], time: m[2].trim() };
     return { date: "", time: (v || "").trim() };
   };
-  const mergeSlot = (exVal: string | undefined, inVal: string): string => {
+  const mergeSlot = (exVal: string | undefined, inVal: string, forceClearTime: boolean): string => {
     const a = splitSlot(exVal || "");
     const b = splitSlot(inVal);
     const date = b.date || a.date;
-    const time = b.time || a.time;
+    // Cabine sous-traitée : l'heure entrante fait AUTORITÉ (vide = effacée) ;
+    // sinon on protège l'heure existante contre un client dégradé (date-seule).
+    const time = forceClearTime ? b.time : (b.time || a.time);
     return date ? `${date}:${time}` : time;
   };
 
@@ -209,7 +214,7 @@ function mergeCabineTimes(existing: string, incoming: string): string {
       // Suppression explicite (cabine réinitialisée) → retirer de Notion
       merged.delete(cabNum);
     } else {
-      merged.set(cabNum, mergeSlot(exMap.get(cabNum), inVal));
+      merged.set(cabNum, mergeSlot(exMap.get(cabNum), inVal, !!clearEmptyFor?.has(cabNum)));
     }
   });
 
@@ -217,6 +222,35 @@ function mergeCabineTimes(existing: string, incoming: string): string {
     .sort((a, b) => a[0] - b[0])
     .map(([num, val]) => `Cab${num}:${val}`)
     .join(" | ");
+}
+
+// Efface les HEURES (garde la date/jour de montage) des cabines indiquées.
+// Utilisé quand on assigne un monteur sous-traitance : ses heures ne sont pas
+// suivies → on retire les heures auto-remplies éventuelles.
+function clearTimesForCabines(str: string, cabs: Set<number>): string {
+  if (!str) return str;
+  const out: { num: number; val: string }[] = [];
+  const re = /Cab(\d+)\s*:([^|]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(str))) {
+    const num = parseInt(m[1], 10);
+    let val = m[2].trim();
+    if (cabs.has(num)) {
+      const dm = /^(\d{4}-\d{2}-\d{2})/.exec(val);
+      val = dm ? `${dm[1]}:` : ""; // garde la date seule, sinon vide
+    }
+    if (val) out.push({ num, val });
+  }
+  return out.sort((a, b) => a.num - b.num).map((o) => `Cab${o.num}:${o.val}`).join(" | ");
+}
+
+// Cabines ayant une valeur NON VIDE dans un delta "Cab1:x | Cab2:y".
+function cabsWithValue(delta: string): Set<number> {
+  const set = new Set<number>();
+  const re = /Cab(\d+)\s*:([^|]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(delta || ""))) { if (m[2].trim()) set.add(parseInt(m[1], 10)); }
+  return set;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -295,11 +329,28 @@ export async function PATCH(
         existing = null;
       }
       if (existing) {
+        // État sous-traitance résultant (existant + delta entrant) : sert à
+        // traiter les heures des cabines sous-traitées comme « vidables ».
+        const sousTraiteStr = (body.monteursSousTraitance !== undefined && String(body.monteursSousTraitance).includes("Cab"))
+          ? mergeCabineSousTraitance(existing.monteursSousTraitance || "", String(body.monteursSousTraitance))
+          : (existing.monteursSousTraitance || "");
+        const sousTraiteSet = cabsWithValue(sousTraiteStr);
+        // Cabines nouvellement assignées à un sous-traitant dans CE delta :
+        // on efface leurs heures (auto-remplies) même si le payload n'envoie
+        // pas heureArrivee/heureDepart (cas du seul changement de monteur).
+        const newlySousTraite = (body.monteursSousTraitance !== undefined && String(body.monteursSousTraitance).includes("Cab"))
+          ? cabsWithValue(String(body.monteursSousTraitance))
+          : new Set<number>();
+
         if (body.heureArrivee !== undefined) {
-          body.heureArrivee = mergeCabineTimes(existing.heureArrivee || "", body.heureArrivee);
+          body.heureArrivee = mergeCabineTimes(existing.heureArrivee || "", body.heureArrivee, sousTraiteSet);
+        } else if (newlySousTraite.size) {
+          body.heureArrivee = clearTimesForCabines(existing.heureArrivee || "", newlySousTraite);
         }
         if (body.heureDepart !== undefined) {
-          body.heureDepart = mergeCabineTimes(existing.heureDepart || "", body.heureDepart);
+          body.heureDepart = mergeCabineTimes(existing.heureDepart || "", body.heureDepart, sousTraiteSet);
+        } else if (newlySousTraite.size) {
+          body.heureDepart = clearTimesForCabines(existing.heureDepart || "", newlySousTraite);
         }
         if (body.nomsCabines !== undefined) {
           body.nomsCabines = mergeCabineNoms(existing.nomsCabines || "", body.nomsCabines);

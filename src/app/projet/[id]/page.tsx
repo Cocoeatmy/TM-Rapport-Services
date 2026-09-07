@@ -8214,6 +8214,14 @@ function ProjectPageContent({ id }: { id: string }) {
                                       // Protège la saisie du revert par le polling (fenêtre 30 s)
                                       // → l'enregistrement tient dès la 1re fois.
                                       window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "monteursSousTraitance" } }));
+                                      // Assignation d'un sous-traitant : ses heures ne sont pas
+                                      // suivies → on efface les heures (auto-remplies) de CE lot,
+                                      // localement (le serveur fait de même). La date reste.
+                                      if (v) {
+                                        setCabines((prev) => prev.map((c, i) => i === idx ? { ...c, arrivee: "", depart: "" } : c));
+                                        window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "heureArrivee" } }));
+                                        window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: "heureDepart" } }));
+                                      }
                                       // Serveur : DELTA d'une seule cabine (vide = suppression),
                                       // mergé côté API pour ne jamais écraser les autres cabines.
                                       offlineFetch(`/api/projects/${id}`, {
