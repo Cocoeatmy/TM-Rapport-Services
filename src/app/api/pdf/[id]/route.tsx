@@ -1319,7 +1319,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
           {defauts.map((defaut, idx) => (
             // wrap (défaut) : la carte PEUT se répartir sur plusieurs pages
             // quand il y a beaucoup de photos → plus de débordement hors page.
-            <View key={defaut.id} style={styles.defautCard}>
+            <View key={defaut.id} style={{ ...styles.defautCard, borderColor: defaut.resolved ? "#86efac" : "#e0e0e0", backgroundColor: defaut.resolved ? "#f0fdf4" : undefined }}>
               {/* En-tête (n° + cabine + types + statut + description + auteur)
                   gardé soudé : ne se coupe jamais entre deux pages. */}
               <View wrap={false}>
@@ -1342,7 +1342,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                 <View style={styles.defautHeader}>
                   <View style={styles.defautTypes}>
                     {defaut.types?.map((type, i) => (
-                      <Text key={i} style={styles.defautTypeBadge}>{type}</Text>
+                      <Text key={i} style={defaut.resolved ? { ...styles.defautTypeBadge, backgroundColor: "#dcfce7", color: "#15803d" } : styles.defautTypeBadge}>{type}</Text>
                     ))}
                   </View>
                   <Text style={{ ...styles.statusBadge, ...getDefautStatusStyle(defaut.status) }}>

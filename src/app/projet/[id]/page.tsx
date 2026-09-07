@@ -1401,14 +1401,17 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
         const isDeleting = deleting === d.id;
         const isEditing = editing === d.id;
         return (
-          <div key={d.id} className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-900/10 p-3">
+          <div key={d.id} className={`rounded-lg border p-3 ${d.resolved ? "border-green-300 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10" : "border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-900/10"}`}>
             {/* En-tête : titre + statut/actions (ligne 1) ; cases à cocher (ligne 2,
                 alignées à droite) → jamais de retour à la ligne disgracieux. */}
             <div className="mb-2">
               <div className="flex items-center justify-between gap-2">
-                {/* Titre = LOT en évidence (vue globale) ; sinon « Défaut n°X ». */}
-                <span className="text-xs font-bold text-red-700 dark:text-red-400 min-w-0 truncate">
+                {/* Titre = LOT en évidence (vue globale) ; sinon « Défaut n°X ».
+                    Vert quand le défaut est réglé. */}
+                <span className={`text-xs font-bold min-w-0 truncate flex items-center gap-1 ${d.resolved ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
+                  {d.resolved && <Check className="w-3.5 h-3.5 shrink-0" />}
                   {!cabineLabel && d.cabineLabel ? d.cabineLabel : `Défaut n°${num}`}
+                  {d.resolved ? " — réglé" : ""}
                 </span>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <span
@@ -1456,7 +1459,7 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
             {(d.typesLabel || (d.types && d.types.length > 0)) && (
               <div className="flex flex-wrap gap-1 mb-1.5">
                 {(d.types && d.types.length > 0 ? d.types : (d.typesLabel || "").split(",")).map((t, i) => (
-                  <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700">
+                  <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded border ${d.resolved ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700"}`}>
                     {typeof t === "string" ? t.trim() : t}
                   </span>
                 ))}
@@ -3196,8 +3199,8 @@ function ProjectPageContent({ id }: { id: string }) {
   const [defautRefreshKey, setDefautRefreshKey] = useState(0);
   const [pieceRefreshKey, setPieceRefreshKey] = useState(0);
   const [cabineSignalements, setCabineSignalements] = useState<{
-    pieces: { id: string; cabineLabel?: string }[];
-    defauts: { id: string; cabineLabel?: string }[];
+    pieces: { id: string; cabineLabel?: string; status?: string }[];
+    defauts: { id: string; cabineLabel?: string; resolved?: boolean }[];
   }>({ pieces: [], defauts: [] });
   const [showEditModal, setShowEditModal] = useState(false);
 
@@ -7288,6 +7291,10 @@ function ProjectPageContent({ id }: { id: string }) {
                       filterByBucket(project?.photosSavRetouches, "SAV_RETOUCHE", 1).length
                     );
                     const monoHasSignalement = (cabineSignalements.pieces.length + cabineSignalements.defauts.length) > 0;
+                    // Tous les signalements réglés (défauts cochés + pièces reçues) → pastille verte.
+                    const monoSignalementRegle = monoHasSignalement
+                      && cabineSignalements.defauts.every((d) => d.resolved)
+                      && cabineSignalements.pieces.every((p) => p.status === "recu");
                     const savCloture = !!(parseCabineTextMulti(project?.datesSavClotureCabines || "")[1] || "").slice(0, 10);
                     return (
                   <div className="flex justify-evenly sm:justify-normal border-b border-gray-100 dark:border-slate-700 mb-4">
@@ -7309,7 +7316,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1.5 ${monoActiveTab === "signalements" ? "text-red-600 dark:text-red-400 border-b-2 border-red-500 dark:border-red-400" : "text-gray-400 hover:text-gray-600"}`}>
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                       Signalements
-                      {monoHasSignalement && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />}
+                      {monoHasSignalement && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${monoSignalementRegle ? "bg-green-500" : "bg-red-500"}`} />}
                     </button>
                     <button type="button" onClick={() => setMonoActiveTab("sav")}
                       className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1 ${monoActiveTab === "sav" ? "text-amber-600 dark:text-amber-400 border-b-2 border-amber-500 dark:border-amber-400" : "text-gray-400 hover:text-gray-600"}`}>
@@ -7860,31 +7867,37 @@ function ProjectPageContent({ id }: { id: string }) {
                               {cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom)) && (
                                 <Package className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                               )}
-                              {cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom)) && (
-                                <span
-                                  role="button"
-                                  tabIndex={0}
-                                  title="Voir le défaut signalé"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    // Ouvre la cabine sur l'onglet Signalements
-                                    setCabines((prev) =>
-                                      prev.map((c, i) =>
-                                        i === idx ? { ...c, open: true, activeTab: "signalements" } : c
-                                      )
-                                    );
-                                    // Scroll vers la section signalement une fois le DOM mis à jour
-                                    setTimeout(() => {
-                                      const el = document.getElementById(`signalement-cab-${idx}`);
-                                      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-                                    }, 150);
-                                  }}
-                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.currentTarget.click(); }}
-                                  className="shrink-0 cursor-pointer rounded hover:opacity-75 transition-opacity"
-                                >
-                                  <AlertTriangle className="w-4 h-4 text-red-500" />
-                                </span>
-                              )}
+                              {(() => {
+                                const cabDefauts = cabineSignalements.defauts.filter((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom));
+                                if (cabDefauts.length === 0) return null;
+                                // Tous les défauts du lot réglés → icône verte ; sinon rouge.
+                                const allResolved = cabDefauts.every((d) => d.resolved);
+                                return (
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    title={allResolved ? "Défaut réglé — voir" : "Voir le défaut signalé"}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Ouvre la cabine sur l'onglet Signalements
+                                      setCabines((prev) =>
+                                        prev.map((c, i) =>
+                                          i === idx ? { ...c, open: true, activeTab: "signalements" } : c
+                                        )
+                                      );
+                                      // Scroll vers la section signalement une fois le DOM mis à jour
+                                      setTimeout(() => {
+                                        const el = document.getElementById(`signalement-cab-${idx}`);
+                                        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                                      }, 150);
+                                    }}
+                                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.currentTarget.click(); }}
+                                    className="shrink-0 cursor-pointer rounded hover:opacity-75 transition-opacity"
+                                  >
+                                    <AlertTriangle className={`w-4 h-4 ${allResolved ? "text-green-600" : "text-red-500"}`} />
+                                  </span>
+                                );
+                              })()}
                               {/* Icône « rapport personnalisé » (violet) : le rapport
                                   contient un texte ajouté à la main, au-delà des phrases
                                   classiques. Clic → ouvre l'onglet Rapport. */}
@@ -8074,10 +8087,14 @@ function ProjectPageContent({ id }: { id: string }) {
                             >
                               <AlertCircle className="w-3.5 h-3.5" />
                               Signalements
-                              {(cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom)) ||
-                                cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom))) && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                              )}
+                              {(() => {
+                                const cp = cabineSignalements.pieces.filter((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom));
+                                const cd = cabineSignalements.defauts.filter((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom));
+                                if (cp.length + cd.length === 0) return null;
+                                // Tous réglés (défauts cochés + pièces reçues) → pastille verte.
+                                const regle = cd.every((d) => d.resolved) && cp.every((p) => p.status === "recu");
+                                return <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${regle ? "bg-green-500" : "bg-red-500"}`} />;
+                              })()}
                             </button>
                             {/* Onglet SAV / Retouches (réglages à faire) — libre d'accès.
                                 Couleur AMBRE. Point si du texte est saisi. */}

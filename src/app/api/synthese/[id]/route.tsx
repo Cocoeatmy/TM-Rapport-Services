@@ -156,7 +156,9 @@ const IC = {
   package: ["M12 2 21 7v10l-9 5-9-5V7z", "M3 7l9 5 9-5", "M12 12v10"],
   shield: ["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z", "M12 8v4", "M12 16h0.01"],
   eye: ["M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z", "M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"],
+  check: ["M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z", "M8 12l2.5 2.5L16 9"],
 } as const;
+const SIG_DONE = "#15803d"; // vert — signalement réglé
 
 function Icn({ paths, color, size = 9 }: { paths: readonly string[]; color: string; size?: number }) {
   return (
@@ -337,14 +339,15 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
             // Signalements rattachés à ce lot (par libellé de cabine ; mono = lot 1).
             const belongs = (label?: string) =>
               normLabel(label) === normLabel(nom) || (!label && total === 1 && n === 1);
-            const sigLines: { txt: string; color: string; kind: "piece" | "defaut" | "avant" }[] = [];
+            const sigLines: { txt: string; color: string; kind: "piece" | "defaut" | "avant"; resolved: boolean }[] = [];
             for (const p of pieces) {
               if (!belongs(p.cabineLabel)) continue;
               const ref = (p.reference || "").trim();
               const desc = (p.description || "").trim();
               const body = [ref, desc].filter(Boolean).join(" — ") || "pièce";
               const st = PIECE_STATUS[p.status || ""] || "";
-              sigLines.push({ txt: `Pièce manquante : ${nfc(body)}${st ? ` (${st})` : ""}`, color: SIG_COLORS.piece, kind: "piece" });
+              const resolved = p.status === "recu"; // pièce reçue = réglée
+              sigLines.push({ txt: `Pièce manquante : ${nfc(body)}${st ? ` (${st})` : ""}`, color: resolved ? SIG_DONE : SIG_COLORS.piece, kind: "piece", resolved });
             }
             for (const d of defauts) {
               if (!belongs(d.cabineLabel)) continue;
@@ -352,9 +355,11 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
               const desc = (d.description || "").trim();
               const body = [typ, desc].filter(Boolean).join(" — ") || "défaut";
               const avant = d.phase === "avant-intervention";
+              const resolved = !!d.resolved;
               const prefix = avant ? "Constat avant intervention" : "Défaut";
-              const suffix = avant ? "" : (d.resolved ? " (réglé)" : " (à traiter)");
-              sigLines.push({ txt: `${prefix} : ${nfc(body)}${suffix}`, color: avant ? SIG_COLORS.avant : SIG_COLORS.defaut, kind: avant ? "avant" : "defaut" });
+              const suffix = resolved ? " (réglé)" : (avant ? "" : " (à traiter)");
+              const baseColor = avant ? SIG_COLORS.avant : SIG_COLORS.defaut;
+              sigLines.push({ txt: `${prefix} : ${nfc(body)}${suffix}`, color: resolved ? SIG_DONE : baseColor, kind: avant ? "avant" : "defaut", resolved });
             }
             return (
               <View key={n} style={styles.cab} wrap={false}>
@@ -372,7 +377,7 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
                   {rapport ? <SubRow paths={IC.doc} iconColor={COLORS.navy}><Text style={styles.subLabel}>Rapport : </Text>{nfc(rapport)}</SubRow> : null}
                   {savLine ? <SubRow paths={IC.wrench} iconColor={savLine.color} textColor={savLine.color} bold>{savLine.txt}</SubRow> : null}
                   {sigLines.map((sg, i) => (
-                    <SubRow key={i} paths={sg.kind === "piece" ? IC.package : sg.kind === "avant" ? IC.eye : IC.shield} iconColor={sg.color} textColor={sg.color}>{sg.txt}</SubRow>
+                    <SubRow key={i} paths={sg.resolved ? IC.check : sg.kind === "piece" ? IC.package : sg.kind === "avant" ? IC.eye : IC.shield} iconColor={sg.color} textColor={sg.color}>{sg.txt}</SubRow>
                   ))}
                 </View>
               </View>
