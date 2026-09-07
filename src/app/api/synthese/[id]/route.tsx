@@ -9,7 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
-import { getData } from "@/lib/kv-store";
+import { getData, getDataFresh } from "@/lib/kv-store";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
 import { signSynthese } from "@/lib/doc-link";
@@ -427,10 +427,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const project = await getProject(id);
-    // Signalements (pièces + défauts) du projet, depuis le KV store.
+    // Signalements (pièces + défauts) du projet. Lecture FRAÎCHE (bypass cache
+    // 60 s) pour que l'état « réglé » soit toujours à jour dans le PDF ; repli
+    // sur le cache si la lecture fraîche échoue.
     const [allPieces, allDefauts] = await Promise.all([
-      getData<Piece>("pieces").catch(() => [] as Piece[]),
-      getData<Defaut>("defauts").catch(() => [] as Defaut[]),
+      getDataFresh<Piece>("pieces").catch(() => getData<Piece>("pieces").catch(() => [] as Piece[])),
+      getDataFresh<Defaut>("defauts").catch(() => getData<Defaut>("defauts").catch(() => [] as Defaut[])),
     ]);
     const pieces = allPieces.filter((p) => p.projectId === id);
     const defauts = allDefauts.filter((d) => d.projectId === id);
