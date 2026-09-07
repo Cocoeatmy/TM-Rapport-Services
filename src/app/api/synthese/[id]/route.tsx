@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
+import { getData } from "@/lib/kv-store";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
 import { signSynthese } from "@/lib/doc-link";
@@ -55,6 +56,10 @@ function cabIndicesFromFiles(files: { name?: string }[] | undefined): Set<number
 function cabHasFile(files: { name?: string }[] | undefined, cab: number): boolean {
   return (files || []).some((f) => { const m = (f.name || "").match(/\.Cab(\d+)\./); return m ? parseInt(m[1], 10) === cab : false; });
 }
+// Signalements (KV store) — pièces manquantes + défauts, rattachés par lot.
+type Piece = { projectId: string; description?: string; reference?: string; status?: string; cabineLabel?: string };
+type Defaut = { projectId: string; typesLabel?: string; types?: string[]; description?: string; cabineLabel?: string; resolved?: boolean; phase?: string };
+function normLabel(s: string | undefined | null): string { return (s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
 function nfc(s: string) { return (s || "").normalize("NFC"); }
 function fmtDate(d?: string | null) { try { return d ? formatSwissDate(d) : ""; } catch { return ""; } }
 function ddmmyyyy(d?: string | null) { const s = (d || "").slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.split("-").reverse().join(".") : ""; }
@@ -140,7 +145,10 @@ function LegendItem({ color, label }: { color: string; label: string }) {
   );
 }
 
-function SynthesePDF({ project }: { project: Project }) {
+const PIECE_STATUS: Record<string, string> = { demande: "à commander", commande: "commandée", recu: "reçue" };
+const SIG_COLORS = { piece: "#ea580c", defaut: "#dc2626", avant: "#4f46e5" };
+
+function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project; pieces?: Piece[]; defauts?: Defaut[] }) {
   const total = project.nbCabines || 0;
   const names = parseCabMulti(project.nomsCabines);
   const attribution = parseCabMulti(project.attributionCabines);
@@ -296,6 +304,28 @@ function SynthesePDF({ project }: { project: Project }) {
                 savLine = { txt: parts.join(" — "), color: COLORS.savOpen };
               }
             }
+            // Signalements rattachés à ce lot (par libellé de cabine ; mono = lot 1).
+            const belongs = (label?: string) =>
+              normLabel(label) === normLabel(nom) || (!label && total === 1 && n === 1);
+            const sigLines: { txt: string; color: string }[] = [];
+            for (const p of pieces) {
+              if (!belongs(p.cabineLabel)) continue;
+              const ref = (p.reference || "").trim();
+              const desc = (p.description || "").trim();
+              const body = [ref, desc].filter(Boolean).join(" — ") || "pièce";
+              const st = PIECE_STATUS[p.status || ""] || "";
+              sigLines.push({ txt: `Pièce manquante : ${nfc(body)}${st ? ` (${st})` : ""}`, color: SIG_COLORS.piece });
+            }
+            for (const d of defauts) {
+              if (!belongs(d.cabineLabel)) continue;
+              const typ = (d.typesLabel || (d.types || []).join(", ") || "").trim();
+              const desc = (d.description || "").trim();
+              const body = [typ, desc].filter(Boolean).join(" — ") || "défaut";
+              const avant = d.phase === "avant-intervention";
+              const prefix = avant ? "Constat avant intervention" : "Défaut";
+              const suffix = avant ? "" : (d.resolved ? " (réglé)" : " (à traiter)");
+              sigLines.push({ txt: `${prefix} : ${nfc(body)}${suffix}`, color: avant ? SIG_COLORS.avant : SIG_COLORS.defaut });
+            }
             return (
               <View key={n} style={styles.cab} wrap={false}>
                 <View style={{ ...styles.num, backgroundColor: color }}>
@@ -311,6 +341,9 @@ function SynthesePDF({ project }: { project: Project }) {
                   {who ? <Text style={styles.sub}><Text style={styles.subLabel}>Monteur : </Text>{nfc(who)}</Text> : null}
                   {rapport ? <Text style={styles.sub}><Text style={styles.subLabel}>Rapport : </Text>{nfc(rapport)}</Text> : null}
                   {savLine ? <Text style={{ ...styles.sub, color: savLine.color, fontFamily: "Helvetica-Bold" }}>{savLine.txt}</Text> : null}
+                  {sigLines.map((sg, i) => (
+                    <Text key={i} style={{ ...styles.sub, color: sg.color }}>{"• " + sg.txt}</Text>
+                  ))}
                 </View>
               </View>
             );
@@ -359,7 +392,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const project = await getProject(id);
-    const pdfStream = await ReactPDF.renderToStream(<SynthesePDF project={project} />);
+    // Signalements (pièces + défauts) du projet, depuis le KV store.
+    const [allPieces, allDefauts] = await Promise.all([
+      getData<Piece>("pieces").catch(() => [] as Piece[]),
+      getData<Defaut>("defauts").catch(() => [] as Defaut[]),
+    ]);
+    const pieces = allPieces.filter((p) => p.projectId === id);
+    const defauts = allDefauts.filter((d) => d.projectId === id);
+    const pdfStream = await ReactPDF.renderToStream(<SynthesePDF project={project} pieces={pieces} defauts={defauts} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
