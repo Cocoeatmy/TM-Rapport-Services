@@ -5506,6 +5506,19 @@ function ProjectPageContent({ id }: { id: string }) {
     return kept;
   })();
 
+  // ── % pour les mini-barres d'en-tête « Informations projet » (montage + mesures).
+  // Montage : multi-cabine = installées/total ; mono = checklist 5 critères
+  // (même logique que la grande barre « Progression du montage »).
+  const montageHeaderPercent = isCabineMode
+    ? (cabines.length === 0 ? 0 : Math.round((installedCabineCount / cabines.length) * 100))
+    : Math.round(([
+        !!heureArrivee, !!heureDepart, rapport.trim().length > 0,
+        (project?.photosAvant || []).length > 0, (project?.photosMontage || []).length > 0,
+      ].filter(Boolean).length / 5) * 100);
+  // Mesures : terminé (date posée ou état « Terminé ») → 100 %, sinon 0 %.
+  const mesuresDone = !!project?.dateMesures || project?.etatMesures === "Terminé";
+  const mesuresHeaderPercent = mesuresDone ? 100 : 0;
+
   // Nombre de LOTS ayant au moins un signalement (pièce manquante ou défaut) —
   // affiché entre parenthèses sur le bouton filtre « Avec signalement ».
   const signalementLotsCount = cabines.reduce((n, c) => {
@@ -5964,7 +5977,38 @@ function ProjectPageContent({ id }: { id: string }) {
         {/* === SECTION 1 : Informations projet === */}
         <Card className={macHidden("projet") ? "!hidden" : ""}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations projet</CardTitle>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations projet</CardTitle>
+              {/* Aperçu rapide : progression Montage + Mesures (même esthétique
+                  que la grande barre ; copie, les originaux restent en place). */}
+              <div className="w-full sm:w-72 space-y-2">
+                {[
+                  { label: "Montage", pct: montageHeaderPercent },
+                  { label: "Mesures", pct: mesuresHeaderPercent },
+                ].map(({ label, pct }) => {
+                  const done = pct >= 100;
+                  return (
+                    <div key={label}>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</span>
+                        <span className={`text-xs font-bold ${done ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-cyan-300"}`}>{pct}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${pct}%`,
+                            background: done
+                              ? "linear-gradient(to right, #10b981, #22c55e)"
+                              : "linear-gradient(to right, #2563eb, #06b6d4)",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-0">
 
