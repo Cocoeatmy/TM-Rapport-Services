@@ -3223,6 +3223,14 @@ function ProjectPageContent({ id }: { id: string }) {
     });
   }, [id, pieceRefreshKey, defautRefreshKey]);
 
+  // Charge l'ordre d'affichage des lots (défaut/numérique/alphabétique).
+  useEffect(() => {
+    if (!id) return;
+    fetch(`/api/projects/${id}/cabine-order`).then((r) => r.ok ? r.json() : null).then((d) => {
+      if (d && Array.isArray(d.order)) setCabineDisplayOrder(d.order);
+    }).catch(() => {});
+  }, [id]);
+
   // Renommage d'un lot : réattache ses signalements (pièces + défauts) au
   // nouveau nom. Sans ça, le rattachement se fait par libellé → l'icône
   // disparaît de l'app et le PDF garde l'ancien titre.
@@ -3302,6 +3310,10 @@ function ProjectPageContent({ id }: { id: string }) {
   const [commentaires, setCommentaires] = useState("");
   const [rapport, setRapport] = useState("");
   const [cabines, setCabines] = useState<{ nom: string; rapport: string; open: boolean; monteur: string; arrivee: string; depart: string; date: string; activeTab: "infos" | "photos" | "signalements" | "rapport" | "sav"; qrEnabled: boolean; garantieEnabled: boolean; demontageEnabled: boolean }[]>([]);
+  // Ordre d'AFFICHAGE des lots (liste de CabN). Ne déplace AUCUNE donnée : le
+  // contenu reste soudé à son CabN, on change juste l'ordre d'affichage.
+  const [cabineDisplayOrder, setCabineDisplayOrder] = useState<number[]>([]);
+  const [sortingOrder, setSortingOrder] = useState(false);
   const [isCabineMode, setIsCabineMode] = useState(false);
   const [expandedCabineDate, setExpandedCabineDate] = useState<string | null>(null);
   const [rapportModalCabineIdx, setRapportModalCabineIdx] = useState<number | null>(null);
@@ -3407,18 +3419,37 @@ function ProjectPageContent({ id }: { id: string }) {
   /** Dernier count envoyé à Notion pour éviter les PATCH redondants. */
   const lastSyncedInstalledRef = useRef<number>(-1);
 
-  // ⚠️ Réorganisation DÉSACTIVÉE temporairement. La réorganisation (glisser-
-  // déposer ET tri) ne déplaçait que les noms + le monteur du lot ; les données
-  // indexées par POSITION (photos « .CabN. », heures, sous-traitance, état,
-  // SAV) ne suivaient PAS → désynchronisation. On bloque toute réorganisation
-  // pour ne plus jamais mélanger les infos, en attendant une version qui
-  // déplace l'intégralité des données du lot.
+  // Réorganisation SÛRE : on ne change QUE l'ordre d'affichage (une liste de
+  // CabN). Aucune donnée de lot n'est déplacée (photos/heures/SAV restent
+  // soudées à leur CabN) → impossible de mélanger ou perdre quoi que ce soit.
+  // L'ancien glisser-déposer physique reste désactivé.
   const REORDER_DISABLED = true;
-  const reorderCabines = (_srcIdx: number, _dstIdx: number) => {
-    toast.error("Réorganisation désactivée le temps de corriger un bug. Vos données ne sont pas modifiées.");
+  const reorderCabines = (_srcIdx: number, _dstIdx: number) => {};
+  // Applique + persiste un nouvel ordre d'affichage (liste de CabN).
+  const applyDisplayOrder = (order: number[]) => {
+    setCabineDisplayOrder(order);
+    setSortingOrder(true);
+    offlineFetch(`/api/projects/${id}/cabine-order`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order }),
+    }).catch(() => {}).finally(() => setSortingOrder(false));
   };
-  const sortCabinesBy = (_mode: "alpha" | "num") => {
-    toast.error("Tri désactivé le temps de corriger un bug. Vos données ne sont pas modifiées.");
+  // Comparateurs sur le NOM du lot (via son CabN).
+  const cabNameOf = (cabN: number) => cabines[cabN - 1]?.nom || "";
+  const firstNumOf = (s: string) => { const m = (s || "").match(/\d+/); return m ? parseInt(m[0], 10) : Number.MAX_SAFE_INTEGER; };
+  const cmpAlphaCab = (a: number, b: number) => cabNameOf(a).localeCompare(cabNameOf(b), "fr", { numeric: true, sensitivity: "base" });
+  // Défaut = ordre CabN d'origine (on efface l'ordre personnalisé).
+  const sortOrderDefault = () => applyDisplayOrder([]);
+  const sortOrderAlpha = () => {
+    const base = Array.from({ length: cabines.length }, (_, i) => i + 1);
+    base.sort(cmpAlphaCab);
+    applyDisplayOrder(base);
+  };
+  const sortOrderNumeric = () => {
+    const base = Array.from({ length: cabines.length }, (_, i) => i + 1);
+    base.sort((a, b) => { const d = firstNumOf(cabNameOf(a)) - firstNumOf(cabNameOf(b)); return d !== 0 ? d : cmpAlphaCab(a, b); });
+    applyDisplayOrder(base);
   };
   /**
    * Planifie une sauvegarde silencieuse en arrière-plan (debounce 2 s).
@@ -5426,6 +5457,22 @@ function ProjectPageContent({ id }: { id: string }) {
       .filter((n): n is number => n !== null)
   );
   const installedCabineCount = installedCabineIndices.size;
+
+  // Ordre d'AFFICHAGE réconcilié : on part de l'ordre personnalisé (liste de
+  // CabN), on ne garde que les CabN valides (1..N), puis on ajoute à la fin les
+  // CabN manquants (nouveaux lots) → aucun lot n'est jamais masqué ni dupliqué.
+  const displayOrder: number[] = (() => {
+    const n = cabines.length;
+    const base = Array.from({ length: n }, (_, i) => i + 1);
+    if (!cabineDisplayOrder.length) return base;
+    const seen = new Set<number>();
+    const kept: number[] = [];
+    for (const c of cabineDisplayOrder) {
+      if (Number.isInteger(c) && c >= 1 && c <= n && !seen.has(c)) { kept.push(c); seen.add(c); }
+    }
+    for (const c of base) if (!seen.has(c)) kept.push(c);
+    return kept;
+  })();
 
   // Nombre de LOTS ayant au moins un signalement (pièce manquante ou défaut) —
   // affiché entre parenthèses sur le bouton filtre « Avec signalement ».
@@ -7802,56 +7849,46 @@ function ProjectPageContent({ id }: { id: string }) {
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      {cabineDragMode ? (
-                        <>
-                          {/* Tri automatique : alphanumérique (A→Z) ou numérique (1→9). */}
-                          <button
-                            type="button"
-                            onClick={() => sortCabinesBy("alpha")}
-                            title="Trier les lots par ordre alphanumérique (A1, A2, B1…)"
-                            className="text-xs font-medium text-[#1e3a5f] dark:text-blue-300 flex items-center gap-1 px-2 py-1 rounded-lg border border-[#1e3a5f]/30 hover:bg-[#1e3a5f]/5"
-                          >
-                            <ArrowDownAZ className="w-3.5 h-3.5" />
-                            A→Z
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => sortCabinesBy("num")}
-                            title="Trier les lots par ordre numérique (1, 2, 3…)"
-                            className="text-xs font-medium text-[#1e3a5f] dark:text-blue-300 flex items-center gap-1 px-2 py-1 rounded-lg border border-[#1e3a5f]/30 hover:bg-[#1e3a5f]/5"
-                          >
-                            <ArrowDown01 className="w-3.5 h-3.5" />
-                            1→9
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setCabineDragMode(false); setDragCabSrc(null); setDragCabOver(null); }}
-                            className="text-xs font-semibold text-blue-600 px-2 py-1 rounded-lg bg-blue-50"
-                          >
-                            Terminer
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (REORDER_DISABLED) { toast.error("Réorganisation désactivée le temps de corriger un bug (les infos du lot ne suivaient pas). Vos données ne sont pas modifiées."); return; }
-                            setCabineDragMode(true);
-                          }}
-                          title="Réorganisation temporairement désactivée"
-                          className="text-xs text-gray-300 dark:text-gray-600 flex items-center gap-1 cursor-not-allowed"
-                        >
-                          <GripVertical className="w-3.5 h-3.5" />
-                          Réorganiser
-                        </button>
-                      )}
-                      {!cabineDragMode && <span className="text-xs text-gray-400">Cliquez pour déplier</span>}
+                    {/* Réorganiser l'AFFICHAGE des lots (ne déplace aucune donnée :
+                        le contenu reste soudé à son lot). 3 modes : Défaut / Alpha / Num. */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-400 mr-0.5 hidden sm:inline">Trier :</span>
+                      <button
+                        type="button"
+                        disabled={sortingOrder}
+                        onClick={sortOrderDefault}
+                        title="Ordre par défaut (positions d'origine)"
+                        className="text-xs font-medium text-gray-600 dark:text-gray-300 flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Défaut
+                      </button>
+                      <button
+                        type="button"
+                        disabled={sortingOrder}
+                        onClick={sortOrderAlpha}
+                        title="Trier par ordre alphabétique (A→Z, A1, A2, B1…)"
+                        className="text-xs font-medium text-[#1e3a5f] dark:text-blue-300 flex items-center gap-1 px-2 py-1 rounded-lg border border-[#1e3a5f]/30 hover:bg-[#1e3a5f]/5 disabled:opacity-50"
+                      >
+                        <ArrowDownAZ className="w-3.5 h-3.5" />
+                        A→Z
+                      </button>
+                      <button
+                        type="button"
+                        disabled={sortingOrder}
+                        onClick={sortOrderNumeric}
+                        title="Trier par ordre numérique (1, 2, 3…)"
+                        className="text-xs font-medium text-[#1e3a5f] dark:text-blue-300 flex items-center gap-1 px-2 py-1 rounded-lg border border-[#1e3a5f]/30 hover:bg-[#1e3a5f]/5 disabled:opacity-50"
+                      >
+                        <ArrowDown01 className="w-3.5 h-3.5" />
+                        1→9
+                      </button>
                     </div>
                   </div>
 
-                  {cabines
-                    .map((cabine, idx) => ({ cabine, idx }))
+                  {displayOrder
+                    .map((cabNum, displayIdx) => ({ cabine: cabines[cabNum - 1], idx: cabNum - 1, displayIdx }))
+                    .filter(({ cabine }) => !!cabine)
                     .filter(({ cabine, idx }) => {
                       // Filtre « Avec signalement »
                       if (showOnlySignalements &&
@@ -7869,7 +7906,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       }
                       return true;
                     })
-                    .map(({ cabine, idx }) => (
+                    .map(({ cabine, idx, displayIdx }) => (
                     <Card
                       key={idx}
                       data-cabineidx={idx}
@@ -7932,7 +7969,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                 ? "bg-orange-500"
                                 : "bg-[#1e3a5f]")
                             }`}>
-                              {idx + 1}
+                              {displayIdx + 1}
                             </span>
                           )}
                           <div className="min-w-0 flex-1">
