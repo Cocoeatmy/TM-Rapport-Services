@@ -4,6 +4,8 @@ import { LOGO_BASE64 } from "@/lib/logo";
 import { sendPdfByEmail } from "@/lib/email";
 import { sendReportToTelegram } from "@/lib/telegram";
 import { verifyToken } from "@/lib/auth";
+import { signPdf } from "@/lib/doc-link";
+import { timingSafeEqual } from "crypto";
 import { normalizeRapportMonteur } from "@/lib/rapport";
 import ReactPDF, {
   Document,
@@ -1420,6 +1422,28 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
+    // ── Accès : cookie admin OU lien signé (HMAC). Mode ?link=1 → renvoie le
+    // lien public signé (réservé aux connectés). Route publique via middleware,
+    // donc on protège ici. ──
+    const sp = request.nextUrl.searchParams;
+    const s = sp.get("s") || "";
+    const wantLink = sp.get("link") === "1";
+    const secret = process.env.SHARE_LINK_KEY || "";
+    const sigValid = (() => {
+      if (!secret || !s) return false;
+      const a = Buffer.from(s); const b = Buffer.from(signPdf(id));
+      return a.length === b.length && timingSafeEqual(a, b);
+    })();
+    const authToken = request.cookies.get("auth-token")?.value;
+    const authed = authToken ? !!(await verifyToken(authToken).catch(() => null)) : false;
+    if (wantLink) {
+      if (!authed) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      if (!secret) return NextResponse.json({ error: "SHARE_LINK_KEY non configuré" }, { status: 503 });
+      return NextResponse.json({ url: `${request.nextUrl.origin}/api/pdf/${encodeURIComponent(id)}?s=${signPdf(id)}` });
+    }
+    if (!sigValid && !authed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
     const project = await getProject(id);
 
     // Override heures from query params if provided (avoids Notion propagation delay)

@@ -44,6 +44,11 @@ export function signSynthese(projectId: string): string {
   return createHmac("sha256", SECRET).update(`synthese|${projectId}`).digest("hex").slice(0, 32);
 }
 
+/** Signature HMAC d'un projet pour le rapport de montage interne (lien public). */
+export function signPdf(projectId: string): string {
+  return createHmac("sha256", SECRET).update(`pdf|${projectId}`).digest("hex").slice(0, 32);
+}
+
 /** Signature HMAC pour télécharger le ZIP des photos d'UN champ d'un projet
  * (ex. « photosMontage ») via un lien public (fiche calendrier). */
 export function signPhotosZip(projectId: string, field: string): string {

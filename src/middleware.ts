@@ -17,6 +17,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/fiche") || // PDF Fiche de travail (protégé par signature HMAC ou cookie admin)
     pathname.startsWith("/api/sav") || // PDF Rapport SAV (protégé par signature HMAC ou cookie admin)
     pathname.startsWith("/api/synthese") || // PDF Suivi du chantier (protégé par signature HMAC ou cookie admin)
+    pathname.startsWith("/api/pdf") || // PDF Rapport de montage interne (protégé par signature HMAC ou cookie admin)
     (pathname.startsWith("/api/photos/") && pathname.endsWith("/download")) || // ZIP photos (signature HMAC ou cookie)
     pathname.startsWith("/api/reminders") ||
     pathname.startsWith("/api/notion-webhook") || // webhook Notion (pas de cookie auth)

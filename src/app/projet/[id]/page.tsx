@@ -3603,6 +3603,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [showHeuresCard, setShowHeuresCard] = useState(false);
   const [downloadingPhotos, setDownloadingPhotos] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [copyingPdfLink, setCopyingPdfLink] = useState(false);
   const [downloadingFiche, setDownloadingFiche] = useState(false);
   const [copyingFicheLink, setCopyingFicheLink] = useState(false);
   const [downloadingSav, setDownloadingSav] = useState(false);
@@ -5328,6 +5329,21 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
     } finally { setCopyingFicheLink(false); }
   };
+  // ── Rapport de montage interne : lien public signé ─────────────────────────
+  const handleCopyPdfLink = async () => {
+    setCopyingPdfLink(true);
+    try {
+      const res = await fetch(`/api/pdf/${id}?link=1`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data?.url) throw new Error("no url");
+      await navigator.clipboard.writeText(data.url);
+      toast.success("Lien du rapport de montage copié");
+    } catch (e) {
+      console.error("Lien Rapport montage échoué:", e);
+      toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
+    } finally { setCopyingPdfLink(false); }
+  };
   // ── Rapport SAV : PDF + lien public ────────────────────────────────────────
   const handleDownloadSav = async (collab?: string) => {
     setDownloadingSav(true);
@@ -6000,6 +6016,71 @@ function ProjectPageContent({ id }: { id: string }) {
                     onUpdate={(v) => setProject((prev) => prev ? { ...prev, servCmdFournisseurs: v || "" } : prev)} />
                 </div>
               </>
+            )}
+
+            {/* ── Rapports : accès regroupé (duplique les boutons existants) ──
+                Chaque rapport : bouton « générer » + « Copier le lien ». */}
+            {isAdmin && (
+              <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-2 pb-2">
+                  <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Rapports</span>
+                  <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                  {/* Rapport de suivi */}
+                  <div className="flex flex-col gap-1.5">
+                    <button type="button" disabled={downloadingSynthese} onClick={handleDownloadSynthese}
+                      className="h-9 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold bg-[#1e3a5f] hover:bg-[#16304f] text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingSynthese ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
+                      Rapport de suivi
+                    </button>
+                    <button type="button" disabled={copyingSyntheseLink} onClick={handleCopySyntheseLink}
+                      className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-[#1e3a5f]/40 text-[#1e3a5f] dark:text-blue-300 dark:border-blue-300/50 hover:bg-[#1e3a5f]/5 active:scale-95 transition-all disabled:opacity-60">
+                      {copyingSyntheseLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                      Copier le lien
+                    </button>
+                  </div>
+                  {/* Fiche de travail */}
+                  <div className="flex flex-col gap-1.5">
+                    <button type="button" disabled={downloadingFiche} onClick={handleDownloadFiche}
+                      className="h-9 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingFiche ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                      Fiche de travail
+                    </button>
+                    <button type="button" disabled={copyingFicheLink} onClick={handleCopyFicheLink}
+                      className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-indigo-500/40 text-indigo-600 dark:text-indigo-300 dark:border-indigo-400/50 hover:bg-indigo-500/5 active:scale-95 transition-all disabled:opacity-60">
+                      {copyingFicheLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                      Copier le lien
+                    </button>
+                  </div>
+                  {/* Rapport SAV */}
+                  <div className="flex flex-col gap-1.5">
+                    <button type="button" disabled={downloadingSav} onClick={() => handleDownloadSav()}
+                      className="h-9 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingSav ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
+                      Rapport SAV
+                    </button>
+                    <button type="button" disabled={copyingSavLink} onClick={() => handleCopySavLink()}
+                      className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-amber-500/40 text-amber-600 dark:text-amber-300 dark:border-amber-400/50 hover:bg-amber-500/5 active:scale-95 transition-all disabled:opacity-60">
+                      {copyingSavLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                      Copier le lien
+                    </button>
+                  </div>
+                  {/* PDF Interne (rapport de montage) */}
+                  <div className="flex flex-col gap-1.5">
+                    <button type="button" disabled={downloadingPdf} onClick={() => handleDownloadPdf(false)}
+                      className="h-9 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                      PDF Interne
+                    </button>
+                    <button type="button" disabled={copyingPdfLink} onClick={handleCopyPdfLink}
+                      className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-emerald-500/40 text-emerald-600 dark:text-emerald-300 dark:border-emerald-400/50 hover:bg-emerald-500/5 active:scale-95 transition-all disabled:opacity-60">
+                      {copyingPdfLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                      Copier le lien
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
           </CardContent>
