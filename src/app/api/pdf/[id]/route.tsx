@@ -4,7 +4,7 @@ import { LOGO_BASE64 } from "@/lib/logo";
 import { sendPdfByEmail } from "@/lib/email";
 import { sendReportToTelegram } from "@/lib/telegram";
 import { verifyToken } from "@/lib/auth";
-import { signPdf } from "@/lib/doc-link";
+import { signPdf, signPdfClient } from "@/lib/doc-link";
 import { timingSafeEqual } from "crypto";
 import { normalizeRapportMonteur } from "@/lib/rapport";
 import ReactPDF, {
@@ -1429,20 +1429,26 @@ export async function GET(
     const sp = request.nextUrl.searchParams;
     const s = sp.get("s") || "";
     const wantLink = sp.get("link") === "1";
+    const wantClient = sp.get("client") === "1";
     const secret = process.env.SHARE_LINK_KEY || "";
-    const sigValid = (() => {
-      if (!secret || !s) return false;
-      const a = Buffer.from(s); const b = Buffer.from(signPdf(id));
-      return a.length === b.length && timingSafeEqual(a, b);
-    })();
+    const eq = (a: string, b: string) => { const A = Buffer.from(a), B = Buffer.from(b); return A.length === B.length && timingSafeEqual(A, B); };
+    const sigValidInternal = !!(secret && s && eq(s, signPdf(id)));
+    const sigValidClient = !!(secret && s && eq(s, signPdfClient(id)));
     const authToken = request.cookies.get("auth-token")?.value;
     const authed = authToken ? !!(await verifyToken(authToken).catch(() => null)) : false;
     if (wantLink) {
       if (!authed) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
       if (!secret) return NextResponse.json({ error: "SHARE_LINK_KEY non configuré" }, { status: 503 });
-      return NextResponse.json({ url: `${request.nextUrl.origin}/api/pdf/${encodeURIComponent(id)}?s=${signPdf(id)}` });
+      // ?link=1 → lien interne ; ?link=1&client=1 → lien CLIENT (sans heures).
+      const url = wantClient
+        ? `${request.nextUrl.origin}/api/pdf/${encodeURIComponent(id)}?s=${signPdfClient(id)}&client=1`
+        : `${request.nextUrl.origin}/api/pdf/${encodeURIComponent(id)}?s=${signPdf(id)}`;
+      return NextResponse.json({ url });
     }
-    if (!sigValid && !authed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    if (!sigValidInternal && !sigValidClient && !authed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    // Accès via lien CLIENT → on FORCE le masquage des heures (impossible de le
+    // contourner en retirant client=1, car la signature ne vaut que pour le client).
+    const forceClient = sigValidClient && !authed;
 
     const project = await getProject(id);
 
@@ -1453,7 +1459,7 @@ export async function GET(
     if (departOverride) project.heureDepart = departOverride;
 
     // Rapport CLIENT (?client=1) : masque les heures d'arrivée/départ.
-    const hideHours = request.nextUrl.searchParams.get("client") === "1";
+    const hideHours = request.nextUrl.searchParams.get("client") === "1" || forceClient;
 
     const pieces = await loadPiecesForProject(id, project);
     const defauts = await loadDefautsForProject(id, project);

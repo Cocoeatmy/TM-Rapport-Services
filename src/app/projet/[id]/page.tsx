@@ -3604,6 +3604,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [downloadingPhotos, setDownloadingPhotos] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [copyingPdfLink, setCopyingPdfLink] = useState(false);
+  const [copyingPdfClientLink, setCopyingPdfClientLink] = useState(false);
   const [downloadingFiche, setDownloadingFiche] = useState(false);
   const [copyingFicheLink, setCopyingFicheLink] = useState(false);
   const [downloadingSav, setDownloadingSav] = useState(false);
@@ -5344,6 +5345,21 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
     } finally { setCopyingPdfLink(false); }
   };
+  // ── Rapport CLIENT (sans heures) : lien public signé (mode client forcé) ────
+  const handleCopyPdfClientLink = async () => {
+    setCopyingPdfClientLink(true);
+    try {
+      const res = await fetch(`/api/pdf/${id}?link=1&client=1`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data?.url) throw new Error("no url");
+      await navigator.clipboard.writeText(data.url);
+      toast.success("Lien du rapport client copié", { description: "Sans les heures de travail." });
+    } catch (e) {
+      console.error("Lien Rapport client échoué:", e);
+      toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
+    } finally { setCopyingPdfClientLink(false); }
+  };
   // ── Rapport SAV : PDF + lien public ────────────────────────────────────────
   const handleDownloadSav = async (collab?: string) => {
     setDownloadingSav(true);
@@ -6026,7 +6042,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Rapports</span>
                   <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
                   {/* Rapport de suivi */}
                   <div className="flex flex-col gap-1.5">
                     <button type="button" disabled={downloadingSynthese} onClick={handleDownloadSynthese}
@@ -6076,6 +6092,19 @@ function ProjectPageContent({ id }: { id: string }) {
                     <button type="button" disabled={copyingPdfLink} onClick={handleCopyPdfLink}
                       className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-emerald-500/40 text-emerald-600 dark:text-emerald-300 dark:border-emerald-400/50 hover:bg-emerald-500/5 active:scale-95 transition-all disabled:opacity-60">
                       {copyingPdfLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                      Copier le lien
+                    </button>
+                  </div>
+                  {/* PDF Client (rapport de montage SANS les heures) */}
+                  <div className="flex flex-col gap-1.5">
+                    <button type="button" disabled={downloadingPdf} onClick={() => handleDownloadPdf(true)}
+                      className="h-9 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                      PDF Client
+                    </button>
+                    <button type="button" disabled={copyingPdfClientLink} onClick={handleCopyPdfClientLink}
+                      className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-teal-500/40 text-teal-600 dark:text-teal-300 dark:border-teal-400/50 hover:bg-teal-500/5 active:scale-95 transition-all disabled:opacity-60">
+                      {copyingPdfClientLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
                       Copier le lien
                     </button>
                   </div>

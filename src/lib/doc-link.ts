@@ -49,6 +49,12 @@ export function signPdf(projectId: string): string {
   return createHmac("sha256", SECRET).update(`pdf|${projectId}`).digest("hex").slice(0, 32);
 }
 
+/** Signature HMAC pour le rapport CLIENT (sans heures) — signature DISTINCTE du
+ * lien interne : impossible d'ôter `client=1` pour révéler les heures. */
+export function signPdfClient(projectId: string): string {
+  return createHmac("sha256", SECRET).update(`pdf-client|${projectId}`).digest("hex").slice(0, 32);
+}
+
 /** Signature HMAC pour télécharger le ZIP des photos d'UN champ d'un projet
  * (ex. « photosMontage ») via un lien public (fiche calendrier). */
 export function signPhotosZip(projectId: string, field: string): string {
