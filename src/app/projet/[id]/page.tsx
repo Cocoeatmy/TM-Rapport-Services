@@ -5983,9 +5983,16 @@ function ProjectPageContent({ id }: { id: string }) {
                   que la grande barre ; copie, les originaux restent en place). */}
               <div className="w-full sm:w-72 space-y-2">
                 {[
-                  { label: "Montage", pct: montageHeaderPercent },
-                  { label: "Mesures", pct: mesuresHeaderPercent },
-                ].map(({ label, pct }) => {
+                  {
+                    label: "Montage",
+                    pct: montageHeaderPercent,
+                    // Sous-texte identique à la grande barre (multi-cabine seulement).
+                    caption: isCabineMode && cabines.length > 0
+                      ? { total: cabines.length, done: installedCabineCount, reste: Math.max(cabines.length - installedCabineCount, 0) }
+                      : null,
+                  },
+                  { label: "Mesures", pct: mesuresHeaderPercent, caption: null },
+                ].map(({ label, pct, caption }) => {
                   const done = pct >= 100;
                   return (
                     <div key={label}>
@@ -6004,6 +6011,14 @@ function ProjectPageContent({ id }: { id: string }) {
                           }}
                         />
                       </div>
+                      {caption && (
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+                          {caption.done}/{caption.total} cabine{caption.total > 1 ? "s" : ""} installée{caption.total > 1 ? "s" : ""}
+                          {caption.reste > 0 && (
+                            <span className="text-amber-600 dark:text-amber-400 font-semibold"> · reste {caption.reste} à poser</span>
+                          )}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
