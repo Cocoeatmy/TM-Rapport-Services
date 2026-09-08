@@ -5401,6 +5401,44 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
     } finally { setCopyingSyntheseLink(false); }
   };
+  // ── Réparation ponctuelle TM-2600478 : remet l'ordre des lots d'origine
+  // (récupéré du PDF « Suivi du chantier » d'avant le bug de réorganisation).
+  // Réécrit noms + monteur responsable ; les données positionnelles (photos,
+  // heures, sous-traitance, SAV) n'ont jamais bougé → tout se réaligne.
+  const handleRestoreOrder2600478 = async () => {
+    const noms = [
+      "G.01","G.02","G.03","G.11","G.12","G.13","G.14","G.15","G.21","G.22",
+      "G.23","G.24","G.25","G.31","G.32","G.33","G.34","G.35","G.41","G.42",
+      "G.43","G.44","G.45","G.51","G.52","G.53","G.54","G.55","G.61","G.62",
+      "G.63","G.64","G.65","G.71","G.72","G.81","G.82","I.81","I.82","I.91",
+      "I.92","J.12","J.13","J.22","J.23","J.32 - Témoin 2","J.33 - Témoin 1","J.42","J.43","J.52",
+      "J.53","J.62","J.63","J.72","J.73","J.81","J.82","J.91","J.92","K.01",
+      "K.11","K.21","K.22","K.31","K.32","K.41","K.42","K.51","K.52","K.61",
+      "K.62","K.71","K.72","K.81","Cabine 7",
+    ];
+    // Monteur responsable interne par position (1-based) ; le reste = sous-traité/Team TM (vide).
+    const attr: Record<number, string> = {
+      13: "Jean-Marc", 15: "Jacobo", 16: "Jean-Marc", 29: "Jean-Marc", 30: "Miguel",
+      36: "Jean-Marc", 37: "Jean-Marc", 50: "Jacobo", 51: "Jacobo", 58: "Jacobo",
+      59: "Jacobo", 62: "Miguel",
+    };
+    const nomsCabines = noms.map((n, i) => `Cab${i + 1}:${n}`).join(" | ");
+    const attributionCabines = Object.entries(attr).map(([k, v]) => `Cab${k}:${v}`).join(" | ");
+    if (!confirm("Rétablir l'ordre initial des 75 lots (TM-2600478) ? Les photos/heures/SAV ne sont pas touchés — seuls les noms + monteurs reviennent dans le bon ordre.")) return;
+    try {
+      const res = await fetch(`/api/projects/${id}/restore-order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nomsCabines, attributionCabines }),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j?.error || `HTTP ${res.status}`); }
+      toast.success("Ordre rétabli ✓ — rechargement…");
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e: any) {
+      console.error("Restauration ordre échouée:", e);
+      toast.error(`Échec de la restauration : ${e?.message || e}`);
+    }
+  };
   const handleDownloadPhotos = async () => {
     setDownloadingPhotos(true);
     try {
@@ -6193,6 +6231,17 @@ function ProjectPageContent({ id }: { id: string }) {
                   {copyingSyntheseLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
                   Copier le lien
                 </button>
+                {/* Réparation ponctuelle (admin) : rétablir l'ordre initial des lots. */}
+                {isAdmin && project?.ofrTM === "TM-2600478" && (
+                  <button
+                    type="button"
+                    onClick={handleRestoreOrder2600478}
+                    className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white active:scale-95 transition-all"
+                  >
+                    <ArrowDown01 className="w-4 h-4" />
+                    Rétablir l'ordre initial
+                  </button>
+                )}
               </div>
             </div>
           </CardHeader>
