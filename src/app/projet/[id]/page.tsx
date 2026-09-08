@@ -19,6 +19,7 @@ import {
   Loader2,
   ExternalLink,
   ScanEye,
+  ShieldAlert,
   ArrowDownAZ,
   ArrowDown01,
   Hash,
@@ -1300,6 +1301,7 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
     displayInRapport?: boolean;
     cabineLabel?: string;
     resolved?: boolean;
+    phase?: string;
   };
   const [defauts, setDefauts] = useState<Defaut[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -1402,17 +1404,26 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
         const visible = d.displayInRapport !== false;
         const isDeleting = deleting === d.id;
         const isEditing = editing === d.id;
+        // Code couleur selon le TYPE : réglé = vert, « avant intervention » =
+        // indigo (comme le PDF), défaut normal = rouge. Icône assortie.
+        const avant = d.phase === "avant-intervention";
+        const accent = d.resolved
+          ? { card: "border-green-300 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10", text: "text-green-700 dark:text-green-400", chip: "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700", Icon: Check }
+          : avant
+            ? { card: "border-indigo-300 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10", text: "text-indigo-700 dark:text-indigo-400", chip: "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700", Icon: ScanEye }
+            : { card: "border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-900/10", text: "text-red-700 dark:text-red-400", chip: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700", Icon: ShieldAlert };
+        const AccentIcon = accent.Icon;
         return (
-          <div key={d.id} className={`rounded-lg border p-3 ${d.resolved ? "border-green-300 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10" : "border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-900/10"}`}>
+          <div key={d.id} className={`rounded-lg border p-3 ${accent.card}`}>
             {/* En-tête : titre + statut/actions (ligne 1) ; cases à cocher (ligne 2,
                 alignées à droite) → jamais de retour à la ligne disgracieux. */}
             <div className="mb-2">
               <div className="flex items-center justify-between gap-2">
                 {/* Titre = LOT en évidence (vue globale) ; sinon « Défaut n°X ».
-                    Vert quand le défaut est réglé. */}
-                <span className={`text-xs font-bold min-w-0 truncate flex items-center gap-1 ${d.resolved ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
-                  {d.resolved && <Check className="w-3.5 h-3.5 shrink-0" />}
-                  {!cabineLabel && d.cabineLabel ? d.cabineLabel : `Défaut n°${num}`}
+                    Couleur + icône selon le type (réglé/avant intervention/défaut). */}
+                <span className={`text-xs font-bold min-w-0 truncate flex items-center gap-1 ${accent.text}`}>
+                  <AccentIcon className="w-3.5 h-3.5 shrink-0" />
+                  {!cabineLabel && d.cabineLabel ? d.cabineLabel : (avant ? `Constat avant intervention n°${num}` : `Défaut n°${num}`)}
                   {d.resolved ? " — réglé" : ""}
                 </span>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -1461,7 +1472,7 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
             {(d.typesLabel || (d.types && d.types.length > 0)) && (
               <div className="flex flex-wrap gap-1 mb-1.5">
                 {(d.types && d.types.length > 0 ? d.types : (d.typesLabel || "").split(",")).map((t, i) => (
-                  <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded border ${d.resolved ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700"}`}>
+                  <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded border ${accent.chip}`}>
                     {typeof t === "string" ? t.trim() : t}
                   </span>
                 ))}
@@ -3202,7 +3213,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [pieceRefreshKey, setPieceRefreshKey] = useState(0);
   const [cabineSignalements, setCabineSignalements] = useState<{
     pieces: { id: string; cabineLabel?: string; status?: string }[];
-    defauts: { id: string; cabineLabel?: string; resolved?: boolean }[];
+    defauts: { id: string; cabineLabel?: string; resolved?: boolean; phase?: string }[];
   }>({ pieces: [], defauts: [] });
   const [showEditModal, setShowEditModal] = useState(false);
 
@@ -8157,13 +8168,19 @@ function ProjectPageContent({ id }: { id: string }) {
                               {(() => {
                                 const cabDefauts = cabineSignalements.defauts.filter((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom));
                                 if (cabDefauts.length === 0) return null;
-                                // Tous les défauts du lot réglés → icône verte ; sinon rouge.
+                                // Couleur selon le type : tous réglés = vert ; sinon si tous
+                                // les défauts non réglés sont « avant intervention » = indigo ;
+                                // sinon rouge (défaut normal). Icône œil pour « avant intervention ».
                                 const allResolved = cabDefauts.every((d) => d.resolved);
+                                const unresolved = cabDefauts.filter((d) => !d.resolved);
+                                const allAvant = unresolved.length > 0 && unresolved.every((d) => d.phase === "avant-intervention");
+                                const iconColor = allResolved ? "text-green-600" : allAvant ? "text-indigo-500" : "text-red-500";
+                                const LotIcon = allAvant && !allResolved ? ScanEye : AlertTriangle;
                                 return (
                                   <span
                                     role="button"
                                     tabIndex={0}
-                                    title={allResolved ? "Défaut réglé — voir" : "Voir le défaut signalé"}
+                                    title={allResolved ? "Défaut réglé — voir" : allAvant ? "Constat avant intervention — voir" : "Voir le défaut signalé"}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       // Ouvre la cabine sur l'onglet Signalements
@@ -8181,7 +8198,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.currentTarget.click(); }}
                                     className="shrink-0 cursor-pointer rounded hover:opacity-75 transition-opacity"
                                   >
-                                    <AlertTriangle className={`w-4 h-4 ${allResolved ? "text-green-600" : "text-red-500"}`} />
+                                    <LotIcon className={`w-4 h-4 ${iconColor}`} />
                                   </span>
                                 );
                               })()}
