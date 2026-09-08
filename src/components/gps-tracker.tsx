@@ -201,7 +201,10 @@ export function GPSTracker({ chantierAddress, projectId, silent = false, heureDe
           return current;
         });
       },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: POSITION_TIMEOUT_MS },
+      // enableHighAccuracy:false → positionnement réseau/Wi-Fi (bien moins
+      // gourmand que le GPS). Suffisant pour un géofence de 200 m, et grosse
+      // économie de batterie. maximumAge élevé → réutilise les positions en cache.
+      { enableHighAccuracy: false, maximumAge: 60000, timeout: POSITION_TIMEOUT_MS },
     );
   }, [checkPosition]);
 
@@ -299,23 +302,28 @@ export function GPSTracker({ chantierAddress, projectId, silent = false, heureDe
   // • À la fermeture (hidden=true)  → on enregistre l'heure de passage en background.
   // • Au retour (hidden=false)      → on re-vérifie la position et on relance
   //   le watcher si iOS l'avait suspendu.
+  // ÉCONOMIE DE BATTERIE : on RELÂCHE le GPS (clearWatch) dès que l'app passe
+  // en arrière-plan / écran verrouillé, et on le relance au retour au premier
+  // plan. iOS suspend de toute façon la géoloc web en arrière-plan ; garder le
+  // watch ouvert ne servait qu'à vider la batterie quand le téléphone est en
+  // veille avec l'app encore active. Vaut pour « watching » ET « arrived ».
   useEffect(() => {
-    if (status !== "arrived") return;
+    if (status !== "watching" && status !== "arrived") return;
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Passage en arrière-plan : mémoriser l'heure pour horodater le départ.
-        backgroundHiddenAt.current = Date.now();
+        // Arrière-plan : mémoriser l'heure (horodatage départ) et couper le GPS.
+        if (statusRef.current === "arrived") backgroundHiddenAt.current = Date.now();
+        stopWatching();
         return;
       }
-      // Retour au premier plan
-      if (statusRef.current !== "arrived") return;
+      // Retour au premier plan → on relance le suivi.
       const coords = chantierCoordsRef.current;
       if (!coords || !navigator.geolocation) return;
-
-      // Relancer watchPosition s'il avait été suspendu par iOS.
       if (watchId.current === null) startWatching(true);
 
-      // Vérification immédiate de la position.
+      // Vérification immédiate de la position (uniquement utile en « arrived »
+      // pour détecter un départ survenu pendant l'arrière-plan).
+      if (statusRef.current !== "arrived") return;
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const dist = haversineDistance(
@@ -326,17 +334,16 @@ export function GPSTracker({ chantierAddress, projectId, silent = false, heureDe
           if (dist > GEOFENCE_RADIUS_METERS && wasInside.current) {
             recordDeparture(Math.round(dist));
           } else {
-            // Toujours sur site — réinitialiser l'heure de background.
             backgroundHiddenAt.current = null;
           }
         },
         () => { /* position non dispo — on attend la prochaine update */ },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 },
       );
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [status, recordDeparture, startWatching]);
+  }, [status, recordDeparture, startWatching, stopWatching]);
 
   // Vérification périodique toutes les 5 min quand on est sur site.
   // Compense l'arrêt de watchPosition en background sur iOS : dès que
