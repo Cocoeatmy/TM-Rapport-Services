@@ -33,6 +33,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const properties: Record<string, unknown> = {};
   if (typeof body.nomsCabines === "string") properties["Lot (nom de cabine)"] = { rich_text: toRich(body.nomsCabines) };
   if (typeof body.attributionCabines === "string") properties["Monteur responsable"] = { rich_text: toRich(body.attributionCabines) };
+  if (typeof body.heureArrivee === "string") properties["Heure arrivée"] = { rich_text: toRich(body.heureArrivee) };
+  if (typeof body.heureDepart === "string") properties["Heure départ"] = { rich_text: toRich(body.heureDepart) };
   if (Object.keys(properties).length === 0) return NextResponse.json({ error: "rien à écrire" }, { status: 400 });
 
   try {
