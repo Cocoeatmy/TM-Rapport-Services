@@ -6131,7 +6131,10 @@ function ProjectPageContent({ id }: { id: string }) {
                     <button type="button" disabled={downloadingPdf} onClick={() => handleDownloadPdf(false)}
                       className="h-11 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold leading-tight text-center bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-all disabled:opacity-60">
                       {downloadingPdf ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <FileText className="w-4 h-4 shrink-0" />}
-                      Rapport de montage « interne »
+                      <span className="flex flex-col leading-tight">
+                        <span>Rapport de montage</span>
+                        <span>&quot;Interne&quot;</span>
+                      </span>
                     </button>
                     <button type="button" disabled={copyingPdfLink} onClick={handleCopyPdfLink}
                       className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-emerald-500/40 text-emerald-600 dark:text-emerald-300 dark:border-emerald-400/50 hover:bg-emerald-500/5 active:scale-95 transition-all disabled:opacity-60">
@@ -6144,7 +6147,10 @@ function ProjectPageContent({ id }: { id: string }) {
                     <button type="button" disabled={downloadingPdf} onClick={() => handleDownloadPdf(true)}
                       className="h-11 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold leading-tight text-center bg-teal-600 hover:bg-teal-700 text-white active:scale-95 transition-all disabled:opacity-60">
                       {downloadingPdf ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <FileText className="w-4 h-4 shrink-0" />}
-                      Rapport de montage « Clients »
+                      <span className="flex flex-col leading-tight">
+                        <span>Rapport de montage</span>
+                        <span>&quot;Clients&quot;</span>
+                      </span>
                     </button>
                     <button type="button" disabled={copyingPdfClientLink} onClick={handleCopyPdfClientLink}
                       className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-teal-500/40 text-teal-600 dark:text-teal-300 dark:border-teal-400/50 hover:bg-teal-500/5 active:scale-95 transition-all disabled:opacity-60">
