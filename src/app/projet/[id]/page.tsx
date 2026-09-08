@@ -4120,8 +4120,8 @@ function ProjectPageContent({ id }: { id: string }) {
         // confirmé par Notion (queue offline, rate-limit, etc.).
         const nowInit = Date.now();
         const RESET_PROTECT_MS = 10 * 60 * 1000;
-        setCabines((prev) =>
-          prev.map((c, i) => {
+        setCabines((prev) => {
+          const updated = prev.map((c, i) => {
             const notionNom = notionNomsMap.get(i + 1) || "";
             const notionMonteur = notionAttrMap.get(i + 1) || "";
             const notionNomIsCustom = notionNom && notionNom !== `Cabine ${i + 1}`;
@@ -4139,8 +4139,63 @@ function ProjectPageContent({ id }: { id: string }) {
               // sinon on prend la valeur serveur (issue du découpage du rapport).
               rapport: recentlyReset ? c.rapport : (c.rapport && c.rapport.trim() ? c.rapport : (splitPerCabine[i] || "")),
             };
-          })
-        );
+          });
+
+          // ── Ajustement du nombre de lots au « Nb. Cabines » de Notion ──────
+          // Si on a AJOUTÉ des cabines → on ajoute des lots vierges.
+          // Si on a DIMINUÉ → on retire l'excédent, mais UNIQUEMENT des lots
+          // vierges EN FIN de liste (aucune photo, rapport, heure ni SAV). On ne
+          // supprime jamais un lot contenant des informations, et on ne retire
+          // que par la fin pour ne pas décaler l'indexation des autres lots.
+          if (nb > updated.length) {
+            const extra = Array.from({ length: nb - updated.length }, (_, k) => {
+              const i = updated.length + k;
+              const notionNom = notionNomsMap.get(i + 1) || "";
+              const notionMonteur = notionAttrMap.get(i + 1) || "";
+              const notionNomIsCustom = notionNom && notionNom !== `Cabine ${i + 1}`;
+              return {
+                nom: notionNomIsCustom ? notionNom : (storedNoms?.[i] || `Cabine ${i + 1}`),
+                rapport: splitPerCabine[i] || "",
+                open: false,
+                monteur: notionMonteur || storedMonteurs?.[i] || "",
+                arrivee: arriveeMap[i] || "",
+                depart: departMap[i] || "",
+                date: dateMap[i] || "",
+                activeTab: "infos" as const,
+                qrEnabled: false,
+                garantieEnabled: false,
+                demontageEnabled: false,
+              };
+            });
+            return [...updated, ...extra];
+          }
+          if (nb < updated.length) {
+            const hasPhotoForCab = (list: { name?: string }[] | undefined, cab: number) =>
+              (list || []).some((f) => { const m = (f.name || "").match(/\.Cab(\d+)\./); return m ? parseInt(m[1], 10) === cab : false; });
+            const savTextForCab = (raw: string | undefined, cab: number) => {
+              const re = /Cab(\d+)\s*:([^|]*)/g; let m: RegExpExecArray | null;
+              while ((m = re.exec(raw || ""))) { if (parseInt(m[1], 10) === cab && m[2].trim()) return true; }
+              return false;
+            };
+            const isEmptyLot = (c: typeof updated[number], i: number) => {
+              const cab = i + 1;
+              if (c.rapport && c.rapport.trim()) return false;
+              if (c.arrivee || c.depart) return false;
+              if (hasPhotoForCab(data.photosMontage, cab) || hasPhotoForCab(data.photosAvant, cab)
+                || hasPhotoForCab(data.documentsSavDemande, cab) || hasPhotoForCab(data.photosSavRetouches, cab)) return false;
+              if (savTextForCab(data.commentairesSav, cab) || savTextForCab(data.savRetouchesCabines, cab)
+                || savTextForCab(data.causeSavCabines, cab) || savTextForCab(data.datesRdvSavCabines, cab)) return false;
+              return true;
+            };
+            const result = [...updated];
+            // Retire seulement les lots vierges à partir de la fin.
+            while (result.length > nb && isEmptyLot(result[result.length - 1], result.length - 1)) {
+              result.pop();
+            }
+            return result;
+          }
+          return updated;
+        });
       }
 
       // ── Migration KV → Notion (one-shot, projets existants) ───────────────────
