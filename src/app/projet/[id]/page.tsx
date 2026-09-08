@@ -5436,8 +5436,22 @@ function ProjectPageContent({ id }: { id: string }) {
         body: JSON.stringify({ nomsCabines, attributionCabines, heureArrivee, heureDepart }),
       });
       if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j?.error || `HTTP ${res.status}`); }
-      toast.success("Ordre rétabli ✓ — rechargement…");
-      setTimeout(() => window.location.reload(), 1200);
+      // Purge le cache local (le tri y avait écrit l'ordre trié) puis relit
+      // les données FRAÎCHES (cache-buster : contourne le cache CDN de 15 s) et
+      // force la ré-initialisation complète des lots dans le bon ordre.
+      try {
+        localStorage.removeItem(`tm-cabin-noms-${id}`);
+        localStorage.removeItem(`tm-cabin-monteurs-${id}`);
+      } catch {}
+      const fresh = await fetch(`/api/projects/${id}?_=${Date.now()}`, { cache: "no-store" }).then((r) => r.json());
+      // Protège ces champs d'un éventuel revert par un polling au cache CDN
+      // encore périmé (fenêtre ~30 s), le temps que le CDN se rafraîchisse.
+      ["nomsCabines", "attributionCabines", "heureArrivee", "heureDepart"].forEach((f) =>
+        window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: f } })));
+      cabinesInitializedRef.current = null;
+      editablesInitializedRef.current = null;
+      setProject(fresh);
+      toast.success("Ordre rétabli ✓ — les lots reviennent dans l'ordre du PDF.");
     } catch (e: any) {
       console.error("Restauration ordre échouée:", e);
       toast.error(`Échec de la restauration : ${e?.message || e}`);
@@ -6236,7 +6250,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   Copier le lien
                 </button>
                 {/* Réparation ponctuelle (admin) : rétablir l'ordre initial des lots. */}
-                {isAdmin && project?.ofrTM === "TM-2600478" && (
+                {isAdmin && (project?.ofrTM || "").replace(/[\s-]/g, "").includes("2600478") && (
                   <button
                     type="button"
                     onClick={handleRestoreOrder2600478}
