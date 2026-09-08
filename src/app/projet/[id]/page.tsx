@@ -19,6 +19,8 @@ import {
   Loader2,
   ExternalLink,
   ScanEye,
+  ArrowDownAZ,
+  ArrowDown01,
   Hash,
   Box,
   Package,
@@ -3425,6 +3427,34 @@ function ProjectPageContent({ id }: { id: string }) {
       }).catch(() => {});
       return arr;
     });
+  };
+
+  // Tri automatique des lots (même persistance que le glisser-déposer manuel :
+  // réencodage des noms + attribution par position).
+  //  - "alpha" : ordre alphanumérique naturel (A1, A2, A5, B1, B2, G.01, G.11…)
+  //  - "num"   : ordre du 1er nombre du nom (1, 2, 3…), quel que soit le préfixe.
+  const sortCabinesBy = (mode: "alpha" | "num") => {
+    const firstNum = (s: string) => { const m = (s || "").match(/\d+/); return m ? parseInt(m[0], 10) : Number.MAX_SAFE_INTEGER; };
+    const cmpAlpha = (a: string, b: string) => (a || "").localeCompare(b || "", "fr", { numeric: true, sensitivity: "base" });
+    setCabines((prev) => {
+      const arr = [...prev].sort((a, b) => {
+        if (mode === "num") { const d = firstNum(a.nom) - firstNum(b.nom); return d !== 0 ? d : cmpAlpha(a.nom, b.nom); }
+        return cmpAlpha(a.nom, b.nom);
+      });
+      try {
+        localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(arr.map((c) => c.nom)));
+        localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(arr.map((c) => c.monteur)));
+      } catch {}
+      const nomsEnc = arr.map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`).join(" | ");
+      const attrEnc = arr.map((c, i) => `Cab${i + 1}:${c.monteur || ""}`).join(" | ");
+      offlineFetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nomsCabines: nomsEnc, attributionCabines: attrEnc }),
+      }).catch(() => {});
+      return arr;
+    });
+    toast.success(mode === "num" ? "Lots triés par numéro (1 → 9)" : "Lots triés (A → Z)");
   };
   /**
    * Planifie une sauvegarde silencieuse en arrière-plan (debounce 2 s).
@@ -7755,13 +7785,34 @@ function ProjectPageContent({ id }: { id: string }) {
                     </div>
                     <div className="flex items-center gap-2">
                       {cabineDragMode ? (
-                        <button
-                          type="button"
-                          onClick={() => { setCabineDragMode(false); setDragCabSrc(null); setDragCabOver(null); }}
-                          className="text-xs font-semibold text-blue-600 px-2 py-1 rounded-lg bg-blue-50"
-                        >
-                          Terminer
-                        </button>
+                        <>
+                          {/* Tri automatique : alphanumérique (A→Z) ou numérique (1→9). */}
+                          <button
+                            type="button"
+                            onClick={() => sortCabinesBy("alpha")}
+                            title="Trier les lots par ordre alphanumérique (A1, A2, B1…)"
+                            className="text-xs font-medium text-[#1e3a5f] dark:text-blue-300 flex items-center gap-1 px-2 py-1 rounded-lg border border-[#1e3a5f]/30 hover:bg-[#1e3a5f]/5"
+                          >
+                            <ArrowDownAZ className="w-3.5 h-3.5" />
+                            A→Z
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => sortCabinesBy("num")}
+                            title="Trier les lots par ordre numérique (1, 2, 3…)"
+                            className="text-xs font-medium text-[#1e3a5f] dark:text-blue-300 flex items-center gap-1 px-2 py-1 rounded-lg border border-[#1e3a5f]/30 hover:bg-[#1e3a5f]/5"
+                          >
+                            <ArrowDown01 className="w-3.5 h-3.5" />
+                            1→9
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setCabineDragMode(false); setDragCabSrc(null); setDragCabOver(null); }}
+                            className="text-xs font-semibold text-blue-600 px-2 py-1 rounded-lg bg-blue-50"
+                          >
+                            Terminer
+                          </button>
+                        </>
                       ) : (
                         <button
                           type="button"
