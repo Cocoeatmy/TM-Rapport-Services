@@ -3407,54 +3407,18 @@ function ProjectPageContent({ id }: { id: string }) {
   /** Dernier count envoyé à Notion pour éviter les PATCH redondants. */
   const lastSyncedInstalledRef = useRef<number>(-1);
 
-  const reorderCabines = (srcIdx: number, dstIdx: number) => {
-    if (srcIdx === dstIdx) return;
-    setCabines(prev => {
-      const arr = [...prev];
-      const [moved] = arr.splice(srcIdx, 1);
-      arr.splice(dstIdx, 0, moved);
-      // Persiste le nouvel ordre des noms ET monteurs dans localStorage + KV
-      try {
-        localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(arr.map((c) => c.nom)));
-        localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(arr.map((c) => c.monteur)));
-      } catch {}
-      const nomsEnc = arr.map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`).join(" | ");
-      const attrEnc = arr.map((c, i) => `Cab${i + 1}:${c.monteur || ""}`).join(" | ");
-      offlineFetch(`/api/projects/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nomsCabines: nomsEnc, attributionCabines: attrEnc }),
-      }).catch(() => {});
-      return arr;
-    });
+  // ⚠️ Réorganisation DÉSACTIVÉE temporairement. La réorganisation (glisser-
+  // déposer ET tri) ne déplaçait que les noms + le monteur du lot ; les données
+  // indexées par POSITION (photos « .CabN. », heures, sous-traitance, état,
+  // SAV) ne suivaient PAS → désynchronisation. On bloque toute réorganisation
+  // pour ne plus jamais mélanger les infos, en attendant une version qui
+  // déplace l'intégralité des données du lot.
+  const REORDER_DISABLED = true;
+  const reorderCabines = (_srcIdx: number, _dstIdx: number) => {
+    toast.error("Réorganisation désactivée le temps de corriger un bug. Vos données ne sont pas modifiées.");
   };
-
-  // Tri automatique des lots (même persistance que le glisser-déposer manuel :
-  // réencodage des noms + attribution par position).
-  //  - "alpha" : ordre alphanumérique naturel (A1, A2, A5, B1, B2, G.01, G.11…)
-  //  - "num"   : ordre du 1er nombre du nom (1, 2, 3…), quel que soit le préfixe.
-  const sortCabinesBy = (mode: "alpha" | "num") => {
-    const firstNum = (s: string) => { const m = (s || "").match(/\d+/); return m ? parseInt(m[0], 10) : Number.MAX_SAFE_INTEGER; };
-    const cmpAlpha = (a: string, b: string) => (a || "").localeCompare(b || "", "fr", { numeric: true, sensitivity: "base" });
-    setCabines((prev) => {
-      const arr = [...prev].sort((a, b) => {
-        if (mode === "num") { const d = firstNum(a.nom) - firstNum(b.nom); return d !== 0 ? d : cmpAlpha(a.nom, b.nom); }
-        return cmpAlpha(a.nom, b.nom);
-      });
-      try {
-        localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(arr.map((c) => c.nom)));
-        localStorage.setItem(`tm-cabin-monteurs-${id}`, JSON.stringify(arr.map((c) => c.monteur)));
-      } catch {}
-      const nomsEnc = arr.map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`).join(" | ");
-      const attrEnc = arr.map((c, i) => `Cab${i + 1}:${c.monteur || ""}`).join(" | ");
-      offlineFetch(`/api/projects/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nomsCabines: nomsEnc, attributionCabines: attrEnc }),
-      }).catch(() => {});
-      return arr;
-    });
-    toast.success(mode === "num" ? "Lots triés par numéro (1 → 9)" : "Lots triés (A → Z)");
+  const sortCabinesBy = (_mode: "alpha" | "num") => {
+    toast.error("Tri désactivé le temps de corriger un bug. Vos données ne sont pas modifiées.");
   };
   /**
    * Planifie une sauvegarde silencieuse en arrière-plan (debounce 2 s).
@@ -7871,8 +7835,12 @@ function ProjectPageContent({ id }: { id: string }) {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => setCabineDragMode(true)}
-                          className="text-xs text-gray-400 flex items-center gap-1 hover:text-gray-600"
+                          onClick={() => {
+                            if (REORDER_DISABLED) { toast.error("Réorganisation désactivée le temps de corriger un bug (les infos du lot ne suivaient pas). Vos données ne sont pas modifiées."); return; }
+                            setCabineDragMode(true);
+                          }}
+                          title="Réorganisation temporairement désactivée"
+                          className="text-xs text-gray-300 dark:text-gray-600 flex items-center gap-1 cursor-not-allowed"
                         >
                           <GripVertical className="w-3.5 h-3.5" />
                           Réorganiser
@@ -7924,6 +7892,7 @@ function ProjectPageContent({ id }: { id: string }) {
                             );
                           }}
                           onTouchStart={() => {
+                            if (REORDER_DISABLED) return; // réorganisation désactivée (bug de désync)
                             if (cabineDragMode) { cabineTouchSrcRef.current = idx; return; }
                             cabineLongPressTimer.current = setTimeout(() => {
                               setCabineDragMode(true);
