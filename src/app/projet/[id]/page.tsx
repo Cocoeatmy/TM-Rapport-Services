@@ -5401,69 +5401,6 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
     } finally { setCopyingSyntheseLink(false); }
   };
-  // ── Réparation ponctuelle TM-2600478 : remet l'ordre des lots d'origine
-  // (récupéré du PDF « Suivi du chantier » d'avant le bug de réorganisation).
-  // Réécrit noms + monteur responsable ; les données positionnelles (photos,
-  // heures, sous-traitance, SAV) n'ont jamais bougé → tout se réaligne.
-  const handleRestoreOrder2600478 = async () => {
-    const noms = [
-      "G.01","G.02","G.03","G.11","G.12","G.13","G.14","G.15","G.21","G.22",
-      "G.23","G.24","G.25","G.31","G.32","G.33","G.34","G.35","G.41","G.42",
-      "G.43","G.44","G.45","G.51","G.52","G.53","G.54","G.55","G.61","G.62",
-      "G.63","G.64","G.65","G.71","G.72","G.81","G.82","I.81","I.82","I.91",
-      "I.92","J.12","J.13","J.22","J.23","J.32 - Témoin 2","J.33 - Témoin 1","J.42","J.43","J.52",
-      "J.53","J.62","J.63","J.72","J.73","J.81","J.82","J.91","J.92","K.01",
-      "K.11","K.21","K.22","K.31","K.32","K.41","K.42","K.51","K.52","K.61",
-      "K.62","K.71","K.72","K.81","Cabine 7",
-    ];
-    // Monteur responsable interne par position (1-based) ; le reste = sous-traité/Team TM (vide).
-    const attr: Record<number, string> = {
-      13: "Jean-Marc", 15: "Jacobo", 16: "Jean-Marc", 29: "Jean-Marc", 30: "Miguel",
-      36: "Jean-Marc", 37: "Jean-Marc", 50: "Jacobo", 51: "Jacobo", 58: "Jacobo",
-      59: "Jacobo", 62: "Miguel",
-    };
-    const nomsCabines = noms.map((n, i) => `Cab${i + 1}:${n}`).join(" | ");
-    const attributionCabines = Object.entries(attr).map(([k, v]) => `Cab${k}:${v}`).join(" | ");
-    // Heures d'origine (par position) reconstituées depuis la fiche PDF d'avant le bug :
-    // date pour chaque lot TERMINÉ ; date + heures pour les lots des monteurs internes.
-    const heureArrivee = "Cab1:2026-08-17: | Cab2:2026-08-17: | Cab3:2026-08-17: | Cab4:2026-08-18: | Cab5:2026-08-18: | Cab6:2026-08-18: | Cab7:2026-08-18: | Cab8:2026-08-18: | Cab9:2026-08-20: | Cab10:2026-08-20: | Cab11:2026-08-20: | Cab12:2026-08-20: | Cab13:2026-08-19:13:07 | Cab14:2026-08-17: | Cab15:2026-08-21:08:57 | Cab16:2026-08-19:09:08 | Cab17:2026-08-17: | Cab18:2026-08-17: | Cab19:2026-08-17: | Cab20:2026-08-17: | Cab21:2026-08-17: | Cab22:2026-08-17: | Cab23:2026-08-17: | Cab24:2026-08-17: | Cab25:2026-08-17: | Cab26:2026-08-17: | Cab27:2026-08-17: | Cab28:2026-08-17: | Cab29:2026-08-17:12:43 | Cab30:2026-08-28:11:28 | Cab31:2026-08-17: | Cab32:2026-08-17: | Cab33:2026-08-17: | Cab34:2026-08-17: | Cab35:2026-08-17: | Cab36:2026-08-17:09:13 | Cab37:2026-08-17:10:59 | Cab38:2026-08-21: | Cab39:2026-08-21: | Cab40:2026-08-21: | Cab41:2026-08-21: | Cab42:2026-08-28: | Cab43:2026-08-28: | Cab44:2026-08-17: | Cab45:2026-08-28: | Cab46:2026-08-17: | Cab47:2026-08-28: | Cab48:2026-08-17: | Cab49:2026-08-17: | Cab50:2026-08-25:11:12 | Cab51:2026-08-25:12:21 | Cab52:2026-08-17: | Cab53:2026-08-17: | Cab54:2026-08-17: | Cab56:2026-08-17: | Cab57:2026-08-17: | Cab58:2026-08-21:11:42 | Cab59:2026-08-21:13:02 | Cab62:2026-08-28:13:13";
-    const heureDepart = "Cab1:2026-08-17: | Cab2:2026-08-17: | Cab3:2026-08-17: | Cab4:2026-08-18: | Cab5:2026-08-18: | Cab6:2026-08-18: | Cab7:2026-08-18: | Cab8:2026-08-18: | Cab9:2026-08-20: | Cab10:2026-08-20: | Cab11:2026-08-20: | Cab12:2026-08-20: | Cab13:2026-08-19:14:13 | Cab14:2026-08-17: | Cab15:2026-08-21:10:39 | Cab16:2026-08-19:12:43 | Cab17:2026-08-17: | Cab18:2026-08-17: | Cab19:2026-08-17: | Cab20:2026-08-17: | Cab21:2026-08-17: | Cab22:2026-08-17: | Cab23:2026-08-17: | Cab24:2026-08-17: | Cab25:2026-08-17: | Cab26:2026-08-17: | Cab27:2026-08-17: | Cab28:2026-08-17: | Cab29:2026-08-17:13:46 | Cab30:2026-08-28:12:46 | Cab31:2026-08-17: | Cab32:2026-08-17: | Cab33:2026-08-17: | Cab34:2026-08-17: | Cab35:2026-08-17: | Cab36:2026-08-17:10:35 | Cab37:2026-08-17:12:10 | Cab38:2026-08-21: | Cab39:2026-08-21: | Cab40:2026-08-21: | Cab41:2026-08-21: | Cab42:2026-08-28: | Cab43:2026-08-28: | Cab44:2026-08-17: | Cab45:2026-08-28: | Cab46:2026-08-17: | Cab47:2026-08-28: | Cab48:2026-08-17: | Cab49:2026-08-17: | Cab50:2026-08-25:12:09 | Cab51:2026-08-25:14:09 | Cab52:2026-08-17: | Cab53:2026-08-17: | Cab54:2026-08-17: | Cab56:2026-08-17: | Cab57:2026-08-17: | Cab58:2026-08-21:12:42 | Cab59:2026-08-21:14:15 | Cab62:2026-08-28:14:22";
-    toast.info("Restauration de l'ordre en cours…");
-    try {
-      const res = await fetch(`/api/projects/${id}/restore-order`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nomsCabines, attributionCabines, heureArrivee, heureDepart }),
-      });
-      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j?.error || `HTTP ${res.status}`); }
-      // Purge le cache local (le tri y avait écrit l'ordre trié) puis relit
-      // les données FRAÎCHES (cache-buster : contourne le cache CDN de 15 s) et
-      // force la ré-initialisation complète des lots dans le bon ordre.
-      try {
-        localStorage.removeItem(`tm-cabin-noms-${id}`);
-        localStorage.removeItem(`tm-cabin-monteurs-${id}`);
-      } catch {}
-      const fresh = await fetch(`/api/projects/${id}?_=${Date.now()}`, { cache: "no-store" }).then((r) => r.json());
-      // Diagnostic : ce qui est RÉELLEMENT écrit dans Notion (lecture sans cache).
-      const firstLot = (/Cab1\s*:([^|]*)/.exec(fresh?.nomsCabines || "")?.[1] || "?").trim();
-      const okWrite = firstLot === "G.01";
-      // Protège ces champs d'un éventuel revert par un polling au cache CDN
-      // encore périmé (fenêtre ~30 s), le temps que le CDN se rafraîchisse.
-      ["nomsCabines", "attributionCabines", "heureArrivee", "heureDepart"].forEach((f) =>
-        window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: f } })));
-      cabinesInitializedRef.current = null;
-      editablesInitializedRef.current = null;
-      setProject(fresh);
-      if (okWrite) {
-        alert("✅ Écrit dans Notion : lot n°1 = G.01 (ordre du PDF rétabli).\n\nSi l'affichage montre encore l'ancien ordre : ferme complètement l'app, attends ~1 minute (cache), puis rouvre — ce sera dans le bon ordre.");
-      } else {
-        alert(`⚠️ Après écriture, le lot n°1 lu dans Notion = « ${firstLot} » (attendu : G.01).\nDis-le à Claude tel quel.`);
-      }
-    } catch (e: any) {
-      console.error("Restauration ordre échouée:", e);
-      toast.error(`Échec de la restauration : ${e?.message || e}`);
-    }
-  };
   const handleDownloadPhotos = async () => {
     setDownloadingPhotos(true);
     try {
@@ -6256,17 +6193,6 @@ function ProjectPageContent({ id }: { id: string }) {
                   {copyingSyntheseLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
                   Copier le lien
                 </button>
-                {/* Réparation ponctuelle (admin) : rétablir l'ordre initial des lots. */}
-                {isAdmin && (project?.ofrTM || "").replace(/[\s-]/g, "").includes("2600478") && (
-                  <button
-                    type="button"
-                    onClick={handleRestoreOrder2600478}
-                    className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white active:scale-95 transition-all"
-                  >
-                    <ArrowDown01 className="w-4 h-4" />
-                    Rétablir l'ordre initial
-                  </button>
-                )}
               </div>
             </div>
           </CardHeader>
