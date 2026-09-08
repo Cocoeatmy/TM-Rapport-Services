@@ -5444,6 +5444,9 @@ function ProjectPageContent({ id }: { id: string }) {
         localStorage.removeItem(`tm-cabin-monteurs-${id}`);
       } catch {}
       const fresh = await fetch(`/api/projects/${id}?_=${Date.now()}`, { cache: "no-store" }).then((r) => r.json());
+      // Diagnostic : ce qui est RÉELLEMENT écrit dans Notion (lecture sans cache).
+      const firstLot = (/Cab1\s*:([^|]*)/.exec(fresh?.nomsCabines || "")?.[1] || "?").trim();
+      const okWrite = firstLot === "G.01";
       // Protège ces champs d'un éventuel revert par un polling au cache CDN
       // encore périmé (fenêtre ~30 s), le temps que le CDN se rafraîchisse.
       ["nomsCabines", "attributionCabines", "heureArrivee", "heureDepart"].forEach((f) =>
@@ -5451,7 +5454,11 @@ function ProjectPageContent({ id }: { id: string }) {
       cabinesInitializedRef.current = null;
       editablesInitializedRef.current = null;
       setProject(fresh);
-      toast.success("Ordre rétabli ✓ — les lots reviennent dans l'ordre du PDF.");
+      if (okWrite) {
+        alert("✅ Écrit dans Notion : lot n°1 = G.01 (ordre du PDF rétabli).\n\nSi l'affichage montre encore l'ancien ordre : ferme complètement l'app, attends ~1 minute (cache), puis rouvre — ce sera dans le bon ordre.");
+      } else {
+        alert(`⚠️ Après écriture, le lot n°1 lu dans Notion = « ${firstLot} » (attendu : G.01).\nDis-le à Claude tel quel.`);
+      }
     } catch (e: any) {
       console.error("Restauration ordre échouée:", e);
       toast.error(`Échec de la restauration : ${e?.message || e}`);
