@@ -6086,25 +6086,12 @@ function ProjectPageContent({ id }: { id: string }) {
                   <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Rapports</span>
                   <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
-                  {/* Rapport de suivi */}
-                  <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={downloadingSynthese} onClick={handleDownloadSynthese}
-                      className="h-9 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold bg-[#1e3a5f] hover:bg-[#16304f] text-white active:scale-95 transition-all disabled:opacity-60">
-                      {downloadingSynthese ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
-                      Rapport de suivi
-                    </button>
-                    <button type="button" disabled={copyingSyntheseLink} onClick={handleCopySyntheseLink}
-                      className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-[#1e3a5f]/40 text-[#1e3a5f] dark:text-blue-300 dark:border-blue-300/50 hover:bg-[#1e3a5f]/5 active:scale-95 transition-all disabled:opacity-60">
-                      {copyingSyntheseLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
-                      Copier le lien
-                    </button>
-                  </div>
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 items-start">
                   {/* Fiche de travail */}
                   <div className="flex flex-col gap-1.5">
                     <button type="button" disabled={downloadingFiche} onClick={handleDownloadFiche}
-                      className="h-9 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95 transition-all disabled:opacity-60">
-                      {downloadingFiche ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                      className="h-11 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold leading-tight text-center bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingFiche ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 shrink-0" />}
                       Fiche de travail
                     </button>
                     <button type="button" disabled={copyingFicheLink} onClick={handleCopyFicheLink}
@@ -6113,11 +6100,24 @@ function ProjectPageContent({ id }: { id: string }) {
                       Copier le lien
                     </button>
                   </div>
+                  {/* Rapport de suivi */}
+                  <div className="flex flex-col gap-1.5">
+                    <button type="button" disabled={downloadingSynthese} onClick={handleDownloadSynthese}
+                      className="h-11 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold leading-tight text-center bg-[#1e3a5f] hover:bg-[#16304f] text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingSynthese ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <ClipboardList className="w-4 h-4 shrink-0" />}
+                      Rapport de suivi
+                    </button>
+                    <button type="button" disabled={copyingSyntheseLink} onClick={handleCopySyntheseLink}
+                      className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-[#1e3a5f]/40 text-[#1e3a5f] dark:text-blue-300 dark:border-blue-300/50 hover:bg-[#1e3a5f]/5 active:scale-95 transition-all disabled:opacity-60">
+                      {copyingSyntheseLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                      Copier le lien
+                    </button>
+                  </div>
                   {/* Rapport SAV */}
                   <div className="flex flex-col gap-1.5">
                     <button type="button" disabled={downloadingSav} onClick={() => handleDownloadSav()}
-                      className="h-9 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60">
-                      {downloadingSav ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
+                      className="h-11 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold leading-tight text-center bg-amber-600 hover:bg-amber-700 text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingSav ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <Wrench className="w-4 h-4 shrink-0" />}
                       Rapport SAV
                     </button>
                     <button type="button" disabled={copyingSavLink} onClick={() => handleCopySavLink()}
@@ -6126,12 +6126,12 @@ function ProjectPageContent({ id }: { id: string }) {
                       Copier le lien
                     </button>
                   </div>
-                  {/* PDF Interne (rapport de montage) */}
+                  {/* Rapport de montage « interne » */}
                   <div className="flex flex-col gap-1.5">
                     <button type="button" disabled={downloadingPdf} onClick={() => handleDownloadPdf(false)}
-                      className="h-9 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-all disabled:opacity-60">
-                      {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                      PDF Interne
+                      className="h-11 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold leading-tight text-center bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingPdf ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <FileText className="w-4 h-4 shrink-0" />}
+                      Rapport de montage « interne »
                     </button>
                     <button type="button" disabled={copyingPdfLink} onClick={handleCopyPdfLink}
                       className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-emerald-500/40 text-emerald-600 dark:text-emerald-300 dark:border-emerald-400/50 hover:bg-emerald-500/5 active:scale-95 transition-all disabled:opacity-60">
@@ -6139,12 +6139,12 @@ function ProjectPageContent({ id }: { id: string }) {
                       Copier le lien
                     </button>
                   </div>
-                  {/* PDF Client (rapport de montage SANS les heures) */}
+                  {/* Rapport de montage « Clients » (sans les heures) */}
                   <div className="flex flex-col gap-1.5">
                     <button type="button" disabled={downloadingPdf} onClick={() => handleDownloadPdf(true)}
-                      className="h-9 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white active:scale-95 transition-all disabled:opacity-60">
-                      {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                      PDF Client
+                      className="h-11 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold leading-tight text-center bg-teal-600 hover:bg-teal-700 text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingPdf ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <FileText className="w-4 h-4 shrink-0" />}
+                      Rapport de montage « Clients »
                     </button>
                     <button type="button" disabled={copyingPdfClientLink} onClick={handleCopyPdfClientLink}
                       className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-teal-500/40 text-teal-600 dark:text-teal-300 dark:border-teal-400/50 hover:bg-teal-500/5 active:scale-95 transition-all disabled:opacity-60">
