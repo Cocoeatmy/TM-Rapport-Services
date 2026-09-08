@@ -8036,7 +8036,9 @@ function ProjectPageContent({ id }: { id: string }) {
                       )}
                     </div>
                     {/* Réorganiser l'AFFICHAGE des lots (ne déplace aucune donnée :
-                        le contenu reste soudé à son lot). 3 modes : Défaut / Alpha / Num. */}
+                        le contenu reste soudé à son lot). 3 modes : Défaut / Alpha / Num.
+                        ADMIN uniquement — invisible pour les utilisateurs standard. */}
+                    {isAdmin && (
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs text-gray-400 mr-0.5 hidden sm:inline">Trier :</span>
                       <button
@@ -8070,6 +8072,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         1→9
                       </button>
                     </div>
+                    )}
                   </div>
 
                   {displayOrder
