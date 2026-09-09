@@ -3243,13 +3243,32 @@ function HomePage() {
                   {fournisseursFiltered.length} projet{fournisseursFiltered.length !== 1 ? "s" : ""}{" · "}{fournisseursFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cabine{fournisseursFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
                 </p>
                 {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
-                <div className="space-y-3">
-                  {fournisseursFiltered.map((project) => {
+                {/* Lignes compactes (même esthétique que « RDV Montage à fixer ») */}
+                <div className="space-y-1.5">
+                  {fournisseursFiltered.map((project, idx) => {
                     const fTypeLbl = fournisseurType === "mesures" ? "Mesures" : fournisseurType === "services" ? "Services" : fournisseurType === "sav" ? "SAV" : "Montage";
                     const fTypeD = fTypeDate(project);
+                    const etat = fTypeEtat(project);
+                    const etatCls = (fournisseurType === "mesures" ? STATUS_MESURES_COLORS[etat] : STATUS_CMD_COLORS[etat]) || "bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300";
+                    const rowBg = idx % 2 === 0 ? "bg-white/70 dark:bg-slate-800/50" : "bg-blue-50/40 dark:bg-blue-950/15";
                     return (
-                    <ProjectCard key={project.id} project={project} mode={fTypeCardMode} isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow}
-                      extraLine={`${fTypeLbl} : ${fTypeD ? formatDateFR(fTypeD) : "—"}`} />
+                      <Link key={project.id} href={`/projet/${project.id}?mode=${fTypeCardMode}`} prefetch={!isFloatingWindow}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100/60 dark:hover:bg-blue-900/30 transition-colors ${rowBg}`}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-snug line-clamp-2">{project.projet}</p>
+                          <div className="mt-0.5 flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                            {project.ofrTM && <span className="font-mono">OFR {project.ofrTM}</span>}
+                            <span className="inline-flex items-center gap-1 font-medium text-[#1e3a5f] dark:text-blue-300">
+                              <Calendar className="w-3 h-3 shrink-0" />{fTypeLbl} : {fTypeD ? formatDateFR(fTypeD) : "—"}
+                            </span>
+                            {!!project.nbCabines && <span>{project.nbCabines} cab.</span>}
+                          </div>
+                        </div>
+                        {etat && (
+                          <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${etatCls}`}>{etat}</span>
+                        )}
+                        <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                      </Link>
                     );
                   })}
                   {fournisseursFiltered.length === 0 && !loading && (
