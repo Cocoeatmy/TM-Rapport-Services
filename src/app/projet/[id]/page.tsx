@@ -3726,7 +3726,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [contactPreview, setContactPreview] = useState<{ id: string; name: string; phone?: string; email?: string } | null>(null);
   const [savRowBusy, setSavRowBusy] = useState("");
   const [showSavCard, setShowSavCard] = useState(false);
-  const [showSignalementsCard, setShowSignalementsCard] = useState(false);
+  const [showSuiviSignalements, setShowSuiviSignalements] = useState(false); // onglet « Suivi des Signalements » repliable
   // Quel type de rapport est en cours (pour n'animer que le bon bouton) :
   // "interne" (avec heures) ou "client" (sans heures).
   const [sendKind, setSendKind] = useState<null | "interne" | "client">(null);
@@ -7699,12 +7699,12 @@ function ProjectPageContent({ id }: { id: string }) {
             {/* ── Suivi des Signalements (récap + rapport PDF) ────────────────── */}
             <Card>
               <CardHeader className="pb-2">
-                <button type="button" onClick={() => setShowSignalementsCard((v) => !v)} className="w-full flex items-center justify-between">
+                <button type="button" onClick={() => setShowSuiviSignalements((v) => !v)} className="w-full flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2 font-semibold text-rose-700 dark:text-rose-400"><AlertCircle className="w-4 h-4" />Suivi des Signalements</CardTitle>
-                  {showSignalementsCard ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                  {showSuiviSignalements ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                 </button>
               </CardHeader>
-              {showSignalementsCard && <CardContent className="space-y-4">
+              {showSuiviSignalements && <CardContent className="space-y-4">
                 {(() => {
                   const pieces = cabineSignalements.pieces;
                   const defauts = cabineSignalements.defauts;

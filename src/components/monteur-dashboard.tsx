@@ -1250,7 +1250,10 @@ const PANEL_DATE_FIELD: Record<string, (p: Project) => string | null | undefined
   "rdv-mesures-a-fixer":  (p) => p.dateMesuresRecue,
   "rdv-sav-a-fixer":      (p) => earliestSavRecuDate(p),
   "rdv-services-a-fixer": (p) => p.dateDemandeProjet,
-  "soucis-en-cours":      (p) => p.dateSoucisMontage,
+  // Soucis en cours : date du JOUR OÙ LE SOUCI A EU LIEU = jour du montage
+  // (dateMontage). On garde « Date - Soucis montage » en repli si le montage
+  // n'a pas de date. Sert au regroupement + au badge J+x par ligne.
+  "soucis-en-cours":      (p) => p.dateMontage || p.dateSoucisMontage,
 };
 
 // Champ d'état filtrable pour les panneaux "RDV … à fixer" (filtre par état).
@@ -5708,6 +5711,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             <span className="block text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1 mt-0">{p.nomChantier}</span>
                           )}
                         </span>
+                        {/* Soucis en cours : J+x = jours depuis le jour du montage
+                            (date du soucis). Affiché par ligne (Par date ET Par région). */}
+                        {showSummaryPanel === "soucis-en-cours" && (() => {
+                          const info = getDaysInfoFromDate(p.dateMontage || p.dateSoucisMontage);
+                          if (!info) return null;
+                          return (
+                            <span className={`shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-full ${info.bgClass} ${info.colorClass}`}>
+                              J+{info.days}
+                            </span>
+                          );
+                        })()}
                         {/* J+x par ligne en mode région (NPA) : les groupes ne sont
                             plus par date, donc on l'affiche sur chaque projet. */}
                         {isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer" || showSummaryPanel === "rdv-sav-a-fixer") && (() => {
