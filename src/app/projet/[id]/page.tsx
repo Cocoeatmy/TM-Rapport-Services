@@ -3726,6 +3726,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [contactPreview, setContactPreview] = useState<{ id: string; name: string; phone?: string; email?: string } | null>(null);
   const [savRowBusy, setSavRowBusy] = useState("");
   const [showSavCard, setShowSavCard] = useState(false);
+  const [showSignalementsCard, setShowSignalementsCard] = useState(false);
   // Quel type de rapport est en cours (pour n'animer que le bon bouton) :
   // "interne" (avec heures) ou "client" (sans heures).
   const [sendKind, setSendKind] = useState<null | "interne" | "client">(null);
@@ -7694,6 +7695,65 @@ function ProjectPageContent({ id }: { id: string }) {
                 </CardContent>}
               </Card>
             )}
+
+            {/* ── Suivi des Signalements (récap + rapport PDF) ────────────────── */}
+            <Card>
+              <CardHeader className="pb-2">
+                <button type="button" onClick={() => setShowSignalementsCard((v) => !v)} className="w-full flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-rose-700 dark:text-rose-400"><AlertCircle className="w-4 h-4" />Suivi des Signalements</CardTitle>
+                  {showSignalementsCard ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                </button>
+              </CardHeader>
+              {showSignalementsCard && <CardContent className="space-y-4">
+                {(() => {
+                  const pieces = cabineSignalements.pieces;
+                  const defauts = cabineSignalements.defauts;
+                  const nbPieces = pieces.length;
+                  const nbPiecesRecu = pieces.filter((p) => p.status === "recu").length;
+                  const avant = defauts.filter((d) => d.phase === "avant-intervention");
+                  const defautsStd = defauts.filter((d) => d.phase !== "avant-intervention");
+                  const nbRegle = defauts.filter((d) => d.resolved).length;
+                  const total = nbPieces + defauts.length;
+                  if (total === 0) return <p className="text-xs text-gray-400 text-center py-2">Aucun signalement enregistré sur ce projet.</p>;
+                  const Stat = ({ label, value, color }: { label: string; value: number; color: string }) => (
+                    <div className="flex-1 min-w-[80px] rounded-xl bg-gray-50 dark:bg-slate-700/50 px-3 py-2 text-center">
+                      <div className="text-lg font-bold" style={{ color }}>{value}</div>
+                      <div className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">{label}</div>
+                    </div>
+                  );
+                  return (
+                    <div className="flex flex-wrap gap-2">
+                      <Stat label="Pièces manquantes" value={nbPieces} color="#ea580c" />
+                      {nbPiecesRecu > 0 && <Stat label="Pièces reçues" value={nbPiecesRecu} color="#15803d" />}
+                      <Stat label="Défauts" value={defautsStd.length} color="#dc2626" />
+                      {avant.length > 0 && <Stat label="Constats avant" value={avant.length} color="#4f46e5" />}
+                      {nbRegle > 0 && <Stat label="Défauts réglés" value={nbRegle} color="#15803d" />}
+                    </div>
+                  );
+                })()}
+
+                {/* Rapport PDF des signalements (photos incluses). Respecte la
+                    case « Ne pas afficher » de chaque signalement. */}
+                <div className="pt-2 border-t border-gray-100 dark:border-slate-700">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2 px-1">
+                    Inclut tous les signalements sauf ceux cochés « Ne pas afficher ».
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button type="button" disabled={downloadingSignalements} onClick={handleDownloadSignalements}
+                      className="flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingSignalements ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertCircle className="w-4 h-4" />}
+                      Rapport des signalements
+                    </button>
+                    <button type="button" disabled={copyingSignalementsLink} onClick={handleCopySignalementsLink}
+                      title="Copier un lien public vers ce rapport"
+                      className="flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold border border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20 active:scale-95 transition-all disabled:opacity-60">
+                      {copyingSignalementsLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                      Copier le lien
+                    </button>
+                  </div>
+                </div>
+              </CardContent>}
+            </Card>
 
             <Separator />
 
