@@ -3712,6 +3712,8 @@ function ProjectPageContent({ id }: { id: string }) {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [copyingPdfLink, setCopyingPdfLink] = useState(false);
   const [copyingPdfClientLink, setCopyingPdfClientLink] = useState(false);
+  const [downloadingSignalements, setDownloadingSignalements] = useState(false);
+  const [copyingSignalementsLink, setCopyingSignalementsLink] = useState(false);
   const [downloadingFiche, setDownloadingFiche] = useState(false);
   const [copyingFicheLink, setCopyingFicheLink] = useState(false);
   const [downloadingSav, setDownloadingSav] = useState(false);
@@ -5467,6 +5469,41 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
     } finally { setCopyingPdfClientLink(false); }
   };
+  // ── Rapport des signalements (pièces + défauts + constats) ─────────────────
+  const handleDownloadSignalements = async () => {
+    setDownloadingSignalements(true);
+    try {
+      const res = await fetch(`/api/rapport-signalements/${id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      let filename = "Rapport signalements.pdf";
+      const cd = res.headers.get("Content-Disposition");
+      const m = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      if (m?.[1]) filename = decodeURIComponent(m[1]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error("Téléchargement Rapport signalements échoué:", e);
+      toast.error("Impossible de générer le rapport des signalements.");
+    } finally { setDownloadingSignalements(false); }
+  };
+  const handleCopySignalementsLink = async () => {
+    setCopyingSignalementsLink(true);
+    try {
+      const res = await fetch(`/api/rapport-signalements/${id}?link=1`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data?.url) throw new Error("no url");
+      await navigator.clipboard.writeText(data.url);
+      toast.success("Lien du rapport des signalements copié");
+    } catch (e) {
+      console.error("Lien Rapport signalements échoué:", e);
+      toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
+    } finally { setCopyingSignalementsLink(false); }
+  };
   // ── Rapport SAV : PDF + lien public ────────────────────────────────────────
   const handleDownloadSav = async (collab?: string) => {
     setDownloadingSav(true);
@@ -6208,7 +6245,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Rapports</span>
                   <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 items-start">
+                <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 items-start">
                   {/* Fiche de travail */}
                   <div className="flex flex-col gap-1.5">
                     <button type="button" disabled={downloadingFiche} onClick={handleDownloadFiche}
@@ -6277,6 +6314,19 @@ function ProjectPageContent({ id }: { id: string }) {
                     <button type="button" disabled={copyingPdfClientLink} onClick={handleCopyPdfClientLink}
                       className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-teal-500/40 text-teal-600 dark:text-teal-300 dark:border-teal-400/50 hover:bg-teal-500/5 active:scale-95 transition-all disabled:opacity-60">
                       {copyingPdfClientLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                      Copier le lien
+                    </button>
+                  </div>
+                  {/* Rapport des signalements (pièces + défauts + constats) */}
+                  <div className="flex flex-col gap-1.5">
+                    <button type="button" disabled={downloadingSignalements} onClick={handleDownloadSignalements}
+                      className="h-11 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold leading-tight text-center bg-rose-600 hover:bg-rose-700 text-white active:scale-95 transition-all disabled:opacity-60">
+                      {downloadingSignalements ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                      Signalements
+                    </button>
+                    <button type="button" disabled={copyingSignalementsLink} onClick={handleCopySignalementsLink}
+                      className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-rose-500/40 text-rose-600 dark:text-rose-300 dark:border-rose-400/50 hover:bg-rose-500/5 active:scale-95 transition-all disabled:opacity-60">
+                      {copyingSignalementsLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
                       Copier le lien
                     </button>
                   </div>
