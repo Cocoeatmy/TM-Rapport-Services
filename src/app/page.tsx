@@ -3192,26 +3192,17 @@ function HomePage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input placeholder="Rechercher..." className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
                 </div>
-                {/* Filtre par TYPE d'activité (Mesures / Montage / Services / SAV) */}
-                <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
-                  {([
-                    { key: "tous", label: "Tous" },
-                    { key: "mesures", label: "Mesures" },
-                    { key: "montage", label: "Montage" },
-                    { key: "services", label: "Services" },
-                    { key: "sav", label: "SAV" },
-                  ] as const).map((t) => (
-                    <button key={t.key} onClick={() => { setFournisseurType(t.key); setStatusFilter(null); }}
-                      className={`shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-colors ${fournisseurType === t.key ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-600"}`}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
                 {/* Période (mois / année / plage / 12 mois) — filtre sur la date du type */}
                 <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
                   onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
-                {/* Récap par type dans la période (pointage facture mensuelle) */}
+                {/* Récap par type dans la période (pointage facture mensuelle).
+                    « Tous » réinitialise le type (fait aussi office de filtre type). */}
                 <div className="flex flex-wrap gap-2 mb-3">
+                  <button onClick={() => { setFournisseurType("tous"); setStatusFilter(null); }}
+                    title="Tous les types"
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-gray-700 bg-gray-100 dark:bg-slate-700 dark:text-gray-200 ${fournisseurType === "tous" && statusFilter !== "Soucis montage" ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
+                    Tous
+                  </button>
                   {([
                     { key: "mesures", label: "Mesures", n: fRecap.mesures, cls: "text-cyan-700 bg-cyan-50 dark:bg-cyan-900/20 dark:text-cyan-300" },
                     { key: "montage", label: "Montage", n: fRecap.montage, cls: "text-orange-700 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-300" },
