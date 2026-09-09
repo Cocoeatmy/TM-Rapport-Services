@@ -103,6 +103,17 @@ const DEFAUT_AVANT_TYPES = [
   { id: "autre", label: "Autre" },
 ] as const;
 
+// Types du « défaut » standard (miroir de DEFAUT_TYPES dans defaut-form.tsx) —
+// utilisé pour re-cocher les types lors de la MODIFICATION d'un défaut.
+const DEFAUT_STD_TYPES = [
+  { id: "usine", label: "Défaut d'usine" },
+  { id: "mesures", label: "Erreur de mesures" },
+  { id: "article", label: "Mauvais article" },
+  { id: "couleur", label: "Erreur de couleur" },
+  { id: "transport", label: "Dommage de transport" },
+  { id: "montage", label: "Problème de montage" },
+] as const;
+
 const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m => ({ default: m.VoiceRecorder })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-10" />,
@@ -1181,6 +1192,14 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
     } catch { toast.error("Erreur réseau"); }
     finally { setSaving(false); }
   };
+  // Ajout/suppression de photos d'une pièce (édition) → PATCH immédiat.
+  const updatePiecePhotos = async (id: string, photoUrls: string[]) => {
+    setPieces((prev) => prev.map((p) => p.id === id ? { ...p, photoUrls } : p));
+    try {
+      await fetch("/api/pieces", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, photoUrls }) });
+    } catch { toast.error("Erreur réseau (photos)"); }
+  };
 
   const visiblePieces = cabineLabel
     ? pieces.filter((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabineLabel))
@@ -1249,12 +1268,23 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
                   <input value={editDraft.reference} onChange={(e) => setEditDraft((d) => ({ ...d, reference: e.target.value }))}
                     className="w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 mt-0.5" />
                 </div>
+                {/* Ajout / suppression de photos (persisté immédiatement) */}
+                <PhotoUpload
+                  category="pieces"
+                  label="Photos de la pièce"
+                  projectId={projectId}
+                  notionField="Photos pour signalements"
+                  filePrefix="piece"
+                  existingPhotos={(p.photoUrls && p.photoUrls.length > 0 ? p.photoUrls : (p.photoUrl ? [p.photoUrl] : [])).map((url, i) => ({ name: `piece-${i + 1}.jpg`, url }))}
+                  onUpload={(files) => updatePiecePhotos(p.id, [...(p.photoUrls && p.photoUrls.length > 0 ? p.photoUrls : (p.photoUrl ? [p.photoUrl] : [])), ...files.map((f) => f.url)])}
+                  onDelete={(files) => updatePiecePhotos(p.id, files.map((f) => f.url))}
+                />
                 <div className="flex gap-1">
                   <button onClick={() => handleSaveEdit(p.id)} disabled={saving}
                     className="text-xs bg-green-500 text-white px-3 py-1 rounded-lg disabled:opacity-50">
                     {saving ? "..." : "✓ Enregistrer"}
                   </button>
-                  <button onClick={() => setEditing(null)} className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">Annuler</button>
+                  <button onClick={() => setEditing(null)} className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">Fermer</button>
                 </div>
               </div>
             ) : (
@@ -1268,7 +1298,7 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
               {p.user || "—"}{p.timestamp ? ` · ${new Date(p.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" })}` : ""}
             </p>
 
-            {photos.length > 0 && (
+            {!isEditing && photos.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                 {photos.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
@@ -1307,7 +1337,7 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
   const [loaded, setLoaded] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState("");
+  const [editDraft, setEditDraft] = useState<{ description: string; types: string[]; otherText: string }>({ description: "", types: [], otherText: "" });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -1377,17 +1407,48 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
     finally { setDeleting(null); }
   };
 
-  const startEdit = (d: Defaut) => { setEditing(d.id); setEditDraft(d.description || ""); };
+  // Liste de types selon le type de défaut (avant intervention ou standard).
+  const typeListFor = (d: Defaut) => (d.phase === "avant-intervention" ? DEFAUT_AVANT_TYPES : DEFAUT_STD_TYPES);
+  const startEdit = (d: Defaut) => {
+    const list = typeListFor(d);
+    const byId = new Map<string, string>(list.map((t) => [t.id as string, t.label as string]));
+    const labelSet = new Set<string>(list.map((t) => t.label as string));
+    const hasAutre = list.some((t) => t.id === "autre");
+    const raw = (d.types && d.types.length > 0) ? d.types : (d.typesLabel || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const selected: string[] = [];
+    let otherText = "";
+    for (const entry of raw) {
+      if (byId.has(entry)) selected.push(byId.get(entry)!);        // ancien format = id → libellé
+      else if (labelSet.has(entry)) selected.push(entry);          // déjà un libellé connu
+      else if (hasAutre) { otherText = entry; if (!selected.includes("Autre")) selected.push("Autre"); }
+      else selected.push(entry);                                   // libellé libre (défaut std)
+    }
+    setEditing(d.id);
+    setEditDraft({ description: d.description || "", types: selected, otherText });
+  };
 
   const handleSaveEdit = async (id: string) => {
     setSaving(true);
     try {
+      // Libellés finaux : « Autre » remplacé par le texte saisi.
+      const finalLabels = editDraft.types.map((l) => (l === "Autre" && editDraft.otherText.trim() ? editDraft.otherText.trim() : l));
+      const typesLabel = finalLabels.join(", ");
       const res = await fetch("/api/defauts", { method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, description: editDraft }) });
-      if (res.ok) { setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, description: editDraft } : d)); setEditing(null); }
-      else { toast.error("Erreur lors de la modification"); }
+        body: JSON.stringify({ id, description: editDraft.description, types: finalLabels, typesLabel }) });
+      if (res.ok) {
+        setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, description: editDraft.description, types: finalLabels, typesLabel } : d));
+        setEditing(null);
+      } else { toast.error("Erreur lors de la modification"); }
     } catch { toast.error("Erreur réseau"); }
     finally { setSaving(false); }
+  };
+  // Ajout/suppression de photos d'un défaut (édition) → PATCH immédiat.
+  const updateDefautPhotos = async (id: string, photoUrls: string[]) => {
+    setDefauts((prev) => prev.map((d) => d.id === id ? { ...d, photoUrls } : d));
+    try {
+      await fetch("/api/defauts", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, photoUrls }) });
+    } catch { toast.error("Erreur réseau (photos)"); }
   };
 
   const visibleDefauts = cabineLabel
@@ -1479,17 +1540,52 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
               </div>
             )}
 
-            {/* Description — éditable */}
+            {/* Description + TYPES — éditables */}
             {isEditing ? (
               <div className="space-y-2 mb-2">
-                <textarea value={editDraft} onChange={(e) => setEditDraft(e.target.value)}
+                {/* Re-choix des types de défaut */}
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-1">Type(s)</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {typeListFor(d).map((t) => {
+                      const sel = editDraft.types.includes(t.label);
+                      return (
+                        <button key={t.id} type="button"
+                          onClick={() => setEditDraft((prev) => ({ ...prev, types: sel ? prev.types.filter((x) => x !== t.label) : [...prev.types, t.label] }))}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-colors ${sel ? "bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-600" : "bg-gray-100 text-gray-600 border border-gray-200 dark:bg-slate-700 dark:text-gray-300 dark:border-slate-600"}`}>
+                          {sel && <Check className="w-3 h-3" />}{t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {editDraft.types.includes("Autre") && (
+                    <input type="text" value={editDraft.otherText}
+                      onChange={(e) => setEditDraft((prev) => ({ ...prev, otherText: e.target.value }))}
+                      placeholder="Précisez…"
+                      className="mt-1.5 w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200" />
+                  )}
+                </div>
+                {/* Description */}
+                <textarea value={editDraft.description} onChange={(e) => setEditDraft((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="Description du défaut…"
                   className="w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none" rows={3} />
+                {/* Ajout / suppression de photos (persisté immédiatement) */}
+                <PhotoUpload
+                  category="defauts"
+                  label="Photos du défaut"
+                  projectId={projectId}
+                  notionField="Photos pour signalements"
+                  filePrefix="defaut"
+                  existingPhotos={(d.photoUrls || []).map((url, i) => ({ name: `defaut-${i + 1}.jpg`, url }))}
+                  onUpload={(files) => updateDefautPhotos(d.id, [...(d.photoUrls || []), ...files.map((f) => f.url)])}
+                  onDelete={(files) => updateDefautPhotos(d.id, files.map((f) => f.url))}
+                />
                 <div className="flex gap-1">
                   <button onClick={() => handleSaveEdit(d.id)} disabled={saving}
                     className="text-xs bg-green-500 text-white px-3 py-1 rounded-lg disabled:opacity-50">
                     {saving ? "..." : "✓ Enregistrer"}
                   </button>
-                  <button onClick={() => setEditing(null)} className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">Annuler</button>
+                  <button onClick={() => setEditing(null)} className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">Fermer</button>
                 </div>
               </div>
             ) : d.description ? (
@@ -1501,8 +1597,8 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
               {d.user || "—"}{d.timestamp ? ` · ${new Date(d.timestamp).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" })}` : ""}
             </p>
 
-            {/* Photos */}
-            {d.photoUrls && d.photoUrls.length > 0 && (
+            {/* Photos (vue non-édition ; en édition, PhotoUpload les gère) */}
+            {!isEditing && d.photoUrls && d.photoUrls.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                 {d.photoUrls.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
