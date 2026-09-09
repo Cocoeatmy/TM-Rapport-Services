@@ -3161,6 +3161,7 @@ function HomePage() {
           montage:  fUnion.filter((p) => p.dateMontage && inStatsPeriod(p.dateMontage)).length,
           services: fUnion.filter((p) => (p.typeServices && p.typeServices.length > 0) && inStatsPeriod(p.dateDemandeProjet || p.dateOffre || p.dateMontage)).length,
           sav:      fUnion.filter((p) => (p.sav || p.etatSAV || p.dateSAVRecu || p.dateRDVSAV) && inStatsPeriod(p.dateSAVRecu || p.dateRDVSAV)).length,
+          soucis:   fUnion.filter((p) => p.etatCMD === "Soucis montage" && inStatsPeriod(p.dateMontage || p.dateSoucisMontage)).length,
         };
         const fTypeCardMode: "cmd" | "mesures" = fournisseurType === "mesures" ? "mesures" : "cmd";
 
@@ -3223,6 +3224,12 @@ function HomePage() {
                       {r.label} : {r.n}
                     </button>
                   ))}
+                  {/* Soucis montage (statut) — projets en souci sur la période */}
+                  <button onClick={() => { setFournisseurType("montage"); setStatusFilter(statusFilter === "Soucis montage" ? null : "Soucis montage"); }}
+                    title="Voir les projets en soucis de montage de la période"
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-300 ${statusFilter === "Soucis montage" ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
+                    Soucis montage : {fRecap.soucis}
+                  </button>
                 </div>
                 {/* Puces de statut (état du type sélectionné, dans la période) */}
                 <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
