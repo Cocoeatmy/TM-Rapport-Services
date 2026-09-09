@@ -21,7 +21,7 @@ import { getFavorites } from "@/lib/favorites";
 import { fetchWithRetry, prefetchProject } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import { toast as sonnerToast } from "sonner";
-import { StatsDateFilter, filterByStatsDate, type StatsDateMode } from "@/components/stats-date-filter";
+import { StatsDateFilter, filterByStatsDate, getRolling12Range, type StatsDateMode } from "@/components/stats-date-filter";
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
@@ -1302,6 +1302,8 @@ function HomePage() {
   const [cmmHeroMode, setCmmHeroMode] = useState<string | null>(null);
   const [crmTagFilter, setCrmTagFilter] = useState<string | null>(null);
   const [subView, setSubView] = useState<"projets" | "stats">("projets");
+  // Filtre TYPE d'activité de la vue Fournisseurs (suivi mensuel).
+  const [fournisseurType, setFournisseurType] = useState<"tous" | "mesures" | "montage" | "services" | "sav">("tous");
   const [statsDateMode, setStatsDateMode] = useState<StatsDateMode>("all");
   const [statsDateFrom, setStatsDateFrom] = useState("");
   const [statsDateTo, setStatsDateTo] = useState("");
@@ -3078,29 +3080,86 @@ function HomePage() {
           return true;
         });
 
-        const fournisseursFiltered = fournisseursProjects.filter((p) => {
-          if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
-          if (statusFilter && p.etatCMD !== statusFilter) return false;
-          return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
-        }).sort((a, b) => {
-          const dateA = a.dateMontage;
-          const dateB = b.dateMontage;
-          if (dateA && dateB) return dateA.localeCompare(dateB);
-          if (dateA && !dateB) return -1;
-          if (!dateA && dateB) return 1;
-          return (STATUS_SORT_ORDER[a.etatCMD] ?? 5) - (STATUS_SORT_ORDER[b.etatCMD] ?? 5);
-        });
-
-        const fStatusCounts = fournisseursProjects.reduce<Record<string, number>>((acc, p) => {
-          if (p.etatCMD) acc[p.etatCMD] = (acc[p.etatCMD] || 0) + 1;
-          return acc;
-        }, {});
-
-        const fStatsFiltered = filterByStatsDate(fournisseursProjects, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+        // ── Archives (projets terminés) du fournisseur ──
         const fArchivesAll = (projectsData["archives"] || []).filter((p: any) => {
           if (nameFilter) return p.projet.toLowerCase().startsWith(nameFilter.toLowerCase());
           return p.typeClient === "Fournisseurs" || p.typeClient === "Fournisseur";
         });
+
+        // ── Filtre par TYPE d'activité (Mesures / Montage / Services / SAV) ──
+        // Chaque type a sa DATE et son ÉTAT de référence.
+        const fTypeDate = (p: any): string | null => {
+          switch (fournisseurType) {
+            case "mesures":  return p.dateMesures || p.dateMesuresRecue;
+            case "services": return p.dateDemandeProjet || p.dateOffre || p.dateMontage;
+            case "sav":      return p.dateSAVRecu || p.dateRDVSAV;
+            default:         return p.dateMontage; // montage / tous
+          }
+        };
+        const fTypeEtat = (p: any): string =>
+          fournisseurType === "mesures" ? p.etatMesures : fournisseurType === "sav" ? p.etatSAV : p.etatCMD;
+        const fTypeHas = (p: any): boolean => {
+          switch (fournisseurType) {
+            case "mesures":  return !!(p.dateMesures || p.dateMesuresRecue || p.etatMesures);
+            case "montage":  return !!p.dateMontage;
+            case "services": return !!(p.typeServices && p.typeServices.length > 0);
+            case "sav":      return !!(p.sav || p.etatSAV || p.dateSAVRecu || p.dateRDVSAV);
+            default:         return true;
+          }
+        };
+        // Filtre période (mois / année / plage / 12 mois) sur une date quelconque.
+        const inStatsPeriod = (dstr: string | null | undefined): boolean => {
+          if (statsDateMode === "all") return true;
+          const d = (dstr || "").split("T")[0];
+          if (!d) return false;
+          if (statsDateMode === "month") return d.startsWith(statsMonth);
+          if (statsDateMode === "year") return d.startsWith(statsYear);
+          const r12 = statsDateMode === "rolling12" ? getRolling12Range() : null;
+          const f = r12 ? r12.from : statsDateFrom;
+          const t = r12 ? r12.to : statsDateTo;
+          if (f && d < f) return false;
+          if (t && d > t) return false;
+          return true;
+        };
+        // Base : projets actifs + (dès qu'une PÉRIODE est choisie) les terminés,
+        // pour un suivi mensuel complet (pointage de la facture). Dédup par id.
+        const includeArchives = statsDateMode !== "all";
+        const fDedup = new Map<string, any>();
+        [...fournisseursProjects, ...(includeArchives ? fArchivesAll : [])].forEach((p: any) => { if (!fDedup.has(p.id)) fDedup.set(p.id, p); });
+        const fUnion = [...fDedup.values()];
+        const fournisseursBase = fUnion.filter(fTypeHas);
+
+        const fournisseursFiltered = fournisseursBase.filter((p) => {
+          if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
+          if (statusFilter && fTypeEtat(p) !== statusFilter) return false;
+          if (!inStatsPeriod(fTypeDate(p))) return false;
+          return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
+        }).sort((a, b) => {
+          const da = (fTypeDate(a) || ""); const db = (fTypeDate(b) || "");
+          if (da && db) return db.localeCompare(da); // plus récent en premier
+          if (da && !db) return -1;
+          if (!da && db) return 1;
+          return (STATUS_SORT_ORDER[a.etatCMD] ?? 5) - (STATUS_SORT_ORDER[b.etatCMD] ?? 5);
+        });
+
+        // Compteurs de statut (état du type courant, dans la période) pour les puces.
+        const fStatusCounts = fournisseursBase.filter((p) => inStatsPeriod(fTypeDate(p))).reduce<Record<string, number>>((acc, p) => {
+          const e = fTypeEtat(p);
+          if (e) acc[e] = (acc[e] || 0) + 1;
+          return acc;
+        }, {});
+
+        // Récap par type dans la période (pour pointer la facture mensuelle).
+        const fRecap = {
+          mesures:  fUnion.filter((p) => (p.dateMesures || p.dateMesuresRecue || p.etatMesures) && inStatsPeriod(p.dateMesures || p.dateMesuresRecue)).length,
+          montage:  fUnion.filter((p) => p.dateMontage && inStatsPeriod(p.dateMontage)).length,
+          services: fUnion.filter((p) => (p.typeServices && p.typeServices.length > 0) && inStatsPeriod(p.dateDemandeProjet || p.dateOffre || p.dateMontage)).length,
+          sav:      fUnion.filter((p) => (p.sav || p.etatSAV || p.dateSAVRecu || p.dateRDVSAV) && inStatsPeriod(p.dateSAVRecu || p.dateRDVSAV)).length,
+        };
+        const fTypeCardMode: "cmd" | "mesures" = fournisseurType === "mesures" ? "mesures" : "cmd";
+
+        // ── Stats (inchangé) ──
+        const fStatsFiltered = filterByStatsDate(fournisseursProjects, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
         const fArchivesFiltered = filterByStatsDate(fArchivesAll, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
         const fTotalCab = fStatsFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
         const fRdvFixe = fStatsFiltered.filter((p: any) => p.etatCMD === "RDV - fixé");
@@ -3122,13 +3181,47 @@ function HomePage() {
 
             {subView === "projets" ? (
               <>
-                <div className="relative mb-4 max-w-lg">
+                <div className="relative mb-3 max-w-lg">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input placeholder="Rechercher..." className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
                 </div>
+                {/* Filtre par TYPE d'activité (Mesures / Montage / Services / SAV) */}
+                <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
+                  {([
+                    { key: "tous", label: "Tous" },
+                    { key: "mesures", label: "Mesures" },
+                    { key: "montage", label: "Montage" },
+                    { key: "services", label: "Services" },
+                    { key: "sav", label: "SAV" },
+                  ] as const).map((t) => (
+                    <button key={t.key} onClick={() => { setFournisseurType(t.key); setStatusFilter(null); }}
+                      className={`shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-colors ${fournisseurType === t.key ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-600"}`}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Période (mois / année / plage / 12 mois) — filtre sur la date du type */}
+                <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
+                  onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
+                {/* Récap par type dans la période (pointage facture mensuelle) */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {([
+                    { key: "mesures", label: "Mesures", n: fRecap.mesures, cls: "text-cyan-700 bg-cyan-50 dark:bg-cyan-900/20 dark:text-cyan-300" },
+                    { key: "montage", label: "Montage", n: fRecap.montage, cls: "text-orange-700 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-300" },
+                    { key: "services", label: "Services", n: fRecap.services, cls: "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300" },
+                    { key: "sav", label: "SAV", n: fRecap.sav, cls: "text-rose-700 bg-rose-50 dark:bg-rose-900/20 dark:text-rose-300" },
+                  ] as const).map((r) => (
+                    <button key={r.key} onClick={() => { setFournisseurType(r.key); setStatusFilter(null); }}
+                      title={`Voir les ${r.label.toLowerCase()} de la période`}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${r.cls} ${fournisseurType === r.key ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
+                      {r.label} : {r.n}
+                    </button>
+                  ))}
+                </div>
+                {/* Puces de statut (état du type sélectionné, dans la période) */}
                 <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
                   <button onClick={() => setStatusFilter(null)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${!statusFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"}`}>
-                    Tous ({fournisseursProjects.length})
+                    Tous ({Object.values(fStatusCounts).reduce((a, b) => a + b, 0)})
                   </button>
                   {Object.entries(fStatusCounts).map(([status, count]) => (
                     <button key={status} onClick={() => setStatusFilter(statusFilter === status ? null : status)}
@@ -3146,7 +3239,7 @@ function HomePage() {
                 {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
                 <div className="space-y-3">
                   {fournisseursFiltered.map((project) => (
-                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
+                    <ProjectCard key={project.id} project={project} mode={fTypeCardMode} isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
                   ))}
                   {fournisseursFiltered.length === 0 && !loading && (
                     <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet</p></div>
