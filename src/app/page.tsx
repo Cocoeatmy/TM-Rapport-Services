@@ -80,7 +80,7 @@ const ArrivagePage = dynamic(() => import("@/components/arrivage-page"), {
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
-function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch }: { project: Project; mode: string; isAdmin?: boolean; onDelete?: (id: string) => void; compact?: boolean; noPrefetch?: boolean }) {
+function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch, extraLine }: { project: Project; mode: string; isAdmin?: boolean; onDelete?: (id: string) => void; compact?: boolean; noPrefetch?: boolean; extraLine?: string }) {
   const statusColors = mode.startsWith("mesures") ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
   const statusValue = mode.startsWith("mesures") ? project.etatMesures : project.etatCMD;
   const statusColor = statusColors[statusValue] || "bg-gray-100 text-gray-700";
@@ -102,6 +102,12 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch }: 
             </h3>
             {project.ofrTM && (
               <p className="text-xs text-gray-500 mt-0.5">OFR {project.ofrTM}</p>
+            )}
+            {extraLine && (
+              <p className="inline-flex items-center gap-1 mt-1 text-xs font-semibold text-[#1e3a5f] dark:text-blue-300">
+                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                {extraLine}
+              </p>
             )}
             {!compact && project.nomChantier && (
               <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -3238,9 +3244,14 @@ function HomePage() {
                 </p>
                 {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
                 <div className="space-y-3">
-                  {fournisseursFiltered.map((project) => (
-                    <ProjectCard key={project.id} project={project} mode={fTypeCardMode} isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
-                  ))}
+                  {fournisseursFiltered.map((project) => {
+                    const fTypeLbl = fournisseurType === "mesures" ? "Mesures" : fournisseurType === "services" ? "Services" : fournisseurType === "sav" ? "SAV" : "Montage";
+                    const fTypeD = fTypeDate(project);
+                    return (
+                    <ProjectCard key={project.id} project={project} mode={fTypeCardMode} isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow}
+                      extraLine={`${fTypeLbl} : ${fTypeD ? formatDateFR(fTypeD) : "—"}`} />
+                    );
+                  })}
                   {fournisseursFiltered.length === 0 && !loading && (
                     <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet</p></div>
                   )}
