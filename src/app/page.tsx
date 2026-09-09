@@ -3224,8 +3224,10 @@ function HomePage() {
                       {r.label} : {r.n}
                     </button>
                   ))}
-                  {/* Soucis montage (statut) — projets en souci sur la période */}
-                  <button onClick={() => { setFournisseurType("montage"); setStatusFilter(statusFilter === "Soucis montage" ? null : "Soucis montage"); }}
+                  {/* Soucis montage (statut) — projets en souci sur la période.
+                      Type « Tous » : un soucis peut ne pas avoir de date de montage,
+                      donc on ne l'exclut pas via le filtre Montage. */}
+                  <button onClick={() => { setFournisseurType("tous"); setStatusFilter(statusFilter === "Soucis montage" ? null : "Soucis montage"); }}
                     title="Voir les projets en soucis de montage de la période"
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-300 ${statusFilter === "Soucis montage" ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
                     Soucis montage : {fRecap.soucis}
