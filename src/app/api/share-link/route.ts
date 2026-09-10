@@ -87,9 +87,12 @@ export async function GET(req: NextRequest) {
       const nbCab = project.nbCabines || 0;
       // Liens COURTS (/f/<token>, /s/<token>) pour rester lisibles dans les
       // notes du calendrier ; ils redirigent vers le PDF signé côté serveur.
+      // Une ligne vide avant chaque lien pour aérer le bloc.
       const shortToken = Buffer.from(project.id).toString("base64url");
+      notesLines.push("");
       add("Fiche de travail", `${origin}/f/${shortToken}`);
       if (nbCab > 1) {
+        notesLines.push("");
         add("Rapport de suivi", `${origin}/s/${shortToken}`);
       }
     }
