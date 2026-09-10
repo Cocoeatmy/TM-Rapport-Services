@@ -3142,6 +3142,29 @@ function HomePage() {
           if (t && d > t) return false;
           return true;
         };
+        // ── Mode « Tous » : un projet est pertinent s'il a une activité (de
+        //    n'importe quel type) dans la période. On teste toutes les dates
+        //    candidates et on affiche celle qui correspond à la période. ──
+        const fTousCandidates = (p: any): { label: string; date: string | null }[] => [
+          { label: "Montage",  date: p.dateMontage },
+          { label: "Mesures",  date: p.dateMesures || p.dateMesuresRecue },
+          { label: "Services", date: p.dateDemandeProjet || p.dateOffre },
+          { label: "SAV",      date: p.dateSAVRecu || p.dateRDVSAV },
+          { label: "Soucis",   date: p.dateSoucisMontage },
+        ];
+        // Date + libellé représentatifs en mode « Tous » (priorité : une date
+        // dans la période ; sinon la première date disponible).
+        const fTousPick = (p: any): { label: string; date: string | null } => {
+          const cands = fTousCandidates(p).filter((c) => c.date);
+          return cands.find((c) => inStatsPeriod(c.date)) || cands[0] || { label: "Montage", date: null };
+        };
+        // Le projet a-t-il une activité (tous types) dans la période ?
+        const fInPeriodAny = (p: any): boolean =>
+          statsDateMode === "all" ? true : fTousCandidates(p).some((c) => c.date && inStatsPeriod(c.date));
+        // Date représentative de la ligne (selon le type courant).
+        const fRowDate = (p: any): string | null => fournisseurType === "tous" ? fTousPick(p).date : fTypeDate(p);
+        // Le projet passe-t-il le filtre de période (selon le type courant) ?
+        const fInPeriod = (p: any): boolean => fournisseurType === "tous" ? fInPeriodAny(p) : inStatsPeriod(fTypeDate(p));
         // Base : projets actifs + TERMINÉS (archives), pour un suivi complet
         // (pointage facture, historique). Dédup par id.
         const fDedup = new Map<string, any>();
@@ -3152,10 +3175,10 @@ function HomePage() {
         const fournisseursFiltered = fournisseursBase.filter((p) => {
           if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
           if (statusFilter && fTypeEtat(p) !== statusFilter) return false;
-          if (!inStatsPeriod(fTypeDate(p))) return false;
+          if (!fInPeriod(p)) return false;
           return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
         }).sort((a, b) => {
-          const da = (fTypeDate(a) || ""); const db = (fTypeDate(b) || "");
+          const da = (fRowDate(a) || ""); const db = (fRowDate(b) || "");
           if (da && db) return db.localeCompare(da); // plus récent en premier
           if (da && !db) return -1;
           if (!da && db) return 1;
@@ -3163,7 +3186,7 @@ function HomePage() {
         });
 
         // Compteurs de statut (état du type courant, dans la période) pour les puces.
-        const fStatusCounts = fournisseursBase.filter((p) => inStatsPeriod(fTypeDate(p))).reduce<Record<string, number>>((acc, p) => {
+        const fStatusCounts = fournisseursBase.filter(fInPeriod).reduce<Record<string, number>>((acc, p) => {
           const e = fTypeEtat(p);
           if (e) acc[e] = (acc[e] || 0) + 1;
           return acc;
@@ -3207,7 +3230,7 @@ function HomePage() {
                 cmd: p.cmdFournisseurs || "",
                 mesures: p.servMesuresFournisseurs || "",
                 services: p.servCmdFournisseurs || "",
-                date: (() => { const d = fTypeDate(p); return d ? formatDateFR(d) : ""; })(),
+                date: (() => { const d = fRowDate(p); return d ? formatDateFR(d) : ""; })(),
                 nbCabines: p.nbCabines || 0,
                 etat: fTypeEtat(p) || "",
                 collaborateurs: p.collaborateurs || "",
@@ -3325,8 +3348,11 @@ function HomePage() {
                 {/* Lignes compactes (même esthétique que « RDV Montage à fixer ») */}
                 <div className="space-y-1.5">
                   {fournisseursFiltered.map((project, idx) => {
-                    const fTypeLbl = fournisseurType === "mesures" ? "Mesures" : fournisseurType === "services" ? "Services" : fournisseurType === "sav" ? "SAV" : "Montage";
-                    const fTypeD = fTypeDate(project);
+                    // En mode « Tous », on affiche la date + le libellé du type
+                    // qui correspond à la période (montage, mesures, soucis…).
+                    const fPick = fournisseurType === "tous" ? fTousPick(project) : null;
+                    const fTypeLbl = fPick ? fPick.label : fournisseurType === "mesures" ? "Mesures" : fournisseurType === "services" ? "Services" : fournisseurType === "sav" ? "SAV" : "Montage";
+                    const fTypeD = fPick ? fPick.date : fTypeDate(project);
                     const etat = fTypeEtat(project);
                     const etatCls = (fournisseurType === "mesures" ? STATUS_MESURES_COLORS[etat] : STATUS_CMD_COLORS[etat]) || "bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300";
                     const rowBg = idx % 2 === 0 ? "bg-white/70 dark:bg-slate-800/50" : "bg-blue-50/40 dark:bg-blue-950/15";
