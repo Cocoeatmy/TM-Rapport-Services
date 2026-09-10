@@ -3086,8 +3086,11 @@ function HomePage() {
           return true;
         });
 
-        // ── Archives (projets terminés) du fournisseur ──
+        // ── Archives / tous les projets du fournisseur (inclut les TERMINÉS) ──
+        // Source « /api/projects/all » = tous les projets (actifs + terminés).
+        // On exclut les annulés. Le dédup avec les actifs se fait plus bas.
         const fArchivesAll = (projectsData["archives"] || []).filter((p: any) => {
+          if (p.etatCMD === "Annulé") return false;
           if (nameFilter) return p.projet.toLowerCase().startsWith(nameFilter.toLowerCase());
           return p.typeClient === "Fournisseurs" || p.typeClient === "Fournisseur";
         });
@@ -3127,11 +3130,10 @@ function HomePage() {
           if (t && d > t) return false;
           return true;
         };
-        // Base : projets actifs + (dès qu'une PÉRIODE est choisie) les terminés,
-        // pour un suivi mensuel complet (pointage de la facture). Dédup par id.
-        const includeArchives = statsDateMode !== "all";
+        // Base : projets actifs + TERMINÉS (archives), pour un suivi complet
+        // (pointage facture, historique). Dédup par id.
         const fDedup = new Map<string, any>();
-        [...fournisseursProjects, ...(includeArchives ? fArchivesAll : [])].forEach((p: any) => { if (!fDedup.has(p.id)) fDedup.set(p.id, p); });
+        [...fournisseursProjects, ...fArchivesAll].forEach((p: any) => { if (!fDedup.has(p.id)) fDedup.set(p.id, p); });
         const fUnion = [...fDedup.values()];
         const fournisseursBase = fUnion.filter(fTypeHas);
 
@@ -3178,7 +3180,7 @@ function HomePage() {
             <div className="flex gap-2 mb-4">
               <button onClick={() => setSubView("projets")}
                 className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "projets" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
-                Projets ({fournisseursProjects.length})
+                Projets ({fUnion.length})
               </button>
               <button onClick={() => setSubView("stats")}
                 className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "stats" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
