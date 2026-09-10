@@ -2147,8 +2147,9 @@ function CabineSousTraitantInput({ value, onSave }: { value: string; onSave: (v:
 
 // Zone de texte SAV / Retouches / Réglages par cabine (debounce + anti-clobber).
 // Le `|` est interdit (délimiteur du modèle par-cabine) → remplacé par « / ».
-function CabineSavInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+function CabineSavInput({ value, onSave, placeholder }: { value: string; onSave: (v: string) => void; placeholder?: string }) {
   const [draft, setDraft] = useState(value);
+  const [aiLoading, setAiLoading] = useState(false);
   const focusedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => { if (!focusedRef.current) setDraft(value); }, [value]);
@@ -2157,21 +2158,50 @@ function CabineSavInput({ value, onSave }: { value: string; onSave: (v: string) 
     const v = raw.replace(/\|/g, " / ").trim();
     if (v !== value) onSave(v);
   };
+  // Reformulation IA (même fonction qu'ailleurs dans l'app).
+  const handleAI = async () => {
+    if (aiLoading || draft.trim().length < 10) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Reformule ce texte décrivant un SAV / une retouche sur une cabine de douche, de manière professionnelle, claire et concise. Garde le sens exact mais améliore la formulation. Réponds uniquement avec le texte reformulé, sans introduction ni commentaire :\n\n${draft}`,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const out = (data.answer || data.response || "").trim();
+        if (out) { setDraft(out); commit(out); }
+      }
+    } catch {} finally { setAiLoading(false); }
+  };
   return (
-    <Textarea
-      value={draft}
-      onChange={(e) => {
-        const val = e.target.value;
-        setDraft(val);
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => commit(val), 700);
-      }}
-      onFocus={() => { focusedRef.current = true; }}
-      onBlur={() => { focusedRef.current = false; if (timerRef.current) clearTimeout(timerRef.current); commit(draft); }}
-      rows={4}
-      placeholder="Ex. : régler la porte, changer un joint, refaire le silicone, retouche peinture…"
-      className="mt-1"
-    />
+    <div className="mt-1">
+      <Textarea
+        value={draft}
+        onChange={(e) => {
+          const val = e.target.value;
+          setDraft(val);
+          if (timerRef.current) clearTimeout(timerRef.current);
+          timerRef.current = setTimeout(() => commit(val), 700);
+        }}
+        onFocus={() => { focusedRef.current = true; }}
+        onBlur={() => { focusedRef.current = false; if (timerRef.current) clearTimeout(timerRef.current); commit(draft); }}
+        rows={4}
+        placeholder={placeholder || "Ex. : régler la porte, changer un joint, refaire le silicone, retouche peinture…"}
+      />
+      {draft.trim().length > 10 && (
+        <div className="flex items-center gap-2 mt-1">
+          <button type="button" onClick={handleAI} disabled={aiLoading}
+            className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 disabled:opacity-50">
+            {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {aiLoading ? "IA..." : "✨ Reformuler"}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -8038,6 +8068,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           <CabineSavInput
                             value={parseCabineTextMulti(project?.commentairesSav || "")[1] || ""}
                             onSave={(v) => saveCabineText("commentairesSav", 0, v)}
+                            placeholder="Ex. : porte qui frotte, joint à refaire, fuite constatée…"
                           />
                         </div>
                         <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
@@ -9152,6 +9183,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <CabineSavInput
                                   value={parseCabineTextMulti(project?.commentairesSav || "")[idx + 1] || ""}
                                   onSave={(v) => saveCabineText("commentairesSav", idx, v)}
+                                  placeholder="Ex. : porte qui frotte, joint à refaire, fuite constatée…"
                                 />
                               </div>
 
