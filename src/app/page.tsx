@@ -3230,9 +3230,17 @@ function HomePage() {
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const blob = await res.blob();
+            // Nom de fichier depuis l'en-tête Content-Disposition (repli sinon).
+            let filename = "Rapport fournisseur.pdf";
+            const cd = res.headers.get("Content-Disposition");
+            const m = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+            if (m?.[1]) filename = decodeURIComponent(m[1]);
+            // Téléchargement direct (même comportement que les autres boutons « Générer »).
             const url = URL.createObjectURL(blob);
-            window.open(url, "_blank");
-            setTimeout(() => URL.revokeObjectURL(url), 60000);
+            const a = document.createElement("a");
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
           } catch (e) {
             alert("Impossible de générer le rapport : " + (e as Error).message);
           } finally {
