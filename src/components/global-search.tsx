@@ -31,11 +31,17 @@ function loadProjects(): Project[] {
 }
 
 // Index de recherche texte (tous les champs pertinents)
+// Minuscule + suppression des accents (recherche insensible à la casse ET aux
+// accents : « chateau » trouve « Château »).
+function fold(s: string): string {
+  return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
 function buildIndex(projects: Project[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const p of projects) {
     if (map.has(p.id)) continue;
-    map.set(p.id, [
+    map.set(p.id, fold([
       p.projet, p.ofrTM, p.ofrGrossiste, p.nomChantier, p.adresseChantier,
       p.cmdTM, p.cmdTMUsine, p.cmdGrossiste, p.cmdFournisseurs,
       p.servCmdFournisseurs, p.servMesuresFournisseurs, p.bonLivraison,
@@ -43,7 +49,7 @@ function buildIndex(projects: Project[]): Map<string, string> {
       ...(p.fournisseurs || []), ...(p.fournisseursNames || []),
       ...(p.grossistesNames || []), ...(p.sanitaireNames || []),
       ...(p.seriesCabines || []),
-    ].filter(Boolean).join(" ").toLowerCase());
+    ].filter(Boolean).join(" ")));
   }
   return map;
 }
@@ -146,8 +152,11 @@ export function GlobalSearch() {
   // Filtrage combiné : texte + filtres avancés, fusion local + serveur.
   // Sans query : affiche tous les projets locaux si au moins un filtre actif.
   const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     const hasQuery = q.length >= 2;
+    // Recherche multi-mots : chaque mot doit être présent (ET), dans n'importe
+    // quel ordre. Ex. « cvs a2 » ou « cvs payerne » trouvent le même projet.
+    const tokens = fold(q).split(/\s+/).filter(Boolean);
     const hasFilters = activeFilterCount > 0;
     if (!hasQuery && !hasFilters) return [];
 
@@ -155,7 +164,10 @@ export function GlobalSearch() {
     const out: Project[] = [];
     // 1) Résultats locaux (instantanés)
     for (const p of projects) {
-      if (hasQuery && !(searchIndex.get(p.id) ?? "").includes(q)) continue;
+      if (hasQuery) {
+        const hay = searchIndex.get(p.id) ?? "";
+        if (!tokens.every((t) => hay.includes(t))) continue;
+      }
       if (!passesAdvanced(p)) continue;
       if (seen.has(p.id)) continue;
       seen.add(p.id); out.push(p);

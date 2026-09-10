@@ -1201,36 +1201,32 @@ export default function Page() {
 // informations pertinents pour retrouver un projet rapidement.
 // Si `prebuilt` est fourni (chaîne pré-indexée en minuscules), une seule
 // comparaison .includes() suffit → beaucoup plus rapide.
+// Minuscule + suppression des accents (recherche insensible casse ET accents).
+function foldSearch(s: string): string {
+  return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+// Recherche multi-mots : chaque mot doit être présent (ET), dans n'importe
+// quel ordre. Ex. « cvs a2 » ou « cvs payerne » trouvent le même projet.
+// `prebuilt` (l'index) est déjà en minuscules sans accents → pas de re-fold.
 function matchesSearch(
   p: import("@/lib/notion").Project,
   q: string,
   prebuilt?: string,
 ): boolean {
-  if (!q) return true;
-  if (prebuilt !== undefined) return prebuilt.includes(q);
-  const check = (v: string | null | undefined) => (v || "").toLowerCase().includes(q);
-  return (
-    check(p.projet) ||
-    check(p.ofrTM) ||
-    check(p.ofrGrossiste) ||
-    check(p.nomChantier) ||
-    check(p.adresseChantier) ||
-    check(p.cmdTM) ||
-    check(p.cmdTMUsine) ||
-    check(p.cmdGrossiste) ||
-    check(p.cmdFournisseurs) ||
-    check(p.servCmdFournisseurs) ||
-    check(p.servMesuresFournisseurs) ||
-    check(p.bonLivraison) ||
-    check(p.collaborateurs) ||
-    check(p.contacts) ||
-    check(p.emplacementCabine) ||
-    (p.fournisseurs || []).some((f) => check(f)) ||
-    (p.fournisseursNames || []).some((f) => check(f)) ||
-    (p.grossistesNames || []).some((f) => check(f)) ||
-    (p.sanitaireNames || []).some((f) => check(f)) ||
-    (p.seriesCabines || []).some((f) => check(f))
-  );
+  const tokens = foldSearch(q).split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  if (prebuilt !== undefined) return tokens.every((t) => prebuilt.includes(t));
+  const hay = foldSearch([
+    p.projet, p.ofrTM, p.ofrGrossiste, p.nomChantier, p.adresseChantier,
+    p.cmdTM, p.cmdTMUsine, p.cmdGrossiste, p.cmdFournisseurs,
+    p.servCmdFournisseurs, p.servMesuresFournisseurs, p.bonLivraison,
+    p.collaborateurs, p.contacts, p.emplacementCabine,
+    ...(p.fournisseurs || []), ...(p.fournisseursNames || []),
+    ...(p.grossistesNames || []), ...(p.sanitaireNames || []),
+    ...(p.seriesCabines || []),
+  ].filter(Boolean).join(" "));
+  return tokens.every((t) => hay.includes(t));
 }
 
 function HomePage() {
@@ -1274,7 +1270,7 @@ function HomePage() {
     for (const projects of Object.values(projectsData)) {
       for (const p of projects) {
         if (map.has(p.id)) continue;
-        map.set(p.id, [
+        map.set(p.id, foldSearch([
           p.projet, p.ofrTM, p.ofrGrossiste, p.nomChantier, p.adresseChantier,
           p.cmdTM, p.cmdTMUsine, p.cmdGrossiste, p.cmdFournisseurs,
           p.servCmdFournisseurs, p.servMesuresFournisseurs, p.bonLivraison,
@@ -1282,7 +1278,7 @@ function HomePage() {
           ...(p.fournisseurs || []), ...(p.fournisseursNames || []),
           ...(p.grossistesNames || []), ...(p.sanitaireNames || []),
           ...(p.seriesCabines || []),
-        ].join(" ").toLowerCase());
+        ].filter(Boolean).join(" ")));
       }
     }
     return map;
