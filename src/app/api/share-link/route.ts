@@ -79,21 +79,26 @@ export async function GET(req: NextRequest) {
       add("Commentaires mesures", project.commentairesMesures);
     } else if (type === "services") {
       add("Contacts RDV", project.contactsRDV);
+    } else if (type === "sav") {
+      add("Nb. cabines", nb);
+      add("Contacts RDV", project.contactsRDV);
     }
-    // Liens rapports (signés HMAC via SHARE_LINK_KEY, routes publiques) ajoutés
-    // sous les infos projet — uniquement quand un bloc de notes est produit.
-    // Le « Rapport de suivi » n'a de sens qu'en multi-cabine (nbCabines > 1).
-    if (notesLines.length) {
+    // ── Liens rapports (liens COURTS → redirigent vers le PDF signé) ──
+    // Cumul : Fiche de travail + Rapport de suivi (multi-cabine) sur tous les
+    // types connus, PLUS le rapport spécifique au type : Signalements pour les
+    // Services, Rapport SAV pour les SAV. Une ligne vide avant chaque lien.
+    const KNOWN_TYPES = ["montage", "mesures", "services", "sav"];
+    if (KNOWN_TYPES.includes(type)) {
       const nbCab = project.nbCabines || 0;
-      // Liens COURTS (/f/<token>, /s/<token>) pour rester lisibles dans les
-      // notes du calendrier ; ils redirigent vers le PDF signé côté serveur.
-      // Une ligne vide avant chaque lien pour aérer le bloc.
       const shortToken = Buffer.from(project.id).toString("base64url");
-      notesLines.push("");
-      add("Fiche de travail", `${origin}/f/${shortToken}`);
-      if (nbCab > 1) {
-        notesLines.push("");
-        add("Rapport de suivi", `${origin}/s/${shortToken}`);
+      const links: [string, string][] = [];
+      links.push(["Fiche de travail", `${origin}/f/${shortToken}`]);
+      if (nbCab > 1) links.push(["Rapport de suivi", `${origin}/s/${shortToken}`]);
+      if (type === "services") links.push(["Signalements", `${origin}/sig/${shortToken}`]);
+      if (type === "sav") links.push(["Rapport SAV", `${origin}/sav/${shortToken}`]);
+      for (const [label, url] of links) {
+        if (notesLines.length) notesLines.push(""); // ligne vide de séparation
+        add(label, url);
       }
     }
     const NOTES_SENTINEL = "——— Infos projet (auto) ———";

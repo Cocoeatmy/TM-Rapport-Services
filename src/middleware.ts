@@ -25,6 +25,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/client/") ||
     pathname.startsWith("/f/") || // lien court Fiche de travail (redirige vers /api/fiche signé)
     pathname.startsWith("/s/") || // lien court Rapport de suivi (redirige vers /api/synthese signé)
+    pathname.startsWith("/sav/") || // lien court Rapport SAV (redirige vers /api/sav signé)
+    pathname.startsWith("/sig/") || // lien court Signalements (redirige vers /api/rapport-signalements signé)
     pathname.startsWith("/_next") ||
     pathname.startsWith("/icons") ||
     pathname === "/manifest.json" ||

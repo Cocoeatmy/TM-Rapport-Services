@@ -83,7 +83,7 @@ function run(argv) {
     const tMatch = title.match(TYPE_RE);
     if (!tMatch) continue;
     const type = tMatch[1].toLowerCase(); // montage|mesures|services|sav|garantie
-    const wantsNotes = (type === 'montage' || type === 'mesures' || type === 'services');
+    const wantsNotes = (type === 'montage' || type === 'mesures' || type === 'services' || type === 'sav');
 
     // Extraire "TM-<chiffres>".
     const m = title.match(/TM-\d+/);
