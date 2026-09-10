@@ -3191,17 +3191,6 @@ function HomePage() {
           : fournisseurType === "montage" ? "Montage"
           : fournisseurType === "services" ? "Services"
           : fournisseurType === "sav" ? "SAV" : "Tous";
-        const fRefLabel = fournisseurType === "mesures" ? "N° Serv. Mes."
-          : fournisseurType === "services" ? "N° Serv."
-          : fournisseurType === "sav" ? "N° Serv." : "N° CMD";
-        const fRefOf = (p: any): string => {
-          switch (fournisseurType) {
-            case "mesures":  return p.servMesuresFournisseurs || "";
-            case "services": return p.servCmdFournisseurs || "";
-            case "sav":      return p.servCmdFournisseurs || p.cmdFournisseurs || "";
-            default:         return p.cmdFournisseurs || p.servCmdFournisseurs || "";
-          }
-        };
         const genererRapportFournisseurs = async () => {
           if (genFournRapport) return;
           setGenFournRapport(true);
@@ -3212,11 +3201,12 @@ function HomePage() {
               periodLabel: statsDateMode === "rolling12" ? "12 derniers mois"
                 : describeStatsRange({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear }),
               statusLabel: statusFilter || "",
-              refLabel: fRefLabel,
               rows: fournisseursFiltered.map((p) => ({
                 projet: p.projet,
                 ofrTM: p.ofrTM,
-                ref: fRefOf(p),
+                cmd: p.cmdFournisseurs || "",
+                mesures: p.servMesuresFournisseurs || "",
+                services: p.servCmdFournisseurs || "",
                 date: (() => { const d = fTypeDate(p); return d ? formatDateFR(d) : ""; })(),
                 nbCabines: p.nbCabines || 0,
                 etat: fTypeEtat(p) || "",

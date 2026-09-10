@@ -34,7 +34,9 @@ async function isAuthed(req: NextRequest): Promise<boolean> {
 type Row = {
   projet?: string;
   ofrTM?: string;
-  ref?: string;        // n° CMD / n° Serv. (adapté au type, côté client)
+  cmd?: string;        // N° CMD Fournisseurs
+  mesures?: string;    // N° CMD Mesures Fournisseurs
+  services?: string;   // N° CMD Services Fournisseurs
   date?: string;       // déjà formatée (JJ.MM.AAAA) ou ""
   nbCabines?: number;
   etat?: string;
@@ -45,7 +47,6 @@ type Payload = {
   typeLabel?: string;     // "Montage" | "Mesures" | "Services" | "SAV" | "Tous"
   periodLabel?: string;   // "Août 2026" | "Tout" | ...
   statusLabel?: string;   // filtre de statut éventuel
-  refLabel?: string;      // en-tête de la colonne Réf. (ex. "N° CMD", "N° Serv.")
   rows?: Row[];
 };
 
@@ -61,13 +62,15 @@ const styles = StyleSheet.create({
   th: { color: "#fff", fontSize: 8, fontFamily: "Helvetica-Bold" },
   tr: { flexDirection: "row", paddingVertical: 4, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb", alignItems: "flex-start" },
   td: { fontSize: 8.5, color: "#222" },
-  cNum: { width: 22 },
+  cNum: { width: 20 },
   cProjet: { flex: 1, paddingRight: 6 },
-  cOfr: { width: 74, paddingRight: 4 },
-  cRef: { width: 74, paddingRight: 4 },
-  cDate: { width: 56, paddingRight: 4 },
-  cCab: { width: 26, textAlign: "right", paddingRight: 4 },
-  cEtat: { width: 96 },
+  cOfr: { width: 78, paddingRight: 4 },
+  cRef: { width: 104, paddingRight: 4 },
+  cDate: { width: 52, paddingRight: 4 },
+  cCab: { width: 24, textAlign: "right", paddingRight: 4 },
+  cEtat: { width: 84 },
+  refLine: { fontSize: 8, color: "#222" },
+  refPrefix: { color: "#8a94a3", fontFamily: "Helvetica-Bold" },
   chip: { fontSize: 7, fontFamily: "Helvetica-Bold", color: "#1e3a5f", backgroundColor: "#eef2f7", borderRadius: 3, paddingVertical: 1.5, paddingHorizontal: 4, alignSelf: "flex-start" },
   totalRow: { flexDirection: "row", marginTop: 8, paddingTop: 6, borderTopWidth: 1.5, borderTopColor: "#1e3a5f" },
   totalTxt: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1e3a5f" },
@@ -77,7 +80,6 @@ const styles = StyleSheet.create({
 function RapportFournisseursPDF({ data }: { data: Payload }) {
   const rows = data.rows || [];
   const totalCab = rows.reduce((s, r) => s + (Number(r.nbCabines) || 0), 0);
-  const refLabel = data.refLabel || "Réf.";
   const generatedAt = new Date().toLocaleDateString("fr-CH", { day: "2-digit", month: "long", year: "numeric" });
   return (
     <Document>
@@ -112,7 +114,7 @@ function RapportFournisseursPDF({ data }: { data: Payload }) {
           <Text style={[styles.th, styles.cNum]}>#</Text>
           <Text style={[styles.th, styles.cProjet]}>Projet</Text>
           <Text style={[styles.th, styles.cOfr]}>OFR</Text>
-          <Text style={[styles.th, styles.cRef]}>{nfc(refLabel)}</Text>
+          <Text style={[styles.th, styles.cRef]}>N° Fournisseurs</Text>
           <Text style={[styles.th, styles.cDate]}>Date</Text>
           <Text style={[styles.th, styles.cCab]}>Cab.</Text>
           <Text style={[styles.th, styles.cEtat]}>État</Text>
@@ -123,7 +125,11 @@ function RapportFournisseursPDF({ data }: { data: Payload }) {
             <Text style={[styles.td, styles.cNum]}>{i + 1}</Text>
             <Text style={[styles.td, styles.cProjet]}>{nfc(r.projet || "—")}</Text>
             <Text style={[styles.td, styles.cOfr]}>{nfc(r.ofrTM || "")}</Text>
-            <Text style={[styles.td, styles.cRef]}>{nfc(r.ref || "")}</Text>
+            <View style={styles.cRef}>
+              {r.cmd ? <Text style={styles.refLine}><Text style={styles.refPrefix}>CMD </Text>{nfc(r.cmd)}</Text> : null}
+              {r.mesures ? <Text style={styles.refLine}><Text style={styles.refPrefix}>Mes. </Text>{nfc(r.mesures)}</Text> : null}
+              {r.services ? <Text style={styles.refLine}><Text style={styles.refPrefix}>Serv. </Text>{nfc(r.services)}</Text> : null}
+            </View>
             <Text style={[styles.td, styles.cDate]}>{nfc(r.date || "—")}</Text>
             <Text style={[styles.td, styles.cCab]}>{r.nbCabines ? String(r.nbCabines) : ""}</Text>
             <View style={styles.cEtat}>{r.etat ? <Text style={styles.chip}>{nfc(r.etat)}</Text> : null}</View>
