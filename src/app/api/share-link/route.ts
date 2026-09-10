@@ -16,6 +16,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { notion, databaseId, mapPageToProject } from "@/lib/notion";
+import { signFiche, signSynthese } from "@/lib/doc-link";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -79,6 +80,16 @@ export async function GET(req: NextRequest) {
       add("Commentaires mesures", project.commentairesMesures);
     } else if (type === "services") {
       add("Contacts RDV", project.contactsRDV);
+    }
+    // Liens rapports (signés HMAC via SHARE_LINK_KEY, routes publiques) ajoutés
+    // sous les infos projet — uniquement quand un bloc de notes est produit.
+    // Le « Rapport de suivi » n'a de sens qu'en multi-cabine (nbCabines > 1).
+    if (notesLines.length) {
+      const nbCab = project.nbCabines || 0;
+      add("Fiche de travail", `${origin}/api/fiche/${encodeURIComponent(project.id)}?s=${signFiche(project.id)}`);
+      if (nbCab > 1) {
+        add("Rapport de suivi", `${origin}/api/synthese/${encodeURIComponent(project.id)}?s=${signSynthese(project.id)}`);
+      }
     }
     const NOTES_SENTINEL = "——— Infos projet (auto) ———";
     const notes = notesLines.length ? `${NOTES_SENTINEL}\n${notesLines.join("\n")}` : "";
