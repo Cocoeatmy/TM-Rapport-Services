@@ -3107,11 +3107,16 @@ function HomePage() {
         };
         const fTypeEtat = (p: any): string =>
           fournisseurType === "mesures" ? p.etatMesures : fournisseurType === "sav" ? p.etatSAV : p.etatCMD;
+        // Un « Service » (règle Duka) : Type de services contient « Services »
+        // OU N° Serv. CMD Fournisseurs contient « KS ».
+        const isFService = (p: any): boolean =>
+          (Array.isArray(p.typeServices) && p.typeServices.some((t: string) => (t || "").includes("Services")))
+          || /ks/i.test(p.servCmdFournisseurs || "");
         const fTypeHas = (p: any): boolean => {
           switch (fournisseurType) {
             case "mesures":  return !!(p.dateMesures || p.dateMesuresRecue || p.etatMesures);
             case "montage":  return !!p.dateMontage;
-            case "services": return !!(p.typeServices && p.typeServices.length > 0);
+            case "services": return isFService(p);
             case "sav":      return !!(p.sav || p.etatSAV || p.dateSAVRecu || p.dateRDVSAV);
             default:         return true;
           }
@@ -3161,7 +3166,7 @@ function HomePage() {
         const fRecap = {
           mesures:  fUnion.filter((p) => (p.dateMesures || p.dateMesuresRecue || p.etatMesures) && inStatsPeriod(p.dateMesures || p.dateMesuresRecue)).length,
           montage:  fUnion.filter((p) => p.dateMontage && inStatsPeriod(p.dateMontage)).length,
-          services: fUnion.filter((p) => (p.typeServices && p.typeServices.length > 0) && inStatsPeriod(p.dateDemandeProjet || p.dateOffre || p.dateMontage)).length,
+          services: fUnion.filter((p) => isFService(p) && inStatsPeriod(p.dateDemandeProjet || p.dateOffre || p.dateMontage)).length,
           sav:      fUnion.filter((p) => (p.sav || p.etatSAV || p.dateSAVRecu || p.dateRDVSAV) && inStatsPeriod(p.dateSAVRecu || p.dateRDVSAV)).length,
           soucis:   fUnion.filter((p) => p.etatCMD === "Soucis montage" && inStatsPeriod(p.dateMontage || p.dateSoucisMontage)).length,
         };
