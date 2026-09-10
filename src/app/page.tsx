@@ -3108,10 +3108,16 @@ function HomePage() {
         const fTypeEtat = (p: any): string =>
           fournisseurType === "mesures" ? p.etatMesures : fournisseurType === "sav" ? p.etatSAV : p.etatCMD;
         // Un « Service » (règle Duka) : Type de services contient « Services »
-        // OU N° Serv. CMD Fournisseurs contient « KS ».
-        const isFService = (p: any): boolean =>
-          (Array.isArray(p.typeServices) && p.typeServices.some((t: string) => (t || "").includes("Services")))
-          || /ks/i.test(p.servCmdFournisseurs || "");
+        // (SEUL, sans « Mesures ») OU N° Serv. CMD Fournisseurs contient « KS ».
+        // Note : un projet de MESURES Duka est tagué [Services, Mesures] — ce
+        // n'est PAS un service, il ne doit pas être compté ici.
+        const isFService = (p: any): boolean => {
+          const ts: string[] = Array.isArray(p.typeServices) ? p.typeServices : [];
+          const hasServices = ts.some((t) => (t || "").includes("Services"));
+          const hasMesures = ts.some((t) => (t || "").includes("Mesures"));
+          const hasKS = /ks/i.test(p.servCmdFournisseurs || "");
+          return (hasServices && !hasMesures) || hasKS;
+        };
         const fTypeHas = (p: any): boolean => {
           switch (fournisseurType) {
             case "mesures":  return !!(p.dateMesures || p.dateMesuresRecue || p.etatMesures);
