@@ -2701,395 +2701,56 @@ function HomePage() {
         </>
       )}
 
-      {/* VUE GROSSISTES */}
-      {mode.startsWith("grossistes") && !(isCmm && mode === "grossistes" && cmmHeroMode === "grossistes") && (() => {
-        // Utiliser les données all-active qui contiennent TOUS les projets non terminés/non annulés
-        const allCmd = projectsData[mode] || projectsData["grossistes"] || [];
-
-        const grossisteKeywords: Record<string, string[]> = {
-          "grossistes-bms": ["Gétaz", "Getaz"],
-          "grossistes-dubat": ["Dubat"],
-          "grossistes-tema": ["Tema"],
-          "grossistes-matway": ["Matway", "MatWay"],
-          "grossistes-bringhen": ["Bringhen"],
+      {/* VUE PARTENAIRES (Fournisseurs / Grossistes / Sanitaires) — même UX :
+          filtres Type/Période/Statut, lignes compactes, « Tous » multi-types,
+          inclusion des terminés, bouton « Générer rapport ». */}
+      {(
+        (mode.startsWith("fournisseurs") && !mode.startsWith("fournisseurs-menu") && !(isCmm && mode === "fournisseurs" && cmmHeroMode === "fournisseurs")) ||
+        (mode.startsWith("grossistes") && !(isCmm && mode === "grossistes" && cmmHeroMode === "grossistes")) ||
+        (mode === "sanitaires")
+      ) && (() => {
+        // Famille de partenaire courante.
+        const family: "fournisseurs" | "grossistes" | "sanitaires" =
+          mode.startsWith("grossistes") ? "grossistes" : mode === "sanitaires" ? "sanitaires" : "fournisseurs";
+        const allCmd = family === "sanitaires"
+          ? (projectsData["sanitaires"] || projectsData["all-active"] || [])
+          : (projectsData[mode] || projectsData[family] || []);
+        // Appartenance à la famille (typeClient, singulier ou pluriel).
+        const isMember = (p: any): boolean => {
+          if (family === "grossistes") return p.typeClient === "Grossistes" || p.typeClient === "Grossiste";
+          if (family === "sanitaires") return p.typeClient === "Sanitaire" || p.typeClient === "Sanitaires";
+          return p.typeClient === "Fournisseurs" || p.typeClient === "Fournisseur";
         };
-        const keywords = grossisteKeywords[mode];
-
-        const grossistesProjects = allCmd.filter((p) => {
-          // 1. État CMD ≠ Annulé et ≠ Terminé
-          if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
-          // 2. Type de client = Grossistes
-          if (p.typeClient !== "Grossistes" && p.typeClient !== "Grossiste") return false;
-
-          if (keywords) {
-            // Sous-menu : le titre du projet COMMENCE par le mot-clé
-            const projetLower = p.projet.toLowerCase();
-            return keywords.some((kw) => projetLower.startsWith(kw.toLowerCase()));
-          }
-
-          // "Tous" : tous les projets Grossistes non terminés
-          return true;
-        });
-
-        const grossistesFiltered = grossistesProjects.filter((p) => {
-          if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
-          if (statusFilter && p.etatCMD !== statusFilter) return false;
-          return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
-        }).sort((a, b) => {
-          const dateA = a.dateMontage;
-          const dateB = b.dateMontage;
-          if (dateA && dateB) return dateA.localeCompare(dateB);
-          if (dateA && !dateB) return -1;
-          if (!dateA && dateB) return 1;
-          return (STATUS_SORT_ORDER[a.etatCMD] ?? 5) - (STATUS_SORT_ORDER[b.etatCMD] ?? 5);
-        });
-
-        const gStatusCounts = grossistesProjects.reduce<Record<string, number>>((acc, p) => {
-          if (p.etatCMD) acc[p.etatCMD] = (acc[p.etatCMD] || 0) + 1;
-          return acc;
-        }, {});
-
-
-        const gStatsFiltered = filterByStatsDate(grossistesProjects, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
-        const gArchivesAll = (projectsData["archives"] || []).filter((p: any) => {
-          if (keywords) return keywords.some(kw => p.projet.toLowerCase().startsWith(kw.toLowerCase()));
-          return p.typeClient === "Grossistes" || p.typeClient === "Grossiste";
-        });
-        const gArchivesFiltered = filterByStatsDate(gArchivesAll, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
-        const totalCab = gStatsFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
-        const rdvFixe = gStatsFiltered.filter((p: any) => p.etatCMD === "RDV - fixé");
-        const termineCount = gArchivesFiltered.length;
-
-        return (
-          <div>
-            {/* Onglets Projets / Stats */}
-            <div className="flex gap-2 mb-4">
-              <button onClick={() => setSubView("projets")}
-                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "projets" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
-                Projets ({grossistesProjects.length})
-              </button>
-              <button onClick={() => setSubView("stats")}
-                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "stats" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
-                Stats
-              </button>
-            </div>
-
-            {subView === "projets" ? (
-              <>
-                <div className="relative mb-4 max-w-lg">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input placeholder="Rechercher..." className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
-                </div>
-                <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
-                  <button onClick={() => setStatusFilter(null)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${!statusFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"}`}>
-                    Tous ({grossistesProjects.length})
-                  </button>
-                  {Object.entries(gStatusCounts).map(([status, count]) => (
-                    <button key={status} onClick={() => setStatusFilter(statusFilter === status ? null : status)}
-                      className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${statusFilter === status ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : `${STATUS_CMD_COLORS[status] || "bg-gray-100 text-gray-700"} border-transparent`}`}>
-                      {status} ({count})
-                    </button>
-                  ))}
-                </div>
-                <p className="text-sm text-gray-500 mb-3">
-                  {grossistesFiltered.length} projet{grossistesFiltered.length !== 1 ? "s" : ""}{" · "}{grossistesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cabine{grossistesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
-                </p>
-                {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
-                <div className="space-y-3">
-                  {grossistesFiltered.map((project) => (
-                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
-                  ))}
-                  {grossistesFiltered.length === 0 && !loading && (
-                    <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet</p></div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
-                  onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
-                {/* KPIs */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{gStatsFiltered.length}</p>
-                    <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
-                  </div>
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-green-600">{totalCab}</p>
-                    <p className="text-xs text-gray-500 mt-1">Cabines</p>
-                  </div>
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-blue-600">{rdvFixe.length}</p>
-                    <p className="text-xs text-gray-500 mt-1">RDV fixés</p>
-                  </div>
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-purple-600">{termineCount}</p>
-                    <p className="text-xs text-gray-500 mt-1">Terminés</p>
-                  </div>
-                </div>
-                {/* Répartition par statut */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-                  <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Répartition par statut</h3>
-                  <div className="space-y-2">
-                    {(() => {
-                      const sc: Record<string, number> = {};
-                      gStatsFiltered.forEach((p: any) => { if (p.etatCMD) sc[p.etatCMD] = (sc[p.etatCMD] || 0) + 1; });
-                      return Object.entries(sc).sort(([,a],[,b]) => b - a).map(([status, count]) => (
-                        <div key={status} className="flex items-center gap-2">
-                          <div className="w-32 sm:w-40 text-xs text-gray-600 dark:text-gray-400 truncate">{status}</div>
-                          <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden">
-                            <div className="h-full bg-[#1e3a5f] rounded-full flex items-center justify-end pr-1.5"
-                              style={{width:`${Math.max((count / gStatsFiltered.length) * 100, 8)}%`}}>
-                              <span className="text-[10px] text-white font-medium">{count}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-                {/* Répartition par collaborateur */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-                  <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Par collaborateur</h3>
-                  <div className="space-y-2">
-                    {(() => {
-                      const collabCount: Record<string, {projets: number, cabines: number}> = {};
-                      gStatsFiltered.forEach((p: any) => {
-                        const names = p.collaborateurs ? p.collaborateurs.split("&").map((n: string) => n.trim()).filter(Boolean) : ["Non assigné"];
-                        names.forEach((n: string) => {
-                          if (!collabCount[n]) collabCount[n] = {projets:0, cabines:0};
-                          collabCount[n].projets++;
-                          collabCount[n].cabines += (p.nbCabines || 0);
-                        });
-                      });
-                      return Object.entries(collabCount).sort(([,a],[,b]) => b.cabines - a.cabines).map(([name, data]) => (
-                        <div key={name} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{name}</span>
-                          <span className="text-xs text-gray-500">{data.projets} proj. · {data.cabines} cab.</span>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-                {/* === ACTIVITÉ PAR TYPE === Mesures / Montages / Services / SAV
-                    Mêmes blocs que la vue Fournisseurs — voir commit
-                    "Stats fournisseurs : activité par type, ..." pour la
-                    logique. Sources : gStatsFiltered (en cours) et
-                    gArchivesFiltered (terminés). */}
-                {(() => {
-                  const hasType = (p: any, kw: string) =>
-                    Array.isArray(p.typeServices) && p.typeServices.some((t: string) => (t || "").toLowerCase().includes(kw));
-                  const stats = [
-                    { label: "Mesures", color: "text-cyan-600 dark:text-cyan-300", pred: (p: any) => hasType(p, "mesure") || !!p.dateMesures || !!p.etatMesures },
-                    { label: "Montages", color: "text-orange-600 dark:text-orange-300", pred: (p: any) => hasType(p, "montage") },
-                    { label: "Services", color: "text-emerald-600 dark:text-emerald-300", pred: (p: any) => hasType(p, "service") },
-                    { label: "SAV", color: "text-red-600 dark:text-red-300", pred: (p: any) => p.sav === true || (p.etatSAV && p.etatSAV !== "Aucun SAV") },
-                  ];
-                  return (
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Activité par type</h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {stats.map((s) => {
-                          const enCours = gStatsFiltered.filter(s.pred).length;
-                          const enCoursCab = gStatsFiltered.filter(s.pred).reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0);
-                          const termine = gArchivesFiltered.filter(s.pred).length;
-                          const termineCab = gArchivesFiltered.filter(s.pred).reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0);
-                          return (
-                            <div key={s.label} className="rounded-lg border border-gray-100 dark:border-gray-700 p-3">
-                              <p className={`text-xs font-semibold uppercase tracking-wider ${s.color}`}>{s.label}</p>
-                              <div className="grid grid-cols-2 gap-2 mt-2">
-                                <div>
-                                  <p className="text-[10px] text-gray-400 dark:text-gray-500">En cours</p>
-                                  <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{enCours}</p>
-                                  {enCoursCab > 0 && <p className="text-[10px] text-gray-400">{enCoursCab} cab.</p>}
-                                </div>
-                                <div>
-                                  <p className="text-[10px] text-gray-400 dark:text-gray-500">Terminés</p>
-                                  <p className="text-xl font-bold text-gray-700 dark:text-gray-300">{termine}</p>
-                                  {termineCab > 0 && <p className="text-[10px] text-gray-400">{termineCab} cab.</p>}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* === STATS PRODUITS — cabines par série === */}
-                {(() => {
-                  const aggBySerie = (list: any[]) => {
-                    const m: Record<string, number> = {};
-                    list.forEach((p: any) => {
-                      (p.seriesCabines || []).forEach((s: string) => {
-                        m[s] = (m[s] || 0) + (p.nbCabines || 0);
-                      });
-                    });
-                    return m;
-                  };
-                  const enCours = aggBySerie(gStatsFiltered);
-                  const termine = aggBySerie(gArchivesFiltered);
-                  const allSeries = Array.from(new Set([...Object.keys(enCours), ...Object.keys(termine)]));
-                  if (allSeries.length === 0) return null;
-                  const totalEnCours = Object.values(enCours).reduce((a, b) => a + b, 0);
-                  const totalTermine = Object.values(termine).reduce((a, b) => a + b, 0);
-                  const sorted = allSeries
-                    .map((s) => ({ s, ec: enCours[s] || 0, t: termine[s] || 0, total: (enCours[s] || 0) + (termine[s] || 0) }))
-                    .sort((a, b) => b.total - a.total);
-                  const max = Math.max(1, ...sorted.map((x) => x.total));
-                  return (
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Stats produits — cabines par série</h3>
-                      <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400 mb-3">
-                        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-500" />En cours ({totalEnCours})</span>
-                        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500" />Terminés ({totalTermine})</span>
-                      </div>
-                      <div className="space-y-2">
-                        {sorted.map(({ s, ec, t, total }) => {
-                          const ecPct = (ec / max) * 100;
-                          const tPct = (t / max) * 100;
-                          return (
-                            <div key={s}>
-                              <div className="flex items-center justify-between text-xs mb-1">
-                                <span className="text-gray-700 dark:text-gray-200 truncate">{s}</span>
-                                <span className="font-mono text-gray-500 dark:text-gray-400">
-                                  {ec > 0 && <span className="text-blue-600 dark:text-blue-300">{ec}</span>}
-                                  {ec > 0 && t > 0 && <span> · </span>}
-                                  {t > 0 && <span className="text-emerald-600 dark:text-emerald-400">{t}</span>}
-                                  <span className="ml-1 text-gray-400">({total})</span>
-                                </span>
-                              </div>
-                              <div className="flex h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                {ec > 0 && <div className="bg-blue-500" style={{ width: `${ecPct}%` }} />}
-                                {t > 0 && <div className="bg-emerald-500" style={{ width: `${tPct}%` }} />}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* === TAUX D'ERREUR === en cours + déjà exécuté */}
-                {(() => {
-                  type Bucket = { soucis: number; pieces: number; defauts: number; total: number };
-                  const compute = (list: any[]): Bucket => ({
-                    soucis: list.filter((p) => p.soucisMontage === true).length,
-                    pieces: list.filter((p) => (p.infoPiecesManquantes || "").trim().length > 0).length,
-                    defauts: list.filter((p) => (p.infoDefautsSignale || "").trim().length > 0).length,
-                    total: list.length,
-                  });
-                  const enCoursB = compute(gStatsFiltered);
-                  const termineB = compute(gArchivesFiltered);
-                  if (enCoursB.total === 0 && termineB.total === 0) return null;
-                  const pct = (n: number, d: number) => d === 0 ? 0 : Math.round((n / d) * 100);
-                  const rows: { label: string; key: keyof Bucket; color: string }[] = [
-                    { label: "Soucis montage", key: "soucis", color: "bg-orange-500" },
-                    { label: "Pièces manquantes", key: "pieces", color: "bg-amber-500" },
-                    { label: "Défauts signalés", key: "defauts", color: "bg-red-500" },
-                  ];
-                  return (
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Taux d&apos;erreur</h3>
-                      <div className="grid grid-cols-2 gap-3 mb-3 text-[11px] text-gray-500 dark:text-gray-400">
-                        <div>Sur <strong className="text-gray-800 dark:text-gray-200">{enCoursB.total}</strong> projets en cours</div>
-                        <div>Sur <strong className="text-gray-800 dark:text-gray-200">{termineB.total}</strong> projets terminés</div>
-                      </div>
-                      <div className="space-y-3">
-                        {rows.map(({ label, key, color }) => {
-                          const ec = enCoursB[key] as number;
-                          const t = termineB[key] as number;
-                          const ecPct = pct(ec, enCoursB.total);
-                          const tPct = pct(t, termineB.total);
-                          return (
-                            <div key={label}>
-                              <div className="flex items-center justify-between text-xs mb-1">
-                                <span className="text-gray-700 dark:text-gray-200">{label}</span>
-                                <span className="font-mono text-gray-500 dark:text-gray-400">
-                                  <span className="text-blue-600 dark:text-blue-300">{ec}</span> / <span className="text-emerald-600 dark:text-emerald-400">{t}</span>
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="flex-1 h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                      <div className={color} style={{ width: `${ecPct}%`, height: "100%" }} />
-                                    </div>
-                                    <span className="text-[10px] font-mono text-gray-500 w-9 text-right">{ecPct}%</span>
-                                  </div>
-                                  <p className="text-[9px] text-gray-400 mt-0.5">en cours</p>
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="flex-1 h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                      <div className={color} style={{ width: `${tPct}%`, height: "100%", opacity: 0.6 }} />
-                                    </div>
-                                    <span className="text-[10px] font-mono text-gray-500 w-9 text-right">{tPct}%</span>
-                                  </div>
-                                  <p className="text-[9px] text-gray-400 mt-0.5">déjà exécutés</p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Prochains RDV */}
-                {rdvFixe.length > 0 && (
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-                    <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Prochains RDV fixés</h3>
-                    <div className="space-y-2">
-                      {rdvFixe.sort((a,b) => (a.dateMontage||"").localeCompare(b.dateMontage||"")).slice(0, 8).map(p => (
-                        <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                          <span className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 sm:line-clamp-1 max-w-[60%]">{p.projet}</span>
-                          <span className="text-xs text-gray-500">{p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", {day:"numeric",month:"short"}) : "—"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* VUE FOURNISSEURS */}
-      {mode.startsWith("fournisseurs") && !mode.startsWith("fournisseurs-menu") && !(isCmm && mode === "fournisseurs" && cmmHeroMode === "fournisseurs") && (() => {
-        const allCmd = projectsData[mode] || projectsData["fournisseurs"] || [];
-        const fournisseurNameFilter: Record<string, string> = {
-          "fournisseurs-duka": "Duka", "fournisseurs-duscholux": "Duscholux", "fournisseurs-kermi": "Kermi",
-          "fournisseurs-koralle": "Koralle", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini",
-          "fournisseurs-ronal": "Ronal", "fournisseurs-samo": "Samo", "fournisseurs-vismaravetro": "Vismaravetro",
+        // Sous-menu par mot(s)-clé(s) : le titre du projet COMMENCE par l'un d'eux.
+        const fournisseurNameFilter: Record<string, string[]> = {
+          "fournisseurs-duka": ["Duka"], "fournisseurs-duscholux": ["Duscholux"], "fournisseurs-kermi": ["Kermi"],
+          "fournisseurs-koralle": ["Koralle"], "fournisseurs-nelo": ["Nelo"], "fournisseurs-novellini": ["Novellini"],
+          "fournisseurs-ronal": ["Ronal"], "fournisseurs-samo": ["Samo"], "fournisseurs-vismaravetro": ["Vismaravetro"],
         };
-        const nameFilter = fournisseurNameFilter[mode];
-        const fournisseursProjects = allCmd.filter((p) => {
-          // 1. État CMD ≠ Annulé et ≠ Terminé
+        const grossisteNameFilter: Record<string, string[]> = {
+          "grossistes-bms": ["Gétaz", "Getaz"], "grossistes-dubat": ["Dubat"], "grossistes-tema": ["Tema"],
+          "grossistes-matway": ["Matway", "MatWay"], "grossistes-bringhen": ["Bringhen"],
+        };
+        const nameKeywords: string[] | undefined =
+          family === "grossistes" ? grossisteNameFilter[mode]
+          : family === "fournisseurs" ? fournisseurNameFilter[mode]
+          : undefined;
+        const matchName = (p: any): boolean =>
+          !nameKeywords || nameKeywords.some((kw) => (p.projet || "").toLowerCase().startsWith(kw.toLowerCase()));
+        // Libellés pour le rapport PDF.
+        const familleLabel = family === "grossistes" ? "Grossiste" : family === "sanitaires" ? "Sanitaire" : "Fournisseur";
+        const reportTitle = family === "grossistes" ? "Rapport grossiste" : family === "sanitaires" ? "Rapport sanitaire" : "Rapport fournisseur";
+        const familyName = nameKeywords ? nameKeywords[0] : (family === "grossistes" ? "Tous grossistes" : family === "sanitaires" ? "Tous sanitaires" : "Tous fournisseurs");
+
+        const memberOk = (p: any) => isMember(p) && matchName(p);
+        const fournisseursProjects = allCmd.filter((p: any) => {
           if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
-          // 2. Type de client = Fournisseurs
-          if (p.typeClient !== "Fournisseurs" && p.typeClient !== "Fournisseur") return false;
-
-          if (nameFilter) {
-            // Sous-menu : le titre du projet COMMENCE par le mot-clé
-            return p.projet.toLowerCase().startsWith(nameFilter.toLowerCase());
-          }
-
-          // "Tous" : tous les projets Fournisseurs non terminés
-          return true;
+          return memberOk(p);
         });
-
-        // ── Archives / tous les projets du fournisseur (inclut les TERMINÉS) ──
-        // Source « /api/projects/all » = tous les projets (actifs + terminés).
-        // On exclut les annulés. Le dédup avec les actifs se fait plus bas.
+        // Archives (inclut les TERMINÉS ; annulés exclus).
         const fArchivesAll = (projectsData["archives"] || []).filter((p: any) => {
           if (p.etatCMD === "Annulé") return false;
-          if (nameFilter) return p.projet.toLowerCase().startsWith(nameFilter.toLowerCase());
-          return p.typeClient === "Fournisseurs" || p.typeClient === "Fournisseur";
+          return memberOk(p);
         });
 
         // ── Filtre par TYPE d'activité (Mesures / Montage / Services / SAV) ──
@@ -3215,7 +2876,9 @@ function HomePage() {
           setGenFournRapport(true);
           try {
             const payload = {
-              fournisseur: nameFilter || "Tous fournisseurs",
+              title: reportTitle,
+              familleLabel,
+              fournisseur: familyName,
               typeLabel: fTypeLabelFull,
               periodLabel: statsDateMode === "rolling12" ? "12 derniers mois"
                 : describeStatsRange({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear }),
@@ -3240,7 +2903,7 @@ function HomePage() {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const blob = await res.blob();
             // Nom de fichier depuis l'en-tête Content-Disposition (repli sinon).
-            let filename = "Rapport fournisseur.pdf";
+            let filename = `${reportTitle}.pdf`;
             const cd = res.headers.get("Content-Disposition");
             const m = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
             if (m?.[1]) filename = decodeURIComponent(m[1]);
@@ -3640,345 +3303,6 @@ function HomePage() {
                     <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Prochains RDV fixés</h3>
                     <div className="space-y-2">
                       {fRdvFixe.sort((a,b) => (a.dateMontage||"").localeCompare(b.dateMontage||"")).slice(0, 8).map(p => (
-                        <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                          <span className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 sm:line-clamp-1 max-w-[60%]">{p.projet}</span>
-                          <span className="text-xs text-gray-500">{p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", {day:"numeric",month:"short"}) : "—"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* VUE SANITAIRES — projets dont typeClient == "Sanitaire(s)".
-          Même UX que la vue Fournisseurs / Grossistes : sous-onglets
-          Projets / Stats avec filtres et stats enrichies. */}
-      {mode === "sanitaires" && (() => {
-        const allCmd = projectsData["sanitaires"] || projectsData["all-active"] || [];
-        const sanitairesProjects = allCmd.filter((p) => {
-          if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
-          return p.typeClient === "Sanitaire" || p.typeClient === "Sanitaires";
-        });
-
-        const q = deferredSearch.toLowerCase();
-        const sanitairesFiltered = sanitairesProjects.filter((p) => {
-          if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
-          if (statusFilter && p.etatCMD !== statusFilter) return false;
-          return matchesSearch(p, q, searchIndex.get(p.id));
-        }).sort((a, b) => {
-          const dateA = a.dateMontage;
-          const dateB = b.dateMontage;
-          if (dateA && dateB) return dateA.localeCompare(dateB);
-          if (dateA && !dateB) return -1;
-          if (!dateA && dateB) return 1;
-          return (STATUS_SORT_ORDER[a.etatCMD] ?? 5) - (STATUS_SORT_ORDER[b.etatCMD] ?? 5);
-        });
-
-        const sStatusCounts = sanitairesProjects.reduce<Record<string, number>>((acc, p) => {
-          if (p.etatCMD) acc[p.etatCMD] = (acc[p.etatCMD] || 0) + 1;
-          return acc;
-        }, {});
-
-        const sStatsFiltered = filterByStatsDate(sanitairesProjects, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
-        const sArchivesAll = (projectsData["archives"] || []).filter((p: any) =>
-          p.typeClient === "Sanitaire" || p.typeClient === "Sanitaires",
-        );
-        const sArchivesFiltered = filterByStatsDate(sArchivesAll, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
-        const sTotalCab = sStatsFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
-        const sRdvFixe = sStatsFiltered.filter((p: any) => p.etatCMD === "RDV - fixé");
-        const sTermineCount = sArchivesFiltered.length;
-
-        return (
-          <div>
-            <div className="flex gap-2 mb-4">
-              <button onClick={() => setSubView("projets")}
-                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "projets" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
-                Projets ({sanitairesProjects.length})
-              </button>
-              <button onClick={() => setSubView("stats")}
-                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "stats" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
-                Stats
-              </button>
-            </div>
-
-            {subView === "projets" ? (
-              <>
-                <div className="relative mb-4 max-w-lg">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input placeholder="Rechercher (nom, sanitaire, OFR...)" className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
-                </div>
-                <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
-                  <button onClick={() => setStatusFilter(null)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${!statusFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"}`}>
-                    Tous ({sanitairesProjects.length})
-                  </button>
-                  {Object.entries(sStatusCounts).map(([status, count]) => (
-                    <button key={status} onClick={() => setStatusFilter(statusFilter === status ? null : status)}
-                      className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${statusFilter === status ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : `${STATUS_CMD_COLORS[status] || "bg-gray-100 text-gray-700"} border-transparent`}`}>
-                      {status} ({count})
-                    </button>
-                  ))}
-                </div>
-                <p className="text-sm text-gray-500 mb-3">
-                  {sanitairesFiltered.length} projet{sanitairesFiltered.length !== 1 ? "s" : ""}{" · "}{sanitairesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0)} cabine{sanitairesFiltered.reduce((sum, p) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
-                </p>
-                {loading && <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
-                <div className="space-y-3">
-                  {sanitairesFiltered.map((project) => (
-                    <ProjectCard key={project.id} project={project} mode="cmd" isAdmin={currentUser?.role === "admin"} onDelete={handleDeleteProject} compact noPrefetch={isFloatingWindow} />
-                  ))}
-                  {sanitairesFiltered.length === 0 && !loading && (
-                    <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet sanitaire</p></div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
-                  onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
-
-                {/* KPIs */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{sStatsFiltered.length}</p>
-                    <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
-                  </div>
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-green-600">{sTotalCab}</p>
-                    <p className="text-xs text-gray-500 mt-1">Cabines</p>
-                  </div>
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-blue-600">{sRdvFixe.length}</p>
-                    <p className="text-xs text-gray-500 mt-1">RDV fixés</p>
-                  </div>
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-purple-600">{sTermineCount}</p>
-                    <p className="text-xs text-gray-500 mt-1">Terminés</p>
-                  </div>
-                </div>
-
-                {/* === RÉPARTITION PAR SANITAIRE (entreprise) === */}
-                {(() => {
-                  const aggBySanitaire = (list: any[]) => {
-                    const m: Record<string, { projets: number; cabines: number }> = {};
-                    list.forEach((p: any) => {
-                      const names: string[] = (p.sanitaireNames && p.sanitaireNames.length > 0) ? p.sanitaireNames : ["Non assigné"];
-                      names.forEach((n) => {
-                        if (!m[n]) m[n] = { projets: 0, cabines: 0 };
-                        m[n].projets++;
-                        m[n].cabines += (p.nbCabines || 0);
-                      });
-                    });
-                    return m;
-                  };
-                  const enCours = aggBySanitaire(sStatsFiltered);
-                  const termine = aggBySanitaire(sArchivesFiltered);
-                  const allNames = Array.from(new Set([...Object.keys(enCours), ...Object.keys(termine)]));
-                  if (allNames.length === 0) return null;
-                  const sorted = allNames
-                    .map((n) => ({
-                      n,
-                      ec: enCours[n]?.projets || 0,
-                      ecCab: enCours[n]?.cabines || 0,
-                      t: termine[n]?.projets || 0,
-                      tCab: termine[n]?.cabines || 0,
-                    }))
-                    .sort((a, b) => (b.ec + b.t) - (a.ec + a.t));
-                  return (
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Par entreprise sanitaire</h3>
-                      <div className="space-y-2">
-                        {sorted.map(({ n, ec, ecCab, t, tCab }) => (
-                          <div key={n} className="flex items-center justify-between py-1.5 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                            <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1 mr-3">{n}</span>
-                            <span className="text-xs text-gray-500 whitespace-nowrap">
-                              <span className="text-blue-600 dark:text-blue-300">{ec}p · {ecCab}c</span>
-                              {" / "}
-                              <span className="text-emerald-600 dark:text-emerald-400">{t}p · {tCab}c</span>
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-3">
-                        <span className="text-blue-600 dark:text-blue-300">●</span> en cours / <span className="text-emerald-600 dark:text-emerald-400">●</span> terminés (p = projets, c = cabines)
-                      </p>
-                    </div>
-                  );
-                })()}
-
-                {/* === ACTIVITÉ PAR TYPE === */}
-                {(() => {
-                  const hasType = (p: any, kw: string) =>
-                    Array.isArray(p.typeServices) && p.typeServices.some((t: string) => (t || "").toLowerCase().includes(kw));
-                  const stats = [
-                    { label: "Mesures", color: "text-cyan-600 dark:text-cyan-300", pred: (p: any) => hasType(p, "mesure") || !!p.dateMesures || !!p.etatMesures },
-                    { label: "Montages", color: "text-orange-600 dark:text-orange-300", pred: (p: any) => hasType(p, "montage") },
-                    { label: "Services", color: "text-emerald-600 dark:text-emerald-300", pred: (p: any) => hasType(p, "service") },
-                    { label: "SAV", color: "text-red-600 dark:text-red-300", pred: (p: any) => p.sav === true || (p.etatSAV && p.etatSAV !== "Aucun SAV") },
-                  ];
-                  return (
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Activité par type</h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {stats.map((s) => {
-                          const enCours = sStatsFiltered.filter(s.pred).length;
-                          const enCoursCab = sStatsFiltered.filter(s.pred).reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0);
-                          const termine = sArchivesFiltered.filter(s.pred).length;
-                          const termineCab = sArchivesFiltered.filter(s.pred).reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0);
-                          return (
-                            <div key={s.label} className="rounded-lg border border-gray-100 dark:border-gray-700 p-3">
-                              <p className={`text-xs font-semibold uppercase tracking-wider ${s.color}`}>{s.label}</p>
-                              <div className="grid grid-cols-2 gap-2 mt-2">
-                                <div>
-                                  <p className="text-[10px] text-gray-400 dark:text-gray-500">En cours</p>
-                                  <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{enCours}</p>
-                                  {enCoursCab > 0 && <p className="text-[10px] text-gray-400">{enCoursCab} cab.</p>}
-                                </div>
-                                <div>
-                                  <p className="text-[10px] text-gray-400 dark:text-gray-500">Terminés</p>
-                                  <p className="text-xl font-bold text-gray-700 dark:text-gray-300">{termine}</p>
-                                  {termineCab > 0 && <p className="text-[10px] text-gray-400">{termineCab} cab.</p>}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* === STATS PRODUITS — cabines par série === */}
-                {(() => {
-                  const aggBySerie = (list: any[]) => {
-                    const m: Record<string, number> = {};
-                    list.forEach((p: any) => {
-                      (p.seriesCabines || []).forEach((s: string) => {
-                        m[s] = (m[s] || 0) + (p.nbCabines || 0);
-                      });
-                    });
-                    return m;
-                  };
-                  const enCours = aggBySerie(sStatsFiltered);
-                  const termine = aggBySerie(sArchivesFiltered);
-                  const allSeries = Array.from(new Set([...Object.keys(enCours), ...Object.keys(termine)]));
-                  if (allSeries.length === 0) return null;
-                  const totalEnCours = Object.values(enCours).reduce((a, b) => a + b, 0);
-                  const totalTermine = Object.values(termine).reduce((a, b) => a + b, 0);
-                  const sorted = allSeries
-                    .map((s) => ({ s, ec: enCours[s] || 0, t: termine[s] || 0, total: (enCours[s] || 0) + (termine[s] || 0) }))
-                    .sort((a, b) => b.total - a.total);
-                  const max = Math.max(1, ...sorted.map((x) => x.total));
-                  return (
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Stats produits — cabines par série</h3>
-                      <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400 mb-3">
-                        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-500" />En cours ({totalEnCours})</span>
-                        <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500" />Terminés ({totalTermine})</span>
-                      </div>
-                      <div className="space-y-2">
-                        {sorted.map(({ s, ec, t, total }) => {
-                          const ecPct = (ec / max) * 100;
-                          const tPct = (t / max) * 100;
-                          return (
-                            <div key={s}>
-                              <div className="flex items-center justify-between text-xs mb-1">
-                                <span className="text-gray-700 dark:text-gray-200 truncate">{s}</span>
-                                <span className="font-mono text-gray-500 dark:text-gray-400">
-                                  {ec > 0 && <span className="text-blue-600 dark:text-blue-300">{ec}</span>}
-                                  {ec > 0 && t > 0 && <span> · </span>}
-                                  {t > 0 && <span className="text-emerald-600 dark:text-emerald-400">{t}</span>}
-                                  <span className="ml-1 text-gray-400">({total})</span>
-                                </span>
-                              </div>
-                              <div className="flex h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                {ec > 0 && <div className="bg-blue-500" style={{ width: `${ecPct}%` }} />}
-                                {t > 0 && <div className="bg-emerald-500" style={{ width: `${tPct}%` }} />}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* === TAUX D'ERREUR === */}
-                {(() => {
-                  type Bucket = { soucis: number; pieces: number; defauts: number; total: number };
-                  const compute = (list: any[]): Bucket => ({
-                    soucis: list.filter((p) => p.soucisMontage === true).length,
-                    pieces: list.filter((p) => (p.infoPiecesManquantes || "").trim().length > 0).length,
-                    defauts: list.filter((p) => (p.infoDefautsSignale || "").trim().length > 0).length,
-                    total: list.length,
-                  });
-                  const enCoursB = compute(sStatsFiltered);
-                  const termineB = compute(sArchivesFiltered);
-                  if (enCoursB.total === 0 && termineB.total === 0) return null;
-                  const pct = (n: number, d: number) => d === 0 ? 0 : Math.round((n / d) * 100);
-                  const rows: { label: string; key: keyof Bucket; color: string }[] = [
-                    { label: "Soucis montage", key: "soucis", color: "bg-orange-500" },
-                    { label: "Pièces manquantes", key: "pieces", color: "bg-amber-500" },
-                    { label: "Défauts signalés", key: "defauts", color: "bg-red-500" },
-                  ];
-                  return (
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-                      <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Taux d&apos;erreur</h3>
-                      <div className="grid grid-cols-2 gap-3 mb-3 text-[11px] text-gray-500 dark:text-gray-400">
-                        <div>Sur <strong className="text-gray-800 dark:text-gray-200">{enCoursB.total}</strong> projets en cours</div>
-                        <div>Sur <strong className="text-gray-800 dark:text-gray-200">{termineB.total}</strong> projets terminés</div>
-                      </div>
-                      <div className="space-y-3">
-                        {rows.map(({ label, key, color }) => {
-                          const ec = enCoursB[key] as number;
-                          const t = termineB[key] as number;
-                          const ecPct = pct(ec, enCoursB.total);
-                          const tPct = pct(t, termineB.total);
-                          return (
-                            <div key={label}>
-                              <div className="flex items-center justify-between text-xs mb-1">
-                                <span className="text-gray-700 dark:text-gray-200">{label}</span>
-                                <span className="font-mono text-gray-500 dark:text-gray-400">
-                                  <span className="text-blue-600 dark:text-blue-300">{ec}</span> / <span className="text-emerald-600 dark:text-emerald-400">{t}</span>
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="flex-1 h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                      <div className={color} style={{ width: `${ecPct}%`, height: "100%" }} />
-                                    </div>
-                                    <span className="text-[10px] font-mono text-gray-500 w-9 text-right">{ecPct}%</span>
-                                  </div>
-                                  <p className="text-[9px] text-gray-400 mt-0.5">en cours</p>
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="flex-1 h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                      <div className={color} style={{ width: `${tPct}%`, height: "100%", opacity: 0.6 }} />
-                                    </div>
-                                    <span className="text-[10px] font-mono text-gray-500 w-9 text-right">{tPct}%</span>
-                                  </div>
-                                  <p className="text-[9px] text-gray-400 mt-0.5">déjà exécutés</p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Prochains RDV */}
-                {sRdvFixe.length > 0 && (
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-                    <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Prochains RDV fixés</h3>
-                    <div className="space-y-2">
-                      {sRdvFixe.sort((a,b) => (a.dateMontage||"").localeCompare(b.dateMontage||"")).slice(0, 8).map(p => (
                         <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
                           <span className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 sm:line-clamp-1 max-w-[60%]">{p.projet}</span>
                           <span className="text-xs text-gray-500">{p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", {day:"numeric",month:"short"}) : "—"}</span>

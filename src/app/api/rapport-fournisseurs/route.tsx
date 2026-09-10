@@ -43,6 +43,8 @@ type Row = {
   collaborateurs?: string;
 };
 type Payload = {
+  title?: string;         // Titre du rapport (défaut "Rapport fournisseur")
+  familleLabel?: string;  // Libellé de l'en-tête famille (défaut "Fournisseur")
   fournisseur?: string;   // "Duka.ch" | "Tous" | ...
   typeLabel?: string;     // "Montage" | "Mesures" | "Services" | "SAV" | "Tous"
   periodLabel?: string;   // "Août 2026" | "Tout" | ...
@@ -86,10 +88,10 @@ function RapportFournisseursPDF({ data }: { data: Payload }) {
       <Page size="A4" style={styles.page}>
         <View style={styles.header} fixed>
           <Image src={LOGO_BASE64} style={{ width: 170, height: 26 }} />
-          <Text style={styles.title}>Rapport fournisseur</Text>
+          <Text style={styles.title}>{nfc(data.title || "Rapport fournisseur")}</Text>
           <View style={styles.metaRow}>
             <View style={styles.metaCell}>
-              <Text style={styles.metaLabel}>Fournisseur</Text>
+              <Text style={styles.metaLabel}>{nfc(data.familleLabel || "Fournisseur")}</Text>
               <Text style={styles.metaValue}>{nfc(data.fournisseur || "Tous")}</Text>
             </View>
             <View style={styles.metaCell}>
@@ -168,7 +170,7 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.concat(chunks);
 
     const parts = [data.fournisseur, data.typeLabel, data.periodLabel].filter(Boolean).join(" - ");
-    const filename = asciiFilename(`Rapport fournisseur - ${parts}`) + ".pdf";
+    const filename = asciiFilename(`${data.title || "Rapport fournisseur"} - ${parts}`) + ".pdf";
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": "application/pdf",
