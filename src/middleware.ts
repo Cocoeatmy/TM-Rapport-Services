@@ -23,6 +23,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/reminders") ||
     pathname.startsWith("/api/notion-webhook") || // webhook Notion (pas de cookie auth)
     pathname.startsWith("/client/") ||
+    pathname.startsWith("/f/") || // lien court Fiche de travail (redirige vers /api/fiche signé)
+    pathname.startsWith("/s/") || // lien court Rapport de suivi (redirige vers /api/synthese signé)
     pathname.startsWith("/_next") ||
     pathname.startsWith("/icons") ||
     pathname === "/manifest.json" ||

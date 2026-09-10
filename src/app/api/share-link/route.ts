@@ -16,7 +16,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { notion, databaseId, mapPageToProject } from "@/lib/notion";
-import { signFiche, signSynthese } from "@/lib/doc-link";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -86,9 +85,12 @@ export async function GET(req: NextRequest) {
     // Le « Rapport de suivi » n'a de sens qu'en multi-cabine (nbCabines > 1).
     if (notesLines.length) {
       const nbCab = project.nbCabines || 0;
-      add("Fiche de travail", `${origin}/api/fiche/${encodeURIComponent(project.id)}?s=${signFiche(project.id)}`);
+      // Liens COURTS (/f/<token>, /s/<token>) pour rester lisibles dans les
+      // notes du calendrier ; ils redirigent vers le PDF signé côté serveur.
+      const shortToken = Buffer.from(project.id).toString("base64url");
+      add("Fiche de travail", `${origin}/f/${shortToken}`);
       if (nbCab > 1) {
-        add("Rapport de suivi", `${origin}/api/synthese/${encodeURIComponent(project.id)}?s=${signSynthese(project.id)}`);
+        add("Rapport de suivi", `${origin}/s/${shortToken}`);
       }
     }
     const NOTES_SENTINEL = "——— Infos projet (auto) ———";
