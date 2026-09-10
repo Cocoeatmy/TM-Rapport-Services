@@ -21,7 +21,7 @@ import { getFavorites } from "@/lib/favorites";
 import { fetchWithRetry, prefetchProject } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import { toast as sonnerToast } from "sonner";
-import { StatsDateFilter, filterByStatsDate, getRolling12Range, type StatsDateMode } from "@/components/stats-date-filter";
+import { StatsDateFilter, filterByStatsDate, getRolling12Range, describeStatsRange, type StatsDateMode } from "@/components/stats-date-filter";
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
@@ -1310,6 +1310,7 @@ function HomePage() {
   const [subView, setSubView] = useState<"projets" | "stats">("projets");
   // Filtre TYPE d'activité de la vue Fournisseurs (suivi mensuel).
   const [fournisseurType, setFournisseurType] = useState<"tous" | "mesures" | "montage" | "services" | "sav">("tous");
+  const [genFournRapport, setGenFournRapport] = useState(false);
   const [statsDateMode, setStatsDateMode] = useState<StatsDateMode>("all");
   const [statsDateFrom, setStatsDateFrom] = useState("");
   const [statsDateTo, setStatsDateTo] = useState("");
@@ -3185,6 +3186,60 @@ function HomePage() {
         const fRdvFixe = fStatsFiltered.filter((p: any) => p.etatCMD === "RDV - fixé");
         const fTermineCount = fArchivesFiltered.length;
 
+        // ── Génération du rapport PDF des projets filtrés (pointage facture) ──
+        const fTypeLabelFull = fournisseurType === "mesures" ? "Mesures"
+          : fournisseurType === "montage" ? "Montage"
+          : fournisseurType === "services" ? "Services"
+          : fournisseurType === "sav" ? "SAV" : "Tous";
+        const fRefLabel = fournisseurType === "mesures" ? "N° Serv. Mes."
+          : fournisseurType === "services" ? "N° Serv."
+          : fournisseurType === "sav" ? "N° Serv." : "N° CMD";
+        const fRefOf = (p: any): string => {
+          switch (fournisseurType) {
+            case "mesures":  return p.servMesuresFournisseurs || "";
+            case "services": return p.servCmdFournisseurs || "";
+            case "sav":      return p.servCmdFournisseurs || p.cmdFournisseurs || "";
+            default:         return p.cmdFournisseurs || p.servCmdFournisseurs || "";
+          }
+        };
+        const genererRapportFournisseurs = async () => {
+          if (genFournRapport) return;
+          setGenFournRapport(true);
+          try {
+            const payload = {
+              fournisseur: nameFilter || "Tous fournisseurs",
+              typeLabel: fTypeLabelFull,
+              periodLabel: statsDateMode === "rolling12" ? "12 derniers mois"
+                : describeStatsRange({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear }),
+              statusLabel: statusFilter || "",
+              refLabel: fRefLabel,
+              rows: fournisseursFiltered.map((p) => ({
+                projet: p.projet,
+                ofrTM: p.ofrTM,
+                ref: fRefOf(p),
+                date: (() => { const d = fTypeDate(p); return d ? formatDateFR(d) : ""; })(),
+                nbCabines: p.nbCabines || 0,
+                etat: fTypeEtat(p) || "",
+                collaborateurs: p.collaborateurs || "",
+              })),
+            };
+            const res = await fetch("/api/rapport-fournisseurs", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            window.open(url, "_blank");
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+          } catch (e) {
+            alert("Impossible de générer le rapport : " + (e as Error).message);
+          } finally {
+            setGenFournRapport(false);
+          }
+        };
+
         return (
           <div>
             {/* Onglets Projets / Stats */}
@@ -3205,9 +3260,22 @@ function HomePage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input placeholder="Rechercher..." className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
                 </div>
-                {/* Période (mois / année / plage / 12 mois) — filtre sur la date du type */}
-                <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
-                  onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
+                {/* Période (mois / année / plage / 12 mois) — filtre sur la date du type.
+                    Bouton « Générer rapport » à droite : PDF des projets filtrés (pointage facture). */}
+                <div className="flex gap-3 items-stretch">
+                  <div className="flex-1 min-w-0">
+                    <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
+                      onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
+                  </div>
+                  <button
+                    onClick={genererRapportFournisseurs}
+                    disabled={genFournRapport || fournisseursFiltered.length === 0}
+                    title="Générer un PDF des projets actuellement filtrés (pointage facture)"
+                    className="shrink-0 mb-4 flex flex-col items-center justify-center gap-1 px-4 rounded-xl bg-[#1e3a5f] text-white text-xs font-semibold shadow-sm hover:bg-[#274b78] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    {genFournRapport ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
+                    <span className="whitespace-nowrap">{genFournRapport ? "Génération…" : "Générer rapport"}</span>
+                  </button>
+                </div>
                 {/* Récap par type dans la période (pointage facture mensuelle).
                     « Tous » réinitialise le type (fait aussi office de filtre type). */}
                 <div className="flex flex-wrap gap-2 mb-3">
