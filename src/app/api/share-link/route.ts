@@ -98,7 +98,8 @@ export async function GET(req: NextRequest) {
       if (type === "sav") links.push(["Rapport SAV", `${origin}/sav/${shortToken}`]);
       for (const [label, url] of links) {
         if (notesLines.length) notesLines.push(""); // ligne vide de séparation
-        add(label, url);
+        notesLines.push(`${label} :`); // libellé...
+        notesLines.push(url);          // ...puis l'URL sur la ligne suivante
       }
     }
     const NOTES_SENTINEL = "——— Infos projet (auto) ———";
