@@ -15,6 +15,10 @@ function run(argv) {
   if (argv.length < 2) return 'args manquants';
   const baseURL = argv[0];
   const apiKey = argv[1];
+  // 3e arg "force" : re-traite même les RDV déjà enrichis (pour appliquer un
+  // nouveau format de notes). Le garde notesChanged/urlChanged évite les
+  // écritures inutiles. Comportement normal (anti-boucle) si absent.
+  const force = (argv[2] === 'force');
 
   const app = Application.currentApplication();
   app.includeStandardAdditions = true;
@@ -92,7 +96,7 @@ function run(argv) {
 
     // Déjà traité ? URL présente ET (pas de notes attendues OU bloc déjà là).
     // Évite de re-solliciter l'API et la boucle WatchPath après écriture.
-    if (curURL && (!wantsNotes || hasSentinel)) continue;
+    if (!force && curURL && (!wantsNotes || hasSentinel)) continue;
 
     // Récupérer lien + notes (JSON) selon le type.
     const reqURL = baseURL + '/api/share-link?key=' + apiKey + '&type=' + type + '&tm=' + tm;
