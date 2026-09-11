@@ -4159,7 +4159,18 @@ function ProjectPageContent({ id }: { id: string }) {
       };
     }
     const nb = data.nbCabines || 1;
-    if (nb > 1) {
+    // Le projet a-t-il des données de cabine n°≥2 (noms, heures, photos…) ?
+    // Si oui, il faut entrer dans la logique multi-cabine MÊME si Notion est
+    // repassé à 1 — afin de RÉCONCILIER (tronquer) l'affichage vers le nouveau
+    // Nb. Cabines. (Sinon le bloc serait sauté et l'app resterait bloquée à 2.)
+    const wasMultiCabine = (() => {
+      let mx = 0;
+      const scan = (raw?: string | null) => { const re = /Cab(\d+)/g; let m: RegExpExecArray | null; while ((m = re.exec(raw || ""))) mx = Math.max(mx, parseInt(m[1], 10)); };
+      scan(data.nomsCabines); scan(data.attributionCabines); scan(data.heureArrivee); scan(data.heureDepart);
+      for (const f of [...(data.photosMontage || []), ...(data.photosAvant || [])]) { const m = (f.name || "").match(/\.Cab(\d+)\./); if (m) mx = Math.max(mx, parseInt(m[1], 10)); }
+      return mx >= 2;
+    })();
+    if (nb > 1 || wasMultiCabine) {
       setIsCabineMode(true);
       setIsMultiDay(true);
       // Parse les heures stockées au format "Cab1:08:00 | Cab2:09:30..." si
@@ -4307,29 +4318,12 @@ function ProjectPageContent({ id }: { id: string }) {
             return [...updated, ...extra];
           }
           if (nb < updated.length) {
-            const hasPhotoForCab = (list: { name?: string }[] | undefined, cab: number) =>
-              (list || []).some((f) => { const m = (f.name || "").match(/\.Cab(\d+)\./); return m ? parseInt(m[1], 10) === cab : false; });
-            const savTextForCab = (raw: string | undefined, cab: number) => {
-              const re = /Cab(\d+)\s*:([^|]*)/g; let m: RegExpExecArray | null;
-              while ((m = re.exec(raw || ""))) { if (parseInt(m[1], 10) === cab && m[2].trim()) return true; }
-              return false;
-            };
-            const isEmptyLot = (c: typeof updated[number], i: number) => {
-              const cab = i + 1;
-              if (c.rapport && c.rapport.trim()) return false;
-              if (c.arrivee || c.depart) return false;
-              if (hasPhotoForCab(data.photosMontage, cab) || hasPhotoForCab(data.photosAvant, cab)
-                || hasPhotoForCab(data.documentsSavDemande, cab) || hasPhotoForCab(data.photosSavRetouches, cab)) return false;
-              if (savTextForCab(data.commentairesSav, cab) || savTextForCab(data.savRetouchesCabines, cab)
-                || savTextForCab(data.causeSavCabines, cab) || savTextForCab(data.datesRdvSavCabines, cab)) return false;
-              return true;
-            };
-            const result = [...updated];
-            // Retire seulement les lots vierges à partir de la fin.
-            while (result.length > nb && isEmptyLot(result[result.length - 1], result.length - 1)) {
-              result.pop();
-            }
-            return result;
+            // Notion est la SOURCE DE VÉRITÉ pour le Nb. Cabines : on tronque
+            // l'affichage à `nb`, uniquement depuis la FIN (aucune ré-indexation
+            // des lots restants). Les données encodées (photos « .CabN. », noms,
+            // heures…) des lots retirés restent dans Notion mais ne sont plus
+            // affichées ; elles réapparaîtront si le Nb. Cabines est ré-augmenté.
+            return updated.slice(0, nb);
           }
           return updated;
         });
@@ -5661,7 +5655,9 @@ function ProjectPageContent({ id }: { id: string }) {
   const installedCabineIndices = new Set<number>(
     (project.photosMontage || [])
       .map((f) => { const m = f.name.match(/\.Cab(\d+)\./); return m ? parseInt(m[1], 10) - 1 : null; })
-      .filter((n): n is number => n !== null)
+      // Cappé aux cabines réellement affichées : un lot retiré (Nb. Cabines
+      // réduit dans Notion) ne doit plus compter comme « installé ».
+      .filter((n): n is number => n !== null && n < cabines.length)
   );
   const installedCabineCount = installedCabineIndices.size;
 
