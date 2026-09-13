@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
-import { signFiche, signPhotosZip } from "@/lib/doc-link";
+import { signFiche, signPhotosZip, signSav } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
@@ -169,6 +169,14 @@ function ContactCell({ label, company, contacts, width }: { label: string; compa
     </View>
   );
 }
+// Données par cabine encodées « CabN:valeur | CabM:valeur » → { N: valeur }.
+function parseCabMulti(raw: string | undefined | null): Record<number, string> {
+  const map: Record<number, string> = {};
+  const re = /Cab(\d+)\s*:([^|]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw || ""))) { const v = m[2].trim(); if (v) map[parseInt(m[1], 10)] = v; }
+  return map;
+}
 // Petite flèche « téléchargement » (icône vectorielle).
 function DownloadArrow() {
   return (
@@ -220,7 +228,7 @@ function ProgressRow({ label, pct, caption, color, value, docUrl }: {
   );
 }
 
-function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savPhotosUrl, reportUrl }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savPhotosUrl?: string; reportUrl?: string }) {
+function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, reportUrl }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savReportUrl?: string; reportUrl?: string }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -347,7 +355,36 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savPhotosUrl, repo
               />
             );
           })()}
-          <LineRow label="SAV" value={dateAndWho(fmtDate(project.dateRDVSAV), project.collaborateursSAV)} docUrl={savPhotosUrl} />
+          {/* SAV : progression cabines clôturées / total SAV (comme Montage).
+              Flèche → rapport SAV signé. Sans SAV, ligne simple sans barre. */}
+          {(() => {
+            const reclam = parseCabMulti(project.commentairesSav);
+            const cause = parseCabMulti(project.causeSavCabines);
+            const rdv = parseCabMulti(project.datesRdvSavCabines);
+            const collab = parseCabMulti(project.collaborateursSavCabines);
+            const fait = parseCabMulti(project.savRetouchesCabines);
+            const recu = parseCabMulti(project.dateSAVRecu);
+            const cloture = parseCabMulti(project.datesSavClotureCabines);
+            const cabHasSav = (n: number) => !!(reclam[n] || cause[n] || rdv[n] || collab[n] || fait[n] || recu[n]);
+            const keys = new Set<number>();
+            [reclam, cause, rdv, collab, fait, recu].forEach((mp) => Object.keys(mp).forEach((k) => keys.add(parseInt(k, 10))));
+            const savCabs = [...keys].filter(cabHasSav);
+            const totalSav = savCabs.length;
+            const value = dateAndWho(fmtDate(project.dateRDVSAV), project.collaborateursSAV);
+            if (totalSav <= 0) return <LineRow label="SAV" value={value} docUrl={savReportUrl} />;
+            const clos = savCabs.filter((n) => cloture[n]).length;
+            const pct = Math.round((clos / totalSav) * 100);
+            return (
+              <ProgressRow
+                label="SAV"
+                pct={pct}
+                caption={`${clos}/${totalSav} · ${pct}%`}
+                color={pct >= 100 ? "#15803d" : "#d97706"}
+                value={value}
+                docUrl={savReportUrl}
+              />
+            );
+          })()}
           <LineRow label="Garantie" value={dateAndWho(fmtDate(project.dateRDVGarantie), project.collaborateurGarantie)} />
           <LineRow label="Services" value="à venir" />
         </View>
@@ -433,10 +470,11 @@ export async function GET(
     const zipUrl = (field: string) =>
       `${req.nextUrl.origin}/api/photos/${encodeURIComponent(id)}/download?field=${field}&s=${signPhotosZip(id, field)}`;
     const montagePhotosUrl = (project.photosMontage || []).length > 0 ? zipUrl("photosMontage") : undefined;
-    const savPhotosUrl = (project.photosSavRetouches || []).length > 0 ? zipUrl("photosSavRetouches") : undefined;
+    // Flèche SAV → rapport SAV signé (toutes cabines), ouvrable sans login.
+    const savReportUrl = `${req.nextUrl.origin}/api/sav/${encodeURIComponent(id)}?s=${signSav(id)}`;
     // Lien vers la page du rapport de montage (upload photos + horaires).
     const reportUrl = `${req.nextUrl.origin}/projet/${encodeURIComponent(id)}`;
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} savPhotosUrl={savPhotosUrl} reportUrl={reportUrl} />);
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
