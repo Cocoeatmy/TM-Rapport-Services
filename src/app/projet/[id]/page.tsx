@@ -3338,8 +3338,8 @@ function ProjectPageContent({ id }: { id: string }) {
   const [defautRefreshKey, setDefautRefreshKey] = useState(0);
   const [pieceRefreshKey, setPieceRefreshKey] = useState(0);
   const [cabineSignalements, setCabineSignalements] = useState<{
-    pieces: { id: string; cabineLabel?: string; status?: string }[];
-    defauts: { id: string; cabineLabel?: string; resolved?: boolean; phase?: string }[];
+    pieces: { id: string; cabineLabel?: string; status?: string; description?: string; reference?: string; displayInRapport?: boolean }[];
+    defauts: { id: string; cabineLabel?: string; resolved?: boolean; phase?: string; types?: string[]; typesLabel?: string; description?: string; displayInRapport?: boolean }[];
   }>({ pieces: [], defauts: [] });
   const [showEditModal, setShowEditModal] = useState(false);
 
@@ -3744,6 +3744,9 @@ function ProjectPageContent({ id }: { id: string }) {
   const [copyingPdfClientLink, setCopyingPdfClientLink] = useState(false);
   const [downloadingSignalements, setDownloadingSignalements] = useState(false);
   const [copyingSignalementsLink, setCopyingSignalementsLink] = useState(false);
+  // Sélecteur (modal) « quels signalements inclure dans le rapport ».
+  const [showSignalementsPicker, setShowSignalementsPicker] = useState(false);
+  const [selectedSigIds, setSelectedSigIds] = useState<Set<string>>(new Set());
   const [downloadingFiche, setDownloadingFiche] = useState(false);
   const [copyingFicheLink, setCopyingFicheLink] = useState(false);
   const [downloadingSav, setDownloadingSav] = useState(false);
@@ -5495,10 +5498,11 @@ function ProjectPageContent({ id }: { id: string }) {
     } finally { setCopyingPdfClientLink(false); }
   };
   // ── Rapport des signalements (pièces + défauts + constats) ─────────────────
-  const handleDownloadSignalements = async () => {
+  const handleDownloadSignalements = async (selectedIds?: string[]) => {
     setDownloadingSignalements(true);
     try {
-      const res = await fetch(`/api/rapport-signalements/${id}`);
+      const qs = selectedIds && selectedIds.length ? `?ids=${encodeURIComponent(selectedIds.join(","))}` : "";
+      const res = await fetch(`/api/rapport-signalements/${id}${qs}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       let filename = "Rapport signalements.pdf";
@@ -5515,10 +5519,11 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Impossible de générer le rapport des signalements.");
     } finally { setDownloadingSignalements(false); }
   };
-  const handleCopySignalementsLink = async () => {
+  const handleCopySignalementsLink = async (selectedIds?: string[]) => {
     setCopyingSignalementsLink(true);
     try {
-      const res = await fetch(`/api/rapport-signalements/${id}?link=1`);
+      const idsQ = selectedIds && selectedIds.length ? `&ids=${encodeURIComponent(selectedIds.join(","))}` : "";
+      const res = await fetch(`/api/rapport-signalements/${id}?link=1${idsQ}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!data?.url) throw new Error("no url");
@@ -5528,6 +5533,22 @@ function ProjectPageContent({ id }: { id: string }) {
       console.error("Lien Rapport signalements échoué:", e);
       toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
     } finally { setCopyingSignalementsLink(false); }
+  };
+  // Ouvre le sélecteur : coche par défaut les signalements déjà « visibles dans
+  // le rapport » (displayInRapport !== false).
+  const openSignalementsPicker = () => {
+    const sel = new Set<string>();
+    cabineSignalements.pieces.forEach((p) => { if (p.displayInRapport !== false) sel.add(p.id); });
+    cabineSignalements.defauts.forEach((d) => { if (d.displayInRapport !== false) sel.add(d.id); });
+    setSelectedSigIds(sel);
+    setShowSignalementsPicker(true);
+  };
+  const toggleSigId = (sigId: string) => {
+    setSelectedSigIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sigId)) next.delete(sigId); else next.add(sigId);
+      return next;
+    });
   };
   // ── Rapport SAV : PDF + lien public ────────────────────────────────────────
   const handleDownloadSav = async (collab?: string) => {
@@ -6346,12 +6367,12 @@ function ProjectPageContent({ id }: { id: string }) {
                   </div>
                   {/* Rapport des signalements (pièces + défauts + constats) */}
                   <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={downloadingSignalements} onClick={handleDownloadSignalements}
+                    <button type="button" disabled={downloadingSignalements} onClick={openSignalementsPicker}
                       className="h-11 px-2 rounded-lg flex items-center justify-center gap-1.5 text-xs font-semibold leading-tight text-center bg-rose-600 hover:bg-rose-700 text-white active:scale-95 transition-all disabled:opacity-60">
                       {downloadingSignalements ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
                       Signalements
                     </button>
-                    <button type="button" disabled={copyingSignalementsLink} onClick={handleCopySignalementsLink}
+                    <button type="button" disabled={copyingSignalementsLink} onClick={() => handleCopySignalementsLink()}
                       className="h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-semibold border border-rose-500/40 text-rose-600 dark:text-rose-300 dark:border-rose-400/50 hover:bg-rose-500/5 active:scale-95 transition-all disabled:opacity-60">
                       {copyingSignalementsLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
                       Copier le lien
@@ -7765,12 +7786,12 @@ function ProjectPageContent({ id }: { id: string }) {
                     Inclut tous les signalements sauf ceux cochés « Ne pas afficher ».
                   </p>
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <button type="button" disabled={downloadingSignalements} onClick={handleDownloadSignalements}
+                    <button type="button" disabled={downloadingSignalements} onClick={openSignalementsPicker}
                       className="flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white active:scale-95 transition-all disabled:opacity-60">
                       {downloadingSignalements ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertCircle className="w-4 h-4" />}
                       Rapport des signalements
                     </button>
-                    <button type="button" disabled={copyingSignalementsLink} onClick={handleCopySignalementsLink}
+                    <button type="button" disabled={copyingSignalementsLink} onClick={() => handleCopySignalementsLink()}
                       title="Copier un lien public vers ce rapport"
                       className="flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold border border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20 active:scale-95 transition-all disabled:opacity-60">
                       {copyingSignalementsLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
@@ -10268,6 +10289,93 @@ function ProjectPageContent({ id }: { id: string }) {
                 className="w-full h-11 rounded-xl bg-green-600 hover:bg-green-700 text-white text-base font-semibold active:scale-[0.98] transition-all"
               >
                 OK
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Sélecteur « quels signalements inclure dans le rapport » */}
+      {showSignalementsPicker && typeof document !== "undefined" && createPortal(
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 80, transform: "translateZ(0)" }}
+          className="flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setShowSignalementsPicker(false)}
+        >
+          <div
+            className="w-full max-w-md max-h-[85vh] flex flex-col bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 pt-5 pb-3 border-b border-gray-100 dark:border-slate-700">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-rose-600" /> Rapport des signalements
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Cochez les signalements à inclure. Ex. : les pièces manquantes concernent souvent le fournisseur, pas le client.
+              </p>
+            </div>
+            {(() => {
+              const items = [
+                ...cabineSignalements.pieces.map((p) => ({
+                  id: p.id, lot: p.cabineLabel || "Sans lot", kind: "Pièce manquante",
+                  desc: p.description || p.reference || "Sans description",
+                })),
+                ...cabineSignalements.defauts.map((d) => ({
+                  id: d.id, lot: d.cabineLabel || "Sans lot",
+                  kind: d.phase === "avant-intervention" ? "Constat avant intervention" : "Défaut",
+                  desc: (d.types && d.types.length ? d.types.join(", ") : (d.typesLabel || d.description || "Sans description")),
+                })),
+              ];
+              const lots = [...new Set(items.map((i) => i.lot))];
+              const allIds = items.map((i) => i.id);
+              return (
+                <>
+                  <div className="px-5 py-2 flex items-center justify-between text-xs border-b border-gray-100 dark:border-slate-700">
+                    <span className="text-gray-500 dark:text-gray-400">{selectedSigIds.size} / {items.length} sélectionné{selectedSigIds.size !== 1 ? "s" : ""}</span>
+                    <div className="flex gap-3">
+                      <button className="text-rose-600 dark:text-rose-300 font-medium" onClick={() => setSelectedSigIds(new Set(allIds))}>Tout cocher</button>
+                      <button className="text-gray-500 dark:text-gray-400 font-medium" onClick={() => setSelectedSigIds(new Set())}>Tout décocher</button>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+                    {items.length === 0 && <p className="text-center text-sm text-gray-400 py-8">Aucun signalement sur ce projet.</p>}
+                    {lots.map((lot) => (
+                      <div key={lot}>
+                        <p className="text-xs font-bold text-gray-700 dark:text-gray-200 px-2 mb-1">{lot}</p>
+                        <div className="space-y-1">
+                          {items.filter((it) => it.lot === lot).map((it) => (
+                            <label key={it.id} className="flex items-start gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/40 cursor-pointer">
+                              <input type="checkbox" checked={selectedSigIds.has(it.id)} onChange={() => toggleSigId(it.id)} className="mt-1 accent-rose-600 w-4 h-4 shrink-0" />
+                              <span className="text-sm text-gray-700 dark:text-gray-200 leading-snug">
+                                <span className="font-semibold">{it.kind}</span> — {it.desc}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+            <div className="p-4 border-t border-gray-100 dark:border-slate-700 flex items-center gap-2">
+              <button
+                onClick={() => setShowSignalementsPicker(false)}
+                className="h-10 px-4 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                Annuler
+              </button>
+              <button
+                disabled={selectedSigIds.size === 0 || copyingSignalementsLink}
+                onClick={() => { const ids = [...selectedSigIds]; setShowSignalementsPicker(false); handleCopySignalementsLink(ids); }}
+                className="h-10 px-4 rounded-xl text-sm font-semibold border border-rose-500/40 text-rose-600 dark:text-rose-300 hover:bg-rose-500/5 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                <ExternalLink className="w-4 h-4" /> Copier le lien
+              </button>
+              <button
+                disabled={selectedSigIds.size === 0 || downloadingSignalements}
+                onClick={() => { const ids = [...selectedSigIds]; setShowSignalementsPicker(false); handleDownloadSignalements(ids); }}
+                className="flex-1 h-10 px-4 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-1.5">
+                {downloadingSignalements ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertCircle className="w-4 h-4" />} Télécharger le rapport
               </button>
             </div>
           </div>

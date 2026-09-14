@@ -146,6 +146,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const s = sp.get("s") || "";
   const wantLink = sp.get("link") === "1";
   const includeAll = sp.get("all") === "1";
+  // Sélection explicite d'IDs (modal « quels signalements inclure »). Non signée :
+  // elle ne fait que RESTREINDRE au projet déjà autorisé par la signature/cookie.
+  const idsParam = (sp.get("ids") || "").trim();
+  const idsSet = idsParam ? new Set(idsParam.split(",").map((x) => x.trim()).filter(Boolean)) : null;
   const secret = process.env.SHARE_LINK_KEY || "";
 
   const sigValid = (() => {
@@ -158,7 +162,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (wantLink) {
     if (!authed) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     if (!secret) return NextResponse.json({ error: "SHARE_LINK_KEY non configuré" }, { status: 503 });
-    const q = includeAll ? `?s=${signSignalements(id)}&all=1` : `?s=${signSignalements(id)}`;
+    let q = includeAll ? `?s=${signSignalements(id)}&all=1` : `?s=${signSignalements(id)}`;
+    if (idsSet) q += `&ids=${encodeURIComponent([...idsSet].join(","))}`;
     return NextResponse.json({ url: `${req.nextUrl.origin}/api/rapport-signalements/${encodeURIComponent(id)}${q}` });
   }
   if (!sigValid && !authed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -169,7 +174,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       getDataFresh<Piece>("pieces").catch(() => getData<Piece>("pieces").catch(() => [] as Piece[])),
       getDataFresh<Defaut>("defauts").catch(() => getData<Defaut>("defauts").catch(() => [] as Defaut[])),
     ]);
-    const keep = (x: { displayInRapport?: boolean }) => includeAll || x.displayInRapport !== false;
+    // Sélection explicite (ids) prioritaire ; sinon filtre « displayInRapport ».
+    const keep = (x: { id: string; displayInRapport?: boolean }) =>
+      idsSet ? idsSet.has(x.id) : (includeAll || x.displayInRapport !== false);
     const pieces = allPieces.filter((p) => p.projectId === id && keep(p));
     const defauts = allDefauts.filter((d) => d.projectId === id && keep(d));
 

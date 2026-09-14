@@ -280,9 +280,14 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
             <View style={styles.infoCell}>
               <Text style={styles.infoLabel}>SAV</Text>
               <Text style={styles.infoValue}>
-                <Text style={{ color: COLORS.savClosed }}>{savClosed} réglé{savClosed > 1 ? "s" : ""}</Text>
-                {savOpen > 0 ? <Text style={{ color: COLORS.savOpen }}>  ·  {savOpen} en attente</Text> : null}
-                {savClosed === 0 && savOpen === 0 ? "—" : ""}
+                {savClosed === 0 && savOpen === 0 ? (
+                  <Text style={{ color: "#888" }}>Aucun SAV</Text>
+                ) : (
+                  <>
+                    <Text style={{ color: COLORS.savClosed }}>{savClosed} réglé{savClosed > 1 ? "s" : ""}</Text>
+                    {savOpen > 0 ? <Text style={{ color: COLORS.savOpen }}>  ·  {savOpen} en attente</Text> : null}
+                  </>
+                )}
               </Text>
             </View>
           </View>
