@@ -732,7 +732,7 @@ export default function ClientPortalPage({ params }: { params: Promise<{ token: 
       <footer className="border-t border-gray-200 mt-8">
         <div className="max-w-2xl mx-auto px-4 py-6 text-center">
           <p className="text-xs text-gray-400">Powered by <span className="font-medium text-gray-500">TM Rapport Services</span></p>
-          <p className="text-xs text-gray-300 mt-1">TM Douche Montage | Champs-Lovat 13 Box n.16, 1400 Yverdon</p>
+          <p className="text-xs text-gray-300 mt-1">TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | info@douche-montage.ch</p>
         </div>
       </footer>
 

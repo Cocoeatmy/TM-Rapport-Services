@@ -108,8 +108,8 @@ export async function sendPdfByEmail({
           </div>` : ""}
           <div style="padding: 20px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px; background: white;">
             <p style="color: #94a3b8; font-size: 11px; margin: 0; text-align: center;">
-              TM Douche Montage | Champs-Lovat 13 Box n°16, 1400 Yverdon<br />
-              +41 79 555 24 74 | www.douche-montage.ch
+              TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains<br />
+              +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch
             </p>
           </div>
         </div>

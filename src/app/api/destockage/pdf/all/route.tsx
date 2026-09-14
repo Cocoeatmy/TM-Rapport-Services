@@ -322,7 +322,7 @@ function CabinePage({ entry, now, index, total }: {
       {/* Footer */}
       <View style={S.footer} fixed>
         <Text style={S.footerLeft}>
-          TM Douche Montage · Champs-Lovat 13 Box n°16, 1400 Yverdon · +41 79 555 24 74 · info@douche-montage.ch
+          TM Douche Montage · Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains · +41 79 555 24 74 · info@douche-montage.ch
         </Text>
         <Text style={S.footerRight}>
           {entry.serie}{entry.fournisseur ? ` · ${entry.fournisseur}` : ""}

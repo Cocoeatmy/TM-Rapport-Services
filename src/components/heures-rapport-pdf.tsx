@@ -533,7 +533,7 @@ function RapportDocument({ data }: { data: RapportData }) {
         <View style={s.header}>
           <View style={s.logoBox}>
             <Text style={s.logoTitle}>TM Douche Montage Sàrl</Text>
-            <Text style={s.logoSub}>Champs-Lovat 13 Box n°16, 1400 Yverdon</Text>
+            <Text style={s.logoSub}>Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains · info@douche-montage.ch</Text>
             <Text style={s.logoSub}>+41 79 555 24 74 · info@douche-montage.ch</Text>
           </View>
           <View style={s.headerRight}>
