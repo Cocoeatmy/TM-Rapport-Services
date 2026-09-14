@@ -5741,6 +5741,11 @@ function ProjectPageContent({ id }: { id: string }) {
     return hasPhotoForCab(project?.documentsSavDemande) || hasPhotoForCab(project?.photosSavRetouches);
   };
   const savLotsCount = cabines.reduce((n, _c, i) => (cabineHasSav(i) ? n + 1 : n), 0);
+  // % SAV pour la mini-barre d'en-tête : lots SAV clôturés / total lots SAV.
+  // Affichée UNIQUEMENT si le projet a au moins un SAV (savLotsCount > 0).
+  const savClotureMap = parseCabineTextMulti(project?.datesSavClotureCabines || "");
+  const savClosedCount = cabines.reduce((n, _c, i) => (cabineHasSav(i) && savClotureMap[i + 1] ? n + 1 : n), 0);
+  const savHeaderPercent = savLotsCount > 0 ? Math.round((savClosedCount / savLotsCount) * 100) : 0;
 
   // Statut du rapport pour la pastille sur l'icône "Rapport" (macOS).
   // Cabine : basé sur les cabines installées. Simple : checklist 5 critères.
@@ -6178,19 +6183,30 @@ function ProjectPageContent({ id }: { id: string }) {
                   {
                     label: "Montage",
                     pct: montageHeaderPercent,
+                    accent: "blue" as const,
                     // Sous-texte identique à la grande barre (multi-cabine seulement).
                     caption: isCabineMode && cabines.length > 0
                       ? { total: cabines.length, done: installedCabineCount, reste: Math.max(cabines.length - installedCabineCount, 0) }
                       : null,
                   },
-                  { label: "Mesures", pct: mesuresHeaderPercent, caption: null },
-                ].map(({ label, pct, caption }) => {
+                  { label: "Mesures", pct: mesuresHeaderPercent, accent: "blue" as const, caption: null },
+                  // SAV : affiché UNIQUEMENT si le projet a au moins un SAV.
+                  ...(savLotsCount > 0
+                    ? [{
+                        label: "SAV",
+                        pct: savHeaderPercent,
+                        accent: "amber" as const,
+                        caption: { total: savLotsCount, done: savClosedCount, reste: Math.max(savLotsCount - savClosedCount, 0) },
+                      }]
+                    : []),
+                ].map(({ label, pct, caption, accent }) => {
                   const done = pct >= 100;
+                  const isSav = label === "SAV";
                   return (
                     <div key={label}>
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</span>
-                        <span className={`text-xs font-bold ${done ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-cyan-300"}`}>{pct}%</span>
+                        <span className={`text-xs font-bold ${done ? "text-green-600 dark:text-green-400" : accent === "amber" ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-cyan-300"}`}>{pct}%</span>
                       </div>
                       <div className="h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
                         <div
@@ -6199,15 +6215,28 @@ function ProjectPageContent({ id }: { id: string }) {
                             width: `${pct}%`,
                             background: done
                               ? "linear-gradient(to right, #10b981, #22c55e)"
-                              : "linear-gradient(to right, #2563eb, #06b6d4)",
+                              : accent === "amber"
+                                ? "linear-gradient(to right, #d97706, #f59e0b)"
+                                : "linear-gradient(to right, #2563eb, #06b6d4)",
                           }}
                         />
                       </div>
                       {caption && (
                         <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
-                          {caption.done}/{caption.total} cabine{caption.total > 1 ? "s" : ""} installée{caption.total > 1 ? "s" : ""}
-                          {caption.reste > 0 && (
-                            <span className="text-amber-600 dark:text-amber-400 font-semibold"> · reste {caption.reste} à poser</span>
+                          {isSav ? (
+                            <>
+                              {caption.done}/{caption.total} SAV réglé{caption.total > 1 ? "s" : ""}
+                              {caption.reste > 0 && (
+                                <span className="text-amber-600 dark:text-amber-400 font-semibold"> · reste {caption.reste} à régler</span>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {caption.done}/{caption.total} cabine{caption.total > 1 ? "s" : ""} installée{caption.total > 1 ? "s" : ""}
+                              {caption.reste > 0 && (
+                                <span className="text-amber-600 dark:text-amber-400 font-semibold"> · reste {caption.reste} à poser</span>
+                              )}
+                            </>
                           )}
                         </p>
                       )}
