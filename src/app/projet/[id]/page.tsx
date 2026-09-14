@@ -2958,12 +2958,16 @@ function DurationEstimate({
   project,
   realMinutes = 0,
   realLots = 0,
+  realIntervenants = 0,
+  realDays = 0,
 }: {
   project: Project;
   /** Durée réelle cumulée (minutes) et nb de lots pointés — calculés depuis
    *  les cabines (même source que « Suivi des heures » → Total projet). */
   realMinutes?: number;
   realLots?: number;
+  realIntervenants?: number;
+  realDays?: number;
 }) {
   const [estimate, setEstimate] = useState<{
     hours: number;
@@ -3000,7 +3004,10 @@ function DurationEstimate({
         Durée réelle : {Math.floor(realMinutes / 60)}h {(realMinutes % 60).toString().padStart(2, "0")}min
       </span>
       <span className="text-[10px] font-normal opacity-70 ml-1">
-        ({realLots} lot{realLots > 1 ? "s" : ""} · temps cumulé)
+        ({realLots} lot{realLots > 1 ? "s" : ""}
+        {realIntervenants > 0 ? ` · ${realIntervenants} intervenant${realIntervenants > 1 ? "s" : ""}` : ""}
+        {realDays > 0 ? ` · ${realDays} jour${realDays > 1 ? "s" : ""}` : ""}
+        {" · temps cumulé"})
       </span>
     </div>
   ) : null;
@@ -5782,17 +5789,25 @@ function ProjectPageContent({ id }: { id: string }) {
     };
     if (isCabineMode) {
       let minutes = 0, lots = 0;
+      const intervenants = new Set<string>();
+      const days = new Set<string>();
       for (const c of cabines) {
         const a = toMin(c.arrivee); const d = toMin(c.depart);
         if (a === null || d === null) continue;
         const diff = d - a;
-        if (diff > 0) { minutes += diff; lots++; }
+        if (diff <= 0) continue;
+        minutes += diff; lots++;
+        (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean).forEach((n) => intervenants.add(n));
+        if (c.date) days.add(c.date);
       }
-      return { minutes, lots };
+      return { minutes, lots, intervenants: intervenants.size, days: days.size };
     }
     const a = toMin(heureArrivee); const d = toMin(heureDepart);
-    if (a !== null && d !== null && d - a > 0) return { minutes: d - a, lots: 1 };
-    return { minutes: 0, lots: 0 };
+    if (a !== null && d !== null && d - a > 0) {
+      const inter = (project.collaborateurs || "").split(" & ").map((s) => s.trim()).filter(Boolean).length;
+      return { minutes: d - a, lots: 1, intervenants: Math.max(inter, 1), days: 1 };
+    }
+    return { minutes: 0, lots: 0, intervenants: 0, days: 0 };
   })();
 
   // Statut du rapport pour la pastille sur l'icône "Rapport" (macOS).
@@ -6581,7 +6596,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
             {/* 7 — Durée estimée */}
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
-              <DurationEstimate project={project} realMinutes={realDuration.minutes} realLots={realDuration.lots} />
+              <DurationEstimate project={project} realMinutes={realDuration.minutes} realLots={realDuration.lots} realIntervenants={realDuration.intervenants} realDays={realDuration.days} />
             )}
 
           </CardContent>
