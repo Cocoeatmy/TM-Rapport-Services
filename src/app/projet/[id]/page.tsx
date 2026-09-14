@@ -3790,6 +3790,7 @@ function ProjectPageContent({ id }: { id: string }) {
   const [savRowBusy, setSavRowBusy] = useState("");
   const [showSavCard, setShowSavCard] = useState(false);
   const [showSuiviSignalements, setShowSuiviSignalements] = useState(false); // onglet « Suivi des Signalements » repliable
+  const [sigStatOpen, setSigStatOpen] = useState<string | null>(null); // compteur ouvert (liste détaillée) dans « Suivi des Signalements »
   // Quel type de rapport est en cours (pour n'animer que le bon bouton) :
   // "interne" (avec heures) ou "client" (sans heures).
   const [sendKind, setSendKind] = useState<null | "interne" | "client">(null);
@@ -7854,20 +7855,80 @@ function ProjectPageContent({ id }: { id: string }) {
                   const nbRegle = defauts.filter((d) => d.resolved).length;
                   const total = nbPieces + defauts.length;
                   if (total === 0) return <p className="text-xs text-gray-400 text-center py-2">Aucun signalement enregistré sur ce projet.</p>;
-                  const Stat = ({ label, value, color }: { label: string; value: number; color: string }) => (
-                    <div className="flex-1 min-w-[80px] rounded-xl bg-gray-50 dark:bg-slate-700/50 px-3 py-2 text-center">
-                      <div className="text-lg font-bold" style={{ color }}>{value}</div>
-                      <div className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">{label}</div>
-                    </div>
-                  );
+                  // Compteur cliquable → ouvre/ferme la liste détaillée de ce type.
+                  const Stat = ({ label, value, color, k }: { label: string; value: number; color: string; k: string }) => {
+                    const active = sigStatOpen === k;
+                    return (
+                      <button type="button" onClick={() => setSigStatOpen(active ? null : k)}
+                        title={`Voir : ${label}`}
+                        className={`flex-1 min-w-[80px] rounded-xl px-3 py-2 text-center transition-all ${active ? "ring-2 bg-white dark:bg-slate-800" : "bg-gray-50 dark:bg-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700"}`}
+                        style={active ? { boxShadow: `inset 0 0 0 2px ${color}` } : undefined}>
+                        <div className="text-lg font-bold" style={{ color }}>{value}</div>
+                        <div className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">{label}</div>
+                      </button>
+                    );
+                  };
+                  // Liste détaillée pour le type sélectionné.
+                  const PIECE_LBL: Record<string, string> = { demande: "à commander", commande: "commandée", recu: "reçue" };
+                  const groups: Record<string, { color: string; items: React.ReactNode[] }> = {
+                    pieces: { color: "#ea580c", items: pieces.map((p) => (
+                      <li key={p.id} className="flex items-start gap-2 py-1">
+                        <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: "#ea580c" }} />
+                        <span className="text-xs text-gray-700 dark:text-gray-200">
+                          {p.cabineLabel ? <b>{p.cabineLabel}</b> : <i className="text-gray-400">Sans lot</i>} — {p.description || p.reference || "Sans description"}
+                          {p.status ? <span className="text-[10px] text-gray-400"> · {PIECE_LBL[p.status] || p.status}</span> : null}
+                        </span>
+                      </li>
+                    )) },
+                    recu: { color: "#15803d", items: pieces.filter((p) => p.status === "recu").map((p) => (
+                      <li key={p.id} className="flex items-start gap-2 py-1">
+                        <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: "#15803d" }} />
+                        <span className="text-xs text-gray-700 dark:text-gray-200">{p.cabineLabel ? <b>{p.cabineLabel}</b> : <i className="text-gray-400">Sans lot</i>} — {p.description || p.reference || "Sans description"}</span>
+                      </li>
+                    )) },
+                    defauts: { color: "#dc2626", items: defautsStd.map((d) => (
+                      <li key={d.id} className="flex items-start gap-2 py-1">
+                        <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: d.resolved ? "#15803d" : "#dc2626" }} />
+                        <span className="text-xs text-gray-700 dark:text-gray-200">
+                          {d.cabineLabel ? <b>{d.cabineLabel}</b> : <i className="text-gray-400">Sans lot</i>} — {(d.types && d.types.length ? d.types.join(", ") : (d.typesLabel || d.description || "Sans description"))}
+                          {d.resolved ? <span className="text-[10px] text-green-600"> · réglé ✓</span> : null}
+                        </span>
+                      </li>
+                    )) },
+                    avant: { color: "#4f46e5", items: avant.map((d) => (
+                      <li key={d.id} className="flex items-start gap-2 py-1">
+                        <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: d.resolved ? "#15803d" : "#4f46e5" }} />
+                        <span className="text-xs text-gray-700 dark:text-gray-200">
+                          {d.cabineLabel ? <b>{d.cabineLabel}</b> : <i className="text-gray-400">Sans lot</i>} — {(d.types && d.types.length ? d.types.join(", ") : (d.typesLabel || d.description || "Sans description"))}
+                          {d.resolved ? <span className="text-[10px] text-green-600"> · réglé ✓</span> : null}
+                        </span>
+                      </li>
+                    )) },
+                    regle: { color: "#15803d", items: defauts.filter((d) => d.resolved).map((d) => (
+                      <li key={d.id} className="flex items-start gap-2 py-1">
+                        <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: "#15803d" }} />
+                        <span className="text-xs text-gray-700 dark:text-gray-200">{d.cabineLabel ? <b>{d.cabineLabel}</b> : <i className="text-gray-400">Sans lot</i>} — {(d.types && d.types.length ? d.types.join(", ") : (d.typesLabel || d.description || "Sans description"))}</span>
+                      </li>
+                    )) },
+                  };
+                  const open = sigStatOpen ? groups[sigStatOpen] : null;
                   return (
-                    <div className="flex flex-wrap gap-2">
-                      <Stat label="Pièces manquantes" value={nbPieces} color="#ea580c" />
-                      {nbPiecesRecu > 0 && <Stat label="Pièces reçues" value={nbPiecesRecu} color="#15803d" />}
-                      <Stat label="Défauts" value={defautsStd.length} color="#dc2626" />
-                      {avant.length > 0 && <Stat label="Constats avant" value={avant.length} color="#4f46e5" />}
-                      {nbRegle > 0 && <Stat label="Défauts réglés" value={nbRegle} color="#15803d" />}
-                    </div>
+                    <>
+                      <div className="flex flex-wrap gap-2">
+                        <Stat label="Pièces manquantes" value={nbPieces} color="#ea580c" k="pieces" />
+                        {nbPiecesRecu > 0 && <Stat label="Pièces reçues" value={nbPiecesRecu} color="#15803d" k="recu" />}
+                        <Stat label="Défauts" value={defautsStd.length} color="#dc2626" k="defauts" />
+                        {avant.length > 0 && <Stat label="Constats avant" value={avant.length} color="#4f46e5" k="avant" />}
+                        {nbRegle > 0 && <Stat label="Défauts réglés" value={nbRegle} color="#15803d" k="regle" />}
+                      </div>
+                      {open && (
+                        <div className="mt-2 rounded-xl border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2">
+                          {open.items.length > 0
+                            ? <ul>{open.items}</ul>
+                            : <p className="text-xs text-gray-400 py-1">Aucun élément.</p>}
+                        </div>
+                      )}
+                    </>
                   );
                 })()}
 
