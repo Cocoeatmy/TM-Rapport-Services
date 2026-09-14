@@ -2956,8 +2956,14 @@ function estimateDuration(
 
 function DurationEstimate({
   project,
+  realMinutes = 0,
+  realLots = 0,
 }: {
   project: Project;
+  /** Durée réelle cumulée (minutes) et nb de lots pointés — calculés depuis
+   *  les cabines (même source que « Suivi des heures » → Total projet). */
+  realMinutes?: number;
+  realLots?: number;
 }) {
   const [estimate, setEstimate] = useState<{
     hours: number;
@@ -2985,17 +2991,16 @@ function DurationEstimate({
       .finally(() => setLoaded(true));
   }, [project.fournisseurs, project.nbCabines, project.seriesCabines]);
 
-  // Durée RÉELLE : somme (temps cumulé) des heures effectivement pointées par
-  // lot (tous collaborateurs confondus). Calcul synchrone depuis le projet.
-  const real = parseTotalDuration(project.heureArrivee || "", project.heureDepart || "");
-  const realLine = real ? (
+  // Durée RÉELLE : temps cumulé des heures pointées par lot (même source que
+  // « Suivi des heures » → Total projet). Fournie par le parent.
+  const realLine = realMinutes > 0 ? (
     <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-sm font-medium">
       <Clock className="w-4 h-4 shrink-0" />
       <span>
-        Durée réelle : {Math.floor(real.totalMins / 60)}h {(real.totalMins % 60).toString().padStart(2, "0")}min
+        Durée réelle : {Math.floor(realMinutes / 60)}h {(realMinutes % 60).toString().padStart(2, "0")}min
       </span>
       <span className="text-[10px] font-normal opacity-70 ml-1">
-        ({real.cabinesCount} lot{real.cabinesCount > 1 ? "s" : ""} · temps cumulé)
+        ({realLots} lot{realLots > 1 ? "s" : ""} · temps cumulé)
       </span>
     </div>
   ) : null;
@@ -5765,6 +5770,31 @@ function ProjectPageContent({ id }: { id: string }) {
   const savClosedCount = cabines.reduce((n, _c, i) => (cabineHasSav(i) && savClotureMap[i + 1] ? n + 1 : n), 0);
   const savHeaderPercent = savLotsCount > 0 ? Math.round((savClosedCount / savLotsCount) * 100) : 0;
 
+  // Durée RÉELLE du projet = temps cumulé des heures pointées par lot (même
+  // logique que « Suivi des heures » → Total projet). En mono-cabine, on prend
+  // la paire heure arrivée/départ simple.
+  const realDuration = (() => {
+    const toMin = (t?: string) => {
+      if (!t) return null;
+      const [h, m] = t.split(":").map(Number);
+      if (Number.isNaN(h) || Number.isNaN(m)) return null;
+      return h * 60 + m;
+    };
+    if (isCabineMode) {
+      let minutes = 0, lots = 0;
+      for (const c of cabines) {
+        const a = toMin(c.arrivee); const d = toMin(c.depart);
+        if (a === null || d === null) continue;
+        const diff = d - a;
+        if (diff > 0) { minutes += diff; lots++; }
+      }
+      return { minutes, lots };
+    }
+    const a = toMin(heureArrivee); const d = toMin(heureDepart);
+    if (a !== null && d !== null && d - a > 0) return { minutes: d - a, lots: 1 };
+    return { minutes: 0, lots: 0 };
+  })();
+
   // Statut du rapport pour la pastille sur l'icône "Rapport" (macOS).
   // Cabine : basé sur les cabines installées. Simple : checklist 5 critères.
   const reportPercent = isCabineMode
@@ -6551,7 +6581,7 @@ function ProjectPageContent({ id }: { id: string }) {
 
             {/* 7 — Durée estimée */}
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
-              <DurationEstimate project={project} />
+              <DurationEstimate project={project} realMinutes={realDuration.minutes} realLots={realDuration.lots} />
             )}
 
           </CardContent>
