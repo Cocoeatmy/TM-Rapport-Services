@@ -23,6 +23,9 @@ import ReactPDF, {
   Link,
   Svg,
   Path,
+  Rect,
+  Circle,
+  Ellipse,
   StyleSheet,
 } from "@react-pdf/renderer";
 import React from "react";
@@ -237,6 +240,46 @@ function MapPinIcon() {
     </Svg>
   );
 }
+// ── Icônes des apps de navigation (vectorielles, même taille) ───────────────
+const MAP_ICON = 18; // px — taille commune à toutes les icônes
+function GoogleMapsIcon() {
+  return (
+    <Svg width={MAP_ICON} height={MAP_ICON} viewBox="0 0 24 24">
+      <Rect x={1} y={1} width={22} height={22} rx={6} fill="#ffffff" stroke="#e5e7eb" strokeWidth={1} />
+      <Path d="M4.5 4.5 L10 4.5 L4.5 10 Z" fill="#34A853" />
+      <Path d="M19.5 19.5 L14 19.5 L19.5 14 Z" fill="#4285F4" />
+      <Path d="M4.5 19.5 L4.5 14 L10 19.5 Z" fill="#FBBC04" />
+      <Path d="M12 5.4c-2.5 0-4.5 2-4.5 4.5 0 3.2 4.5 8 4.5 8s4.5-4.8 4.5-8c0-2.5-2-4.5-4.5-4.5z" fill="#EA4335" />
+      <Circle cx={12} cy={9.9} r={1.6} fill="#ffffff" />
+    </Svg>
+  );
+}
+function AppleMapsIcon() {
+  return (
+    <Svg width={MAP_ICON} height={MAP_ICON} viewBox="0 0 24 24">
+      <Rect x={1} y={1} width={22} height={22} rx={6} fill="#ffffff" stroke="#e5e7eb" strokeWidth={1} />
+      <Path d="M4 4 L9 4 L4 9 Z" fill="#34C759" />
+      <Path d="M20 4 L20 9 L15 4 Z" fill="#FFCC00" />
+      <Path d="M4 20 L4 15 L9 20 Z" fill="#FF2D55" />
+      <Path d="M20 20 L15 20 L20 15 Z" fill="#0A84FF" />
+      <Circle cx={12} cy={12} r={6.5} fill="#ffffff" />
+      <Path d="M12 7 L15.6 15.8 L12 13.9 L8.4 15.8 Z" fill="#0A84FF" />
+    </Svg>
+  );
+}
+function WazeIcon() {
+  return (
+    <Svg width={MAP_ICON} height={MAP_ICON} viewBox="0 0 24 24">
+      <Rect x={1} y={1} width={22} height={22} rx={6} fill="#33CCFF" />
+      <Ellipse cx={12} cy={10.5} rx={7} ry={6} fill="#ffffff" />
+      <Circle cx={9.6} cy={10} r={1.05} fill="#333333" />
+      <Circle cx={14.4} cy={10} r={1.05} fill="#333333" />
+      <Path d="M9 12.6 Q12 15 15 12.6" stroke="#333333" strokeWidth={1.3} fill="none" strokeLinecap="round" />
+      <Circle cx={9.6} cy={17.5} r={1.2} fill="#333333" />
+      <Circle cx={14.4} cy={17.5} r={1.2} fill="#333333" />
+    </Svg>
+  );
+}
 // Ligne « Adresse chantier » + liens GPS (Google Maps / Apple Plan / Waze).
 // Chaque lien lance directement l'itinéraire dans l'app correspondante.
 function AddressRow({ address }: { address: string }) {
@@ -244,9 +287,9 @@ function AddressRow({ address }: { address: string }) {
   const has = !!addr && addr !== "—";
   const q = encodeURIComponent(addr);
   const links = has ? [
-    { label: "Google Maps", url: `https://www.google.com/maps/dir/?api=1&destination=${q}` },
-    { label: "Apple Plan", url: `https://maps.apple.com/?daddr=${q}&dirflg=d` },
-    { label: "Waze", url: `https://waze.com/ul?q=${q}&navigate=yes` },
+    { label: "Google Maps", url: `https://www.google.com/maps/dir/?api=1&destination=${q}`, Icon: GoogleMapsIcon },
+    { label: "Apple Plan", url: `https://maps.apple.com/?daddr=${q}&dirflg=d`, Icon: AppleMapsIcon },
+    { label: "Waze", url: `https://waze.com/ul?q=${q}&navigate=yes`, Icon: WazeIcon },
   ] : [];
   return (
     <>
@@ -261,12 +304,11 @@ function AddressRow({ address }: { address: string }) {
           <View style={{ width: 170 }} />
           <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
             <MapPinIcon />
-            <Text style={{ fontSize: 8, color: "#888", marginRight: 5 }}>Itinéraire :</Text>
-            {links.map((l, i) => (
-              <React.Fragment key={l.label}>
-                {i > 0 ? <Text style={{ fontSize: 8, color: "#ccc", marginHorizontal: 4 }}>·</Text> : null}
-                <Link src={l.url} style={{ fontSize: 8, color: "#1e3a5f", fontFamily: "Helvetica-Bold", textDecoration: "none" }}>{l.label}</Link>
-              </React.Fragment>
+            <Text style={{ fontSize: 8, color: "#888", marginRight: 6 }}>Itinéraire :</Text>
+            {links.map((l) => (
+              <Link key={l.label} src={l.url} style={{ marginRight: 8, textDecoration: "none" }}>
+                <l.Icon />
+              </Link>
             ))}
           </View>
         </View>
