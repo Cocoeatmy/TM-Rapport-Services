@@ -990,11 +990,14 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                 <Text style={{ fontSize: 9, color: "#dc2626", fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
                   Pièces manquantes : {pieces.length}
                 </Text>
-                {pieces.map((p, i) => (
-                  <Text key={p.id} style={{ fontSize: 9, color: "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
-                    • Pièce n°{i + 1} — {p.description || p.reference || "Sans description"}
-                  </Text>
-                ))}
+                {pieces.map((p, i) => {
+                  const lot = p.cabineLabel || extractCabinLabel(p.description || "") || extractCabinLabel(p.reference || "");
+                  return (
+                    <Text key={p.id} style={{ fontSize: 9, color: "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
+                      • Pièce n°{i + 1}{lot ? ` — ${lot}` : ""} — {p.description || p.reference || "Sans description"}
+                    </Text>
+                  );
+                })}
               </View>
             )}
             {defauts.length > 0 && (
@@ -1004,7 +1007,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                 </Text>
                 {defauts.map((d, i) => (
                   <Text key={d.id} style={{ fontSize: 9, color: d.resolved ? "#166534" : "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
-                    • Défaut n°{i + 1}{d.resolved ? " (réglé ✓)" : ""}{d.cabineLabel ? ` — Cabine ${d.cabineLabel}` : ""} — {(d.types || []).join(", ") || d.description || "Sans description"}
+                    • Défaut n°{i + 1}{d.resolved ? " (réglé ✓)" : ""}{d.cabineLabel ? ` — ${d.cabineLabel}` : ""} — {(d.types || []).join(", ") || d.description || "Sans description"}
                   </Text>
                 ))}
               </View>
@@ -1266,7 +1269,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                   depuis la description (ex: "Lot J-303" → "J-303") */}
               {(piece.cabineLabel || extractCabinLabel(piece.description || "") || extractCabinLabel(piece.reference || "")) && (
                 <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 4 }}>
-                  Cabine : {piece.cabineLabel || extractCabinLabel(piece.description || "") || extractCabinLabel(piece.reference || "")}
+                  {piece.cabineLabel || extractCabinLabel(piece.description || "") || extractCabinLabel(piece.reference || "")}
                 </Text>
               )}
 
@@ -1337,7 +1340,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                 </View>
                 {defaut.cabineLabel && (
                   <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 4 }}>
-                    Cabine : {defaut.cabineLabel}
+                    {defaut.cabineLabel}
                   </Text>
                 )}
 
