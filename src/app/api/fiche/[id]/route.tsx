@@ -228,6 +228,48 @@ function ProgressRow({ label, pct, caption, color, value, docUrl }: {
   );
 }
 
+// Petite épingle de localisation (icône vectorielle).
+function MapPinIcon() {
+  return (
+    <Svg width={10} height={10} viewBox="0 0 24 24" style={{ marginRight: 3 }}>
+      <Path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" stroke="#1e3a5f" strokeWidth={2} fill="none" />
+      <Path d="M12 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" stroke="#1e3a5f" strokeWidth={2} fill="none" />
+    </Svg>
+  );
+}
+// Ligne « Adresse chantier » + liens GPS (Google Maps / Apple Plan / Waze).
+// Chaque lien lance directement l'itinéraire dans l'app correspondante.
+function AddressRow({ address }: { address: string }) {
+  const addr = (address || "").trim();
+  const has = !!addr && addr !== "—";
+  const q = encodeURIComponent(addr);
+  const links = has ? [
+    { label: "Google Maps", url: `https://www.google.com/maps/dir/?api=1&destination=${q}` },
+    { label: "Apple Plan", url: `https://maps.apple.com/?daddr=${q}&dirflg=d` },
+    { label: "Waze", url: `https://waze.com/ul?q=${q}&navigate=yes` },
+  ] : [];
+  return (
+    <View style={styles.row}>
+      <Text style={styles.label}>Adresse chantier</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.value}>{has ? addr : "—"}</Text>
+        {has ? (
+          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3 }}>
+            <MapPinIcon />
+            <Text style={{ fontSize: 8, color: "#888", marginRight: 5 }}>Itinéraire :</Text>
+            {links.map((l, i) => (
+              <React.Fragment key={l.label}>
+                {i > 0 ? <Text style={{ fontSize: 8, color: "#ccc", marginHorizontal: 4 }}>·</Text> : null}
+                <Link src={l.url} style={{ fontSize: 8, color: "#1e3a5f", fontFamily: "Helvetica-Bold", textDecoration: "none" }}>{l.label}</Link>
+              </React.Fragment>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, reportUrl }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savReportUrl?: string; reportUrl?: string }) {
   return (
     <Document>
@@ -251,7 +293,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
         {/* Lieu du rendez-vous */}
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Lieu du rendez-vous</Text>
-          <LineRow label="Adresse chantier" value={joinVal(project.adresseChantier)} />
+          <AddressRow address={joinVal(project.adresseChantier)} />
         </View>
 
         {/* Général — grille : (Nb cabines | Fournisseurs | Séries) puis
