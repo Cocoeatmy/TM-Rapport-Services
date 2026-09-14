@@ -371,7 +371,8 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
             const savCabs = [...keys].filter(cabHasSav);
             const totalSav = savCabs.length;
             const value = dateAndWho(fmtDate(project.dateRDVSAV), project.collaborateursSAV);
-            if (totalSav <= 0) return <LineRow label="SAV" value={value} docUrl={savReportUrl} />;
+            // Pas de SAV → ligne simple, SANS flèche de téléchargement.
+            if (totalSav <= 0) return <LineRow label="SAV" value={value} />;
             const clos = savCabs.filter((n) => cloture[n]).length;
             const pct = Math.round((clos / totalSav) * 100);
             return (
