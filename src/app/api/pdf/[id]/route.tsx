@@ -91,6 +91,19 @@ function defautStyle(d: { resolved?: boolean; phase?: string }) {
   if (d.phase === "avant-intervention") return { ...SIG.avant, icon: SIG_IC.eye };
   return { ...SIG.defaut, icon: SIG_IC.shield };
 }
+// Titre + couleur de la section « défauts », selon les types présents :
+//  - tous réglés → vert « Défaut(s) réglé(s) »
+//  - tous avant intervention → indigo « Défaut(s) signalé(s) avant intervention »
+//  - sinon → rouge « Défauts signalés »
+function defautSectionHeader(defauts: { resolved?: boolean; phase?: string }[]): { label: string; color: string; border: string } {
+  const n = defauts.length;
+  const s = n > 1 ? "s" : "";
+  if (n > 0 && defauts.every((d) => d.resolved)) return { label: `Défaut${s} réglé${s}`, color: SIG.done.color, border: SIG.done.border };
+  const nonResolved = defauts.filter((d) => !d.resolved);
+  if (nonResolved.length > 0 && nonResolved.every((d) => d.phase === "avant-intervention"))
+    return { label: `Défaut${s} signalé${s} avant intervention`, color: SIG.avant.color, border: SIG.avant.border };
+  return { label: "Défauts signalés", color: SIG.defaut.color, border: SIG.defaut.border };
+}
 
 function parsePiecesFromNotion(text: string): PieceRequest[] {
   if (!text.trim()) return [];
@@ -1026,7 +1039,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                   return (
                     <View key={p.id} style={{ flexDirection: "row", alignItems: "flex-start", marginLeft: 8, marginBottom: 1.5 }}>
                       <SigIcon paths={SIG_IC.package} color={SIG.piece.color} size={9} />
-                      <Text style={{ fontSize: 9, color: "#7c2d12", flex: 1 }}>
+                      <Text style={{ fontSize: 9, color: SIG.piece.color, flex: 1 }}>
                         Pièce n°{i + 1}{lot ? ` — ${lot}` : ""} — {p.description || p.reference || "Sans description"}
                       </Text>
                     </View>
@@ -1034,10 +1047,10 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                 })}
               </View>
             )}
-            {defauts.length > 0 && (
+            {defauts.length > 0 && (() => { const dh = defautSectionHeader(defauts); return (
               <View style={{ marginBottom: 3 }}>
-                <Text style={{ fontSize: 9, color: (defauts.length > 0 && defauts.every((d) => d.resolved)) ? SIG.done.color : SIG.defaut.color, fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
-                  Défauts signalés : {defauts.length}{(defauts.length > 0 && defauts.every((d) => d.resolved)) ? " — Réglé / Clôturé ✓" : ""}
+                <Text style={{ fontSize: 9, color: dh.color, fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
+                  {dh.label} : {defauts.length}
                 </Text>
                 {defauts.map((d, i) => {
                   const st = defautStyle(d);
@@ -1051,7 +1064,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                   );
                 })}
               </View>
-            )}
+            ); })()}
             <Text style={{ fontSize: 8, color: "#6b7280", marginTop: 4 }}>
               Voir les pages détaillées en annexe du rapport.
             </Text>
@@ -1286,7 +1299,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
       {pieces.length > 0 && (
         <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
           <Text style={{ ...styles.sectionTitle, color: SIG.piece.color, borderBottomColor: SIG.piece.border }} fixed>
-            Pièces manquantes
+            Pièce{pieces.length > 1 ? "s" : ""} manquante{pieces.length > 1 ? "s" : ""} signalée{pieces.length > 1 ? "s" : ""}
           </Text>
 
           {pieces.map((piece, idx) => (
@@ -1358,11 +1371,13 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
       {/* Défauts signalés */}
       {defauts.length > 0 && (
         <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
-          {/* Réglé PAR DÉFAUT : chaque défaut est vert si réglé ; le titre est
-              vert seulement quand TOUS les défauts sont réglés. */}
-          <Text style={{ ...styles.sectionTitle, color: (defauts.length > 0 && defauts.every((d) => d.resolved)) ? "#15803d" : "#b91c1c", borderBottomColor: (defauts.length > 0 && defauts.every((d) => d.resolved)) ? "#bbf7d0" : "#fecaca" }} fixed>
-            Défauts signalés{(defauts.length > 0 && defauts.every((d) => d.resolved)) ? " — Réglé / Clôturé ✓" : ""}
+          {/* Titre adaptatif selon le type : avant intervention → indigo,
+              réglés → vert, défaut normal → rouge (couleurs de l'app). */}
+          {(() => { const dh = defautSectionHeader(defauts); return (
+          <Text style={{ ...styles.sectionTitle, color: dh.color, borderBottomColor: dh.border }} fixed>
+            {dh.label}
           </Text>
+          ); })()}
 
           {defauts.map((defaut, idx) => {
             // Couleur/icône selon le type (réglé = vert, avant intervention =
