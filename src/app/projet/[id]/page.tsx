@@ -2985,18 +2985,29 @@ function DurationEstimate({
       .finally(() => setLoaded(true));
   }, [project.fournisseurs, project.nbCabines, project.seriesCabines]);
 
-  if (!loaded) return null;
+  // Durée RÉELLE : somme (temps cumulé) des heures effectivement pointées par
+  // lot (tous collaborateurs confondus). Calcul synchrone depuis le projet.
+  const real = parseTotalDuration(project.heureArrivee || "", project.heureDepart || "");
+  const realLine = real ? (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-sm font-medium">
+      <Clock className="w-4 h-4 shrink-0" />
+      <span>
+        Durée réelle : {Math.floor(real.totalMins / 60)}h {(real.totalMins % 60).toString().padStart(2, "0")}min
+      </span>
+      <span className="text-[10px] font-normal opacity-70 ml-1">
+        ({real.cabinesCount} lot{real.cabinesCount > 1 ? "s" : ""} · temps cumulé)
+      </span>
+    </div>
+  ) : null;
 
-  if (!estimate) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs">
-        <Clock className="w-3.5 h-3.5 shrink-0" />
-        Pas assez de donnees pour estimer la duree
-      </div>
-    );
-  }
+  if (!loaded && !realLine) return null;
 
-  return (
+  const estimateBox = !estimate ? (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs">
+      <Clock className="w-3.5 h-3.5 shrink-0" />
+      Pas assez de donnees pour estimer la duree
+    </div>
+  ) : (
     <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm font-medium">
       <Clock className="w-4 h-4 shrink-0" />
       <span>
@@ -3006,6 +3017,13 @@ function DurationEstimate({
       <span className="text-[10px] font-normal opacity-70 ml-1">
         ({estimate.confidence})
       </span>
+    </div>
+  );
+
+  return (
+    <div className="space-y-2">
+      {loaded ? estimateBox : null}
+      {realLine}
     </div>
   );
 }
