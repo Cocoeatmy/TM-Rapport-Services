@@ -249,12 +249,17 @@ function AddressRow({ address }: { address: string }) {
     { label: "Waze", url: `https://waze.com/ul?q=${q}&navigate=yes` },
   ] : [];
   return (
-    <View style={styles.row}>
-      <Text style={styles.label}>Adresse chantier</Text>
-      <View style={{ flex: 1 }}>
+    <>
+      {/* Ligne adresse (sans bordure basse : la ligne « Itinéraire » ferme le bloc). */}
+      <View style={{ ...styles.row, borderBottomWidth: has ? 0 : 0.5, paddingBottom: has ? 1 : 4 }}>
+        <Text style={styles.label}>Adresse chantier</Text>
         <Text style={styles.value}>{has ? addr : "—"}</Text>
-        {has ? (
-          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3 }}>
+      </View>
+      {/* Ligne dédiée « Itinéraire » sous l'adresse (alignée sous la valeur). */}
+      {has ? (
+        <View style={{ ...styles.row, paddingTop: 0 }}>
+          <View style={{ width: 170 }} />
+          <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
             <MapPinIcon />
             <Text style={{ fontSize: 8, color: "#888", marginRight: 5 }}>Itinéraire :</Text>
             {links.map((l, i) => (
@@ -264,9 +269,9 @@ function AddressRow({ address }: { address: string }) {
               </React.Fragment>
             ))}
           </View>
-        ) : null}
-      </View>
-    </View>
+        </View>
+      ) : null}
+    </>
   );
 }
 
