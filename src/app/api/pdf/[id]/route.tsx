@@ -16,6 +16,8 @@ import ReactPDF, {
   Link,
   StyleSheet,
   Font,
+  Svg,
+  Path,
 } from "@react-pdf/renderer";
 import React from "react";
 import { getData, getDataFresh } from "@/lib/kv-store";
@@ -59,6 +61,35 @@ interface DefautRequest {
   displayInRapport?: boolean;
   cabineLabel?: string;
   resolved?: boolean;
+  phase?: string;
+}
+
+// ── Signalements : couleurs + icônes par type (identiques à l'app) ──────────
+const SIG = {
+  piece:   { color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" }, // orange — pièce manquante
+  defaut:  { color: "#dc2626", bg: "#fef2f2", border: "#fecaca" }, // rouge — défaut
+  avant:   { color: "#4f46e5", bg: "#eef2ff", border: "#c7d2fe" }, // indigo — constat avant intervention
+  done:    { color: "#15803d", bg: "#f0fdf4", border: "#86efac" }, // vert — réglé
+};
+// Tracés lucide (viewBox 24) — mêmes icônes que dans l'app / le suivi de chantier.
+const SIG_IC = {
+  package: ["M12 2 21 7v10l-9 5-9-5V7z", "M3 7l9 5 9-5", "M12 12v10"],           // pièce
+  shield: ["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z", "M12 8v4", "M12 16h0.01"], // défaut
+  eye: ["M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z", "M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"], // avant
+  check: ["M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z", "M8 12l2.5 2.5L16 9"],      // réglé
+} as const;
+function SigIcon({ paths, color, size = 10 }: { paths: readonly string[]; color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" style={{ marginRight: 4 }}>
+      {paths.map((d, i) => <Path key={i} d={d} stroke={color} strokeWidth={2} fill="none" />)}
+    </Svg>
+  );
+}
+// Style (couleur/icône) d'un défaut selon son état : réglé > avant intervention > défaut.
+function defautStyle(d: { resolved?: boolean; phase?: string }) {
+  if (d.resolved) return { ...SIG.done, icon: SIG_IC.check };
+  if (d.phase === "avant-intervention") return { ...SIG.avant, icon: SIG_IC.eye };
+  return { ...SIG.defaut, icon: SIG_IC.shield };
 }
 
 function parsePiecesFromNotion(text: string): PieceRequest[] {
@@ -981,38 +1012,47 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
           /* wrap={false} : le bloc signalements ne doit jamais être coupé en
              pleine page. S'il ne tient pas dans l'espace restant, il saute
              entièrement sur la page suivante. */
-          <View wrap={false} style={{ marginTop: 12, padding: 10, backgroundColor: "#fef2f2", borderRadius: 6, borderWidth: 1, borderColor: "#fecaca" }}>
-            <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#991b1b", marginBottom: 6 }}>
-              ⚠ Signalements sur ce projet
+          <View wrap={false} style={{ marginTop: 12, padding: 10, backgroundColor: "#f9fafb", borderRadius: 6, borderWidth: 1, borderColor: "#e5e7eb" }}>
+            <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#374151", marginBottom: 6 }}>
+              Signalements sur ce projet
             </Text>
             {pieces.length > 0 && (
               <View style={{ marginBottom: 3 }}>
-                <Text style={{ fontSize: 9, color: "#dc2626", fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
+                <Text style={{ fontSize: 9, color: SIG.piece.color, fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
                   Pièces manquantes : {pieces.length}
                 </Text>
                 {pieces.map((p, i) => {
                   const lot = p.cabineLabel || extractCabinLabel(p.description || "") || extractCabinLabel(p.reference || "");
                   return (
-                    <Text key={p.id} style={{ fontSize: 9, color: "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
-                      • Pièce n°{i + 1}{lot ? ` — ${lot}` : ""} — {p.description || p.reference || "Sans description"}
-                    </Text>
+                    <View key={p.id} style={{ flexDirection: "row", alignItems: "flex-start", marginLeft: 8, marginBottom: 1.5 }}>
+                      <SigIcon paths={SIG_IC.package} color={SIG.piece.color} size={9} />
+                      <Text style={{ fontSize: 9, color: "#7c2d12", flex: 1 }}>
+                        Pièce n°{i + 1}{lot ? ` — ${lot}` : ""} — {p.description || p.reference || "Sans description"}
+                      </Text>
+                    </View>
                   );
                 })}
               </View>
             )}
             {defauts.length > 0 && (
               <View style={{ marginBottom: 3 }}>
-                <Text style={{ fontSize: 9, color: (defauts.length > 0 && defauts.every((d) => d.resolved)) ? "#15803d" : "#dc2626", fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
+                <Text style={{ fontSize: 9, color: (defauts.length > 0 && defauts.every((d) => d.resolved)) ? SIG.done.color : SIG.defaut.color, fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
                   Défauts signalés : {defauts.length}{(defauts.length > 0 && defauts.every((d) => d.resolved)) ? " — Réglé / Clôturé ✓" : ""}
                 </Text>
-                {defauts.map((d, i) => (
-                  <Text key={d.id} style={{ fontSize: 9, color: d.resolved ? "#166534" : "#7f1d1d", marginLeft: 8, marginBottom: 1 }}>
-                    • Défaut n°{i + 1}{d.resolved ? " (réglé ✓)" : ""}{d.cabineLabel ? ` — ${d.cabineLabel}` : ""} — {(d.types || []).join(", ") || d.description || "Sans description"}
-                  </Text>
-                ))}
+                {defauts.map((d, i) => {
+                  const st = defautStyle(d);
+                  return (
+                    <View key={d.id} style={{ flexDirection: "row", alignItems: "flex-start", marginLeft: 8, marginBottom: 1.5 }}>
+                      <SigIcon paths={st.icon} color={st.color} size={9} />
+                      <Text style={{ fontSize: 9, color: st.color, flex: 1 }}>
+                        Défaut n°{i + 1}{d.resolved ? " (réglé ✓)" : ""}{d.cabineLabel ? ` — ${d.cabineLabel}` : ""} — {(d.types || []).join(", ") || d.description || "Sans description"}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
             )}
-            <Text style={{ fontSize: 8, color: "#991b1b", marginTop: 4 }}>
+            <Text style={{ fontSize: 8, color: "#6b7280", marginTop: 4 }}>
               Voir les pages détaillées en annexe du rapport.
             </Text>
           </View>
@@ -1245,7 +1285,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
       {/* Pièces manquantes */}
       {pieces.length > 0 && (
         <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
-          <Text style={{ ...styles.sectionTitle, color: "#991b1b", borderBottomColor: "#fecaca" }} fixed>
+          <Text style={{ ...styles.sectionTitle, color: SIG.piece.color, borderBottomColor: SIG.piece.border }} fixed>
             Pièces manquantes
           </Text>
 
@@ -1261,10 +1301,13 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
               }}
               wrap={false}
             >
-              {/* Numéro de la pièce */}
-              <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: "#92400e", marginBottom: 4 }}>
-                Pièce n°{idx + 1}
-              </Text>
+              {/* Numéro de la pièce (icône orange = pièce manquante) */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <SigIcon paths={SIG_IC.package} color={SIG.piece.color} size={12} />
+                <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: SIG.piece.color }}>
+                  Pièce n°{idx + 1}
+                </Text>
+              </View>
               {/* Cabine : priorité sur cabineLabel stocké, fallback extraction regex
                   depuis la description (ex: "Lot J-303" → "J-303") */}
               {(piece.cabineLabel || extractCabinLabel(piece.description || "") || extractCabinLabel(piece.reference || "")) && (
@@ -1321,16 +1364,21 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
             Défauts signalés{(defauts.length > 0 && defauts.every((d) => d.resolved)) ? " — Réglé / Clôturé ✓" : ""}
           </Text>
 
-          {defauts.map((defaut, idx) => (
+          {defauts.map((defaut, idx) => {
+            // Couleur/icône selon le type (réglé = vert, avant intervention =
+            // indigo, défaut = rouge) pour mieux identifier chaque signalement.
+            const st = defautStyle(defaut);
+            return (
             // wrap (défaut) : la carte PEUT se répartir sur plusieurs pages
             // quand il y a beaucoup de photos → plus de débordement hors page.
-            <View key={defaut.id} style={{ ...styles.defautCard, borderColor: defaut.resolved ? "#86efac" : "#e0e0e0", backgroundColor: defaut.resolved ? "#f0fdf4" : undefined }}>
+            <View key={defaut.id} style={{ ...styles.defautCard, borderColor: st.border, backgroundColor: st.bg }}>
               {/* En-tête (n° + cabine + types + statut + description + auteur)
                   gardé soudé : ne se coupe jamais entre deux pages. */}
               <View wrap={false}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: defaut.resolved ? "#15803d" : "#b91c1c" }}>
-                    Défaut n°{idx + 1}
+                  <SigIcon paths={st.icon} color={st.color} size={12} />
+                  <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: st.color }}>
+                    Défaut n°{idx + 1}{defaut.phase === "avant-intervention" ? " — Constat avant intervention" : ""}
                   </Text>
                   {defaut.resolved && (
                     <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#15803d", backgroundColor: "#dcfce7", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 3 }}>
@@ -1347,7 +1395,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                 <View style={styles.defautHeader}>
                   <View style={styles.defautTypes}>
                     {defaut.types?.map((type, i) => (
-                      <Text key={i} style={defaut.resolved ? { ...styles.defautTypeBadge, backgroundColor: "#dcfce7", color: "#15803d" } : styles.defautTypeBadge}>{type}</Text>
+                      <Text key={i} style={{ ...styles.defautTypeBadge, backgroundColor: st.bg, color: st.color, borderWidth: 0.5, borderColor: st.border }}>{type}</Text>
                     ))}
                   </View>
                   <Text style={{ ...styles.statusBadge, ...getDefautStatusStyle(defaut.status) }}>
@@ -1381,7 +1429,8 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                 ));
               })()}
             </View>
-          ))}
+            );
+          })}
 
           {/* Travaux exécutés (souci réglé) : explication + photos. */}
           {defauts.some((d) => d.resolved) && (project.explicationsTravaux || (project.photosSoucisRegle || []).length > 0) && (
