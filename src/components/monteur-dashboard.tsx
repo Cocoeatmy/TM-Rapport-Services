@@ -5573,7 +5573,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     </span>
                     {/* J+x d'en-tête : seulement en mode "Par date" (en mode région,
                         la clé de groupe est un code postal, pas une date → J+x par ligne). */}
-                    {!isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer" || showSummaryPanel === "rdv-sav-a-fixer") && (() => {
+                    {!isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer" || showSummaryPanel === "rdv-sav-a-fixer" || showSummaryPanel === "soucis-en-cours") && (() => {
                       const info = getDaysInfoFromDate(group.dateKey);
                       if (!info) return null;
                       return (
@@ -5746,6 +5746,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             </span>
                           );
                         })()}
+                        {/* Soucis en cours : emplacement de la cabine à côté du J+x. */}
+                        {showSummaryPanel === "soucis-en-cours" && p.emplacementCabine && (
+                          <span className="shrink-0 hidden sm:flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400 max-w-[170px]" title={p.emplacementCabine}>
+                            <MapPin className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{p.emplacementCabine}</span>
+                          </span>
+                        )}
                         {/* J+x par ligne en mode région (NPA) : les groupes ne sont
                             plus par date, donc on l'affiche sur chaque projet. */}
                         {isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer" || showSummaryPanel === "rdv-sav-a-fixer") && (() => {
