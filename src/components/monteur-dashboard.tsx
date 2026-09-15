@@ -2232,7 +2232,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const dossiersEnCoursCabines = dossiersEnCoursProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
 
   // ── RDV à fixer (4 catégories) ────────────────────────────────────────────
-  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel"];
+  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel", "Livraison partielle", "Cabines à recevoir"];
   // RDV Mesures à fixer : État - Mesures = Pas contacté / Contact sans réponse / RDV - Attendre news
   const rdvMesuresAFixerProjects = projects
     .filter((p) => ["Pas contacté", "Contact sans réponse", "RDV - Attendre news"].includes(p.etatMesures || ""))
@@ -6139,7 +6139,7 @@ function CollaborateurDashboard({ userName, projects, onNavigate }: { userName: 
   const emplacementAutres = emplacementAll.filter((p) => p.emplacementCabine !== "Dépôt TM").reduce((s, p) => s + (p.nbCabines || 0), 0);
 
   // ── RDV à fixer (GLOBAUX, comme l'admin — pas filtrés par monteur) ─────────
-  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel"];
+  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel", "Livraison partielle", "Cabines à recevoir"];
   const isServiceProject = (p: Project) => (p.typeServices || []).some((t) => t === "Services" || t.includes("Services"));
   const byProjet = (a: Project, b: Project) => (a.projet || "").localeCompare(b.projet || "");
   const rdvMesuresAFixer = projects.filter((p) => ["Pas contacté", "Contact sans réponse", "RDV - Attendre news"].includes(p.etatMesures || "")).sort(byProjet);
