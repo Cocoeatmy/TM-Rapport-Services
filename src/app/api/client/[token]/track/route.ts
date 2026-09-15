@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getData, setData } from "@/lib/kv-store";
 import { getProject } from "@/lib/notion";
 import { verifyToken } from "@/lib/auth";
+import { emailEnabled } from "@/lib/email-prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,7 @@ export async function POST(
     // Les consultations des collaborateurs (connectés) sont enregistrées mais
     // NE déclenchent PAS de mail — sinon l'admin est inondé quand les
     // collaborateurs ouvrent les rapports pour vérifier les infos.
-    if (!isCollab) {
+    if (!isCollab && await emailEnabled("ferreira.micael@gmail.com", "rapport_consulte", false)) {
       try {
         const project = await getProject(projectId);
         const actionLabel = action === "pdf" ? "a ouvert le rapport PDF" : "a consulté le portail";

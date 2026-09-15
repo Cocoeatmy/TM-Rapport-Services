@@ -20,7 +20,8 @@ import ReactPDF, {
   Path,
 } from "@react-pdf/renderer";
 import React from "react";
-import { getData, getDataFresh } from "@/lib/kv-store";
+import { getData, getDataFresh, setData } from "@/lib/kv-store";
+import { emailEnabled } from "@/lib/email-prefs";
 import { formatSwissDate, formatSwissDateTime } from "@/lib/time-utils";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
 import {
@@ -1633,8 +1634,28 @@ export async function GET(
     // → ~80 mails/jour. Désormais seul le bouton « Envoyer le rapport »
     // passe ?send=1. La notification de consultation par un CLIENT
     // (non-collaborateur) reste gérée séparément par /api/client/[token]/track.
-    const shouldSend = request.nextUrl.searchParams.get("send") === "1";
+    let shouldSend = request.nextUrl.searchParams.get("send") === "1";
+    // Anti-doublon : ignore un renvoi du MÊME projet dans les 3 dernières minutes
+    // (double-clic / re-render qui déclenchaient 2-3 mails identiques).
     if (shouldSend) {
+      try {
+        const DEDUP_KEY = "rapport-send-log";
+        const now = Date.now();
+        const log = await getDataFresh<{ id: string; ts: number }>(DEDUP_KEY).catch(() => [] as { id: string; ts: number }[]);
+        const last = log.find((e) => e.id === id);
+        if (last && now - last.ts < 3 * 60 * 1000) {
+          shouldSend = false; // déjà envoyé très récemment → on saute
+        } else {
+          const pruned = log.filter((e) => now - e.ts < 30 * 60 * 1000 && e.id !== id);
+          pruned.push({ id, ts: now });
+          await setData(DEDUP_KEY, pruned);
+        }
+      } catch { /* en cas d'erreur KV, on n'empêche pas l'envoi */ }
+    }
+    // Garde « Rapport de montage envoyé » : coupe l'e-mail seulement (Telegram reste).
+    const shouldEmail = shouldSend && await emailEnabled("ferreira.micael@gmail.com", "rapport_genere", false);
+    if (shouldSend) {
+    if (shouldEmail)
     sendPdfByEmail({
       projectName: project.projet,
       ofrTM: project.ofrTM,

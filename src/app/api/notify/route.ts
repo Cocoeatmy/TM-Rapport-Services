@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { Resend } from "resend";
 import { createNotification } from "@/app/api/notifications/route";
+import { emailEnabled } from "@/lib/email-prefs";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 const ADMIN_EMAIL = "ferreira.micael@gmail.com";
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
   const { projectName, action, details, projectId } = await request.json();
 
   try {
-    // Create in-app notification for admin
+    // Create in-app notification for admin (toujours — indépendant de l'e-mail)
     await createNotification(
       ADMIN_EMAIL,
       "piece",
@@ -28,6 +29,13 @@ export async function POST(request: NextRequest) {
       `${details} (par ${user.name})`,
       projectId,
     );
+
+    // Garde e-mail : « Confirmation d'envoi » vs « Modifications sur l'app ».
+    // Désactivé par défaut (l'admin réactive dans Préférences e-mails).
+    const cat = /rapport\s+envoy/i.test(action || "") ? "rapport_envoye" : "modifications";
+    if (!(await emailEnabled(ADMIN_EMAIL, cat, false))) {
+      return NextResponse.json({ success: true, emailSkipped: true });
+    }
 
     await resend.emails.send({
       from: "TM Rapport Services <onboarding@resend.dev>",

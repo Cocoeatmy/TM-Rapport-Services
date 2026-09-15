@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { notion, databaseId, mapPageToProject, type Project } from "@/lib/notion";
 import { createNotification } from "@/app/api/notifications/route";
 import { sendPushToUser } from "@/lib/send-push";
+import { emailEnabled } from "@/lib/email-prefs";
 import { Resend } from "resend";
 
 export const dynamic = "force-dynamic";
@@ -334,16 +335,20 @@ export async function GET(request: NextRequest) {
 
     const results: Record<string, unknown> = { projects: projects.length, label };
 
-    // 1. Email
+    // 1. Email (garde « Rapport hebdomadaire » — OFF par défaut pour l'admin)
     try {
-      const html = buildEmail(projects, label);
-      const emailRes = await resend.emails.send({
-        from: "TM Rapport Services <onboarding@resend.dev>",
-        to: [ADMIN_EMAIL],
-        subject: `📊 Rapport du ${label} — ${projects.length} montage${projects.length !== 1 ? "s" : ""}`,
-        html,
-      });
-      results.email = emailRes.data?.id ? "sent" : "error";
+      if (!(await emailEnabled(ADMIN_EMAIL, "rapport_hebdo", false))) {
+        results.email = "skipped (préférence désactivée)";
+      } else {
+        const html = buildEmail(projects, label);
+        const emailRes = await resend.emails.send({
+          from: "TM Rapport Services <onboarding@resend.dev>",
+          to: [ADMIN_EMAIL],
+          subject: `📊 Rapport du ${label} — ${projects.length} montage${projects.length !== 1 ? "s" : ""}`,
+          html,
+        });
+        results.email = emailRes.data?.id ? "sent" : "error";
+      }
     } catch (e: any) {
       console.error("Email error:", e);
       results.email = `error: ${e.message}`;

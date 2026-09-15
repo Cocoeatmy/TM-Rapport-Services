@@ -4,6 +4,7 @@
 import { getAllActiveProjects } from "@/lib/notion";
 import { getAllUsers } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
+import { emailEnabled } from "@/lib/email-prefs";
 import { buildDailyReportEmailHtml, isMontageOnDay, collaboratorOnProject } from "@/lib/daily-report";
 
 export interface DailyReportResult {
@@ -30,6 +31,9 @@ export async function sendDailyReportsToAll(
   const results: DailyReportResult[] = [];
   for (const u of users) {
     if (!u.email) continue;
+    // Garde e-mail : l'admin est OFF par défaut (il choisit dans Préférences
+    // e-mails) ; les collaborateurs restent ON par défaut.
+    if (!(await emailEnabled(u.email, "rapport_quotidien", u.role !== "admin"))) continue;
     const mine = montages.filter((p) => collaboratorOnProject(p, u.name));
     if (mine.length === 0) continue; // rien à envoyer à ce collaborateur
     const html = buildDailyReportEmailHtml(mine, { dayIso, greetName: u.name.split(" ")[0] });
