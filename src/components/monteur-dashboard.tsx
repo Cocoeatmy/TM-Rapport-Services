@@ -2283,6 +2283,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     for (const n of cabs) if (!(cloture[n] || "").trim() && !(rdv[n] || "").trim()) return true;
     return false;
   };
+  // Nombre de cabines dont le SAV est OUVERT (non clôturé) — pour la page
+  // « RDV SAV à fixer » (le total des cabines du projet fausserait le SAV).
+  // Repli sur nbCabines uniquement pour les SAV « ancienne base » sans détail
+  // par cabine (aucune donnée SAV par cabine encodée).
+  const savOpenCabCount = (p: Project): number => {
+    const cabs = cabineSavCabs(p);
+    if (cabs.size === 0) return p.nbCabines || 0;
+    const cloture = parseCabMap(p.datesSavClotureCabines);
+    return [...cabs].filter((n) => !(cloture[n] || "").trim()).length;
+  };
 
   // RDV SAV à fixer : ancienne base (État - SAV) + SAV par cabine ouverts.
   // Dédup par N° OFR TM (si un projet est dans les deux bases, on ne le compte
@@ -5570,6 +5580,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     })()}
                     <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-semibold bg-white/20 text-white">
                       {(() => {
+                        // Panneau SAV : total = cabines à SAV ouvert (pas le total projet).
+                        if (showSummaryPanel === "rdv-sav-a-fixer") {
+                          const savCab = group.projects.reduce((s, p) => s + savOpenCabCount(p), 0);
+                          return `${group.projects.length} projet${group.projects.length > 1 ? "s" : ""} · ${savCab} cab.`;
+                        }
                         const totalCab = group.projects.reduce((s, p) => s + (p.nbCabines || 0), 0);
                         const installedCab = group.projects.reduce((s, p) => s + Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0);
                         const cabTxt = ((showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-fixe") && installedCab > 0)
@@ -5610,6 +5625,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     // Affichage « posées/total » + « reste à poser » : Montage à fixer,
                     // et RDV fixé (uniquement les montages, pas les mesures).
                     const showCabProgress = (isMontagePanel || (showSummaryPanel === "rdv-fixe" && !isMesure)) && cabInstalled > 0;
+                    // Badge cabines : panneau SAV → cabines à SAV ouvert ; montage →
+                    // posées/total ; sinon total du projet.
+                    const cabBadgeTxt = rdvIsSav
+                      ? `${savOpenCabCount(p)} cab.`
+                      : (isMontagePanel && cabInstalled > 0 ? `${cabInstalled}/${cabTotal} cab.` : `${cabTotal} cab.`);
                     return (
                       <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
                         className={`${isRdvAFixerPanel ? "flex flex-col" : "flex items-center"} gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
@@ -5641,8 +5661,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   </span>
                                 )}
                                 {bestLogo && <LogoImg src={bestLogo} />}
-                                <Badge variant="outline" className="text-[10px]" title={isMontagePanel && cabInstalled > 0 ? `${cabInstalled} posées / ${cabTotal}` : undefined}>
-                                  {isMontagePanel && cabInstalled > 0 ? `${cabInstalled}/${cabTotal} cab.` : `${cabTotal} cab.`}
+                                <Badge variant="outline" className="text-[10px]" title={rdvIsSav ? "Cabines à SAV ouvert" : (isMontagePanel && cabInstalled > 0 ? `${cabInstalled} posées / ${cabTotal}` : undefined)}>
+                                  {cabBadgeTxt}
                                 </Badge>
                                 {rdvEtat && <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${rdvEtatCls}`}>{rdvEtat}</span>}
                                 {p.emplacementCabine && (
@@ -5684,8 +5704,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   {showSummaryPanel === "rdv-montage-a-fixer" && p.nbCollaborateursMontage && (
                                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">{p.nbCollaborateursMontage} pers.</span>
                                   )}
-                                  <Badge variant="outline" className="text-[10px]" title={isMontagePanel && cabInstalled > 0 ? `${cabInstalled} posées / ${cabTotal}` : undefined}>
-                                    {isMontagePanel && cabInstalled > 0 ? `${cabInstalled}/${cabTotal} cab.` : `${cabTotal} cab.`}
+                                  <Badge variant="outline" className="text-[10px]" title={rdvIsSav ? "Cabines à SAV ouvert" : (isMontagePanel && cabInstalled > 0 ? `${cabInstalled} posées / ${cabTotal}` : undefined)}>
+                                    {cabBadgeTxt}
                                   </Badge>
                                 </span>
                               </div>
