@@ -25,7 +25,7 @@ export function UserMenu() {
   const [saveToPhotos, setSaveToPhotos] = useState(false);
   // Préférences e-mails (admin) : modal + données API.
   const [showEmailPrefs, setShowEmailPrefs] = useState(false);
-  const [emailCats, setEmailCats] = useState<{ id: string; label: string; desc: string }[]>([]);
+  const [emailCats, setEmailCats] = useState<{ id: string; label: string; desc: string; defaultOn?: boolean }[]>([]);
   const [emailPrefs, setEmailPrefs] = useState<Record<string, boolean>>({});
   const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
   const [emailPrefsSaving, setEmailPrefsSaving] = useState(false);
@@ -34,7 +34,15 @@ export function UserMenu() {
     setEmailPrefsLoading(true);
     fetch("/api/email-prefs")
       .then((r) => r.ok ? r.json() : Promise.reject())
-      .then((d) => { setEmailCats(d.categories || []); setEmailPrefs(d.prefs || {}); })
+      .then((d) => {
+        const cats = d.categories || [];
+        const saved = d.prefs || {};
+        // État initial des cases : valeur enregistrée sinon défaut de la catégorie.
+        const init: Record<string, boolean> = {};
+        for (const c of cats) init[c.id] = typeof saved[c.id] === "boolean" ? saved[c.id] : !!c.defaultOn;
+        setEmailCats(cats);
+        setEmailPrefs(init);
+      })
       .catch(() => toast.error("Impossible de charger les préférences."))
       .finally(() => setEmailPrefsLoading(false));
   };

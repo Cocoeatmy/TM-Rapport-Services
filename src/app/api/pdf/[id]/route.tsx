@@ -1652,8 +1652,9 @@ export async function GET(
         }
       } catch { /* en cas d'erreur KV, on n'empêche pas l'envoi */ }
     }
-    // Garde « Rapport de montage envoyé » : coupe l'e-mail seulement (Telegram reste).
+    // Gardes indépendantes : e-mail (OFF par défaut) et Telegram (ON par défaut).
     const shouldEmail = shouldSend && await emailEnabled("ferreira.micael@gmail.com", "rapport_genere", false);
+    const shouldTelegram = shouldSend && await emailEnabled("ferreira.micael@gmail.com", "telegram", true);
     if (shouldSend) {
     if (shouldEmail)
     sendPdfByEmail({
@@ -1671,6 +1672,7 @@ export async function GET(
       }
     });
 
+    if (shouldTelegram)
     sendReportToTelegram({
       projectName: project.projet,
       ofrTM: project.ofrTM,

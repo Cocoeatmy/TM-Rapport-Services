@@ -10,17 +10,23 @@ export interface EmailCategory {
   id: string;
   label: string;
   desc: string;
+  /** Valeur par défaut (perspective admin) si rien n'est enregistré. */
+  defaultOn: boolean;
 }
 
 // Source unique des catégories (renvoyée au client par l'API).
 export const EMAIL_CATEGORIES: EmailCategory[] = [
-  { id: "rapport_genere",    label: "Rapport de montage envoyé",       desc: "Copie quand un rapport est envoyé au client (bouton « Envoyer »)." },
-  { id: "rapport_envoye",    label: "Confirmation d'envoi",             desc: "Accusé « Rapport envoyé » lorsqu'un collaborateur envoie un rapport." },
-  { id: "rapport_consulte",  label: "Rapport consulté par le client",   desc: "Quand un client ouvre le rapport PDF ou son portail." },
-  { id: "modifications",     label: "Modifications sur l'app",          desc: "Signalements, pièces, défauts… modifiés par un collaborateur." },
-  { id: "rapport_quotidien", label: "Rapport quotidien (matin)",        desc: "Récapitulatif des montages du jour." },
-  { id: "rapport_hebdo",     label: "Rapport hebdomadaire",             desc: "Récapitulatif hebdomadaire des montages." },
+  { id: "rapport_genere",    label: "Rapport de montage envoyé (e-mail)", desc: "Copie quand un rapport est envoyé au client (bouton « Envoyer »).", defaultOn: false },
+  { id: "rapport_envoye",    label: "Confirmation d'envoi (e-mail)",       desc: "Accusé « Rapport envoyé » lorsqu'un collaborateur envoie un rapport.", defaultOn: false },
+  { id: "rapport_consulte",  label: "Rapport consulté par le client (e-mail)", desc: "Quand un client ouvre le rapport PDF ou son portail.", defaultOn: false },
+  { id: "modifications",     label: "Modifications sur l'app (e-mail)",    desc: "Signalements, pièces, défauts… modifiés par un collaborateur.", defaultOn: false },
+  { id: "rapport_quotidien", label: "Rapport quotidien (e-mail)",          desc: "Récapitulatif matinal des montages de la veille.", defaultOn: false },
+  { id: "telegram",          label: "Notifications Telegram",              desc: "Rapports de montage + récap quotidien envoyés sur Telegram.", defaultOn: true },
 ];
+
+export function categoryDefault(id: string): boolean {
+  return EMAIL_CATEGORIES.find((c) => c.id === id)?.defaultOn ?? false;
+}
 
 interface PrefRow { email: string; cats: Record<string, boolean>; }
 const KEY = "email-prefs";

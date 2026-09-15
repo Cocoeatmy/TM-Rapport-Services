@@ -330,14 +330,24 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Pas de rapport quotidien pour un jour de WEEK-END : le rapport couvre la
+    // veille ; on saute donc quand la veille tombe un samedi (6) ou dimanche (0).
+    // Résultat : plus de récap vide le dimanche (→ samedi) ni le lundi (→ dimanche).
+    const covered = new Date();
+    covered.setDate(covered.getDate() - 1);
+    const coveredDow = covered.getDay();
+    if (coveredDow === 0 || coveredDow === 6) {
+      return NextResponse.json({ skipped: "week-end (jour couvert non travaillé)" });
+    }
+
     const projects = await fetchWeekMontages();
     const label = dayLabel();
 
     const results: Record<string, unknown> = { projects: projects.length, label };
 
-    // 1. Email (garde « Rapport hebdomadaire » — OFF par défaut pour l'admin)
+    // 1. Email « Rapport quotidien » — OFF par défaut pour l'admin.
     try {
-      if (!(await emailEnabled(ADMIN_EMAIL, "rapport_hebdo", false))) {
+      if (!(await emailEnabled(ADMIN_EMAIL, "rapport_quotidien", false))) {
         results.email = "skipped (préférence désactivée)";
       } else {
         const html = buildEmail(projects, label);
@@ -354,11 +364,15 @@ export async function GET(request: NextRequest) {
       results.email = `error: ${e.message}`;
     }
 
-    // 2. Telegram
+    // 2. Telegram (activé par défaut ; l'admin peut le couper dans Préférences)
     try {
-      const telegramMsg = buildTelegramMessage(projects, label);
-      await sendTelegramText(telegramMsg);
-      results.telegram = "sent";
+      if (!(await emailEnabled(ADMIN_EMAIL, "telegram", true))) {
+        results.telegram = "skipped (préférence désactivée)";
+      } else {
+        const telegramMsg = buildTelegramMessage(projects, label);
+        await sendTelegramText(telegramMsg);
+        results.telegram = "sent";
+      }
     } catch (e: any) {
       console.error("Telegram error:", e);
       results.telegram = `error: ${e.message}`;
