@@ -5664,8 +5664,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 <Badge variant="outline" className="text-[10px]" title={rdvIsSav ? "Cabines à SAV ouvert" : (isMontagePanel && cabInstalled > 0 ? `${cabInstalled} posées / ${cabTotal}` : undefined)}>
                                   {cabBadgeTxt}
                                 </Badge>
-                                {rdvEtat && <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${rdvEtatCls}`}>{rdvEtat}</span>}
-                                {p.emplacementCabine && (
+                                {!rdvIsSav && rdvEtat && <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${rdvEtatCls}`}>{rdvEtat}</span>}
+                                {!rdvIsSav && p.emplacementCabine && (
                                   <span className="flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400" title={p.emplacementCabine}>
                                     <MapPin className="w-3 h-3 shrink-0" /><span className="truncate max-w-[130px]">{p.emplacementCabine}</span>
                                   </span>
@@ -5690,8 +5690,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                       {cabRemaining > 0 ? `${cabRemaining} à poser` : "✓ posé"}
                                     </span>
                                   )}
-                                  {rdvEtat && <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${rdvEtatCls}`}>{rdvEtat}</span>}
-                                  {p.emplacementCabine && (
+                                  {!rdvIsSav && rdvEtat && <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${rdvEtatCls}`}>{rdvEtat}</span>}
+                                  {!rdvIsSav && p.emplacementCabine && (
                                     <span className="flex items-center gap-1 text-[10px] font-medium text-sky-600 dark:text-sky-400 max-w-[170px]" title={p.emplacementCabine}>
                                       <MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{p.emplacementCabine}</span>
                                     </span>
