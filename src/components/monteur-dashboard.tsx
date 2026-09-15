@@ -5704,7 +5704,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                     <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${statusClasses("Priorité", p.priorite, "bg-amber-100 text-amber-700")}`}>⚡ {p.priorite}</span>
                                   )}
                                   {bestLogo && <LogoImg src={bestLogo} />}
-                                  {rdvDaysCount > 1 && <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{rdvDaysCount}j</span>}
+                                  {!rdvIsSav && rdvDaysCount > 1 && <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{rdvDaysCount}j</span>}
                                   {showSummaryPanel === "rdv-montage-a-fixer" && p.nbCollaborateursMontage && (
                                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">{p.nbCollaborateursMontage} pers.</span>
                                   )}
