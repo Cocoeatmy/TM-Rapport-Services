@@ -5100,6 +5100,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 {panelTitle} ({rdvFiltered ? `${panelProjects.length} / ${rdvTotalCount}` : (rdvStatusFieldFn ? rdvTotalCount : panelProjects.length)})
+                {showSummaryPanel === "rdv-sav-a-fixer" && (() => {
+                  const savCabTotal = panelProjects.reduce((s, p) => s + savOpenCabCount(p), 0);
+                  return <span className="ml-2 normal-case text-rose-600 dark:text-rose-400">· {savCabTotal} cabine{savCabTotal > 1 ? "s" : ""} SAV en cours</span>;
+                })()}
               </p>
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 {/* Filtre par état — chips cliquables (afficher/masquer). Placé
