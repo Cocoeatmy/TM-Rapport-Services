@@ -1848,25 +1848,46 @@ html[data-ui="cleanmymac"] .lg-bg::before {
      Le header s'étend dans la zone titlebar pour une continuité visuelle parfaite.
      #070214 = équivalent opaque de rgba(7,2,20,0.96) sur fond #040010. */
   @media (display-mode: window-controls-overlay) {
+    /* Barre supérieure façon Calendrier Apple : TRANSPARENTE (sur le fond de la
+       page), seuls les feux natifs (gauche) + nos boutons (droite). */
     .cmm-traffic-btn { display: none !important; }
 
-    /* html fond = même couleur que le header → zone derrière les feux natifs */
-    html[data-ui="cleanmymac"] {
-      background: #070214 !important;
-    }
+    /* Ne plus forcer un fond sombre : le dégradé de la page apparaît sous la barre. */
+    html[data-ui="cleanmymac"] { background: transparent !important; }
 
-    /* Header s'étend vers le haut pour couvrir la zone titlebar —
-       backdrop-filter retiré (inutile : on rend la couleur pleinement opaque). */
-    html[data-ui="cleanmymac"] #main-header {
-      background: #070214 !important;
+    #main-header {
+      background: transparent !important;
       backdrop-filter: none !important;
       -webkit-backdrop-filter: none !important;
-      padding-top: env(titlebar-area-height, 0px);
+      border: none !important;
+      box-shadow: none !important;
       -webkit-app-region: drag;
     }
-    html[data-ui="cleanmymac"] #main-header * {
-      -webkit-app-region: no-drag;
+    /* Supprime les dégradés de fond des thèmes (aurora/ocean) sur la barre. */
+    #main-header::before, #main-header::after { display: none !important; }
+    #main-header * { -webkit-app-region: no-drag; }
+
+    /* Pastilles neutres (bg-white/…) rendues lisibles sur fond clair. Les boutons
+       colorés (orange, dégradé avatar, badge rouge, icônes bleu/vert) ne sont
+       PAS ciblés (ils n'ont pas de classe bg-white/…). */
+    #main-header [class*="bg-white/"] {
+      background: rgba(0,0,0,0.05) !important;
+      border-color: rgba(0,0,0,0.10) !important;
+      color: #1f2430 !important;
     }
+    #main-header [class*="bg-white/"]:hover { background: rgba(0,0,0,0.10) !important; }
+    #main-header .back-btn { color: rgba(0,0,0,0.55) !important; }
+    #main-header .back-btn:hover { color: rgba(0,0,0,0.85) !important; }
+
+    /* Thème sombre : glyphes clairs sur fond sombre de la page. */
+    .dark #main-header [class*="bg-white/"] {
+      background: rgba(255,255,255,0.12) !important;
+      border-color: rgba(255,255,255,0.20) !important;
+      color: #f3f4f6 !important;
+    }
+    .dark #main-header [class*="bg-white/"]:hover { background: rgba(255,255,255,0.20) !important; }
+    .dark #main-header .back-btn { color: rgba(255,255,255,0.70) !important; }
+
     html[data-ui="cleanmymac"] #main-navbar {
       top: calc(52px + env(titlebar-area-height, 0px)) !important;
       height: calc(100vh - 52px - env(titlebar-area-height, 0px)) !important;
