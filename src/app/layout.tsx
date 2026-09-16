@@ -8,6 +8,7 @@ import { NotificationBell } from "@/components/notifications";
 import { RefreshButton } from "@/components/refresh-button";
 import { ForceSyncButton } from "@/components/force-sync-button";
 import { SendPendingButton } from "@/components/send-pending-button";
+import { ThemeColorSync } from "@/components/theme-color-sync";
 import { CreateProjectButton } from "@/components/create-project-button";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineBanner } from "@/components/offline-banner";
@@ -90,6 +91,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col lg-bg">
         {/* Bandeau hors-ligne + header dans un même conteneur sticky : le
             bandeau se place AU-DESSUS du header (plein haut), sans le recouvrir. */}
+        <ThemeColorSync />
         <div className="sticky top-0 z-50">
         <OfflineBanner />
         <header id="main-header" className="glass-header text-white">
