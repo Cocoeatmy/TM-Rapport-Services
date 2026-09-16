@@ -3804,6 +3804,19 @@ function ProjectPageContent({ id }: { id: string }) {
   const pendingSendClientRef = useRef(false);
   const [historyCount, setHistoryCount] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(60);
+  // Modal « Documents (Notion « Offre TM ») » — admin. Récupère les fichiers frais.
+  const [showOffres, setShowOffres] = useState(false);
+  const [offresFiles, setOffresFiles] = useState<{ name: string; url: string }[]>([]);
+  const [offresLoading, setOffresLoading] = useState(false);
+  const openOffres = () => {
+    setShowOffres(true);
+    setOffresLoading(true);
+    fetch(`/api/projects/${id}/offres`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setOffresFiles(Array.isArray(d.files) ? d.files : []))
+      .catch(() => { setOffresFiles([]); toast.error("Impossible de charger les documents Notion."); })
+      .finally(() => setOffresLoading(false));
+  };
   const [headerScrollOpacity, setHeaderScrollOpacity] = useState(1);
 
   useEffect(() => { setFav(isFavorite(id)); }, [id]);
@@ -5870,8 +5883,8 @@ function ProjectPageContent({ id }: { id: string }) {
     <button
       key="notion-docs"
       type="button"
-      onClick={() => window.open(`https://www.notion.so/${(id || "").replace(/-/g, "")}`, "_blank", "noopener,noreferrer")}
-      title="Documents du projet sur Notion (offres, commandes, factures, commande usine…)"
+      onClick={openOffres}
+      title="Documents du projet (offres, commandes, factures, commande usine…)"
       className="relative w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all active:scale-95 bg-rose-100/80 dark:bg-rose-900/30 opacity-90 hover:opacity-100 hover:scale-105"
     >
       <FolderOpen className="w-[18px] h-[18px] text-rose-600 dark:text-rose-400" />
@@ -10560,6 +10573,66 @@ function ProjectPageContent({ id }: { id: string }) {
                 onClick={() => { const ids = [...selectedSigIds]; setShowSignalementsPicker(false); handleDownloadSignalements(ids); }}
                 className="flex-1 h-10 px-4 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-1.5">
                 {downloadingSignalements ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertCircle className="w-4 h-4" />} Télécharger le rapport
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Modal Documents (colonne Notion « Offre TM ») — admin. */}
+      {showOffres && typeof document !== "undefined" && createPortal(
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 130 }}
+          className="flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setShowOffres(false)}
+        >
+          <div
+            className="w-full max-w-lg max-h-[85vh] flex flex-col bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 pt-5 pb-3 border-b border-gray-100 dark:border-slate-700 flex items-center gap-2">
+              <FolderOpen className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 leading-tight">Documents du projet</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Pièces jointes Notion « Offre TM » (offres, commandes, factures…)</p>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 py-3">
+              {offresLoading ? (
+                <div className="flex items-center justify-center py-12 text-gray-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
+              ) : offresFiles.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-10">Aucun document dans « Offre TM » pour ce projet.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {offresFiles.map((f, i) => {
+                    const isPdf = /\.pdf($|\?)/i.test(f.name) || /\.pdf($|\?)/i.test(f.url);
+                    return (
+                      <li key={i}>
+                        <a
+                          href={f.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-700/40 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors group"
+                        >
+                          <span className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isPdf ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" : "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"}`}>
+                            <FileText className="w-4.5 h-4.5" />
+                          </span>
+                          <span className="flex-1 min-w-0 text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{f.name || `Document ${i + 1}`}</span>
+                          <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200 shrink-0" />
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-100 dark:border-slate-700 flex justify-end">
+              <button
+                onClick={() => setShowOffres(false)}
+                className="h-10 px-5 rounded-xl text-sm font-semibold bg-[#1e3a5f] hover:bg-[#274b78] text-white transition-colors"
+              >
+                Fermer
               </button>
             </div>
           </div>

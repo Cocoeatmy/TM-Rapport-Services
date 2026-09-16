@@ -150,6 +150,7 @@ export interface Project {
   collaborateurs: string;
   documentsMontagee: FileItem[];
   documentsMesures: FileItem[];
+  offresTM: FileItem[];
   heureArrivee: string;
   heureDepart: string;
   commentairesMontages: string;
@@ -412,6 +413,7 @@ export function mapPageToProject(page: any): Project {
     collaborateurs: extractMultiSelect(p["Collaborateurs montages"]).join(" & "),
     documentsMontagee: extractFiles(p["Documents pour Montage"]),
     documentsMesures: extractFiles(p["Documents pour prise de mesures"]),
+    offresTM: extractFiles(p["Offre TM"]),
     heureArrivee: extractText(p["Heure arrivée"]),
     heureDepart: extractText(p["Heure départ"]),
     nomsCabines: extractText(p["Lot (nom de cabine)"]),
