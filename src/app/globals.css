@@ -1899,8 +1899,11 @@ html[data-ui="cleanmymac"] .lg-bg::before {
       top: calc(52px + env(titlebar-area-height, 0px)) !important;
       height: calc(100vh - 52px - env(titlebar-area-height, 0px)) !important;
     }
+    /* Espace sous la barre en verre : le contenu (ex. carte titre du projet)
+       ne colle plus au bas de la barre translucide. */
+    main { padding-top: 10px; }
     html[data-ui="cleanmymac"] main {
-      padding-top: env(titlebar-area-height, 0px);
+      padding-top: calc(env(titlebar-area-height, 0px) + 10px);
     }
   }
 
