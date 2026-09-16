@@ -3157,18 +3157,18 @@ function DocumentUploader({ projectId, notionField, onUploaded }: { projectId: s
     }
   };
   return (
-    <>
+    <div>
       <input ref={ref} type="file" multiple accept="application/pdf,image/*,.pdf,.doc,.docx,.xls,.xlsx" className="hidden" onChange={(e) => upload(e.target.files)} />
       <button
         type="button"
         onClick={() => ref.current?.click()}
         disabled={busy}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-sm font-medium text-gray-500 dark:text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-60"
+        className="h-10 px-4 rounded-xl text-sm font-semibold border border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors disabled:opacity-60 inline-flex items-center gap-2"
       >
-        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderOpen className="w-4 h-4" />}
         {busy ? "Ajout…" : "Ajouter des fichiers"}
       </button>
-    </>
+    </div>
   );
 }
 
