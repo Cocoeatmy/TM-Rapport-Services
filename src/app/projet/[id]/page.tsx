@@ -3808,14 +3808,44 @@ function ProjectPageContent({ id }: { id: string }) {
   const [showOffres, setShowOffres] = useState(false);
   const [offresFiles, setOffresFiles] = useState<{ name: string; url: string }[]>([]);
   const [offresLoading, setOffresLoading] = useState(false);
-  const openOffres = () => {
-    setShowOffres(true);
+  const [offresUploading, setOffresUploading] = useState(false);
+  const offresFileRef = useRef<HTMLInputElement>(null);
+  const refetchOffres = async () => {
     setOffresLoading(true);
-    fetch(`/api/projects/${id}/offres`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => setOffresFiles(Array.isArray(d.files) ? d.files : []))
-      .catch(() => { setOffresFiles([]); toast.error("Impossible de charger les documents Notion."); })
-      .finally(() => setOffresLoading(false));
+    try {
+      const r = await fetch(`/api/projects/${id}/offres`);
+      const d = r.ok ? await r.json() : { files: [] };
+      setOffresFiles(Array.isArray(d.files) ? d.files : []);
+    } catch { setOffresFiles([]); toast.error("Impossible de charger les documents Notion."); }
+    finally { setOffresLoading(false); }
+  };
+  const openOffres = () => { setShowOffres(true); refetchOffres(); };
+  // Dépose un/des fichier(s) dans la colonne Notion « Offre TM » (sync app → Notion).
+  const uploadOffres = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setOffresUploading(true);
+    try {
+      // 1 fichier par requête (limite Vercel ~4,5 Mo) ; séquentiel pour ne pas
+      // écraser la propriété Notion « Offre TM » entre deux écritures.
+      let ok = 0;
+      for (const f of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("files", f);
+        fd.append("category", "offres");
+        fd.append("projectId", id);
+        fd.append("notionField", "Offre TM");
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        if (res.ok) ok++;
+      }
+      if (ok === 0) throw new Error("upload failed");
+      toast.success(ok > 1 ? `${ok} documents ajoutés` : "Document ajouté");
+      await refetchOffres();
+    } catch {
+      toast.error("Échec de l'ajout du document.");
+    } finally {
+      setOffresUploading(false);
+      if (offresFileRef.current) offresFileRef.current.value = "";
+    }
   };
   const [headerScrollOpacity, setHeaderScrollOpacity] = useState(1);
 
@@ -10627,7 +10657,23 @@ function ProjectPageContent({ id }: { id: string }) {
                 </ul>
               )}
             </div>
-            <div className="p-4 border-t border-gray-100 dark:border-slate-700 flex justify-end">
+            <div className="p-4 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between gap-2">
+              <input
+                ref={offresFileRef}
+                type="file"
+                multiple
+                accept="application/pdf,image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                className="hidden"
+                onChange={(e) => uploadOffres(e.target.files)}
+              />
+              <button
+                onClick={() => offresFileRef.current?.click()}
+                disabled={offresUploading}
+                className="h-10 px-4 rounded-xl text-sm font-semibold border border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors disabled:opacity-60 flex items-center gap-2"
+              >
+                {offresUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderOpen className="w-4 h-4" />}
+                {offresUploading ? "Ajout…" : "Ajouter des fichiers"}
+              </button>
               <button
                 onClick={() => setShowOffres(false)}
                 className="h-10 px-5 rounded-xl text-sm font-semibold bg-[#1e3a5f] hover:bg-[#274b78] text-white transition-colors"

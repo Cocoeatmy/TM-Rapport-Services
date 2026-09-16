@@ -77,15 +77,26 @@ export async function POST(request: NextRequest) {
         const buffer = Buffer.from(bytes);
         const base64 = `data:${file.type};base64,${buffer.toString("base64")}`;
 
-        const result = await cloudinary.uploader.upload(base64, {
-          folder: `tm-rapport/${projectId}/${category}`,
-          resource_type: "image",
-          transformation: [
-            { width: 1200, crop: "limit" },
-            { quality: "auto:good" },
-            { fetch_format: "jpg" },
-          ],
-        });
+        // Images → compression/redimension JPG (photos). Autres fichiers
+        // (PDF, docs…) → upload BRUT (resource_type "raw") sans transformation,
+        // pour conserver le fichier tel quel (ex. offres, factures en PDF).
+        const isImage = (file.type || "").startsWith("image/");
+        const result = isImage
+          ? await cloudinary.uploader.upload(base64, {
+              folder: `tm-rapport/${projectId}/${category}`,
+              resource_type: "image",
+              transformation: [
+                { width: 1200, crop: "limit" },
+                { quality: "auto:good" },
+                { fetch_format: "jpg" },
+              ],
+            })
+          : await cloudinary.uploader.upload(base64, {
+              folder: `tm-rapport/${projectId}/${category}`,
+              resource_type: "raw",
+              use_filename: true,
+              unique_filename: true,
+            });
 
         return { name: file.name, url: result.secure_url };
       })
