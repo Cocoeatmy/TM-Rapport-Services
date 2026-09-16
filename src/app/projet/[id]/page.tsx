@@ -3126,6 +3126,52 @@ function DocumentLinks({ files, label, projectId, notionField, hideLabel }: { fi
   );
 }
 
+// Bouton d'ajout de documents → téléverse (Cloudinary) et synchronise dans la
+// propriété Notion `notionField` (bidirectionnel avec l'affichage DocumentLinks).
+function DocumentUploader({ projectId, notionField, onUploaded }: { projectId: string; notionField: string; onUploaded: (files: { name: string; url: string }[]) => void }) {
+  const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLInputElement>(null);
+  const upload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setBusy(true);
+    try {
+      const added: { name: string; url: string }[] = [];
+      // 1 fichier/requête (limite Vercel ~4,5 Mo), séquentiel (écriture Notion).
+      for (const f of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("files", f);
+        fd.append("category", "documents");
+        fd.append("projectId", projectId);
+        fd.append("notionField", notionField);
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        if (res.ok) { const d = await res.json(); if (Array.isArray(d.files)) added.push(...d.files); }
+      }
+      if (added.length === 0) throw new Error("upload failed");
+      onUploaded(added);
+      toast.success(added.length > 1 ? `${added.length} documents ajoutés` : "Document ajouté");
+    } catch {
+      toast.error("Échec de l'ajout du document.");
+    } finally {
+      setBusy(false);
+      if (ref.current) ref.current.value = "";
+    }
+  };
+  return (
+    <>
+      <input ref={ref} type="file" multiple accept="application/pdf,image/*,.pdf,.doc,.docx,.xls,.xlsx" className="hidden" onChange={(e) => upload(e.target.files)} />
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        disabled={busy}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-sm font-medium text-gray-500 dark:text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-60"
+      >
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+        {busy ? "Ajout…" : "Ajouter des fichiers"}
+      </button>
+    </>
+  );
+}
+
 // ─── Commentaires Notion natifs ──────────────────────────────────────────────
 
 interface NotionComment {
@@ -7101,6 +7147,8 @@ function ProjectPageContent({ id }: { id: string }) {
                 {(project.documentsMesures || []).length > 0
                   ? <DocumentLinks files={project.documentsMesures} label="Documents Mesures" hideLabel projectId={id} notionField="Documents pour prise de mesures" />
                   : <p className="text-xs text-gray-400 dark:text-gray-500 italic">Aucun document</p>}
+                <DocumentUploader projectId={id} notionField="Documents pour prise de mesures"
+                  onUploaded={(fs) => setProject((p) => p ? { ...p, documentsMesures: [...(p.documentsMesures || []), ...fs] } : p)} />
                 <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
                   <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300 mb-3"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Commentaires Mesures</CardTitle>
                   <EditableTextField
@@ -7125,6 +7173,8 @@ function ProjectPageContent({ id }: { id: string }) {
                 {(project.documentsMontagee || []).length > 0
                   ? <DocumentLinks files={project.documentsMontagee} label="Documents Montage" hideLabel projectId={id} notionField="Documents pour Montage" />
                   : <p className="text-xs text-gray-400 dark:text-gray-500 italic">Aucun document</p>}
+                <DocumentUploader projectId={id} notionField="Documents pour Montage"
+                  onUploaded={(fs) => setProject((p) => p ? { ...p, documentsMontagee: [...(p.documentsMontagee || []), ...fs] } : p)} />
                 {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
                   <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
                     <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300 mb-3"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Commentaires Montage</CardTitle>
