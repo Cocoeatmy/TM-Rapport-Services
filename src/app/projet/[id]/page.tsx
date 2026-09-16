@@ -56,7 +56,7 @@ import { SiteTimer } from "@/components/site-timer";
 // StockUsage supprimée (section retirée)
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
-import { Star, Share2, RefreshCw, PenLine, ImageDown, Lock, Search, Save, AlertCircle } from "lucide-react";
+import { Star, Share2, RefreshCw, PenLine, ImageDown, Lock, Search, Save, AlertCircle, FolderOpen } from "lucide-react";
 import { toggleFavorite, isFavorite } from "@/lib/favorites";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -5863,6 +5863,21 @@ function ProjectPageContent({ id }: { id: string }) {
     { id: "rapport", label: "Rapport", Icon: ClipboardList, bg: "bg-emerald-100/80 dark:bg-emerald-900/30", fg: "text-emerald-600 dark:text-emerald-400" },
   ] as const;
 
+  // Bouton « Documents (Notion) » — ADMIN uniquement. Ouvre la page Notion du
+  // projet en cours (où l'admin dépose les PDF : offres, commandes, factures,
+  // commande usine…). Même gabarit que les onglets du rail.
+  const renderNotionDocsBtn = () => (
+    <button
+      key="notion-docs"
+      type="button"
+      onClick={() => window.open(`https://www.notion.so/${(id || "").replace(/-/g, "")}`, "_blank", "noopener,noreferrer")}
+      title="Documents du projet sur Notion (offres, commandes, factures, commande usine…)"
+      className="relative w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all active:scale-95 bg-rose-100/80 dark:bg-rose-900/30 opacity-90 hover:opacity-100 hover:scale-105"
+    >
+      <FolderOpen className="w-[18px] h-[18px] text-rose-600 dark:text-rose-400" />
+    </button>
+  );
+
   const renderTabButton = ({ id, label, Icon, bg, fg }: (typeof tabDefs)[number]) => {
     const active = macTabs.has(id);
     const commentCount = id === "commentaires"
@@ -6184,7 +6199,15 @@ function ProjectPageContent({ id }: { id: string }) {
       {isMac && (
         <div className="fixed left-2 top-[124px] z-30 flex flex-col gap-2">
           {/* Onglet « Fiche de travail » : admin uniquement pour l'instant. */}
-          {tabDefs.filter((t) => t.id !== "fiche" || isAdmin).map(renderTabButton)}
+          {(() => {
+            const tabs = tabDefs.filter((t) => t.id !== "fiche" || isAdmin);
+            const out: React.ReactNode[] = [];
+            tabs.forEach((t) => {
+              out.push(renderTabButton(t));
+              if (t.id === "projet" && isAdmin) out.push(renderNotionDocsBtn());
+            });
+            return out;
+          })()}
         </div>
       )}
 
@@ -6194,7 +6217,15 @@ function ProjectPageContent({ id }: { id: string }) {
       {isIOS && !showRapport && (
         <div className="px-4 mt-3">
           <div className="flex justify-between items-center pb-1">
-            {tabDefs.filter((t) => t.id !== "rapport" && (t.id !== "fiche" || isAdmin)).map(renderTabButton)}
+            {(() => {
+              const tabs = tabDefs.filter((t) => t.id !== "rapport" && (t.id !== "fiche" || isAdmin));
+              const out: React.ReactNode[] = [];
+              tabs.forEach((t) => {
+                out.push(renderTabButton(t));
+                if (t.id === "projet" && isAdmin) out.push(renderNotionDocsBtn());
+              });
+              return out;
+            })()}
           </div>
         </div>
       )}
