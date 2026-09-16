@@ -5998,7 +5998,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
       {/* Header */}
-      <div className="sticky z-40 glass-card border-b px-4 py-3 transition-opacity duration-150" style={{ borderRadius: 0, top: headerHeight, opacity: showRapport ? headerScrollOpacity : 1 }}>
+      <div className="sticky z-40 glass-card px-4 py-3 transition-opacity duration-150" style={{ borderRadius: 18, top: headerHeight, opacity: showRapport ? headerScrollOpacity : 1 }}>
         {(() => {
           // Boutons d'action (crayon, partage, étoile, historique) — rendus
           // soit à droite de la ligne titre (mode normal), soit sur la ligne
