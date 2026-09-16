@@ -28,6 +28,16 @@ export function ThemeColorSync() {
       const m = s.match(/rgba?\([^)]*\)|#[0-9a-fA-F]{3,8}/);
       return m ? m[0] : null;
     };
+    // Convertit rgb()/rgba()/hex en [r,g,b].
+    const toRgb = (c: string): [number, number, number] | null => {
+      const rgb = c.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+      if (rgb) return [+rgb[1], +rgb[2], +rgb[3]];
+      let h = c.replace("#", "").trim();
+      if (h.length === 3) h = h.split("").map((x) => x + x).join("");
+      if (h.length >= 6) return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+      return null;
+    };
+    const mix = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);
 
     const apply = () => {
       try {
@@ -37,7 +47,17 @@ export function ThemeColorSync() {
           const bg = cs.backgroundColor;
           if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") c = bg;
         }
-        if (c) meta!.setAttribute("content", c);
+        if (!c) return;
+        const rgb = toRgb(c);
+        if (!rgb) { meta!.setAttribute("content", c); return; }
+        // La barre est un verre translucide (≈45 % blanc en clair / sombre en
+        // sombre) : on applique le même mélange pour que les coins derrière les
+        // contrôles natifs prennent la MÊME teinte apparente que la barre.
+        const dark = document.documentElement.classList.contains("dark");
+        const [br, bg2, bb] = dark ? [22, 24, 30] : [255, 255, 255];
+        const t = 0.45;
+        const r = mix(rgb[0], br, t), g = mix(rgb[1], bg2, t), b = mix(rgb[2], bb, t);
+        meta!.setAttribute("content", `rgb(${r}, ${g}, ${b})`);
       } catch { /* ignore */ }
     };
 

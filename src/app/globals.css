@@ -1855,17 +1855,24 @@ html[data-ui="cleanmymac"] .lg-bg::before {
     /* Ne plus forcer un fond sombre : le dégradé de la page apparaît sous la barre. */
     html[data-ui="cleanmymac"] { background: transparent !important; }
 
+    /* Barre en VERRE DÉPOLI (liquid glass) : translucide + flou du contenu qui
+       défile dessous. Coins arrondis façon barre d'outils macOS. */
     #main-header {
-      background: transparent !important;
-      backdrop-filter: none !important;
-      -webkit-backdrop-filter: none !important;
+      background: rgba(255,255,255,0.45) !important;
+      backdrop-filter: blur(22px) saturate(180%) !important;
+      -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
       border: none !important;
-      box-shadow: none !important;
+      box-shadow: inset 0 -1px 0 rgba(255,255,255,0.35), 0 1px 12px rgba(0,0,0,0.05) !important;
       -webkit-app-region: drag;
     }
     /* Supprime les dégradés de fond des thèmes (aurora/ocean) sur la barre. */
     #main-header::before, #main-header::after { display: none !important; }
     #main-header * { -webkit-app-region: no-drag; }
+
+    .dark #main-header {
+      background: rgba(22,24,30,0.45) !important;
+      box-shadow: inset 0 -1px 0 rgba(255,255,255,0.08), 0 1px 12px rgba(0,0,0,0.25) !important;
+    }
 
     /* Pastilles neutres (bg-white/…) rendues lisibles sur fond clair. Les boutons
        colorés (orange, dégradé avatar, badge rouge, icônes bleu/vert) ne sont
