@@ -12,7 +12,7 @@ import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
 import { signFiche, signPhotosZip, signSav, signSynthese } from "@/lib/doc-link";
-import { formatSwissDate } from "@/lib/time-utils";
+import { formatSwissDate, getWorkingDays } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
   Document,
@@ -28,6 +28,7 @@ import ReactPDF, {
 } from "@react-pdf/renderer";
 import React from "react";
 import { GMAPS_ICON, APPLE_MAPS_ICON, WAZE_ICON } from "@/lib/map-icons";
+import { getData, getDataFresh } from "@/lib/kv-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -92,6 +93,37 @@ const styles = StyleSheet.create({
     borderTopColor: "#ddd",
     paddingTop: 6,
   },
+  // Horodatage « Fiche générée le … » : sous le pied de page, aligné à droite.
+  genStamp: {
+    position: "absolute",
+    bottom: 12,
+    right: 40,
+    fontSize: 6,
+    color: "#bbb",
+  },
+  // Bandeau d'alerte des signalements (juste sous l'en-tête).
+  sigBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    backgroundColor: "#fff7ed",
+    borderWidth: 1,
+    borderColor: "#fed7aa",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 14,
+  },
+  sigBannerTitle: { fontSize: 9, fontFamily: "Helvetica-Bold", color: "#9a3412", marginRight: 4 },
+  sigChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+  },
+  sigChipText: { fontSize: 8, fontFamily: "Helvetica-Bold", color: "#ffffff" },
 });
 
 function fmtDate(d?: string | null): string {
@@ -104,6 +136,22 @@ function fmtDateRange(start?: string | null, end?: string | null): string {
   const s = fmtDate(start);
   if (end && end.slice(0, 10) !== start.slice(0, 10)) return `${s} → ${fmtDate(end)}`;
   return s;
+}
+// Liste des jours de montage (week-ends exclus) sous forme abrégée :
+// « Ma 28, Me 29, Je 30 avr. » — le mois n'est affiché qu'une fois, à la fin.
+// Renvoie "" si mono-jour (l'info figure déjà sur la ligne Montage).
+const JOURS_ABR = ["Di", "Lu", "Ma", "Me", "Je", "Ve", "Sa"];
+const MOIS_ABR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+function montageDaysList(start?: string | null, end?: string | null): string {
+  if (!start || !end) return "";
+  const days = getWorkingDays(start.slice(0, 10), end.slice(0, 10));
+  if (days.length <= 1) return "";
+  const parts = days.map((d) => {
+    const dt = new Date(d + "T12:00:00");
+    return `${JOURS_ABR[dt.getDay()]} ${dt.getDate()}`;
+  });
+  const last = new Date(days[days.length - 1] + "T12:00:00");
+  return `${parts.join(", ")} ${MOIS_ABR[last.getMonth()]}`;
 }
 // NFC : recompose les accents décomposés (ex. o + ̂ → ô). Les titres Notion
 // arrivent parfois en NFD, que la police Helvetica du PDF n'assemble pas
@@ -164,8 +212,8 @@ function ContactCell({ label, company, contacts, width }: { label: string; compa
       {list.map((c, i) => (
         <View key={i} style={{ marginTop: 3 }}>
           {c.name ? <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(c.name)}</Text> : null}
-          {c.email ? <Text style={{ fontSize: 8, color: "#555" }}>{c.email}</Text> : null}
-          {c.phone ? <Text style={{ fontSize: 8, color: "#555" }}>{c.phone}</Text> : null}
+          {c.email ? <Link src={`mailto:${c.email.trim()}`} style={{ fontSize: 8, color: "#1e3a5f", textDecoration: "none" }}>{c.email}</Link> : null}
+          {c.phone ? <Link src={`tel:${c.phone.replace(/[^\d+]/g, "")}`} style={{ fontSize: 8, color: "#1e3a5f", textDecoration: "none" }}>{c.phone}</Link> : null}
         </View>
       ))}
     </View>
@@ -303,7 +351,9 @@ function AddressRow({ address }: { address: string }) {
   );
 }
 
-function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, reportUrl, syntheseUrl, notionComments = [] }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; notionComments?: { text: string; author?: string; date?: string }[] }) {
+function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, reportUrl, syntheseUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0 } }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number } }) {
+  const genDate = new Date().toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich" });
+  const sigTotal = (sig?.pieces || 0) + (sig?.defauts || 0) + (sig?.avant || 0);
   // Le projet a-t-il au moins un SAV (par cabine) ? → affiche le bouton SAV.
   const savMaps = [project.commentairesSav, project.causeSavCabines, project.datesRdvSavCabines, project.collaborateursSavCabines, project.savRetouchesCabines, project.dateSAVRecu].map(parseCabMulti);
   const savKeys = new Set<number>();
@@ -341,6 +391,28 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
           <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
         </View>
+
+        {/* Bandeau d'alerte : signalements en attente (pièces / défauts / constats). */}
+        {sigTotal > 0 ? (
+          <View style={styles.sigBanner} wrap={false}>
+            <Text style={styles.sigBannerTitle}>Signalements à traiter :</Text>
+            {sig.pieces > 0 ? (
+              <View style={{ ...styles.sigChip, backgroundColor: "#ea580c" }}>
+                <Text style={styles.sigChipText}>Pièces manquantes {sig.pieces}</Text>
+              </View>
+            ) : null}
+            {sig.defauts > 0 ? (
+              <View style={{ ...styles.sigChip, backgroundColor: "#dc2626" }}>
+                <Text style={styles.sigChipText}>Défauts {sig.defauts}</Text>
+              </View>
+            ) : null}
+            {sig.avant > 0 ? (
+              <View style={{ ...styles.sigChip, backgroundColor: "#4f46e5" }}>
+                <Text style={styles.sigChipText}>Constats avant intervention {sig.avant}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Lieu du rendez-vous (+ « Divers infos chantier » si renseigné) */}
         <View style={styles.section} wrap={false}>
@@ -437,16 +509,24 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
             const hours = montageHoursStr(project.heureArrivee, project.heureDepart);
             const value = dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)
               + (hours ? `  ·  ${hours}` : "");
-            if (total <= 0) return <LineRow label="Montage" value={value} docUrl={montagePhotosUrl} />;
+            const jours = montageDaysList(project.dateMontage, project.dateMontageEnd);
+            const montageRow = total <= 0
+              ? <LineRow label="Montage" value={value} docUrl={montagePhotosUrl} />
+              : (
+                <ProgressRow
+                  label="Montage"
+                  pct={pct}
+                  caption={`${installed}/${total} · ${pct}%`}
+                  color={pct >= 100 ? "#15803d" : "#2563eb"}
+                  value={value}
+                  docUrl={montagePhotosUrl}
+                />
+              );
             return (
-              <ProgressRow
-                label="Montage"
-                pct={pct}
-                caption={`${installed}/${total} · ${pct}%`}
-                color={pct >= 100 ? "#15803d" : "#2563eb"}
-                value={value}
-                docUrl={montagePhotosUrl}
-              />
+              <React.Fragment>
+                {montageRow}
+                {jours ? <LineRow label="Jours de montage" value={jours} /> : null}
+              </React.Fragment>
             );
           })()}
           {/* SAV : progression cabines clôturées / total SAV (comme Montage).
@@ -500,6 +580,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
         <Text style={styles.footer} fixed>
           TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch
         </Text>
+        <Text style={styles.genStamp} fixed>Fiche générée le {genDate}</Text>
       </Page>
 
       {/* PAGE 2 — Commentaires + infos chantier + journal des échanges.
@@ -542,6 +623,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
             <Text style={styles.footer} fixed>
               TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch
             </Text>
+            <Text style={styles.genStamp} fixed>Fiche générée le {genDate}</Text>
           </Page>
         );
       })()}
@@ -647,7 +729,19 @@ export async function GET(
     // Lien vers le PDF « Suivi du chantier » (signé → ouvrable sans login).
     const syntheseUrl = `${req.nextUrl.origin}/api/synthese/${encodeURIComponent(id)}?s=${signSynthese(id)}`;
     const notionComments = await fetchNotionComments(id).catch(() => [] as FicheComment[]);
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} notionComments={notionComments} />);
+    // Signalements OUVERTS (KV) pour le bandeau d'alerte en haut de fiche.
+    type SigPiece = { projectId: string; status?: string };
+    type SigDefaut = { projectId: string; phase?: string; resolved?: boolean };
+    const [allPieces, allDefauts] = await Promise.all([
+      getDataFresh<SigPiece>("pieces").catch(() => getData<SigPiece>("pieces").catch(() => [] as SigPiece[])),
+      getDataFresh<SigDefaut>("defauts").catch(() => getData<SigDefaut>("defauts").catch(() => [] as SigDefaut[])),
+    ]);
+    const sig = {
+      pieces: allPieces.filter((p) => p.projectId === id && p.status !== "recu").length,
+      defauts: allDefauts.filter((d) => d.projectId === id && d.phase !== "avant-intervention" && !d.resolved).length,
+      avant: allDefauts.filter((d) => d.projectId === id && d.phase === "avant-intervention" && !d.resolved).length,
+    };
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} notionComments={notionComments} sig={sig} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
