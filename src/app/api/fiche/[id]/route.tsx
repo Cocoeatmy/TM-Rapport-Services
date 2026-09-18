@@ -303,7 +303,7 @@ function AddressRow({ address }: { address: string }) {
   );
 }
 
-function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, reportUrl }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savReportUrl?: string; reportUrl?: string }) {
+function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, reportUrl, notionComments = [] }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savReportUrl?: string; reportUrl?: string; notionComments?: { text: string; author?: string; date?: string }[] }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -487,12 +487,21 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
           Rendue seulement si au moins une section est renseignée. */}
       {(() => {
         const savReclam = Object.values(parseCabMulti(project.commentairesSav)).map((s) => nfc(s).trim()).filter(Boolean).join("\n");
+        // Commentaires natifs Notion (discussions de la page) → un bloc par commentaire.
+        const notionCommentsText = (notionComments || [])
+          .map((c) => {
+            const meta = [c.author, c.date].filter(Boolean).join(" · ");
+            return (meta ? meta + " : " : "") + nfc(c.text).trim();
+          })
+          .filter(Boolean)
+          .join("\n\n");
         const sections = [
           { title: "Commentaires Mesures", text: nfc(project.commentairesMesures || "").trim() },
           { title: "Commentaires Montage", text: nfc(project.commentairesMontages || "").trim() },
           { title: "Commentaires SAV", text: savReclam },
           { title: "Divers infos chantier", text: nfc(project.diversInfosChantier || "").trim() },
           { title: "Journal des échanges", text: nfc(project.journalEchanges || "").trim() },
+          { title: "Commentaires (Notion)", text: notionCommentsText },
         ].filter((s) => s.text);
         if (sections.length === 0) return null;
         return (
@@ -536,6 +545,36 @@ async function isAuthed(req: NextRequest): Promise<boolean> {
   const token = req.cookies.get("auth-token")?.value;
   if (!token) return false;
   try { return !!(await verifyToken(token)); } catch { return false; }
+}
+
+// Commentaires NATIFS Notion (discussions de la page) → texte pour la page 2.
+type FicheComment = { text: string; author?: string; date?: string };
+async function fetchNotionComments(pageId: string): Promise<FicheComment[]> {
+  const token = process.env.NOTION_TOKEN;
+  if (!token) return [];
+  const out: FicheComment[] = [];
+  let cursor: string | undefined;
+  try {
+    do {
+      const url = new URL("https://api.notion.com/v1/comments");
+      url.searchParams.set("block_id", pageId);
+      url.searchParams.set("page_size", "100");
+      if (cursor) url.searchParams.set("start_cursor", cursor);
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}`, "Notion-Version": "2022-06-28" },
+        cache: "no-store",
+      });
+      if (!res.ok) break;
+      const data: any = await res.json();
+      for (const c of (data.results || [])) {
+        const text = (c.rich_text || []).map((t: any) => t.plain_text || "").join("").trim();
+        if (!text) continue;
+        out.push({ text, author: c.created_by?.name || undefined, date: c.created_time ? c.created_time.slice(0, 10) : undefined });
+      }
+      cursor = data.has_more ? data.next_cursor : undefined;
+    } while (cursor);
+  } catch { /* commentaires indisponibles → on ignore */ }
+  return out;
 }
 
 export async function GET(
@@ -586,7 +625,8 @@ export async function GET(
     const savReportUrl = `${req.nextUrl.origin}/api/sav/${encodeURIComponent(id)}?s=${signSav(id)}`;
     // Lien vers la page du rapport de montage (upload photos + horaires).
     const reportUrl = `${req.nextUrl.origin}/projet/${encodeURIComponent(id)}`;
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} />);
+    const notionComments = await fetchNotionComments(id).catch(() => [] as FicheComment[]);
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} notionComments={notionComments} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
