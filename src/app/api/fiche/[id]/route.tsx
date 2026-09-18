@@ -11,8 +11,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
-import { signFiche, signPhotosZip, signSav, signSynthese } from "@/lib/doc-link";
-import { formatSwissDate, getWorkingDays } from "@/lib/time-utils";
+import { signFiche, signPhotosZip, signSav, signSynthese, signSignalements } from "@/lib/doc-link";
+import { formatSwissDate } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
   Document,
@@ -137,21 +137,82 @@ function fmtDateRange(start?: string | null, end?: string | null): string {
   if (end && end.slice(0, 10) !== start.slice(0, 10)) return `${s} → ${fmtDate(end)}`;
   return s;
 }
-// Liste des jours de montage (week-ends exclus) sous forme abrégée :
-// « Ma 28, Me 29, Je 30 avr. » — le mois n'est affiché qu'une fois, à la fin.
-// Renvoie "" si mono-jour (l'info figure déjà sur la ligne Montage).
-const JOURS_ABR = ["Di", "Lu", "Ma", "Me", "Je", "Ve", "Sa"];
-const MOIS_ABR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
-function montageDaysList(start?: string | null, end?: string | null): string {
-  if (!start || !end) return "";
-  const days = getWorkingDays(start.slice(0, 10), end.slice(0, 10));
-  if (days.length <= 1) return "";
-  const parts = days.map((d) => {
-    const dt = new Date(d + "T12:00:00");
-    return `${JOURS_ABR[dt.getDay()]} ${dt.getDate()}`;
-  });
-  const last = new Date(days[days.length - 1] + "T12:00:00");
-  return `${parts.join(", ")} ${MOIS_ABR[last.getMonth()]}`;
+// ── Jours de montage réels (par cabine) ────────────────────────────────────
+// Les dates/heures de montage sont encodées PAR CABINE dans « Heure arrivée » /
+// « Heure départ » au format « CabN:AAAA-MM-JJ:HH:MM | ... » (même source que
+// « Suivi des heures → PAR JOURNÉE » de l'app). Un projet peut donc avoir
+// plusieurs journées non contiguës (ex. TM-2600516 : 30.07 puis 04.09).
+type MontageDay = { date: string; arr: string; dep: string; min: number; who: string };
+// « Cab1:Miguel | Cab2:... » → { 0: "Miguel", 1: "..." }
+function parseCabNames(raw?: string | null): Record<number, string> {
+  const map: Record<number, string> = {};
+  if (!raw) return map;
+  const re = /Cab(\d+)\s*:([^|]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw))) map[parseInt(m[1], 10) - 1] = m[2].trim();
+  return map;
+}
+function parseCabTimes(raw?: string | null): Record<number, string> {
+  const map: Record<number, string> = {};
+  if (!raw) return map;
+  const re = /Cab(\d+)\s*:(?:\d{4}-\d{2}-\d{2}:)?(\d{1,2}:\d{2})/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw))) map[parseInt(m[1], 10) - 1] = m[2];
+  return map;
+}
+function parseCabDates(raw?: string | null): Record<number, string> {
+  const map: Record<number, string> = {};
+  if (!raw) return map;
+  const re = /Cab(\d+)\s*:(\d{4}-\d{2}-\d{2}):/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw))) map[parseInt(m[1], 10) - 1] = m[2];
+  return map;
+}
+const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+const minToHhmm = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+const durStr = (n: number) => (n > 0 ? `${Math.floor(n / 60)}h${String(n % 60).padStart(2, "0")}` : "");
+// « 2026-07-30 » → « 30.07 »
+function ddmm(d: string): string {
+  const [, mo, da] = d.split("-");
+  return da && mo ? `${da}.${mo}` : d;
+}
+// Regroupe les timestamps par jour : plage (1ʳᵉ arrivée → dernier départ) +
+// durée cumulée des cabines de la journée.
+function montageDays(ha?: string | null, hd?: string | null, attr?: string | null): MontageDay[] {
+  const arrMap = parseCabTimes(ha), depMap = parseCabTimes(hd);
+  const dateMap = parseCabDates(ha), dateMap2 = parseCabDates(hd);
+  const nameMap = parseCabNames(attr);
+  const byDate = new Map<string, { arrMin: number; depMin: number; min: number; who: Set<string> }>();
+  const idxs = new Set<number>([...Object.keys(arrMap), ...Object.keys(depMap)].map(Number));
+  for (const i of idxs) {
+    const d = dateMap[i] || dateMap2[i] || "";
+    if (!d) continue;
+    const aMin = arrMap[i] ? toMin(arrMap[i]) : null;
+    const dMin = depMap[i] ? toMin(depMap[i]) : null;
+    let cur = byDate.get(d);
+    if (!cur) { cur = { arrMin: Infinity, depMin: -Infinity, min: 0, who: new Set<string>() }; byDate.set(d, cur); }
+    if (aMin != null) cur.arrMin = Math.min(cur.arrMin, aMin);
+    if (dMin != null) cur.depMin = Math.max(cur.depMin, dMin);
+    if (aMin != null && dMin != null && dMin > aMin) cur.min += dMin - aMin;
+    (nameMap[i] || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean).forEach((n) => cur!.who.add(n));
+  }
+  return [...byDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({
+      date,
+      arr: Number.isFinite(v.arrMin) ? minToHhmm(v.arrMin) : "",
+      dep: v.depMin > -Infinity ? minToHhmm(v.depMin) : "",
+      min: v.min,
+      who: [...v.who].join(" & "),
+    }));
+}
+// Ligne « JJ.MM : 08:39–10:12 (1h33) — Miguel » pour une journée.
+// withWho=false quand le monteur est déjà affiché ailleurs sur la ligne.
+function montageDayLabel(d: MontageDay, withWho = true): string {
+  const span = d.arr && d.dep ? `${d.arr}–${d.dep}` : (d.arr || d.dep || "");
+  const dur = durStr(d.min);
+  const base = `${ddmm(d.date)}${span ? ` : ${span}` : ""}${dur ? ` (${dur})` : ""}`;
+  return withWho && d.who ? `${base} — ${d.who}` : base;
 }
 // NFC : recompose les accents décomposés (ex. o + ̂ → ô). Les titres Notion
 // arrivent parfois en NFD, que la police Helvetica du PDF n'assemble pas
@@ -358,7 +419,7 @@ function AddressRow({ address }: { address: string }) {
   );
 }
 
-function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, savReportUrl, reportUrl, syntheseUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0 } }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number } }) {
+function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, savReportUrl, reportUrl, syntheseUrl, signalementsUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0 } }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; signalementsUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number } }) {
   const genDate = new Date().toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich" });
   const sigTotal = (sig?.pieces || 0) + (sig?.defauts || 0) + (sig?.avant || 0);
   // Le projet a-t-il au moins un SAV (par cabine) ? → affiche le bouton SAV.
@@ -399,9 +460,10 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
         </View>
 
-        {/* Bandeau d'alerte : signalements en attente (pièces / défauts / constats). */}
+        {/* Bandeau d'alerte : signalements en attente (pièces / défauts / constats).
+            Cliquable → rapport des signalements (les monteurs voient le détail). */}
         {sigTotal > 0 ? (
-          <View style={styles.sigBanner} wrap={false}>
+          <Link src={signalementsUrl || "#"} style={{ ...styles.sigBanner, textDecoration: "none" }} wrap={false}>
             <Text style={styles.sigBannerTitle}>Signalements à traiter :</Text>
             {sig.pieces > 0 ? (
               <View style={{ ...styles.sigChip, backgroundColor: "#ea580c" }}>
@@ -418,7 +480,12 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
                 <Text style={styles.sigChipText}>Constats avant intervention {sig.avant}</Text>
               </View>
             ) : null}
-          </View>
+            {signalementsUrl ? (
+              <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#9a3412", marginLeft: 2 }}>
+                Voir le rapport →
+              </Text>
+            ) : null}
+          </Link>
         ) : null}
 
         {/* Lieu du rendez-vous (+ « Divers infos chantier » si renseigné) */}
@@ -516,10 +583,27 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
               }
             }
             const pct = total > 0 ? Math.round((installed / total) * 100) : 0;
-            const hours = montageHoursStr(project.heureArrivee, project.heureDepart);
-            const value = dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)
-              + (hours ? `  ·  ${hours}` : "");
-            const jours = montageDaysList(project.dateMontage, project.dateMontageEnd);
+            // Jours de montage RÉELS reconstitués depuis les horaires par cabine.
+            const days = montageDays(project.heureArrivee, project.heureDepart, project.attributionCabines);
+            const totalMin = days.reduce((s, d) => s + d.min, 0);
+            // Monteur(s) : champ « Collaborateurs montages », sinon union des
+            // monteurs responsables par cabine (« Monteur responsable »).
+            const montageWho = (project.collaborateurs || "").trim()
+              || [...new Set(days.flatMap((d) => d.who.split(" & ").filter(Boolean)))].join(" & ");
+            // Partie « date » de la ligne Montage :
+            //  - aucune donnée horaire → repli sur la date Notion (dateMontage) ;
+            //  - 1 journée → « JJ.MM : 08:39–10:12 (1h33) » ;
+            //  - N journées → « N jours · 3h10 » (détail dans « Jours de montage »).
+            let datePart: string;
+            if (days.length === 0) {
+              const hours = montageHoursStr(project.heureArrivee, project.heureDepart);
+              datePart = fmtDateRange(project.dateMontage, project.dateMontageEnd) + (hours ? `  ·  ${hours}` : "");
+            } else if (days.length === 1) {
+              datePart = montageDayLabel(days[0], false);
+            } else {
+              datePart = `${days.length} jours${durStr(totalMin) ? `  ·  ${durStr(totalMin)}` : ""}`;
+            }
+            const value = dateAndWho(datePart, montageWho);
             const montageRow = total <= 0
               ? <LineRow label="Montage" value={value} docUrl={montagePhotosUrl} />
               : (
@@ -535,7 +619,17 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
             return (
               <React.Fragment>
                 {montageRow}
-                {jours ? <LineRow label="Jours de montage" value={jours} /> : null}
+                {days.length > 1
+                  ? (() => {
+                      // Monteur affiché par jour seulement s'il varie d'un jour à
+                      // l'autre (sinon déjà indiqué sur la ligne Montage).
+                      const distinctWho = new Set(days.map((d) => d.who).filter(Boolean));
+                      const perDayWho = distinctWho.size > 1;
+                      return days.map((d, i) => (
+                        <LineRow key={i} label={i === 0 ? "Jours de montage" : ""} value={montageDayLabel(d, perDayWho)} />
+                      ));
+                    })()
+                  : null}
               </React.Fragment>
             );
           })()}
@@ -733,6 +827,7 @@ export async function GET(
       `${req.nextUrl.origin}/api/photos/${encodeURIComponent(id)}/download?field=${field}&s=${signPhotosZip(id, field)}`;
     const montagePhotosUrl = (project.photosMontage || []).length > 0 ? zipUrl("photosMontage") : undefined;
     const cartonsDocUrl = (project.photosCartons || []).length > 0 ? zipUrl("photosCartons") : undefined;
+    const signalementsUrl = `${req.nextUrl.origin}/api/rapport-signalements/${encodeURIComponent(id)}?s=${signSignalements(id)}`;
     // Flèche SAV → rapport SAV signé (toutes cabines), ouvrable sans login.
     const savReportUrl = `${req.nextUrl.origin}/api/sav/${encodeURIComponent(id)}?s=${signSav(id)}`;
     // Lien vers la page du rapport de montage (upload photos + horaires).
@@ -752,7 +847,7 @@ export async function GET(
       defauts: allDefauts.filter((d) => d.projectId === id && d.phase !== "avant-intervention" && !d.resolved).length,
       avant: allDefauts.filter((d) => d.projectId === id && d.phase === "avant-intervention" && !d.resolved).length,
     };
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} cartonsDocUrl={cartonsDocUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} notionComments={notionComments} sig={sig} />);
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} cartonsDocUrl={cartonsDocUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} signalementsUrl={signalementsUrl} notionComments={notionComments} sig={sig} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
