@@ -2484,7 +2484,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-blue-100/80 dark:bg-blue-900/30 flex items-center justify-center"><Calendar className="w-4 h-4 text-blue-500 dark:text-blue-400" /></span>
           <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{rdvMontageAFixerCount}</p>
           <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">RDV Montage à fixer</p>
-          <p className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+          {/* Total de cabines à installer = somme des cabines des projets « RDV Montage à fixer ». */}
+          <p className="text-[9px] sm:text-[10px] font-semibold text-blue-500 dark:text-blue-300 mt-0.5">{rdvMontageAFixerProjects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.</p>
         </button>
       );
       case "rdv-services-a-fixer": return (
