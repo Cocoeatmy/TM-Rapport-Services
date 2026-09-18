@@ -323,10 +323,16 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
         </View>
 
-        {/* Lieu du rendez-vous */}
+        {/* Lieu du rendez-vous (+ « Divers infos chantier » si renseigné) */}
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Lieu du rendez-vous</Text>
           <AddressRow address={joinVal(project.adresseChantier)} />
+          {project.diversInfosChantier && project.diversInfosChantier.trim() ? (
+            <View style={styles.row}>
+              <Text style={styles.label}>Infos chantier</Text>
+              <Text style={{ flex: 1, fontSize: 9, color: "#1a1a1a", lineHeight: 1.35 }}>{nfc(project.diversInfosChantier)}</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Général — grille : (Nb cabines | Fournisseurs | Séries) puis
