@@ -189,10 +189,17 @@ function montageHoursStr(ha?: string | null, hd?: string | null): string {
 }
 
 // Cellule « libellé au-dessus, valeur en gras » (grilles Général & Contact).
-function Cell({ label, value, width }: { label: string; value: string; width: string }) {
+function Cell({ label, value, width, docUrl }: { label: string; value: string; width: string; docUrl?: string }) {
   return (
     <View style={{ width, paddingRight: 10, marginBottom: 6 }}>
-      <Text style={{ fontSize: 8, color: "#888", marginBottom: 2 }}>{label}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+        <Text style={{ fontSize: 8, color: "#888" }}>{label}</Text>
+        {docUrl ? (
+          <Link src={docUrl} style={{ marginLeft: 5, textDecoration: "none" }}>
+            <DownloadArrow />
+          </Link>
+        ) : null}
+      </View>
       <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{value}</Text>
     </View>
   );
@@ -351,7 +358,7 @@ function AddressRow({ address }: { address: string }) {
   );
 }
 
-function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, reportUrl, syntheseUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0 } }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number } }) {
+function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, savReportUrl, reportUrl, syntheseUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0 } }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number } }) {
   const genDate = new Date().toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich" });
   const sigTotal = (sig?.pieces || 0) + (sig?.defauts || 0) + (sig?.avant || 0);
   // Le projet a-t-il au moins un SAV (par cabine) ? → affiche le bouton SAV.
@@ -432,6 +439,9 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
           <View style={{ flexDirection: "row" }}>
             <Cell label="Emplacement de cabine" value={joinVal(project.emplacementCabine)} width="33%" />
             <Cell label="Nb. de cartons" value={joinVal(project.nbCartons)} width="34%" />
+            {cartonsDocUrl ? (
+              <Cell label="État cartons réceptionnés" value="Voir les documents" width="33%" docUrl={cartonsDocUrl} />
+            ) : null}
           </View>
         </View>
 
@@ -722,6 +732,7 @@ export async function GET(
     const zipUrl = (field: string) =>
       `${req.nextUrl.origin}/api/photos/${encodeURIComponent(id)}/download?field=${field}&s=${signPhotosZip(id, field)}`;
     const montagePhotosUrl = (project.photosMontage || []).length > 0 ? zipUrl("photosMontage") : undefined;
+    const cartonsDocUrl = (project.photosCartons || []).length > 0 ? zipUrl("photosCartons") : undefined;
     // Flèche SAV → rapport SAV signé (toutes cabines), ouvrable sans login.
     const savReportUrl = `${req.nextUrl.origin}/api/sav/${encodeURIComponent(id)}?s=${signSav(id)}`;
     // Lien vers la page du rapport de montage (upload photos + horaires).
@@ -741,7 +752,7 @@ export async function GET(
       defauts: allDefauts.filter((d) => d.projectId === id && d.phase !== "avant-intervention" && !d.resolved).length,
       avant: allDefauts.filter((d) => d.projectId === id && d.phase === "avant-intervention" && !d.resolved).length,
     };
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} notionComments={notionComments} sig={sig} />);
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} cartonsDocUrl={cartonsDocUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} notionComments={notionComments} sig={sig} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));

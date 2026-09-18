@@ -122,6 +122,17 @@ export async function GET(
     }
   }
 
+  // État des cartons réceptionnés (champ Notion « photosCartons »). Ce champ
+  // n'a pas de bucket dédié : on le zippe tel quel, soit dans l'archive complète,
+  // soit lorsqu'il est explicitement demandé (field=photosCartons).
+  if (!fieldParam || fieldParam === "photosCartons") {
+    const files = (project.photosCartons ?? []) as { name: string; url: string }[];
+    for (const file of files) {
+      const cabineIdx = extractCabine(file.name); // 1-based ou null
+      all.push({ url: file.url, cabineIdx, label: "Etat cartons receptionnes" });
+    }
+  }
+
   // Signalements : pièces manquantes, défauts signalés, et photos du souci réglé
   // (champs projet Notion). Ignorés quand un champ précis est demandé.
   const signalementFields: { key: "photosPiecesManquantes" | "photosDefautsSignale" | "photosSoucisRegle"; label: string }[] = fieldParam ? [] : [
