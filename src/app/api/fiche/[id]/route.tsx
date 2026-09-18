@@ -23,6 +23,7 @@ import ReactPDF, {
   Link,
   Svg,
   Path,
+  Circle,
   StyleSheet,
 } from "@react-pdf/renderer";
 import React from "react";
@@ -178,11 +179,14 @@ function parseCabMulti(raw: string | undefined | null): Record<number, string> {
   while ((m = re.exec(raw || ""))) { const v = m[2].trim(); if (v) map[parseInt(m[1], 10)] = v; }
   return map;
 }
-// Petite flèche « téléchargement » (icône vectorielle).
+// Bouton « téléchargement » : cercle bleu navy plein + flèche blanche vers un
+// bac (style bouton de téléchargement), assorti à la couleur des titres.
 function DownloadArrow() {
   return (
-    <Svg width={11} height={11} viewBox="0 0 24 24">
-      <Path d="M12 3 L12 15 M7 10 L12 15 L17 10 M5 20 L19 20" stroke="#1e3a5f" strokeWidth={2} fill="none" />
+    <Svg width={15} height={15} viewBox="0 0 24 24">
+      <Circle cx={12} cy={12} r={12} fill="#1e3a5f" />
+      <Path d="M12 6 V13.5 M8.5 10.5 L12 14 L15.5 10.5" stroke="#ffffff" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M7.5 15.5 V17.5 H16.5 V15.5" stroke="#ffffff" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
@@ -448,6 +452,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
             <ContactCell label="ARCHITECTE" company={joinVal(project.architecteNames)} contacts={project.contactsArchitecteDetails} width="33.33%" />
             <ContactCell label="DT" company={joinVal(project.dtNames)} contacts={project.contactsDTDetails} width="33.33%" />
             <ContactCell label="CLIENT FINAL" contacts={project.contactsClientsFinauxDetails} width="33.33%" />
+            <ContactCell label="LOCATAIRES" contacts={project.contactsLocatairesDetails} width="33.33%" />
           </View>
         </View>
 

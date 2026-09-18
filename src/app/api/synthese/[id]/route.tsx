@@ -310,6 +310,7 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
             <ContactCell label="ARCHITECTE" company={joinNames(project.architecteNames)} contacts={project.contactsArchitecteDetails} />
             <ContactCell label="DT" company={joinNames(project.dtNames)} contacts={project.contactsDTDetails} />
             <ContactCell label="CLIENT FINAL" contacts={project.contactsClientsFinauxDetails} />
+            <ContactCell label="LOCATAIRES" contacts={project.contactsLocatairesDetails} />
           </View>
         </View>
 

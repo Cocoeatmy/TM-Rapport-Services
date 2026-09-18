@@ -228,12 +228,14 @@ export interface Project {
   contactsDTRelation: string[];               // « Contacts DT »
   contactsArchitecteRelation: string[];       // « Contacts Architecte »
   contactsClientsFinauxRelation: string[];    // « Contacts Clients finaux »
+  contactsLocatairesRelation: string[];       // « Contacts Locataires »
   // Détails résolus (nom, email, téléphone) — remplis dans getProject.
   contactsGrossisteDetails?: ContactDetail[];
   contactsSanitaireDetails?: ContactDetail[];
   contactsDTDetails?: ContactDetail[];
   contactsArchitecteDetails?: ContactDetail[];
   contactsClientsFinauxDetails?: ContactDetail[];
+  contactsLocatairesDetails?: ContactDetail[];
   infoPiecesManquantes: string;
   infoDefautsSignale: string;
   photosPiecesManquantes: FileItem[];
@@ -543,6 +545,7 @@ export function mapPageToProject(page: any): Project {
     contactsDTRelation: extractRelationIds(p["Contacts DT"]),
     contactsArchitecteRelation: extractRelationIds(p["Contacts Architecte"]),
     contactsClientsFinauxRelation: extractRelationIds(p["Contacts Clients finaux"]),
+    contactsLocatairesRelation: extractRelationIds(p["Contacts Locataires"]),
     infoPiecesManquantes: extractText(p["Infos - Pièces manquantes"]),
     infoDefautsSignale: extractText(p["Infos - Défauts signalé"]),
     photosPiecesManquantes: extractFiles(p["Photos - Pièces manquante"]),
@@ -1022,7 +1025,7 @@ export async function getProject(pageId: string): Promise<Project> {
   // Contacts (personnes) → nom/email/téléphone.
   const allContactIds = [...new Set([
     ...project.contactsProjetRelation, ...project.contactsSanitaireRelation, ...project.contactsDTRelation,
-    ...project.contactsArchitecteRelation, ...project.contactsClientsFinauxRelation,
+    ...project.contactsArchitecteRelation, ...project.contactsClientsFinauxRelation, ...project.contactsLocatairesRelation,
   ])];
   const [names, contacts] = await Promise.all([
     allRelIds.length > 0 ? resolveRelationNames(allRelIds) : Promise.resolve({} as Record<string, string>),
@@ -1048,6 +1051,7 @@ export async function getProject(pageId: string): Promise<Project> {
   project.contactsDTDetails = toDetails(project.contactsDTRelation);
   project.contactsArchitecteDetails = toDetails(project.contactsArchitecteRelation);
   project.contactsClientsFinauxDetails = toDetails(project.contactsClientsFinauxRelation);
+  project.contactsLocatairesDetails = toDetails(project.contactsLocatairesRelation);
   return project;
 }
 
