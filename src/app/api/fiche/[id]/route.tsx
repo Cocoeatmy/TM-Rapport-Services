@@ -46,11 +46,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#1e3a5f",
     borderRadius: 6,
     paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     textDecoration: "none",
-    maxWidth: 175,
+    width: 180,
   },
-  reportBtnText: { color: "#ffffff", fontSize: 9.5, fontFamily: "Helvetica-Bold", textAlign: "center" },
+  reportBtnText: { color: "#ffffff", fontSize: 9, fontFamily: "Helvetica-Bold", textAlign: "center" },
   tm: { fontSize: 15, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 6 },
   subtitle: { fontSize: 10, color: "#666", marginTop: 2 },
   section: { marginBottom: 14 },
@@ -304,6 +304,11 @@ function AddressRow({ address }: { address: string }) {
 }
 
 function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, reportUrl, syntheseUrl, notionComments = [] }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; notionComments?: { text: string; author?: string; date?: string }[] }) {
+  // Le projet a-t-il au moins un SAV (par cabine) ? → affiche le bouton SAV.
+  const savMaps = [project.commentairesSav, project.causeSavCabines, project.datesRdvSavCabines, project.collaborateursSavCabines, project.savRetouchesCabines, project.dateSAVRecu].map(parseCabMulti);
+  const savKeys = new Set<number>();
+  savMaps.forEach((m) => Object.keys(m).forEach((k) => savKeys.add(parseInt(k, 10))));
+  const hasSav = [...savKeys].some((n) => savMaps.some((m) => m[n]));
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -312,15 +317,22 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
         <View style={styles.header}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
             <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
-            <View style={{ flexDirection: "column", alignItems: "flex-end" }}>
+            {/* Boutons rapports : même dimension, texte centré, couleurs par type
+                (assorties à l'app) : montage = vert, suivi = navy, SAV = orange. */}
+            <View style={{ flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
               {reportUrl ? (
-                <Link src={reportUrl} style={styles.reportBtn}>
+                <Link src={reportUrl} style={{ ...styles.reportBtn, backgroundColor: "#059669" }}>
                   <Text style={styles.reportBtnText}>Ouvrir le rapport de montage</Text>
                 </Link>
               ) : null}
               {syntheseUrl ? (
-                <Link src={syntheseUrl} style={{ ...styles.reportBtn, marginTop: 5 }}>
+                <Link src={syntheseUrl} style={{ ...styles.reportBtn, backgroundColor: "#1e3a5f" }}>
                   <Text style={styles.reportBtnText}>Ouvrir le rapport de suivi</Text>
+                </Link>
+              ) : null}
+              {hasSav && savReportUrl ? (
+                <Link src={savReportUrl} style={{ ...styles.reportBtn, backgroundColor: "#ea580c" }}>
+                  <Text style={styles.reportBtnText}>Ouvrir le rapport SAV</Text>
                 </Link>
               ) : null}
             </View>
