@@ -327,12 +327,6 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Lieu du rendez-vous</Text>
           <AddressRow address={joinVal(project.adresseChantier)} />
-          {project.diversInfosChantier && project.diversInfosChantier.trim() ? (
-            <View style={styles.row}>
-              <Text style={styles.label}>Infos chantier</Text>
-              <Text style={{ flex: 1, fontSize: 9, color: "#1a1a1a", lineHeight: 1.35 }}>{nfc(project.diversInfosChantier)}</Text>
-            </View>
-          ) : null}
         </View>
 
         {/* Général — grille : (Nb cabines | Fournisseurs | Séries) puis
@@ -387,14 +381,12 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
               color="#15803d"
               value={dateAndWho(fmtDate(project.dateMesures), project.mesuresTraiteePar)}
               docUrl={mesuresDocUrl}
-              comment={project.commentairesMesures}
             />
           ) : (
             <LineRow
               label="Mesures"
               value={dateAndWho(joinVal(project.etatMesures), project.mesuresTraiteePar)}
               docUrl={mesuresDocUrl}
-              comment={project.commentairesMesures}
             />
           )}
           {/* Montage : progression cabines installées / total. Comme l'app, on
@@ -426,7 +418,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
             const hours = montageHoursStr(project.heureArrivee, project.heureDepart);
             const value = dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)
               + (hours ? `  ·  ${hours}` : "");
-            if (total <= 0) return <LineRow label="Montage" value={value} docUrl={montagePhotosUrl} comment={project.commentairesMontages} />;
+            if (total <= 0) return <LineRow label="Montage" value={value} docUrl={montagePhotosUrl} />;
             return (
               <ProgressRow
                 label="Montage"
@@ -435,7 +427,6 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
                 color={pct >= 100 ? "#15803d" : "#2563eb"}
                 value={value}
                 docUrl={montagePhotosUrl}
-                comment={project.commentairesMontages}
               />
             );
           })()}
@@ -459,8 +450,6 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
             if (totalSav <= 0) return <LineRow label="SAV" value={value} />;
             const clos = savCabs.filter((n) => cloture[n]).length;
             const pct = Math.round((clos / totalSav) * 100);
-            // « Commentaires SAV » = réclamations par cabine, rendues lisibles.
-            const savComment = savCabs.map((n) => reclam[n]).filter(Boolean).join("  •  ");
             return (
               <ProgressRow
                 label="SAV"
@@ -469,7 +458,6 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
                 color={pct >= 100 ? "#15803d" : "#d97706"}
                 value={value}
                 docUrl={savReportUrl}
-                comment={savComment}
               />
             );
           })()}
@@ -494,6 +482,41 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
           TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch
         </Text>
       </Page>
+
+      {/* PAGE 2 — Commentaires + infos chantier + journal des échanges.
+          Rendue seulement si au moins une section est renseignée. */}
+      {(() => {
+        const savReclam = Object.values(parseCabMulti(project.commentairesSav)).map((s) => nfc(s).trim()).filter(Boolean).join("\n");
+        const sections = [
+          { title: "Commentaires Mesures", text: nfc(project.commentairesMesures || "").trim() },
+          { title: "Commentaires Montage", text: nfc(project.commentairesMontages || "").trim() },
+          { title: "Commentaires SAV", text: savReclam },
+          { title: "Divers infos chantier", text: nfc(project.diversInfosChantier || "").trim() },
+          { title: "Journal des échanges", text: nfc(project.journalEchanges || "").trim() },
+        ].filter((s) => s.text);
+        if (sections.length === 0) return null;
+        return (
+          <Page size="A4" style={styles.page}>
+            <View style={styles.header}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
+              </View>
+              <Text style={styles.title}>Compléments</Text>
+              <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
+              {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
+            </View>
+            {sections.map((s) => (
+              <View key={s.title} style={styles.section} wrap={false}>
+                <Text style={styles.sectionTitle}>{s.title}</Text>
+                <Text style={{ fontSize: 9.5, color: "#1a1a1a", lineHeight: 1.4 }}>{s.text}</Text>
+              </View>
+            ))}
+            <Text style={styles.footer} fixed>
+              TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch
+            </Text>
+          </Page>
+        );
+      })()}
     </Document>
   );
 }
