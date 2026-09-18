@@ -192,7 +192,26 @@ function DownloadArrow() {
 }
 // Ligne « libellé à gauche, valeur à droite » (sections Lieu / Commande / RDV).
 // docUrl : si fourni, ajoute une flèche cliquable à côté du libellé.
-function LineRow({ label, value, docUrl }: { label: string; value: string; docUrl?: string }) {
+// Icône « commentaire » (bulle) — assortie à la couleur des titres.
+function CommentIcon() {
+  return (
+    <Svg width={13} height={13} viewBox="0 0 24 24" style={{ marginLeft: 5 }}>
+      <Path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" stroke="#1e3a5f" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+// Valeur d'une ligne RDV + (facultatif) le commentaire Notion en dessous.
+function RowValue({ value, comment }: { value: string; comment?: string }) {
+  const c = (comment || "").trim();
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: "#1a1a1a" }}>{value}</Text>
+      {c ? <Text style={{ fontSize: 8, color: "#555", marginTop: 2, lineHeight: 1.3 }}>{c}</Text> : null}
+    </View>
+  );
+}
+function LineRow({ label, value, docUrl, comment }: { label: string; value: string; docUrl?: string; comment?: string }) {
+  const hasComment = !!(comment || "").trim();
   return (
     <View style={styles.row}>
       <View style={{ width: 170, flexDirection: "row", alignItems: "center" }}>
@@ -202,16 +221,18 @@ function LineRow({ label, value, docUrl }: { label: string; value: string; docUr
             <DownloadArrow />
           </Link>
         ) : null}
+        {hasComment ? <CommentIcon /> : null}
       </View>
-      <Text style={styles.value}>{value}</Text>
+      <RowValue value={value} comment={comment} />
     </View>
   );
 }
 // Ligne avec barre de progression entre le libellé et la valeur.
-function ProgressRow({ label, pct, caption, color, value, docUrl }: {
-  label: string; pct: number; caption: string; color: string; value: string; docUrl?: string;
+function ProgressRow({ label, pct, caption, color, value, docUrl, comment }: {
+  label: string; pct: number; caption: string; color: string; value: string; docUrl?: string; comment?: string;
 }) {
   const w = Math.max(0, Math.min(100, pct));
+  const hasComment = !!(comment || "").trim();
   return (
     <View style={styles.row}>
       <View style={{ width: 170, flexDirection: "row", alignItems: "center" }}>
@@ -221,6 +242,7 @@ function ProgressRow({ label, pct, caption, color, value, docUrl }: {
             <DownloadArrow />
           </Link>
         ) : null}
+        {hasComment ? <CommentIcon /> : null}
       </View>
       <View style={{ width: 105, marginRight: 10, justifyContent: "center" }}>
         <View style={{ height: 7, borderRadius: 4, backgroundColor: "#e5e7eb" }}>
@@ -228,7 +250,7 @@ function ProgressRow({ label, pct, caption, color, value, docUrl }: {
         </View>
         <Text style={{ fontSize: 7, color: "#666", marginTop: 2 }}>{caption}</Text>
       </View>
-      <Text style={styles.value}>{value}</Text>
+      <RowValue value={value} comment={comment} />
     </View>
   );
 }
@@ -359,12 +381,14 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
               color="#15803d"
               value={dateAndWho(fmtDate(project.dateMesures), project.mesuresTraiteePar)}
               docUrl={mesuresDocUrl}
+              comment={project.commentairesMesures}
             />
           ) : (
             <LineRow
               label="Mesures"
               value={dateAndWho(joinVal(project.etatMesures), project.mesuresTraiteePar)}
               docUrl={mesuresDocUrl}
+              comment={project.commentairesMesures}
             />
           )}
           {/* Montage : progression cabines installées / total. Comme l'app, on
@@ -396,7 +420,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
             const hours = montageHoursStr(project.heureArrivee, project.heureDepart);
             const value = dateAndWho(fmtDateRange(project.dateMontage, project.dateMontageEnd), project.collaborateurs)
               + (hours ? `  ·  ${hours}` : "");
-            if (total <= 0) return <LineRow label="Montage" value={value} docUrl={montagePhotosUrl} />;
+            if (total <= 0) return <LineRow label="Montage" value={value} docUrl={montagePhotosUrl} comment={project.commentairesMontages} />;
             return (
               <ProgressRow
                 label="Montage"
@@ -405,6 +429,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
                 color={pct >= 100 ? "#15803d" : "#2563eb"}
                 value={value}
                 docUrl={montagePhotosUrl}
+                comment={project.commentairesMontages}
               />
             );
           })()}
@@ -428,6 +453,8 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
             if (totalSav <= 0) return <LineRow label="SAV" value={value} />;
             const clos = savCabs.filter((n) => cloture[n]).length;
             const pct = Math.round((clos / totalSav) * 100);
+            // « Commentaires SAV » = réclamations par cabine, rendues lisibles.
+            const savComment = savCabs.map((n) => reclam[n]).filter(Boolean).join("  •  ");
             return (
               <ProgressRow
                 label="SAV"
@@ -436,6 +463,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
                 color={pct >= 100 ? "#15803d" : "#d97706"}
                 value={value}
                 docUrl={savReportUrl}
+                comment={savComment}
               />
             );
           })()}
