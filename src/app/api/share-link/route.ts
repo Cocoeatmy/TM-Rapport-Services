@@ -59,7 +59,9 @@ export async function GET(req: NextRequest) {
 
     const token = Buffer.from(project.id).toString("base64url");
     const origin = req.nextUrl.origin;
-    const link = `${origin}/client/${token}`;
+    // Lien « officiel » de l'événement calendrier = Fiche de travail (lien court
+    // /f/…, redirige vers le PDF signé). Auparavant : portail client /client/….
+    const link = `${origin}/f/${token}`;
 
     // ── Notes pré-formatées selon le type de RDV (pour l'agent calendrier) ─────
     // Bloc « auto » avec sentinelle → l'agent peut le remplacer sans toucher aux
@@ -83,25 +85,10 @@ export async function GET(req: NextRequest) {
       add("Nb. cabines", nb);
       add("Contacts RDV", project.contactsRDV);
     }
-    // ── Liens rapports (liens COURTS → redirigent vers le PDF signé) ──
-    // Cumul : Fiche de travail + Rapport de suivi (multi-cabine) sur tous les
-    // types connus, PLUS le rapport spécifique au type : Signalements pour les
-    // Services, Rapport SAV pour les SAV. Une ligne vide avant chaque lien.
-    const KNOWN_TYPES = ["montage", "mesures", "services", "sav"];
-    if (KNOWN_TYPES.includes(type)) {
-      const nbCab = project.nbCabines || 0;
-      const shortToken = Buffer.from(project.id).toString("base64url");
-      const links: [string, string][] = [];
-      links.push(["Fiche de travail", `${origin}/f/${shortToken}`]);
-      if (nbCab > 1) links.push(["Rapport de suivi", `${origin}/s/${shortToken}`]);
-      if (type === "services") links.push(["Signalements", `${origin}/sig/${shortToken}`]);
-      if (type === "sav") links.push(["Rapport SAV", `${origin}/sav/${shortToken}`]);
-      for (const [label, url] of links) {
-        if (notesLines.length) notesLines.push(""); // ligne vide de séparation
-        notesLines.push(`${label} :`); // libellé...
-        notesLines.push(url);          // ...puis l'URL sur la ligne suivante
-      }
-    }
+    // NB : plus aucun lien de rapport dans les notes (lisibilité du calendrier).
+    // La Fiche de travail est désormais le lien « officiel » de l'événement
+    // (champ URL, cf. `link` ci-dessus) ; le rapport de suivi / SAV / signalements
+    // restent accessibles depuis la fiche elle-même.
     const NOTES_SENTINEL = "——— Infos projet (auto) ———";
     const notes = notesLines.length ? `${NOTES_SENTINEL}\n${notesLines.join("\n")}` : "";
 

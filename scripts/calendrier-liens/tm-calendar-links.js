@@ -108,8 +108,12 @@ function run(argv) {
     try { data = JSON.parse(raw); } catch (e) { data = null; }
     if (!data || !data.ok || typeof data.link !== 'string' || data.link.indexOf('http') !== 0) continue;
 
-    // ── URL : posée seulement si vide (préserve une URL saisie à la main). ──
-    const urlToSet = curURL || data.link.trim();
+    // ── URL de l'événement = Fiche de travail. ──
+    // On (re)pose le lien si l'URL est vide OU si c'est déjà un de NOS liens
+    // (même domaine : anciens /client/…, /f/…, /s/…). Une URL manuelle étrangère
+    // (autre domaine) est préservée.
+    const isOurLink = (curURL === '') || (curURL.indexOf(baseURL) === 0);
+    const urlToSet = isOurLink ? data.link.trim() : curURL;
     const urlChanged = (urlToSet !== curURL);
 
     // ── Notes : remplace le bloc auto sans toucher aux notes manuelles. ──
