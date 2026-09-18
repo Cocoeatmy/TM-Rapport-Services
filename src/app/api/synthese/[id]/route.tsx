@@ -301,19 +301,6 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
           {hasImpossible ? <LegendItem color={COLORS.impossible} label="Pas possible" /> : null}
         </View>
 
-        {/* Contact */}
-        <View style={styles.section} wrap={false}>
-          <Text style={styles.sectionTitle}>Contact</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-            <ContactCell label="GROSSISTE" company={joinNames(project.grossistesNames)} contacts={project.contactsGrossisteDetails} />
-            <ContactCell label="INSTALLATEUR" company={joinNames(project.sanitaireNames)} contacts={project.contactsSanitaireDetails} />
-            <ContactCell label="ARCHITECTE" company={joinNames(project.architecteNames)} contacts={project.contactsArchitecteDetails} />
-            <ContactCell label="DT" company={joinNames(project.dtNames)} contacts={project.contactsDTDetails} />
-            <ContactCell label="CLIENT FINAL" contacts={project.contactsClientsFinauxDetails} />
-            <ContactCell label="LOCATAIRES" contacts={project.contactsLocatairesDetails} />
-          </View>
-        </View>
-
         {/* Lots */}
         <View>
           <Text style={styles.sectionTitle}>Lots ({total})</Text>
@@ -389,6 +376,19 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
               </View>
             );
           })}
+        </View>
+
+        {/* Contact — en bas du rapport (comme la fiche de travail) */}
+        <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Contact</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            <ContactCell label="GROSSISTE" company={joinNames(project.grossistesNames)} contacts={project.contactsGrossisteDetails} />
+            <ContactCell label="INSTALLATEUR" company={joinNames(project.sanitaireNames)} contacts={project.contactsSanitaireDetails} />
+            <ContactCell label="ARCHITECTE" company={joinNames(project.architecteNames)} contacts={project.contactsArchitecteDetails} />
+            <ContactCell label="DT" company={joinNames(project.dtNames)} contacts={project.contactsDTDetails} />
+            <ContactCell label="CLIENT FINAL" contacts={project.contactsClientsFinauxDetails} />
+            <ContactCell label="LOCATAIRES" contacts={project.contactsLocatairesDetails} />
+          </View>
         </View>
 
         <Text style={styles.footer} fixed>

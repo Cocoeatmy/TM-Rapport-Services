@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
-import { signFiche, signPhotosZip, signSav } from "@/lib/doc-link";
+import { signFiche, signPhotosZip, signSav, signSynthese } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
@@ -303,7 +303,7 @@ function AddressRow({ address }: { address: string }) {
   );
 }
 
-function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, reportUrl, notionComments = [] }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savReportUrl?: string; reportUrl?: string; notionComments?: { text: string; author?: string; date?: string }[] }) {
+function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, reportUrl, syntheseUrl, notionComments = [] }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; notionComments?: { text: string; author?: string; date?: string }[] }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -312,11 +312,18 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, savReportUrl, repo
         <View style={styles.header}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
             <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
-            {reportUrl ? (
-              <Link src={reportUrl} style={styles.reportBtn}>
-                <Text style={styles.reportBtnText}>Ouvrir le rapport de montage</Text>
-              </Link>
-            ) : null}
+            <View style={{ flexDirection: "column", alignItems: "flex-end" }}>
+              {reportUrl ? (
+                <Link src={reportUrl} style={styles.reportBtn}>
+                  <Text style={styles.reportBtnText}>Ouvrir le rapport de montage</Text>
+                </Link>
+              ) : null}
+              {syntheseUrl ? (
+                <Link src={syntheseUrl} style={{ ...styles.reportBtn, marginTop: 5 }}>
+                  <Text style={styles.reportBtnText}>Ouvrir le rapport de suivi</Text>
+                </Link>
+              ) : null}
+            </View>
           </View>
           <Text style={styles.title}>Fiche de travail</Text>
           <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
@@ -625,8 +632,10 @@ export async function GET(
     const savReportUrl = `${req.nextUrl.origin}/api/sav/${encodeURIComponent(id)}?s=${signSav(id)}`;
     // Lien vers la page du rapport de montage (upload photos + horaires).
     const reportUrl = `${req.nextUrl.origin}/projet/${encodeURIComponent(id)}`;
+    // Lien vers le PDF « Suivi du chantier » (signé → ouvrable sans login).
+    const syntheseUrl = `${req.nextUrl.origin}/api/synthese/${encodeURIComponent(id)}?s=${signSynthese(id)}`;
     const notionComments = await fetchNotionComments(id).catch(() => [] as FicheComment[]);
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} notionComments={notionComments} />);
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} notionComments={notionComments} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
