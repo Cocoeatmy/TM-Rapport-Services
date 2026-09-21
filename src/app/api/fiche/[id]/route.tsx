@@ -419,9 +419,10 @@ function AddressRow({ address }: { address: string }) {
   );
 }
 
-function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, savReportUrl, reportUrl, syntheseUrl, signalementsUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0 } }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; signalementsUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number } }) {
+function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, savReportUrl, reportUrl, syntheseUrl, signalementsUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0, done: 0 } }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; signalementsUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number; done?: number } }) {
   const genDate = new Date().toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich" });
   const sigTotal = (sig?.pieces || 0) + (sig?.defauts || 0) + (sig?.avant || 0);
+  const sigDone = sig?.done || 0;
   // Le projet a-t-il au moins un SAV (par cabine) ? → affiche le bouton SAV.
   const savMaps = [project.commentairesSav, project.causeSavCabines, project.datesRdvSavCabines, project.collaborateursSavCabines, project.savRetouchesCabines, project.dateSAVRecu].map(parseCabMulti);
   const savKeys = new Set<number>();
@@ -460,8 +461,9 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
         </View>
 
-        {/* Bandeau d'alerte : signalements en attente (pièces / défauts / constats).
-            Cliquable → rapport des signalements (les monteurs voient le détail). */}
+        {/* Bandeau signalements. Seuls les signalements OUVERTS sont détaillés
+            (puces colorées « à traiter ») ; les réglés sont juste résumés
+            « x réglé ». Si tout est réglé → bandeau vert. Cliquable → rapport. */}
         {sigTotal > 0 ? (
           <Link src={signalementsUrl || "#"} style={{ ...styles.sigBanner, textDecoration: "none" }} wrap={false}>
             <Text style={styles.sigBannerTitle}>Signalements à traiter :</Text>
@@ -480,8 +482,25 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
                 <Text style={styles.sigChipText}>Constats avant intervention {sig.avant}</Text>
               </View>
             ) : null}
+            {sigDone > 0 ? (
+              <Text style={{ fontSize: 8, color: "#15803d", marginLeft: 2 }}>
+                · {sigDone} réglé{sigDone > 1 ? "s" : ""}
+              </Text>
+            ) : null}
             {signalementsUrl ? (
               <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#9a3412", marginLeft: 2 }}>
+                Voir le rapport →
+              </Text>
+            ) : null}
+          </Link>
+        ) : sigDone > 0 ? (
+          <Link src={signalementsUrl || "#"} style={{ ...styles.sigBanner, backgroundColor: "#f0fdf4", borderColor: "#bbf7d0", textDecoration: "none" }} wrap={false}>
+            <Text style={{ ...styles.sigBannerTitle, color: "#15803d" }}>Signalements :</Text>
+            <View style={{ ...styles.sigChip, backgroundColor: "#16a34a" }}>
+              <Text style={styles.sigChipText}>{sigDone} réglé{sigDone > 1 ? "s" : ""} ✓</Text>
+            </View>
+            {signalementsUrl ? (
+              <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#15803d", marginLeft: 2 }}>
                 Voir le rapport →
               </Text>
             ) : null}
@@ -842,10 +861,16 @@ export async function GET(
       getDataFresh<SigPiece>("pieces").catch(() => getData<SigPiece>("pieces").catch(() => [] as SigPiece[])),
       getDataFresh<SigDefaut>("defauts").catch(() => getData<SigDefaut>("defauts").catch(() => [] as SigDefaut[])),
     ]);
+    const myPieces = allPieces.filter((p) => p.projectId === id);
+    const myDefauts = allDefauts.filter((d) => d.projectId === id);
     const sig = {
-      pieces: allPieces.filter((p) => p.projectId === id && p.status !== "recu").length,
-      defauts: allDefauts.filter((d) => d.projectId === id && d.phase !== "avant-intervention" && !d.resolved).length,
-      avant: allDefauts.filter((d) => d.projectId === id && d.phase === "avant-intervention" && !d.resolved).length,
+      // OUVERTS (à traiter) — affichés en puces colorées.
+      pieces: myPieces.filter((p) => p.status !== "recu").length,
+      defauts: myDefauts.filter((d) => d.phase !== "avant-intervention" && !d.resolved).length,
+      avant: myDefauts.filter((d) => d.phase === "avant-intervention" && !d.resolved).length,
+      // RÉGLÉS — résumé compact « x réglé » (pièces reçues + défauts/constats cochés réglés).
+      done: myPieces.filter((p) => p.status === "recu").length
+        + myDefauts.filter((d) => d.resolved).length,
     };
     const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} cartonsDocUrl={cartonsDocUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} signalementsUrl={signalementsUrl} notionComments={notionComments} sig={sig} />);
     const chunks: Buffer[] = [];
