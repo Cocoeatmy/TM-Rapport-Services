@@ -70,19 +70,28 @@ export async function GET(req: NextRequest) {
     const nb = project.nbCabines != null ? String(project.nbCabines) : "";
     const notesLines: string[] = [];
     const add = (label: string, val?: string) => { if (val && val.trim()) notesLines.push(`${label} : ${val.trim()}`); };
+    const joinArr = (a?: string[]) => (a || []).filter(Boolean).join(", ");
+    const fournisseurs = joinArr(project.fournisseurs);
+    const series = joinArr(project.seriesCabines);
     if (type === "montage") {
       add("Nb. cabines", nb);
+      add("Fournisseurs", fournisseurs);
+      add("Séries cabines", series);
       add("Emplacement cabine", project.emplacementCabine);
       add("Contacts RDV", project.contactsRDV);
       add("Commentaires montage", project.commentairesMontages);
     } else if (type === "mesures") {
       add("Nb. cabines", nb);
+      add("Fournisseurs", fournisseurs);
+      add("Séries cabines", series);
       add("Contacts RDV", project.contactsRDV);
       add("Commentaires mesures", project.commentairesMesures);
     } else if (type === "services") {
       add("Contacts RDV", project.contactsRDV);
     } else if (type === "sav") {
       add("Nb. cabines", nb);
+      add("Fournisseurs", fournisseurs);
+      add("Séries cabines", series);
       add("Contacts RDV", project.contactsRDV);
     }
     // NB : plus aucun lien de rapport dans les notes (lisibilité du calendrier).
