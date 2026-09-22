@@ -87,6 +87,9 @@ export async function GET(req: NextRequest) {
       add("Contacts RDV", project.contactsRDV);
       add("Commentaires mesures", project.commentairesMesures);
     } else if (type === "services") {
+      add("Nb. cabines", nb);
+      add("Fournisseurs", fournisseurs);
+      add("Séries cabines", series);
       add("Contacts RDV", project.contactsRDV);
     } else if (type === "sav") {
       add("Nb. cabines", nb);
