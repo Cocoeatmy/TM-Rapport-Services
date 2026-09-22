@@ -6454,13 +6454,17 @@ function ProjectPageContent({ id }: { id: string }) {
               <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">N° TM</span>
               <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
             </div>
-            <div className="grid grid-cols-3 gap-3 py-1">
-              <InlineField icon={Hash} label="N° OFR TM" value={project.ofrTM} projectId={id} fieldName="ofrTM" isAdmin={isAdmin}
-                onUpdate={(v) => setProject((prev) => prev ? { ...prev, ofrTM: v || "" } : prev)} />
-              <InlineField icon={Hash} label="N° CMD TM" value={project.cmdTM} projectId={id} fieldName="cmdTM" isAdmin={isAdmin}
-                onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdTM: v || "" } : prev)} />
-              <InlineField icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} projectId={id} fieldName="cmdTMUsine" isAdmin={isAdmin}
-                onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdTMUsine: v || "" } : prev)} />
+            {/* N° TM empilé (colonne de gauche) : N° OFR TM, N° CMD TM, N° CMD TM - Usine. */}
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 py-1">
+              <div className="flex flex-col gap-y-1">
+                <InlineField icon={Hash} label="N° OFR TM" value={project.ofrTM} projectId={id} fieldName="ofrTM" isAdmin={isAdmin}
+                  onUpdate={(v) => setProject((prev) => prev ? { ...prev, ofrTM: v || "" } : prev)} />
+                <InlineField icon={Hash} label="N° CMD TM" value={project.cmdTM} projectId={id} fieldName="cmdTM" isAdmin={isAdmin}
+                  onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdTM: v || "" } : prev)} />
+                <InlineField icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} projectId={id} fieldName="cmdTMUsine" isAdmin={isAdmin}
+                  onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdTMUsine: v || "" } : prev)} />
+              </div>
+              <div />
             </div>
 
             {/* Sous-titre N° Grossistes (toujours visible pour admin) */}
