@@ -1344,6 +1344,16 @@ export async function updateProject(
       rich_text: toRichText(data.commentairesMesures),
     };
   }
+  if ((data as any).diversInfosChantier !== undefined) {
+    properties["Divers infos chantier"] = {
+      rich_text: toRichText((data as any).diversInfosChantier),
+    };
+  }
+  if ((data as any).journalEchanges !== undefined) {
+    properties["Journal des échanges"] = {
+      rich_text: toRichText((data as any).journalEchanges),
+    };
+  }
   if ((data as any).infoPiecesManquantes !== undefined) {
     properties["Infos - Pièces manquantes"] = {
       rich_text: toRichText((data as any).infoPiecesManquantes),

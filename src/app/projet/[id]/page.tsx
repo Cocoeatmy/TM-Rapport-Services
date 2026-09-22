@@ -6732,6 +6732,19 @@ function ProjectPageContent({ id }: { id: string }) {
               <DurationEstimate project={project} realMinutes={realDuration.minutes} realLots={realDuration.lots} realIntervenants={realDuration.intervenants} realDays={realDuration.days} />
             )}
 
+            {/* 8 — Journal des échanges (bas de la section Informations Dates) */}
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
+              <EditableTextField
+                label="Journal des échanges"
+                value={project.journalEchanges}
+                projectId={id}
+                fieldName="journalEchanges"
+                notionField="Journal des échanges"
+                multiline
+                onUpdate={(v) => setProject({ ...project, journalEchanges: v })}
+              />
+            </div>
+
           </CardContent>
         </Card>
 
@@ -7230,6 +7243,24 @@ function ProjectPageContent({ id }: { id: string }) {
                 </CardContent>
               </Card>
             )}
+            {/* Onglet Commentaires — « Divers infos chantier » (entre Notion et Mesures) */}
+            <Card className={macHidden("commentaires") ? "!hidden" : ""}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Divers infos chantier</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <EditableTextField
+                  label="Divers infos chantier"
+                  hideLabel
+                  value={project.diversInfosChantier}
+                  projectId={id}
+                  fieldName="diversInfosChantier"
+                  notionField="Divers infos chantier"
+                  multiline
+                  onUpdate={(v) => setProject({ ...project, diversInfosChantier: v })}
+                />
+              </CardContent>
+            </Card>
             {/* Onglet Commentaires — cartes autonomes (affichées seulement si l'onglet
                 Mesures est replié, sinon les commentaires sont déjà dans les cartes Mesures) */}
             <Card className={(macHidden("commentaires") || !macHidden("mesures")) ? "!hidden" : ""}>
