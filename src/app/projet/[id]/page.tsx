@@ -4154,6 +4154,150 @@ function ProjectPageContent({ id }: { id: string }) {
     scheduleAutoSave();
   };
 
+  /** Section heures mono-cabine : mode simple (arrivée/départ) + bouton
+   *  « Plusieurs interventions », ou tableau daté multi-jours. Réutilisée dans
+   *  l'onglet Infos (macOS) et dans la vue mono par défaut. La date de chaque
+   *  intervention vaut par défaut le jour même (ou la date de montage), et reste
+   *  modifiable pour un passage un autre jour. */
+  const renderMonoHoursEditor = () => {
+    if (isMultiDay && !isCabineMode) {
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label>Interventions</Label>
+            <button type="button" onClick={disableMultiInterventions} className="text-xs text-gray-400 hover:text-gray-600 underline">
+              Revenir au mode simple
+            </button>
+          </div>
+          {pointages.map((entry, idx) => (
+            <div key={idx} className="p-3 bg-gray-50 dark:bg-slate-800 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-500">Intervention {idx + 1}</span>
+                <button type="button" onClick={() => removePointage(idx)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-xs">Date</Label>
+                  <Input type="date" value={entry.date} onChange={(e) => updatePointage(idx, "date", e.target.value)}
+                    className="mt-0.5 h-10 text-sm max-w-[200px] bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100" />
+                </div>
+                <div>
+                  <Label className="text-xs">Collaborateurs</Label>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {COLLABORATEURS_LIST.map((c) => {
+                      const selected = (entry.collaborateur || "").split(" & ").map((s) => s.trim()).includes(c);
+                      const colors = getCollaboratorColor(c);
+                      return (
+                        <button key={c} type="button"
+                          onClick={() => {
+                            const current = (entry.collaborateur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
+                            const newVal = selected ? current.filter((n) => n !== c).join(" & ") : [...current, c].join(" & ");
+                            updatePointage(idx, "collaborateur", newVal);
+                          }}
+                          className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full transition-all ${selected ? "ring-2 ring-offset-1 ring-blue-400" : "opacity-40"}`}
+                          style={{ backgroundColor: colors.bg, color: colors.text }}>
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.dot }} />
+                          {c}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Arrivée</Label>
+                  <Input type="time" value={entry.arrivee} onChange={(e) => updatePointage(idx, "arrivee", e.target.value)}
+                    className="mt-0.5 h-10 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100" />
+                </div>
+                <div>
+                  <Label className="text-xs">Départ</Label>
+                  <Input type="time" value={entry.depart} min={entry.arrivee || undefined}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v && entry.arrivee && v < entry.arrivee) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
+                      updatePointage(idx, "depart", v);
+                    }}
+                    className="mt-0.5 h-10 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100" />
+                </div>
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={addPointage} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors">
+            <Plus className="w-4 h-4" />
+            Ajouter une intervention
+          </button>
+          {pointages.some((e) => e.arrivee && e.depart) && (() => {
+            const dayMinutes = pointages.map((e) => {
+              if (!e.arrivee || !e.depart) return 0;
+              const [ah, am] = e.arrivee.split(":").map(Number);
+              const [dh, dm] = e.depart.split(":").map(Number);
+              const diff = (dh * 60 + dm) - (ah * 60 + am);
+              return diff > 0 ? diff : 0;
+            });
+            const totalMin = dayMinutes.reduce((s, m) => s + m, 0);
+            if (totalMin === 0) return null;
+            return (
+              <div className="space-y-1 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-sm">
+                {pointages.map((e, i) => {
+                  if (dayMinutes[i] === 0) return null;
+                  const h = Math.floor(dayMinutes[i] / 60);
+                  const m = dayMinutes[i] % 60;
+                  return (
+                    <div key={i} className="flex justify-between text-blue-600 dark:text-blue-400">
+                      <span>{e.date}{e.collaborateur ? ` - ${e.collaborateur}` : ""}</span>
+                      <span className="font-medium">{h}h {m.toString().padStart(2, "0")}min</span>
+                    </div>
+                  );
+                })}
+                <div className="flex items-center justify-between pt-1 border-t border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-semibold">
+                  <span className="flex items-center gap-2"><Clock className="w-4 h-4" />Total</span>
+                  <span>{Math.floor(totalMin / 60)}h {(totalMin % 60).toString().padStart(2, "0")}min</span>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      );
+    }
+    return (
+      <>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Heure d&apos;arrivée</Label>
+            <input type="time" value={heureArrivee} onChange={(e) => { setHeureArrivee(e.target.value); scheduleAutoSave(); }}
+              className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
+          </div>
+          <div>
+            <Label>Heure de départ</Label>
+            <input type="time" value={heureDepart} onChange={(e) => { setHeureDepart(e.target.value); scheduleAutoSave(); }}
+              className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
+          </div>
+        </div>
+        {heureArrivee && heureDepart && (() => {
+          const [ah, am] = heureArrivee.split(":").map(Number);
+          const [dh, dm] = heureDepart.split(":").map(Number);
+          const diff = (dh * 60 + dm) - (ah * 60 + am);
+          if (diff <= 0) return null;
+          const h = Math.floor(diff / 60); const m = diff % 60;
+          return (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-sm font-medium">
+              <Clock className="w-4 h-4" />
+              Total : {h}h {m.toString().padStart(2, "0")}min
+            </div>
+          );
+        })()}
+        <button type="button" onClick={enableMultiInterventions}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors">
+          <Plus className="w-4 h-4" />
+          Plusieurs interventions (jours / collaborateurs)
+        </button>
+      </>
+    );
+  };
+
   // ── Filet de sécurité anti-perte des interventions (mono-cabine) ──────────
   // Sauvegarde locale immédiate des pointages : si une écriture Notion se perd
   // (réseau, race, reload), la liste est restaurée au chargement (voir plus bas
@@ -8199,18 +8343,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           <Label>Collaborateur(s)</Label>
                           <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{project.collaborateurs || "—"}</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label>Heure d&apos;arrivée</Label>
-                            <input type="time" value={heureArrivee} onChange={(e) => { setHeureArrivee(e.target.value); scheduleAutoSave(); }}
-                              className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
-                          </div>
-                          <div>
-                            <Label>Heure de départ</Label>
-                            <input type="time" value={heureDepart} onChange={(e) => { setHeureDepart(e.target.value); scheduleAutoSave(); }}
-                              className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
-                          </div>
-                        </div>
+                        {renderMonoHoursEditor()}
                         <p className="text-[11px] text-gray-400">Les numéros, l&apos;adresse et les dates du projet sont modifiables dans la carte « Informations projet » ci-dessus.</p>
                       </div>
                     )}
