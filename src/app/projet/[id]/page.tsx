@@ -6480,18 +6480,23 @@ function ProjectPageContent({ id }: { id: string }) {
               </>
             )}
 
-            {/* Sous-titre N° Fournisseurs (toujours visible pour admin) */}
-            {(isAdmin || project.cmdFournisseurs || project.servMesuresFournisseurs || project.servCmdFournisseurs) && (
+            {/* Sous-titre N° Fournisseurs (toujours visible pour admin).
+                Grille 2×2 :
+                  N° OFR Fournisseurs   | N° CMD Mesures Fournisseurs
+                  N° CMD Fournisseurs   | N° CMD Services Fournisseurs */}
+            {(isAdmin || project.ofrFournisseurs || project.cmdFournisseurs || project.servMesuresFournisseurs || project.servCmdFournisseurs) && (
               <>
                 <div className="flex items-center gap-2 pt-3 pb-1">
                   <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">N° Fournisseurs</span>
                   <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
                 </div>
-                <div className="flex flex-col py-1">
-                  <InlineField icon={Hash} label="N° CMD Fournisseurs" value={project.cmdFournisseurs} projectId={id} fieldName="cmdFournisseurs" isAdmin={isAdmin}
-                    onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdFournisseurs: v || "" } : prev)} />
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 py-1">
+                  <InlineField icon={Hash} label="N° OFR Fournisseurs" value={project.ofrFournisseurs} projectId={id} fieldName="ofrFournisseurs" isAdmin={isAdmin}
+                    onUpdate={(v) => setProject((prev) => prev ? { ...prev, ofrFournisseurs: v || "" } : prev)} />
                   <InlineField icon={Hash} label="N° CMD Mesures Fournisseurs" value={project.servMesuresFournisseurs} projectId={id} fieldName="servMesuresFournisseurs" isAdmin={isAdmin}
                     onUpdate={(v) => setProject((prev) => prev ? { ...prev, servMesuresFournisseurs: v || "" } : prev)} />
+                  <InlineField icon={Hash} label="N° CMD Fournisseurs" value={project.cmdFournisseurs} projectId={id} fieldName="cmdFournisseurs" isAdmin={isAdmin}
+                    onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdFournisseurs: v || "" } : prev)} />
                   <InlineField icon={Hash} label="N° CMD Services Fournisseurs" value={project.servCmdFournisseurs} projectId={id} fieldName="servCmdFournisseurs" isAdmin={isAdmin}
                     onUpdate={(v) => setProject((prev) => prev ? { ...prev, servCmdFournisseurs: v || "" } : prev)} />
                 </div>

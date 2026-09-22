@@ -173,6 +173,7 @@ export interface Project {
   cmdGrossiste: string;
   cmdTM: string;
   cmdTMUsine: string;
+  ofrFournisseurs: string;
   cmdFournisseurs: string;
   servCmdFournisseurs: string;
   etatMesures: string;
@@ -452,6 +453,7 @@ export function mapPageToProject(page: any): Project {
     cmdGrossiste: extractText(p["N° CMD Grossiste"]),
     cmdTM: extractText(p["N° CMD TM"]),
     cmdTMUsine: extractText(p["N° CMD TM - Usine"]),
+    ofrFournisseurs: extractText(p["N° OFR Fournisseurs"]),
     cmdFournisseurs: extractText(p["n° CMD Fournisseurs"]),
     servCmdFournisseurs: extractText(p["N° Serv. CMD Fournisseurs"]),
     etatMesures: extractStatus(p["État - Mesures"]),
@@ -1387,6 +1389,9 @@ export async function updateProject(
   }
   if ((data as any).cmdGrossiste !== undefined) {
     properties["N° CMD Grossiste"] = { rich_text: toRichText((data as any).cmdGrossiste) };
+  }
+  if ((data as any).ofrFournisseurs !== undefined) {
+    properties["N° OFR Fournisseurs"] = { rich_text: toRichText((data as any).ofrFournisseurs) };
   }
   if ((data as any).cmdFournisseurs !== undefined) {
     properties["n° CMD Fournisseurs"] = { rich_text: toRichText((data as any).cmdFournisseurs) };
