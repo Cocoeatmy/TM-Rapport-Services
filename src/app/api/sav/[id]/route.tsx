@@ -128,6 +128,29 @@ function MediaThumb({ url }: { url: string }) {
   );
 }
 
+// Grille de vignettes par rangées de 4, chaque rangée INSÉCABLE (wrap={false}) :
+// si une rangée ne tient pas en bas de page, elle saute à la page suivante au
+// lieu d'être coupée (ou de chevaucher le pied de page).
+function PhotoGrid({ photos, label }: { photos: { url: string }[]; label: React.ReactNode }) {
+  const perRow = 4;
+  const rows: { url: string }[][] = [];
+  for (let i = 0; i < photos.length; i += perRow) rows.push(photos.slice(i, i + perRow));
+  return (
+    <>
+      {rows.map((row, ri) => (
+        // Chaque rangée (+ le libellé sur la 1re) reste solidaire → saut de page
+        // propre plutôt qu'une coupure.
+        <View key={ri} wrap={false} style={{ marginBottom: 6 }}>
+          {ri === 0 ? <Text style={styles.photoLabel}>{label}</Text> : null}
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            {row.map((f, i) => <MediaThumb key={i} url={f.url} />)}
+          </View>
+        </View>
+      ))}
+    </>
+  );
+}
+
 function joinNames(arr?: string[]): string { return arr && arr.length ? arr.map((s) => nfc(s)).join(", ") : ""; }
 // Cellule Contact : entreprise (gras) + contacts (Nom / email / téléphone).
 function ContactCell({ label, company, contacts }: { label: string; company?: string; contacts?: ContactDetail[] }) {
@@ -273,16 +296,10 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
               ) : null}
 
               {demandePhotos.length > 0 ? (
-                <View>
-                  <Text style={styles.photoLabel}>Documents de la demande ({demandePhotos.length}) — cliquer pour télécharger <DownloadArrow /></Text>
-                  <View style={styles.photoRow}>{demandePhotos.map((f, i) => <MediaThumb key={i} url={f.url} />)}</View>
-                </View>
+                <PhotoGrid photos={demandePhotos} label={<>Documents de la demande ({demandePhotos.length}) — cliquer pour télécharger <DownloadArrow /></>} />
               ) : null}
               {reglePhotos.length > 0 ? (
-                <View>
-                  <Text style={styles.photoLabel}>Photos une fois réglé ({reglePhotos.length}) — cliquer pour télécharger <DownloadArrow /></Text>
-                  <View style={styles.photoRow}>{reglePhotos.map((f, i) => <MediaThumb key={i} url={f.url} />)}</View>
-                </View>
+                <PhotoGrid photos={reglePhotos} label={<>Photos une fois réglé ({reglePhotos.length}) — cliquer pour télécharger <DownloadArrow /></>} />
               ) : null}
             </View>
           );
