@@ -66,6 +66,27 @@ type Item = {
   cabineLabel: string; user: string; date: string; photos: string[];
 };
 
+function joinNames(arr?: string[]): string { return arr && arr.length ? arr.map((s) => nfc(s)).join(", ") : ""; }
+// Cellule Contact : entreprise (gras) + contacts (Nom / email / téléphone).
+function ContactCell({ label, company, contacts }: { label: string; company?: string; contacts?: any[] }) {
+  const list = (contacts || []).filter((c) => c && (c.name || c.email || c.phone));
+  const hasCompany = !!company && company.trim() !== "";
+  if (!hasCompany && list.length === 0) return null;
+  return (
+    <View style={{ width: "33.33%", paddingRight: 10, marginBottom: 8 }}>
+      <Text style={{ fontSize: 7.5, color: "#888", marginBottom: 2 }}>{label}</Text>
+      {hasCompany ? <Text style={{ fontSize: 9.5, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(company!)}</Text> : null}
+      {list.map((c, i) => (
+        <View key={i} style={{ marginTop: 3 }}>
+          {c.name ? <Text style={{ fontSize: 8.5, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(c.name)}</Text> : null}
+          {c.email ? <Text style={{ fontSize: 7.5, color: "#555" }}>{c.email}</Text> : null}
+          {c.phone ? <Text style={{ fontSize: 7.5, color: "#555" }}>{c.phone}</Text> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function SignalementsPDF({ project, items }: { project: any; items: Item[] }) {
   // Regroupement par lot.
   const groups = new Map<string, Item[]>();
@@ -120,6 +141,19 @@ function SignalementsPDF({ project, items }: { project: any; items: Item[] }) {
             ))}
           </View>
         ))}
+
+        {/* Contact — même présentation que les autres rapports (ligne sous le titre). */}
+        <View style={{ marginTop: 14 }} wrap={false}>
+          <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 6, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: "#e0e0e0" }}>Contact</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            <ContactCell label="GROSSISTE" company={joinNames(project.grossistesNames)} contacts={project.contactsGrossisteDetails} />
+            <ContactCell label="INSTALLATEUR" company={joinNames(project.sanitaireNames)} contacts={project.contactsSanitaireDetails} />
+            <ContactCell label="ARCHITECTE" company={joinNames(project.architecteNames)} contacts={project.contactsArchitecteDetails} />
+            <ContactCell label="DT" company={joinNames(project.dtNames)} contacts={project.contactsDTDetails} />
+            <ContactCell label="CLIENT FINAL" contacts={project.contactsClientsFinauxDetails} />
+            <ContactCell label="LOCATAIRES" contacts={project.contactsLocatairesDetails} />
+          </View>
+        </View>
 
         <Text style={styles.footer} fixed>
           TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch
