@@ -4144,17 +4144,23 @@ function ProjectPageContent({ id }: { id: string }) {
     }
   }, [isCabineMode, cabines, autoCollab, isMultiDay, heureArrivee, heureDepart, project?.collaborateurs, id, scheduleAutoSave]);
 
+  // Persiste IMMÉDIATEMENT la liste des interventions (pas de debounce) : le
+  // serveur a toujours le format daté à jour, donc un rechargement re-parse les
+  // dates exactes (jamais de re-semis à « aujourd'hui »). Sauvegarde locale en
+  // parallèle (anti-perte). N'altère aucune intervention existante.
+  const persistMontagePointages = (next: PointageEntry[]) => {
+    const enc = encodePointages(next);
+    offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArrivee: enc.arrivee, heureDepart: enc.depart }) }).catch(() => {});
+    try { localStorage.setItem(`tm-pointages-${id}`, JSON.stringify(next)); } catch {}
+  };
   const addPointage = () => {
-    setPointages((prev) => [...prev, { date: today, collaborateur: "", arrivee: "", depart: "" }]);
-    scheduleAutoSave();
+    setPointages((prev) => { const next = [...prev, { date: today, collaborateur: "", arrivee: "", depart: "" }]; persistMontagePointages(next); return next; });
   };
   const updatePointage = (idx: number, field: keyof PointageEntry, value: string) => {
-    setPointages((prev) => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)));
-    scheduleAutoSave();
+    setPointages((prev) => { const next = prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)); persistMontagePointages(next); return next; });
   };
   const removePointage = (idx: number) => {
-    setPointages((prev) => prev.filter((_, i) => i !== idx));
-    scheduleAutoSave();
+    setPointages((prev) => { const next = prev.filter((_, i) => i !== idx); persistMontagePointages(next); return next; });
   };
 
   /** Section heures mono-cabine : mode simple (arrivée/départ) + bouton
@@ -4391,7 +4397,12 @@ function ProjectPageContent({ id }: { id: string }) {
         setSavMultiDay(false);
         setSavPointages([]);
       },
-      onAdd: () => setSavPointages((prev) => [...prev, { date: today, collaborateur: "", arrivee: "", depart: "" }]),
+      onAdd: () => setSavPointages((prev) => {
+        const next = [...prev, { date: today, collaborateur: "", arrivee: "", depart: "" }];
+        const enc = encodePointages(next);
+        offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArriveeSav: enc.arrivee, heureDepartSav: enc.depart }) }).catch(() => {});
+        return next;
+      }),
       onUpdate: (idx, field, value) => {
         setSavPointages((prev) => {
           const next = prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p));
@@ -4424,10 +4435,13 @@ function ProjectPageContent({ id }: { id: string }) {
   useEffect(() => {
     if (isCabineMode || typeof window === "undefined") return;
     try {
+      // On ne fait qu'ÉCRIRE la sauvegarde tant qu'on est en multi-jours. On ne
+      // l'efface PAS quand isMultiDay est faux : au (re)montage l'état repart à
+      // false avant qu'initProject ne restaure, et un removeItem ici détruirait
+      // la sauvegarde juste avant sa lecture (→ dates re-semées). La suppression
+      // se fait uniquement lors d'un retour EXPLICITE au mode simple.
       if (isMultiDay && pointages.length > 0) {
         localStorage.setItem(`tm-pointages-${id}`, JSON.stringify(pointages));
-      } else if (!isMultiDay) {
-        localStorage.removeItem(`tm-pointages-${id}`);
       }
     } catch {}
   }, [pointages, isMultiDay, isCabineMode, id]);
@@ -4463,6 +4477,7 @@ function ProjectPageContent({ id }: { id: string }) {
     setHeureDepart(first?.depart || "");
     setIsMultiDay(false);
     setPointages([]);
+    try { localStorage.removeItem(`tm-pointages-${id}`); } catch {}
     scheduleAutoSave();
   };
 
