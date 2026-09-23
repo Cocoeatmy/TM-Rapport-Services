@@ -73,6 +73,11 @@ export const databaseId = process.env.NOTION_DATABASE_ID!;
  */
 let schemaCache: Record<string, string> | null = null;
 let rawPropsCache: Record<string, any> | null = null;
+let schemaCacheTs = 0;
+// Les OPTIONS des select (ex. « Cause SAV ») changent en cours de vie du process
+// (l'utilisateur en ajoute côté Notion). On rafraîchit le schéma au plus toutes
+// les 60 s pour que les nouvelles options apparaissent vite, sans marteler l'API.
+const SCHEMA_TTL_MS = 60_000;
 
 async function fetchAndCacheSchema() {
   const db: any = await notion.databases.retrieve({ database_id: databaseId });
@@ -82,6 +87,7 @@ async function fetchAndCacheSchema() {
     schemaCache[key] = (val as any).type;
     rawPropsCache[key] = val;
   }
+  schemaCacheTs = Date.now();
 }
 
 async function getPropertyType(propName: string): Promise<string | null> {
@@ -99,13 +105,13 @@ async function getPropertyType(propName: string): Promise<string | null> {
 
 /** Retourne la liste des options d'un champ select / multi_select / status. */
 export async function getSelectOptions(propName: string): Promise<string[]> {
-  if (!rawPropsCache) {
+  // Refetch si cache absent OU périmé (TTL) → nouvelles options visibles < 60 s.
+  if (!rawPropsCache || Date.now() - schemaCacheTs > SCHEMA_TTL_MS) {
     try {
       await fetchAndCacheSchema();
     } catch (err) {
       console.error("[notion] Failed to retrieve database schema:", err);
-      schemaCache = {};
-      rawPropsCache = {};
+      if (!rawPropsCache) { schemaCache = {}; rawPropsCache = {}; }
     }
   }
   const prop = rawPropsCache![propName];

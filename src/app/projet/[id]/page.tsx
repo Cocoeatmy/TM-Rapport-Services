@@ -4911,12 +4911,19 @@ function ProjectPageContent({ id }: { id: string }) {
     return () => window.removeEventListener("tm-project-field-edited", onEdited);
   }, []);
 
-  // Options de la liste « Cause SAV » (select Notion) — chargées une fois.
+  // Options de la liste « Cause SAV » (select Notion). Rechargées au montage ET
+  // au retour de focus sur la fenêtre → une nouvelle cause ajoutée dans Notion
+  // apparaît sans avoir à recharger la page (no-store pour éviter le cache navigateur).
   useEffect(() => {
-    fetch(`/api/projects/field-options?fields=${encodeURIComponent("Cause SAV")}`)
-      .then((r) => (r.ok ? r.json() : {}))
-      .then((d: Record<string, string[]>) => { const o = d?.["Cause SAV"]; if (Array.isArray(o)) setCauseSavOptions(o); })
-      .catch(() => {});
+    const loadCauses = () => {
+      fetch(`/api/projects/field-options?fields=${encodeURIComponent("Cause SAV")}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : {}))
+        .then((d: Record<string, string[]>) => { const o = d?.["Cause SAV"]; if (Array.isArray(o)) setCauseSavOptions(o); })
+        .catch(() => {});
+    };
+    loadCauses();
+    window.addEventListener("focus", loadCauses);
+    return () => window.removeEventListener("focus", loadCauses);
   }, []);
 
   // Coche automatiquement « SAV » dès qu'un contenu SAV existe (réclamation ou
@@ -8704,16 +8711,19 @@ function ProjectPageContent({ id }: { id: string }) {
                         <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
                           <div>
                             <Label>Cause du SAV</Label>
-                            <select
-                              value={parseCabineTextMulti(project?.causeSavCabines || "")[1] || ""}
-                              onChange={(e) => { saveCabineText("causeSavCabines", 0, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+                            {/* Champ libre + liste de suggestions (datalist) : on peut choisir
+                                une cause existante OU en saisir une nouvelle → enregistrée sur Notion. */}
+                            <input
+                              key={`cause-sav-${parseCabineTextMulti(project?.causeSavCabines || "")[1] || ""}`}
+                              list="cause-sav-options"
+                              defaultValue={parseCabineTextMulti(project?.causeSavCabines || "")[1] || ""}
+                              onBlur={(e) => { saveCabineText("causeSavCabines", 0, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+                              placeholder="Choisir ou saisir une cause…"
                               className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-                            >
-                              <option value="">— Choisir une cause —</option>
-                              {causeSavOptions.map((o) => (
-                                <option key={o} value={o}>{o}</option>
-                              ))}
-                            </select>
+                            />
+                            <datalist id="cause-sav-options">
+                              {causeSavOptions.map((o) => <option key={o} value={o} />)}
+                            </datalist>
                           </div>
                           {renderSavHoursEditor()}
                           <div>
@@ -9813,16 +9823,17 @@ function ProjectPageContent({ id }: { id: string }) {
                               <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3 space-y-3">
                                 <div>
                                   <Label>Cause du SAV</Label>
-                                  <select
-                                    value={parseCabineTextMulti(project?.causeSavCabines || "")[idx + 1] || ""}
-                                    onChange={(e) => { saveCabineText("causeSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+                                  <input
+                                    key={`cause-sav-${idx}-${parseCabineTextMulti(project?.causeSavCabines || "")[idx + 1] || ""}`}
+                                    list="cause-sav-options"
+                                    defaultValue={parseCabineTextMulti(project?.causeSavCabines || "")[idx + 1] || ""}
+                                    onBlur={(e) => { saveCabineText("causeSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+                                    placeholder="Choisir ou saisir une cause…"
                                     className="mt-1 w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-                                  >
-                                    <option value="">— Choisir une cause —</option>
-                                    {causeSavOptions.map((o) => (
-                                      <option key={o} value={o}>{o}</option>
-                                    ))}
-                                  </select>
+                                  />
+                                  <datalist id="cause-sav-options">
+                                    {causeSavOptions.map((o) => <option key={o} value={o} />)}
+                                  </datalist>
                                 </div>
                                 <div>
                                   <Label>Date d&apos;intervention SAV</Label>
