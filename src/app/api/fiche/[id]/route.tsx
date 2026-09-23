@@ -14,6 +14,7 @@ import { verifyToken } from "@/lib/auth";
 import { signFiche, signPhotosZip, signSav, signSynthese, signSignalements, signMesure } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
+import { isNewProjectForMesures } from "@/lib/mesures-duka";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
   Document,
@@ -930,7 +931,9 @@ export async function GET(
     };
     // Mesures par cabine (mappage analysé, stocké en KV) → lien signé par lot.
     type MesureLot = { projectId: string; cab: number; serie?: string; ref?: string; fileName: string; pageStart: number | null; pageEnd: number | null };
-    const mesuresMap = (await getDataFresh<MesureLot>("mesures-map").catch(() => getData<MesureLot>("mesures-map").catch(() => [] as MesureLot[])))
+    const mesuresMap = (isNewProjectForMesures(project.createdTime)
+      ? (await getDataFresh<MesureLot>("mesures-map").catch(() => getData<MesureLot>("mesures-map").catch(() => [] as MesureLot[])))
+      : [])
       .filter((e) => e.projectId === id)
       .sort((a, b) => a.cab - b.cab);
     const cabNoms = parseCabMulti(project.nomsCabines);

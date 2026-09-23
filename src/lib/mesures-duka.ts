@@ -6,6 +6,17 @@
 // SITUATIONS ») puis un bloc de pages par lot commençant par
 // « SITUATIONS<n> - <réf> » et contenant « MODÈLE <série> … ART. … ».
 
+// Seuil « nouveaux projets uniquement » : l'analyse auto des mesures ne
+// s'applique qu'aux projets créés à partir de cette date (les projets existants
+// — souvent déjà finis — ne sont jamais modifiés pour éviter tout mélange de lots).
+export const MESURES_CUTOFF = "2026-09-23T00:00:00.000Z";
+/** Vrai si le projet est « nouveau » (créé au/après le seuil). */
+export function isNewProjectForMesures(createdTime?: string): boolean {
+  if (!createdTime) return false;
+  const t = Date.parse(createdTime);
+  return !Number.isNaN(t) && t >= Date.parse(MESURES_CUTOFF);
+}
+
 export interface DukaLot {
   index: number;      // n° d'ordre dans le relevé (1, 2, 3…)
   ref: string;        // référence Duka du lot (ex. « 5.101 »)

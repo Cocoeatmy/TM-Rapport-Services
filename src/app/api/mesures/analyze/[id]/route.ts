@@ -15,7 +15,7 @@ import { createHash } from "crypto";
 import { getProject, updateProject, type FileItem } from "@/lib/notion";
 import { getDataFresh, setData } from "@/lib/kv-store";
 import { verifyToken } from "@/lib/auth";
-import { parseDukaReport, fold, mesureFilenameSegments } from "@/lib/mesures-duka";
+import { parseDukaReport, fold, mesureFilenameSegments, isNewProjectForMesures } from "@/lib/mesures-duka";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -69,6 +69,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     const project = await getProject(id);
+    // Uniquement les NOUVEAUX projets : on ne touche jamais aux projets existants
+    // (souvent finis) pour éviter tout mélange de lots.
+    if (!isNewProjectForMesures(project.createdTime)) {
+      return NextResponse.json({ ok: true, skipped: true, lots: [] });
+    }
     const docs: FileItem[] = project.documentsMontagee || [];
     const mesureFiles = docs.filter((f) => isMesureFile(f.name));
 

@@ -138,6 +138,7 @@ export interface ContactDetail {
 
 export interface Project {
   id: string;
+  createdTime: string; // date de création de la page Notion (ISO), pour distinguer nouveaux/anciens projets
   projet: string;
   ofrTM: string;
   emplacementCabine: string;
@@ -408,6 +409,7 @@ export function mapPageToProject(page: any): Project {
   const p = page.properties;
   return {
     id: page.id,
+    createdTime: page.created_time || "",
     projet: extractText(p["Projet"]),
     ofrTM: extractText(p["N° OFR TM"]),
     emplacementCabine: extractMultiSelect(p["Emplacement de cabine"]).join(", "),
