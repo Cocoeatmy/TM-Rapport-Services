@@ -3655,11 +3655,38 @@ function ProjectPageContent({ id }: { id: string }) {
   const cabNameOf = (cabN: number) => cabines[cabN - 1]?.nom || "";
   const firstNumOf = (s: string) => { const m = (s || "").match(/\d+/); return m ? parseInt(m[0], 10) : Number.MAX_SAFE_INTEGER; };
   const cmpAlphaCab = (a: number, b: number) => cabNameOf(a).localeCompare(cabNameOf(b), "fr", { numeric: true, sensitivity: "base" });
+  // Rang d'étage (du plus bas au plus haut) déduit du nom du lot. Renvoie null si
+  // le nom n'évoque pas un étage (→ tri alpha/numérique classique).
+  //   2e sous-sol=-2, sous-sol=-1, REZ/RDC=0, 1er étage=1, 2e étage=2, combles=900…
+  const foldLower = (s: string) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  const floorRank = (name: string): number | null => {
+    const s = foldLower(name);
+    let m = s.match(/(\d+)\s*(?:er|eme|e)?\s*sous[\s-]?sol/);
+    if (m) return -parseInt(m[1], 10);
+    if (/sous[\s-]?sol|s-sol|(?:^|\s)ss(?:\s|$)/.test(s)) return -1;
+    if (/rez[\s-]?de[\s-]?chauss|(?:^|\s)rez(?:\s|$)|(?:^|\s)rdc(?:\s|$)/.test(s)) return 0;
+    m = s.match(/(\d+)\s*(?:er|eme|e|ere)?\s*etage/);
+    if (m) return parseInt(m[1], 10);
+    if (/combles?|attique/.test(s)) return 900;
+    if (/galetas/.test(s)) return 950;
+    return null;
+  };
+  // Comparateur « intelligent » : étages du plus bas au plus haut si détectés,
+  // sinon ordre naturel (Lot A/B, Lot 1/2, A1/A2…). Les lots « étage » passent
+  // avant les lots sans étage.
+  const cmpSmartCab = (a: number, b: number) => {
+    const na = cabNameOf(a), nb = cabNameOf(b);
+    const fa = floorRank(na), fb = floorRank(nb);
+    if (fa !== null && fb !== null) return fa !== fb ? fa - fb : na.localeCompare(nb, "fr", { numeric: true, sensitivity: "base" });
+    if (fa !== null) return -1;
+    if (fb !== null) return 1;
+    return na.localeCompare(nb, "fr", { numeric: true, sensitivity: "base" });
+  };
   // Défaut = ordre CabN d'origine (on efface l'ordre personnalisé).
   const sortOrderDefault = () => applyDisplayOrder([]);
   const sortOrderAlpha = () => {
     const base = Array.from({ length: cabines.length }, (_, i) => i + 1);
-    base.sort(cmpAlphaCab);
+    base.sort(cmpSmartCab);
     applyDisplayOrder(base);
   };
   const sortOrderNumeric = () => {
@@ -8944,7 +8971,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         type="button"
                         disabled={sortingOrder}
                         onClick={sortOrderAlpha}
-                        title="Trier par ordre alphabétique (A→Z, A1, A2, B1…)"
+                        title="Trier intelligemment : étages du plus bas au plus haut (Sous-sol, REZ, 1er, 2ème…), sinon A→Z / A1, A2, B1…"
                         className="text-xs font-medium text-[#1e3a5f] dark:text-blue-300 flex items-center gap-1 px-2 py-1 rounded-lg border border-[#1e3a5f]/30 hover:bg-[#1e3a5f]/5 disabled:opacity-50"
                       >
                         <ArrowDownAZ className="w-3.5 h-3.5" />
