@@ -121,7 +121,7 @@ const VoiceRecorder = dynamic(() => import("@/components/voice-recorder").then(m
 import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
-import { isMultiDayHours, parsePointages } from "@/lib/pointages";
+import { isMultiDayHours, parsePointages, encodePointages } from "@/lib/pointages";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
 import { fetchWithRetry, invalidateApiCache } from "@/lib/api-helpers";
@@ -4004,6 +4004,9 @@ function ProjectPageContent({ id }: { id: string }) {
   const today = new Date().toISOString().split("T")[0];
   const [pointages, setPointages] = useState<PointageEntry[]>([]);
   const [isMultiDay, setIsMultiDay] = useState(false);
+  // SAV : mêmes interventions multi-jours (encodées dans « Heure arrivée/départ SAV »).
+  const [savPointages, setSavPointages] = useState<PointageEntry[]>([]);
+  const [savMultiDay, setSavMultiDay] = useState(false);
 
   // ── Auto-remplissage depuis la prise de photo ─────────────────────────────
   // Déclenché dès que l'utilisateur sélectionne des fichiers dans un champ
@@ -4159,28 +4162,46 @@ function ProjectPageContent({ id }: { id: string }) {
    *  l'onglet Infos (macOS) et dans la vue mono par défaut. La date de chaque
    *  intervention vaut par défaut le jour même (ou la date de montage), et reste
    *  modifiable pour un passage un autre jour. */
-  const renderMonoHoursEditor = () => {
-    if (isMultiDay && !isCabineMode) {
+  // Éditeur d'heures générique (montage ET SAV) : mode simple (Date + arrivée +
+  // départ sur une ligne) avec bouton « Plusieurs interventions », ou tableau
+  // daté multi-jours. Piloté par un contexte pour être réutilisé tel quel.
+  interface HoursEditorCtx {
+    isMultiDay: boolean;
+    pointages: PointageEntry[];
+    onEnable: () => void;
+    onDisable: () => void;
+    onAdd: () => void;
+    onUpdate: (idx: number, field: keyof PointageEntry, value: string) => void;
+    onRemove: (idx: number) => void;
+    date: string;
+    onDateChange: (v: string) => void;
+    arrivee: string;
+    onArriveeChange: (v: string) => void;
+    depart: string;
+    onDepartChange: (v: string) => void;
+  }
+  const renderHoursEditor = (ctx: HoursEditorCtx) => {
+    if (ctx.isMultiDay) {
       return (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label>Interventions</Label>
-            <button type="button" onClick={disableMultiInterventions} className="text-xs text-gray-400 hover:text-gray-600 underline">
+            <button type="button" onClick={ctx.onDisable} className="text-xs text-gray-400 hover:text-gray-600 underline">
               Revenir au mode simple
             </button>
           </div>
-          {pointages.map((entry, idx) => (
+          {ctx.pointages.map((entry, idx) => (
             <div key={idx} className="p-3 bg-gray-50 dark:bg-slate-800 rounded-xl space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-gray-500">Intervention {idx + 1}</span>
-                <button type="button" onClick={() => removePointage(idx)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500">
+                <button type="button" onClick={() => ctx.onRemove(idx)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
               <div className="space-y-2">
                 <div>
                   <Label className="text-xs">Date</Label>
-                  <Input type="date" value={entry.date} onChange={(e) => updatePointage(idx, "date", e.target.value)}
+                  <Input type="date" value={entry.date} onChange={(e) => ctx.onUpdate(idx, "date", e.target.value)}
                     className="mt-0.5 h-10 text-sm max-w-[200px] bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100" />
                 </div>
                 <div>
@@ -4194,7 +4215,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           onClick={() => {
                             const current = (entry.collaborateur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
                             const newVal = selected ? current.filter((n) => n !== c).join(" & ") : [...current, c].join(" & ");
-                            updatePointage(idx, "collaborateur", newVal);
+                            ctx.onUpdate(idx, "collaborateur", newVal);
                           }}
                           className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full transition-all ${selected ? "ring-2 ring-offset-1 ring-blue-400" : "opacity-40"}`}
                           style={{ backgroundColor: colors.bg, color: colors.text }}>
@@ -4209,7 +4230,7 @@ function ProjectPageContent({ id }: { id: string }) {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-xs">Arrivée</Label>
-                  <Input type="time" value={entry.arrivee} onChange={(e) => updatePointage(idx, "arrivee", e.target.value)}
+                  <Input type="time" value={entry.arrivee} onChange={(e) => ctx.onUpdate(idx, "arrivee", e.target.value)}
                     className="mt-0.5 h-10 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100" />
                 </div>
                 <div>
@@ -4218,19 +4239,19 @@ function ProjectPageContent({ id }: { id: string }) {
                     onChange={(e) => {
                       const v = e.target.value;
                       if (v && entry.arrivee && v < entry.arrivee) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
-                      updatePointage(idx, "depart", v);
+                      ctx.onUpdate(idx, "depart", v);
                     }}
                     className="mt-0.5 h-10 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100" />
                 </div>
               </div>
             </div>
           ))}
-          <button type="button" onClick={addPointage} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors">
+          <button type="button" onClick={ctx.onAdd} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors">
             <Plus className="w-4 h-4" />
             Ajouter une intervention
           </button>
-          {pointages.some((e) => e.arrivee && e.depart) && (() => {
-            const dayMinutes = pointages.map((e) => {
+          {ctx.pointages.some((e) => e.arrivee && e.depart) && (() => {
+            const dayMinutes = ctx.pointages.map((e) => {
               if (!e.arrivee || !e.depart) return 0;
               const [ah, am] = e.arrivee.split(":").map(Number);
               const [dh, dm] = e.depart.split(":").map(Number);
@@ -4241,7 +4262,7 @@ function ProjectPageContent({ id }: { id: string }) {
             if (totalMin === 0) return null;
             return (
               <div className="space-y-1 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-sm">
-                {pointages.map((e, i) => {
+                {ctx.pointages.map((e, i) => {
                   if (dayMinutes[i] === 0) return null;
                   const h = Math.floor(dayMinutes[i] / 60);
                   const m = dayMinutes[i] % 60;
@@ -4262,41 +4283,33 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       );
     }
-    // Champ date lié à Notion : « Date de montage » (ou « Date des mesures »).
-    // Par défaut aujourd'hui, modifiable ; enregistré sur le champ Notion afin
-    // que la date soit renseignée même quand elle n'a pas été fixée à l'avance.
-    const dateField = mode === "mesures" ? "dateMesures" : "dateMontage";
-    const currentDate = mode === "mesures" ? project?.dateMesures : project?.dateMontage;
-    const effDate = currentDate ? String(currentDate).slice(0, 10) : today;
-    const persistDate = (v: string) => {
-      setProject((prev) => (prev ? { ...prev, [dateField]: v } : prev));
-      offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [dateField]: v }) }).catch(() => {});
-    };
-    // Quand on saisit une heure alors qu'aucune date n'est encore enregistrée,
-    // on fixe automatiquement la date du jour (modifiable ensuite).
-    const ensureDate = () => { if (!currentDate) persistDate(today); };
     return (
       <>
         <div className="grid grid-cols-3 gap-2">
           <div>
             <Label>Date</Label>
-            <input type="date" value={effDate} onChange={(e) => persistDate(e.target.value)}
+            <input type="date" value={ctx.date} onChange={(e) => ctx.onDateChange(e.target.value)}
               className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
           </div>
           <div>
             <Label>Heure d&apos;arrivée</Label>
-            <input type="time" value={heureArrivee} onChange={(e) => { setHeureArrivee(e.target.value); ensureDate(); scheduleAutoSave(); }}
+            <input type="time" value={ctx.arrivee} onChange={(e) => ctx.onArriveeChange(e.target.value)}
               className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
           </div>
           <div>
             <Label>Heure de départ</Label>
-            <input type="time" value={heureDepart} onChange={(e) => { setHeureDepart(e.target.value); ensureDate(); scheduleAutoSave(); }}
+            <input type="time" value={ctx.depart} min={ctx.arrivee || undefined}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v && ctx.arrivee && v < ctx.arrivee) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
+                ctx.onDepartChange(v);
+              }}
               className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
           </div>
         </div>
-        {heureArrivee && heureDepart && (() => {
-          const [ah, am] = heureArrivee.split(":").map(Number);
-          const [dh, dm] = heureDepart.split(":").map(Number);
+        {ctx.arrivee && ctx.depart && (() => {
+          const [ah, am] = ctx.arrivee.split(":").map(Number);
+          const [dh, dm] = ctx.depart.split(":").map(Number);
           const diff = (dh * 60 + dm) - (ah * 60 + am);
           if (diff <= 0) return null;
           const h = Math.floor(diff / 60); const m = diff % 60;
@@ -4307,13 +4320,101 @@ function ProjectPageContent({ id }: { id: string }) {
             </div>
           );
         })()}
-        <button type="button" onClick={enableMultiInterventions}
+        <button type="button" onClick={ctx.onEnable}
           className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors">
           <Plus className="w-4 h-4" />
           Plusieurs interventions (jours / collaborateurs)
         </button>
       </>
     );
+  };
+
+  // Wrapper MONTAGE : date liée à « Date de montage » (ou « Date des mesures »).
+  const renderMonoHoursEditor = () => {
+    const dateField = mode === "mesures" ? "dateMesures" : "dateMontage";
+    const currentDate = mode === "mesures" ? project?.dateMesures : project?.dateMontage;
+    const effDate = currentDate ? String(currentDate).slice(0, 10) : today;
+    const persistDate = (v: string) => {
+      setProject((prev) => (prev ? { ...prev, [dateField]: v } : prev));
+      offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [dateField]: v }) }).catch(() => {});
+    };
+    const ensureDate = () => { if (!currentDate) persistDate(today); };
+    return renderHoursEditor({
+      isMultiDay: isMultiDay && !isCabineMode,
+      pointages,
+      onEnable: enableMultiInterventions,
+      onDisable: disableMultiInterventions,
+      onAdd: addPointage,
+      onUpdate: updatePointage,
+      onRemove: removePointage,
+      date: effDate,
+      onDateChange: persistDate,
+      arrivee: heureArrivee,
+      onArriveeChange: (v) => { setHeureArrivee(v); ensureDate(); scheduleAutoSave(); },
+      depart: heureDepart,
+      onDepartChange: (v) => { setHeureDepart(v); ensureDate(); scheduleAutoSave(); },
+    });
+  };
+
+  // Wrapper SAV : mono = date (Dates RDV SAV cabines) + heures (Heure arrivée/départ SAV).
+  // Multi-jours = interventions datées encodées dans « Heure arrivée SAV » / « Heure départ SAV ».
+  const renderSavHoursEditor = () => {
+    const savDate = (parseCabineTextMulti(project?.datesRdvSavCabines || "")[1] || "").slice(0, 10);
+    const persistSavHours = (arr: string, dep: string) => {
+      setProject((prev) => (prev ? { ...prev, heureArriveeSav: arr, heureDepartSav: dep } : prev));
+      offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArriveeSav: arr, heureDepartSav: dep }) }).catch(() => {});
+      if (!project?.sav) saveProjectField({ sav: true });
+    };
+    return renderHoursEditor({
+      isMultiDay: savMultiDay,
+      pointages: savPointages,
+      onEnable: () => {
+        setSavPointages((prev) => {
+          if (prev.length) return prev;
+          if (isMultiDayHours(project?.heureArriveeSav, project?.heureDepartSav)) {
+            const pts = parsePointages(project?.heureArriveeSav, project?.heureDepartSav);
+            if (pts.length) return pts;
+          }
+          return [{
+            date: savDate || today,
+            collaborateur: parseCabineTextMulti(project?.collaborateursSavCabines || "")[1] || "",
+            arrivee: project?.heureArriveeSav || "",
+            depart: project?.heureDepartSav || "",
+          }];
+        });
+        setSavMultiDay(true);
+        if (!project?.sav) saveProjectField({ sav: true });
+      },
+      onDisable: () => {
+        const first = savPointages[0];
+        persistSavHours(first?.arrivee || "", first?.depart || "");
+        setSavMultiDay(false);
+        setSavPointages([]);
+      },
+      onAdd: () => setSavPointages((prev) => [...prev, { date: today, collaborateur: "", arrivee: "", depart: "" }]),
+      onUpdate: (idx, field, value) => {
+        setSavPointages((prev) => {
+          const next = prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p));
+          const enc = encodePointages(next);
+          offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArriveeSav: enc.arrivee, heureDepartSav: enc.depart }) }).catch(() => {});
+          return next;
+        });
+      },
+      onRemove: (idx) => {
+        setSavPointages((prev) => {
+          const next = prev.filter((_, i) => i !== idx);
+          const enc = encodePointages(next);
+          offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArriveeSav: enc.arrivee, heureDepartSav: enc.depart }) }).catch(() => {});
+          return next;
+        });
+      },
+      date: savDate || today,
+      onDateChange: (v) => { saveCabineText("datesRdvSavCabines", 0, v); if (v && !project?.sav) saveProjectField({ sav: true }); },
+      arrivee: project?.heureArriveeSav || "",
+      onArriveeChange: (v) => { persistSavHours(v, project?.heureDepartSav || ""); if (!savDate) saveCabineText("datesRdvSavCabines", 0, today); },
+      depart: project?.heureDepartSav || "",
+      onDepartChange: (v) => { persistSavHours(project?.heureArriveeSav || "", v); if (!savDate) saveCabineText("datesRdvSavCabines", 0, today); },
+    });
   };
 
   // ── Filet de sécurité anti-perte des interventions (mono-cabine) ──────────
@@ -4679,6 +4780,16 @@ function ProjectPageContent({ id }: { id: string }) {
       if (chosen.length) {
         setPointages(chosen);
         setIsMultiDay(true);
+      }
+    }
+    // SAV : détection du mode multi-jours (heures SAV au format daté). 1er chargement.
+    if (firstInit) {
+      const savPts = isMultiDayHours(data.heureArriveeSav, data.heureDepartSav)
+        ? parsePointages(data.heureArriveeSav, data.heureDepartSav)
+        : [];
+      if (savPts.length) {
+        setSavPointages(savPts);
+        setSavMultiDay(true);
       }
     }
   };
@@ -8573,48 +8684,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               ))}
                             </select>
                           </div>
-                          {(() => {
-                            const savToday = new Date().toISOString().slice(0, 10);
-                            const savDate = (parseCabineTextMulti(project?.datesRdvSavCabines || "")[1] || "").slice(0, 10);
-                            // Fixe la date du jour si une heure est saisie sans date d'intervention.
-                            const ensureSavDate = () => { if (!savDate) saveCabineText("datesRdvSavCabines", 0, savToday); };
-                            return (
-                              <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                  <Label>Date d&apos;intervention SAV</Label>
-                                  <input
-                                    type="date"
-                                    value={savDate || savToday}
-                                    onChange={(e) => { saveCabineText("datesRdvSavCabines", 0, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-                                    className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
-                                  />
-                                </div>
-                                <div>
-                                  <Label>Heure d&apos;arrivée</Label>
-                                  <input
-                                    type="time"
-                                    value={project?.heureArriveeSav || ""}
-                                    onChange={(e) => { saveProjectField({ heureArriveeSav: e.target.value }); ensureSavDate(); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-                                    className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
-                                  />
-                                </div>
-                                <div>
-                                  <Label>Heure de départ</Label>
-                                  <input
-                                    type="time"
-                                    value={project?.heureDepartSav || ""}
-                                    min={project?.heureArriveeSav || undefined}
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      if (v && project?.heureArriveeSav && v < project.heureArriveeSav) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
-                                      saveProjectField({ heureDepartSav: v }); ensureSavDate(); if (v && !project?.sav) saveProjectField({ sav: true });
-                                    }}
-                                    className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })()}
+                          {renderSavHoursEditor()}
                           <div>
                             <Label>Collaborateur(s) SAV</Label>
                             <div className="mt-1 flex flex-wrap gap-1.5">
