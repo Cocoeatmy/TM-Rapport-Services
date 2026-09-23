@@ -3850,6 +3850,9 @@ function ProjectPageContent({ id }: { id: string }) {
   const pendingSendClientRef = useRef(false);
   const [historyCount, setHistoryCount] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(60);
+  // Position verticale du rail macOS : sous la carte-titre (sa hauteur varie
+  // selon que le titre tient sur 1 ou 2 lignes) → jamais recouvert par le titre.
+  const [railTop, setRailTop] = useState(124);
   // Modal « Documents (Notion « Offre TM ») » — admin. Récupère les fichiers frais.
   const [showOffres, setShowOffres] = useState(false);
   const [offresFiles, setOffresFiles] = useState<{ name: string; url: string }[]>([]);
@@ -3990,9 +3993,22 @@ function ProjectPageContent({ id }: { id: string }) {
   }, [project?.photosMontage, isCabineMode, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const header = document.getElementById("main-header");
-    if (header) setHeaderHeight(header.offsetHeight);
-  }, []);
+    const measure = () => {
+      const header = document.getElementById("main-header");
+      const hH = header ? header.offsetHeight : headerHeight;
+      if (header) setHeaderHeight(hH);
+      // Le rail commence sous la carte-titre (mesurée) : bas de la carte + marge.
+      const card = document.getElementById("project-header-card");
+      if (card) setRailTop(Math.round(hH + card.offsetHeight + 8));
+    };
+    measure();
+    // Re-mesure quand la carte change de hauteur (titre 1↔2 lignes, resize).
+    const card = document.getElementById("project-header-card");
+    const ro = typeof ResizeObserver !== "undefined" && card ? new ResizeObserver(measure) : null;
+    if (ro && card) ro.observe(card);
+    window.addEventListener("resize", measure);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener("resize", measure); };
+  }, [project?.projet, project?.ofrTM, headerHeight]);
 
   interface PointageEntry {
     date: string;
@@ -6390,7 +6406,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       )}
       {/* Header */}
-      <div className="sticky z-40 glass-card px-4 py-3 transition-opacity duration-150" style={{ borderRadius: 18, top: headerHeight, opacity: showRapport ? headerScrollOpacity : 1 }}>
+      <div id="project-header-card" className="sticky z-40 glass-card px-4 py-3 transition-opacity duration-150" style={{ borderRadius: 18, top: headerHeight, opacity: showRapport ? headerScrollOpacity : 1 }}>
         {(() => {
           // Boutons d'action (crayon, partage, étoile, historique) — rendus
           // soit à droite de la ligne titre (mode normal), soit sur la ligne
@@ -6574,7 +6590,7 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Rail d'onglets vertical (macOS), fixé tout à gauche. Icône colorée dans
           un carré arrondi ; l'onglet actif est entouré. Clic = déplie/replie. */}
       {isMac && (
-        <div className="fixed left-2 top-[124px] z-30 flex flex-col gap-2">
+        <div className="fixed left-2 z-30 flex flex-col gap-2" style={{ top: railTop }}>
           {/* Onglet « Fiche de travail » : admin uniquement pour l'instant. */}
           {(() => {
             const tabs = tabDefs.filter((t) => t.id !== "fiche" || isAdmin);
