@@ -46,6 +46,7 @@ import {
   Minus,
   FileSpreadsheet,
   Wrench,
+  Download,
 } from "lucide-react";
 // MontageChecklist supprimée (section retirée)
 import { ProjectChat } from "@/components/project-chat";
@@ -3551,6 +3552,8 @@ function ProjectPageContent({ id }: { id: string }) {
   const [showOnlyRapport, setShowOnlyRapport] = useState(false); // filtre lots avec rapport personnalisé
   const [showOnlySav, setShowOnlySav] = useState(false); // filtre lots avec SAV / retouche
   const [causeSavOptions, setCauseSavOptions] = useState<string[]>([]); // options select « Cause SAV »
+  // Mesures par cabine (analyse auto des « Documents pour Montage » : Duka multi-lots + 1 fichier/lot).
+  const [mesuresLots, setMesuresLots] = useState<{ cab: number; serie?: string; ref?: string; fileName: string; pageStart: number | null; pageEnd: number | null }[]>([]);
   const [heuresFilterCollab, setHeuresFilterCollab] = useState(""); // filtre : clic sur un collaborateur du suivi des heures
   const [showSignalementsCard, setShowSignalementsCard] = useState(false); // carte « Signalements enregistrés » repliable
   const [showSignatureCard, setShowSignatureCard] = useState(false); // carte « Signature du client » repliable
@@ -4925,6 +4928,23 @@ function ProjectPageContent({ id }: { id: string }) {
     window.addEventListener("focus", loadCauses);
     return () => window.removeEventListener("focus", loadCauses);
   }, []);
+
+  // Analyse automatique des mesures (« Documents pour Montage ») → mappage
+  // cabine ↔ mesure (Duka multi-lots découpé par pages, ou 1 fichier/lot).
+  // Idempotent côté serveur : re-run seulement si la liste des fichiers change.
+  useEffect(() => {
+    if (!id || !project) return;
+    const docs = project.documentsMontagee || [];
+    const hasMesure = docs.some((f) => /mesures?/i.test(f.name || "") && /\.pdf$/i.test(f.name || ""));
+    if (!hasMesure) { setMesuresLots([]); return; }
+    let cancelled = false;
+    fetch(`/api/mesures/analyze/${id}`, { method: "POST" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && Array.isArray(d?.lots)) setMesuresLots(d.lots); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, (project?.documentsMontagee || []).map((f) => f.name).join("|")]);
 
   // Coche automatiquement « SAV » dès qu'un contenu SAV existe (réclamation ou
   // photos). Garde `project.sav` en garde-fou → aucune boucle.
@@ -9033,6 +9053,24 @@ function ProjectPageContent({ id }: { id: string }) {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="font-medium text-sm truncate">{cabine.nom}</span>
+                              {/* Bouton mesure du lot (Duka : pages extraites ; sinon fichier entier). */}
+                              {(() => {
+                                const m = mesuresLots.find((x) => x.cab === idx + 1);
+                                if (!m) return null;
+                                return (
+                                  <a
+                                    href={`/api/mesures/${id}/download?cab=${idx + 1}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title={`Télécharger la mesure${m.serie ? ` — ${m.serie}` : ""}`}
+                                    className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                                  >
+                                    <Download className="w-3 h-3" />
+                                    Mesure{m.serie ? ` · ${m.serie}` : ""}
+                                  </a>
+                                );
+                              })()}
                               {/* Icônes signalement : pièce manquante (orange) + défaut (rouge) */}
                               {cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom)) && (
                                 <Package className="w-3.5 h-3.5 text-orange-500 shrink-0" />

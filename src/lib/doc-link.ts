@@ -65,3 +65,9 @@ export function signSignalements(projectId: string): string {
 export function signPhotosZip(projectId: string, field: string): string {
   return createHmac("sha256", SECRET).update(`photoszip|${projectId}|${field}`).digest("hex").slice(0, 32);
 }
+
+/** Signature HMAC pour télécharger la mesure d'UNE cabine (pages extraites du
+ * relevé) via un lien public (fiche de travail). */
+export function signMesure(projectId: string, cab: number): string {
+  return createHmac("sha256", SECRET).update(`mesure|${projectId}|cab${cab}`).digest("hex").slice(0, 32);
+}

@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
-import { signFiche, signPhotosZip, signSav, signSynthese, signSignalements } from "@/lib/doc-link";
+import { signFiche, signPhotosZip, signSav, signSynthese, signSignalements, signMesure } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
 import { timingSafeEqual } from "crypto";
@@ -420,7 +420,7 @@ function AddressRow({ address }: { address: string }) {
   );
 }
 
-function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, savReportUrl, reportUrl, syntheseUrl, signalementsUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0, done: 0 } }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; signalementsUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number; done?: number } }) {
+function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, savReportUrl, reportUrl, syntheseUrl, signalementsUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0, done: 0 }, mesures = [] }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; signalementsUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number; done?: number }; mesures?: { cab: number; nom: string; serie: string; url: string }[] }) {
   const genDate = new Date().toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich" });
   const sigTotal = (sig?.pieces || 0) + (sig?.defauts || 0) + (sig?.avant || 0);
   const sigDone = sig?.done || 0;
@@ -726,6 +726,23 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
           <LineRow label="Services" value="à venir" />
         </View>
 
+        {/* Mesures par lot — téléchargement de la mesure de chaque cabine
+            (Duka : pages du lot ; sinon fichier entier). Affiché si mappé. */}
+        {mesures.length > 0 ? (
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle}>Mesures par lot</Text>
+            {mesures.map((m) => (
+              <View key={m.cab} style={styles.row}>
+                <Text style={styles.label}>{nfc(m.nom)}{m.serie ? ` · ${nfc(m.serie)}` : ""}</Text>
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
+                  <Link src={m.url} style={{ fontSize: 9, color: "#1e3a5f", textDecoration: "none", fontFamily: "Helvetica-Bold" }}>Télécharger la mesure</Link>
+                  <Link src={m.url} style={{ marginLeft: 5, textDecoration: "none" }}><DownloadArrow /></Link>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         {/* Contact — colonnes (comme la fiche fournisseur) */}
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Contact</Text>
@@ -911,7 +928,19 @@ export async function GET(
       done: myPieces.filter((p) => p.status === "recu").length
         + myDefauts.filter((d) => d.resolved).length,
     };
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} cartonsDocUrl={cartonsDocUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} signalementsUrl={signalementsUrl} notionComments={notionComments} sig={sig} />);
+    // Mesures par cabine (mappage analysé, stocké en KV) → lien signé par lot.
+    type MesureLot = { projectId: string; cab: number; serie?: string; ref?: string; fileName: string; pageStart: number | null; pageEnd: number | null };
+    const mesuresMap = (await getDataFresh<MesureLot>("mesures-map").catch(() => getData<MesureLot>("mesures-map").catch(() => [] as MesureLot[])))
+      .filter((e) => e.projectId === id)
+      .sort((a, b) => a.cab - b.cab);
+    const cabNoms = parseCabMulti(project.nomsCabines);
+    const mesures = mesuresMap.map((e) => ({
+      cab: e.cab,
+      nom: cabNoms[e.cab] || e.ref || `Cabine ${e.cab}`,
+      serie: e.serie || "",
+      url: `${req.nextUrl.origin}/api/mesures/${encodeURIComponent(id)}/download?cab=${e.cab}&s=${signMesure(id, e.cab)}`,
+    }));
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} cartonsDocUrl={cartonsDocUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} signalementsUrl={signalementsUrl} notionComments={notionComments} sig={sig} mesures={mesures} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
