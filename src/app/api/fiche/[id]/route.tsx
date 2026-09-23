@@ -13,6 +13,7 @@ import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
 import { signFiche, signPhotosZip, signSav, signSynthese, signSignalements } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
+import { isMultiDayHours, parsePointages } from "@/lib/pointages";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
   Document,
@@ -667,20 +668,58 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
             [reclam, cause, rdv, collab, fait, recu].forEach((mp) => Object.keys(mp).forEach((k) => keys.add(parseInt(k, 10))));
             const savCabs = [...keys].filter(cabHasSav);
             const totalSav = savCabs.length;
-            const value = dateAndWho(fmtDate(project.dateRDVSAV), project.collaborateursSAV);
+            // Date / heures / collaborateurs du SAV. La date est stockée PAR CABINE
+            // (datesRdvSavCabines), les heures dans « Heure arrivée/départ SAV »
+            // (simples, ou multi-jours au format daté). On construit la même valeur
+            // que la ligne Montage : « date · arr–dep (durée) — collaborateur(s) ».
+            const firstCab = savCabs[0];
+            const ha = project.heureArriveeSav || "", hd = project.heureDepartSav || "";
+            const savMulti = isMultiDayHours(ha, hd);
+            const pts = savMulti ? parsePointages(ha, hd) : [];
+            const ptMin = (p: { arrivee: string; depart: string }) => {
+              if (!/^\d{1,2}:\d{2}$/.test(p.arrivee) || !/^\d{1,2}:\d{2}$/.test(p.depart)) return 0;
+              const [ah, am] = p.arrivee.split(":").map(Number); const [dh, dm] = p.depart.split(":").map(Number);
+              const d = dh * 60 + dm - (ah * 60 + am); return d > 0 ? d : 0;
+            };
+            let savDatePart: string;
+            if (savMulti && pts.length) {
+              const totalMin = pts.reduce((s, p) => s + ptMin(p), 0);
+              savDatePart = pts.length === 1
+                ? [fmtDate(pts[0].date), (pts[0].arrivee && pts[0].depart) ? `${pts[0].arrivee}–${pts[0].depart}${durStr(ptMin(pts[0])) ? ` (${durStr(ptMin(pts[0]))})` : ""}` : ""].filter(Boolean).join("  ·  ")
+                : `${pts.length} jours${durStr(totalMin) ? `  ·  ${durStr(totalMin)}` : ""}`;
+            } else {
+              const savDateRaw = ((firstCab && rdv[firstCab]) || project.dateRDVSAV || "").slice(0, 10);
+              const hours = montageHoursStr(ha, hd);
+              savDatePart = [savDateRaw ? fmtDate(savDateRaw) : "", hours].filter(Boolean).join("  ·  ");
+            }
+            const savWho = (firstCab && collab[firstCab]) || project.collaborateursSAV
+              || (pts.length ? [...new Set(pts.flatMap((p) => (p.collaborateur || "").split(" & ").filter(Boolean)))].join(" & ") : "");
+            const value = dateAndWho(savDatePart, savWho);
             // Pas de SAV → ligne simple, SANS flèche de téléchargement.
             if (totalSav <= 0) return <LineRow label="SAV" value={value} />;
             const clos = savCabs.filter((n) => cloture[n]).length;
             const pct = Math.round((clos / totalSav) * 100);
             return (
-              <ProgressRow
-                label="SAV"
-                pct={pct}
-                caption={`${clos}/${totalSav} · ${pct}%`}
-                color={pct >= 100 ? "#15803d" : "#d97706"}
-                value={value}
-                docUrl={savReportUrl}
-              />
+              <React.Fragment>
+                <ProgressRow
+                  label="SAV"
+                  pct={pct}
+                  caption={`${clos}/${totalSav} · ${pct}%`}
+                  color={pct >= 100 ? "#15803d" : "#d97706"}
+                  value={value}
+                  docUrl={savReportUrl}
+                />
+                {/* SAV multi-jours : détail par intervention (comme « Jours de montage »). */}
+                {savMulti && pts.length > 1
+                  ? pts.map((p, i) => (
+                      <LineRow
+                        key={i}
+                        label={i === 0 ? "Jours de SAV" : ""}
+                        value={`${ddmm(p.date)}${(p.arrivee && p.depart) ? ` : ${p.arrivee}–${p.depart}${durStr(ptMin(p)) ? ` (${durStr(ptMin(p))})` : ""}` : ""}${p.collaborateur ? ` — ${p.collaborateur}` : ""}`}
+                      />
+                    ))
+                  : null}
+              </React.Fragment>
             );
           })()}
           <LineRow label="Garantie" value={dateAndWho(fmtDate(project.dateRDVGarantie), project.collaborateurGarantie)} />
