@@ -215,6 +215,15 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
     if (e === "Montage pas possible") return "impossible";
     if (e === "Montage partiel") return "started";
     if (installed.has(n)) return "done";
+    // Repli MONO-CABINE : les photos/heures ne portent pas le préfixe .CabN. →
+    // les compteurs par cabine sont vides même quand la cabine est installée.
+    // On se rabat alors sur les indicateurs projet (comme la fiche de travail).
+    if (total === 1 && n === 1) {
+      if ((project.nbCabinesInstallees || 0) >= 1 || (project.photosMontage || []).length > 0) return "done";
+      if (project.dateMontage || arriveeTimes[n] || (project.heureArrivee || "").trim()
+        || avant.has(n) || (project.photosAvant || []).length > 0) return "started";
+      return "todo";
+    }
     if (arriveeTimes[n] || avant.has(n)) return "started";
     return "todo";
   };
