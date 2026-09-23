@@ -261,6 +261,8 @@ export interface Project {
   // Détails SAV PAR CABINE (encodés "CabN:valeur" — colonnes Texte).
   causeSavCabines: string;
   datesRdvSavCabines: string;
+  heureArriveeSav: string;
+  heureDepartSav: string;
   collaborateursSavCabines: string;
   datesSavClotureCabines: string;
   photosSavRetouches: FileItem[];
@@ -429,6 +431,8 @@ export function mapPageToProject(page: any): Project {
     commentairesSav: extractText(p["Commentaires SAV"]),
     causeSavCabines: extractText(p["Cause SAV cabines"]),
     datesRdvSavCabines: extractText(p["Dates RDV SAV cabines"]),
+    heureArriveeSav: extractText(p["Heure arrivée SAV"]),
+    heureDepartSav: extractText(p["Heure départ SAV"]),
     collaborateursSavCabines: extractText(p["Collaborateurs SAV cabines"]),
     datesSavClotureCabines: extractText(p["Dates SAV clôturé cabines"]),
     photosSavRetouches: extractFiles(p["Photos SAV / Retouches cabines"]),
@@ -1101,6 +1105,8 @@ export async function updateProject(
     commentairesSav?: string;
     causeSavCabines?: string;
     datesRdvSavCabines?: string;
+    heureArriveeSav?: string;
+    heureDepartSav?: string;
     collaborateursSavCabines?: string;
     datesSavClotureCabines?: string;
     savCloture?: boolean;
@@ -1183,6 +1189,12 @@ export async function updateProject(
   }
   if (data.datesRdvSavCabines !== undefined) {
     properties["Dates RDV SAV cabines"] = { rich_text: toRichText(data.datesRdvSavCabines) };
+  }
+  if (data.heureArriveeSav !== undefined) {
+    properties["Heure arrivée SAV"] = { rich_text: toRichText(data.heureArriveeSav) };
+  }
+  if (data.heureDepartSav !== undefined) {
+    properties["Heure départ SAV"] = { rich_text: toRichText(data.heureDepartSav) };
   }
   if (data.collaborateursSavCabines !== undefined) {
     properties["Collaborateurs SAV cabines"] = { rich_text: toRichText(data.collaborateursSavCabines) };

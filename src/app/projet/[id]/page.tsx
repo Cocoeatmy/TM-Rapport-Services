@@ -4262,17 +4262,35 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
       );
     }
+    // Champ date lié à Notion : « Date de montage » (ou « Date des mesures »).
+    // Par défaut aujourd'hui, modifiable ; enregistré sur le champ Notion afin
+    // que la date soit renseignée même quand elle n'a pas été fixée à l'avance.
+    const dateField = mode === "mesures" ? "dateMesures" : "dateMontage";
+    const currentDate = mode === "mesures" ? project?.dateMesures : project?.dateMontage;
+    const effDate = currentDate ? String(currentDate).slice(0, 10) : today;
+    const persistDate = (v: string) => {
+      setProject((prev) => (prev ? { ...prev, [dateField]: v } : prev));
+      offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [dateField]: v }) }).catch(() => {});
+    };
+    // Quand on saisit une heure alors qu'aucune date n'est encore enregistrée,
+    // on fixe automatiquement la date du jour (modifiable ensuite).
+    const ensureDate = () => { if (!currentDate) persistDate(today); };
     return (
       <>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <Label>Date</Label>
+            <input type="date" value={effDate} onChange={(e) => persistDate(e.target.value)}
+              className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
+          </div>
           <div>
             <Label>Heure d&apos;arrivée</Label>
-            <input type="time" value={heureArrivee} onChange={(e) => { setHeureArrivee(e.target.value); scheduleAutoSave(); }}
+            <input type="time" value={heureArrivee} onChange={(e) => { setHeureArrivee(e.target.value); ensureDate(); scheduleAutoSave(); }}
               className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
           </div>
           <div>
             <Label>Heure de départ</Label>
-            <input type="time" value={heureDepart} onChange={(e) => { setHeureDepart(e.target.value); scheduleAutoSave(); }}
+            <input type="time" value={heureDepart} onChange={(e) => { setHeureDepart(e.target.value); ensureDate(); scheduleAutoSave(); }}
               className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left" />
           </div>
         </div>
@@ -8555,15 +8573,48 @@ function ProjectPageContent({ id }: { id: string }) {
                               ))}
                             </select>
                           </div>
-                          <div>
-                            <Label>Date d&apos;intervention SAV</Label>
-                            <input
-                              type="date"
-                              value={(parseCabineTextMulti(project?.datesRdvSavCabines || "")[1] || "").slice(0, 10)}
-                              onChange={(e) => { saveCabineText("datesRdvSavCabines", 0, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-                              className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
-                            />
-                          </div>
+                          {(() => {
+                            const savToday = new Date().toISOString().slice(0, 10);
+                            const savDate = (parseCabineTextMulti(project?.datesRdvSavCabines || "")[1] || "").slice(0, 10);
+                            // Fixe la date du jour si une heure est saisie sans date d'intervention.
+                            const ensureSavDate = () => { if (!savDate) saveCabineText("datesRdvSavCabines", 0, savToday); };
+                            return (
+                              <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                  <Label>Date d&apos;intervention SAV</Label>
+                                  <input
+                                    type="date"
+                                    value={savDate || savToday}
+                                    onChange={(e) => { saveCabineText("datesRdvSavCabines", 0, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+                                    className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Heure d&apos;arrivée</Label>
+                                  <input
+                                    type="time"
+                                    value={project?.heureArriveeSav || ""}
+                                    onChange={(e) => { saveProjectField({ heureArriveeSav: e.target.value }); ensureSavDate(); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+                                    className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Heure de départ</Label>
+                                  <input
+                                    type="time"
+                                    value={project?.heureDepartSav || ""}
+                                    min={project?.heureArriveeSav || undefined}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      if (v && project?.heureArriveeSav && v < project.heureArriveeSav) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
+                                      saveProjectField({ heureDepartSav: v }); ensureSavDate(); if (v && !project?.sav) saveProjectField({ sav: true });
+                                    }}
+                                    className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()}
                           <div>
                             <Label>Collaborateur(s) SAV</Label>
                             <div className="mt-1 flex flex-wrap gap-1.5">
