@@ -113,11 +113,16 @@ function MediaThumb({ url }: { url: string }) {
     <Link src={downloadUrl(url)} style={{ width: 110, height: 82, textDecoration: "none" }}>
       <View style={{ width: 110, height: 82, position: "relative" }}>
         <Image src={previewUrl(url)} style={{ width: 110, height: 82, objectFit: "cover", borderRadius: 4 }} />
+        {/* Vidéo : bouton « play » classique (triangle blanc dans un rond sombre). */}
         {video ? (
-          <View style={{ position: "absolute", top: 30, left: 46, width: 20, height: 20, backgroundColor: "#000000", opacity: 0.55, borderRadius: 10 }}>
-            <Text style={{ color: "#fff", fontSize: 11, textAlign: "center", marginTop: 3 }}>▶</Text>
+          <View style={{ position: "absolute", top: 29, left: 44, width: 22, height: 22, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 11, alignItems: "center", justifyContent: "center" }}>
+            <Svg width={11} height={11} viewBox="0 0 24 24"><Path d="M7 4 L20 12 L7 20 Z" fill="#ffffff" /></Svg>
           </View>
         ) : null}
+        {/* Badge téléchargement (coin bas-droit) : indique que l'image/vidéo est téléchargeable. */}
+        <View style={{ position: "absolute", bottom: 3, right: 3, width: 16, height: 16, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
+          <Svg width={9} height={9} viewBox="0 0 24 24"><Path d="M12 3 L12 15 M7 10 L12 15 L17 10 M5 20 L19 20" stroke="#ffffff" strokeWidth={2.4} fill="none" /></Svg>
+        </View>
       </View>
     </Link>
   );
@@ -214,14 +219,21 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
           const demandePhotos = photosForCab(project.documentsSavDemande, n);
           const reglePhotos = photosForCab(project.photosSavRetouches, n);
           return (
-            <View key={n} style={styles.cabBlock} wrap={false}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <View>
-                  <Text style={styles.cabTitle}>{nfc(nom)}</Text>
+            // Pas de wrap={false} sur tout le bloc : sinon un long SAV (texte +
+            // nombreuses photos) qui ne tient pas sous l'en-tête est poussé en
+            // entier sur la page suivante → page 1 quasi vide + pages en trop.
+            // On laisse le contenu se répartir naturellement ; seul l'en-tête de
+            // cabine (titre + badge + 1res infos) reste solidaire.
+            <View key={n} style={styles.cabBlock}>
+              <View wrap={false}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <View>
+                    <Text style={styles.cabTitle}>{nfc(nom)}</Text>
+                  </View>
+                  {closedDate
+                    ? <Text style={styles.badgeClosed}>Clôturé le {closedDate.split("-").reverse().join(".")}</Text>
+                    : <Text style={styles.badgeOpen}>SAV en cours</Text>}
                 </View>
-                {closedDate
-                  ? <Text style={styles.badgeClosed}>Clôturé le {closedDate.split("-").reverse().join(".")}</Text>
-                  : <Text style={styles.badgeOpen}>SAV en cours</Text>}
               </View>
 
               {montage ? (
