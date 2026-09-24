@@ -1885,32 +1885,52 @@ function HomePage() {
     };
   }, [refreshAllProjects]);
 
-  // ── Polling arrière-plan : toutes les 30 s, rafraîchit l'endpoint du
-  // mode courant (uniquement si la page est visible). Silencieux — aucune
-  // interruption UI. Garantit que les changements Notion apparaissent en
-  // ≤ 10 s sans aucune action de l'utilisateur.
+  // ── Polling arrière-plan : rafraîchit les listes visibles (uniquement si la
+  // page est visible). Silencieux. Objectif : les changements Notion apparaissent
+  // en ~10-30 s sans action de l'utilisateur.
+  //
+  // Deux corrections clés :
+  //  1) Sur le DASHBOARD, on rafraîchit les 4 listes qui l'alimentent
+  //     (montage/mesures/services/sav), pas seulement /api/projects — sinon les
+  //     panneaux "RDV Services/Mesures/SAV à fixer" restaient figés.
+  //  2) On interroge en `?rv` (contourne le cache du Service Worker) et on fait un
+  //     "double-tap" ~7 s après chaque tick : la 1re requête après péremption du
+  //     cache serveur renvoie du stale MAIS déclenche la revalidation Notion ; la
+  //     2e capte les données fraîches. Couplé à la fenêtre serveur de 20 s
+  //     (VOLATILE_KEYS), la synchro tombe dans la cible 10-30 s.
   useEffect(() => {
-    const POLL_MS = 30_000; // 30 s (Redis + refresh au retour au 1er plan + mutations couvrent la fraîcheur ; moins de conso batterie)
-    const poll = () => {
-      if (typeof document !== "undefined" && document.hidden) return; // page en arrière-plan : skip
-      const url = MODE_API[mode];
-      if (!url) return;
-      fetch(url)
+    const POLL_MS = 20_000;
+    const ACTIVE_DASH = [
+      "/api/projects", "/api/projects/mesures",
+      "/api/projects/services", "/api/projects/sav",
+    ];
+    const applyUrl = (url: string) => {
+      fetch(`${url}?rv=${Date.now()}`, { cache: "no-store" })
         .then((r) => r.json())
         .then((data) => {
-          // Hors ligne : le SW retourne [] comme fallback → ignorer pour garder le cache local.
+          // Hors ligne : le SW renvoie [] → ignorer pour garder le cache local.
           if (!Array.isArray(data) || (data.length === 0 && !navigator.onLine)) return;
           setProjectsData((prev) => {
-            // Met à jour toutes les clés qui pointent vers cette URL
             const updated = { ...prev };
-            Object.entries(MODE_API).forEach(([key, u]) => {
-              if (u === url) updated[key] = data;
-            });
+            Object.entries(MODE_API).forEach(([key, u]) => { if (u === url) updated[key] = data; });
             saveProjectsCache(updated);
             return updated;
           });
         })
-        .catch(() => {}); // silencieux en cas d'erreur réseau
+        .catch(() => {}); // silencieux
+    };
+    const poll = () => {
+      if (typeof document !== "undefined" && document.hidden) return; // arrière-plan : skip
+      const urls = mode === "dashboard"
+        ? ACTIVE_DASH
+        : (MODE_API[mode] ? [MODE_API[mode]] : []);
+      if (urls.length === 0) return;
+      urls.forEach(applyUrl);
+      // Double-tap : capte la revalidation serveur déclenchée par la 1re passe.
+      setTimeout(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        urls.forEach(applyUrl);
+      }, 7000);
     };
     const timer = setInterval(poll, POLL_MS);
     return () => clearInterval(timer);

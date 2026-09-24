@@ -80,6 +80,17 @@ const STATS_KEYS = new Set([
 // instances) : listes de projets + statistiques.
 const REDIS_KEYS = new Set([...SNAPSHOT_KEYS, ...STATS_KEYS]);
 
+// Listes VOLATILES affichées sur le DASHBOARD (panneaux "à fixer", compteurs,
+// planning du jour). L'utilisateur attend une synchro Notion en ~10-30 s. On leur
+// applique une fenêtre de fraîcheur COURTE (revalidation fréquente) tout en
+// gardant le TTL long (Redis chaud + repli). Les autres listes (all-raw, termine…)
+// restent en fraîcheur longue.
+const VOLATILE_FRESH_MS = 20 * 1000;   // 20 s de fraîcheur → revalidation ~toutes les 20 s
+const VOLATILE_KEYS = new Set([
+  "projects", "projects-mesures", "projects-services", "projects-sav",
+  "projects-all-active",
+]);
+
 // Cache de secours : conserve les données jusqu'à 30 min même après expiration
 // du cache principal. Utilisé uniquement quand Notion est indisponible / rate-limité.
 const fallbackCache = new Map<string, { data: unknown; storedAt: number }>();
@@ -117,6 +128,15 @@ export function setCache(key: string, data: unknown) {
   let ttl = TTL;
   if (key.startsWith("project-")) {
     freshMs = 30_000;
+  } else if (VOLATILE_KEYS.has(key)) {
+    // Listes du DASHBOARD (montage/mesures/services/sav/all-active) : fraîcheur
+    // COURTE (20 s) → une revalidation en arrière-plan est déclenchée dès qu'un
+    // client redemande après 20 s, donc les corrections Notion apparaissent en
+    // ~20-30 s. On garde le TTL long (2 h) + Redis chaud pour le cold-start et le
+    // repli hors-ligne. La revalidation reste dédupliquée par clé (inflight) →
+    // même avec plusieurs collaborateurs, Notion n'est interrogé qu'une fois /20 s.
+    freshMs = VOLATILE_FRESH_MS;
+    ttl = LONG_TTL;
   } else if (REDIS_KEYS.has(key)) {
     freshMs = LONG_FRESH_MS;
     ttl = LONG_TTL;
