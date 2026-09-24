@@ -458,8 +458,12 @@ export function mapPageToProject(page: any): Project {
     photosQRCode: extractFiles(p["Photos QR Code"]),
     photosGaranties: extractFiles(p["Photos garanties"]),
     photosCartons: extractFiles(p["État des cartons réceptionnés"]),
-    photosCartonsRecus: extractFiles(p["Photos des cartons réceptionnés"]),
-    commentaireLivraison: extractText(p["Commentaire Livraison"]) || extractText(p["Commentaires Livraisons"]),
+    // Tolérant aux 2 orthographes de la colonne Notion (« récéptionnés » / « réceptionnés »).
+    photosCartonsRecus: [
+      ...extractFiles(p["Photos des cartons récéptionnés"]),
+      ...extractFiles(p["Photos des cartons réceptionnés"]),
+    ],
+    commentaireLivraison: extractText(p["Commentaires Livraisons"]) || extractText(p["Commentaires Livraison"]) || extractText(p["Commentaire Livraison"]),
     rapportDeMontage: extractSelect(p["Rapport de montage"]),
     facturations: extractStatus(p["Facturations"]),
     etatCMD: extractStatus(p["État - CMD"]),
@@ -1374,7 +1378,7 @@ export async function updateProject(
     };
   }
   if ((data as any).commentaireLivraison !== undefined) {
-    properties["Commentaire Livraison"] = {
+    properties["Commentaires Livraisons"] = {
       rich_text: toRichText((data as any).commentaireLivraison),
     };
   }
@@ -1519,7 +1523,7 @@ export async function updateProject(
     properties[propName] = { files };
   };
   writeFilesField("photosCartons", "État des cartons réceptionnés", "carton");
-  writeFilesField("photosCartonsRecus", "Photos des cartons réceptionnés", "carton-recu");
+  writeFilesField("photosCartonsRecus", "Photos des cartons récéptionnés", "carton-recu");
   writeFilesField("photosBonLivraison", "Bon de livraison", "bon-livraison");
   writeFilesField("photosAvant", "Photos avant montage", "avant");
   writeFilesField("photosDemontage", "Photos démontage", "demontage");

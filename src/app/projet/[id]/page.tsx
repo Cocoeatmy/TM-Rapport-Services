@@ -7662,7 +7662,7 @@ function ProjectPageContent({ id }: { id: string }) {
                 </CardHeader>
                 <CardContent>
                   <CartonPhotos projectId={id} initialPhotos={project.photosCartonsRecus} hideTitle
-                    notionField="Photos des cartons réceptionnés" projectKey="photosCartonsRecus"
+                    notionField="Photos des cartons récéptionnés" projectKey="photosCartonsRecus"
                     category="cartons-recus" filePrefix="carton-recu" title="Photos des cartons réceptionnés" />
                 </CardContent>
               </Card>
