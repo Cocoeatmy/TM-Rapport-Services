@@ -13,14 +13,47 @@ import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
 import { signArrivage } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
-import { timingSafeEqual } from "crypto";
+import { timingSafeEqual, createHash } from "crypto";
+import { v2 as cloudinary } from "cloudinary";
 import ReactPDF, {
   Document, Page, Text, View, Image, Link, Svg, Path, StyleSheet,
 } from "@react-pdf/renderer";
 import React from "react";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Les photos ajoutées via Notion ont une URL S3 (souvent HEIC/volumineuse) que
+// react-pdf ne sait pas afficher. On les ré-héberge sur Cloudinary (upload par
+// URL, mis en cache par public_id stable) → image JPEG visible + téléchargeable,
+// comme les autres rapports. Les images déjà Cloudinary sont laissées telles quelles.
+async function ensureCloudinary(url: string): Promise<string> {
+  if (!url || url.includes("res.cloudinary.com")) return url;
+  try {
+    const path = url.split("?")[0]; // partie stable de l'URL Notion (hors signature)
+    const hash = createHash("sha1").update(path).digest("hex").slice(0, 20);
+    const isVid = isVideoUrl(url);
+    const res = await cloudinary.uploader.upload(url, {
+      folder: "arrivage",
+      public_id: hash,
+      overwrite: false,
+      resource_type: isVid ? "video" : "image",
+    });
+    return res.secure_url || url;
+  } catch {
+    return url; // fallback : au pire on garde l'URL d'origine
+  }
+}
+async function resolveAll(files: { name?: string; url: string }[] | undefined): Promise<{ url: string }[]> {
+  const list = files || [];
+  return Promise.all(list.map(async (f) => ({ url: await ensureCloudinary(f.url) })));
+}
 
 const ACCENT = "#0891b2"; // cyan/teal — couleur propre au rapport d'arrivage
 
@@ -117,10 +150,12 @@ function ContactCell({ label, company, contacts }: { label: string; company?: st
   );
 }
 
-function ArrivagePDF({ project }: { project: Project }) {
-  const cartonsRecus = project.photosCartonsRecus || [];
-  const cartonsEtat = project.photosCartons || [];
-  const bonLivraison = project.photosBonLivraison || [];
+function ArrivagePDF({ project, cartonsRecus, cartonsEtat, bonLivraison }: {
+  project: Project;
+  cartonsRecus: { url: string }[];
+  cartonsEtat: { url: string }[];
+  bonLivraison: { url: string }[];
+}) {
   const commentaire = nfc(project.commentaireLivraison || "").trim();
   return (
     <Document>
@@ -220,7 +255,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const project = await getProject(id);
-    const stream = await ReactPDF.renderToStream(<ArrivagePDF project={project} />);
+    // Ré-héberge les photos (Notion → Cloudinary) pour un rendu fiable dans le PDF.
+    const [cartonsRecus, cartonsEtat, bonLivraison] = await Promise.all([
+      resolveAll(project.photosCartonsRecus),
+      resolveAll(project.photosCartons),
+      resolveAll(project.photosBonLivraison),
+    ]);
+    const stream = await ReactPDF.renderToStream(
+      <ArrivagePDF project={project} cartonsRecus={cartonsRecus} cartonsEtat={cartonsEtat} bonLivraison={bonLivraison} />,
+    );
     const chunks: Buffer[] = [];
     // @ts-ignore
     for await (const c of stream) chunks.push(Buffer.from(c));
