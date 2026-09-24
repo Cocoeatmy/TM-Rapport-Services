@@ -157,6 +157,7 @@ export interface ContactDetail {
 export interface Project {
   id: string;
   createdTime: string; // date de création de la page Notion (ISO), pour distinguer nouveaux/anciens projets
+  lastEditedTime: string; // dernière modif Notion (ISO) : sert à départager 2 copies (cache frais vs périmé) et éviter les allers-retours entre panneaux
   projet: string;
   ofrTM: string;
   emplacementCabine: string;
@@ -430,6 +431,7 @@ export function mapPageToProject(page: any): Project {
   return {
     id: page.id,
     createdTime: page.created_time || "",
+    lastEditedTime: page.last_edited_time || "",
     projet: extractText(p["Projet"]),
     ofrTM: extractText(p["N° OFR TM"]),
     emplacementCabine: extractMultiSelect(p["Emplacement de cabine"]).join(", "),

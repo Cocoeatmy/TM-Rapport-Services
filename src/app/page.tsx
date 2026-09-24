@@ -1462,6 +1462,11 @@ function HomePage() {
   };
   const statsLoadedRef = useRef(false);
   const statsPrefetchedRef = useRef(false);
+  // Accumulateur "version la plus récente gagne" pour le dashboard : évite qu'une
+  // copie PÉRIMÉE d'un projet (servie par une autre instance serverless) le renvoie
+  // dans l'ancien panneau (montage↔services qui clignotent). On garde, par id, la
+  // copie au last_edited_time le plus récent et on ne régresse jamais.
+  const dashTaggedRef = useRef<Map<string, any>>(new Map());
   const [cabineAttributions, setCabineAttributions] = useState<Record<string, string[]>>({});
 
   // Pré-chargement silencieux des stats au montage de la page.
@@ -2368,12 +2373,36 @@ function HomePage() {
       {mode === "dashboard" && (
         <div>
           {currentUser && (() => {
-            const tagged = [
-              ...(projectsData["cmd"] || []).map((p) => ({ ...p, _source: "montage" as const })),
-              ...(projectsData["mesures"] || []).map((p) => ({ ...p, _source: "mesures" as const })),
-              ...(projectsData["services"] || []).map((p) => ({ ...p, _source: "services" as const })),
-              ...(projectsData["sav"] || []).map((p) => ({ ...p, _source: "sav" as const })),
-            ].filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+            // Dédoublonnage "version la plus récemment MODIFIÉE gagne" (Notion
+            // last_edited_time). Une instance serverless peut servir une copie
+            // PÉRIMÉE d'un projet déplacé (ex. services→montage) ; sans ça il
+            // clignotait entre les deux panneaux. On ne remplace JAMAIS une copie
+            // par une plus ancienne. À last_edited_time égal, l'ordre (montage,
+            // mesures, services, sav) tranche → priorité montage, comme avant.
+            // Purge avec délai de grâce : un projet absent de TOUTES les listes
+            // depuis > 45 s est retiré (projets terminés/archivés), mais un "trou"
+            // transitoire (poll tombé sur une instance périmée) est toléré.
+            const map = dashTaggedRef.current;
+            const now = Date.now();
+            const GRACE_MS = 45_000;
+            const editTs = (p: any) => Date.parse(p?.lastEditedTime || "") || 0;
+            const seen = new Set<string>();
+            const consider = (list: Project[] | undefined, source: "montage" | "mesures" | "services" | "sav") => {
+              for (const p of list || []) {
+                seen.add(p.id);
+                const cur = map.get(p.id);
+                if (!cur || editTs(p) > editTs(cur)) map.set(p.id, { ...p, _source: source, _seen: now });
+                else cur._seen = now; // copie plus ancienne : on garde, mais vue à l'instant
+              }
+            };
+            consider(projectsData["cmd"], "montage");
+            consider(projectsData["mesures"], "mesures");
+            consider(projectsData["services"], "services");
+            consider(projectsData["sav"], "sav");
+            for (const [id, v] of map) {
+              if (!seen.has(id) && now - (v._seen || 0) > GRACE_MS) map.delete(id);
+            }
+            const tagged = [...map.values()].map((v) => { const r = { ...v }; delete r._seen; return r; });
             return (
               <MonteurDashboard
                 userName={currentUser.name}
