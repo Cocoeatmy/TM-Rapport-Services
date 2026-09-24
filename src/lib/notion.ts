@@ -170,7 +170,9 @@ export interface Project {
   photosMontage: FileItem[];
   photosQRCode: FileItem[];
   photosGaranties: FileItem[];
-  photosCartons: FileItem[];
+  photosCartons: FileItem[];            // « État des cartons réceptionnés » = photos des DÉGÂTS
+  photosCartonsRecus: FileItem[];       // « Photos des cartons réceptionnés » = TOUS les cartons reçus
+  commentaireLivraison: string;         // « Commentaire Livraison » (texte)
   rapportDeMontage: string;
   facturations: string;
   etatCMD: string;
@@ -456,6 +458,8 @@ export function mapPageToProject(page: any): Project {
     photosQRCode: extractFiles(p["Photos QR Code"]),
     photosGaranties: extractFiles(p["Photos garanties"]),
     photosCartons: extractFiles(p["État des cartons réceptionnés"]),
+    photosCartonsRecus: extractFiles(p["Photos des cartons réceptionnés"]),
+    commentaireLivraison: extractText(p["Commentaire Livraison"]) || extractText(p["Commentaires Livraisons"]),
     rapportDeMontage: extractSelect(p["Rapport de montage"]),
     facturations: extractStatus(p["Facturations"]),
     etatCMD: extractStatus(p["État - CMD"]),
@@ -1369,6 +1373,11 @@ export async function updateProject(
       rich_text: toRichText((data as any).diversInfosChantier),
     };
   }
+  if ((data as any).commentaireLivraison !== undefined) {
+    properties["Commentaire Livraison"] = {
+      rich_text: toRichText((data as any).commentaireLivraison),
+    };
+  }
   if ((data as any).journalEchanges !== undefined) {
     properties["Journal des échanges"] = {
       rich_text: toRichText((data as any).journalEchanges),
@@ -1510,6 +1519,7 @@ export async function updateProject(
     properties[propName] = { files };
   };
   writeFilesField("photosCartons", "État des cartons réceptionnés", "carton");
+  writeFilesField("photosCartonsRecus", "Photos des cartons réceptionnés", "carton-recu");
   writeFilesField("photosBonLivraison", "Bon de livraison", "bon-livraison");
   writeFilesField("photosAvant", "Photos avant montage", "avant");
   writeFilesField("photosDemontage", "Photos démontage", "demontage");

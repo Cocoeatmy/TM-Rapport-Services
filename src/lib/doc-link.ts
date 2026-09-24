@@ -71,3 +71,8 @@ export function signPhotosZip(projectId: string, field: string): string {
 export function signMesure(projectId: string, cab: number): string {
   return createHmac("sha256", SECRET).update(`mesure|${projectId}|cab${cab}`).digest("hex").slice(0, 32);
 }
+
+/** Signature HMAC d'un projet pour le rapport d'arrivage (lien public). */
+export function signArrivage(projectId: string): string {
+  return createHmac("sha256", SECRET).update(`arrivage|${projectId}`).digest("hex").slice(0, 32);
+}

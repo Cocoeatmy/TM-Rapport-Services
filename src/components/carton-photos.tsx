@@ -13,6 +13,13 @@ interface CartonPhotosProps {
   projectId: string;
   initialPhotos?: { name: string; url: string }[];
   hideTitle?: boolean;
+  /** Propriété Notion (Fichiers) cible + clé du champ projet + libellés.
+   *  Défaut = « État des cartons réceptionnés » (photos des dégâts). */
+  notionField?: string;
+  projectKey?: string;
+  category?: string;
+  filePrefix?: string;
+  title?: string;
 }
 
 /** Déduplique tout en préservant l'ordre. Sert de filet de sécurité au
@@ -28,12 +35,19 @@ function dedupOrdered(urls: string[]): string[] {
   return out;
 }
 
-export function CartonPhotos({ projectId, initialPhotos, hideTitle }: CartonPhotosProps) {
+export function CartonPhotos({
+  projectId, initialPhotos, hideTitle,
+  notionField = "État des cartons réceptionnés",
+  projectKey = "photosCartons",
+  category = "cartons",
+  filePrefix = "carton",
+  title = "État des cartons réceptionnés",
+}: CartonPhotosProps) {
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   // Uploads de cartons en attente dans l'IDB (offline ou échec).
   const pendingCartons = usePendingUploads(projectId).filter(
-    (p) => p.category === "cartons",
+    (p) => p.category === category,
   );
   const [loaded, setLoaded] = useState(false);
   // Garde synchrone contre les multi-déclenchements de onChange (bug
@@ -73,7 +87,7 @@ export function CartonPhotos({ projectId, initialPhotos, hideTitle }: CartonPhot
   useEffect(() => {
     if (!loaded) return;
     try {
-      localStorage.setItem(`carton-photos-${projectId}`, JSON.stringify(photos));
+      localStorage.setItem(`carton-photos-${projectKey}-${projectId}`, JSON.stringify(photos));
     } catch {}
   }, [photos, projectId, loaded]);
 
@@ -83,7 +97,7 @@ export function CartonPhotos({ projectId, initialPhotos, hideTitle }: CartonPhot
       await offlineFetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photosCartons: allUrls }),
+        body: JSON.stringify({ [projectKey]: allUrls }),
       });
     } catch {}
   };
@@ -107,7 +121,7 @@ export function CartonPhotos({ projectId, initialPhotos, hideTitle }: CartonPhot
     const baseCount = photos.length;
     const renamed: File[] = originals.map((file, i) => {
       const ext = file.name.split(".").pop() || "jpg";
-      return new File([file], `carton-${baseCount + i + 1}.${ext}`, { type: file.type });
+      return new File([file], `${filePrefix}-${baseCount + i + 1}.${ext}`, { type: file.type });
     });
 
     // Helper : queue dans IDB pour upload différé. Le notionField
@@ -117,8 +131,8 @@ export function CartonPhotos({ projectId, initialPhotos, hideTitle }: CartonPhot
       try {
         await addPendingUpload({
           projectId,
-          category: "cartons",
-          notionField: "État des cartons réceptionnés",
+          category,
+          notionField,
           files: renamed.map((f) => ({ name: f.name, type: f.type, blob: f })),
         });
         toast.info("Photos en attente — envoi auto au retour du réseau", { duration: 3500 });
@@ -138,9 +152,9 @@ export function CartonPhotos({ projectId, initialPhotos, hideTitle }: CartonPhot
       // on retombe sur l'IDB pour rejouer plus tard.
       const formData = new FormData();
       for (const f of renamed) formData.append("files", f);
-      formData.append("category", "cartons");
+      formData.append("category", category);
       formData.append("projectId", projectId);
-      formData.append("notionField", "État des cartons réceptionnés");
+      formData.append("notionField", notionField);
 
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       if (!res.ok) {
@@ -181,7 +195,7 @@ export function CartonPhotos({ projectId, initialPhotos, hideTitle }: CartonPhot
       {!hideTitle && (
         <label className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2 mb-2">
           <Package className="w-4 h-4" />
-          État des cartons réceptionnés
+          {title}
         </label>
       )}
 

@@ -3861,6 +3861,8 @@ function ProjectPageContent({ id }: { id: string }) {
   const [copyingSavCabLink, setCopyingSavCabLink] = useState<number | null>(null);
   const [downloadingSynthese, setDownloadingSynthese] = useState(false);
   const [copyingSyntheseLink, setCopyingSyntheseLink] = useState(false);
+  const [downloadingArrivage, setDownloadingArrivage] = useState(false);
+  const [copyingArrivageLink, setCopyingArrivageLink] = useState(false);
   // Aperçu CRM (clic sur un nom d'« Informations contact »).
   const [contactPreview, setContactPreview] = useState<{ id: string; name: string; phone?: string; email?: string } | null>(null);
   const [savRowBusy, setSavRowBusy] = useState("");
@@ -6132,6 +6134,40 @@ function ProjectPageContent({ id }: { id: string }) {
       toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
     } finally { setCopyingSyntheseLink(false); }
   };
+  const handleDownloadArrivage = async () => {
+    setDownloadingArrivage(true);
+    try {
+      const res = await fetch(`/api/arrivage/${id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      let filename = "Rapport arrivage.pdf";
+      const cd = res.headers.get("Content-Disposition");
+      const m = cd?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      if (m?.[1]) filename = decodeURIComponent(m[1]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error("Téléchargement Rapport d'arrivage échoué:", e);
+      toast.error("Impossible de générer le rapport d'arrivage.");
+    } finally { setDownloadingArrivage(false); }
+  };
+  const handleCopyArrivageLink = async () => {
+    setCopyingArrivageLink(true);
+    try {
+      const res = await fetch(`/api/arrivage/${id}?link=1`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data?.url) throw new Error("no url");
+      await navigator.clipboard.writeText(data.url);
+      toast.success("Lien du rapport d'arrivage copié");
+    } catch (e) {
+      console.error("Lien Rapport d'arrivage échoué:", e);
+      toast.error("Impossible de créer le lien (SHARE_LINK_KEY manquant ?)");
+    } finally { setCopyingArrivageLink(false); }
+  };
   const handleDownloadPhotos = async () => {
     setDownloadingPhotos(true);
     try {
@@ -7197,7 +7233,26 @@ function ProjectPageContent({ id }: { id: string }) {
               <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations cabines</CardTitle>
               {/* Rapport de suivi du chantier : vue d'ensemble de tous les lots
                   (état colorié + rapport + SAV). PDF + lien public signé. */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Rapport d'arrivage : dates d'arrivage, photos cartons + état + commentaire. */}
+                <button
+                  type="button"
+                  disabled={downloadingArrivage}
+                  onClick={handleDownloadArrivage}
+                  className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-cyan-600 hover:bg-cyan-700 text-white active:scale-95 transition-all disabled:opacity-60"
+                >
+                  {downloadingArrivage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />}
+                  Rapport d&apos;arrivage
+                </button>
+                <button
+                  type="button"
+                  disabled={copyingArrivageLink}
+                  onClick={handleCopyArrivageLink}
+                  className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold border border-cyan-600 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-950/40 active:scale-95 transition-all disabled:opacity-60"
+                >
+                  {copyingArrivageLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                  Copier le lien
+                </button>
                 <button
                   type="button"
                   disabled={downloadingSynthese}
@@ -7590,14 +7645,55 @@ function ProjectPageContent({ id }: { id: string }) {
                 </CardContent>
               </Card>
             )}
-            {/* État des cartons réceptionnés — onglet Cabines */}
+            {/* Photos des cartons réceptionnés (TOUS les cartons reçus) — onglet Cabines */}
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
+              <Card className={macHidden("cabines") ? "!hidden" : ""}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Photos des cartons réceptionnés</CardTitle>
+                  <p className="text-[11px] text-gray-400 mt-0.5 pl-3">Tous les cartons reçus (avec ou sans dégât).</p>
+                </CardHeader>
+                <CardContent>
+                  <CartonPhotos projectId={id} initialPhotos={project.photosCartonsRecus} hideTitle
+                    notionField="Photos des cartons réceptionnés" projectKey="photosCartonsRecus"
+                    category="cartons-recus" filePrefix="carton-recu" title="Photos des cartons réceptionnés" />
+                </CardContent>
+              </Card>
+            )}
+            {/* État des cartons réceptionnés (DÉGÂTS à photographier) — onglet Cabines */}
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <Card className={macHidden("cabines") ? "!hidden" : ""}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />État des cartons réceptionnés</CardTitle>
+                  <p className="text-[11px] text-gray-400 mt-0.5 pl-3">Photos des cartons abîmés / dégâts constatés.</p>
                 </CardHeader>
                 <CardContent>
                   <CartonPhotos projectId={id} initialPhotos={project.photosCartons} hideTitle />
+                </CardContent>
+              </Card>
+            )}
+            {/* Livraison : Arrivage Dépôt TM + Commentaire Livraison — onglet Cabines */}
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
+              <Card className={macHidden("cabines") ? "!hidden" : ""}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Livraison</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <ExtraDateField
+                    label="Date d'arrivage Dépôt TM"
+                    value={project.arrivageTM}
+                    projectId={id}
+                    fieldName="arrivageTM"
+                    onUpdate={(v) => setProject((prev) => prev ? { ...prev, arrivageTM: v } : prev)}
+                  />
+                  <EditableTextField
+                    label="Commentaire Livraison"
+                    value={project.commentaireLivraison}
+                    projectId={id}
+                    fieldName="commentaireLivraison"
+                    notionField="Commentaire Livraison"
+                    multiline
+                    onUpdate={(v) => setProject((prev) => prev ? { ...prev, commentaireLivraison: v } : prev)}
+                  />
                 </CardContent>
               </Card>
             )}
