@@ -134,6 +134,7 @@ export interface ContactDetail {
   name: string;
   email: string;
   phone: string;
+  address?: string;
 }
 
 export interface Project {
@@ -760,7 +761,7 @@ async function resolveContactDetails(ids: string[]): Promise<Record<string, Cont
     try {
       const page = await notionRetrieveWithRetry(id);
       const props: Record<string, any> = page.properties || {};
-      let name = "", email = "", phone = "", prenom = "", nom = "";
+      let name = "", email = "", phone = "", prenom = "", nom = "", address = "";
       // Reconnaissance par la FORME de la valeur (dernier recours, si le nom de
       // colonne n'indique pas mail/tél). Un e-mail contient « @ » ; un numéro
       // ne contient que chiffres/espaces/+/()/-/. et au moins 6 chiffres.
@@ -768,11 +769,13 @@ async function resolveContactDetails(ids: string[]): Promise<Record<string, Cont
       const looksPhone = (v: string) => /^[+(]?[\d][\d\s().\/-]{5,}$/.test(v.trim()) && (v.replace(/\D/g, "").length >= 6);
       const keyIsPhone = (k: string) => /t[ée]l|phone|natel|mobile|portable|gsm/i.test(k);
       const keyIsEmail = (k: string) => /mail|courriel|e-?mail/i.test(k);
+      const keyIsAddress = (k: string) => /adresse|address/i.test(k);
       // Applique une valeur libre au bon champ (par nom de colonne, sinon forme).
       const applyFreeValue = (key: string, val: string) => {
         if (!val) return;
         if (/pr[ée]nom/i.test(key)) { if (!prenom) prenom = val; return; }
         if (/^nom/i.test(key)) { if (!nom) nom = val; return; }
+        if (!address && keyIsAddress(key)) { address = val; return; }
         if (!phone && keyIsPhone(key)) { phone = val; return; }
         if (!email && keyIsEmail(key)) { email = val; return; }
         if (!email && looksEmail(val)) { email = val; return; }
@@ -787,11 +790,12 @@ async function resolveContactDetails(ids: string[]): Promise<Record<string, Cont
         else if (pr.type === "url") applyFreeValue(key, (pr.url || "").replace(/^mailto:/i, "").replace(/^tel:/i, "").trim());
         else if (pr.type === "rich_text") applyFreeValue(key, (pr.rich_text || []).map((t: any) => t.plain_text).join("").trim());
         else if (pr.type === "formula" && pr.formula?.type === "string") applyFreeValue(key, (pr.formula.string || "").trim());
+        else if (pr.type === "select" && !address && keyIsAddress(key)) address = pr.select?.name || "";
       }
       const composed = [prenom, nom].filter(Boolean).join(" ").trim();
-      out[id] = { id, name: name || composed || "", email, phone };
+      out[id] = { id, name: name || composed || "", email, phone, address };
     } catch {
-      out[id] = { id, name: "", email: "", phone: "" };
+      out[id] = { id, name: "", email: "", phone: "", address: "" };
     }
   }));
   return out;
@@ -1071,7 +1075,7 @@ export async function getProject(pageId: string): Promise<Project> {
     project.dtNames = project.dtRelation.map((id) => names[id] || id);
     project.architecteNames = project.architecteRelation.map((id) => names[id] || id);
   }
-  const toDetails = (relIds: string[]) => relIds.map((id) => contacts[id]).filter((c): c is ContactDetail => !!c && (!!c.name || !!c.email || !!c.phone));
+  const toDetails = (relIds: string[]) => relIds.map((id) => contacts[id]).filter((c): c is ContactDetail => !!c && (!!c.name || !!c.email || !!c.phone || !!c.address));
   project.contactsGrossisteDetails = toDetails(project.contactsProjetRelation);
   project.contactsSanitaireDetails = toDetails(project.contactsSanitaireRelation);
   project.contactsDTDetails = toDetails(project.contactsDTRelation);

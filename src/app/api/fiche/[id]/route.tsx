@@ -284,6 +284,7 @@ function ContactCell({ label, company, contacts, width }: { label: string; compa
           {c.name ? <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(c.name)}</Text> : null}
           {c.email ? <Link src={`mailto:${c.email.trim()}`} style={{ fontSize: 8, color: "#1e3a5f", textDecoration: "none" }}>{c.email}</Link> : null}
           {c.phone ? <Link src={`tel:${c.phone.replace(/[^\d+]/g, "")}`} style={{ fontSize: 8, color: "#1e3a5f", textDecoration: "none" }}>{c.phone}</Link> : null}
+          {c.address ? <Text style={{ fontSize: 8, color: "#555" }}>{nfc(c.address)}</Text> : null}
         </View>
       ))}
     </View>

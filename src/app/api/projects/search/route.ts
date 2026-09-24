@@ -19,23 +19,42 @@ export const dynamic = "force-dynamic";
 // IMPORTANT : les noms doivent correspondre EXACTEMENT aux propriétés Notion
 // (un seul nom faux → 400 sur TOUTE la requête → recherche serveur muette).
 // Vérifiés contre mapPageToProject (src/lib/notion.ts).
+// NB : « Contacts projet » est une RELATION (pas rich_text) → l'inclure en
+// rich_text faisait planter TOUTE la requête (400) → repli minimal (titre + OFR),
+// donc les n° de commande n'étaient jamais cherchés. On ne met QUE des champs
+// texte/titre ici. Les n° Fournisseurs/Services sont désormais couverts.
 const SEARCH_FILTERS = (q: string) => ({
   or: [
     { property: "Projet", title: { contains: q } },
     { property: "N° OFR TM", rich_text: { contains: q } },
     { property: "N° OFR Grossiste", rich_text: { contains: q } },
+    { property: "N° OFR Fournisseurs", rich_text: { contains: q } },
     { property: "Nom chantier", rich_text: { contains: q } },
     { property: "N° CMD TM", rich_text: { contains: q } },
     { property: "N° CMD TM - Usine", rich_text: { contains: q } },
     { property: "N° CMD Grossiste", rich_text: { contains: q } },
     { property: "n° CMD Fournisseurs", rich_text: { contains: q } },
-    { property: "Contacts projet", rich_text: { contains: q } },
+    { property: "N° Serv. CMD Fournisseurs", rich_text: { contains: q } },
+    { property: "N° Serv. Mesures Fournisseurs", rich_text: { contains: q } },
   ],
 });
 
-// Filtre minimal GARANTI (repli) : uniquement le titre + le n° TM. Sert si le
-// filtre complet échoue (propriété renommée côté Notion) → la recherche par
-// n° de projet et par nom continue TOUJOURS de fonctionner.
+// Repli intermédiaire : les champs texte les plus utilisés (n° de commande
+// inclus). Sert si le filtre complet échoue à cause d'un champ mal typé/renommé,
+// tout en gardant la recherche par n° CMD (Fournisseurs, TM, Grossiste…).
+const CORE_FILTERS = (q: string) => ({
+  or: [
+    { property: "Projet", title: { contains: q } },
+    { property: "N° OFR TM", rich_text: { contains: q } },
+    { property: "Nom chantier", rich_text: { contains: q } },
+    { property: "N° CMD TM", rich_text: { contains: q } },
+    { property: "N° CMD Grossiste", rich_text: { contains: q } },
+    { property: "n° CMD Fournisseurs", rich_text: { contains: q } },
+  ],
+});
+
+// Filtre minimal GARANTI (dernier repli) : titre + n° TM. La recherche par n° de
+// projet et par nom continue TOUJOURS de fonctionner.
 const SAFE_FILTERS = (q: string) => ({
   or: [
     { property: "Projet", title: { contains: q } },
@@ -47,8 +66,13 @@ async function queryWithFallback(q: string) {
   try {
     return await runQuery(SEARCH_FILTERS(q));
   } catch (e) {
-    console.warn("[search] filtre complet KO, repli minimal:", (e as any)?.message);
-    return await runQuery(SAFE_FILTERS(q));
+    console.warn("[search] filtre complet KO, repli intermédiaire:", (e as any)?.message);
+    try {
+      return await runQuery(CORE_FILTERS(q));
+    } catch (e2) {
+      console.warn("[search] filtre intermédiaire KO, repli minimal:", (e2 as any)?.message);
+      return await runQuery(SAFE_FILTERS(q));
+    }
   }
 }
 

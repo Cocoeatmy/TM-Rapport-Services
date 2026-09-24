@@ -167,6 +167,7 @@ function ContactCell({ label, company, contacts }: { label: string; company?: st
           {c.name ? <Text style={{ fontSize: 8.5, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(c.name)}</Text> : null}
           {c.email ? <Text style={{ fontSize: 7.5, color: "#555" }}>{c.email}</Text> : null}
           {c.phone ? <Text style={{ fontSize: 7.5, color: "#555" }}>{c.phone}</Text> : null}
+          {c.address ? <Text style={{ fontSize: 7.5, color: "#555" }}>{nfc(c.address)}</Text> : null}
         </View>
       ))}
     </View>
