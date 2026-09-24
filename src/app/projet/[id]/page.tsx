@@ -7253,24 +7253,6 @@ function ProjectPageContent({ id }: { id: string }) {
                   {copyingArrivageLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
                   Copier le lien
                 </button>
-                <button
-                  type="button"
-                  disabled={downloadingSynthese}
-                  onClick={handleDownloadSynthese}
-                  className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold bg-[#1e3a5f] hover:bg-[#16304f] text-white active:scale-95 transition-all disabled:opacity-60"
-                >
-                  {downloadingSynthese ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
-                  Rapport de suivi (PDF)
-                </button>
-                <button
-                  type="button"
-                  disabled={copyingSyntheseLink}
-                  onClick={handleCopySyntheseLink}
-                  className="shrink-0 h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-semibold border border-[#1e3a5f] text-[#1e3a5f] dark:text-blue-300 dark:border-blue-300 hover:bg-[#1e3a5f]/5 active:scale-95 transition-all disabled:opacity-60"
-                >
-                  {copyingSyntheseLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
-                  Copier le lien
-                </button>
               </div>
             </div>
           </CardHeader>
@@ -7645,32 +7627,6 @@ function ProjectPageContent({ id }: { id: string }) {
                 </CardContent>
               </Card>
             )}
-            {/* Photos des cartons réceptionnés (TOUS les cartons reçus) — onglet Cabines */}
-            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
-              <Card className={macHidden("cabines") ? "!hidden" : ""}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Photos des cartons réceptionnés</CardTitle>
-                  <p className="text-[11px] text-gray-400 mt-0.5 pl-3">Tous les cartons reçus (avec ou sans dégât).</p>
-                </CardHeader>
-                <CardContent>
-                  <CartonPhotos projectId={id} initialPhotos={project.photosCartonsRecus} hideTitle
-                    notionField="Photos des cartons réceptionnés" projectKey="photosCartonsRecus"
-                    category="cartons-recus" filePrefix="carton-recu" title="Photos des cartons réceptionnés" />
-                </CardContent>
-              </Card>
-            )}
-            {/* État des cartons réceptionnés (DÉGÂTS à photographier) — onglet Cabines */}
-            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
-              <Card className={macHidden("cabines") ? "!hidden" : ""}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />État des cartons réceptionnés</CardTitle>
-                  <p className="text-[11px] text-gray-400 mt-0.5 pl-3">Photos des cartons abîmés / dégâts constatés.</p>
-                </CardHeader>
-                <CardContent>
-                  <CartonPhotos projectId={id} initialPhotos={project.photosCartons} hideTitle />
-                </CardContent>
-              </Card>
-            )}
             {/* Livraison : Arrivage Dépôt TM + Commentaire Livraison — onglet Cabines */}
             {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
               <Card className={macHidden("cabines") ? "!hidden" : ""}>
@@ -7694,6 +7650,32 @@ function ProjectPageContent({ id }: { id: string }) {
                     multiline
                     onUpdate={(v) => setProject((prev) => prev ? { ...prev, commentaireLivraison: v } : prev)}
                   />
+                </CardContent>
+              </Card>
+            )}
+            {/* Photos des cartons réceptionnés (TOUS les cartons reçus) — onglet Cabines */}
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
+              <Card className={macHidden("cabines") ? "!hidden" : ""}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Photos des cartons réceptionnés</CardTitle>
+                  <p className="text-[11px] text-gray-400 mt-0.5 pl-3">Tous les cartons reçus (avec ou sans dégât).</p>
+                </CardHeader>
+                <CardContent>
+                  <CartonPhotos projectId={id} initialPhotos={project.photosCartonsRecus} hideTitle
+                    notionField="Photos des cartons réceptionnés" projectKey="photosCartonsRecus"
+                    category="cartons-recus" filePrefix="carton-recu" title="Photos des cartons réceptionnés" />
+                </CardContent>
+              </Card>
+            )}
+            {/* État des cartons réceptionnés (DÉGÂTS à photographier) — onglet Cabines */}
+            {(!["mesures", "mesures-termine", "services", "services-termine", "sav", "sav-termine"].includes(mode)) && (
+              <Card className={macHidden("cabines") ? "!hidden" : ""}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />État des cartons réceptionnés</CardTitle>
+                  <p className="text-[11px] text-gray-400 mt-0.5 pl-3">Photos des cartons abîmés / dégâts constatés.</p>
+                </CardHeader>
+                <CardContent>
+                  <CartonPhotos projectId={id} initialPhotos={project.photosCartons} hideTitle />
                 </CardContent>
               </Card>
             )}
