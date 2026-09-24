@@ -5130,6 +5130,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   const savCabTotal = panelProjects.reduce((s, p) => s + savOpenCabCount(p), 0);
                   return <span className="ml-2 normal-case text-rose-600 dark:text-rose-400">· {savCabTotal} cabine{savCabTotal > 1 ? "s" : ""} SAV en cours</span>;
                 })()}
+                {showSummaryPanel === "rdv-montage-a-fixer" && (() => {
+                  // Cabines RESTANT à poser = total − déjà installées (jamais négatif).
+                  const cabAPoser = panelProjects.reduce(
+                    (s, p) => s + Math.max((p.nbCabines || 0) - Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0),
+                    0,
+                  );
+                  return <span className="ml-2 normal-case text-blue-600 dark:text-blue-400">· {cabAPoser} cabine{cabAPoser > 1 ? "s" : ""} à poser</span>;
+                })()}
               </p>
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 {/* Recherche LOCALE : filtre uniquement les projets du panneau
