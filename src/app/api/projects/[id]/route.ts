@@ -315,6 +315,8 @@ export async function PATCH(
       body.commentairesSav !== undefined ||
       body.causeSavCabines !== undefined ||
       body.datesRdvSavCabines !== undefined ||
+      body.heureArriveeSav !== undefined ||
+      body.heureDepartSav !== undefined ||
       body.collaborateursSavCabines !== undefined ||
       body.datesSavClotureCabines !== undefined ||
       body.dateSAVRecu !== undefined ||
@@ -381,6 +383,15 @@ export async function PATCH(
         }
         if (body.datesRdvSavCabines !== undefined && String(body.datesRdvSavCabines).includes("Cab")) {
           body.datesRdvSavCabines = mergeCabineSousTraitance(existing.datesRdvSavCabines || "", body.datesRdvSavCabines);
+        }
+        // Heures SAV par cabine (multi-cabine) : merge « CabN:HH:MM » pour ne pas
+        // écraser les autres cabines. Mono (valeur simple « HH:MM » sans « Cab »)
+        // et multi-jours (format daté sans « Cab ») → écriture directe.
+        if (body.heureArriveeSav !== undefined && String(body.heureArriveeSav).includes("Cab")) {
+          body.heureArriveeSav = mergeCabineSousTraitance(existing.heureArriveeSav || "", body.heureArriveeSav);
+        }
+        if (body.heureDepartSav !== undefined && String(body.heureDepartSav).includes("Cab")) {
+          body.heureDepartSav = mergeCabineSousTraitance(existing.heureDepartSav || "", body.heureDepartSav);
         }
         if (body.collaborateursSavCabines !== undefined && String(body.collaborateursSavCabines).includes("Cab")) {
           body.collaborateursSavCabines = mergeCabineSousTraitance(existing.collaborateursSavCabines || "", body.collaborateursSavCabines);

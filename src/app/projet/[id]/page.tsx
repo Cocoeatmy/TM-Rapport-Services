@@ -9900,15 +9900,49 @@ function ProjectPageContent({ id }: { id: string }) {
                                     {causeSavOptions.map((o) => <option key={o} value={o} />)}
                                   </datalist>
                                 </div>
-                                <div>
-                                  <Label>Date d&apos;intervention SAV</Label>
-                                  <input
-                                    type="date"
-                                    value={(parseCabineTextMulti(project?.datesRdvSavCabines || "")[idx + 1] || "").slice(0, 10)}
-                                    onChange={(e) => { saveCabineText("datesRdvSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-                                    className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto"
-                                  />
-                                </div>
+                                {(() => {
+                                  const savToday = new Date().toISOString().slice(0, 10);
+                                  const savDate = (parseCabineTextMulti(project?.datesRdvSavCabines || "")[idx + 1] || "").slice(0, 10);
+                                  const arr = parseCabineTextMulti(project?.heureArriveeSav || "")[idx + 1] || "";
+                                  const dep = parseCabineTextMulti(project?.heureDepartSav || "")[idx + 1] || "";
+                                  const ensureSavDate = () => { if (!savDate) saveCabineText("datesRdvSavCabines", idx, savToday); };
+                                  return (
+                                    <div className="grid grid-cols-3 gap-2">
+                                      <div>
+                                        <Label>Date d&apos;intervention SAV</Label>
+                                        <input
+                                          type="date"
+                                          value={savDate || savToday}
+                                          onChange={(e) => { saveCabineText("datesRdvSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+                                          className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label>Heure d&apos;arrivée</Label>
+                                        <input
+                                          type="time"
+                                          value={arr}
+                                          onChange={(e) => { saveCabineText("heureArriveeSav", idx, e.target.value); ensureSavDate(); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+                                          className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label>Heure de départ</Label>
+                                        <input
+                                          type="time"
+                                          value={dep}
+                                          min={arr || undefined}
+                                          onChange={(e) => {
+                                            const v = e.target.value;
+                                            if (v && arr && v < arr) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
+                                            saveCabineText("heureDepartSav", idx, v); ensureSavDate(); if (v && !project?.sav) saveProjectField({ sav: true });
+                                          }}
+                                          className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                                        />
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
                                 <div>
                                   <Label>Collaborateur(s) SAV</Label>
                                   <div className="mt-1 flex flex-wrap gap-1.5">
