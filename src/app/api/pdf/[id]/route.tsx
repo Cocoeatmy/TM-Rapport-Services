@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProject, type Project } from "@/lib/notion";
+import { getProject, fournisseursForDisplay, type Project } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { sendPdfByEmail } from "@/lib/email";
 import { sendReportToTelegram } from "@/lib/telegram";
@@ -751,13 +751,13 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
             <Text style={styles.label}>Collaborateurs</Text>
             <Text style={styles.value}>{project.collaborateurs || "---"}</Text>
           </View>
-          {(project.fournisseurs?.length > 0 || project.seriesCabines?.length > 0) && (
+          {(fournisseursForDisplay(project.fournisseurs).length > 0 || project.seriesCabines?.length > 0) && (
             <View style={{ paddingVertical: 3 }}>
-              {project.fournisseurs?.length > 0 && (
+              {fournisseursForDisplay(project.fournisseurs).length > 0 && (
                 <View>
                   <Text style={styles.label}>Fournisseurs</Text>
                   <View style={styles.badgesRow}>
-                    {project.fournisseurs.map((f: string) => (
+                    {fournisseursForDisplay(project.fournisseurs).map((f: string) => (
                       <Text key={f} style={styles.badge}>{f}</Text>
                     ))}
                   </View>
