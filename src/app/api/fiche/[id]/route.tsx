@@ -8,7 +8,7 @@
  * OU cookie d'authentification valide. Le lien signé sert aux calendriers.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getProject, type Project, type ContactDetail } from "@/lib/notion";
+import { getProject, fournisseursForDisplay, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
 import { signFiche, signPhotosZip, signSav, signSynthese, signSignalements, signMesure } from "@/lib/doc-link";
@@ -522,7 +522,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
           <Text style={styles.sectionTitle}>Général</Text>
           <View style={{ flexDirection: "row" }}>
             <Cell label="Nb. cabines" value={joinVal(project.nbCabines)} width="33%" />
-            <Cell label="Fournisseurs" value={joinVal(project.fournisseurs)} width="34%" />
+            <Cell label="Fournisseurs" value={joinVal(fournisseursForDisplay(project.fournisseurs))} width="34%" />
             <Cell label="Séries cabines" value={joinVal(project.seriesCabines)} width="33%" />
           </View>
           <View style={{ flexDirection: "row" }}>

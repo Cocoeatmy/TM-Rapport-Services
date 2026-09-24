@@ -128,6 +128,23 @@ export function invalidateSchemaCache() { schemaCache = null; rawPropsCache = nu
 // est gérée au niveau des routes API via `@/lib/server-cache`. Cela garantit
 // une seule source de vérité et une invalidation cohérente après PATCH/POST.
 
+/**
+ * Fournisseurs à AFFICHER sur les rapports / calendrier.
+ * Règle métier : si « TM Douche » fait partie des fournisseurs, c'est le
+ * fournisseur (montage interne) → on n'affiche QUE « TM Douche », rien d'autre.
+ * N'affecte QUE l'affichage : la donnée source (filtre vue Fournisseurs) reste
+ * intacte.
+ */
+export function fournisseursForDisplay(list: string[] | undefined | null): string[] {
+  const arr = Array.isArray(list) ? list : [];
+  const hasTmDouche = arr.some((f) => /tm\s*douche/i.test((f || "").trim()));
+  if (hasTmDouche) {
+    const tm = arr.find((f) => /tm\s*douche/i.test((f || "").trim()));
+    return [tm || "TM Douche"];
+  }
+  return arr;
+}
+
 /** Coordonnées d'un contact (page de la base Contacts). */
 export interface ContactDetail {
   id: string;

@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { notion, databaseId, mapPageToProject } from "@/lib/notion";
+import { notion, databaseId, mapPageToProject, fournisseursForDisplay } from "@/lib/notion";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     const notesLines: string[] = [];
     const add = (label: string, val?: string) => { if (val && val.trim()) notesLines.push(`${label} : ${val.trim()}`); };
     const joinArr = (a?: string[]) => (a || []).filter(Boolean).join(", ");
-    const fournisseurs = joinArr(project.fournisseurs);
+    const fournisseurs = joinArr(fournisseursForDisplay(project.fournisseurs));
     const series = joinArr(project.seriesCabines);
     if (type === "montage") {
       add("Nb. cabines", nb);

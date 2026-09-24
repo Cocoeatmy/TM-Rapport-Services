@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
@@ -76,6 +77,10 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
   const [form, setForm] = useState<Project>({ ...project });
   const [saving, setSaving] = useState(false);
   const [emplacementOptions, setEmplacementOptions] = useState<string[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  // Le portail vers document.body n'existe pas au SSR
+  useEffect(() => setMounted(true), []);
 
   // Charge les options depuis Notion au premier affichage
   useEffect(() => {
@@ -89,7 +94,7 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
       .catch(() => {});
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const set = <K extends keyof Project>(field: K, value: Project[K]) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -141,8 +146,8 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex justify-end h-dvh">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -150,7 +155,7 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
       />
 
       {/* Panel */}
-      <div className="relative flex flex-col w-full max-w-lg bg-white dark:bg-gray-900 h-full overflow-hidden shadow-2xl">
+      <div className="relative flex flex-col w-full max-w-lg bg-white dark:bg-gray-900 h-dvh max-h-dvh overflow-hidden shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div>
@@ -394,6 +399,7 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
