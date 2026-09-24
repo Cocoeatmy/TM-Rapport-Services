@@ -5711,6 +5711,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 {rdvJ && (
                                   <span className="flex items-center gap-1">
                                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${rdvJ.bgClass} ${rdvJ.colorClass}`}>J+{rdvJ.days}</span>
+                                    {showSummaryPanel === "rdv-montage-a-fixer" && p.nbCollaborateursMontage && (
+                                      <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 whitespace-nowrap" title="Nb. collaborateurs montage">{p.nbCollaborateursMontage} pers.</span>
+                                    )}
                                     {isMontagePanel && cabInstalled > 0 && (
                                       <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${cabRemaining > 0 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"}`}>
                                         {cabRemaining > 0 ? `${cabRemaining} à poser` : "✓ posé"}
@@ -5743,6 +5746,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 )}
                                 <span className="ml-auto flex items-center gap-2 shrink-0">
                                   {rdvJ && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${rdvJ.bgClass} ${rdvJ.colorClass}`}>J+{rdvJ.days}</span>}
+                                  {showSummaryPanel === "rdv-montage-a-fixer" && p.nbCollaborateursMontage && (
+                                    <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 whitespace-nowrap" title="Nb. collaborateurs montage">{p.nbCollaborateursMontage} pers.</span>
+                                  )}
                                   {isMontagePanel && cabInstalled > 0 && (
                                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${cabRemaining > 0 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"}`}>
                                       {cabRemaining > 0 ? `${cabRemaining} à poser` : "✓ posé"}
@@ -5759,9 +5765,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   )}
                                   {bestLogo && <LogoImg src={bestLogo} />}
                                   {!rdvIsSav && rdvDaysCount > 1 && <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{rdvDaysCount}j</span>}
-                                  {showSummaryPanel === "rdv-montage-a-fixer" && p.nbCollaborateursMontage && (
-                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">{p.nbCollaborateursMontage} pers.</span>
-                                  )}
                                   <Badge variant="outline" className="text-[10px]" title={rdvIsSav ? "Cabines à SAV ouvert" : (isMontagePanel && cabInstalled > 0 ? `${cabInstalled} posées / ${cabTotal}` : undefined)}>
                                     {cabBadgeTxt}
                                   </Badge>
