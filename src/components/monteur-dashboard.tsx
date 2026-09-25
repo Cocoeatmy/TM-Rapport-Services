@@ -2659,16 +2659,39 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               monday.setHours(12, 0, 0, 0);
               const jan1 = new Date(monday.getFullYear(), 0, 1);
               const weekNo = Math.ceil((((monday.getTime() - jan1.getTime()) / 86400000) + jan1.getDay() + 1) / 7);
+              // Couleur d'un groupe : palette collaborateurs de l'app. Un binôme
+              // « A & B » prend la couleur de A (la légende lève l'ambiguïté),
+              // « Team » et les projets non attribués ont leur propre ton.
+              const groupColor = (label: string): string => {
+                if (!label || label === "Non attribué") return "#cbd5e1";
+                if (/team/i.test(label)) return "#0f766e";
+                const first = label.split("&")[0].trim();
+                return getCollaboratorColor(first).dot || "#3b82f6";
+              };
               const bars = ["Lun", "Mar", "Mer", "Jeu", "Ven"].map((d, i) => {
                 const dt = new Date(monday);
                 dt.setDate(monday.getDate() + i);
                 const key = formatLocalDate(dt);
-                const cab = projects
-                  .filter((p) => (p.dateMontage || "").split("T")[0] === key)
-                  .reduce((s, p) => s + (p.nbCabines || 0), 0);
-                return { d, key, cab, isToday: key === formatLocalDate(now) };
+                const dayProjects = projects.filter((p) => (p.dateMontage || "").split("T")[0] === key);
+                const byGroup = new Map<string, number>();
+                dayProjects.forEach((p) => {
+                  const label = (p.collaborateurs || "").trim() || "Non attribué";
+                  byGroup.set(label, (byGroup.get(label) || 0) + (p.nbCabines || 0));
+                });
+                const segs = [...byGroup.entries()]
+                  .map(([label, cab]) => ({ label, cab, color: groupColor(label) }))
+                  .sort((a, b) => b.cab - a.cab);
+                const cab = segs.reduce((s, x) => s + x.cab, 0);
+                return { d, key, cab, segs, nb: dayProjects.length, dt, isToday: key === formatLocalDate(now) };
               });
               const max = Math.max(1, ...bars.map((b) => b.cab));
+              // Légende : groupes présents sur la semaine, du plus chargé au moins.
+              const legend = (() => {
+                const m = new Map<string, number>();
+                bars.forEach((b) => b.segs.forEach((s) => m.set(s.label, (m.get(s.label) || 0) + s.cab)));
+                return [...m.entries()].sort((a, b) => b[1] - a[1])
+                  .map(([label, cab]) => ({ label, cab, color: groupColor(label) }));
+              })();
               return (
                 <div className="sg-card sg-chart">
                   <div className="sg-card-head">
@@ -2677,14 +2700,43 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   </div>
                   <div className="sg-bars">
                     {bars.map((b) => (
-                      <div key={b.d} className="sg-bar-col">
+                      <button
+                        key={b.d}
+                        type="button"
+                        className={`sg-bar-col${b.cab === 0 ? " is-void" : ""}`}
+                        disabled={b.cab === 0}
+                        title={b.cab === 0 ? `${b.d} — aucun montage` :
+                          `${b.d} — ${b.nb} projet${b.nb > 1 ? "s" : ""} · ${b.cab} cab.\n${b.segs.map((s) => `${s.label} : ${s.cab}`).join("\n")}`}
+                        onClick={(e) => {
+                          openPanel("calendrier", e);
+                          setCalendarMonth({ year: b.dt.getFullYear(), month: b.dt.getMonth() });
+                          setCalendarSelectedDay(b.key);
+                        }}
+                      >
                         <span className="sg-bar-val">{b.cab}</span>
-                        <i className={`sg-bar${b.isToday ? " is-today" : ""}${b.cab === 0 ? " is-empty" : ""}`}
-                           style={{ height: `${Math.round((b.cab / max) * 100)}%` }} />
+                        <span className={`sg-bar-stack${b.isToday ? " is-today" : ""}`}
+                              style={{ height: `${Math.round((b.cab / max) * 100)}%` }}>
+                          {b.segs.length === 0 && <i className="sg-bar-seg is-empty" style={{ flexGrow: 1 }} />}
+                          {b.segs.map((s) => (
+                            <i key={s.label} className="sg-bar-seg"
+                               style={{ flexGrow: s.cab, background: s.color }} />
+                          ))}
+                        </span>
                         <span className="sg-bar-day">{b.d}</span>
-                      </div>
+                      </button>
                     ))}
                   </div>
+                  {legend.length > 0 && (
+                    <div className="sg-bars-legend">
+                      {legend.map((l) => (
+                        <span key={l.label} className="sg-bars-leg">
+                          <i style={{ background: l.color }} />
+                          {l.label}
+                          <b>{l.cab}</b>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })()}

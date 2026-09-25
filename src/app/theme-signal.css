@@ -719,6 +719,49 @@ html[data-ui="signal"] .sg-bar-col {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 140ms ease;
+}
+html[data-ui="signal"] .sg-bar-col:hover:not(.is-void) { background: var(--sg-paper-2); }
+html[data-ui="signal"] .sg-bar-col.is-void { cursor: default; }
+
+/* Barre empilée : un segment par collaborateur / binôme / team. */
+html[data-ui="signal"] .sg-bar-stack {
+  width: 100%;
+  min-height: 3px;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 6px 6px 3px 3px;
+  overflow: hidden;
+  animation: sgsGrow 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: bottom;
+}
+html[data-ui="signal"] .sg-bar-stack.is-today { outline: 2px solid var(--sg-signal); outline-offset: 2px; }
+html[data-ui="signal"] .sg-bar-seg { display: block; min-height: 3px; }
+html[data-ui="signal"] .sg-bar-seg.is-empty { background: var(--sg-line-strong); }
+html[data-ui="signal"] .sg-bar-col:hover:not(.is-void) .sg-bar-stack { filter: brightness(1.08); }
+
+/* Légende des collaborateurs de la semaine */
+html[data-ui="signal"] .sg-bars-legend {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 12px; padding-top: 11px;
+  border-top: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-bars-leg {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--sg-text-2);
+  padding: 3px 9px; border-radius: 999px;
+  background: var(--sg-paper-2); border: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-bars-leg i { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+html[data-ui="signal"] .sg-bars-leg b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 11px; font-weight: 700; color: var(--sg-text);
 }
 html[data-ui="signal"] .sg-bar-val {
   font-family: var(--font-mono);
