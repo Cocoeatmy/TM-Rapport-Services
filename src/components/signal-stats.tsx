@@ -55,6 +55,12 @@ function fmt(n: number, money?: boolean): string {
   return Math.round(n).toLocaleString("fr-CH");
 }
 
+/** Minutes -> « 8 h 45 ». */
+function fmtH(min: number): string {
+  const h = Math.floor(min / 60), m = min % 60;
+  return m ? `${h} h ${String(m).padStart(2, "0")}` : `${h} h`;
+}
+
 function monthLabel(key: string): string {
   const [y, m] = key.split("-");
   const i = Number(m) - 1;
@@ -198,6 +204,59 @@ export function SignalStats({
     return [...m.entries()]
       .map(([label, value]) => ({ label, value, color: hueFor(label) }))
       .sort((a, b) => b.value - a.value);
+  }, [P]);
+
+  /* ── Heures & temps moyen ─────────────────────────────────────────────
+     Mêmes sources que la page d'administration : heureArrivee / heureDepart
+     sur le projet. Pour un binôme, CHAQUE monteur a passé la durée complète
+     sur place — on ne divise donc pas (contrairement aux cabines). */
+  const timeStats = useMemo(() => {
+    const parseTime = (raw?: string): number | null => {
+      if (!raw || !raw.trim()) return null;
+      const m = raw.match(/(\d{1,2}):(\d{2})/);
+      return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+    };
+    let totalMin = 0, totalCab = 0;
+    const byC = new Map<string, { min: number; cab: number }>();
+    P.forEach((p) => {
+      const a = parseTime(p.heureArrivee);
+      const b = parseTime(p.heureDepart);
+      if (a === null || b === null || b <= a) return;
+      const dur = b - a;
+      const cab = cabOf(p);
+      totalMin += dur; totalCab += cab;
+      String(p.collaborateurs || "").split("&").map((n: string) => n.trim()).filter(Boolean)
+        .forEach((n: string) => {
+          const cur = byC.get(n) || { min: 0, cab: 0 };
+          cur.min += dur; cur.cab += cab;
+          byC.set(n, cur);
+        });
+    });
+    const hours = [...byC.entries()]
+      .map(([label, v]) => ({ label, value: Math.round(v.min / 6) / 10, sub: `${v.cab} cab.`, color: hueFor(label) }))
+      .sort((a, b) => b.value - a.value);
+    const avgPerCab = [...byC.entries()]
+      .filter(([, v]) => v.cab > 0)
+      .map(([label, v]) => ({ label, value: Math.round(v.min / v.cab), sub: fmtH(Math.round(v.min / v.cab)), color: hueFor(label) }))
+      .sort((a, b) => a.value - b.value);
+    return { totalMin, totalCab, globalAvg: totalCab ? Math.round(totalMin / totalCab) : 0, hours, avgPerCab };
+  }, [P]);
+
+  /** Répartition géographique : NPA + localité extraits de l'adresse chantier. */
+  const byGeo = useMemo(() => {
+    const m = new Map<string, { cab: number; nb: number }>();
+    P.forEach((p) => {
+      const addr = String(p.adresseChantier || p.projet || "");
+      const mm = addr.match(/\b(\d{4})\s+([^,]+)/);
+      const label = mm ? `${mm[1]} ${mm[2].trim()}` : "Sans adresse";
+      const cur = m.get(label) || { cab: 0, nb: 0 };
+      cur.cab += cabOf(p); cur.nb += 1;
+      m.set(label, cur);
+    });
+    return [...m.entries()]
+      .map(([label, v]) => ({ label, value: v.cab, sub: `${v.nb} proj.`, color: hueFor(label) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 20);
   }, [P]);
 
   const quality = useMemo(() => {
@@ -612,6 +671,28 @@ export function SignalStats({
             </div>
             <BarList rows={byTeam} unit=" cab." empty="Aucune équipe sur cette période." />
           </div>
+          <div className="sgs-card">
+            <div className="sgs-card-head">
+              <div>
+                <h2 className="sgs-card-title">Heures par monteur</h2>
+                <p className="sgs-card-meta">temps sur site · un binôme compte la durée pour chacun</p>
+              </div>
+              <span className="sgs-card-meta">{fmtH(timeStats.totalMin)} au total</span>
+            </div>
+            <BarList rows={timeStats.hours} unit=" h" empty="Aucune heure saisie sur cette période." />
+          </div>
+          <div className="sgs-card">
+            <div className="sgs-card-head">
+              <div>
+                <h2 className="sgs-card-title">Temps moyen par cabine</h2>
+                <p className="sgs-card-meta">du plus rapide au plus long</p>
+              </div>
+              <span className="sgs-kpi-value" style={{ fontSize: 22, color: "#0f766e" }}>
+                {timeStats.globalAvg ? fmtH(timeStats.globalAvg) : "—"}
+              </span>
+            </div>
+            <BarList rows={timeStats.avgPerCab} empty="Pas assez de données horaires." />
+          </div>
         </div>
       )}
 
@@ -634,6 +715,15 @@ export function SignalStats({
               </div>
             </div>
             <BarList rows={bySerie} unit=" cab." />
+          </div>
+          <div className="sgs-card sgs-span2">
+            <div className="sgs-card-head">
+              <div>
+                <h2 className="sgs-card-title">Répartition géographique</h2>
+                <p className="sgs-card-meta">par localité (NPA) · 20 premières</p>
+              </div>
+            </div>
+            <BarList rows={byGeo} unit=" cab." empty="Aucune adresse exploitable." />
           </div>
           <div className="sgs-card sgs-span2">
             <div className="sgs-card-head">
