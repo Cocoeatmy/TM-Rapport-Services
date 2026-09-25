@@ -380,10 +380,13 @@ html[data-ui="signal"] .dash-grid button.glass-card > p:nth-of-type(3) {
 }
 
 /* ── Barre supérieure Signal : recherche ouverte + action principale ──────
-   Le petit « + » et la loupe ronde du header sont masqués : leurs fonctions
-   sont reprises ici, en plus lisible. Les autres thèmes les conservent. */
-html[data-ui="signal"] .app-hdr-new,
-html[data-ui="signal"] .app-hdr-search { display: none; }
+   Le petit « + » et la loupe ronde du header ne sont masqués QUE sur les
+   pages qui affichent réellement cette barre (l'accueil). Ailleurs — page
+   projet, pages d'administration — la barre n'est pas rendue : les deux
+   boutons du header restent donc en place, sinon la recherche et la création
+   de projet deviendraient inaccessibles. */
+html[data-ui="signal"] body:has(.signal-topbar) .app-hdr-new,
+html[data-ui="signal"] body:has(.signal-topbar) .app-hdr-search { display: none; }
 
 html[data-ui="signal"] .signal-topbar {
   display: flex; align-items: center; gap: 12px;
