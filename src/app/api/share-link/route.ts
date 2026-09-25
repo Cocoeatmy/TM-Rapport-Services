@@ -78,12 +78,12 @@ export async function GET(req: NextRequest) {
     const notesLines: string[] = [];
     // Champs courts : titre en **gras** (double) + valeur sur la MÊME ligne.
     const addField = (label: string, val?: string) => { if (val && val.trim()) notesLines.push(`**${label}** : ${val.trim()}`); };
-    // Blocs multi-lignes : titre en ***gras*** (triple), valeur sur la ligne
+    // Blocs multi-lignes : titre en **gras** (double), valeur sur la ligne
     // SUIVANTE, précédés d'une ligne vide de séparation.
     const addBlock = (label: string, val?: string) => {
       if (!val || !val.trim()) return;
       notesLines.push("");
-      notesLines.push(`***${label}*** :`);
+      notesLines.push(`**${label}** :`);
       notesLines.push(val.trim());
     };
     const joinArr = (a?: string[]) => (a || []).filter(Boolean).join(", ");
@@ -102,17 +102,26 @@ export async function GET(req: NextRequest) {
       addField("Fournisseurs", fournisseurs);
       addField("Séries cabines", series);
       if (type === "montage") addField("Emplacement cabine", full.emplacementCabine);
-      addField("N° CMD Fournisseurs", full.cmdFournisseurs);
-      addField("N° Serv. CMD Fournisseurs", full.servCmdFournisseurs);
 
-      // ── Contacts CRM (triple ***, valeur ligne suivante) — si présents. ──
+      // ── Groupe N° CMD (Grossiste / Fournisseurs / Serv.), précédé d'une ligne
+      //    vide si au moins un numéro est renseigné. ──
+      if ((full.cmdGrossiste && full.cmdGrossiste.trim())
+        || (full.cmdFournisseurs && full.cmdFournisseurs.trim())
+        || (full.servCmdFournisseurs && full.servCmdFournisseurs.trim())) {
+        notesLines.push("");
+        addField("N° CMD Grossiste", full.cmdGrossiste);
+        addField("N° CMD Fournisseurs", full.cmdFournisseurs);
+        addField("N° Serv. CMD Fournisseurs", full.servCmdFournisseurs);
+      }
+
+      // ── Contacts CRM (bloc **, valeur ligne suivante) — si présents. ──
       addBlock("Contacts Locataires", fmtContacts(full.contactsLocatairesDetails));
       addBlock("Contacts Clients finaux", fmtContacts(full.contactsClientsFinauxDetails));
       addBlock("Contacts Sanitaire", fmtContacts(full.contactsSanitaireDetails));
       addBlock("Contacts DT", fmtContacts(full.contactsDTDetails));
       addBlock("Contacts Architecte", fmtContacts(full.contactsArchitecteDetails));
 
-      // ── Commentaires (triple ***, valeur ligne suivante). ──
+      // ── Commentaires (bloc **, valeur ligne suivante). ──
       if (type === "montage") addBlock("Commentaires montage", full.commentairesMontages);
       if (type === "mesures") addBlock("Commentaires mesures", full.commentairesMesures);
 
