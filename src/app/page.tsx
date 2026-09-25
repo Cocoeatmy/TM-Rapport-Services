@@ -209,7 +209,7 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch, ex
   );
 }
 
-function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal }: { mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isCmm?: boolean; isSignal?: boolean }) {
+function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, onNewProject }: { mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isCmm?: boolean; isSignal?: boolean; onNewProject?: () => void }) {
   const [open, setOpen] = useState<string | null>(
     mode.startsWith("grossistes") ? "grossistes" :
     mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
@@ -290,6 +290,29 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal }: 
     )}
     {/* Sur mobile CleanMyMac : les onglets horizontaux sont entièrement masqués
         (remplacés par le CmmMobileDrawer rendu au niveau HomePage). */}
+    {/* Barre supérieure du thème Signal : champ de recherche ouvert à gauche,
+        action principale à droite. Remplace le petit « + » du header (masqué
+        en CSS) et le bouton loupe, conformément à la maquette. */}
+    {isSignal && !isCmm && (
+      <div className="signal-topbar">
+        <button
+          type="button"
+          className="signal-search"
+          onClick={() => window.dispatchEvent(new CustomEvent("tm-open-search"))}
+        >
+          <Search className="w-4 h-4 shrink-0" />
+          <span className="signal-search-ph">Rechercher un projet ou lancer une action</span>
+          <span className="signal-kbd">⌘K</span>
+        </button>
+        <div className="signal-topbar-spacer" />
+        {isAdmin && (
+          <button type="button" className="signal-new" onClick={() => onNewProject?.()}>
+            <Plus className="w-4 h-4" />
+            Nouveau projet
+          </button>
+        )}
+      </div>
+    )}
     {/* Rail vertical — thème « Signal », desktop uniquement.
         Il reprend À L'IDENTIQUE les 9 entrées de la barre d'onglets et leurs
         comportements : les entrées à sous-menu ouvrent le même sous-menu, qui
@@ -2350,7 +2373,7 @@ function HomePage() {
       <div id="main-navbar" className="sticky z-40 -mx-4 px-4 pb-2 pt-1 glass-navbar" style={{top: `var(--header-h, 60px)`}}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} isSignal={isSignal} onSwitchMode={(m: Mode) => {
+          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} isSignal={isSignal} onNewProject={() => setShowNewProject(true)} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             // CMM : afficher le hero pour les modes qui en ont un
             const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements", "arrivage"];

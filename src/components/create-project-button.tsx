@@ -159,7 +159,7 @@ export function CreateProjectButton() {
         onClick={() => setIsOpen(true)}
         aria-label="Créer un nouveau projet"
         title="Nouveau projet"
-        className="w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 active:scale-95 transition-all"
+        className="app-hdr-new w-9 h-9 shrink-0 rounded-full bg-white/15 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 active:scale-95 transition-all"
       >
         <Plus className="w-4 h-4" />
       </button>

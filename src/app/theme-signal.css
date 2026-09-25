@@ -379,6 +379,44 @@ html[data-ui="signal"] .dash-grid button.glass-card > p:nth-of-type(3) {
   }
 }
 
+/* ── Barre supérieure Signal : recherche ouverte + action principale ──────
+   Le petit « + » et la loupe ronde du header sont masqués : leurs fonctions
+   sont reprises ici, en plus lisible. Les autres thèmes les conservent. */
+html[data-ui="signal"] .app-hdr-new,
+html[data-ui="signal"] .app-hdr-search { display: none; }
+
+html[data-ui="signal"] .signal-topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 2px 12px 2px;
+}
+html[data-ui="signal"] .signal-topbar-spacer { flex-grow: 1; }
+html[data-ui="signal"] .signal-search {
+  display: flex; align-items: center; gap: 10px;
+  height: 38px; padding: 0 12px; width: 100%; max-width: 420px;
+  border-radius: 10px; cursor: pointer; text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #93a8c4; font-family: inherit; font-size: 13px;
+  transition: border-color 140ms, background 140ms;
+}
+html[data-ui="signal"] .signal-search:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.10);
+}
+html[data-ui="signal"] .signal-search-ph { flex-grow: 1; }
+html[data-ui="signal"] .signal-kbd {
+  font-family: var(--font-mono); font-size: 11px;
+  padding: 2px 6px; border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.18); color: #a8bdd8;
+}
+html[data-ui="signal"] .signal-new {
+  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+  height: 38px; padding: 0 15px; border-radius: 10px; border: none;
+  background: var(--sg-signal); color: #ffffff;
+  font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+html[data-ui="signal"] .signal-new:hover { filter: brightness(1.08); }
+
 /* ── Rail vertical (desktop ≥ 1024 px) ────────────────────────────────────
    Le rail n'est RENDU que par le thème Signal (garde `isSignal` dans page.tsx),
    et son style reste malgré tout préfixé : invariant d'isolation respecté. */

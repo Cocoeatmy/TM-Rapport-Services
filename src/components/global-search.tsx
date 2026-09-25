@@ -199,8 +199,18 @@ export function GlobalSearch() {
       }
       if (e.key === "Escape") closeSearch();
     };
+    // Le thème Signal affiche un champ de recherche ouvert dans sa barre :
+    // il déclenche cet évènement plutôt que de dupliquer la modale.
+    const openFromEvent = () => {
+      setOpen(true);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener("tm-open-search", openFromEvent);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      window.removeEventListener("tm-open-search", openFromEvent);
+    };
   }, [closeSearch]);
 
   const navigate = (p: Project) => {
@@ -227,7 +237,7 @@ export function GlobalSearch() {
         onClick={openSearch}
         aria-label="Recherche globale (⌘K)"
         title="Rechercher (⌘K)"
-        className="w-9 h-9 shrink-0 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+        className="app-hdr-search w-9 h-9 shrink-0 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors"
       >
         <Search className="w-4 h-4" />
       </button>
