@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
-import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
@@ -1412,6 +1412,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // Réinitialisée à chaque changement de panneau.
   const [panelSearch, setPanelSearch] = useState("");
   useEffect(() => { setPanelSearch(""); }, [showSummaryPanel]);
+
+  // Thème « Signal » actif ? Il dispose de son PROPRE rendu de dashboard.
+  // Tout autre thème (Classique, Aurora, Océan, CleanMyMac) continue d'emprunter
+  // exactement le même chemin de code qu'avant : rien n'est modifié pour eux.
+  const [isSignal, setIsSignal] = useState(false);
+  useEffect(() => {
+    const check = () => setIsSignal(document.documentElement.getAttribute("data-ui") === "signal");
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-ui"] });
+    return () => obs.disconnect();
+  }, []);
   // Tri des panneaux "RDV … à fixer" + "Soucis en cours" : par date (défaut) ou
   // par code postal (région) pour planifier les tournées. Une préférence PAR
   // panneau, persistée en localStorage.
@@ -2515,9 +2527,126 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
   return (
     <div className="mb-6 space-y-4">
+      {/* ══ DASHBOARD DU THÈME « SIGNAL » ════════════════════════════════════
+          Rendu entièrement distinct, actif uniquement quand data-ui="signal".
+          Il réutilise les MÊMES données et les MÊMES handlers (openPanel) que
+          le dashboard classique — aucune logique métier n'est dupliquée. La
+          grille des 22 tuiles reste rendue en dessous : rien n'est retiré. */}
+      {isSignal && !cmmMode && showSummaryPanel === null && (
+        <div className="sg-dash">
+          <div className="sg-dash-head">
+            <div>
+              <h1 className="sg-h1">Tableau de bord</h1>
+              <p className="sg-sub">
+                {new Date().toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                {" · "}Bonjour {firstName}
+              </p>
+            </div>
+          </div>
+
+          {/* Agenda — aujourd'hui / demain / après-demain */}
+          <div className="sg-agenda">
+            {([
+              {
+                title: "Aujourd'hui", accent: "#15803d",
+                rows: [
+                  { label: "Montages", count: todayMontages, cab: todayMontageCab, color: "#1b63ff", panel: "today" },
+                  { label: "Mesures", count: todayMesures, cab: todayMesuresCab, color: "#0e7490", panel: "mesures-today" },
+                  { label: "Services", count: todayServices, cab: todayServicesCab, color: "#6d28d9", panel: "services-today" },
+                  { label: "SAV", count: savTodayCount, cab: savTodayCab, color: "#b45309", panel: "sav-today" },
+                  { label: "Garanties", count: todayGaranties, cab: todayGarantiesCab, color: "#15803d", panel: null },
+                ],
+              },
+              {
+                title: "Demain", accent: "var(--sg-text)",
+                rows: [
+                  { label: "Montages", count: tomorrowMontages, cab: tomorrowMontageCab, color: "#1b63ff", panel: "montage-tomorrow" },
+                  { label: "Mesures", count: tomorrowMesures, cab: tomorrowMesuresCab, color: "#0e7490", panel: "mesures-tomorrow" },
+                  { label: "Services", count: tomorrowServices, cab: tomorrowServicesCab, color: "#6d28d9", panel: "services-tomorrow" },
+                  { label: "SAV", count: savTomorrowCount, cab: savTomorrowCab, color: "#b45309", panel: "sav-tomorrow" },
+                  { label: "Garanties", count: tomorrowGaranties, cab: tomorrowGarantiesCab, color: "#15803d", panel: null },
+                ],
+              },
+              {
+                title: "Après-demain", accent: "var(--sg-text)",
+                rows: [
+                  { label: "Montages", count: afterMontages, cab: afterMontageCab, color: "#1b63ff", panel: "montage-after" },
+                  { label: "Mesures", count: afterMesures, cab: afterMesuresCab, color: "#0e7490", panel: "mesures-after" },
+                  { label: "Services", count: afterServices, cab: afterServicesCab, color: "#6d28d9", panel: "services-after" },
+                  { label: "SAV", count: afterSavCount, cab: afterSavCab, color: "#b45309", panel: "sav-after" },
+                  { label: "Garanties", count: afterGaranties, cab: afterGarantiesCab, color: "#15803d", panel: null },
+                ],
+              },
+            ]).map((col) => (
+              <div key={col.title} className="sg-card">
+                <div className="sg-card-head">
+                  <span className="sg-card-title" style={{ color: col.accent }}>{col.title}</span>
+                </div>
+                {col.rows.map((r) => (
+                  <button
+                    key={r.label}
+                    type="button"
+                    onClick={r.panel ? (e) => openPanel(r.panel as any, e) : undefined}
+                    className={`sg-row${r.panel ? "" : " sg-row-static"}`}
+                  >
+                    <span className="sg-row-bar" style={{ background: r.count > 0 ? r.color : "var(--sg-line-strong)" }} />
+                    <span className="sg-row-label">{r.label}</span>
+                    <span className="sg-row-count" style={{ color: r.count > 0 ? "var(--sg-text)" : "var(--sg-text-3)" }}>{r.count}</span>
+                    <span className="sg-row-unit">{r.count > 0 ? `${r.cab} cab.` : "—"}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* À planifier */}
+          <div className="sg-section">
+            <div className="sg-section-head"><span>À planifier</span><i className="sg-rule" /></div>
+            <div className="sg-plan">
+              {([
+                { label: "RDV Montage", count: rdvMontageAFixerCount, meta: `${rdvMontageAFixerProjects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cabines à poser`, bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-a-fixer", Icon: Wrench },
+                { label: "RDV Mesures", count: rdvMesuresAFixerCount, meta: "à contacter", bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-a-fixer", Icon: Ruler },
+                { label: "RDV Services", count: rdvServicesAFixerCount, meta: "à planifier", bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-a-fixer", Icon: Settings },
+                { label: "RDV SAV", count: rdvSavAFixerCount, meta: `${rdvSavAFixerProjects.reduce((s, p) => s + savOpenCabCount(p), 0)} cabines ouvertes`, bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-a-fixer", Icon: AlertCircle },
+              ]).map((t) => (
+                <button key={t.label} type="button" onClick={(e) => openPanel(t.panel as any, e)} className="sg-tile">
+                  <span className="sg-tile-chip" style={{ background: t.bg, color: t.fg }}><t.Icon className="w-4 h-4" /></span>
+                  <span className="sg-tile-value">{t.count}</span>
+                  <span className="sg-tile-label">{t.label}</span>
+                  <span className="sg-tile-meta" style={{ background: t.bg, color: t.fg }}>{t.meta}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Signaux */}
+          <div className="sg-section">
+            <div className="sg-section-head"><span>Signaux</span><i className="sg-rule" /></div>
+            <div className="sg-card">
+              {([
+                { label: "Rapports en attente", count: rapportsAttenteCount, bg: "#f1ecfe", fg: "#6d28d9", panel: "rapports-attente", Icon: FileText },
+                { label: "SAV non traités", count: savNonTraitesCount, bg: "#fdf0dc", fg: "#b45309", panel: "sav-non-traites", Icon: ShieldAlert },
+                { label: "Soucis en cours", count: soucisEnCoursCount, bg: "#fde8e8", fg: "#b91c1c", panel: "soucis-en-cours", Icon: AlertTriangle },
+                { label: "À facturer", count: aFacturerCount, bg: "#e7f6ec", fg: "#15803d", panel: "a-facturer", Icon: Receipt },
+              ]).map((s) => (
+                <button key={s.label} type="button" onClick={(e) => openPanel(s.panel as any, e)} className="sg-signal-row">
+                  <span className="sg-signal-chip" style={{ background: s.bg, color: s.fg }}><s.Icon className="w-3.5 h-3.5" /></span>
+                  <span className="sg-signal-label">{s.label}</span>
+                  <span className="sg-signal-count" style={{ color: s.fg }}>{s.count}</span>
+                  <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="sg-section-head sg-section-head-sub"><span>Tout le tableau de bord</span><i className="sg-rule" /></div>
+        </div>
+      )}
+
       {/* En-tête de bienvenue — masqué quand un panneau est ouvert (visible
-          uniquement sur le dashboard principal). */}
-      <div className="glass-card rounded-2xl p-4" style={{ display: showSummaryPanel ? "none" : undefined }}>
+          uniquement sur le dashboard principal). Masqué aussi en thème Signal,
+          qui possède son propre en-tête ci-dessus. */}
+      <div className="glass-card rounded-2xl p-4" style={{ display: (showSummaryPanel || isSignal) ? "none" : undefined }}>
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-lg font-bold text-blue-600 dark:text-blue-400 shrink-0">
             {getCollaboratorInitials(firstName)}
@@ -3184,8 +3313,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         </div>
       )}
 
-      {/* RDV buttons — thèmes normaux uniquement (non-CMM) */}
-      {!cmmMode && (
+      {/* RDV buttons — thèmes normaux uniquement (non-CMM).
+          Masqués en thème Signal : la section « À planifier » les remplace,
+          avec les mêmes panneaux au clic. */}
+      {!cmmMode && !isSignal && (
       <div
         className="overflow-hidden"
         style={{
