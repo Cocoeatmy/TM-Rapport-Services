@@ -1211,6 +1211,18 @@ const DEFAULT_DASH_ORDER = [
   "__empty__", // Case vide — taquin pour faciliter les déplacements
 ];
 
+// Rangement des tuiles par catégorie (thème Signal uniquement). Aucune tuile
+// n'est retirée : l'onglet « Tout » affiche la grille complète, dans l'ordre
+// personnalisé de l'utilisateur, avec le glisser-déposer inchangé.
+const SG_CATS: { id: string; label: string; ids: string[] }[] = [
+  { id: "all", label: "Tout", ids: [] },
+  { id: "jour", label: "Le jour même", ids: ["mesures-today", "today", "services-today", "sav-today", "week", "active"] },
+  { id: "planifier", label: "À planifier", ids: ["rdv-mesures-a-fixer", "rdv-montage-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer"] },
+  { id: "traiter", label: "À traiter", ids: ["rapports-attente", "sav-non-traites", "soucis-en-cours", "a-facturer"] },
+  { id: "suivi", label: "Suivi", ids: ["dossiers-en-cours", "calendrier", "arrivage", "emplacement-cabines", "archives"] },
+  { id: "historique", label: "Historique", ids: ["sav-historique", "soucis-historique", "mesures-sans-commande"] },
+];
+
 // Date de réception SAV pertinente pour « RDV SAV à fixer » (regroupement + J+).
 // « Date - SAV reçu le » est du TEXTE par cabine ("Cab1:2026-08-28 | Cab2:…").
 // On privilégie la réception d'un lot ENCORE OUVERT (ni date d'intervention, ni
@@ -1419,6 +1431,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [isSignal, setIsSignal] = useState(false);
   // Projet sélectionné dans la vue maître-détail du thème Signal.
   const [sgSelected, setSgSelected] = useState<string | null>(null);
+  // Onglet de catégorie de la grille de tuiles (thème Signal). "all" = tout,
+  // comportement identique au dashboard classique (ordre + glisser-déposer).
+  const [sgCat, setSgCat] = useState<string>("all");
   useEffect(() => { setSgSelected(null); }, [showSummaryPanel]);
   useEffect(() => {
     const check = () => setIsSignal(document.documentElement.getAttribute("data-ui") === "signal");
@@ -2607,25 +2622,70 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             <div className="sg-section-head"><span>À planifier</span><i className="sg-rule" /></div>
             <div className="sg-plan">
               {([
-                { label: "RDV Montage", count: rdvMontageAFixerCount, meta: `${rdvMontageAFixerProjects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cabines à poser`, bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-a-fixer", Icon: Wrench },
-                { label: "RDV Mesures", count: rdvMesuresAFixerCount, meta: "à contacter", bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-a-fixer", Icon: Ruler },
-                { label: "RDV Services", count: rdvServicesAFixerCount, meta: "à planifier", bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-a-fixer", Icon: Settings },
-                { label: "RDV SAV", count: rdvSavAFixerCount, meta: `${rdvSavAFixerProjects.reduce((s, p) => s + savOpenCabCount(p), 0)} cabines ouvertes`, bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-a-fixer", Icon: AlertCircle },
+                { label: "RDV Montage", count: rdvMontageAFixerCount, meta: `${rdvMontageAFixerProjects.reduce((s, p) => s + Math.max((p.nbCabines || 0) - Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0), 0)} cabines à poser`, bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-a-fixer", Icon: Wrench, lead: true },
+                { label: "RDV Mesures", count: rdvMesuresAFixerCount, meta: "à contacter", bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-a-fixer", Icon: Ruler, lead: false },
+                { label: "RDV Services", count: rdvServicesAFixerCount, meta: "à planifier", bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-a-fixer", Icon: Settings, lead: false },
+                { label: "RDV SAV", count: rdvSavAFixerCount, meta: `${rdvSavAFixerProjects.reduce((s, p) => s + savOpenCabCount(p), 0)} cabines ouvertes`, bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-a-fixer", Icon: AlertCircle, lead: false },
               ]).map((t) => (
-                <button key={t.label} type="button" onClick={(e) => openPanel(t.panel as any, e)} className="sg-tile">
-                  <span className="sg-tile-chip" style={{ background: t.bg, color: t.fg }}><t.Icon className="w-4 h-4" /></span>
-                  <span className="sg-tile-value">{t.count}</span>
-                  <span className="sg-tile-label">{t.label}</span>
+                <button key={t.label} type="button" onClick={(e) => openPanel(t.panel as any, e)} className={`sg-tile${t.lead ? " is-lead" : ""}`}>
+                  <span className="sg-tile-top">
+                    <span className="sg-tile-chip" style={{ background: t.bg, color: t.fg }}><t.Icon className="w-4 h-4" /></span>
+                    <span className="sg-tile-label">{t.label}</span>
+                  </span>
+                  <span className="sg-tile-num">
+                    <span className="sg-tile-value">{t.count}</span>
+                    <span className="sg-tile-unit">projets</span>
+                  </span>
                   <span className="sg-tile-meta" style={{ background: t.bg, color: t.fg }}>{t.meta}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Signaux */}
-          <div className="sg-section">
-            <div className="sg-section-head"><span>Signaux</span><i className="sg-rule" /></div>
+          {/* Charge de la semaine + Signaux, côte à côte */}
+          <div className="sg-duo">
+            {(() => {
+              const now = new Date();
+              const monday = new Date(now);
+              monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+              monday.setHours(12, 0, 0, 0);
+              const jan1 = new Date(monday.getFullYear(), 0, 1);
+              const weekNo = Math.ceil((((monday.getTime() - jan1.getTime()) / 86400000) + jan1.getDay() + 1) / 7);
+              const bars = ["Lun", "Mar", "Mer", "Jeu", "Ven"].map((d, i) => {
+                const dt = new Date(monday);
+                dt.setDate(monday.getDate() + i);
+                const key = formatLocalDate(dt);
+                const cab = projects
+                  .filter((p) => (p.dateMontage || "").split("T")[0] === key)
+                  .reduce((s, p) => s + (p.nbCabines || 0), 0);
+                return { d, key, cab, isToday: key === formatLocalDate(now) };
+              });
+              const max = Math.max(1, ...bars.map((b) => b.cab));
+              return (
+                <div className="sg-card sg-chart">
+                  <div className="sg-card-head">
+                    <span className="sg-card-title">Charge de la semaine</span>
+                    <span className="sg-card-meta">semaine {weekNo} · cabines / jour</span>
+                  </div>
+                  <div className="sg-bars">
+                    {bars.map((b) => (
+                      <div key={b.d} className="sg-bar-col">
+                        <span className="sg-bar-val">{b.cab}</span>
+                        <i className={`sg-bar${b.isToday ? " is-today" : ""}${b.cab === 0 ? " is-empty" : ""}`}
+                           style={{ height: `${Math.round((b.cab / max) * 100)}%` }} />
+                        <span className="sg-bar-day">{b.d}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="sg-card">
+              <div className="sg-card-head">
+                <span className="sg-card-title">Signaux</span>
+                <span className="sg-card-meta">à traiter</span>
+              </div>
               {([
                 { label: "Rapports en attente", count: rapportsAttenteCount, bg: "#f1ecfe", fg: "#6d28d9", panel: "rapports-attente", Icon: FileText },
                 { label: "SAV non traités", count: savNonTraitesCount, bg: "#fdf0dc", fg: "#b45309", panel: "sav-non-traites", Icon: ShieldAlert },
@@ -2642,7 +2702,21 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </div>
           </div>
 
-          <div className="sg-section-head sg-section-head-sub"><span>Tout le tableau de bord</span><i className="sg-rule" /></div>
+          {/* Rangement des 22 boutons par onglets — aucun n'est supprimé */}
+          <div className="sg-cats">
+            {SG_CATS.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSgCat(c.id)}
+                className={`sg-cat${sgCat === c.id ? " is-on" : ""}`}
+                aria-pressed={sgCat === c.id}
+              >
+                {c.label}
+                <span className="sg-cat-n">{c.id === "all" ? buttonOrder.filter((i) => !isEmptyId(i)).length : c.ids.length}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -3100,7 +3174,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </div>
             )}
             <div className={`dash-grid grid grid-cols-2 sm:grid-cols-6 gap-1.5 sm:gap-3 ${isEditMode ? "select-none" : ""}`}>
-              {buttonOrder.map((id, idx) => {
+              {buttonOrder
+                .filter((id) => {
+                  // Thème Signal : filtrage par onglet de catégorie. « Tout »
+                  // (et tous les autres thèmes) → grille complète inchangée.
+                  if (!isSignal || sgCat === "all") return true;
+                  const cat = SG_CATS.find((c) => c.id === sgCat);
+                  return cat ? cat.ids.includes(id) : true;
+                })
+                .map((id, idx) => {
                 const isDragging = dragSrcId === id;
                 const isOver = dragOverId === id && dragSrcId !== id;
                 return (

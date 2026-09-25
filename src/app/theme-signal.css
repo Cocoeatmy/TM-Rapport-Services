@@ -584,6 +584,22 @@ html[data-ui="signal"] .sg-tile-chip {
   justify-content: center;
   margin-bottom: 10px;
 }
+html[data-ui="signal"] .sg-tile.is-lead {
+  border-color: var(--sg-signal);
+  box-shadow: 0 0 0 1px var(--sg-signal), var(--sg-shadow);
+}
+html[data-ui="signal"] .sg-tile-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+html[data-ui="signal"] .sg-tile-top .sg-tile-chip { margin-bottom: 0; }
+html[data-ui="signal"] .sg-tile-num {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+}
 html[data-ui="signal"] .sg-tile-value {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -593,20 +609,118 @@ html[data-ui="signal"] .sg-tile-value {
   letter-spacing: -0.03em;
   color: var(--sg-text);
 }
+html[data-ui="signal"] .sg-tile-unit {
+  font-size: 12px;
+  color: var(--sg-text-3);
+}
 html[data-ui="signal"] .sg-tile-label {
-  margin-top: 7px;
   font-size: 13px;
   font-weight: 600;
   color: var(--sg-text);
 }
 html[data-ui="signal"] .sg-tile-meta {
-  margin-top: 9px;
+  margin-top: 10px;
   padding: 3px 9px;
   border-radius: 6px;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   font-weight: 600;
+}
+
+/* Duo « Charge de la semaine » + « Signaux » */
+html[data-ui="signal"] .sg-duo {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+html[data-ui="signal"] .sg-card-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-chart { display: flex; flex-direction: column; }
+html[data-ui="signal"] .sg-bars {
+  flex-grow: 1;
+  min-height: 190px;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding-top: 6px;
+}
+html[data-ui="signal"] .sg-bar-col {
+  flex-grow: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+html[data-ui="signal"] .sg-bar-val {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sg-text);
+}
+html[data-ui="signal"] .sg-bar {
+  width: 100%;
+  min-height: 3px;
+  border-radius: 6px 6px 3px 3px;
+  background: #93b8ff;
+}
+html[data-ui="signal"] .sg-bar.is-today { background: var(--sg-signal); }
+html[data-ui="signal"] .sg-bar.is-empty { background: var(--sg-line-strong); }
+html[data-ui="signal"].dark .sg-bar { background: #2e5fb8; }
+html[data-ui="signal"].dark .sg-bar.is-today { background: #5b9cff; }
+html[data-ui="signal"].dark .sg-bar.is-empty { background: #22334e; }
+html[data-ui="signal"] .sg-bar-day { font-size: 11px; color: var(--sg-text-3); }
+
+/* Onglets de rangement des tuiles */
+html[data-ui="signal"] .sg-cats {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 2px;
+}
+html[data-ui="signal"] .sg-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--sg-line);
+  background: var(--sg-paper);
+  color: var(--sg-text-2);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms, color 140ms, border-color 140ms;
+}
+html[data-ui="signal"] .sg-cat:hover { border-color: var(--sg-line-strong); }
+html[data-ui="signal"] .sg-cat.is-on {
+  background: var(--sg-ink);
+  border-color: var(--sg-ink);
+  color: #ffffff;
+  font-weight: 600;
+}
+html[data-ui="signal"] .sg-cat-n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--sg-paper-2);
+  color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-cat.is-on .sg-cat-n {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
 }
 
 /* Signaux */
@@ -659,6 +773,12 @@ html[data-ui="signal"] .sg-signal-arrow {
   }
   html[data-ui="signal"] .sg-h1 {
     font-size: 30px;
+  }
+}
+
+@media (min-width: 1024px) {
+  html[data-ui="signal"] .sg-duo {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   }
 }
 
