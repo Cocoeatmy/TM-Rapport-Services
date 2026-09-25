@@ -1037,6 +1037,15 @@ html[data-ui="signal"] .sgs-h1 {
 }
 html[data-ui="signal"] .sgs-sub { margin: 3px 0 0 0; font-size: 13px; color: var(--sg-text-3); }
 html[data-ui="signal"] .sgs-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+html[data-ui="signal"] .sgs-head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+html[data-ui="signal"] .sgs-report {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 34px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+  border: none; background: var(--sg-ink);
+  font-family: inherit; font-size: 12px; font-weight: 600; color: #ffffff;
+}
+html[data-ui="signal"] .sgs-report:hover { background: var(--sg-ink-2); }
+html[data-ui="signal"] .sgs-report:disabled { opacity: 0.65; cursor: default; }
 html[data-ui="signal"] .sgs-refresh {
   display: inline-flex; align-items: center; gap: 7px;
   height: 34px; padding: 0 13px; border-radius: 999px; cursor: pointer;

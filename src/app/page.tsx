@@ -3806,6 +3806,36 @@ function HomePage() {
               <div className="flex items-center gap-2 mb-1">
                 {statsCompare && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">A</span>}
                 <span className="text-[10px] text-gray-400 flex-1">{statsCompare ? "Période de référence" : ""}</span>
+                {/* Rapport statistique PDF — disponible sur tous les thèmes. */}
+                <button
+                  onClick={async () => {
+                    const months = monthlyKeys.map((k) => ({
+                      label: k,
+                      ...svcByMonth[k],
+                    }));
+                    const res = await fetch("/api/rapport-stats", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        periodLabel: describeStatsRange({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear }),
+                        months,
+                        totals: {
+                          mesures: totalMesures, cabines: totalCabines, montages: totalMontages,
+                          demontages: svcFiltered.reduce((s: number, r: any) => s + r.demontages, 0),
+                          services: totalServices, sav: totalSAV, ofr: totalOFR, ca: totalCA,
+                        },
+                      }),
+                    });
+                    if (!res.ok) return;
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, "_blank");
+                    setTimeout(() => URL.revokeObjectURL(url), 60000);
+                  }}
+                  className="text-[10px] font-bold px-3 py-1.5 rounded-full border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-[#1e3a5f] hover:text-[#1e3a5f] transition-colors"
+                >
+                  Rapport PDF
+                </button>
                 <button
                   onClick={() => setStatsCompare((v) => !v)}
                   className={`text-[10px] font-bold px-3 py-1.5 rounded-full border transition-colors ${statsCompare ? "bg-orange-500 text-white border-orange-500" : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-400 hover:text-orange-500"}`}

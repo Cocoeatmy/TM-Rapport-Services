@@ -15,7 +15,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, RefreshCw, FileText } from "lucide-react";
 
 export type SignalStatsMonth = {
   mesures: number; cabines: number; montages: number; demontages: number;
@@ -102,6 +102,7 @@ export function SignalStats({
   /** Mois épinglés pour comparaison. Vide = tous les mois de la période. */
   const [picked, setPicked] = useState<Set<string>>(() => new Set<string>());
   const [refreshing, setRefreshing] = useState(false);
+  const [making, setMaking] = useState(false);
 
   const keys = useMemo(
     () => (picked.size > 0 ? monthKeys.filter((k) => picked.has(k)) : monthKeys.slice(-14)),
@@ -168,7 +169,41 @@ export function SignalStats({
           <h1 className="sgs-h1">Statistiques</h1>
           {rangeLabel && <p className="sgs-sub">{rangeLabel}</p>}
         </div>
-        {onRefresh && (
+        <div className="sgs-head-actions">
+          <button
+            type="button"
+            className="sgs-report"
+            disabled={making}
+            onClick={async () => {
+              setMaking(true);
+              try {
+                const res = await fetch("/api/rapport-stats", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    periodLabel: rangeLabel || "Tout",
+                    months: rows.map((r) => ({ label: r.label, ...r.v })),
+                    totals,
+                    series: visible.map((v) => v.id),
+                    comparedLabels: picked.size >= 2 ? rows.map((r) => r.label) : [],
+                  }),
+                });
+                if (!res.ok) throw new Error("PDF");
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                window.open(url, "_blank");
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+              } catch {
+                // silencieux : l'utilisateur peut réessayer
+              } finally {
+                setMaking(false);
+              }
+            }}
+          >
+            <FileText className={`w-3.5 h-3.5${making ? " sgs-spin" : ""}`} />
+            {making ? "Génération…" : "Rapport PDF"}
+          </button>
+          {onRefresh && (
           <button
             type="button"
             className="sgs-refresh"
@@ -179,7 +214,8 @@ export function SignalStats({
             <RefreshCw className={`w-3.5 h-3.5${refreshing ? " sgs-spin" : ""}`} />
             {refreshing ? "Actualisation…" : "Actualiser"}
           </button>
-        )}
+          )}
+        </div>
       </div>
 
       {filter && <div className="sgs-filter">{filter}</div>}
