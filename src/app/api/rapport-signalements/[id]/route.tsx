@@ -25,7 +25,7 @@ import React from "react";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-type Piece = { id: string; projectId: string; description?: string; reference?: string; status?: string; cabineLabel?: string; displayInRapport?: boolean; photoUrls?: string[]; photoUrl?: string; user?: string; timestamp?: number };
+type Piece = { id: string; projectId: string; description?: string; reference?: string; status?: string; cabineLabel?: string; displayInRapport?: boolean; resolved?: boolean; photoUrls?: string[]; photoUrl?: string; user?: string; timestamp?: number };
 type Defaut = { id: string; projectId: string; typesLabel?: string; types?: string[]; description?: string; cabineLabel?: string; resolved?: boolean; phase?: string; displayInRapport?: boolean; photoUrls?: string[]; user?: string; timestamp?: number };
 
 function nfc(s: string) { return (s || "").normalize("NFC"); }
@@ -218,10 +218,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const items: Item[] = [];
     for (const p of pieces) {
       const photos = (p.photoUrls && p.photoUrls.length > 0) ? p.photoUrls : (p.photoUrl ? [p.photoUrl] : []);
+      // Réglé = vert (comme les défauts) ; sinon orange (pièce en attente).
+      const pColor = p.resolved ? C.done : C.piece;
       items.push({
-        kind: "piece", title: "Pièce manquante", color: C.piece, bg: "#fff7ed",
-        chips: [], chipColor: C.piece,
-        desc: p.description || "", reference: p.reference || "",
+        kind: "piece", title: "Pièce manquante", color: pColor, bg: p.resolved ? "#f0fdf4" : "#fff7ed",
+        chips: [], chipColor: pColor,
+        desc: p.description || "", reference: p.reference || "", resolved: !!p.resolved,
         status: PIECE_STATUS[p.status || ""] || "",
         cabineLabel: p.cabineLabel || "", user: p.user || "", date: fmtDate(p.timestamp), photos,
       });

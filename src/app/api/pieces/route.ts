@@ -25,6 +25,8 @@ interface PieceRequest {
   cabineLabel?: string;
   /** Afficher cette pièce sur le rapport client (PDF). Absent/true = affichée. */
   displayInRapport?: boolean;
+  /** Pièce manquante RÉGLÉE (reçue/posée). Passe le signalement en vert. */
+  resolved?: boolean;
 }
 
 const KEY = "pieces";
@@ -160,7 +162,7 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const { id, status, comment, description, reference, displayInRapport, cabineLabel, photoUrls } = body;
+  const { id, status, comment, description, reference, displayInRapport, resolved, cabineLabel, photoUrls } = body;
   const pieces = await getData<PieceRequest>(KEY);
   const idx = pieces.findIndex((p) => p.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
@@ -173,6 +175,7 @@ export async function PATCH(request: NextRequest) {
   if (typeof description === "string") pieces[idx].description = description;
   if (typeof reference === "string") pieces[idx].reference = reference;
   if (typeof displayInRapport === "boolean") pieces[idx].displayInRapport = displayInRapport;
+  if (typeof resolved === "boolean") pieces[idx].resolved = resolved;
   // Ajout/modification de photos après coup (édition).
   if (Array.isArray(photoUrls)) pieces[idx].photoUrls = photoUrls;
   // Renommage d'une cabine : garde la pièce reliée au bon lot.

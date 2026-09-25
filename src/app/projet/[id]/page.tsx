@@ -1122,6 +1122,7 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
     status?: string;
     cabineLabel?: string;
     displayInRapport?: boolean;
+    resolved?: boolean;
   };
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -1144,6 +1145,18 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
       if (!res.ok) { revert(); return; }
       toast.success(next ? "Affichée sur le rapport" : "Masquée du rapport");
     } catch { revert(); }
+  };
+
+  // « Pièce réglée » (reçue/posée) : passe le signalement en vert + le PDF en réglé.
+  const toggleResolved = async (id: string, current: boolean) => {
+    const next = !current;
+    setPieces((prev) => prev.map((p) => p.id === id ? { ...p, resolved: next } : p));
+    try {
+      const res = await fetch("/api/pieces", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, resolved: next }) });
+      if (!res.ok) { setPieces((prev) => prev.map((p) => p.id === id ? { ...p, resolved: current } : p)); toast.error("Échec : réglage non enregistré."); return; }
+      toast.success(next ? "Pièce marquée réglée" : "Pièce rouverte");
+    } catch { setPieces((prev) => prev.map((p) => p.id === id ? { ...p, resolved: current } : p)); toast.error("Erreur réseau."); }
   };
 
   const load = useCallback(async () => {
@@ -1216,16 +1229,23 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
       {visiblePieces.map((p, idx) => {
         const num = idx + 1;
         const pieceVisible = p.displayInRapport !== false;
+        const isResolved = !!p.resolved;
         const isDeleting = deleting === p.id;
         const isEditing = editing === p.id;
         const photos = p.photoUrls?.length ? p.photoUrls : (p.photoUrl ? [p.photoUrl] : []);
+        // Réglé = vert (statut résolu), sinon orange (pièce manquante en attente).
+        const acc = isResolved
+          ? { card: "border-green-300 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10", text: "text-green-700 dark:text-green-400" }
+          : { card: "border-orange-200 dark:border-orange-800 bg-orange-50/40 dark:bg-orange-900/10", text: "text-orange-700 dark:text-orange-400" };
         return (
-          <div key={p.id} className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/40 dark:bg-orange-900/10 p-3">
+          <div key={p.id} className={`rounded-lg border p-3 ${acc.card}`}>
             <div className="mb-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold text-orange-700 dark:text-orange-400 min-w-0 truncate">
+                <span className={`text-xs font-bold min-w-0 truncate flex items-center gap-1 ${acc.text}`}>
+                  {isResolved && <Check className="w-3.5 h-3.5 shrink-0" />}
                   {/* Vue globale : nom de la cabine ; vue par cabine : numéro. */}
                   {!cabineLabel && p.cabineLabel ? p.cabineLabel : `Pièce n°${num}`}
+                  {isResolved ? " — réglé" : ""}
                 </span>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <span
@@ -1242,8 +1262,8 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
                   </button>
                 </div>
               </div>
-              {/* Case sur sa propre ligne, à droite. */}
-              <div className="flex items-center justify-end mt-1.5">
+              {/* Cases à cocher sur leur propre ligne, à droite. */}
+              <div className="flex items-center justify-end gap-4 mt-1.5">
                 <label className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer select-none whitespace-nowrap"
                   title="Cocher pour ne pas afficher cette pièce sur le rapport">
                   <input
@@ -1253,6 +1273,16 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
                     className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-orange-500 focus:ring-orange-400"
                   />
                   Ne pas afficher
+                </label>
+                <label className="flex items-center gap-1 text-[10px] font-medium text-green-700 dark:text-green-400 cursor-pointer select-none whitespace-nowrap"
+                  title="Cocher quand CETTE pièce a été réglée (reçue/posée)">
+                  <input
+                    type="checkbox"
+                    checked={isResolved}
+                    onChange={() => toggleResolved(p.id, isResolved)}
+                    className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-green-600 focus:ring-green-500 accent-green-600"
+                  />
+                  Pièce réglée
                 </label>
               </div>
             </div>
