@@ -2619,7 +2619,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
           {/* À planifier */}
           <div className="sg-section">
-            <div className="sg-section-head"><span>À planifier</span><i className="sg-rule" /></div>
+            <div className="sg-section-head">
+              <span>À planifier</span>
+              <i className="sg-rule" />
+              {/* Ces deux panneaux n'étaient atteignables que par les cartes
+                  « RDV à fixer » / « RDV fixé », masquées en Signal. On leur
+                  redonne un accès ici pour ne perdre aucune destination. */}
+              <button type="button" onClick={(e) => openPanel("rdv-a-fixer", e)} className="sg-link">Vue groupée</button>
+              <button type="button" onClick={(e) => openPanel("rdv-fixe", e)} className="sg-link">RDV fixé</button>
+            </div>
             <div className="sg-plan">
               {([
                 { label: "RDV Montage", count: rdvMontageAFixerCount, meta: `${rdvMontageAFixerProjects.reduce((s, p) => s + Math.max((p.nbCabines || 0) - Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0), 0)} cabines à poser`, bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-a-fixer", Icon: Wrench, lead: true },
@@ -3612,6 +3620,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         };
         const meta = panelMeta[showSummaryPanel];
         if (!meta) return null;
+        // Thème Signal : les panneaux « RDV … à fixer » ont leur propre bandeau
+        // encre (titre + compteur + KPI + retour) → on évite le doublon.
+        if (isSignal && RDV_STATUS_FIELD[showSummaryPanel]) return null;
         return (
           <button
             ref={headerButtonRef}
@@ -5344,15 +5355,30 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
            Les autres thèmes ne passent jamais ici. */
         if (isSignal && rdvStatusFieldFn) {
           const dateGetter = showSummaryPanel ? PANEL_DATE_FIELD[showSummaryPanel] : undefined;
+          // Bascule « Par date » / « Par région (NPA) » — même logique que le
+          // rendu classique (extraction du code postal de l'adresse chantier).
+          const sgRegion = panelSortOf(showSummaryPanel) === "region";
+          const sgNpa = (addr: string) => { const m = (addr || "").match(/\b(\d{4})\b/); return m ? m[1] : ""; };
+          const sgNpaVille = (addr: string) => {
+            const m = (addr || "").match(/\b(\d{4})\s+([^,]+)/);
+            return m ? `${m[1]} ${m[2].trim()}` : (sgNpa(addr) || "Sans adresse");
+          };
           const byKey = new Map<string, Project[]>();
           panelProjects.forEach((p) => {
-            const key = (dateGetter ? (dateGetter(p) || "") : "").split("T")[0] || "—";
+            const key = sgRegion
+              ? (sgNpa(p.adresseChantier || p.projet || "") || "no-code")
+              : ((dateGetter ? (dateGetter(p) || "") : "").split("T")[0] || "—");
             if (!byKey.has(key)) byKey.set(key, []);
             (byKey.get(key) as Project[]).push(p);
           });
-          const sgGroups = [...byKey.entries()].sort((a, b) =>
-            a[0] === "—" ? 1 : b[0] === "—" ? -1 : a[0].localeCompare(b[0])
-          );
+          const sgGroups = [...byKey.entries()].sort((a, b) => {
+            if (sgRegion) {
+              if (a[0] === "no-code") return 1;
+              if (b[0] === "no-code") return -1;
+              return Number(a[0]) - Number(b[0]);
+            }
+            return a[0] === "—" ? 1 : b[0] === "—" ? -1 : a[0].localeCompare(b[0]);
+          });
           const sel = panelProjects.find((p) => p.id === sgSelected) || panelProjects[0] || null;
           const selJ = sel ? getDaysInfoFromDate(dateGetter ? dateGetter(sel) : null) : null;
           const selTotal = sel ? (sel.nbCabines || 0) : 0;
@@ -5428,7 +5454,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 <div className="sg-list">
                   <div className="sg-cols">
                     <span>DÉLAI</span><span>N° OFR TM</span><span>N° FOURN.</span>
-                    <span>PROJET</span><span>ÉTAT</span><span>EMPLACEMENT</span><span className="sg-right">CAB.</span>
+                    <span>PROJET</span><span>ÉTAT</span><span>EMPLACEMENT</span>
+                    <span className="sg-right">PERS.</span><span className="sg-right">CAB.</span>
                   </div>
                   {panelProjects.length === 0 && (
                     <p className="sg-empty">
@@ -5438,8 +5465,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     </p>
                   )}
                   {sgGroups.map(([key, rows]) => {
-                    const gInfo = key === "—" ? null : getDaysInfoFromDate(key);
-                    const label = key === "—" ? "Date non définie"
+                    // La pastille J+x d'en-tête n'a de sens qu'en mode « Par date » :
+                    // en mode région la clé de groupe est un code postal.
+                    const gInfo = sgRegion || key === "—" ? null : getDaysInfoFromDate(key);
+                    const label = sgRegion
+                      ? (key === "no-code" ? "Sans code postal" : sgNpaVille(rows[0]?.adresseChantier || rows[0]?.projet || ""))
+                      : key === "—" ? "Date non définie"
                       : new Date(key + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" });
                     return (
                       <div key={key} className="sg-grp-wrap">
@@ -5476,6 +5507,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 <MapPin className="w-3 h-3" />
                                 <span>{p.emplacementCabine || "—"}</span>
                               </span>
+                              <span className="sg-pers">{p.nbCollaborateursMontage ? `${p.nbCollaborateursMontage} pers.` : "—"}</span>
                               <span className="sg-mono sg-right sg-strong">{p.nbCabines || 0}</span>
                             </Link>
                           );

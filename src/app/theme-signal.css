@@ -550,6 +550,24 @@ html[data-ui="signal"] .sg-rule {
   height: 1px;
   background: var(--sg-line);
 }
+html[data-ui="signal"] .sg-link {
+  border: 1px solid var(--sg-line);
+  background: var(--sg-paper);
+  color: var(--sg-text-2);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+html[data-ui="signal"] .sg-link:hover {
+  border-color: var(--sg-signal);
+  color: var(--sg-signal);
+}
 
 /* Tuiles « À planifier » */
 html[data-ui="signal"] .sg-plan {
@@ -874,9 +892,21 @@ html[data-ui="signal"] .sg-list { flex-grow: 1; min-width: 0; padding: 10px 12px
 html[data-ui="signal"] .sg-cols,
 html[data-ui="signal"] .sg-prow {
   display: grid;
-  grid-template-columns: 56px 96px 96px minmax(0, 1fr) 132px 96px 44px;
+  grid-template-columns: 56px 96px 92px minmax(0, 1fr) 128px 92px 56px 40px;
   gap: 10px;
   align-items: center;
+}
+html[data-ui="signal"] .sg-pers {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--sg-paper-2);
+  color: var(--sg-text-2);
+  white-space: nowrap;
 }
 html[data-ui="signal"] .sg-cols {
   padding: 0 10px 7px 10px;
