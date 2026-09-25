@@ -135,7 +135,10 @@ function run(argv) {
     userPart = userPart.replace(/\s+$/, '');
     let newNotes = curNotes;
     if (autoBlock) {
-      newNotes = userPart ? (userPart + '\n\n' + autoBlock) : autoBlock;
+      // 2 lignes vides AVANT le bloc auto (espace pour des notes manuelles) —
+      // que des notes manuelles existent déjà ou non.
+      const gapped = '\n\n' + autoBlock;
+      newNotes = userPart ? (userPart + '\n' + gapped) : gapped;
     } else if (si >= 0) {
       newNotes = userPart; // plus de bloc attendu → on retire l'ancien
     }

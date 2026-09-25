@@ -76,8 +76,16 @@ export async function GET(req: NextRequest) {
     const nb = full.nbCabines != null ? String(full.nbCabines) : "";
     const cartons = full.nbCartons != null ? String(full.nbCartons) : "";
     const notesLines: string[] = [];
-    const em = (label: string) => `***${label}***`;
-    const add = (label: string, val?: string) => { if (val && val.trim()) notesLines.push(`${em(label)} : ${val.trim()}`); };
+    // Champs courts : titre en **gras** (double) + valeur sur la MÊME ligne.
+    const addField = (label: string, val?: string) => { if (val && val.trim()) notesLines.push(`**${label}** : ${val.trim()}`); };
+    // Blocs multi-lignes : titre en ***gras*** (triple), valeur sur la ligne
+    // SUIVANTE, précédés d'une ligne vide de séparation.
+    const addBlock = (label: string, val?: string) => {
+      if (!val || !val.trim()) return;
+      notesLines.push("");
+      notesLines.push(`***${label}*** :`);
+      notesLines.push(val.trim());
+    };
     const joinArr = (a?: string[]) => (a || []).filter(Boolean).join(", ");
     const fournisseurs = joinArr(fournisseursForDisplay(full.fournisseurs));
     const series = joinArr(full.seriesCabines);
@@ -88,25 +96,31 @@ export async function GET(req: NextRequest) {
       .join(" ; ");
 
     if (["montage", "mesures", "services", "sav"].includes(type)) {
-      // Nb. Cabines / Nb. de cartons sur une même ligne, séparés par « / ».
-      const nbParts: string[] = [];
-      if (nb) nbParts.push(`${em("Nb. Cabines")} : ${nb}`);
-      if (cartons) nbParts.push(`${em("Nb. de cartons")} : ${cartons}`);
-      if (nbParts.length) notesLines.push(nbParts.join(" / "));
+      // ── Champs courts (double **), une ligne chacun. ──
+      addField("Nb. Cabines", nb);
+      addField("Nb. de cartons", cartons);
+      addField("Fournisseurs", fournisseurs);
+      addField("Séries cabines", series);
+      if (type === "montage") addField("Emplacement cabine", full.emplacementCabine);
+      addField("N° CMD Fournisseurs", full.cmdFournisseurs);
+      addField("N° Serv. CMD Fournisseurs", full.servCmdFournisseurs);
 
-      add("Fournisseurs", fournisseurs);
-      add("Séries cabines", series);
-      if (type === "montage") add("Emplacement cabine", full.emplacementCabine);
-      add("Contacts RDV", full.contactsRDV);
-      if (type === "montage") add("Commentaires montage", full.commentairesMontages);
-      if (type === "mesures") add("Commentaires mesures", full.commentairesMesures);
+      // ── Contacts CRM (triple ***, valeur ligne suivante) — si présents. ──
+      addBlock("Contacts Locataires", fmtContacts(full.contactsLocatairesDetails));
+      addBlock("Contacts Clients finaux", fmtContacts(full.contactsClientsFinauxDetails));
+      addBlock("Contacts Sanitaire", fmtContacts(full.contactsSanitaireDetails));
+      addBlock("Contacts DT", fmtContacts(full.contactsDTDetails));
+      addBlock("Contacts Architecte", fmtContacts(full.contactsArchitecteDetails));
 
-      // ── Contacts CRM (relations Notion) — uniquement ceux qui existent. ──
-      add("Contacts Locataires", fmtContacts(full.contactsLocatairesDetails));
-      add("Contacts Clients finaux", fmtContacts(full.contactsClientsFinauxDetails));
-      add("Contacts Sanitaire", fmtContacts(full.contactsSanitaireDetails));
-      add("Contacts DT", fmtContacts(full.contactsDTDetails));
-      add("Contacts Architecte", fmtContacts(full.contactsArchitecteDetails));
+      // ── Commentaires (triple ***, valeur ligne suivante). ──
+      if (type === "montage") addBlock("Commentaires montage", full.commentairesMontages);
+      if (type === "mesures") addBlock("Commentaires mesures", full.commentairesMesures);
+
+      // ── Divers infos chantier (double **, précédé d'une ligne vide). ──
+      if (full.diversInfosChantier && full.diversInfosChantier.trim()) {
+        notesLines.push("");
+        notesLines.push(`**Divers infos chantier** : ${full.diversInfosChantier.trim()}`);
+      }
     }
     // NB : plus aucun lien de rapport dans les notes (lisibilité du calendrier).
     // La Fiche de travail est désormais le lien « officiel » de l'événement
