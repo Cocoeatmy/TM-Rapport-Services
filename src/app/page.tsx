@@ -3492,7 +3492,26 @@ function HomePage() {
             <SignalStats
               byMonth={svcByMonth}
               monthKeys={monthlyKeys}
+              /* Totaux calculés sur les LIGNES filtrées (et non sur les agrégats
+                 mensuels) : identiques à ceux de la page statistiques historique,
+                 y compris pour d'éventuelles lignes sans mois identifiable. */
+              totals={{
+                mesures: totalMesures,
+                cabines: totalCabines,
+                montages: totalMontages,
+                demontages: svcFiltered.reduce((s: number, r: any) => s + r.demontages, 0),
+                services: totalServices,
+                sav: totalSAV,
+                ofr: totalOFR,
+                ca: totalCA,
+              }}
               rangeLabel={describeStatsRange({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear })}
+              /* Relit Notion en direct : la journée en cours n'est pas encore
+                 dans le snapshot nocturne des statistiques. */
+              onRefresh={async () => {
+                const svc = await fetch("/api/stats/services?fresh=1").then((r) => r.json()).catch(() => null);
+                if (Array.isArray(svc)) setStatsServices(svc);
+              }}
               filter={
                 <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
                   onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo}

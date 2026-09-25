@@ -318,7 +318,17 @@ export async function cachedOrFetch<T>(
 export async function cachedOrFetchLong<T>(
   key: string,
   fetcher: () => Promise<T>,
+  force = false,
 ): Promise<T> {
+  // `force` : rafraîchissement explicite demandé par l'utilisateur. Les stats
+  // passent par un snapshot nocturne ; sans ça, la journée en cours n'apparaît
+  // qu'au prochain cron. Paramètre OPTIONNEL : les appels existants (donc tous
+  // les autres écrans) gardent exactement le comportement précédent.
+  if (force) {
+    const data = await fetcher();
+    setCacheLong(key, data);
+    return data;
+  }
   const entry = getCachedWithStale<T>(key);
   if (entry) {
     if (entry.stale) revalidateInBackground(key, fetcher);

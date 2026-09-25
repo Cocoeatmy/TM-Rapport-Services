@@ -7,9 +7,12 @@ export const dynamic = "force-dynamic";
 // (pagination Notion ~12s) → marge au-dessus du défaut Vercel ~15s.
 export const maxDuration = 60;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const rows = await cachedOrFetchLong("stats-services", () => getStats("services"));
+    // ?fresh=1 → relit Notion en direct (contourne le snapshot nocturne), pour
+    // que la journée en cours soit comptée. Sans le paramètre : inchangé.
+    const fresh = new URL(request.url).searchParams.has("fresh");
+    const rows = await cachedOrFetchLong("stats-services", () => getStats("services"), fresh);
     return NextResponse.json(rows);
   } catch (error: any) {
     console.error("Error fetching stats services:", error);

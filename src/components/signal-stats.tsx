@@ -15,7 +15,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
 
 export type SignalStatsMonth = {
   mesures: number; cabines: number; montages: number; demontages: number;
@@ -83,25 +83,38 @@ function smoothPath(pts: { x: number; y: number }[]): string {
 export function SignalStats({
   byMonth,
   monthKeys,
+  totals: totalsProp,
   rangeLabel,
   filter,
+  onRefresh,
 }: {
   byMonth: Record<string, SignalStatsMonth>;
   monthKeys: string[];
+  /** Totaux calculés sur les lignes brutes par la page (source de vérité). */
+  totals?: Partial<Record<SerieId, number>>;
   rangeLabel?: string;
   filter?: React.ReactNode;
+  onRefresh?: () => Promise<void> | void;
 }) {
   const [hidden, setHidden] = useState<Set<SerieId>>(() => new Set<SerieId>(["ofr", "demontages"]));
   const [shape, setShape] = useState<"line" | "area" | "bar">("area");
   const [hover, setHover] = useState<number | null>(null);
+  /** Mois épinglés pour comparaison. Vide = tous les mois de la période. */
+  const [picked, setPicked] = useState<Set<string>>(() => new Set<string>());
+  const [refreshing, setRefreshing] = useState(false);
 
-  const keys = useMemo(() => monthKeys.slice(-14), [monthKeys]);
+  const keys = useMemo(
+    () => (picked.size > 0 ? monthKeys.filter((k) => picked.has(k)) : monthKeys.slice(-14)),
+    [monthKeys, picked]
+  );
   const rows = useMemo(
     () => keys.map((k) => ({ key: k, label: monthLabel(k), v: byMonth[k] })).filter((r) => !!r.v),
     [keys, byMonth]
   );
 
   const totals = useMemo(() => {
+    // Priorité aux totaux fournis par la page (calculés sur les lignes brutes).
+    if (totalsProp) return totalsProp as Record<string, number>;
     const t: Record<string, number> = {};
     (Object.keys(SERIES.reduce((a, s) => ({ ...a, [s.id]: 1 }), { ca: 1 } as Record<string, number>)) as string[])
       .forEach((id) => { t[id] = 0; });
@@ -111,7 +124,7 @@ export function SignalStats({
       (Object.keys(v) as SerieId[]).forEach((id) => { t[id] = (t[id] || 0) + (v[id] || 0); });
     });
     return t;
-  }, [monthKeys, byMonth]);
+  }, [monthKeys, byMonth, totalsProp]);
 
   /** Variation du dernier mois complet par rapport au précédent. */
   const delta = (id: SerieId): number | null => {
@@ -155,9 +168,48 @@ export function SignalStats({
           <h1 className="sgs-h1">Statistiques</h1>
           {rangeLabel && <p className="sgs-sub">{rangeLabel}</p>}
         </div>
+        {onRefresh && (
+          <button
+            type="button"
+            className="sgs-refresh"
+            disabled={refreshing}
+            onClick={async () => { setRefreshing(true); try { await onRefresh(); } finally { setRefreshing(false); } }}
+            title="Relit Notion en direct — la journée en cours n'est pas encore dans le snapshot nocturne"
+          >
+            <RefreshCw className={`w-3.5 h-3.5${refreshing ? " sgs-spin" : ""}`} />
+            {refreshing ? "Actualisation…" : "Actualiser"}
+          </button>
+        )}
       </div>
 
       {filter && <div className="sgs-filter">{filter}</div>}
+
+      {/* Sélection de mois : cliquez pour épingler, comparez-en plusieurs */}
+      {monthKeys.length > 1 && (
+        <div className="sgs-months">
+          <span className="sgs-months-k">Mois</span>
+          {monthKeys.slice(-18).map((k) => {
+            const on = picked.has(k);
+            return (
+              <button key={k} type="button" aria-pressed={on}
+                className={`sgs-month${on ? " is-on" : ""}`}
+                onClick={() => setPicked((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(k)) next.delete(k); else next.add(k);
+                  return next;
+                })}
+              >
+                {monthLabel(k)}
+              </button>
+            );
+          })}
+          {picked.size > 0 && (
+            <button type="button" className="sgs-month sgs-month-clear" onClick={() => setPicked(new Set())}>
+              Tout afficher ({monthKeys.length})
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Indicateurs clés */}
       <div className="sgs-kpis">
@@ -292,6 +344,62 @@ export function SignalStats({
           <button type="button" className="sgs-leg sgs-leg-all" onClick={() => setHidden(new Set())}>Tout afficher</button>
         </div>
       </div>
+
+      {/* Comparaison VS — dès que 2 mois ou plus sont épinglés */}
+      {rows.length >= 2 && picked.size >= 2 && (
+        <div className="sgs-card">
+          <div className="sgs-card-head">
+            <div>
+              <h2 className="sgs-card-title">
+                Comparaison <span className="sgs-vs">VS</span>
+              </h2>
+              <p className="sgs-card-meta">
+                {rows.map((r) => r.label).join("  ·  ")} — évolution du premier au dernier mois épinglé
+              </p>
+            </div>
+          </div>
+          <div className="sgs-vs-table">
+            <div className="sgs-vs-tr sgs-vs-th">
+              <span>Série</span>
+              {rows.map((r) => <span key={r.key} className="sgs-right">{r.label}</span>)}
+              <span className="sgs-right">Évolution</span>
+            </div>
+            {visible.map((s) => {
+              const first = rows[0].v[s.id] || 0;
+              const last = rows[rows.length - 1].v[s.id] || 0;
+              const pct = first === 0 ? (last === 0 ? 0 : null) : ((last - first) / first) * 100;
+              const vMax = Math.max(1, ...rows.map((r) => r.v[s.id] || 0));
+              return (
+                <div key={s.id} className="sgs-vs-tr">
+                  <span className="sgs-vs-serie">
+                    <i style={{ background: s.color }} />
+                    {s.label}
+                  </span>
+                  {rows.map((r) => {
+                    const v = r.v[s.id] || 0;
+                    return (
+                      <span key={r.key} className="sgs-cell">
+                        <i className="sgs-cell-bar" style={{ width: `${(v / vMax) * 100}%`, background: s.color }} />
+                        <span className="sgs-cell-v">{fmt(v)}</span>
+                      </span>
+                    );
+                  })}
+                  <span className="sgs-right">
+                    {pct === null ? (
+                      <span className="sgs-delta flat">—</span>
+                    ) : (
+                      <span className={`sgs-delta ${pct > 0.5 ? "up" : pct < -0.5 ? "down" : "flat"}`}>
+                        {pct > 0.5 ? <TrendingUp className="w-3 h-3" /> : pct < -0.5 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                        {Math.abs(Math.round(pct))}%
+                      </span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Détail mensuel */}
       <div className="sgs-card">

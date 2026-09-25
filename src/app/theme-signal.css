@@ -1036,6 +1036,68 @@ html[data-ui="signal"] .sgs-h1 {
   margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.03em; color: var(--sg-text);
 }
 html[data-ui="signal"] .sgs-sub { margin: 3px 0 0 0; font-size: 13px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sgs-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+html[data-ui="signal"] .sgs-refresh {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 34px; padding: 0 13px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  font-family: inherit; font-size: 12px; font-weight: 600; color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sgs-refresh:hover { border-color: var(--sg-signal); color: var(--sg-signal); }
+html[data-ui="signal"] .sgs-refresh:disabled { opacity: 0.6; cursor: default; }
+html[data-ui="signal"] .sgs-spin { animation: sgsSpin 900ms linear infinite; }
+
+/* Sélection de mois */
+html[data-ui="signal"] .sgs-months {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 12px 14px; border-radius: 14px;
+  background: var(--sg-paper); border: 1px solid var(--sg-line); box-shadow: var(--sg-shadow);
+}
+html[data-ui="signal"] .sgs-months-k {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--sg-text-3); margin-right: 4px;
+}
+html[data-ui="signal"] .sgs-month {
+  height: 28px; padding: 0 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--sg-line); background: var(--sg-paper-2);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 11px; font-weight: 600; color: var(--sg-text-2);
+  transition: background 140ms, color 140ms, border-color 140ms;
+}
+html[data-ui="signal"] .sgs-month:hover { border-color: var(--sg-signal); color: var(--sg-signal); }
+html[data-ui="signal"] .sgs-month.is-on {
+  background: var(--sg-signal); border-color: var(--sg-signal); color: #ffffff;
+}
+html[data-ui="signal"] .sgs-month-clear {
+  border-style: dashed; background: transparent; color: var(--sg-text-3);
+  font-family: inherit; font-weight: 500;
+}
+
+/* Comparaison VS */
+html[data-ui="signal"] .sgs-vs {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 800;
+  padding: 2px 7px; border-radius: 6px; margin-left: 6px;
+  background: var(--sg-signal); color: #ffffff; vertical-align: middle;
+}
+html[data-ui="signal"] .sgs-vs-table { display: flex; flex-direction: column; }
+html[data-ui="signal"] .sgs-vs-tr {
+  display: grid; grid-template-columns: 130px repeat(auto-fit, minmax(0, 1fr)) 84px;
+  gap: 10px; align-items: center; padding: 9px 4px;
+  border-bottom: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgs-vs-th {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--sg-text-3);
+  border-bottom: 1px solid var(--sg-line-strong);
+}
+html[data-ui="signal"] .sgs-vs-serie {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgs-vs-serie i { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+
+@keyframes sgsSpin { to { transform: rotate(360deg); } }
+
 html[data-ui="signal"] .sgs-filter {
   background: var(--sg-paper); border: 1px solid var(--sg-line);
   border-radius: 14px; padding: 12px 14px; box-shadow: var(--sg-shadow);
