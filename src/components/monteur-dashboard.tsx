@@ -2967,7 +2967,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </button>
               </div>
             )}
-            <div className={`grid grid-cols-2 sm:grid-cols-6 gap-1.5 sm:gap-3 ${isEditMode ? "select-none" : ""}`}>
+            <div className={`dash-grid grid grid-cols-2 sm:grid-cols-6 gap-1.5 sm:gap-3 ${isEditMode ? "select-none" : ""}`}>
               {buttonOrder.map((id, idx) => {
                 const isDragging = dragSrcId === id;
                 const isOver = dragOverId === id && dragSrcId !== id;

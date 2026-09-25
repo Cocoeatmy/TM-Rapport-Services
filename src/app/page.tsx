@@ -208,7 +208,7 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch, ex
   );
 }
 
-function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isCmm?: boolean }) {
+function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal }: { mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isCmm?: boolean; isSignal?: boolean }) {
   const [open, setOpen] = useState<string | null>(
     mode.startsWith("grossistes") ? "grossistes" :
     mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
@@ -289,9 +289,41 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
     )}
     {/* Sur mobile CleanMyMac : les onglets horizontaux sont entièrement masqués
         (remplacés par le CmmMobileDrawer rendu au niveau HomePage). */}
+    {/* Rail vertical — thème « Signal », desktop uniquement.
+        Il reprend À L'IDENTIQUE les 9 entrées de la barre d'onglets et leurs
+        comportements : les entrées à sous-menu ouvrent le même sous-menu, qui
+        reste rendu juste en dessous. Aucune destination n'est retirée. */}
+    {isSignal && !isCmm && (
+      <nav aria-label="Navigation principale" className="signal-rail hidden lg:flex">
+        {[
+          { id: "dashboard",    label: "Tableau de bord", Icon: LayoutGrid,  active: mode === "dashboard",                                  act: () => { handleSelect("dashboard"); setOpen(null); } },
+          { id: "services",     label: "Services",        Icon: Ruler,       active: isServicesActive || open === "services",                act: () => setOpen(open === "services" ? null : "services") },
+          { id: "clients",      label: "CRM",             Icon: UsersIcon,   active: isClientsActive || open === "clients",                  act: () => setOpen(open === "clients" ? null : "clients") },
+          { id: "grossistes",   label: "Grossistes",      Icon: ShoppingBag, active: isGrossisteActive || open === "grossistes",             act: () => setOpen(open === "grossistes" ? null : "grossistes") },
+          { id: "fournisseurs", label: "Fournisseurs",    Icon: Package,     active: isFournisseursActive || open === "fournisseurs-menu",   act: () => setOpen(open === "fournisseurs-menu" ? null : "fournisseurs-menu") },
+          { id: "sanitaires",   label: "Sanitaires",      Icon: Droplets,    active: mode === "sanitaires",                                 act: () => { handleSelect("sanitaires"); setOpen(null); } },
+          { id: "rapport",      label: "Rapport",         Icon: FileText,    active: mode === "rapport",                                    act: () => { handleSelect("rapport"); setOpen(null); } },
+          { id: "destockage",   label: "Déstockage",      Icon: Archive,     active: mode === "destockage",                                 act: () => { handleSelect("destockage"); setOpen(null); } },
+          ...(isAdmin ? [{ id: "stats", label: "Stats", Icon: BarChart2, active: mode === "stats", act: () => { handleSelect("stats"); setOpen(null); } }] : []),
+        ].map((it) => (
+          <button
+            key={it.id}
+            type="button"
+            onClick={it.act}
+            title={it.label}
+            aria-label={it.label}
+            aria-current={it.active ? "page" : undefined}
+            className={`signal-rail-item${it.active ? " is-active" : ""}`}
+          >
+            <it.Icon className="w-5 h-5" />
+          </button>
+        ))}
+      </nav>
+    )}
     <div className={`mb-4 space-y-1.5${isCmm ? " hidden" : ""}`}>
-      {/* Ligne principale */}
-      <div className="p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain">
+      {/* Ligne principale — masquée sur desktop en thème Signal (remplacée par
+          le rail) ; elle reste la navigation sur mobile/tablette. */}
+      <div className={`p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain${isSignal ? " lg:hidden" : ""}`}>
         <div className="flex gap-1">
           <button onClick={() => { handleSelect("dashboard"); setOpen(null); }} className={tabCls(mode === "dashboard")}>
             Dashboard
@@ -1252,6 +1284,16 @@ function HomePage() {
   const [isCmm, setIsCmm] = useState(false);
   useEffect(() => {
     const check = () => setIsCmm(document.documentElement.getAttribute("data-ui") === "cleanmymac");
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-ui"] });
+    return () => obs.disconnect();
+  }, []);
+
+  // Même mécanisme pour le thème « Signal » (rail vertical sur desktop).
+  const [isSignal, setIsSignal] = useState(false);
+  useEffect(() => {
+    const check = () => setIsSignal(document.documentElement.getAttribute("data-ui") === "signal");
     check();
     const obs = new MutationObserver(check);
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-ui"] });
@@ -2307,7 +2349,7 @@ function HomePage() {
       <div id="main-navbar" className="sticky z-40 -mx-4 px-4 pb-2 pt-1 glass-navbar" style={{top: `var(--header-h, 60px)`}}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} onSwitchMode={(m: Mode) => {
+          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} isSignal={isSignal} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             // CMM : afficher le hero pour les modes qui en ont un
             const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements", "arrivage"];
