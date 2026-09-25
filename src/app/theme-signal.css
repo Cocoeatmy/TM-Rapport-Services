@@ -1446,6 +1446,27 @@ html[data-ui="signal"] .sg-plist-act-del:hover { color: #b91c1c; border-color: #
   html[data-ui="signal"] .sg-plist-act { opacity: 1; }
 }
 
+/* ── Indicateur du geste de navigation (balayage 2 doigts) ───────────────── */
+html[data-ui="signal"] .sg-swipe-hint {
+  position: fixed;
+  top: 50%;
+  z-index: 60;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--sg-ink);
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+html[data-ui="signal"] .sg-swipe-hint[data-dir="back"] { left: 14px; }
+html[data-ui="signal"] .sg-swipe-hint[data-dir="forward"] { right: 14px; left: auto; }
+html[data-ui="signal"] .sg-swipe-hint[data-dir="forward"] svg { transform: rotate(180deg); }
+
 /* ── Mouvement réduit ────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   html[data-ui="signal"] *,

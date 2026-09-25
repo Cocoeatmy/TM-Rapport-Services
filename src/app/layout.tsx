@@ -9,6 +9,7 @@ import { RefreshButton } from "@/components/refresh-button";
 import { ForceSyncButton } from "@/components/force-sync-button";
 import { SendPendingButton } from "@/components/send-pending-button";
 import { ThemeColorSync } from "@/components/theme-color-sync";
+import { SwipeNavigation } from "@/components/swipe-navigation";
 import { CreateProjectButton } from "@/components/create-project-button";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineBanner } from "@/components/offline-banner";
@@ -102,6 +103,7 @@ export default function RootLayout({
         {/* Bandeau hors-ligne + header dans un même conteneur sticky : le
             bandeau se place AU-DESSUS du header (plein haut), sans le recouvrir. */}
         <ThemeColorSync />
+        <SwipeNavigation />
         <div className="sticky top-0 z-50">
         <OfflineBanner />
         <header id="main-header" className="glass-header text-white">
