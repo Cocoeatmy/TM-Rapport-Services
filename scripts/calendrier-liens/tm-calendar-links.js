@@ -68,9 +68,10 @@ function run(argv) {
   const events = store.eventsMatchingPredicate(pred);
   const count = events.count;
 
-  // Types acceptés : Montage / Mesures / Services / SAV / Garantie, éventuellement
+  // Types acceptés : Montage / Mesures / Services / SAV / Garantie, au SINGULIER
+  // comme au PLURIEL (« Service - TM… » ou « Services - TM… »), éventuellement
   // préfixés par "PROV" (séparateur " : " ou " - "). Exclut Visite, etc.
-  const TYPE_RE = /^(?:PROV\s*[:\-]\s*)?(Montage|Mesures|Services|SAV|Garantie)\b/i;
+  const TYPE_RE = /^(?:PROV\s*[:\-]\s*)?(Montages?|Mesures?|Services?|SAV|Garanties?)\b/i;
   // Sentinelle du bloc d'infos auto (doit correspondre à /api/share-link).
   const SENTINEL = '——— Infos projet (auto) ———';
   let filled = 0;
@@ -82,7 +83,13 @@ function run(argv) {
     if (!title) continue;
     const tMatch = title.match(TYPE_RE);
     if (!tMatch) continue;
-    const type = tMatch[1].toLowerCase(); // montage|mesures|services|sav|garantie
+    // Normalise singulier/pluriel → forme canonique attendue par l'endpoint.
+    const rawType = tMatch[1].toLowerCase();
+    const type = rawType.indexOf('montage') === 0 ? 'montage'
+      : rawType.indexOf('mesure') === 0 ? 'mesures'
+      : rawType.indexOf('service') === 0 ? 'services'
+      : rawType.indexOf('garantie') === 0 ? 'garantie'
+      : 'sav';
     const wantsNotes = (type === 'montage' || type === 'mesures' || type === 'services' || type === 'sav');
 
     // Extraire "TM-<chiffres>".
