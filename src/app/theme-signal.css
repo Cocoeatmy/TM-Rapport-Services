@@ -1554,6 +1554,57 @@ html[data-ui="signal"] .sg-swipe-hint[data-dir="back"] { left: 14px; }
 html[data-ui="signal"] .sg-swipe-hint[data-dir="forward"] { right: 14px; left: auto; }
 html[data-ui="signal"] .sg-swipe-hint[data-dir="forward"] svg { transform: rotate(180deg); }
 
+/* ── Page projet : barre d'onglets horizontale ────────────────────────────
+   Remplace le rail vertical macOS et la barre iOS. Onglets EXCLUSIFS : une
+   seule section à l'écran, au lieu du cumul qui recréait le mur de cartes. */
+html[data-ui="signal"] .sgp-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin: 14px 16px 0 16px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgp-tabs-spacer { flex-grow: 1; }
+html[data-ui="signal"] .sgp-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 13px 11px 13px;
+  border: none;
+  background: transparent;
+  color: var(--sg-text-3);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+html[data-ui="signal"] .sgp-tab:hover { color: var(--sg-text); }
+html[data-ui="signal"] .sgp-tab.is-on {
+  color: var(--sg-text);
+  font-weight: 600;
+  border-bottom-color: var(--sg-ink);
+}
+html[data-ui="signal"] .sgp-tab-n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--sg-paper-2);
+  color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgp-tab.is-on .sgp-tab-n {
+  background: var(--sg-signal-soft);
+  color: var(--sg-signal);
+}
+
 /* ── Mouvement réduit ────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   html[data-ui="signal"] *,

@@ -3430,14 +3430,32 @@ function ProjectPageContent({ id }: { id: string }) {
     setIsMac(/Macintosh|Mac OS X/.test(ua) && !iOS);
     setIsIOS(iOS);
   }, []);
+  // Thème « Signal » : barre d'onglets horizontale + onglets EXCLUSIFS.
+  const [isSignalUi, setIsSignalUi] = useState(false);
+  useEffect(() => {
+    const check = () => setIsSignalUi(document.documentElement.getAttribute("data-ui") === "signal");
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-ui"] });
+    return () => obs.disconnect();
+  }, []);
   // Présentation « onglets » (icônes qui déplient/replient les sections) :
-  // active sur macOS (rail vertical à gauche) ET iOS (barre horizontale).
-  const isTab = isMac || isIOS;
+  // active sur macOS (rail vertical à gauche), iOS (barre horizontale) et
+  // en thème Signal (barre horizontale, sur toutes les plateformes).
+  const isTab = isMac || isIOS || isSignalUi;
   const toggleMacTab = (id: string) => setMacTabs((prev) => {
+    // Signal : un seul onglet ouvert à la fois (et jamais aucun) — c'est ce qui
+    // évite le mur de cartes des autres présentations.
+    if (isSignalUi) return prev.has(id) && prev.size === 1 ? prev : new Set([id]);
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
+  // Signal : ouvre « Cabines » par défaut plutôt qu'une page vide.
+  useEffect(() => {
+    if (!isSignalUi) return;
+    setMacTabs((prev) => (prev.size === 0 ? new Set(["cabines"]) : prev));
+  }, [isSignalUi]);
   /** true = section masquée (présentation onglets, onglet fermé). */
   const macHidden = (id: string) => isTab && !macTabs.has(id);
   // Clé de rafraîchissement pour DefautsList : incrémentée à chaque
@@ -6707,9 +6725,51 @@ function ProjectPageContent({ id }: { id: string }) {
         })()}
       </div>
 
+      {/* Thème Signal : barre d'onglets horizontale AVEC LIBELLÉS, comme la
+          maquette. Onglets exclusifs (cf. toggleMacTab) : une seule section à
+          l'écran, plus de mur de cartes. Remplace le rail macOS et la barre iOS. */}
+      {isSignalUi && (
+        <div className="sgp-tabs">
+          {(() => {
+            // Libellés courts (la maquette) + compteurs réels.
+            const SHORT: Record<string, string> = {
+              projet: "Projet", dates: "Dates", client: "Contact", cabines: "Cabines",
+              mesures: "Documents", commentaires: "Commentaires", fiche: "Fiche", rapport: "Rapport",
+            };
+            const badgeOf = (id: string): number => {
+              if (id === "cabines") return cabines.length;
+              if (id === "mesures") return (project?.documentsMontagee?.length || 0) + (project?.documentsMesures?.length || 0);
+              if (id === "commentaires") return notionCommentsCount;
+              return 0;
+            };
+            return tabDefs
+              .filter((t) => (t.id !== "fiche" || isAdmin) && (t.id !== "rapport" || isMac))
+              .map((t) => {
+                const on = macTabs.has(t.id);
+                const n = badgeOf(t.id);
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => toggleMacTab(t.id)}
+                    className={`sgp-tab${on ? " is-on" : ""}`}
+                    aria-pressed={on}
+                    title={t.label}
+                  >
+                    {SHORT[t.id] || t.label}
+                    {n > 0 && <span className="sgp-tab-n">{n}</span>}
+                  </button>
+                );
+              });
+          })()}
+          {isAdmin && <span className="sgp-tabs-spacer" />}
+          {isAdmin && renderNotionDocsBtn()}
+        </div>
+      )}
+
       {/* Rail d'onglets vertical (macOS), fixé tout à gauche. Icône colorée dans
           un carré arrondi ; l'onglet actif est entouré. Clic = déplie/replie. */}
-      {isMac && (
+      {isMac && !isSignalUi && (
         <div className="fixed left-2 z-30 flex flex-col gap-2" style={{ top: railTop }}>
           {/* Onglet « Fiche de travail » : admin uniquement pour l'instant. */}
           {(() => {
@@ -6727,7 +6787,7 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Barre d'onglets horizontale (iOS). Même principe que le rail macOS mais
           à l'horizontale, sous l'en-tête. "rapport" est exclu : sur iOS il reste
           piloté par le bouton dédié. Cachée en mode rapport. */}
-      {isIOS && !showRapport && (
+      {isIOS && !isSignalUi && !showRapport && (
         <div className="px-4 mt-3">
           <div className="flex justify-between items-center pb-1">
             {(() => {
@@ -6746,13 +6806,14 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Historique des modifications (toggle) — même gabarit/alignement que les
           panneaux du dessous (padding du rail macOS inclus). */}
       {showHistory && isAdmin && (
-        <div className={`px-4 sm:px-6 mt-4 ${isMac ? "!pl-24" : ""}`}>
+        <div className={`px-4 sm:px-6 mt-4 ${isMac && !isSignalUi ? "!pl-24" : ""}`}>
           <ProjectHistory projectId={id} onCountChange={setHistoryCount} />
         </div>
       )}
 
       <div className={`px-4 sm:px-6 mt-4 ${
-        isMac ? "w-full space-y-4 !pl-24"
+        isSignalUi ? "w-full space-y-4"
+        : isMac ? "w-full space-y-4 !pl-24"
         : showRapport ? "grid grid-cols-1 lg:grid-cols-2 gap-4"
         : isIOS ? "w-full space-y-4"
         : "w-full"
