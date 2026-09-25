@@ -94,9 +94,13 @@ function run(argv) {
     const curNotes = ObjC.unwrap(ev.notes) || '';
     const hasSentinel = curNotes.indexOf(SENTINEL) >= 0;
 
-    // Déjà traité ? URL présente ET (pas de notes attendues OU bloc déjà là).
-    // Évite de re-solliciter l'API et la boucle WatchPath après écriture.
-    if (!force && curURL && (!wantsNotes || hasSentinel)) continue;
+    // Synchro Notion → calendrier : pour les types À NOTES, on re-sollicite
+    // TOUJOURS l'API et on compare (l'écriture n'a lieu que si URL/notes ont
+    // changé, cf. plus bas → pas de boucle WatchPath). Ainsi une modif Notion
+    // (contacts, cartons…) est répercutée sur un RDV déjà traité. On ne saute
+    // que les types SANS notes (ex. Garantie) qui ont déjà une URL.
+    if (!force && curURL && !wantsNotes) continue;
+    void hasSentinel;
 
     // Récupérer lien + notes (JSON) selon le type.
     const reqURL = baseURL + '/api/share-link?key=' + apiKey + '&type=' + type + '&tm=' + tm;

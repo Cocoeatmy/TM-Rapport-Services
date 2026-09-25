@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { notion, databaseId, mapPageToProject, fournisseursForDisplay } from "@/lib/notion";
+import { notion, databaseId, mapPageToProject, getProject, fournisseursForDisplay, type ContactDetail } from "@/lib/notion";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -63,44 +63,54 @@ export async function GET(req: NextRequest) {
     // /f/…, redirige vers le PDF signé). Auparavant : portail client /client/….
     const link = `${origin}/f/${token}`;
 
+    // Détails complets (résout les CONTACTS relationnels + le reste). Repli sur
+    // la version « query » si la résolution échoue (le lien reste renvoyé).
+    let full: any = project;
+    try { full = await getProject(project.id); } catch { full = project; }
+
     // ── Notes pré-formatées selon le type de RDV (pour l'agent calendrier) ─────
     // Bloc « auto » avec sentinelle → l'agent peut le remplacer sans toucher aux
-    // notes écrites à la main.
+    // notes écrites à la main. Titres mis en évidence via ***…*** (le calendrier
+    // Apple n'accepte pas le vrai gras dans les notes = texte brut).
     const type = (sp.get("type") || "").toLowerCase();
-    const nb = project.nbCabines != null ? String(project.nbCabines) : "";
+    const nb = full.nbCabines != null ? String(full.nbCabines) : "";
+    const cartons = full.nbCartons != null ? String(full.nbCartons) : "";
     const notesLines: string[] = [];
-    const add = (label: string, val?: string) => { if (val && val.trim()) notesLines.push(`${label} : ${val.trim()}`); };
+    const em = (label: string) => `***${label}***`;
+    const add = (label: string, val?: string) => { if (val && val.trim()) notesLines.push(`${em(label)} : ${val.trim()}`); };
     const joinArr = (a?: string[]) => (a || []).filter(Boolean).join(", ");
-    const fournisseurs = joinArr(fournisseursForDisplay(project.fournisseurs));
-    const series = joinArr(project.seriesCabines);
-    if (type === "montage") {
-      add("Nb. cabines", nb);
+    const fournisseurs = joinArr(fournisseursForDisplay(full.fournisseurs));
+    const series = joinArr(full.seriesCabines);
+    // Formatte une liste de contacts CRM : « Nom — tél — email », séparés par « ; ».
+    const fmtContacts = (list?: ContactDetail[]) => (list || [])
+      .map((c) => [c.name, c.phone, c.email].filter(Boolean).join(" — "))
+      .filter(Boolean)
+      .join(" ; ");
+
+    if (["montage", "mesures", "services", "sav"].includes(type)) {
+      // Nb. Cabines / Nb. de cartons sur une même ligne, séparés par « / ».
+      const nbParts: string[] = [];
+      if (nb) nbParts.push(`${em("Nb. Cabines")} : ${nb}`);
+      if (cartons) nbParts.push(`${em("Nb. de cartons")} : ${cartons}`);
+      if (nbParts.length) notesLines.push(nbParts.join(" / "));
+
       add("Fournisseurs", fournisseurs);
       add("Séries cabines", series);
-      add("Emplacement cabine", project.emplacementCabine);
-      add("Contacts RDV", project.contactsRDV);
-      add("Commentaires montage", project.commentairesMontages);
-    } else if (type === "mesures") {
-      add("Nb. cabines", nb);
-      add("Fournisseurs", fournisseurs);
-      add("Séries cabines", series);
-      add("Contacts RDV", project.contactsRDV);
-      add("Commentaires mesures", project.commentairesMesures);
-    } else if (type === "services") {
-      add("Nb. cabines", nb);
-      add("Fournisseurs", fournisseurs);
-      add("Séries cabines", series);
-      add("Contacts RDV", project.contactsRDV);
-    } else if (type === "sav") {
-      add("Nb. cabines", nb);
-      add("Fournisseurs", fournisseurs);
-      add("Séries cabines", series);
-      add("Contacts RDV", project.contactsRDV);
+      if (type === "montage") add("Emplacement cabine", full.emplacementCabine);
+      add("Contacts RDV", full.contactsRDV);
+      if (type === "montage") add("Commentaires montage", full.commentairesMontages);
+      if (type === "mesures") add("Commentaires mesures", full.commentairesMesures);
+
+      // ── Contacts CRM (relations Notion) — uniquement ceux qui existent. ──
+      add("Contacts Locataires", fmtContacts(full.contactsLocatairesDetails));
+      add("Contacts Clients finaux", fmtContacts(full.contactsClientsFinauxDetails));
+      add("Contacts Sanitaire", fmtContacts(full.contactsSanitaireDetails));
+      add("Contacts DT", fmtContacts(full.contactsDTDetails));
+      add("Contacts Architecte", fmtContacts(full.contactsArchitecteDetails));
     }
     // NB : plus aucun lien de rapport dans les notes (lisibilité du calendrier).
     // La Fiche de travail est désormais le lien « officiel » de l'événement
-    // (champ URL, cf. `link` ci-dessus) ; le rapport de suivi / SAV / signalements
-    // restent accessibles depuis la fiche elle-même.
+    // (champ URL, cf. `link` ci-dessus).
     const NOTES_SENTINEL = "——— Infos projet (auto) ———";
     const notes = notesLines.length ? `${NOTES_SENTINEL}\n${notesLines.join("\n")}` : "";
 

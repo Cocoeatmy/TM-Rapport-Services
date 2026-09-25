@@ -21,6 +21,11 @@
 	<key>ThrottleInterval</key>
 	<integer>45</integer>
 
+	<!-- Pull périodique (toutes les 5 min) : synchronise les RDV existants avec
+	     Notion même sans changement du calendrier (contacts, cartons, etc.). -->
+	<key>StartInterval</key>
+	<integer>300</integer>
+
 	<!-- Priorité basse : l'agent cède le pas à l'usage interactif. -->
 	<key>ProcessType</key>
 	<string>Background</string>
