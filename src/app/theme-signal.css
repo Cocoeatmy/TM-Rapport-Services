@@ -909,6 +909,7 @@ html[data-ui="signal"] .sg-prow {
   width: 100%; padding: 8px 10px; border-radius: 9px; cursor: pointer;
   text-align: left; font-family: inherit;
   border: 1px solid transparent; background: transparent;
+  color: inherit; text-decoration: none;
 }
 html[data-ui="signal"] .sg-prow:hover { background: var(--sg-paper-2); }
 html[data-ui="signal"] .sg-prow.is-sel {

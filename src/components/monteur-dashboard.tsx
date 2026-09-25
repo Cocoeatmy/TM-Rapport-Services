@@ -5458,10 +5458,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           const tm = parseTMNumbers(p.ofrTM || "");
                           const on = sel && sel.id === p.id;
                           return (
-                            <button
+                            // Le clic OUVRE le projet (comportement historique).
+                            // L'aperçu latéral suit le survol / le focus clavier.
+                            <Link
                               key={p.id}
-                              type="button"
-                              onClick={() => setSgSelected(p.id)}
+                              href={`/projet/${p.id}?mode=dashboard`}
+                              onMouseEnter={() => setSgSelected(p.id)}
+                              onFocus={() => setSgSelected(p.id)}
                               className={`sg-prow${on ? " is-sel" : ""}`}
                             >
                               <span className={`sg-jpill ${j ? `${j.bgClass} ${j.colorClass}` : ""}`}>{j ? `J+${j.days}` : "—"}</span>
@@ -5474,7 +5477,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 <span>{p.emplacementCabine || "—"}</span>
                               </span>
                               <span className="sg-mono sg-right sg-strong">{p.nbCabines || 0}</span>
-                            </button>
+                            </Link>
                           );
                         })}
                       </div>
