@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* Thème « Signal » — fichier isolé, toutes ses règles sont préfixées
+   html[data-ui="signal"] : il ne peut pas affecter les autres thèmes. */
+@import "./theme-signal.css";
 
 /* ===== Économie de batterie (iOS / macOS) =====
    Les fonds animés en boucle infinie (gradientShift, auroraFlow, oceanFlow,

@@ -1,0 +1,304 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THÈME « SIGNAL »
+   ───────────────────────────────────────────────────────────────────────────
+   Thème supplémentaire — n'altère AUCUN thème existant.
+
+   Règle d'isolation absolue : chaque sélecteur de ce fichier commence par
+   `html[data-ui="signal"]`. Aucune règle ne peut donc atteindre Classique,
+   Aurora, Océan ou CleanMyMac. On n'utilise :
+     - aucun `!important` (hors prefers-reduced-motion),
+     - aucun `:nth-child` couplé au markup,
+     - aucun remappage global de classes Tailwind.
+   Les deux modes (clair / sombre) partagent les MÊMES règles : seules les
+   variables changent, redéfinies dans le bloc `.dark`.
+
+   Identité : « encre & papier ». Le chrome (en-tête + barre d'onglets) reste
+   sombre dans les deux modes, le contenu est sur papier. La couleur est
+   réservée aux statuts métier ; le bleu Signal ne sert qu'au focus, à la
+   sélection et à l'action principale.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Jetons — mode clair ─────────────────────────────────────────────────── */
+html[data-ui="signal"] {
+  color-scheme: light;
+
+  --sg-canvas: #eef1f5;
+  --sg-paper: #ffffff;
+  --sg-paper-2: #f7f9fb;
+  --sg-ink: #0c1626;
+  --sg-ink-2: #111e30;
+  --sg-line: #e2e7ee;
+  --sg-line-strong: #cfd7e2;
+  --sg-text: #0b1220;
+  --sg-text-2: #2a3647;
+  --sg-text-3: #5c6b80;
+  --sg-signal: #1b63ff;
+  --sg-signal-soft: rgba(27, 99, 255, 0.12);
+  --sg-on-ink: #e7eefa;
+  --sg-on-ink-dim: #9db2cd;
+
+  --sg-shadow: 0 1px 2px rgba(11, 18, 32, 0.04), 0 6px 20px rgba(11, 18, 32, 0.06);
+  --sg-shadow-hi: 0 2px 6px rgba(11, 18, 32, 0.06), 0 14px 36px rgba(11, 18, 32, 0.10);
+
+  /* Geist Mono est chargée globalement mais n'est ACTIVÉE que pour ce thème :
+     les autres thèmes conservent exactement leur rendu actuel. */
+  --font-mono: var(--font-signal-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Jetons shadcn → <Card>, <Input>, <Badge>… suivent le thème. */
+  --background: #eef1f5;
+  --foreground: #0b1220;
+  --card: #ffffff;
+  --card-foreground: #0b1220;
+  --popover: #ffffff;
+  --popover-foreground: #0b1220;
+  --primary: #0c1626;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f4f8;
+  --secondary-foreground: #2a3647;
+  --muted: #f1f4f8;
+  --muted-foreground: #5c6b80;
+  --accent: #eef4ff;
+  --accent-foreground: #1b4ed8;
+  --border: #e2e7ee;
+  --input: #cfd7e2;
+  --ring: #1b63ff;
+}
+
+/* ── Jetons — mode sombre ────────────────────────────────────────────────── */
+html[data-ui="signal"].dark {
+  color-scheme: dark;
+
+  --sg-canvas: #080c14;
+  --sg-paper: #101826;
+  --sg-paper-2: #16202f;
+  --sg-ink: #05080e;
+  --sg-ink-2: #0d1522;
+  --sg-line: #1e2a3b;
+  --sg-line-strong: #28364a;
+  --sg-text: #f2f6fc;
+  --sg-text-2: #c7d2e0;
+  --sg-text-3: #8697ac;
+  --sg-signal: #5b9cff;
+  --sg-signal-soft: rgba(91, 156, 255, 0.16);
+  --sg-on-ink: #e7eefa;
+  --sg-on-ink-dim: #93a8c4;
+
+  --sg-shadow: 0 1px 2px rgba(0, 0, 0, 0.40), 0 6px 20px rgba(0, 0, 0, 0.34);
+  --sg-shadow-hi: 0 2px 6px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.50);
+
+  --background: #080c14;
+  --foreground: #f2f6fc;
+  --card: #101826;
+  --card-foreground: #f2f6fc;
+  --popover: #16202f;
+  --popover-foreground: #f2f6fc;
+  --primary: #f2f6fc;
+  --primary-foreground: #080c14;
+  --secondary: #16202f;
+  --secondary-foreground: #c7d2e0;
+  --muted: #16202f;
+  --muted-foreground: #8697ac;
+  --accent: #12244a;
+  --accent-foreground: #8fb6ff;
+  --border: #1e2a3b;
+  --input: #28364a;
+  --ring: #5b9cff;
+}
+
+/* ── Fond : à plat, jamais animé ─────────────────────────────────────────────
+   Le dégradé animé est la 1ʳᵉ cause de consommation batterie relevée dans
+   globals.css. Signal s'en passe par construction. */
+html[data-ui="signal"] body,
+html[data-ui="signal"] .lg-bg {
+  background: var(--sg-canvas);
+  background-image: none;
+  background-size: auto;
+  animation: none;
+}
+html[data-ui="signal"] .lg-bg::before,
+html[data-ui="signal"] .lg-bg::after {
+  content: none;
+}
+
+/* ── Surfaces : papier opaque + filet 1 px, sans flou ──────────────────────
+   Bénéfice secondaire : les logos fournisseurs en `mix-blend-multiply`
+   s'affichent proprement sur une surface opaque (ils étaient délavés sur le
+   verre translucide). */
+html[data-ui="signal"] .glass-card {
+  background: var(--sg-paper);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--sg-line);
+  border-radius: 14px;
+  box-shadow: var(--sg-shadow);
+  transition: box-shadow 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html[data-ui="signal"] .glass-card:hover {
+  background: var(--sg-paper);
+  border-color: var(--sg-line-strong);
+  box-shadow: var(--sg-shadow-hi);
+  transform: none;
+}
+html[data-ui="signal"] .glass-card:active {
+  transform: scale(0.995);
+}
+html[data-ui="signal"] .sticky.glass-card {
+  background: var(--sg-paper);
+}
+html[data-ui="signal"] .glass-panel {
+  background: var(--sg-paper);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--sg-line);
+  box-shadow: var(--sg-shadow);
+}
+html[data-ui="signal"] .glass-status {
+  background: var(--sg-paper-2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--sg-line);
+}
+
+/* ── Chrome encre : en-tête + barre d'onglets, dans les DEUX modes ────────── */
+html[data-ui="signal"] .glass-header {
+  background: var(--sg-ink);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: none;
+}
+html[data-ui="signal"] .glass-navbar {
+  background: var(--sg-ink);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: none;
+}
+
+/* Lisibilité des onglets sur le chrome encre.
+   Portée volontairement limitée à #main-navbar (identifiant stable, présent
+   dans page.tsx) et aux boutons d'onglet — les vignettes de logo en sont
+   exclues par :not(.nav-logo-chip). */
+html[data-ui="signal"] #main-navbar {
+  color: var(--sg-on-ink);
+}
+html[data-ui="signal"] #main-navbar button:not(.nav-logo-chip) {
+  color: var(--sg-on-ink-dim);
+}
+html[data-ui="signal"] #main-navbar button:not(.nav-logo-chip):hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.07);
+}
+html[data-ui="signal"] #main-navbar .glass-tab-active {
+  background: rgba(255, 255, 255, 0.11);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+html[data-ui="signal"] #main-navbar .glass-tabs {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Onglets hors barre de navigation (page projet, vues internes) : sur papier. */
+html[data-ui="signal"] .glass-tabs {
+  background: var(--sg-paper-2);
+  border: 1px solid var(--sg-line);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html[data-ui="signal"] .glass-tab-active {
+  background: var(--sg-paper);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--sg-shadow);
+}
+
+/* ── Vignettes de logo (grossistes / fournisseurs) ─────────────────────────
+   Les logos des fournisseurs sont dessinés pour un fond BLANC. Sur le chrome
+   encre, on leur conserve donc une plaque blanche dans les deux modes : le
+   logo reste fidèle, et la plaque devient un élément graphique assumé.
+   L'état actif est marqué par l'anneau bleu Signal (l'ancien anneau
+   #1e3a5f serait invisible sur fond encre). */
+html[data-ui="signal"] .nav-logo-chip {
+  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.30);
+  transition: box-shadow 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html[data-ui="signal"] .nav-logo-chip:hover {
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.38);
+}
+html[data-ui="signal"] .nav-logo-chip.is-active {
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--sg-signal), 0 3px 14px rgba(27, 99, 255, 0.40);
+}
+
+/* ── Contrôles ───────────────────────────────────────────────────────────── */
+html[data-ui="signal"] .glass-btn {
+  background: var(--sg-ink);
+  color: #ffffff;
+  border: 1px solid transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--sg-shadow);
+}
+html[data-ui="signal"] .glass-btn:hover {
+  background: var(--sg-ink-2);
+}
+html[data-ui="signal"] .glass-input {
+  background: var(--sg-paper);
+  border: 1px solid var(--sg-line-strong);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--sg-text);
+}
+html[data-ui="signal"] .glass-input:focus {
+  border-color: var(--sg-signal);
+  box-shadow: 0 0 0 3px var(--sg-signal-soft);
+}
+html[data-ui="signal"] .save-btn {
+  background: var(--sg-signal);
+  color: #ffffff;
+  border: none;
+  box-shadow: var(--sg-shadow);
+}
+html[data-ui="signal"] .home-badge {
+  background: var(--sg-signal);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+html[data-ui="signal"] .back-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--sg-on-ink);
+}
+
+/* ── Focus visible : l'app n'en avait pas sur ses ~600 boutons bruts ─────── */
+html[data-ui="signal"] :focus-visible {
+  outline: 2px solid var(--sg-signal);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ── Chiffres tabulaires : n° de commande, heures, compteurs ─────────────── */
+html[data-ui="signal"] .font-mono,
+html[data-ui="signal"] .tabular-nums {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ── Mouvement réduit ────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html[data-ui="signal"] *,
+  html[data-ui="signal"] *::before,
+  html[data-ui="signal"] *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

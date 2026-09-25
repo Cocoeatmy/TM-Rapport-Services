@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { UserMenu } from "@/components/user-menu";
 import { SyncButton } from "@/components/sync-button";
@@ -20,6 +20,15 @@ import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-sans",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+// Police à chasse fixe, utilisée UNIQUEMENT par le thème « Signal » (qui mappe
+// --font-mono sur --font-signal-mono). Les autres thèmes gardent leur rendu
+// actuel : on n'écrase pas --font-mono globalement.
+const geistMono = Geist_Mono({
+  variable: "--font-signal-mono",
   subsets: ["latin"],
   display: "swap",
 });
@@ -50,7 +59,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className={`${geistSans.variable} h-full antialiased`}>
+    <html lang="fr" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -81,10 +90,11 @@ export default function RootLayout({
           }}
         />
         {/* Applique le thème UI avant l'hydration React pour éviter un flash
-            de style au chargement. Lit `tm-ui-mode` (classic|aurora|ocean). */}
+            de style au chargement.
+            Lit `tm-ui-mode` (classic|aurora|ocean|cleanmymac|signal). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='aurora'||m==='ocean'||m==='cleanmymac'){document.documentElement.setAttribute('data-ui',m);}}catch(e){}})();`,
+            __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='aurora'||m==='ocean'||m==='cleanmymac'||m==='signal'){document.documentElement.setAttribute('data-ui',m);}}catch(e){}})();`,
           }}
         />
       </head>

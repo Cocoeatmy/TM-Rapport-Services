@@ -387,7 +387,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
             const h = Math.round(36 * scale);
             return (
               <button key={m} onClick={() => handleSelect(m)}
-                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center overflow-hidden ${
+                className={`nav-logo-chip${isActive ? " is-active" : ""} shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center overflow-hidden ${
                   isActive
                     ? "bg-white ring-2 ring-[#1e3a5f] ring-offset-1 shadow-md"
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"
@@ -436,7 +436,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm }: { mode: st
             const h = Math.round(36 * scale);
             return (
               <button key={m} onClick={() => handleSelect(m)}
-                className={`shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center overflow-hidden ${
+                className={`nav-logo-chip${isActive ? " is-active" : ""} shrink-0 rounded-xl transition-all w-[120px] h-[44px] flex items-center justify-center overflow-hidden ${
                   isActive
                     ? "bg-white ring-2 ring-[#1e3a5f] ring-offset-1 shadow-md"
                     : "bg-white dark:bg-slate-800 border border-gray-200 dark:border-gray-700 hover:shadow-md"

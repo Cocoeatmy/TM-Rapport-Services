@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette, Image as ImageIcon, Monitor, Mail, Loader2, Check } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette, Image as ImageIcon, Monitor, Mail, Loader2, Check, Radio } from "lucide-react";
 import { getCollaboratorInitials } from "@/lib/collaborators";
 import { isSaveToGalleryEnabled, setSaveToGalleryEnabled } from "@/lib/save-to-gallery";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ interface UserData {
   role: "admin" | "monteur";
 }
 
-type UiMode = "classic" | "aurora" | "ocean" | "cleanmymac";
+type UiMode = "classic" | "aurora" | "ocean" | "cleanmymac" | "signal";
 
 export function UserMenu() {
   const router = useRouter();
@@ -349,6 +349,22 @@ export function UserMenu() {
               <span className="flex-1">CleanMyMac</span>
               {uiMode === "cleanmymac" && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-gradient-to-r from-violet-600 to-teal-500 text-white">
+                  ON
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => selectUiMode("signal")}
+              className={`w-full text-left text-sm px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                uiMode === "signal"
+                  ? "bg-[#0c1626] text-white font-medium"
+                  : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              }`}
+            >
+              <Radio className={`w-4 h-4 ${uiMode === "signal" ? "text-[#5b9cff]" : ""}`} />
+              <span className="flex-1">Signal</span>
+              {uiMode === "signal" && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-[#1b63ff] text-white">
                   ON
                 </span>
               )}
