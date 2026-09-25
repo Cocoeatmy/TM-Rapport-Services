@@ -40,6 +40,10 @@ html[data-ui="signal"] {
   --sg-shadow: 0 1px 2px rgba(11, 18, 32, 0.04), 0 6px 20px rgba(11, 18, 32, 0.06);
   --sg-shadow-hi: 0 2px 6px rgba(11, 18, 32, 0.06), 0 14px 36px rgba(11, 18, 32, 0.10);
 
+  /* Bandes de séparation des groupes (tri par date ou par région). */
+  --sg-grp-bg: #e3e9f2;
+  --sg-grp-line: #cfd8e6;
+
   /* Geist Mono est chargée globalement mais n'est ACTIVÉE que pour ce thème :
      les autres thèmes conservent exactement leur rendu actuel. */
   --font-mono: var(--font-signal-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -85,6 +89,9 @@ html[data-ui="signal"].dark {
 
   --sg-shadow: 0 1px 2px rgba(0, 0, 0, 0.40), 0 6px 20px rgba(0, 0, 0, 0.34);
   --sg-shadow-hi: 0 2px 6px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.50);
+
+  --sg-grp-bg: #18222f;
+  --sg-grp-line: #273548;
 
   --background: #080c14;
   --foreground: #f2f6fc;
@@ -918,17 +925,24 @@ html[data-ui="signal"] .sg-right { text-align: right; }
 html[data-ui="signal"] .sg-empty { padding: 18px 10px; font-size: 13px; color: var(--sg-text-3); }
 html[data-ui="signal"] .sg-grp-wrap { display: flex; flex-direction: column; gap: 2px; }
 html[data-ui="signal"] .sg-grp {
-  display: flex; align-items: center; gap: 9px;
-  margin-top: 10px; padding: 6px 10px;
-  border-radius: 8px; background: var(--sg-paper-2);
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 18px; margin-bottom: 4px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--sg-grp-bg);
+  border: 1px solid var(--sg-grp-line);
+  border-left: 3px solid var(--sg-ink);
 }
+html[data-ui="signal"] .sg-grp-wrap:first-child .sg-grp { margin-top: 8px; }
 html[data-ui="signal"] .sg-grp-label {
-  font-size: 12px; font-weight: 600; color: var(--sg-text-2);
+  font-size: 13px; font-weight: 700; letter-spacing: -0.01em;
+  color: var(--sg-text);
   text-transform: capitalize;
 }
 html[data-ui="signal"] .sg-grp-sum {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: 11px; color: var(--sg-text-3); white-space: nowrap;
+  font-size: 11px; font-weight: 600;
+  color: var(--sg-text-2); white-space: nowrap;
 }
 html[data-ui="signal"] .sg-jpill {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
