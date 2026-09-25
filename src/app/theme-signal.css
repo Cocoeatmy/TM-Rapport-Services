@@ -1784,6 +1784,142 @@ html[data-ui="signal"] .sgc-row-cab {
   html[data-ui="signal"] .sgc-row .sg-plist-chev { display: none; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   TÉLÉPHONE (≤ 767 px) — iOS / Android
+   Les grilles denses de Signal ont des colonnes fixes qui totalisent plus de
+   560 px : sur un écran de 390 px elles débordaient. On les replie en fiches
+   à deux ou trois niveaux, on masque les colonnes secondaires, et on met les
+   barres d'onglets en défilement horizontal plutôt qu'en retour à la ligne.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+  /* — Barre supérieure — */
+  html[data-ui="signal"] .signal-topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 2px 10px 2px;
+  }
+  html[data-ui="signal"] .signal-search { max-width: none; flex-grow: 1; height: 44px; }
+  html[data-ui="signal"] .signal-kbd { display: none; }
+  html[data-ui="signal"] .signal-topbar-spacer { display: none; }
+  html[data-ui="signal"] .signal-new { height: 44px; flex-grow: 1; justify-content: center; }
+
+  /* — En-tête de panneau — */
+  html[data-ui="signal"] .sg-panel-head { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  html[data-ui="signal"] .sg-panel-kpi { margin-left: 0; }
+  html[data-ui="signal"] .sg-panel-tools { padding: 10px 12px; gap: 8px; }
+  html[data-ui="signal"] .sg-search { width: 100%; height: 42px; }
+  html[data-ui="signal"] .sg-seg { margin-left: 0; width: 100%; }
+  html[data-ui="signal"] .sg-seg button { flex-grow: 1; height: 34px; }
+  /* Les chips d'état défilent au lieu d'occuper cinq lignes. */
+  html[data-ui="signal"] .sg-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    width: 100%;
+    padding-bottom: 2px;
+  }
+  html[data-ui="signal"] .sg-chips::-webkit-scrollbar { display: none; }
+  html[data-ui="signal"] .sg-chip { flex-shrink: 0; height: 34px; }
+
+  /* — Écran dense : la ligne devient une fiche — */
+  html[data-ui="signal"] .sg-list { padding: 8px 10px 12px 10px; }
+  html[data-ui="signal"] .sg-cols { display: none; }
+  html[data-ui="signal"] .sg-prow {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "delay name  cab"
+      "tm    state state";
+    row-gap: 6px;
+    padding: 11px 12px;
+    border: 1px solid var(--sg-line);
+    background: var(--sg-paper);
+    margin-bottom: 7px;
+    border-radius: 12px;
+  }
+  html[data-ui="signal"] .sg-prow .sg-jpill { grid-area: delay; padding: 3px 8px; }
+  html[data-ui="signal"] .sg-prow .sg-pname {
+    grid-area: name; white-space: normal; line-height: 1.35; font-size: 13.5px;
+  }
+  html[data-ui="signal"] .sg-prow .sg-tmbtn { grid-area: tm; }
+  html[data-ui="signal"] .sg-prow .sg-state { grid-area: state; justify-self: end; }
+  html[data-ui="signal"] .sg-prow .sg-strong { grid-area: cab; }
+  html[data-ui="signal"] .sg-prow .sg-dim,
+  html[data-ui="signal"] .sg-prow .sg-place,
+  html[data-ui="signal"] .sg-prow .sg-pers { display: none; }
+  html[data-ui="signal"] .sg-grp { margin-top: 12px; padding: 8px 10px; }
+  html[data-ui="signal"] .sg-grp-sum { font-size: 10px; }
+
+  /* — Dashboard — */
+  html[data-ui="signal"] .sg-h1 { font-size: 23px; }
+  html[data-ui="signal"] .sg-tile-value { font-size: 28px; }
+  html[data-ui="signal"] .sg-bars { min-height: 150px; gap: 8px; }
+  /* Onglets de catégories : défilement horizontal, cibles confortables. */
+  html[data-ui="signal"] .sg-cats {
+    flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; padding-bottom: 2px;
+  }
+  html[data-ui="signal"] .sg-cats::-webkit-scrollbar { display: none; }
+  html[data-ui="signal"] .sg-cat { flex-shrink: 0; height: 36px; }
+
+  /* — Statistiques — */
+  html[data-ui="signal"] .sgs-h1 { font-size: 23px; }
+  html[data-ui="signal"] .sgs-head { flex-wrap: wrap; gap: 10px; }
+  html[data-ui="signal"] .sgs-head-actions { width: 100%; }
+  html[data-ui="signal"] .sgs-report,
+  html[data-ui="signal"] .sgs-refresh { flex-grow: 1; height: 42px; justify-content: center; }
+  html[data-ui="signal"] .sgs-tabs {
+    flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; align-self: stretch; border-radius: 14px;
+  }
+  html[data-ui="signal"] .sgs-tabs::-webkit-scrollbar { display: none; }
+  html[data-ui="signal"] .sgs-tab { flex-shrink: 0; height: 38px; }
+  html[data-ui="signal"] .sgs-months { gap: 5px; }
+  html[data-ui="signal"] .sgs-month { height: 32px; }
+  html[data-ui="signal"] .sgs-kpi-value { font-size: 24px; }
+  html[data-ui="signal"] .sgs-seg button { height: 32px; padding: 0 10px; }
+  /* Tableaux mois × séries : défilement horizontal, en-tête aligné. */
+  html[data-ui="signal"] .sgs-table,
+  html[data-ui="signal"] .sgs-vs-table {
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+  html[data-ui="signal"] .sgs-tr { min-width: 520px; }
+  html[data-ui="signal"] .sgs-vs-tr { min-width: 560px; }
+  html[data-ui="signal"] .sgs-bl-row { grid-template-columns: 104px minmax(0, 1fr) 62px; }
+  html[data-ui="signal"] .sgs-bl-sub { display: none; }
+
+  /* — Calendrier — */
+  html[data-ui="signal"] .sgc-head { gap: 8px; padding: 10px 12px; }
+  html[data-ui="signal"] .sgc-nav { margin-left: 0; width: 100%; justify-content: space-between; }
+  html[data-ui="signal"] .sgc-month { min-width: 0; flex-grow: 1; }
+  html[data-ui="signal"] .sgc-today { width: 100%; height: 38px; }
+  html[data-ui="signal"] .sgc-body { padding: 10px 10px 12px 10px; }
+  html[data-ui="signal"] .sgc-grid,
+  html[data-ui="signal"] .sgc-dow { gap: 4px; }
+  html[data-ui="signal"] .sgc-daynum { font-size: 13px; }
+
+  /* — Page projet : onglets en défilement, contenu plus aéré — */
+  html[data-ui="signal"] .sgp-tabs {
+    flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; margin: 10px 10px 0 10px;
+  }
+  html[data-ui="signal"] .sgp-tabs::-webkit-scrollbar { display: none; }
+  html[data-ui="signal"] .sgp-tab { flex-shrink: 0; padding: 11px 12px 12px 12px; }
+
+  /* — Confort tactile général — */
+  html[data-ui="signal"] .sg-signal-row,
+  html[data-ui="signal"] .sg-row { min-height: 44px; }
+  html[data-ui="signal"] .sg-plist-act { width: 34px; height: 34px; }
+}
+
+/* Très petits écrans (≤ 380 px) : on resserre encore. */
+@media (max-width: 380px) {
+  html[data-ui="signal"] .sg-tile { padding: 12px; }
+  html[data-ui="signal"] .sg-tile-value { font-size: 25px; }
+  html[data-ui="signal"] .sgs-kpis { gap: 8px; }
+  html[data-ui="signal"] .sgc-cell { min-height: 50px; padding: 5px; }
+}
+
 /* ── Mouvement réduit ────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   html[data-ui="signal"] *,
