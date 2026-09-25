@@ -1047,6 +1047,27 @@ html[data-ui="signal"] .sg-mono {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 html[data-ui="signal"] .sg-dim { color: var(--sg-text-3); }
+/* N° TM cliquable : ouvre l'aperçu latéral au lieu du projet complet. */
+html[data-ui="signal"] .sg-tmbtn {
+  justify-self: start;
+  padding: 3px 7px; margin: -3px -7px;
+  border-radius: 6px; cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+html[data-ui="signal"] .sg-tmbtn:hover {
+  background: var(--sg-signal-soft);
+  border-color: var(--sg-signal);
+  color: var(--sg-signal);
+}
+html[data-ui="signal"] .sg-unpin {
+  margin-left: auto;
+  width: 26px; height: 26px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-3); cursor: pointer;
+}
+html[data-ui="signal"] .sg-unpin:hover { border-color: var(--sg-signal); color: var(--sg-signal); }
 html[data-ui="signal"] .sg-strong { color: var(--sg-text); font-weight: 600; }
 html[data-ui="signal"] .sg-pname {
   font-size: 13px; font-weight: 500; color: var(--sg-text);

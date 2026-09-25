@@ -1431,6 +1431,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [isSignal, setIsSignal] = useState(false);
   // Projet sélectionné dans la vue maître-détail du thème Signal.
   const [sgSelected, setSgSelected] = useState<string | null>(null);
+  /** Aperçu épinglé : un clic sur le n° TM fige l'aperçu, le survol ne le
+   *  change plus tant qu'on ne détache pas. */
+  const [sgPinned, setSgPinned] = useState(false);
   // Onglet de catégorie de la grille de tuiles (thème Signal). "all" = tout,
   // comportement identique au dashboard classique (ordre + glisser-déposer).
   const [sgCat, setSgCat] = useState<string>("all");
@@ -5546,12 +5549,25 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             <Link
                               key={p.id}
                               href={`/projet/${p.id}?mode=dashboard`}
-                              onMouseEnter={() => setSgSelected(p.id)}
-                              onFocus={() => setSgSelected(p.id)}
+                              onMouseEnter={() => { if (!sgPinned) setSgSelected(p.id); }}
+                              onFocus={() => { if (!sgPinned) setSgSelected(p.id); }}
                               className={`sg-prow${on ? " is-sel" : ""}`}
                             >
                               <span className={`sg-jpill ${j ? `${j.bgClass} ${j.colorClass}` : ""}`}>{j ? `J+${j.days}` : "—"}</span>
-                              <span className="sg-mono">{tm.length ? tm.join(" ") : "—"}</span>
+                              {/* Le n° TM ouvre l'APERÇU (et l'épingle) ; tout le
+                                  reste de la ligne ouvre le projet complet. */}
+                              <span
+                                className="sg-mono sg-tmbtn"
+                                title="Aperçu du projet"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setSgSelected(p.id);
+                                  setSgPinned(true);
+                                }}
+                              >
+                                {tm.length ? tm.join(" ") : "—"}
+                              </span>
                               <span className="sg-mono sg-dim">{p.servCmdFournisseurs || p.cmdFournisseurs || p.servMesuresFournisseurs || "—"}</span>
                               <span className="sg-pname">{p.projet}</span>
                               <span className={`sg-state ${cls}`}>{etat}</span>
@@ -5574,6 +5590,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <div className="sg-detail-top">
                       {selJ && <span className={`sg-jpill ${selJ.bgClass} ${selJ.colorClass}`}>J+{selJ.days}</span>}
                       <span className={`sg-state ${selCls}`}>{selEtat}</span>
+                      {sgPinned && (
+                        <button type="button" className="sg-unpin" title="Détacher l'aperçu (il suivra de nouveau le survol)"
+                          onClick={() => setSgPinned(false)}>
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                     <h3 className="sg-detail-title">{sel.projet}</h3>
                     {sel.adresseChantier && <p className="sg-detail-addr">{sel.adresseChantier}</p>}
