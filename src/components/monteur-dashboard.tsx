@@ -3738,6 +3738,160 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const monthLabel = firstOfMonth.toLocaleDateString("fr-CH", { month: "long", year: "numeric" });
           const DAY_HEADERS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
+          /* ══ CALENDRIER DU THÈME « SIGNAL » ═══════════════════════════════
+             Même données (dayMap, cells) que le rendu historique : seule la
+             présentation change. Chaque jour porte une barre segmentée aux
+             couleurs des collaborateurs, et le jour sélectionné déroule une
+             liste dense cliquable. */
+          if (isSignal) {
+            const cabOfDay = (list: Project[]) => list.reduce((s, p) => s + (p.nbCabines || 0), 0);
+            const segsOfDay = (list: Project[]) => {
+              const m = new Map<string, number>();
+              list.forEach((p) => {
+                const label = (p.collaborateurs || "").trim() || "Non attribué";
+                m.set(label, (m.get(label) || 0) + (p.nbCabines || 0));
+              });
+              return [...m.entries()].map(([label, cab]) => ({
+                label,
+                cab,
+                color: label === "Non attribué" ? "#cbd5e1"
+                  : /team/i.test(label) ? "#0f766e"
+                  : getCollaboratorColor(label.split("&")[0].trim()).dot || "#3b82f6",
+              })).sort((a, b) => b.cab - a.cab);
+            };
+            const monthTotal = Object.keys(dayMap).reduce((s, k) => s + cabOfDay(dayMap[k]), 0);
+            const monthProjects = new Set(Object.values(dayMap).flat().map((p) => p.id)).size;
+            const legend = (() => {
+              const m = new Map<string, number>();
+              Object.values(dayMap).flat().forEach((p) => {
+                const label = (p.collaborateurs || "").trim() || "Non attribué";
+                m.set(label, (m.get(label) || 0) + (p.nbCabines || 0));
+              });
+              return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([label, cab]) => ({
+                label, cab,
+                color: label === "Non attribué" ? "#cbd5e1"
+                  : /team/i.test(label) ? "#0f766e"
+                  : getCollaboratorColor(label.split("&")[0].trim()).dot || "#3b82f6",
+              }));
+            })();
+            const selList = calendarSelectedDay ? (dayMap[calendarSelectedDay] || []) : [];
+
+            return (
+              <div className="sgc">
+                <div className="sgc-head">
+                  <button type="button" onClick={closePanel} className="sg-panel-back" aria-label="Retour">
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="sg-panel-title">Calendrier</span>
+                  <span className="sg-panel-count">{monthProjects} projets · {monthTotal} cab.</span>
+                  <div className="sgc-nav">
+                    <button type="button" aria-label="Mois précédent"
+                      onClick={() => { setCalendarMonth((m) => { const d = new Date(m.year, m.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }); setCalendarSelectedDay(null); }}>
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="sgc-month">{monthLabel}</span>
+                    <button type="button" aria-label="Mois suivant"
+                      onClick={() => { setCalendarMonth((m) => { const d = new Date(m.year, m.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; }); setCalendarSelectedDay(null); }}>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <button type="button" className="sgc-today"
+                    onClick={() => { const n = new Date(); setCalendarMonth({ year: n.getFullYear(), month: n.getMonth() }); setCalendarSelectedDay(todayStr2); }}>
+                    Aujourd&apos;hui
+                  </button>
+                </div>
+
+                <div className="sgc-body">
+                  <div className="sgc-dow">
+                    {DAY_HEADERS.map((d) => <span key={d}>{d}</span>)}
+                  </div>
+                  <div className="sgc-grid">
+                    {cells.map((d, i) => {
+                      if (d === null) return <span key={`e${i}`} className="sgc-cell is-blank" />;
+                      const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                      const list = dayMap[key] || [];
+                      const cab = cabOfDay(list);
+                      const segs = segsOfDay(list);
+                      const isToday = key === todayStr2;
+                      const isSel = calendarSelectedDay === key;
+                      const dow = (i % 7);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          disabled={list.length === 0}
+                          onClick={() => setCalendarSelectedDay(isSel ? null : key)}
+                          className={`sgc-cell${isToday ? " is-today" : ""}${isSel ? " is-sel" : ""}${dow >= 5 ? " is-we" : ""}${list.length === 0 ? " is-void" : ""}`}
+                          title={list.length ? `${list.length} intervention${list.length > 1 ? "s" : ""} · ${cab} cab.` : undefined}
+                        >
+                          <span className="sgc-daynum">{d}</span>
+                          {cab > 0 && <span className="sgc-cab">{cab}</span>}
+                          {segs.length > 0 && (
+                            <span className="sgc-segs">
+                              {segs.map((s) => (
+                                <i key={s.label} style={{ flexGrow: s.cab, background: s.color }} title={`${s.label} : ${s.cab} cab.`} />
+                              ))}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {legend.length > 0 && (
+                    <div className="sg-bars-legend">
+                      {legend.map((l) => (
+                        <span key={l.label} className="sg-bars-leg">
+                          <i style={{ background: l.color }} />
+                          {l.label}
+                          <b>{l.cab}</b>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {calendarSelectedDay && (
+                  <div className="sgc-day-panel">
+                    <div className="sgc-day-head">
+                      <span className="sgc-day-title">
+                        {new Date(calendarSelectedDay + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" })}
+                      </span>
+                      <span className="sgc-day-meta">
+                        {selList.length} intervention{selList.length > 1 ? "s" : ""} · {cabOfDay(selList)} cab.
+                      </span>
+                      <button type="button" className="sg-unpin" aria-label="Fermer le jour"
+                        onClick={() => setCalendarSelectedDay(null)}>
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    {selList.length === 0 && <p className="sg-empty">Aucune intervention ce jour.</p>}
+                    {selList.map((p) => {
+                      const isMes = (p.dateMesures || "").split("T")[0] === calendarSelectedDay && !(p.dateMontage || "").startsWith(calendarSelectedDay);
+                      const names = (p.collaborateurs || "").split("&").map((n) => n.trim()).filter(Boolean);
+                      return (
+                        <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`} className="sgc-row">
+                          <span className="sgc-row-av">
+                            {names.slice(0, 2).map((n) => (
+                              <i key={n} title={n} style={{ backgroundColor: getCollaboratorColor(n).bg, color: getCollaboratorColor(n).text }}>
+                                {getCollaboratorInitials(n)}
+                              </i>
+                            ))}
+                          </span>
+                          <span className="sg-mono sgc-row-tm">{p.ofrTM || "—"}</span>
+                          <span className={`sgc-row-type ${isMes ? "is-mes" : "is-mon"}`}>{isMes ? "Mesures" : "Montage"}</span>
+                          <span className="sgc-row-name">{p.projet}</span>
+                          <span className="sg-mono sgc-row-cab">{p.nbCabines || 0} cab.</span>
+                          <ChevronRight className="w-4 h-4 sg-plist-chev" />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           return (
             <div className="glass-card rounded-2xl p-4 space-y-4">
               {/* Header navigation */}
