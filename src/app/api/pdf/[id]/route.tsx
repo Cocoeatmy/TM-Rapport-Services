@@ -46,6 +46,7 @@ interface PieceRequest {
   timestamp: number;
   cabineLabel?: string;
   displayInRapport?: boolean;
+  resolved?: boolean;
 }
 
 interface DefautRequest {
@@ -104,6 +105,18 @@ function defautSectionHeader(defauts: { resolved?: boolean; phase?: string }[]):
   if (nonResolved.length > 0 && nonResolved.every((d) => d.phase === "avant-intervention"))
     return { label: `Défaut${s} signalé${s} avant intervention`, color: SIG.avant.color, border: SIG.avant.border };
   return { label: "Défauts signalés", color: SIG.defaut.color, border: SIG.defaut.border };
+}
+// Style (couleur/icône) d'une pièce manquante : réglée = vert, sinon orange.
+function pieceStyle(p: { resolved?: boolean }) {
+  if (p.resolved) return { ...SIG.done, icon: SIG_IC.check };
+  return { ...SIG.piece, icon: SIG_IC.package };
+}
+// Titre + couleur de la section « pièces manquantes » : toutes réglées → vert.
+function pieceSectionHeader(pieces: { resolved?: boolean }[]): { label: string; color: string; border: string } {
+  const n = pieces.length;
+  const s = n > 1 ? "s" : "";
+  if (n > 0 && pieces.every((p) => p.resolved)) return { label: `Pièce${s} manquante${s} réglée${s}`, color: SIG.done.color, border: SIG.done.border };
+  return { label: "Pièces manquantes", color: SIG.piece.color, border: SIG.piece.border };
 }
 
 function parsePiecesFromNotion(text: string): PieceRequest[] {
@@ -1030,24 +1043,25 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
             <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#374151", marginBottom: 6 }}>
               Signalements sur ce projet
             </Text>
-            {pieces.length > 0 && (
+            {pieces.length > 0 && (() => { const ph = pieceSectionHeader(pieces); return (
               <View style={{ marginBottom: 3 }}>
-                <Text style={{ fontSize: 9, color: SIG.piece.color, fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
-                  Pièces manquantes : {pieces.length}
+                <Text style={{ fontSize: 9, color: ph.color, fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
+                  {ph.label} : {pieces.length}
                 </Text>
                 {pieces.map((p, i) => {
                   const lot = p.cabineLabel || extractCabinLabel(p.description || "") || extractCabinLabel(p.reference || "");
+                  const st = pieceStyle(p);
                   return (
                     <View key={p.id} style={{ flexDirection: "row", alignItems: "flex-start", marginLeft: 8, marginBottom: 1.5 }}>
-                      <SigIcon paths={SIG_IC.package} color={SIG.piece.color} size={9} />
-                      <Text style={{ fontSize: 9, color: SIG.piece.color, flex: 1 }}>
-                        Pièce n°{i + 1}{lot ? ` — ${lot}` : ""} — {p.description || p.reference || "Sans description"}
+                      <SigIcon paths={st.icon} color={st.color} size={9} />
+                      <Text style={{ fontSize: 9, color: st.color, flex: 1 }}>
+                        Pièce n°{i + 1}{p.resolved ? " (réglé ✓)" : ""}{lot ? ` — ${lot}` : ""} — {p.description || p.reference || "Sans description"}
                       </Text>
                     </View>
                   );
                 })}
               </View>
-            )}
+            ); })()}
             {defauts.length > 0 && (() => { const dh = defautSectionHeader(defauts); return (
               <View style={{ marginBottom: 3 }}>
                 <Text style={{ fontSize: 9, color: dh.color, fontFamily: "Helvetica-Bold", marginBottom: 2 }}>
@@ -1299,27 +1313,33 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
       {/* Pièces manquantes */}
       {pieces.length > 0 && (
         <Page size="A4" style={{ ...styles.page, paddingBottom: 50 }} wrap>
-          <Text style={{ ...styles.sectionTitle, color: SIG.piece.color, borderBottomColor: SIG.piece.border }} fixed>
-            Pièce{pieces.length > 1 ? "s" : ""} manquante{pieces.length > 1 ? "s" : ""} signalée{pieces.length > 1 ? "s" : ""}
+          {(() => { const ph = pieceSectionHeader(pieces); return (
+          <Text style={{ ...styles.sectionTitle, color: ph.color, borderBottomColor: ph.border }} fixed>
+            {pieces.every((p) => p.resolved)
+              ? `Pièce${pieces.length > 1 ? "s" : ""} manquante${pieces.length > 1 ? "s" : ""} réglée${pieces.length > 1 ? "s" : ""}`
+              : `Pièce${pieces.length > 1 ? "s" : ""} manquante${pieces.length > 1 ? "s" : ""} signalée${pieces.length > 1 ? "s" : ""}`}
           </Text>
+          ); })()}
 
-          {pieces.map((piece, idx) => (
+          {pieces.map((piece, idx) => {
+            const ps = pieceStyle(piece);
+            return (
             <View
               key={piece.id}
               style={{
                 ...styles.defautCard,
-                backgroundColor: "#fff7ed",
-                borderColor: "#fed7aa",
+                backgroundColor: ps.bg,
+                borderColor: ps.border,
                 borderWidth: 1,
                 borderRadius: 6,
               }}
               wrap={false}
             >
-              {/* Numéro de la pièce (icône orange = pièce manquante) */}
+              {/* Numéro de la pièce — vert si réglée, sinon orange */}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                <SigIcon paths={SIG_IC.package} color={SIG.piece.color} size={12} />
-                <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: SIG.piece.color }}>
-                  Pièce n°{idx + 1}
+                <SigIcon paths={ps.icon} color={ps.color} size={12} />
+                <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: ps.color }}>
+                  Pièce n°{idx + 1}{piece.resolved ? " — réglé" : ""}
                 </Text>
               </View>
               {/* Cabine : priorité sur cabineLabel stocké, fallback extraction regex
@@ -1339,8 +1359,8 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                     <Text style={{ fontSize: 8, color: "#7f1d1d", marginTop: 2 }}>Réf. : {piece.reference}</Text>
                   )}
                 </View>
-                <Text style={{ ...styles.statusBadge, ...getPieceStatusStyle(piece.status) }}>
-                  {pieceStatusLabel(piece.status)}
+                <Text style={{ ...styles.statusBadge, ...(piece.resolved ? styles.statusResolu : getPieceStatusStyle(piece.status)) }}>
+                  {piece.resolved ? "Réglé ✓" : pieceStatusLabel(piece.status)}
                 </Text>
               </View>
               <View style={{ flexDirection: "row", marginBottom: 6 }}>
@@ -1360,7 +1380,8 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                 <PhotoLink url={piece.photoUrl} style={styles.piecePhoto} />
               ) : null}
             </View>
-          ))}
+            );
+          })}
 
           <View style={styles.footer} fixed>
             <Text>TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
