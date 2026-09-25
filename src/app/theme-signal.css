@@ -749,6 +749,23 @@ html[data-ui="signal"] .sg-bar-seg { display: block; min-height: 3px; }
 html[data-ui="signal"] .sg-bar-seg.is-empty { background: var(--sg-line-strong); }
 html[data-ui="signal"] .sg-bar-col:hover:not(.is-void) .sg-bar-stack { filter: brightness(1.08); }
 
+/* Navigation de semaine (−5 … +5) */
+html[data-ui="signal"] .sgw-nav {
+  display: flex; align-items: center; gap: 3px; flex-shrink: 0;
+  padding: 3px; border-radius: 999px;
+  background: var(--sg-paper-2); border: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgw-nav button {
+  height: 26px; min-width: 26px; padding: 0 6px;
+  border: none; border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--sg-text-2);
+  display: flex; align-items: center; justify-content: center;
+  font-family: inherit; font-size: 11px; font-weight: 600;
+}
+html[data-ui="signal"] .sgw-nav button:hover:not(:disabled) { background: var(--sg-paper); color: var(--sg-text); }
+html[data-ui="signal"] .sgw-nav button:disabled { opacity: 0.35; cursor: default; }
+html[data-ui="signal"] .sgw-now { padding: 0 10px !important; white-space: nowrap; }
+
 /* Légende des collaborateurs de la semaine */
 html[data-ui="signal"] .sg-bars-legend {
   display: flex; flex-wrap: wrap; gap: 6px;

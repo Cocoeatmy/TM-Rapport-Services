@@ -1437,6 +1437,36 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // Onglet de catégorie de la grille de tuiles (thème Signal). "all" = tout,
   // comportement identique au dashboard classique (ordre + glisser-déposer).
   const [sgCat, setSgCat] = useState<string>("all");
+  /** Semaine affichee dans « Charge de la semaine » (0 = semaine en cours). */
+  const [sgWeek, setSgWeek] = useState(0);
+
+  /** Agenda du thème Signal : décompte d'un jour sur TOUS les projets.
+   *  Les compteurs historiques dérivent de collabData (projets attribués à un
+   *  monteur connu) : un RDV fixé sans collaborateur assigné y comptait 0.
+   *  On garde exactement les mêmes prédicats de type, sur un périmètre complet. */
+  const sgDay = (dateStr: string) => {
+    const isServices = (p: Project) => (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"));
+    const isGarantie = (p: Project) => (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"));
+    const day = projects.filter((p) => projectSpansDate(p, dateStr));
+    const cab = (arr: Project[]) => arr.reduce((s, p) => s + (p.nbCabines || 0), 0);
+    const montages = day.filter((p) => getProjectSource(p) !== "mesures" && !isServices(p));
+    const mesures = day.filter((p) => getProjectSource(p) === "mesures");
+    const services = day.filter(isServices);
+    const garanties = day.filter(isGarantie);
+    const sav = projects.filter((p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === dateStr);
+    return {
+      montages: montages.length, montagesCab: cab(montages),
+      mesures: mesures.length, mesuresCab: cab(mesures),
+      services: services.length, servicesCab: cab(services),
+      sav: sav.length, savCab: cab(sav),
+      garanties: garanties.length, garantiesCab: cab(garanties),
+    };
+  };
+  const sgShift = (n: number) => {
+    const d = new Date(getTodayStr() + "T12:00:00");
+    d.setDate(d.getDate() + n);
+    return formatLocalDate(d);
+  };
   useEffect(() => { setSgSelected(null); }, [showSummaryPanel]);
   useEffect(() => {
     const check = () => setIsSignal(document.documentElement.getAttribute("data-ui") === "signal");
@@ -2565,50 +2595,53 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </div>
           </div>
 
-          {/* Agenda — aujourd'hui / demain / après-demain */}
+          {/* Agenda — aujourd'hui / demain / après-demain.
+              Les compteurs historiques ne voient que les projets DÉJÀ ATTRIBUÉS
+              à un monteur (ils dérivent de collabData) : un RDV fixé sans
+              collaborateur assigné y apparaissait à 0. Ici on compte sur TOUS
+              les projets — mêmes prédicats de type, périmètre corrigé. */}
+          {(() => { return null; })()}
           <div className="sg-agenda">
             {([
               {
-                title: "Aujourd'hui", accent: "#15803d",
-                rows: [
-                  { label: "Montages", count: todayMontages, cab: todayMontageCab, color: "#1b63ff", panel: "today" },
-                  { label: "Mesures", count: todayMesures, cab: todayMesuresCab, color: "#0e7490", panel: "mesures-today" },
-                  { label: "Services", count: todayServices, cab: todayServicesCab, color: "#6d28d9", panel: "services-today" },
-                  { label: "SAV", count: savTodayCount, cab: savTodayCab, color: "#b45309", panel: "sav-today" },
-                  { label: "Garanties", count: todayGaranties, cab: todayGarantiesCab, color: "#15803d", panel: null },
-                ],
+                title: "Aujourd'hui", accent: "#15803d", date: sgShift(0),
+                d: sgDay(sgShift(0)),
               },
               {
-                title: "Demain", accent: "var(--sg-text)",
-                rows: [
-                  { label: "Montages", count: tomorrowMontages, cab: tomorrowMontageCab, color: "#1b63ff", panel: "montage-tomorrow" },
-                  { label: "Mesures", count: tomorrowMesures, cab: tomorrowMesuresCab, color: "#0e7490", panel: "mesures-tomorrow" },
-                  { label: "Services", count: tomorrowServices, cab: tomorrowServicesCab, color: "#6d28d9", panel: "services-tomorrow" },
-                  { label: "SAV", count: savTomorrowCount, cab: savTomorrowCab, color: "#b45309", panel: "sav-tomorrow" },
-                  { label: "Garanties", count: tomorrowGaranties, cab: tomorrowGarantiesCab, color: "#15803d", panel: null },
-                ],
+                title: "Demain", accent: "var(--sg-text)", date: sgShift(1),
+                d: sgDay(sgShift(1)),
               },
               {
-                title: "Après-demain", accent: "var(--sg-text)",
-                rows: [
-                  { label: "Montages", count: afterMontages, cab: afterMontageCab, color: "#1b63ff", panel: "montage-after" },
-                  { label: "Mesures", count: afterMesures, cab: afterMesuresCab, color: "#0e7490", panel: "mesures-after" },
-                  { label: "Services", count: afterServices, cab: afterServicesCab, color: "#6d28d9", panel: "services-after" },
-                  { label: "SAV", count: afterSavCount, cab: afterSavCab, color: "#b45309", panel: "sav-after" },
-                  { label: "Garanties", count: afterGaranties, cab: afterGarantiesCab, color: "#15803d", panel: null },
-                ],
+                title: "Après-demain", accent: "var(--sg-text)", date: sgShift(2),
+                d: sgDay(sgShift(2)),
               },
             ]).map((col) => (
               <div key={col.title} className="sg-card">
                 <div className="sg-card-head">
                   <span className="sg-card-title" style={{ color: col.accent }}>{col.title}</span>
+                  <span className="sg-card-meta">
+                    {new Date(col.date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}
+                  </span>
                 </div>
-                {col.rows.map((r) => (
+                {([
+                  { label: "Montages", count: col.d.montages, cab: col.d.montagesCab, color: "#1b63ff" },
+                  { label: "Mesures", count: col.d.mesures, cab: col.d.mesuresCab, color: "#0e7490" },
+                  { label: "Services", count: col.d.services, cab: col.d.servicesCab, color: "#6d28d9" },
+                  { label: "SAV", count: col.d.sav, cab: col.d.savCab, color: "#b45309" },
+                  { label: "Garanties", count: col.d.garanties, cab: col.d.garantiesCab, color: "#15803d" },
+                ]).map((r) => (
                   <button
                     key={r.label}
                     type="button"
-                    onClick={r.panel ? (e) => openPanel(r.panel as any, e) : undefined}
-                    className={`sg-row${r.panel ? "" : " sg-row-static"}`}
+                    disabled={r.count === 0}
+                    title={r.count ? `Voir le ${new Date(col.date + "T12:00:00").toLocaleDateString("fr-CH")} dans le calendrier` : undefined}
+                    onClick={(e) => {
+                      const dt = new Date(col.date + "T12:00:00");
+                      openPanel("calendrier", e);
+                      setCalendarMonth({ year: dt.getFullYear(), month: dt.getMonth() });
+                      setCalendarSelectedDay(col.date);
+                    }}
+                    className={`sg-row${r.count === 0 ? " sg-row-static" : ""}`}
                   >
                     <span className="sg-row-bar" style={{ background: r.count > 0 ? r.color : "var(--sg-line-strong)" }} />
                     <span className="sg-row-label">{r.label}</span>
@@ -2658,7 +2691,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             {(() => {
               const now = new Date();
               const monday = new Date(now);
-              monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+              monday.setDate(now.getDate() - ((now.getDay() + 6) % 7) + sgWeek * 7);
               monday.setHours(12, 0, 0, 0);
               const jan1 = new Date(monday.getFullYear(), 0, 1);
               const weekNo = Math.ceil((((monday.getTime() - jan1.getTime()) / 86400000) + jan1.getDay() + 1) / 7);
@@ -2685,7 +2718,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   .map(([label, cab]) => ({ label, cab, color: groupColor(label) }))
                   .sort((a, b) => b.cab - a.cab);
                 const cab = segs.reduce((s, x) => s + x.cab, 0);
-                return { d, key, cab, segs, nb: dayProjects.length, dt, isToday: key === formatLocalDate(now) };
+                return { d, key, cab, segs, nb: dayProjects.length, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
               });
               const max = Math.max(1, ...bars.map((b) => b.cab));
               // Légende : groupes présents sur la semaine, du plus chargé au moins.
@@ -2698,8 +2731,27 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               return (
                 <div className="sg-card sg-chart">
                   <div className="sg-card-head">
-                    <span className="sg-card-title">Charge de la semaine</span>
-                    <span className="sg-card-meta">semaine {weekNo} · cabines / jour</span>
+                    <div>
+                      <span className="sg-card-title">Charge de la semaine</span>
+                      <p className="sg-card-meta">
+                        semaine {weekNo} · cabines / jour
+                        {sgWeek !== 0 && ` · ${sgWeek > 0 ? "+" : ""}${sgWeek} sem.`}
+                      </p>
+                    </div>
+                    <div className="sgw-nav">
+                      <button type="button" aria-label="Semaine precedente"
+                        disabled={sgWeek <= -5}
+                        onClick={() => setSgWeek((w) => Math.max(-5, w - 1))}>
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button type="button" className="sgw-now" disabled={sgWeek === 0}
+                        onClick={() => setSgWeek(0)}>Cette semaine</button>
+                      <button type="button" aria-label="Semaine suivante"
+                        disabled={sgWeek >= 5}
+                        onClick={() => setSgWeek((w) => Math.min(5, w + 1))}>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   <div className="sg-bars">
                     {bars.map((b) => (
