@@ -86,6 +86,12 @@ const REDIS_KEYS = new Set([...SNAPSHOT_KEYS, ...STATS_KEYS]);
 // gardant le TTL long (Redis chaud + repli). Les autres listes (all-raw, termine…)
 // restent en fraîcheur longue.
 const VOLATILE_FRESH_MS = 20 * 1000;   // 20 s de fraîcheur → revalidation ~toutes les 20 s
+// TTL COURT (au lieu de 2 h) : passé ce délai, une instance PURGE l'entrée et refait
+// un fetch Notion FRAIS (bloquant, dédupliqué) au lieu de servir une copie périmée.
+// Borne la divergence entre instances serverless (pas de Redis partagé actif) → on
+// ne voit plus un montage déjà clôturé "revenir" depuis une instance en retard.
+// Le repli hors-ligne reste couvert par fallbackCache (30 min), indépendant.
+const VOLATILE_TTL = 45 * 1000;        // 45 s
 const VOLATILE_KEYS = new Set([
   "projects", "projects-mesures", "projects-services", "projects-sav",
   "projects-all-active",
@@ -130,13 +136,13 @@ export function setCache(key: string, data: unknown) {
     freshMs = 30_000;
   } else if (VOLATILE_KEYS.has(key)) {
     // Listes du DASHBOARD (montage/mesures/services/sav/all-active) : fraîcheur
-    // COURTE (20 s) → une revalidation en arrière-plan est déclenchée dès qu'un
-    // client redemande après 20 s, donc les corrections Notion apparaissent en
-    // ~20-30 s. On garde le TTL long (2 h) + Redis chaud pour le cold-start et le
-    // repli hors-ligne. La revalidation reste dédupliquée par clé (inflight) →
-    // même avec plusieurs collaborateurs, Notion n'est interrogé qu'une fois /20 s.
+    // COURTE (20 s) → revalidation en arrière-plan dès qu'un client redemande après
+    // 20 s, et TTL court (45 s) → une instance en retard purge et refait un fetch
+    // FRAIS au lieu de servir du périmé (évite qu'un montage clôturé "revienne").
+    // Repli hors-ligne couvert par fallbackCache (30 min). Revalidation dédupliquée
+    // par clé → même à plusieurs, Notion n'est interrogé qu'une fois par fenêtre.
     freshMs = VOLATILE_FRESH_MS;
-    ttl = LONG_TTL;
+    ttl = VOLATILE_TTL;
   } else if (REDIS_KEYS.has(key)) {
     freshMs = LONG_FRESH_MS;
     ttl = LONG_TTL;

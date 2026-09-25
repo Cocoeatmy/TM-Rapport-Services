@@ -1776,6 +1776,19 @@ function HomePage() {
       else fetchInto(url);
     });
 
+    // Double-tap au CHARGEMENT : la 1re passe `?rv` sert le cache serveur (parfois
+    // périmé : ex. un montage clôturé aujourd'hui encore listé) MAIS déclenche la
+    // revalidation Notion. On relit les listes actives peu après (4 s puis 9 s, pour
+    // couvrir la latence Notion) afin de récupérer les données fraîches sans
+    // attendre le prochain poll (20 s) → les projets clôturés disparaissent en
+    // quelques secondes au lieu de ~20 s.
+    [4000, 9000].forEach((delay) => setTimeout(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      uniqueUrls
+        .filter((u) => ACTIVE_FRESH.has(u))
+        .forEach((url) => { fetchInto(rvUrl(url), { cache: "no-store" }, url); });
+    }, delay));
+
     if (forceFresh) {
       // Refresh manuel : indicateur bref + complément `fresh` (Notion) en
       // arrière-plan pour garantir les toutes dernières données, sans figer.
@@ -2379,30 +2392,30 @@ function HomePage() {
             // clignotait entre les deux panneaux. On ne remplace JAMAIS une copie
             // par une plus ancienne. À last_edited_time égal, l'ordre (montage,
             // mesures, services, sav) tranche → priorité montage, comme avant.
-            // Purge avec délai de grâce : un projet absent de TOUTES les listes
-            // depuis > 45 s est retiré (projets terminés/archivés), mais un "trou"
-            // transitoire (poll tombé sur une instance périmée) est toléré.
+            //
+            // Rétention : on garde la version la plus récente d'un projet TANT
+            // QU'IL est présent dans AU MOINS une liste courante. Dès qu'il
+            // disparaît de TOUTES les listes (projet clôturé/terminé → sorti des
+            // listes actives), on le retire IMMÉDIATEMENT (pas de délai de grâce),
+            // pour ne jamais afficher un montage déjà clôturé.
             const map = dashTaggedRef.current;
-            const now = Date.now();
-            const GRACE_MS = 45_000;
             const editTs = (p: any) => Date.parse(p?.lastEditedTime || "") || 0;
             const seen = new Set<string>();
             const consider = (list: Project[] | undefined, source: "montage" | "mesures" | "services" | "sav") => {
               for (const p of list || []) {
                 seen.add(p.id);
                 const cur = map.get(p.id);
-                if (!cur || editTs(p) > editTs(cur)) map.set(p.id, { ...p, _source: source, _seen: now });
-                else cur._seen = now; // copie plus ancienne : on garde, mais vue à l'instant
+                if (!cur || editTs(p) > editTs(cur)) map.set(p.id, { ...p, _source: source });
               }
             };
             consider(projectsData["cmd"], "montage");
             consider(projectsData["mesures"], "mesures");
             consider(projectsData["services"], "services");
             consider(projectsData["sav"], "sav");
-            for (const [id, v] of map) {
-              if (!seen.has(id) && now - (v._seen || 0) > GRACE_MS) map.delete(id);
+            for (const id of map.keys()) {
+              if (!seen.has(id)) map.delete(id);
             }
-            const tagged = [...map.values()].map((v) => { const r = { ...v }; delete r._seen; return r; });
+            const tagged = [...map.values()];
             return (
               <MonteurDashboard
                 userName={currentUser.name}
