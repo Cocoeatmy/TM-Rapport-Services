@@ -1417,6 +1417,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // Tout autre thème (Classique, Aurora, Océan, CleanMyMac) continue d'emprunter
   // exactement le même chemin de code qu'avant : rien n'est modifié pour eux.
   const [isSignal, setIsSignal] = useState(false);
+  // Projet sélectionné dans la vue maître-détail du thème Signal.
+  const [sgSelected, setSgSelected] = useState<string | null>(null);
+  useEffect(() => { setSgSelected(null); }, [showSummaryPanel]);
   useEffect(() => {
     const check = () => setIsSignal(document.documentElement.getAttribute("data-ui") === "signal");
     check();
@@ -5251,6 +5254,197 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         const isAFacturer = showSummaryPanel === "a-facturer";
         const isEmplacementCabines = showSummaryPanel === "emplacement-cabines";
         const dateLabel = "Date";
+
+        /* ══ ÉCRAN DENSE DU THÈME « SIGNAL » — vue maître-détail ═════════════
+           Rendu dédié pour les 4 panneaux « RDV … à fixer ». Il consomme
+           `panelProjects` DÉJÀ filtré (chips d'état + recherche locale) et les
+           mêmes helpers que le rendu classique : aucune logique dupliquée.
+           Les autres thèmes ne passent jamais ici. */
+        if (isSignal && rdvStatusFieldFn) {
+          const dateGetter = showSummaryPanel ? PANEL_DATE_FIELD[showSummaryPanel] : undefined;
+          const byKey = new Map<string, Project[]>();
+          panelProjects.forEach((p) => {
+            const key = (dateGetter ? (dateGetter(p) || "") : "").split("T")[0] || "—";
+            if (!byKey.has(key)) byKey.set(key, []);
+            (byKey.get(key) as Project[]).push(p);
+          });
+          const sgGroups = [...byKey.entries()].sort((a, b) =>
+            a[0] === "—" ? 1 : b[0] === "—" ? -1 : a[0].localeCompare(b[0])
+          );
+          const sel = panelProjects.find((p) => p.id === sgSelected) || panelProjects[0] || null;
+          const selJ = sel ? getDaysInfoFromDate(dateGetter ? dateGetter(sel) : null) : null;
+          const selTotal = sel ? (sel.nbCabines || 0) : 0;
+          const selPosed = sel ? Math.min(sel.nbCabinesInstallees || 0, selTotal) : 0;
+          const selEtat = sel ? (rdvStatusFieldFn(sel) || "—") : "—";
+          const selCls = STATUS_CMD_COLORS[selEtat] || STATUS_MESURES_COLORS[selEtat] || "bg-gray-100 text-gray-700";
+
+          return (
+            <div className="sg-panel">
+              <div className="sg-panel-head">
+                <button type="button" onClick={closePanel} className="sg-panel-back" aria-label="Retour">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="sg-panel-title">{panelTitle}</span>
+                <span className="sg-panel-count">
+                  {rdvFiltered ? `${panelProjects.length} / ${rdvTotalCount}` : rdvTotalCount}
+                </span>
+                {showSummaryPanel === "rdv-montage-a-fixer" && (
+                  <span className="sg-panel-kpi">
+                    {panelProjects.reduce((s, p) => s + Math.max((p.nbCabines || 0) - Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0), 0)} cabines à poser
+                  </span>
+                )}
+                {showSummaryPanel === "rdv-sav-a-fixer" && (
+                  <span className="sg-panel-kpi">
+                    {panelProjects.reduce((s, p) => s + savOpenCabCount(p), 0)} cabines SAV ouvertes
+                  </span>
+                )}
+              </div>
+
+              <div className="sg-panel-tools">
+                <div className="sg-search">
+                  <Search className="w-4 h-4 sg-search-icon" />
+                  <input
+                    type="text"
+                    value={panelSearch}
+                    onChange={(e) => setPanelSearch(e.target.value)}
+                    placeholder="Rechercher dans la liste…"
+                    aria-label="Rechercher dans la liste"
+                  />
+                  {panelSearch && (
+                    <button type="button" onClick={() => setPanelSearch("")} aria-label="Effacer" className="sg-search-clear">
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+                <div className="sg-chips">
+                  {rdvStatusOptions.map((st) => {
+                    const off = hiddenStatusOf(showSummaryPanel).has(st);
+                    return (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); toggleRdvStatus(showSummaryPanel as string, st); }}
+                        className={`sg-chip${off ? " is-off" : ""}`}
+                        title={off ? `Afficher : ${st}` : `Masquer : ${st}`}
+                      >
+                        {st}
+                      </button>
+                    );
+                  })}
+                </div>
+                {showSummaryPanel && PANEL_DATE_FIELD[showSummaryPanel] && (
+                  <div className="sg-seg">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setPanelSort(showSummaryPanel as string, "date"); }}
+                      className={panelSortOf(showSummaryPanel) === "date" ? "is-on" : ""}>Par date</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setPanelSort(showSummaryPanel as string, "region"); }}
+                      className={panelSortOf(showSummaryPanel) === "region" ? "is-on" : ""}>Par région</button>
+                  </div>
+                )}
+              </div>
+
+              <div className="sg-split">
+                <div className="sg-list">
+                  <div className="sg-cols">
+                    <span>DÉLAI</span><span>N° OFR TM</span><span>N° FOURN.</span>
+                    <span>PROJET</span><span>ÉTAT</span><span>EMPLACEMENT</span><span className="sg-right">CAB.</span>
+                  </div>
+                  {panelProjects.length === 0 && (
+                    <p className="sg-empty">
+                      {panelQuery ? `Aucun projet ne correspond à « ${panelQuery} » dans cette liste.`
+                        : rdvFiltered && rdvTotalCount > 0 ? `${rdvTotalCount} projet(s) masqué(s) par le filtre.`
+                        : "Aucun projet"}
+                    </p>
+                  )}
+                  {sgGroups.map(([key, rows]) => {
+                    const gInfo = key === "—" ? null : getDaysInfoFromDate(key);
+                    const label = key === "—" ? "Date non définie"
+                      : new Date(key + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" });
+                    return (
+                      <div key={key} className="sg-grp-wrap">
+                        <div className="sg-grp">
+                          <span className="sg-grp-label">{label}</span>
+                          {gInfo && <span className={`sg-jpill ${gInfo.bgClass} ${gInfo.colorClass}`}>J+{gInfo.days}</span>}
+                          <i className="sg-rule" />
+                          <span className="sg-grp-sum">
+                            {rows.length} projet{rows.length > 1 ? "s" : ""} · {rows.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.
+                          </span>
+                        </div>
+                        {rows.map((p) => {
+                          const j = getDaysInfoFromDate(dateGetter ? dateGetter(p) : null);
+                          const etat = rdvStatusFieldFn(p) || "—";
+                          const cls = STATUS_CMD_COLORS[etat] || STATUS_MESURES_COLORS[etat] || "bg-gray-100 text-gray-700";
+                          const tm = parseTMNumbers(p.ofrTM || "");
+                          const on = sel && sel.id === p.id;
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setSgSelected(p.id)}
+                              className={`sg-prow${on ? " is-sel" : ""}`}
+                            >
+                              <span className={`sg-jpill ${j ? `${j.bgClass} ${j.colorClass}` : ""}`}>{j ? `J+${j.days}` : "—"}</span>
+                              <span className="sg-mono">{tm.length ? tm.join(" ") : "—"}</span>
+                              <span className="sg-mono sg-dim">{p.servCmdFournisseurs || p.cmdFournisseurs || p.servMesuresFournisseurs || "—"}</span>
+                              <span className="sg-pname">{p.projet}</span>
+                              <span className={`sg-state ${cls}`}>{etat}</span>
+                              <span className="sg-place">
+                                <MapPin className="w-3 h-3" />
+                                <span>{p.emplacementCabine || "—"}</span>
+                              </span>
+                              <span className="sg-mono sg-right sg-strong">{p.nbCabines || 0}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {sel && (
+                  <aside className="sg-detail">
+                    <div className="sg-detail-top">
+                      {selJ && <span className={`sg-jpill ${selJ.bgClass} ${selJ.colorClass}`}>J+{selJ.days}</span>}
+                      <span className={`sg-state ${selCls}`}>{selEtat}</span>
+                    </div>
+                    <h3 className="sg-detail-title">{sel.projet}</h3>
+                    {sel.adresseChantier && <p className="sg-detail-addr">{sel.adresseChantier}</p>}
+                    <div className="sg-fields">
+                      {([
+                        { k: "N° OFR TM", v: sel.ofrTM || "—" },
+                        { k: "N° FOURN.", v: sel.servCmdFournisseurs || sel.cmdFournisseurs || "—" },
+                        { k: "NB. CABINES", v: String(sel.nbCabines || 0) },
+                        { k: "EMPLACEMENT", v: sel.emplacementCabine || "—" },
+                        { k: "ARRIVAGE", v: (sel.arrivageTM || sel.arrivageGrossiste || "").split("T")[0] || "—" },
+                        { k: "COLLABORATEUR", v: sel.collaborateurs || "—" },
+                      ]).map((f) => (
+                        <div key={f.k} className="sg-field">
+                          <span className="sg-field-k">{f.k}</span>
+                          <span className="sg-field-v">{f.v}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {selTotal > 0 && (
+                      <div className="sg-gauge-wrap">
+                        <div className="sg-gauge-head">
+                          <span>Lots</span>
+                          <span className="sg-mono">{selPosed} / {selTotal} posés</span>
+                        </div>
+                        <div className="sg-gauge">
+                          {Array.from({ length: selTotal }).map((_, i) => (
+                            <i key={i} className={i < selPosed ? "is-done" : ""} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="sg-detail-actions">
+                      <Link href={`/projet/${sel.id}?mode=dashboard`} className="sg-btn-primary">Ouvrir le projet</Link>
+                    </div>
+                  </aside>
+                )}
+              </div>
+            </div>
+          );
+        }
 
         return (
           <div className="glass-card no-lift rounded-2xl p-4 space-y-1.5">
