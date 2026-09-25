@@ -80,7 +80,36 @@ function smoothPath(pts: { x: number; y: number }[]): string {
   return d;
 }
 
+/** Liste de barres horizontales — brique commune aux analyses par groupe. */
+function BarList({ rows, unit, empty }: { rows: { label: string; value: number; sub?: string; color: string }[]; unit?: string; empty?: string }) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  if (rows.length === 0) return <p className="sgs-empty">{empty || "Aucune donnée."}</p>;
+  return (
+    <div className="sgs-barlist">
+      {rows.map((r, i) => (
+        <div key={r.label} className="sgs-bl-row" style={{ animationDelay: `${i * 35}ms` }}>
+          <span className="sgs-bl-label" title={r.label}>{r.label}</span>
+          <span className="sgs-bl-track">
+            <i className="sgs-bl-fill" style={{ width: `${(r.value / max) * 100}%`, background: r.color }} />
+          </span>
+          <span className="sgs-bl-value">{fmt(r.value)}{unit ? <em>{unit}</em> : null}</span>
+          {r.sub ? <span className="sgs-bl-sub">{r.sub}</span> : <span className="sgs-bl-sub" />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Palette stable : la même chaîne donne toujours la même teinte. */
+const HUES = ["#3b82f6", "#22c55e", "#06b6d4", "#a855f7", "#f59e0b", "#f43f5e", "#0f766e", "#6366f1", "#84cc16", "#e11d48"];
+function hueFor(s: string): string {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return HUES[h % HUES.length];
+}
+
 export function SignalStats({
+  projects,
   byMonth,
   monthKeys,
   totals: totalsProp,
@@ -88,6 +117,8 @@ export function SignalStats({
   filter,
   onRefresh,
 }: {
+  /** Projets de la période (déjà filtrés par la page) — analyses par groupe. */
+  projects?: any[];
   byMonth: Record<string, SignalStatsMonth>;
   monthKeys: string[];
   /** Totaux calculés sur les lignes brutes par la page (source de vérité). */
@@ -103,6 +134,88 @@ export function SignalStats({
   const [picked, setPicked] = useState<Set<string>>(() => new Set<string>());
   const [refreshing, setRefreshing] = useState(false);
   const [making, setMaking] = useState(false);
+  /** Onglet d'analyse : rien n'est affiché en vrac, on choisit son angle. */
+  const [tab, setTab] = useState<"activite" | "equipes" | "repartition" | "qualite">("activite");
+
+  /* ── Analyses par groupe, calculées depuis les projets de la période ──── */
+  const P = useMemo(() => (Array.isArray(projects) ? projects : []), [projects]);
+  const cabOf = (p: any) => Number(p?.nbCabines) || 0;
+
+  const byCollab = useMemo(() => {
+    const m = new Map<string, { cab: number; nb: number }>();
+    P.forEach((p) => {
+      const names = String(p.collaborateurs || "").split("&").map((n: string) => n.trim()).filter(Boolean);
+      if (names.length === 0) return;
+      names.forEach((n: string) => {
+        const cur = m.get(n) || { cab: 0, nb: 0 };
+        // Cabines réparties entre les monteurs d'un binôme : pas de double compte.
+        cur.cab += cabOf(p) / names.length;
+        cur.nb += 1;
+        m.set(n, cur);
+      });
+    });
+    return [...m.entries()]
+      .map(([label, v]) => ({ label, value: Math.round(v.cab), sub: `${v.nb} proj.`, color: hueFor(label) }))
+      .sort((a, b) => b.value - a.value);
+  }, [P]);
+
+  const byTeam = useMemo(() => {
+    const m = new Map<string, { cab: number; nb: number }>();
+    P.forEach((p) => {
+      const label = String(p.collaborateurs || "").trim() || "Non attribué";
+      const cur = m.get(label) || { cab: 0, nb: 0 };
+      cur.cab += cabOf(p); cur.nb += 1;
+      m.set(label, cur);
+    });
+    return [...m.entries()]
+      .map(([label, v]) => ({ label, value: v.cab, sub: `${v.nb} proj.`, color: hueFor(label) }))
+      .sort((a, b) => b.value - a.value);
+  }, [P]);
+
+  const byList = (field: string) => {
+    const m = new Map<string, { cab: number; nb: number }>();
+    P.forEach((p) => {
+      const arr: string[] = Array.isArray(p[field]) ? p[field] : [];
+      (arr.length ? arr : ["—"]).forEach((k: string) => {
+        const cur = m.get(k) || { cab: 0, nb: 0 };
+        cur.cab += cabOf(p); cur.nb += 1;
+        m.set(k, cur);
+      });
+    });
+    return [...m.entries()]
+      .map(([label, v]) => ({ label, value: v.cab, sub: `${v.nb} proj.`, color: hueFor(label) }))
+      .sort((a, b) => b.value - a.value);
+  };
+  const byFournisseur = useMemo(() => byList("fournisseurs"), [P]);
+  const bySerie = useMemo(() => byList("seriesCabines"), [P]);
+
+  const byStatut = useMemo(() => {
+    const m = new Map<string, number>();
+    P.forEach((p) => {
+      const k = String(p.etatCMD || "—");
+      m.set(k, (m.get(k) || 0) + 1);
+    });
+    return [...m.entries()]
+      .map(([label, value]) => ({ label, value, color: hueFor(label) }))
+      .sort((a, b) => b.value - a.value);
+  }, [P]);
+
+  const quality = useMemo(() => {
+    const total = P.length || 0;
+    const soucis = P.filter((p) => p.soucisMontage === true || String(p.etatCMD || "") === "Soucis montage").length;
+    const pieces = P.filter((p) => String(p.infoPiecesManquantes || "").trim()).length;
+    const defauts = P.filter((p) => String(p.infoDefautsSignale || "").trim()).length;
+    const sav = P.filter((p) => String(p.etatSAV || "").trim() || String(p.commentairesSav || "").trim()).length;
+    const rate = (n: number) => (total ? Math.round((n / total) * 1000) / 10 : 0);
+    return { total, soucis, pieces, defauts, sav, rate };
+  }, [P]);
+
+  const TABS = [
+    { id: "activite" as const, label: "Activité" },
+    { id: "equipes" as const, label: "Équipes & monteurs", n: byCollab.length },
+    { id: "repartition" as const, label: "Répartition", n: byFournisseur.length + bySerie.length },
+    { id: "qualite" as const, label: "Qualité", n: quality.soucis + quality.defauts },
+  ];
 
   const keys = useMemo(
     () => (picked.size > 0 ? monthKeys.filter((k) => picked.has(k)) : monthKeys.slice(-14)),
@@ -218,10 +331,21 @@ export function SignalStats({
         </div>
       </div>
 
+      {/* Onglets d'analyse : on choisit son angle, rien n'est déversé en vrac */}
+      <div className="sgs-tabs">
+        {TABS.map((t) => (
+          <button key={t.id} type="button" onClick={() => setTab(t.id)}
+            className={`sgs-tab${tab === t.id ? " is-on" : ""}`} aria-pressed={tab === t.id}>
+            {t.label}
+            {typeof t.n === "number" && t.n > 0 && <span className="sgs-tab-n">{t.n}</span>}
+          </button>
+        ))}
+      </div>
+
       {filter && <div className="sgs-filter">{filter}</div>}
 
       {/* Sélection de mois : cliquez pour épingler, comparez-en plusieurs */}
-      {monthKeys.length > 1 && (
+      {tab === "activite" && monthKeys.length > 1 && (
         <div className="sgs-months">
           <span className="sgs-months-k">Mois</span>
           {monthKeys.slice(-18).map((k) => {
@@ -248,6 +372,7 @@ export function SignalStats({
       )}
 
       {/* Indicateurs clés */}
+      {tab === "activite" && (<>
       <div className="sgs-kpis">
         {KPIS.map((k, i) => {
           const d = delta(k.id);
@@ -465,6 +590,101 @@ export function SignalStats({
           {rows.length === 0 && <p className="sgs-empty">Aucune donnée sur cette période.</p>}
         </div>
       </div>
+      </>)}
+
+      {tab === "equipes" && (
+        <div className="sgs-grid2">
+          <div className="sgs-card">
+            <div className="sgs-card-head">
+              <div>
+                <h2 className="sgs-card-title">Montage par monteur</h2>
+                <p className="sgs-card-meta">cabines posées · binômes répartis à parts égales</p>
+              </div>
+            </div>
+            <BarList rows={byCollab} unit=" cab." empty="Aucun montage attribué sur cette période." />
+          </div>
+          <div className="sgs-card">
+            <div className="sgs-card-head">
+              <div>
+                <h2 className="sgs-card-title">Cabines par équipe</h2>
+                <p className="sgs-card-meta">solo, binôme ou team, tels que saisis</p>
+              </div>
+            </div>
+            <BarList rows={byTeam} unit=" cab." empty="Aucune équipe sur cette période." />
+          </div>
+        </div>
+      )}
+
+      {tab === "repartition" && (
+        <div className="sgs-grid2">
+          <div className="sgs-card">
+            <div className="sgs-card-head">
+              <div>
+                <h2 className="sgs-card-title">Cabines par fournisseur</h2>
+                <p className="sgs-card-meta">volume par marque</p>
+              </div>
+            </div>
+            <BarList rows={byFournisseur} unit=" cab." />
+          </div>
+          <div className="sgs-card">
+            <div className="sgs-card-head">
+              <div>
+                <h2 className="sgs-card-title">Cabines par série</h2>
+                <p className="sgs-card-meta">modèles les plus posés</p>
+              </div>
+            </div>
+            <BarList rows={bySerie} unit=" cab." />
+          </div>
+          <div className="sgs-card sgs-span2">
+            <div className="sgs-card-head">
+              <div>
+                <h2 className="sgs-card-title">Projets par statut</h2>
+                <p className="sgs-card-meta">état CMD · {fmt(quality.total)} projets</p>
+              </div>
+            </div>
+            <BarList rows={byStatut} unit=" proj." />
+          </div>
+        </div>
+      )}
+
+      {tab === "qualite" && (
+        <>
+          <div className="sgs-kpis">
+            {[
+              { label: "Soucis de montage", n: quality.soucis, color: "#f43f5e" },
+              { label: "Pièces manquantes", n: quality.pieces, color: "#f59e0b" },
+              { label: "Défauts signalés", n: quality.defauts, color: "#dc2626" },
+              { label: "Projets avec SAV", n: quality.sav, color: "#a855f7" },
+            ].map((k, i) => (
+              <div key={k.label} className="sgs-kpi" style={{ animationDelay: `${i * 45}ms` }}>
+                <div className="sgs-kpi-top">
+                  <span className="sgs-kpi-label">{k.label}</span>
+                  <span className="sgs-delta flat">{quality.rate(k.n)}%</span>
+                </div>
+                <span className="sgs-kpi-value" style={{ color: k.color }}>{fmt(k.n)}</span>
+                <span className="sgs-kpi-foot">sur {fmt(quality.total)} projets</span>
+              </div>
+            ))}
+          </div>
+          <div className="sgs-card">
+            <div className="sgs-card-head">
+              <div>
+                <h2 className="sgs-card-title">Taux par indicateur</h2>
+                <p className="sgs-card-meta">part des projets concernés sur la période</p>
+              </div>
+            </div>
+            <BarList
+              rows={[
+                { label: "Soucis de montage", value: quality.soucis, sub: `${quality.rate(quality.soucis)}%`, color: "#f43f5e" },
+                { label: "Pièces manquantes", value: quality.pieces, sub: `${quality.rate(quality.pieces)}%`, color: "#f59e0b" },
+                { label: "Défauts signalés", value: quality.defauts, sub: `${quality.rate(quality.defauts)}%`, color: "#dc2626" },
+                { label: "Projets avec SAV", value: quality.sav, sub: `${quality.rate(quality.sav)}%`, color: "#a855f7" },
+              ]}
+              unit=" proj."
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

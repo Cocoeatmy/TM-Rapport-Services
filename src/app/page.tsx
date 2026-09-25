@@ -3583,42 +3583,6 @@ function HomePage() {
         const totalSAV = svcFiltered.reduce((s: number, r: any) => s + r.sav, 0);
         const totalOFR = svcFiltered.reduce((s: number, r: any) => s + r.ofr, 0);
 
-        /* Thème « Signal » : page statistiques entièrement dédiée. Elle réutilise
-           les agrégats ci-dessus (aucun calcul métier dupliqué) et le même filtre
-           de période. Les autres thèmes poursuivent vers la page historique. */
-        if (isSignal) {
-          return (
-            <SignalStats
-              byMonth={svcByMonth}
-              monthKeys={monthlyKeys}
-              /* Totaux calculés sur les LIGNES filtrées (et non sur les agrégats
-                 mensuels) : identiques à ceux de la page statistiques historique,
-                 y compris pour d'éventuelles lignes sans mois identifiable. */
-              totals={{
-                mesures: totalMesures,
-                cabines: totalCabines,
-                montages: totalMontages,
-                demontages: svcFiltered.reduce((s: number, r: any) => s + r.demontages, 0),
-                services: totalServices,
-                sav: totalSAV,
-                ofr: totalOFR,
-                ca: totalCA,
-              }}
-              rangeLabel={describeStatsRange({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear })}
-              /* Relit Notion en direct : la journée en cours n'est pas encore
-                 dans le snapshot nocturne des statistiques. */
-              onRefresh={async () => {
-                const svc = await fetch("/api/stats/services?fresh=1").then((r) => r.json()).catch(() => null);
-                if (Array.isArray(svc)) setStatsServices(svc);
-              }}
-              filter={
-                <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
-                  onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo}
-                  onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
-              }
-            />
-          );
-        }
 
         // ── Période B (mode comparaison) ──────────────────────────────────
         const filterBYear = statsBMode === "year" ? Number(statsBYear) : null;
@@ -3761,6 +3725,44 @@ function HomePage() {
           return [...terminated, ...active.filter(p => !terminated.some(t => t.id === p.id))];
         })();
         const allProjects: Project[] = filterByStatsDate(allProjectsRaw, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+
+        /* Thème « Signal » : page statistiques entièrement dédiée. Elle réutilise
+           les agrégats ci-dessus (aucun calcul métier dupliqué) et le même filtre
+           de période. Les autres thèmes poursuivent vers la page historique. */
+        if (isSignal) {
+          return (
+            <SignalStats
+              projects={allProjects}
+              byMonth={svcByMonth}
+              monthKeys={monthlyKeys}
+              /* Totaux calculés sur les LIGNES filtrées (et non sur les agrégats
+                 mensuels) : identiques à ceux de la page statistiques historique,
+                 y compris pour d'éventuelles lignes sans mois identifiable. */
+              totals={{
+                mesures: totalMesures,
+                cabines: totalCabines,
+                montages: totalMontages,
+                demontages: svcFiltered.reduce((s: number, r: any) => s + r.demontages, 0),
+                services: totalServices,
+                sav: totalSAV,
+                ofr: totalOFR,
+                ca: totalCA,
+              }}
+              rangeLabel={describeStatsRange({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear })}
+              /* Relit Notion en direct : la journée en cours n'est pas encore
+                 dans le snapshot nocturne des statistiques. */
+              onRefresh={async () => {
+                const svc = await fetch("/api/stats/services?fresh=1").then((r) => r.json()).catch(() => null);
+                if (Array.isArray(svc)) setStatsServices(svc);
+              }}
+              filter={
+                <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
+                  onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo}
+                  onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
+              }
+            />
+          );
+        }
 
         // Helper: split collaborateurs field into array of trimmed names
         const splitCollabs = (p: Project): string[] =>

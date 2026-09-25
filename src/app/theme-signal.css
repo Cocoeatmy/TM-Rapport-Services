@@ -1188,6 +1188,72 @@ html[data-ui="signal"] .sgs-vs-serie i { width: 9px; height: 9px; border-radius:
 
 @keyframes sgsSpin { to { transform: rotate(360deg); } }
 
+/* Onglets d'analyse */
+html[data-ui="signal"] .sgs-tabs {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 5px; border-radius: 999px;
+  background: var(--sg-paper); border: 1px solid var(--sg-line);
+  box-shadow: var(--sg-shadow); align-self: flex-start;
+}
+html[data-ui="signal"] .sgs-tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 34px; padding: 0 15px; border-radius: 999px; cursor: pointer;
+  border: none; background: transparent; color: var(--sg-text-2);
+  font-family: inherit; font-size: 13px; font-weight: 500;
+  transition: background 140ms, color 140ms;
+}
+html[data-ui="signal"] .sgs-tab:hover { background: var(--sg-paper-2); color: var(--sg-text); }
+html[data-ui="signal"] .sgs-tab.is-on { background: var(--sg-ink); color: #ffffff; font-weight: 600; }
+html[data-ui="signal"] .sgs-tab-n {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+  background: var(--sg-paper-2); color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgs-tab.is-on .sgs-tab-n { background: rgba(255, 255, 255, 0.18); color: #ffffff; }
+
+/* Grille des analyses */
+html[data-ui="signal"] .sgs-grid2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+html[data-ui="signal"] .sgs-kpi-foot { font-size: 11px; color: var(--sg-text-3); margin-bottom: 12px; }
+
+/* Barres horizontales */
+html[data-ui="signal"] .sgs-barlist { display: flex; flex-direction: column; }
+html[data-ui="signal"] .sgs-bl-row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) 74px 58px;
+  gap: 10px; align-items: center;
+  padding: 7px 0; border-bottom: 1px solid var(--sg-line);
+  opacity: 0; transform: translateY(4px);
+  animation: sgsIn 380ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+html[data-ui="signal"] .sgs-bl-row:last-child { border-bottom: none; }
+html[data-ui="signal"] .sgs-bl-label {
+  font-size: 12.5px; font-weight: 500; color: var(--sg-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgs-bl-track {
+  height: 10px; border-radius: 3px; background: var(--sg-paper-2); overflow: hidden;
+}
+html[data-ui="signal"] .sgs-bl-fill {
+  display: block; height: 10px; border-radius: 3px;
+  animation: sgsWidth 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+html[data-ui="signal"] .sgs-bl-value {
+  text-align: right;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 13px; font-weight: 600; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgs-bl-value em { font-style: normal; font-size: 10px; font-weight: 500; color: var(--sg-text-3); }
+html[data-ui="signal"] .sgs-bl-sub {
+  text-align: right;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 11px; color: var(--sg-text-3);
+}
+
+@media (min-width: 1024px) {
+  html[data-ui="signal"] .sgs-grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-ui="signal"] .sgs-span2 { grid-column: 1 / -1; }
+}
+
 html[data-ui="signal"] .sgs-filter {
   background: var(--sg-paper); border: 1px solid var(--sg-line);
   border-radius: 14px; padding: 12px 14px; box-shadow: var(--sg-shadow);
