@@ -23,6 +23,7 @@ import { showRetryToast } from "@/components/error-toast";
 import { toast as sonnerToast } from "sonner";
 import { StatsDateFilter, filterByStatsDate, getRolling12Range, describeStatsRange, type StatsDateMode } from "@/components/stats-date-filter";
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
+import { SignalStats } from "@/components/signal-stats";
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
 
@@ -3482,6 +3483,24 @@ function HomePage() {
         const totalServices = svcFiltered.reduce((s: number, r: any) => s + r.services, 0);
         const totalSAV = svcFiltered.reduce((s: number, r: any) => s + r.sav, 0);
         const totalOFR = svcFiltered.reduce((s: number, r: any) => s + r.ofr, 0);
+
+        /* Thème « Signal » : page statistiques entièrement dédiée. Elle réutilise
+           les agrégats ci-dessus (aucun calcul métier dupliqué) et le même filtre
+           de période. Les autres thèmes poursuivent vers la page historique. */
+        if (isSignal) {
+          return (
+            <SignalStats
+              byMonth={svcByMonth}
+              monthKeys={monthlyKeys}
+              rangeLabel={describeStatsRange({ mode: statsDateMode, from: statsDateFrom, to: statsDateTo, month: statsMonth, year: statsYear })}
+              filter={
+                <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
+                  onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo}
+                  onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
+              }
+            />
+          );
+        }
 
         // ── Période B (mode comparaison) ──────────────────────────────────
         const filterBYear = statsBMode === "year" ? Number(statsBYear) : null;
