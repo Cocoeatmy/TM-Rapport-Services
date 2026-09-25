@@ -12,7 +12,7 @@ import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@/lib/notion";
-import { getCollaboratorColor } from "@/lib/collaborators";
+import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { computeMonteurCabStats } from "@/lib/monteur-stats";
 import { useNotionColors } from "@/lib/notion-colors";
 import { formatDateFR, formatDateLong, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST, getISOWeek } from "@/lib/constants";
@@ -24,6 +24,7 @@ import { toast as sonnerToast } from "sonner";
 import { StatsDateFilter, filterByStatsDate, getRolling12Range, describeStatsRange, type StatsDateMode } from "@/components/stats-date-filter";
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { SignalStats } from "@/components/signal-stats";
+import { useIsSignalTheme } from "@/lib/use-signal-theme";
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
 
@@ -85,6 +86,81 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch, ex
   const statusColors = mode.startsWith("mesures") ? STATUS_MESURES_COLORS : STATUS_CMD_COLORS;
   const statusValue = mode.startsWith("mesures") ? project.etatMesures : project.etatCMD;
   const statusColor = statusColors[statusValue] || "bg-gray-100 text-gray-700";
+  const isSignalTheme = useIsSignalTheme();
+
+  /* ══ Thème « Signal » : ligne dense au lieu d'une carte empilée ═══════════
+     Même contenu, même destination, mêmes actions (favori hérité du parent,
+     nouvel onglet, archivage admin) — mais lisible en balayage vertical sur
+     des listes longues. Aucun autre thème n'entre ici. */
+  if (isSignalTheme) {
+    const collabs = ((mode === "mesures" ? project.mesuresTraiteePar : project.collaborateurs) || "")
+      .split(" & ").map((n) => n.trim()).filter(Boolean);
+    const dateStr = formatDateFR(mode.startsWith("mesures") ? project.dateMesures : project.dateMontage);
+    const tm = project.ofrTM || "";
+    return (
+      <div className="sg-plist-row group">
+        <Link
+          href={`/projet/${project.id}?mode=${mode}`}
+          prefetch={!noPrefetch}
+          onMouseEnter={() => !noPrefetch && prefetchProject(project.id)}
+          onTouchStart={() => !noPrefetch && prefetchProject(project.id)}
+          onFocus={() => !noPrefetch && prefetchProject(project.id)}
+          className="sg-plist-link"
+        >
+          <span className="sg-plist-tm">{tm || "—"}</span>
+          <span className="sg-plist-main">
+            <span className="sg-plist-name">{project.projet || "Sans nom"}</span>
+            <span className="sg-plist-sub">
+              {project.nomChantier && project.nomChantier !== project.projet ? `${project.nomChantier} · ` : ""}
+              {project.adresseChantier || "—"}
+            </span>
+            {extraLine && <span className="sg-plist-extra">{extraLine}</span>}
+          </span>
+          <span className={`sg-plist-state ${statusColor}`}>{statusValue || "—"}</span>
+          <span className="sg-plist-date">{dateStr || "—"}</span>
+          <span className="sg-plist-people">
+            {collabs.slice(0, 3).map((name) => (
+              <span
+                key={name}
+                className="sg-plist-av"
+                title={name}
+                style={{ backgroundColor: getCollaboratorColor(name).bg, color: getCollaboratorColor(name).text }}
+              >
+                {getCollaboratorInitials(name)}
+              </span>
+            ))}
+          </span>
+          <span className="sg-plist-cab">{project.nbCabines ? `${project.nbCabines}` : "—"}</span>
+          <ChevronRight className="w-4 h-4 sg-plist-chev" />
+        </Link>
+        <a
+          href={`/projet/${project.id}?mode=${mode}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="sg-plist-act sg-plist-act-tab"
+          title="Ouvrir dans un nouvel onglet"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+        {isAdmin && onDelete && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (confirm(`Archiver le projet "${project.projet}" ? Cette action est reversible depuis Notion.`)) {
+                onDelete(project.id);
+              }
+            }}
+            className="sg-plist-act sg-plist-act-del"
+            title="Archiver le projet"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="relative group">
