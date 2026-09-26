@@ -653,6 +653,23 @@ export function SignalStats({
       .sort((a, b) => b.value - a.value);
   }, [sig, P, sigAxis, sigKind, byFournisseur, bySerie]);
 
+  /** Récurrence SAV : chantiers qui reviennent plusieurs fois en SAV. */
+  const savRecurrence = useMemo(() => {
+    const m = new Map<string, any[]>();
+    P.filter(hasSav).forEach((p: any) => {
+      const cle = String(p.nomChantier || p.projet || "Sans nom").trim();
+      if (!m.has(cle)) m.set(cle, []);
+      m.get(cle)!.push(p);
+    });
+    return [...m.entries()]
+      .filter(([, items]) => items.length > 1) // un SAV isolé n'est pas une récurrence
+      .map(([label, items]) => ({
+        label, value: items.length, items,
+        sub: `${items.length} SAV`, color: "#ea580c",
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [P]);
+
   const TABS = [
     { id: "activite" as const, label: "Activité" },
     { id: "equipes" as const, label: "Équipes & monteurs", n: byCollab.length },
@@ -1209,6 +1226,12 @@ export function SignalStats({
               </button>
             ))}
           </div>
+
+          <Fold title="Récurrence SAV"
+            meta="chantiers revenus plusieurs fois en SAV · un cas isolé n'y figure pas">
+            <BarList rows={savRecurrence} unit=" SAV" onPick={setPick}
+              empty="Aucun chantier n'est revenu plusieurs fois en SAV sur cette période." />
+          </Fold>
 
           <Fold title="SAV par cause"
             meta="part de chaque cause sur l'ensemble des SAV de la période · erreur fournisseur, client ou TM">
