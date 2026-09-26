@@ -1524,6 +1524,20 @@ html[data-ui="signal"] .sgs-seg button {
   background: transparent; color: var(--sg-text-2);
 }
 html[data-ui="signal"] .sgs-seg button.is-on { background: var(--sg-ink); color: #ffffff; font-weight: 600; }
+/* Indicateur cliquable : ouvre la liste des projets qu'il recouvre. */
+html[data-ui="signal"] .sgs-kpi.is-click {
+  width: 100%; text-align: left; font-family: inherit; cursor: pointer;
+  transition: border-color 140ms, box-shadow 140ms, transform 140ms;
+}
+html[data-ui="signal"] .sgs-kpi.is-click:hover:not(:disabled) {
+  border-color: var(--sg-signal);
+  box-shadow: var(--sg-shadow-hi);
+}
+html[data-ui="signal"] .sgs-kpi.is-click:disabled { cursor: default; }
+html[data-ui="signal"] .sgs-kpi.is-click:focus-visible {
+  outline: 2px solid var(--sg-signal); outline-offset: 2px;
+}
+
 /* Deux sélecteurs côte à côte (équipe/monteur puis indicateur). */
 html[data-ui="signal"] .sgs-blame-ctl {
   display: flex; flex-wrap: wrap; gap: 8px; align-items: center;

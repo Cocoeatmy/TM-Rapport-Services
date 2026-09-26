@@ -374,13 +374,23 @@ export function SignalStats({
 
   const quality = useMemo(() => {
     const total = P.length || 0;
-    const soucis = P.filter((p) => p.soucisMontage === true || String(p.etatCMD || "") === "Soucis montage").length;
-    const pieces = P.filter((p) => String(p.infoPiecesManquantes || "").trim()).length;
-    const defauts = P.filter((p) => String(p.infoDefautsSignale || "").trim()).length;
-    const sav = P.filter(hasSav).length;
+    /* On conserve les PROJETS et non un simple compte : chaque indicateur doit
+       pouvoir s'ouvrir sur la liste de ce qu'il recouvre. */
+    const soucis = P.filter((p) => p.soucisMontage === true || String(p.etatCMD || "") === "Soucis montage");
+    const pieces = P.filter((p) => String(p.infoPiecesManquantes || "").trim());
+    const defauts = P.filter((p) => String(p.infoDefautsSignale || "").trim());
+    const sav = P.filter(hasSav);
     const rate = (n: number) => (total ? Math.round((n / total) * 1000) / 10 : 0);
     return { total, soucis, pieces, defauts, sav, rate };
   }, [P]);
+
+  /** Les quatre indicateurs qualité, avec leurs projets — cliquables. */
+  const qualRows: BarRow[] = [
+    { label: "Soucis de montage", value: quality.soucis.length, sub: `${quality.rate(quality.soucis.length)}%`, color: "#f43f5e", items: quality.soucis },
+    { label: "Pièces manquantes", value: quality.pieces.length, sub: `${quality.rate(quality.pieces.length)}%`, color: "#f59e0b", items: quality.pieces },
+    { label: "Défauts signalés", value: quality.defauts.length, sub: `${quality.rate(quality.defauts.length)}%`, color: "#dc2626", items: quality.defauts },
+    { label: "Projets avec SAV", value: quality.sav.length, sub: `${quality.rate(quality.sav.length)}%`, color: "#a855f7", items: quality.sav },
+  ];
 
   /** Signalements rattachés aux projets de la période affichée. */
   const sigStats = useMemo(() => {
@@ -616,7 +626,7 @@ export function SignalStats({
     { id: "activite" as const, label: "Activité" },
     { id: "equipes" as const, label: "Équipes & monteurs", n: byCollab.length },
     { id: "repartition" as const, label: "Répartition", n: byFournisseur.length + bySerie.length },
-    { id: "qualite" as const, label: "Qualité", n: quality.soucis + quality.defauts },
+    { id: "qualite" as const, label: "Qualité", n: quality.soucis.length + quality.defauts.length },
   ];
 
   const keys = useMemo(
@@ -1101,20 +1111,19 @@ export function SignalStats({
       {tab === "qualite" && (
         <>
           <div className="sgs-kpis">
-            {[
-              { label: "Soucis de montage", n: quality.soucis, color: "#f43f5e" },
-              { label: "Pièces manquantes", n: quality.pieces, color: "#f59e0b" },
-              { label: "Défauts signalés", n: quality.defauts, color: "#dc2626" },
-              { label: "Projets avec SAV", n: quality.sav, color: "#a855f7" },
-            ].map((k, i) => (
-              <div key={k.label} className="sgs-kpi" style={{ animationDelay: `${i * 45}ms` }}>
+            {qualRows.map((k, i) => (
+              <button key={k.label} type="button"
+                className="sgs-kpi is-click" style={{ animationDelay: `${i * 45}ms` }}
+                disabled={!k.items?.length}
+                title={k.items?.length ? `Voir les ${k.items.length} projets concernés` : undefined}
+                onClick={() => setPick(k)}>
                 <div className="sgs-kpi-top">
                   <span className="sgs-kpi-label">{k.label}</span>
-                  <span className="sgs-delta flat">{quality.rate(k.n)}%</span>
+                  <span className="sgs-delta flat">{k.sub}</span>
                 </div>
-                <span className="sgs-kpi-value" style={{ color: k.color }}>{fmt(k.n)}</span>
+                <span className="sgs-kpi-value" style={{ color: k.color }}>{fmt(k.value)}</span>
                 <span className="sgs-kpi-foot">sur {fmt(quality.total)} projets</span>
-              </div>
+              </button>
             ))}
           </div>
           <div className="sgs-card">
@@ -1124,15 +1133,7 @@ export function SignalStats({
                 <p className="sgs-card-meta">part des projets concernés sur la période</p>
               </div>
             </div>
-            <BarList
-              rows={[
-                { label: "Soucis de montage", value: quality.soucis, sub: `${quality.rate(quality.soucis)}%`, color: "#f43f5e" },
-                { label: "Pièces manquantes", value: quality.pieces, sub: `${quality.rate(quality.pieces)}%`, color: "#f59e0b" },
-                { label: "Défauts signalés", value: quality.defauts, sub: `${quality.rate(quality.defauts)}%`, color: "#dc2626" },
-                { label: "Projets avec SAV", value: quality.sav, sub: `${quality.rate(quality.sav)}%`, color: "#a855f7" },
-              ]}
-              unit=" proj."
-            />
+            <BarList rows={qualRows} unit=" proj." onPick={setPick} />
           </div>
 
           {/* Qui a posé la cabine qui pose problème ? */}
