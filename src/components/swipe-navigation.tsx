@@ -19,7 +19,7 @@
  *     suffit pas → on prévient la page par un évènement `tm-restore-view`.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useIsSignalTheme } from "@/lib/use-signal-theme";
 
@@ -46,10 +46,28 @@ function scrollableAncestor(start: EventTarget | null, dir: number): boolean {
 export function SwipeNavigation() {
   const router = useRouter();
   const isSignal = useIsSignalTheme();
+  /* Geste réservé à l'administration : un balayage involontaire qui change de
+     page gêne plus qu'il n'aide un monteur sur un chantier. */
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let vivant = true;
+    fetch("/api/auth")
+      .then((r) => r.json())
+      .then((d) => { if (vivant) setIsAdmin(d?.user?.role === "admin"); })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, []);
 
   const backStack = useRef<string[]>([]);
   const fwdStack = useRef<string[]>([]);
-  const suppress = useRef(false);
+  /* URL vers laquelle NOUS venons de naviguer. Tant que la barre d'adresse ne
+     l'affiche pas, on n'enregistre rien : un simple drapeau booléen était
+     consommé par la relecture périodique AVANT que l'URL ait changé, si bien
+     que la relecture suivante prenait la nouvelle URL pour une navigation de
+     l'utilisateur — et vidait la pile « avant ». D'où un geste vers l'avant
+     sans effet. */
+  const attendue = useRef<string | null>(null);
+  const attendueDepuis = useRef(0);
 
   const accRef = useRef(0);
   const lastRef = useRef(0);
@@ -57,7 +75,7 @@ export function SwipeNavigation() {
   const hintRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!isSignal) return;
+    if (!isSignal || !isAdmin) return;
 
     const hint = hintRef.current;
     const paint = (dir: number, progress: number) => {
@@ -77,7 +95,13 @@ export function SwipeNavigation() {
 
     const record = () => {
       const url = here();
-      if (suppress.current) { suppress.current = false; return; }
+      if (attendue.current !== null) {
+        // Navigation en cours : on attend que l'URL corresponde.
+        if (url === attendue.current) { attendue.current = null; return; }
+        // Filet : une navigation qui n'aboutit pas ne doit pas geler la pile.
+        if (Date.now() - attendueDepuis.current < 2500) return;
+        attendue.current = null;
+      }
       const top = backStack.current[backStack.current.length - 1];
       if (top === url) return;
       backStack.current.push(url);
@@ -93,7 +117,8 @@ export function SwipeNavigation() {
     window.addEventListener("tm-url-changed", record);
 
     const goTo = (url: string) => {
-      suppress.current = true;
+      attendue.current = url;
+      attendueDepuis.current = Date.now();
       const target = new URL(url, window.location.origin);
       if (target.pathname === window.location.pathname) {
         // Même route : l'état (mode, filtres) vit dans React, pas dans l'URL.
@@ -187,9 +212,9 @@ export function SwipeNavigation() {
       window.removeEventListener("touchend", onTouchEnd);
       window.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [isSignal, router]);
+  }, [isSignal, isAdmin, router]);
 
-  if (!isSignal) return null;
+  if (!isSignal || !isAdmin) return null;
 
   return (
     <div ref={hintRef} className="sg-swipe-hint" aria-hidden="true" style={{ opacity: 0 }}>
