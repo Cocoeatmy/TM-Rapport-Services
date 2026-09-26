@@ -1598,6 +1598,11 @@ function HomePage() {
   }, [mode, statusFilter, collabFilter, quickFilter, router]);
 
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
+  /* Un collaborateur arrivé sur /?mode=stats est ramené au tableau de bord :
+     sans ça il verrait une page vide, sans comprendre pourquoi. */
+  useEffect(() => {
+    if (currentUser && currentUser.role !== "admin" && mode === "stats") setMode("dashboard" as Mode);
+  }, [currentUser, mode]);
 
   // Pré-cache les projets du jour pour l'accès hors ligne (silencieux, best-effort)
   useEffect(() => {
@@ -3635,7 +3640,10 @@ function HomePage() {
       })()}
 
       {/* VUE STATS */}
-      {mode === "stats" && (() => {
+      {/* Les statistiques sont réservées à l'administration : le bouton était
+          déjà masqué aux collaborateurs, mais la VUE restait atteignable par
+          l'adresse (/?mode=stats), un favori ou le geste de retour. */}
+      {mode === "stats" && currentUser?.role === "admin" && (() => {
         // Plage effective pour rolling12
         const _r12Today = new Date();
         const statsR12From = new Date(_r12Today.getFullYear() - 1, _r12Today.getMonth(), _r12Today.getDate() + 1).toISOString().split("T")[0];
