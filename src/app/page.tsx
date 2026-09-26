@@ -435,6 +435,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
           { id: "rapport",      label: "Rapport",         Icon: FileText,    active: mode === "rapport",                                    act: () => { handleSelect("rapport"); setOpen(null); } },
           { id: "destockage",   label: "Déstockage",      Icon: Archive,     active: mode === "destockage",                                 act: () => { handleSelect("destockage"); setOpen(null); } },
           ...(isAdmin ? [{ id: "stats", label: "Stats", Icon: BarChart2, active: mode === "stats", act: () => { handleSelect("stats"); setOpen(null); } }] : []),
+          /* Page « Rapports » : elle REGROUPE les rapports de l'app sans les
+             retirer de leurs emplacements d'origine. */
+          ...(isAdmin ? [{ id: "rapports", label: "Rapports", Icon: Receipt, active: false, act: () => { window.location.href = "/admin/rapports"; } }] : []),
         ].map((it) => (
           <button
             key={it.id}
