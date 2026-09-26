@@ -450,7 +450,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
         ))}
       </nav>
     )}
-    <div className={`nav-stack mb-4 space-y-1.5${isCmm ? " hidden" : ""}`}>
+    {/* `lg:mb-0` en Signal : les onglets y sont masqués, leur marge basse
+        dessinerait une bande vide sous l'en-tête. */}
+    <div className={`nav-stack mb-4 space-y-1.5${isSignal ? " lg:mb-0" : ""}${isCmm ? " hidden" : ""}`}>
       {/* Ligne principale — masquée sur desktop en thème Signal (remplacée par
           le rail) ; elle reste la navigation sur mobile/tablette. */}
       <div className={`p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain${isSignal ? " lg:hidden" : ""}`}>
@@ -2484,6 +2486,10 @@ function HomePage() {
       })
     : filtered;
 
+  /* Signal sur grand écran : navigation par le rail, actions dans l'en-tête.
+     La barre d'onglets n'a alors plus rien à montrer. */
+  const sgRailOnly = isSignal && !isCmm && sgWide;
+
   /* Bouton « fenêtre secondaire » : rendu soit dans la barre d'onglets
      (comportement historique), soit dans l'en-tête en thème Signal. */
   const floatingWindowButton = (
@@ -2560,9 +2566,18 @@ function HomePage() {
       {/* Onglets navigation + Nouveau projet — fixé en haut.
           glass-navbar : fond translucide flouté pour que les libellés
           restent lisibles quand on scrolle la page derrière. */}
-      <div id="main-navbar" className="sticky z-40 -mx-4 px-4 pb-2 pt-1 glass-navbar" style={{top: `var(--header-h, 60px)`}}>
-      <div className="flex items-start gap-2">
-        <div className="flex-1 min-w-0">
+      {/* Thème Signal sur grand écran : le rail remplace les onglets et la
+          recherche est dans l'en-tête. Le bandeau encre n'a alors plus AUCUN
+          contenu — on ne rend donc ni son fond, ni ses marges, ni son
+          collage : il se réduit à un conteneur vide de hauteur nulle, et la
+          page démarre directement sous l'en-tête. */}
+      <div
+        id="main-navbar"
+        className={sgRailOnly ? "" : "sticky z-40 -mx-4 px-4 pb-2 pt-1 glass-navbar"}
+        style={sgRailOnly ? undefined : { top: `var(--header-h, 60px)` }}
+      >
+      <div className={sgRailOnly ? "" : "flex items-start gap-2"}>
+        <div className={sgRailOnly ? "" : "flex-1 min-w-0"}>
           <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} isSignal={isSignal} onNewProject={() => setShowNewProject(true)} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             // CMM : afficher le hero pour les modes qui en ont un
@@ -2581,11 +2596,12 @@ function HomePage() {
             }
           }} />
         </div>
+        {!sgRailOnly && (
         <div className="flex items-center gap-1.5 shrink-0 mt-1.5">
           {/* Bouton fenêtre flottante — max 2.
               En thème Signal sur grand écran il est rendu dans l'en-tête
               (SignalHeaderBar) : on ne le duplique pas ici. */}
-          {!(isSignal && !isCmm && sgWide) && floatingWindowButton}
+          {floatingWindowButton}
 
           {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
             <button
@@ -2597,6 +2613,7 @@ function HomePage() {
             </button>
           )}
         </div>
+        )}
       </div>
       </div>
 
