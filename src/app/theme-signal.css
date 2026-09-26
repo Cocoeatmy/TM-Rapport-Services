@@ -1668,7 +1668,8 @@ html[data-ui="signal"] .sgs-drawer-body {
   -webkit-overflow-scrolling: touch;
 }
 html[data-ui="signal"] .sgs-drawer-body .sgc-row {
-  grid-template-columns: 104px minmax(0, 1fr) 120px 150px 62px 18px;
+  /* Sans pastille d'état, le nom du projet reprend la place. */
+  grid-template-columns: 104px minmax(0, 1fr) 160px 62px 18px;
 }
 
 @keyframes sgsIn { to { opacity: 1; transform: translateY(0); } }

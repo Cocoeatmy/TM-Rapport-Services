@@ -905,9 +905,11 @@ export function SignalStats({
           <div className="sgs-drawer-body">
             {pick.items!.map((p: any) => (
               <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`} className="sgc-row" onClick={() => setPick(null)}>
+                {/* Pas de pastille d'état : dans les statistiques, un projet
+                    est forcément terminé — elle ne disait rien et rognait le
+                    nom du projet. */}
                 <span className="sg-mono sgc-row-tm">{p.ofrTM || "—"}</span>
                 <span className="sgc-row-name">{p.projet}</span>
-                <span className="sgc-row-type is-mon">{p.etatCMD || "—"}</span>
                 <span className="sg-place"><MapPin className="w-3 h-3" /><span>{p.adresseChantier || "—"}</span></span>
                 <span className="sg-mono sgc-row-cab">{cabOf(p)} cab.</span>
                 <ChevronRight className="w-4 h-4 sg-plist-chev" />
