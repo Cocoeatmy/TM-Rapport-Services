@@ -54,6 +54,8 @@ interface EntityStats {
   mesuresCount: number;
   /** SAV imputables à TM (cause « Erreur TM »), pas ceux du client ou du fournisseur. */
   savTM: number;
+  /** Cabines concernées par un SAV TM — sert au taux sur cabines posées. */
+  savTMCabines: number;
   fournisseurs: { name: string; projects: number; cabines: number }[];
   series: { name: string; projects: number; cabines: number }[];
   topClients: { name: string; projects: number; cabines: number }[];
@@ -97,7 +99,7 @@ function projectMatchesFilter(p: any, f: StatsFilter): boolean {
 
 function computeEntityStats(projects: any[], entityName: string, entityType: string, filter?: StatsFilter): EntityStats {
   const nameField = ENTITY_NAMEFIELD[entityType];
-  if (!nameField) return { totalProjects: 0, totalCabines: 0, mesuresCount: 0, savTM: 0, fournisseurs: [], series: [], topClients: [] };
+  if (!nameField) return { totalProjects: 0, totalCabines: 0, mesuresCount: 0, savTM: 0, savTMCabines: 0, fournisseurs: [], series: [], topClients: [] };
 
   const lc = entityName.toLowerCase();
   const noFilter = !filter || (!filter.year && !filter.month && !filter.from && !filter.to);
@@ -115,27 +117,37 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
   let cabinesSansFournisseur = 0, cabinesSansSerie = 0;
   let projsSansFournisseur = 0, projsSansSerie = 0;
 
-  // Mesures : tous les projets liés (pas uniquement Terminé) ayant une date de mesure
+  /* Projets liés SANS la condition « Terminé » — mais AVEC le filtre de
+     période : l'oublier donnait le même nombre de SAV et de mesures pour
+     « Tout », 2026 et 2025, ce qui n'a aucun sens. */
   const allRelated = projects.filter((p) =>
-    Array.isArray(p[nameField]) && p[nameField].some((n: string) => n.toLowerCase() === lc)
+    Array.isArray(p[nameField]) && p[nameField].some((n: string) => n.toLowerCase() === lc) &&
+    (noFilter || projectMatchesFilter(p, filter!))
   );
   const mesuresCount = allRelated.filter((p) => !!p.dateMesures).length;
   /* SAV dont TM est responsable UNIQUEMENT : un SAV causé par le client ou le
      fournisseur ne dit rien de notre travail chez ce client. La cause se lit
      par cabine quand elle existe (« Cab1:Erreur TM | … »), sinon au niveau du
-     projet. Même règle que les statistiques générales. */
+     projet. Même règle que les statistiques générales.
+     Le projet est rattaché à l'année de son MONTAGE : on mesure ainsi la
+     qualité de ce qu'on a posé cette année-là. */
   const causeEstTM = (c: string) => /\btm\b/i.test(c || "");
-  const savTM = allRelated.filter((p: any) => {
+  let savTM = 0;          // projets concernés
+  let savTMCabines = 0;   // cabines concernées, pour le taux
+  allRelated.forEach((p: any) => {
     const parCabine = String(p.causeSavCabines || "");
+    let cabines = 0;
     if (parCabine) {
       const re = /Cab(\d+)\s*:([^|]*)/g;
       let m: RegExpExecArray | null;
       while ((m = re.exec(parCabine))) {
-        if (causeEstTM(m[2])) return true;
+        if (causeEstTM(m[2])) cabines += 1;
       }
     }
-    return causeEstTM(String(p.causeSAV || ""));
-  }).length;
+    // Cause au niveau du projet sans détail par cabine : au moins une cabine.
+    if (cabines === 0 && causeEstTM(String(p.causeSAV || ""))) cabines = 1;
+    if (cabines > 0) { savTM += 1; savTMCabines += cabines; }
+  });
 
   for (const p of related) {
     const cab = p.nbCabines || 0;
@@ -191,6 +203,7 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
     totalCabines,
     mesuresCount,
     savTM,
+    savTMCabines,
     fournisseurs: fournisseursList,
     series:       seriesList,
     topClients:   entityType !== "entreprises" ? sortDesc(cMap).slice(0, 8) : [],
@@ -385,9 +398,16 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
         </div>
         {/* SAV imputables à TM seulement — un SAV dû au client ou au
             fournisseur ne dit rien de la qualité de notre travail ici. */}
-        <div className="bg-rose-50 dark:bg-rose-900/20 rounded-xl p-2.5 text-center" title="SAV dont la cause est une erreur TM">
+        <div className="bg-rose-50 dark:bg-rose-900/20 rounded-xl p-2.5 text-center"
+          title={`${stats.savTM} projet(s) avec un SAV dû à une erreur TM · ${stats.savTMCabines} cabine(s) sur ${stats.totalCabines} posée(s) sur la période`}>
           <p className="text-xl font-bold text-rose-700 dark:text-rose-300 leading-none">{stats.savTM}</p>
           <p className="text-[9px] text-rose-500 mt-1">SAV TM</p>
+          {/* Taux rapporté aux cabines posées sur la période filtrée. */}
+          <p className="text-[9px] font-semibold text-rose-600 dark:text-rose-400">
+            {stats.totalCabines > 0
+              ? `${Math.round((stats.savTMCabines / stats.totalCabines) * 1000) / 10}% des cabines`
+              : "—"}
+          </p>
         </div>
       </div>
 
