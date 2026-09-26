@@ -52,6 +52,8 @@ interface EntityStats {
   totalProjects: number;
   totalCabines: number;
   mesuresCount: number;
+  /** SAV imputables à TM (cause « Erreur TM »), pas ceux du client ou du fournisseur. */
+  savTM: number;
   fournisseurs: { name: string; projects: number; cabines: number }[];
   series: { name: string; projects: number; cabines: number }[];
   topClients: { name: string; projects: number; cabines: number }[];
@@ -95,7 +97,7 @@ function projectMatchesFilter(p: any, f: StatsFilter): boolean {
 
 function computeEntityStats(projects: any[], entityName: string, entityType: string, filter?: StatsFilter): EntityStats {
   const nameField = ENTITY_NAMEFIELD[entityType];
-  if (!nameField) return { totalProjects: 0, totalCabines: 0, mesuresCount: 0, fournisseurs: [], series: [], topClients: [] };
+  if (!nameField) return { totalProjects: 0, totalCabines: 0, mesuresCount: 0, savTM: 0, fournisseurs: [], series: [], topClients: [] };
 
   const lc = entityName.toLowerCase();
   const noFilter = !filter || (!filter.year && !filter.month && !filter.from && !filter.to);
@@ -118,6 +120,22 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
     Array.isArray(p[nameField]) && p[nameField].some((n: string) => n.toLowerCase() === lc)
   );
   const mesuresCount = allRelated.filter((p) => !!p.dateMesures).length;
+  /* SAV dont TM est responsable UNIQUEMENT : un SAV causé par le client ou le
+     fournisseur ne dit rien de notre travail chez ce client. La cause se lit
+     par cabine quand elle existe (« Cab1:Erreur TM | … »), sinon au niveau du
+     projet. Même règle que les statistiques générales. */
+  const causeEstTM = (c: string) => /\btm\b/i.test(c || "");
+  const savTM = allRelated.filter((p: any) => {
+    const parCabine = String(p.causeSavCabines || "");
+    if (parCabine) {
+      const re = /Cab(\d+)\s*:([^|]*)/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(parCabine))) {
+        if (causeEstTM(m[2])) return true;
+      }
+    }
+    return causeEstTM(String(p.causeSAV || ""));
+  }).length;
 
   for (const p of related) {
     const cab = p.nbCabines || 0;
@@ -172,6 +190,7 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
     totalProjects: related.length,
     totalCabines,
     mesuresCount,
+    savTM,
     fournisseurs: fournisseursList,
     series:       seriesList,
     topClients:   entityType !== "entreprises" ? sortDesc(cMap).slice(0, 8) : [],
@@ -351,7 +370,7 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
       {filterBar}
 
       {/* ── Résumé ── */}
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-4 gap-1.5">
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-2.5 text-center">
           <p className="text-xl font-bold text-blue-700 dark:text-blue-300 leading-none">{stats.totalProjects}</p>
           <p className="text-[9px] text-blue-500 mt-1">Projets</p>
@@ -363,6 +382,12 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
         <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-2.5 text-center">
           <p className="text-xl font-bold text-violet-700 dark:text-violet-300 leading-none">{stats.mesuresCount}</p>
           <p className="text-[9px] text-violet-500 mt-1">Mesures faites</p>
+        </div>
+        {/* SAV imputables à TM seulement — un SAV dû au client ou au
+            fournisseur ne dit rien de la qualité de notre travail ici. */}
+        <div className="bg-rose-50 dark:bg-rose-900/20 rounded-xl p-2.5 text-center" title="SAV dont la cause est une erreur TM">
+          <p className="text-xl font-bold text-rose-700 dark:text-rose-300 leading-none">{stats.savTM}</p>
+          <p className="text-[9px] text-rose-500 mt-1">SAV TM</p>
         </div>
       </div>
 
