@@ -1043,7 +1043,7 @@ html[data-ui="signal"] .sg-seg button {
 html[data-ui="signal"] .sg-seg button.is-on { background: var(--sg-ink); color: #ffffff; font-weight: 600; }
 
 html[data-ui="signal"] .sg-split { display: flex; align-items: stretch; }
-html[data-ui="signal"] .sg-list { flex-grow: 1; min-width: 0; padding: 10px 12px 14px 12px; }
+html[data-ui="signal"] .sg-list { flex-grow: 1; min-width: 0; padding: 6px 12px 12px 12px; }
 html[data-ui="signal"] .sg-cols,
 html[data-ui="signal"] .sg-prow {
   display: grid;
@@ -1057,48 +1057,52 @@ html[data-ui="signal"] .sg-pers {
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 6px;
+  padding: 1px 6px;
+  border-radius: 5px;
   background: var(--sg-paper-2);
   color: var(--sg-text-2);
   white-space: nowrap;
 }
 html[data-ui="signal"] .sg-cols {
-  padding: 0 10px 7px 10px;
+  padding: 0 10px 5px 10px;
   border-bottom: 1px solid var(--sg-line);
   font-family: var(--font-mono);
   font-size: 10px; letter-spacing: 0.08em; color: var(--sg-text-3);
 }
 html[data-ui="signal"] .sg-right { text-align: right; }
 html[data-ui="signal"] .sg-empty { padding: 18px 10px; font-size: 13px; color: var(--sg-text-3); }
-html[data-ui="signal"] .sg-grp-wrap { display: flex; flex-direction: column; gap: 2px; }
+/* Densité : la liste doit tenir un maximum de projets à l'écran, comme sur la
+   maquette. Les bandes de groupe et les lignes sont donc serrées — on joue sur
+   les marges intérieures, pas sur la taille du texte, qui reste lisible. */
+html[data-ui="signal"] .sg-grp-wrap { display: flex; flex-direction: column; gap: 0; }
 html[data-ui="signal"] .sg-grp {
   display: flex; align-items: center; gap: 10px;
-  margin-top: 18px; margin-bottom: 4px;
-  padding: 9px 12px;
-  border-radius: 9px;
+  margin-top: 10px; margin-bottom: 2px;
+  padding: 4px 10px;
+  border-radius: 7px;
   background: var(--sg-grp-bg);
   border: 1px solid var(--sg-grp-line);
   border-left: 3px solid var(--sg-ink);
 }
-html[data-ui="signal"] .sg-grp-wrap:first-child .sg-grp { margin-top: 8px; }
+html[data-ui="signal"] .sg-grp-wrap:first-child .sg-grp { margin-top: 2px; }
 html[data-ui="signal"] .sg-grp-label {
-  font-size: 13px; font-weight: 700; letter-spacing: -0.01em;
+  font-size: 12px; font-weight: 700; letter-spacing: -0.01em;
   color: var(--sg-text);
   text-transform: capitalize;
 }
 html[data-ui="signal"] .sg-grp-sum {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: 11px; font-weight: 600;
+  font-size: 10px; font-weight: 600;
   color: var(--sg-text-2); white-space: nowrap;
 }
 html[data-ui="signal"] .sg-jpill {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: 11px; font-weight: 700;
-  padding: 3px 0; border-radius: 6px; text-align: center;
+  font-size: 10px; font-weight: 700; line-height: 1.5;
+  padding: 1px 0; border-radius: 5px; text-align: center;
 }
 html[data-ui="signal"] .sg-prow {
-  width: 100%; padding: 8px 10px; border-radius: 9px; cursor: pointer;
+  width: 100%; padding: 3px 10px; border-radius: 7px; cursor: pointer;
+  min-height: 30px;
   text-align: left; font-family: inherit;
   border: 1px solid transparent; background: transparent;
   color: inherit; text-decoration: none;
@@ -1123,7 +1127,7 @@ html[data-ui="signal"] span.sg-refs {
   white-space: normal; overflow: hidden;
 }
 html[data-ui="signal"] .sg-refs i {
-  font-style: normal; line-height: 1.35;
+  font-style: normal; line-height: 1.25;
   max-width: 100%; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
 }
@@ -1155,8 +1159,8 @@ html[data-ui="signal"] .sg-pname {
 }
 html[data-ui="signal"] .sg-state {
   justify-self: start;
-  font-size: 10px; font-weight: 600;
-  padding: 3px 9px; border-radius: 999px;
+  font-size: 10px; font-weight: 600; line-height: 1.6;
+  padding: 1px 8px; border-radius: 999px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
 }
 html[data-ui="signal"] .sg-place {
@@ -1951,7 +1955,7 @@ html[data-ui="signal"] .sgc-row-cab {
   html[data-ui="signal"] .sg-prow .sg-dim,
   html[data-ui="signal"] .sg-prow .sg-place,
   html[data-ui="signal"] .sg-prow .sg-pers { display: none; }
-  html[data-ui="signal"] .sg-grp { margin-top: 12px; padding: 8px 10px; }
+  html[data-ui="signal"] .sg-grp { margin-top: 10px; padding: 5px 10px; }
   html[data-ui="signal"] .sg-grp-sum { font-size: 10px; }
 
   /* — Dashboard — */
