@@ -630,13 +630,28 @@ export function SignalStats({
         (items as any).count = ((items as any).count || 0) + 1;
       });
     });
+    /* Taux d'incident PROPRE à la marque (ou à la série) : le signalement est
+       rapporté aux cabines de cette même marque posées sur la période, et non
+       à l'ensemble du parc. « 28 défauts Duka » ne veut rien dire tant qu'on
+       ne sait pas sur combien de cabines Duka. Même base que la répartition
+       « Cabines par fournisseur / par série » : projets terminés, services
+       purs exclus. */
+    const base = new Map<string, number>(
+      (sigAxis === "marque" ? byFournisseur : bySerie).map((r) => [r.label, r.value])
+    );
     return [...m.entries()]
-      .map(([label, items]) => ({
-        label, value: (items as any).count || items.length, items,
-        sub: `${items.length} proj.`, color: hueFor(label),
-      }))
+      .map(([label, items]) => {
+        const n = (items as any).count || items.length;
+        const cab = base.get(label) || 0;
+        return {
+          label, value: n, items, color: hueFor(label),
+          sub: cab > 0
+            ? `${Math.round((n / cab) * 1000) / 10}% de ${fmt(cab)} cab.`
+            : `${items.length} proj.`,
+        };
+      })
       .sort((a, b) => b.value - a.value);
-  }, [sig, P, sigAxis, sigKind]);
+  }, [sig, P, sigAxis, sigKind, byFournisseur, bySerie]);
 
   const TABS = [
     { id: "activite" as const, label: "Activité" },
@@ -1202,7 +1217,7 @@ export function SignalStats({
           </Fold>
 
           <Fold title={sigAxis === "marque" ? "Signalements par marque" : "Signalements par série"}
-            meta="pièces manquantes et défauts, pour repérer les produits qui posent problème"
+            meta="taux rapporté aux cabines de cette marque ou série posées sur la période, pas à l'ensemble du parc"
             right={
               <div className="sgs-blame-ctl" onClick={(e) => e.stopPropagation()}>
                 <div className="sgs-seg">
