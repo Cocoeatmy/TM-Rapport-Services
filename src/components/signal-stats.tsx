@@ -15,7 +15,17 @@
  */
 
 import { useMemo, useState } from "react";
-import { TrendingUp, TrendingDown, Minus, RefreshCw, FileText } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, RefreshCw, FileText, ChevronDown, ChevronUp, X, ChevronRight, MapPin } from "lucide-react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { cantonLabel } from "@/lib/swiss-cantons";
+
+/* Carte Leaflet : chargée seulement quand la carte est dépliée — elle géocode
+   les adresses, inutile de payer ça à l'ouverture de la page. */
+const InteractiveMap = dynamic(() => import("@/components/interactive-map").then((m) => m.InteractiveMap), {
+  ssr: false,
+  loading: () => <p className="sgs-empty">Chargement de la carte…</p>,
+});
 import { getTeamColor, getCollaboratorColor } from "@/lib/collaborators";
 
 export type SignalStatsMonth = {
@@ -87,22 +97,68 @@ function smoothPath(pts: { x: number; y: number }[]): string {
   return d;
 }
 
-/** Liste de barres horizontales — brique commune aux analyses par groupe. */
-function BarList({ rows, unit, empty }: { rows: { label: string; value: number; sub?: string; color: string }[]; unit?: string; empty?: string }) {
+type BarRow = { label: string; value: number; sub?: string; color: string; items?: any[] };
+
+/** Liste de barres horizontales — brique commune aux analyses par groupe.
+ *  Une ligne porteuse de projets devient cliquable : elle ouvre la liste des
+ *  projets qui la composent. */
+function BarList({ rows, unit, empty, onPick }: {
+  rows: BarRow[]; unit?: string; empty?: string; onPick?: (r: BarRow) => void;
+}) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   if (rows.length === 0) return <p className="sgs-empty">{empty || "Aucune donnée."}</p>;
   return (
     <div className="sgs-barlist">
-      {rows.map((r, i) => (
-        <div key={r.label} className="sgs-bl-row" style={{ animationDelay: `${i * 35}ms` }}>
-          <span className="sgs-bl-label" title={r.label}>{r.label}</span>
-          <span className="sgs-bl-track">
-            <i className="sgs-bl-fill" style={{ width: `${(r.value / max) * 100}%`, background: r.color }} />
-          </span>
-          <span className="sgs-bl-value">{fmt(r.value)}{unit ? <em>{unit}</em> : null}</span>
-          {r.sub ? <span className="sgs-bl-sub">{r.sub}</span> : <span className="sgs-bl-sub" />}
+      {rows.map((r, i) => {
+        const clickable = !!onPick && !!r.items?.length;
+        const Inner = (
+          <>
+            <span className="sgs-bl-label" title={r.label}>{r.label}</span>
+            <span className="sgs-bl-track">
+              <i className="sgs-bl-fill" style={{ width: `${(r.value / max) * 100}%`, background: r.color }} />
+            </span>
+            <span className="sgs-bl-value">{fmt(r.value)}{unit ? <em>{unit}</em> : null}</span>
+            {r.sub ? <span className="sgs-bl-sub">{r.sub}</span> : <span className="sgs-bl-sub" />}
+          </>
+        );
+        return clickable ? (
+          <button key={r.label} type="button" className="sgs-bl-row is-click"
+            style={{ animationDelay: `${i * 35}ms` }}
+            title={`Voir les ${r.items!.length} projet${r.items!.length > 1 ? "s" : ""} de « ${r.label} »`}
+            onClick={() => onPick!(r)}>
+            {Inner}
+          </button>
+        ) : (
+          <div key={r.label} className="sgs-bl-row" style={{ animationDelay: `${i * 35}ms` }}>
+            {Inner}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Carte d'analyse repliable. Fermée par défaut : la page s'ouvre sur une vue
+ *  d'ensemble, on déplie ce qu'on veut vraiment lire. */
+function Fold({ title, meta, right, children, defaultOpen = false, className = "" }: {
+  title: string; meta?: string; right?: React.ReactNode;
+  children: React.ReactNode; defaultOpen?: boolean; className?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={`sgs-card${open ? "" : " is-folded"} ${className}`}>
+      <div className="sgs-card-head">
+        <div>
+          <h2 className="sgs-card-title">{title}</h2>
+          {meta && <p className="sgs-card-meta">{meta}</p>}
         </div>
-      ))}
+        {open ? right : null}
+        <button type="button" className="sgs-fold" aria-expanded={open}
+          title={open ? "Replier" : "Déplier"} onClick={() => setOpen((o) => !o)}>
+          {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+      </div>
+      {open && children}
     </div>
   );
 }
@@ -147,70 +203,75 @@ export function SignalStats({
   const [making, setMaking] = useState(false);
   /** Onglet d'analyse : rien n'est affiché en vrac, on choisit son angle. */
   const [tab, setTab] = useState<"activite" | "equipes" | "repartition" | "qualite">("activite");
+  /** Vue géographique : par localité ou par canton. */
+  const [geoMode, setGeoMode] = useState<"npa" | "canton">("npa");
+  /** Groupe sélectionné : ouvre la liste des projets qui le composent. */
+  const [pick, setPick] = useState<BarRow | null>(null);
 
   /* ── Analyses par groupe, calculées depuis les projets de la période ──── */
   const P = useMemo(() => (Array.isArray(projects) ? projects : []), [projects]);
   const cabOf = (p: any) => Number(p?.nbCabines) || 0;
 
   const byCollab = useMemo(() => {
-    const m = new Map<string, { cab: number; nb: number }>();
+    const m = new Map<string, { cab: number; items: any[] }>();
     P.forEach((p) => {
       const names = String(p.collaborateurs || "").split("&").map((n: string) => n.trim()).filter(Boolean);
       if (names.length === 0) return;
       names.forEach((n: string) => {
-        const cur = m.get(n) || { cab: 0, nb: 0 };
+        const cur = m.get(n) || { cab: 0, items: [] as any[] };
         // Cabines réparties entre les monteurs d'un binôme : pas de double compte.
         cur.cab += cabOf(p) / names.length;
-        cur.nb += 1;
+        cur.items.push(p);
         m.set(n, cur);
       });
     });
     return [...m.entries()]
-      .map(([label, v]) => ({ label, value: Math.round(v.cab), sub: `${v.nb} proj.`, color: getCollaboratorColor(label).dot }))
+      .map(([label, v]) => ({ label, value: Math.round(v.cab), sub: `${v.items.length} proj.`, color: getCollaboratorColor(label).dot, items: v.items }))
       .sort((a, b) => b.value - a.value);
   }, [P]);
 
   const byTeam = useMemo(() => {
-    const m = new Map<string, { cab: number; nb: number }>();
+    const m = new Map<string, { cab: number; items: any[] }>();
     P.forEach((p) => {
       const label = String(p.collaborateurs || "").trim() || "Non attribué";
-      const cur = m.get(label) || { cab: 0, nb: 0 };
-      cur.cab += cabOf(p); cur.nb += 1;
+      const cur = m.get(label) || { cab: 0, items: [] };
+      cur.cab += cabOf(p); cur.items.push(p);
       m.set(label, cur);
     });
     return [...m.entries()]
       .map(([label, v]) => ({
-        label, value: v.cab, sub: `${v.nb} proj.`,
+        label, value: v.cab, sub: `${v.items.length} proj.`, items: v.items,
         color: label === "Non attribué" ? "#cbd5e1" : getTeamColor(label).dot,
       }))
       .sort((a, b) => b.value - a.value);
   }, [P]);
 
   const byList = (field: string) => {
-    const m = new Map<string, { cab: number; nb: number }>();
+    const m = new Map<string, { cab: number; items: any[] }>();
     P.forEach((p) => {
       const arr: string[] = Array.isArray(p[field]) ? p[field] : [];
       (arr.length ? arr : ["—"]).forEach((k: string) => {
-        const cur = m.get(k) || { cab: 0, nb: 0 };
-        cur.cab += cabOf(p); cur.nb += 1;
+        const cur = m.get(k) || { cab: 0, items: [] };
+        cur.cab += cabOf(p); cur.items.push(p);
         m.set(k, cur);
       });
     });
     return [...m.entries()]
-      .map(([label, v]) => ({ label, value: v.cab, sub: `${v.nb} proj.`, color: hueFor(label) }))
+      .map(([label, v]) => ({ label, value: v.cab, sub: `${v.items.length} proj.`, color: hueFor(label), items: v.items }))
       .sort((a, b) => b.value - a.value);
   };
   const byFournisseur = useMemo(() => byList("fournisseurs"), [P]);
   const bySerie = useMemo(() => byList("seriesCabines"), [P]);
 
   const byStatut = useMemo(() => {
-    const m = new Map<string, number>();
+    const m = new Map<string, any[]>();
     P.forEach((p) => {
       const k = String(p.etatCMD || "—");
-      m.set(k, (m.get(k) || 0) + 1);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(p);
     });
     return [...m.entries()]
-      .map(([label, value]) => ({ label, value, color: hueFor(label) }))
+      .map(([label, items]) => ({ label, value: items.length, color: hueFor(label), items }))
       .sort((a, b) => b.value - a.value);
   }, [P]);
 
@@ -250,22 +311,28 @@ export function SignalStats({
     return { totalMin, totalCab, globalAvg: totalCab ? Math.round(totalMin / totalCab) : 0, hours, avgPerCab };
   }, [P]);
 
-  /** Répartition géographique : NPA + localité extraits de l'adresse chantier. */
-  const byGeo = useMemo(() => {
-    const m = new Map<string, { cab: number; nb: number }>();
+  /** Répartition géographique : par localité (NPA) ou par canton. */
+  const geoBy = (mode: "npa" | "canton") => {
+    const m = new Map<string, { cab: number; items: any[] }>();
     P.forEach((p) => {
       const addr = String(p.adresseChantier || p.projet || "");
-      const mm = addr.match(/\b(\d{4})\s+([^,]+)/);
-      const label = mm ? `${mm[1]} ${mm[2].trim()}` : "Sans adresse";
-      const cur = m.get(label) || { cab: 0, nb: 0 };
-      cur.cab += cabOf(p); cur.nb += 1;
+      let label: string;
+      if (mode === "canton") {
+        label = cantonLabel(addr);
+      } else {
+        const mm = addr.match(/\b(\d{4})\s+([^,]+)/);
+        label = mm ? `${mm[1]} ${mm[2].trim()}` : "Sans adresse";
+      }
+      const cur = m.get(label) || { cab: 0, items: [] };
+      cur.cab += cabOf(p); cur.items.push(p);
       m.set(label, cur);
     });
     return [...m.entries()]
-      .map(([label, v]) => ({ label, value: v.cab, sub: `${v.nb} proj.`, color: hueFor(label) }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 20);
-  }, [P]);
+      .map(([label, v]) => ({ label, value: v.cab, sub: `${v.items.length} proj.`, color: hueFor(label), items: v.items }))
+      .sort((a, b) => b.value - a.value);
+  };
+  const byGeoNpa = useMemo(() => geoBy("npa").slice(0, 20), [P]);
+  const byGeoCanton = useMemo(() => geoBy("canton"), [P]);
 
   const quality = useMemo(() => {
     const total = P.length || 0;
@@ -712,87 +779,55 @@ export function SignalStats({
 
       {tab === "equipes" && (
         <div className="sgs-grid2">
-          <div className="sgs-card">
-            <div className="sgs-card-head">
-              <div>
-                <h2 className="sgs-card-title">Montage par monteur</h2>
-                <p className="sgs-card-meta">cabines posées · binômes répartis à parts égales</p>
-              </div>
-            </div>
-            <BarList rows={byCollab} unit=" cab." empty="Aucun montage attribué sur cette période." />
-          </div>
-          <div className="sgs-card">
-            <div className="sgs-card-head">
-              <div>
-                <h2 className="sgs-card-title">Cabines par équipe</h2>
-                <p className="sgs-card-meta">solo, binôme ou team, tels que saisis</p>
-              </div>
-            </div>
-            <BarList rows={byTeam} unit=" cab." empty="Aucune équipe sur cette période." />
-          </div>
-          <div className="sgs-card">
-            <div className="sgs-card-head">
-              <div>
-                <h2 className="sgs-card-title">Heures par monteur</h2>
-                <p className="sgs-card-meta">temps sur site · un binôme compte la durée pour chacun</p>
-              </div>
-              <span className="sgs-card-meta">{fmtH(timeStats.totalMin)} au total</span>
-            </div>
+          <Fold title="Montage par monteur" meta="cabines posées · binômes répartis à parts égales">
+            <BarList rows={byCollab} unit=" cab." empty="Aucun montage attribué sur cette période." onPick={setPick} />
+          </Fold>
+          <Fold title="Cabines par équipe" meta="solo, binôme ou team, tels que saisis">
+            <BarList rows={byTeam} unit=" cab." empty="Aucune équipe sur cette période." onPick={setPick} />
+          </Fold>
+          <Fold title="Heures par monteur" meta="temps sur site · un binôme compte la durée pour chacun"
+            right={<span className="sgs-card-meta">{fmtH(timeStats.totalMin)} au total</span>}>
             <BarList rows={timeStats.hours} unit=" h" empty="Aucune heure saisie sur cette période." />
-          </div>
-          <div className="sgs-card">
-            <div className="sgs-card-head">
-              <div>
-                <h2 className="sgs-card-title">Temps moyen par cabine</h2>
-                <p className="sgs-card-meta">du plus rapide au plus long</p>
-              </div>
-              <span className="sgs-kpi-value" style={{ fontSize: 22, color: "#0f766e" }}>
-                {timeStats.globalAvg ? fmtH(timeStats.globalAvg) : "—"}
-              </span>
-            </div>
+          </Fold>
+          <Fold title="Temps moyen par cabine" meta="du plus rapide au plus long"
+            right={<span className="sgs-kpi-value" style={{ fontSize: 22, color: "#0f766e" }}>
+              {timeStats.globalAvg ? fmtH(timeStats.globalAvg) : "—"}
+            </span>}>
             <BarList rows={timeStats.avgPerCab} empty="Pas assez de données horaires." />
-          </div>
+          </Fold>
         </div>
       )}
 
       {tab === "repartition" && (
         <div className="sgs-grid2">
-          <div className="sgs-card">
-            <div className="sgs-card-head">
-              <div>
-                <h2 className="sgs-card-title">Cabines par fournisseur</h2>
-                <p className="sgs-card-meta">volume par marque</p>
+          <Fold title="Cabines par fournisseur" meta="volume par marque · cliquez une ligne pour voir les projets">
+            <BarList rows={byFournisseur} unit=" cab." onPick={setPick} />
+          </Fold>
+          <Fold title="Cabines par série" meta="modèles les plus posés · cliquez une ligne pour voir les projets">
+            <BarList rows={bySerie} unit=" cab." onPick={setPick} />
+          </Fold>
+          <Fold className="sgs-span2" title="Répartition géographique"
+            meta={geoMode === "canton"
+              ? "par canton · déduit du code postal et de l'adresse"
+              : "par localité (NPA) · 20 premières"}
+            right={
+              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className={geoMode === "npa" ? "is-on" : ""} onClick={() => setGeoMode("npa")}>Localité</button>
+                <button type="button" className={geoMode === "canton" ? "is-on" : ""} onClick={() => setGeoMode("canton")}>Canton</button>
               </div>
+            }>
+            <BarList rows={geoMode === "canton" ? byGeoCanton : byGeoNpa} unit=" cab."
+              empty="Aucune adresse exploitable." onPick={setPick} />
+          </Fold>
+          <Fold className="sgs-span2" title="Carte des chantiers"
+            meta="où nous travaillons le plus · les adresses sont localisées au premier affichage">
+            <div className="sgs-map">
+              <InteractiveMap projects={P as any} />
             </div>
-            <BarList rows={byFournisseur} unit=" cab." />
-          </div>
-          <div className="sgs-card">
-            <div className="sgs-card-head">
-              <div>
-                <h2 className="sgs-card-title">Cabines par série</h2>
-                <p className="sgs-card-meta">modèles les plus posés</p>
-              </div>
-            </div>
-            <BarList rows={bySerie} unit=" cab." />
-          </div>
-          <div className="sgs-card sgs-span2">
-            <div className="sgs-card-head">
-              <div>
-                <h2 className="sgs-card-title">Répartition géographique</h2>
-                <p className="sgs-card-meta">par localité (NPA) · 20 premières</p>
-              </div>
-            </div>
-            <BarList rows={byGeo} unit=" cab." empty="Aucune adresse exploitable." />
-          </div>
-          <div className="sgs-card sgs-span2">
-            <div className="sgs-card-head">
-              <div>
-                <h2 className="sgs-card-title">Projets par statut</h2>
-                <p className="sgs-card-meta">état CMD · {fmt(quality.total)} projets</p>
-              </div>
-            </div>
-            <BarList rows={byStatut} unit=" proj." />
-          </div>
+          </Fold>
+          <Fold className="sgs-span2" title="Projets par statut" meta={`état CMD · ${fmt(quality.total)} projets`}>
+            <BarList rows={byStatut} unit=" proj." onPick={setPick} />
+          </Fold>
         </div>
       )}
 
@@ -834,6 +869,38 @@ export function SignalStats({
           </div>
         </>
       )}
+
+      {/* Liste des projets d'un groupe : un chiffre de statistique doit
+          pouvoir être ouvert pour voir ce qu'il recouvre. */}
+      {pick && (
+        <div className="sgs-drawer" role="dialog" aria-label={`Projets — ${pick.label}`}>
+          <div className="sgs-drawer-head">
+            <div>
+              <h2 className="sgs-card-title">{pick.label}</h2>
+              <p className="sgs-card-meta">
+                {pick.items!.length} projet{pick.items!.length > 1 ? "s" : ""}
+                {" · "}{fmt(pick.items!.reduce((s2: number, x: any) => s2 + cabOf(x), 0))} cab.
+              </p>
+            </div>
+            <button type="button" className="sg-unpin" aria-label="Fermer" onClick={() => setPick(null)}>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="sgs-drawer-body">
+            {pick.items!.map((p: any) => (
+              <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`} className="sgc-row" onClick={() => setPick(null)}>
+                <span className="sg-mono sgc-row-tm">{p.ofrTM || "—"}</span>
+                <span className="sgc-row-name">{p.projet}</span>
+                <span className="sgc-row-type is-mon">{p.etatCMD || "—"}</span>
+                <span className="sg-place"><MapPin className="w-3 h-3" /><span>{p.adresseChantier || "—"}</span></span>
+                <span className="sg-mono sgc-row-cab">{cabOf(p)} cab.</span>
+                <ChevronRight className="w-4 h-4 sg-plist-chev" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+      {pick && <div className="sgs-drawer-veil" onClick={() => setPick(null)} aria-hidden="true" />}
     </div>
   );
 }

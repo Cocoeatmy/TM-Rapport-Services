@@ -1610,6 +1610,67 @@ html[data-ui="signal"] .sgs-cell-v {
 }
 html[data-ui="signal"] .sgs-empty { padding: 20px 4px; font-size: 13px; color: var(--sg-text-3); }
 
+/* ── Cartes repliables ────────────────────────────────────────────────────
+   Fermées par défaut : la page s'ouvre sur une vue d'ensemble et on déplie
+   l'analyse qu'on veut vraiment lire. */
+html[data-ui="signal"] .sgs-card.is-folded { padding-bottom: 12px; }
+html[data-ui="signal"] .sgs-card.is-folded .sgs-card-head { margin-bottom: 0; }
+html[data-ui="signal"] .sgs-fold {
+  margin-left: auto; flex-shrink: 0;
+  width: 28px; height: 28px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--sg-line); background: var(--sg-paper-2);
+  color: var(--sg-text-3); cursor: pointer;
+  transition: border-color 140ms, color 140ms, background 140ms;
+}
+html[data-ui="signal"] .sgs-fold:hover {
+  border-color: var(--sg-signal); color: var(--sg-signal); background: var(--sg-signal-soft);
+}
+
+/* Ligne de barre cliquable : ouvre les projets qui la composent. */
+html[data-ui="signal"] .sgs-bl-row.is-click {
+  width: 100%; text-align: left; font-family: inherit;
+  border: 1px solid transparent; background: none; cursor: pointer;
+  border-radius: 8px;
+}
+html[data-ui="signal"] .sgs-bl-row.is-click:hover {
+  background: var(--sg-paper-2); border-color: var(--sg-line);
+}
+html[data-ui="signal"] .sgs-bl-row.is-click:focus-visible {
+  outline: 2px solid var(--sg-signal); outline-offset: 1px;
+}
+
+/* Carte des chantiers */
+html[data-ui="signal"] .sgs-map {
+  height: 460px; border-radius: 12px; overflow: hidden;
+  border: 1px solid var(--sg-line);
+}
+
+/* Tiroir : projets d'un groupe statistique */
+html[data-ui="signal"] .sgs-drawer-veil {
+  position: fixed; inset: 0; z-index: 70;
+  background: rgba(8, 14, 25, 0.28);
+}
+html[data-ui="signal"] .sgs-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 71;
+  width: min(560px, 94vw);
+  display: flex; flex-direction: column;
+  background: var(--sg-paper); border-left: 1px solid var(--sg-line);
+  box-shadow: -14px 0 44px rgba(0, 0, 0, 0.22);
+  animation: sgDrawer 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html[data-ui="signal"] .sgs-drawer-head {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 16px 18px; border-bottom: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgs-drawer-body {
+  flex: 1; overflow-y: auto; padding: 12px 14px;
+  -webkit-overflow-scrolling: touch;
+}
+html[data-ui="signal"] .sgs-drawer-body .sgc-row {
+  grid-template-columns: 104px minmax(0, 1fr) 120px 150px 62px 18px;
+}
+
 @keyframes sgsIn { to { opacity: 1; transform: translateY(0); } }
 @keyframes sgsDraw { to { stroke-dashoffset: 0; } }
 @keyframes sgsFade { to { opacity: 1; } }
