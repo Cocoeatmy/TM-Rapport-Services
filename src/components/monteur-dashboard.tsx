@@ -574,6 +574,13 @@ function parseTMNumbers(raw: string): string[] {
   });
 }
 
+/** Découpe une liste de références (commandes fournisseur, etc.) en préservant
+ *  l'ordre saisi — contrairement à parseTMNumbers qui trie numériquement. */
+function splitRefs(raw: string): string[] {
+  if (!raw) return [];
+  return raw.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
+}
+
 /** Retourne l'info arrivage (TM en priorité, sinon Grossiste) + la couleur d'urgence.
  *  Vert = 0-6 j · Orange = 7-9 j · Rouge ≥ 10 j depuis la date d'arrivage. */
 function getArrivageInfo(p: { arrivageTM?: string | null; arrivageGrossiste?: string | null }): {
@@ -3968,9 +3975,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           <span className="sg-mono sgc-row-day">
                             {new Date(day + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}
                           </span>
-                          <span className="sg-mono sgc-row-tm sg-tmbtn" title="Aperçu du projet"
+                          <span className="sg-mono sgc-row-tm sg-tmbtn sg-refs" title="Aperçu du projet"
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); openSignalPreview(p, "dashboard"); }}>
-                            {p.ofrTM || "—"}
+                            {(() => {
+                              const refs = splitRefs(p.ofrTM || "");
+                              return refs.length ? refs.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—";
+                            })()}
                           </span>
                           <span className={`sgc-row-type ${isMes ? "is-mes" : "is-mon"}`}>{isMes ? "Mesures" : "Montage"}</span>
                           <span className="sgc-row-name">{p.projet}</span>
@@ -4009,9 +4019,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               </i>
                             ))}
                           </span>
-                          <span className="sg-mono sgc-row-tm sg-tmbtn" title="Aperçu du projet"
+                          <span className="sg-mono sgc-row-tm sg-tmbtn sg-refs" title="Aperçu du projet"
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); openSignalPreview(p, "dashboard"); }}>
-                            {p.ofrTM || "—"}
+                            {(() => {
+                              const refs = splitRefs(p.ofrTM || "");
+                              return refs.length ? refs.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—";
+                            })()}
                           </span>
                           <span className={`sgc-row-type ${isMes ? "is-mes" : "is-mon"}`}>{isMes ? "Mesures" : "Montage"}</span>
                           <span className="sgc-row-name">{p.projet}</span>
@@ -5845,7 +5858,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               {/* Le n° TM ouvre l'APERÇU (et l'épingle) ; tout le
                                   reste de la ligne ouvre le projet complet. */}
                               <span
-                                className="sg-mono sg-tmbtn"
+                                className="sg-mono sg-tmbtn sg-refs"
                                 title="Aperçu du projet"
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -5854,9 +5867,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   openSignalPreview(p, "dashboard");
                                 }}
                               >
-                                {tm.length ? tm.join(" ") : "—"}
+                                {/* Plusieurs commandes = une ligne par numéro :
+                                    côte à côte ils débordaient sur le projet. */}
+                                {tm.length ? tm.map((n) => <i key={n}>{n}</i>) : "—"}
                               </span>
-                              <span className="sg-mono sg-dim">{p.servCmdFournisseurs || p.cmdFournisseurs || p.servMesuresFournisseurs || "—"}</span>
+                              <span className="sg-mono sg-dim sg-refs">
+                                {(() => {
+                                  const refs = splitRefs(p.servCmdFournisseurs || p.cmdFournisseurs || p.servMesuresFournisseurs || "");
+                                  return refs.length ? refs.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—";
+                                })()}
+                              </span>
                               <span className="sg-pname">{p.projet}</span>
                               <span className={`sg-state ${cls}`}>{etat}</span>
                               <span className="sg-place">

@@ -97,7 +97,7 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch, ex
     const collabs = ((mode === "mesures" ? project.mesuresTraiteePar : project.collaborateurs) || "")
       .split(" & ").map((n) => n.trim()).filter(Boolean);
     const dateStr = formatDateFR(mode.startsWith("mesures") ? project.dateMesures : project.dateMontage);
-    const tm = project.ofrTM || "";
+    const tmList = (project.ofrTM || "").split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
     return (
       <div className="sg-plist-row group">
         <Link
@@ -108,13 +108,14 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch, ex
           onFocus={() => !noPrefetch && prefetchProject(project.id)}
           className="sg-plist-link"
         >
-          {/* Le n° TM ouvre l'APERÇU ; tout le reste de la ligne ouvre le projet. */}
+          {/* Le n° TM ouvre l'APERÇU ; tout le reste de la ligne ouvre le projet.
+              Plusieurs commandes → une ligne par numéro (sinon illisible). */}
           <span
-            className="sg-plist-tm sg-tmbtn"
+            className="sg-plist-tm sg-tmbtn sg-refs"
             title="Aperçu du projet"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); openSignalPreview(project, mode); }}
           >
-            {tm || "—"}
+            {tmList.length ? tmList.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—"}
           </span>
           <span className="sg-plist-main">
             <span className="sg-plist-name">{project.projet || "Sans nom"}</span>
