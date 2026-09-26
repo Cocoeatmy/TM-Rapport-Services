@@ -1640,12 +1640,6 @@ html[data-ui="signal"] .sgs-bl-row.is-click:focus-visible {
   outline: 2px solid var(--sg-signal); outline-offset: 1px;
 }
 
-/* Carte des chantiers */
-html[data-ui="signal"] .sgs-map {
-  height: 460px; border-radius: 12px; overflow: hidden;
-  border: 1px solid var(--sg-line);
-}
-
 /* Tiroir : projets d'un groupe statistique */
 html[data-ui="signal"] .sgs-drawer-veil {
   position: fixed; inset: 0; z-index: 70;

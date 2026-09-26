@@ -16,16 +16,9 @@
 
 import { useMemo, useState } from "react";
 import { TrendingUp, TrendingDown, Minus, RefreshCw, FileText, ChevronDown, ChevronUp, X, ChevronRight, MapPin } from "lucide-react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { cantonLabel, regionLabel } from "@/lib/swiss-cantons";
 
-/* Carte Leaflet : chargée seulement quand la carte est dépliée — elle géocode
-   les adresses, inutile de payer ça à l'ouverture de la page. */
-const InteractiveMap = dynamic(() => import("@/components/interactive-map").then((m) => m.InteractiveMap), {
-  ssr: false,
-  loading: () => <p className="sgs-empty">Chargement de la carte…</p>,
-});
 import { getTeamColor, getCollaboratorColor } from "@/lib/collaborators";
 
 export type SignalStatsMonth = {
@@ -844,12 +837,6 @@ export function SignalStats({
             }>
             <BarList rows={geoMode === "canton" ? byGeoCanton : geoMode === "region" ? byGeoRegion : byGeoNpa}
               unit=" cab." empty="Aucune adresse exploitable." onPick={setPick} />
-          </Fold>
-          <Fold className="sgs-span2" title="Carte des chantiers"
-            meta="où nous travaillons le plus · les adresses sont localisées au premier affichage">
-            <div className="sgs-map">
-              <InteractiveMap projects={P as any} />
-            </div>
           </Fold>
           <Fold className="sgs-span2" title="Projets par statut" meta={`état CMD · ${fmt(quality.total)} projets`}>
             <BarList rows={byStatut} unit=" proj." onPick={setPick} />
