@@ -875,6 +875,13 @@ html[data-ui="signal"].dark .sg-bar { background: #2e5fb8; }
 html[data-ui="signal"].dark .sg-bar.is-today { background: #5b9cff; }
 html[data-ui="signal"].dark .sg-bar.is-empty { background: #22334e; }
 html[data-ui="signal"] .sg-bar-day { font-size: 11px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sg-bar-date {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 10px; color: var(--sg-text-3); opacity: 0.75;
+  margin-top: 1px; white-space: nowrap;
+}
+html[data-ui="signal"] .sg-bar-col.is-today .sg-bar-date,
+html[data-ui="signal"] .sg-bar-col.is-today .sg-bar-day { color: var(--sg-signal); opacity: 1; }
 
 /* Onglets de rangement des tuiles */
 html[data-ui="signal"] .sg-cats {

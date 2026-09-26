@@ -2770,7 +2770,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       <button
                         key={b.d}
                         type="button"
-                        className={`sg-bar-col${b.cab === 0 ? " is-void" : ""}`}
+                        className={`sg-bar-col${b.cab === 0 ? " is-void" : ""}${b.isToday ? " is-today" : ""}`}
                         disabled={b.cab === 0}
                         title={b.cab === 0 ? `${b.d} — aucun montage` :
                           `${b.d} — ${b.nb} projet${b.nb > 1 ? "s" : ""} · ${b.cab} cab.\n${b.segs.map((s) => `${s.label} : ${s.cab}`).join("\n")}`}
@@ -2790,6 +2790,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           ))}
                         </span>
                         <span className="sg-bar-day">{b.d}</span>
+                        {/* Date exacte du jour : sans elle, impossible de
+                            savoir quelle semaine on regarde après navigation. */}
+                        <span className="sg-bar-date">
+                          {b.dt.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                        </span>
                       </button>
                     ))}
                   </div>
