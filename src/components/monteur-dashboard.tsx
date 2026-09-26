@@ -5793,7 +5793,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </div>
 
                 {sel && (
-                  <aside className="sg-detail">
+                  // `is-open` = aperçu ouvert explicitement (clic sur le n° TM).
+                  // Sur écran large il reste une colonne ; en dessous il devient
+                  // un tiroir latéral, sinon il serait invisible.
+                  <aside className={`sg-detail${sgPinned ? " is-open" : ""}`}>
                     <div className="sg-detail-top">
                       {selJ && <span className={`sg-jpill ${selJ.bgClass} ${selJ.colorClass}`}>J+{selJ.days}</span>}
                       <span className={`sg-state ${selCls}`}>{selEtat}</span>

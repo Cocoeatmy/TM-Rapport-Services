@@ -73,7 +73,13 @@
       "Bash(sed -i '' 's/>{firstName\\\\[0\\\\]}<\\\\/div>/>{getCollaboratorInitials\\(firstName\\)}<\\\\/div>/g' src/components/monteur-dashboard.tsx)",
       "Bash(curl -s \"https://tm-rapport-services.vercel.app/api/cron/sync\")",
       "Bash(convert --version)",
-      "Bash(sips -g all \"/Users/ferreiramicael/Desktop/logo TM Rapport Service.png\")"
+      "Bash(sips -g all \"/Users/ferreiramicael/Desktop/logo TM Rapport Service.png\")",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -o /dev/null -w '%{http_code} %{size_download} %{time_total}' https://tm-rapport-services.vercel.app/api/photos/33d1895b-9179-8033-9981-cd5dd9ca1011/download -H 'Cookie: auth-token=PLACEHOLDER')",
+      "Bash(git diff *)",
+      "mcp__dc3815d6-2249-4fa0-9c3a-8701132cc4ea__notion-fetch",
+      "Bash(npx vercel *)",
+      "Bash(find /Users/ferreiramicael/Desktop/iA -name \"*photo-buckets*\" -type f)"
     ]
   }
 }
