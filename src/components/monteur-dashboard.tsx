@@ -6,6 +6,7 @@ import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
+import { openSignalPreview, closeSignalPreview } from "@/components/signal-preview";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
@@ -1431,9 +1432,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [isSignal, setIsSignal] = useState(false);
   // Projet sélectionné dans la vue maître-détail du thème Signal.
   const [sgSelected, setSgSelected] = useState<string | null>(null);
-  /** Aperçu épinglé : un clic sur le n° TM fige l'aperçu, le survol ne le
-   *  change plus tant qu'on ne détache pas. */
-  const [sgPinned, setSgPinned] = useState(false);
   // Onglet de catégorie de la grille de tuiles (thème Signal). "all" = tout,
   // comportement identique au dashboard classique (ordre + glisser-déposer).
   const [sgCat, setSgCat] = useState<string>("all");
@@ -1467,7 +1465,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     d.setDate(d.getDate() + n);
     return formatLocalDate(d);
   };
-  useEffect(() => { setSgSelected(null); }, [showSummaryPanel]);
+  // Changer de panneau remet l'aperçu à zéro : il appartient à la liste
+  // depuis laquelle il a été ouvert.
+  useEffect(() => { setSgSelected(null); closeSignalPreview(); }, [showSummaryPanel]);
   useEffect(() => {
     const check = () => setIsSignal(document.documentElement.getAttribute("data-ui") === "signal");
     check();
@@ -3968,7 +3968,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           <span className="sg-mono sgc-row-day">
                             {new Date(day + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}
                           </span>
-                          <span className="sg-mono sgc-row-tm">{p.ofrTM || "—"}</span>
+                          <span className="sg-mono sgc-row-tm sg-tmbtn" title="Aperçu du projet"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); openSignalPreview(p, "dashboard"); }}>
+                            {p.ofrTM || "—"}
+                          </span>
                           <span className={`sgc-row-type ${isMes ? "is-mes" : "is-mon"}`}>{isMes ? "Mesures" : "Montage"}</span>
                           <span className="sgc-row-name">{p.projet}</span>
                           <span className="sg-mono sgc-row-cab">{p.nbCabines || 0} cab.</span>
@@ -4006,7 +4009,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               </i>
                             ))}
                           </span>
-                          <span className="sg-mono sgc-row-tm">{p.ofrTM || "—"}</span>
+                          <span className="sg-mono sgc-row-tm sg-tmbtn" title="Aperçu du projet"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); openSignalPreview(p, "dashboard"); }}>
+                            {p.ofrTM || "—"}
+                          </span>
                           <span className={`sgc-row-type ${isMes ? "is-mes" : "is-mon"}`}>{isMes ? "Mesures" : "Montage"}</span>
                           <span className="sgc-row-name">{p.projet}</span>
                           <span className="sg-mono sgc-row-cab">{p.nbCabines || 0} cab.</span>
@@ -5831,8 +5837,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             <Link
                               key={p.id}
                               href={`/projet/${p.id}?mode=dashboard`}
-                              onMouseEnter={() => { if (!sgPinned) setSgSelected(p.id); }}
-                              onFocus={() => { if (!sgPinned) setSgSelected(p.id); }}
+                              onMouseEnter={() => setSgSelected(p.id)}
+                              onFocus={() => setSgSelected(p.id)}
                               className={`sg-prow${on ? " is-sel" : ""}`}
                             >
                               <span className={`sg-jpill ${j ? `${j.bgClass} ${j.colorClass}` : ""}`}>{j ? `J+${j.days}` : "—"}</span>
@@ -5845,7 +5851,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   e.preventDefault();
                                   e.stopPropagation();
                                   setSgSelected(p.id);
-                                  setSgPinned(true);
+                                  openSignalPreview(p, "dashboard");
                                 }}
                               >
                                 {tm.length ? tm.join(" ") : "—"}
@@ -5868,19 +5874,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </div>
 
                 {sel && (
-                  // `is-open` = aperçu ouvert explicitement (clic sur le n° TM).
-                  // Sur écran large il reste une colonne ; en dessous il devient
-                  // un tiroir latéral, sinon il serait invisible.
-                  <aside className={`sg-detail${sgPinned ? " is-open" : ""}`}>
+                  // Colonne d'aperçu qui suit le survol, visible uniquement
+                  // quand la largeur le permet. Le clic sur le n° TM ouvre, lui,
+                  // la fiche flottante partagée (SignalPreviewHost).
+                  <aside className="sg-detail">
                     <div className="sg-detail-top">
                       {selJ && <span className={`sg-jpill ${selJ.bgClass} ${selJ.colorClass}`}>J+{selJ.days}</span>}
                       <span className={`sg-state ${selCls}`}>{selEtat}</span>
-                      {sgPinned && (
-                        <button type="button" className="sg-unpin" title="Détacher l'aperçu (il suivra de nouveau le survol)"
-                          onClick={() => setSgPinned(false)}>
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
                     </div>
                     <h3 className="sg-detail-title">{sel.projet}</h3>
                     {sel.adresseChantier && <p className="sg-detail-addr">{sel.adresseChantier}</p>}

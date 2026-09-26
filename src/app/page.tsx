@@ -25,6 +25,7 @@ import { StatsDateFilter, filterByStatsDate, getRolling12Range, describeStatsRan
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { SignalStats } from "@/components/signal-stats";
 import { useIsSignalTheme } from "@/lib/use-signal-theme";
+import { SignalPreviewHost, openSignalPreview, closeSignalPreview } from "@/components/signal-preview";
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
 
@@ -107,7 +108,14 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch, ex
           onFocus={() => !noPrefetch && prefetchProject(project.id)}
           className="sg-plist-link"
         >
-          <span className="sg-plist-tm">{tm || "—"}</span>
+          {/* Le n° TM ouvre l'APERÇU ; tout le reste de la ligne ouvre le projet. */}
+          <span
+            className="sg-plist-tm sg-tmbtn"
+            title="Aperçu du projet"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); openSignalPreview(project, mode); }}
+          >
+            {tm || "—"}
+          </span>
           <span className="sg-plist-main">
             <span className="sg-plist-name">{project.projet || "Sans nom"}</span>
             <span className="sg-plist-sub">
@@ -1400,6 +1408,9 @@ function HomePage() {
     return () => obs.disconnect();
   }, []);
   const [search, setSearch] = useState(qParam || "");
+  // L'aperçu latéral « Signal » se ferme dès qu'on change de vue : il appartient
+  // à la liste depuis laquelle il a été ouvert.
+  useEffect(() => { closeSignalPreview(); }, [mode]);
   // useDeferredValue : l'input répond immédiatement, le filtrage (coûteux)
   // est décalé en tâche de priorité basse → recherche instantanée.
   const deferredSearch = useDeferredValue(search);
@@ -2430,9 +2441,13 @@ function HomePage() {
     : filtered;
 
   return (
-    <div className="px-3 sm:px-4 py-3 sm:py-4 w-full">
+    // `sg-host` : repère de positionnement de l'aperçu latéral « Signal ».
+    // La fiche s'ancre dans ce conteneur, donc sur la hauteur de la page
+    // affichée, et non sur celle de la fenêtre. Inerte pour les autres thèmes.
+    <div className="px-3 sm:px-4 py-3 sm:py-4 w-full sg-host">
       <PullToRefresh />
       <Onboarding />
+      {isSignal && <SignalPreviewHost />}
       {/* Drawer mobile CleanMyMac — rendu en dehors du flux normal car position:fixed */}
       {isCmm && (
         <CmmMobileDrawer
