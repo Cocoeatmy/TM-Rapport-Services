@@ -35,6 +35,8 @@ interface Project {
 
 // Statuts exclus de la recherche Arrivage — projets déjà planifiés/terminés
 // qui n'ont plus besoin de suivi d'arrivage.
+import { useIsSignalTheme } from "@/lib/use-signal-theme";
+
 const EXCLUDED_STATUTS = new Set([
   "Récéptionné - RDV à fixer",
   "RDV - fixé",
@@ -91,6 +93,16 @@ export default function ArrivagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  /* Thème « Signal » : la page s'ouvrait VIDE (showAll = false par défaut,
+     « aucun projet affiché sans recherche active »), alors que la tuile du
+     tableau de bord annonce un nombre de projets en arrivage. On affiche donc
+     directement la liste ; l'utilisateur garde le bouton pour la replier et
+     les cases à cocher pour choisir les statuts. */
+  const isSignalUi = useIsSignalTheme();
+  const showAllTouched = useRef(false);
+  useEffect(() => {
+    if (isSignalUi && !showAllTouched.current) setShowAll(true);
+  }, [isSignalUi]);
   // Statuts visibles en mode « Tout afficher » (cochés). Persisté en localStorage.
   const [visibleStatuts, setVisibleStatuts] = useState<Set<string>>(() => {
     if (typeof window !== "undefined") {
@@ -476,7 +488,7 @@ export default function ArrivagePage() {
         </div>
         {/* Toggle tout afficher */}
         <button
-          onClick={() => setShowAll((v) => !v)}
+          onClick={() => { showAllTouched.current = true; setShowAll((v) => !v); }}
           className={`text-xs px-3 py-1.5 rounded-lg border transition-colors shrink-0 ${
             showAll
               ? "border-sky-400 text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20"
