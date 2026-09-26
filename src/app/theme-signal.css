@@ -502,6 +502,20 @@ html[data-ui="signal"] .signal-rail-item.is-active::before {
   html[data-ui="signal"] main {
     padding-left: 76px;
   }
+  /* La barre d'onglets n'a plus rien à afficher sur grand écran : le rail
+     remplace les onglets et la recherche est passée dans l'en-tête. On annule
+     ses marges pour que la page remonte — elle reprend sa hauteur d'elle-même
+     dès qu'un sous-menu ou un bouton s'y affiche. */
+  html[data-ui="signal"] #main-navbar {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  /* Les sous-menus portent alors leur propre respiration, sinon ils
+     colleraient au bord bas de l'en-tête. */
+  html[data-ui="signal"] #main-navbar .nav-submenu {
+    padding-top: 7px;
+    padding-bottom: 8px;
+  }
 }
 
 /* ── Dashboard propre au thème Signal ─────────────────────────────────────

@@ -495,7 +495,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
 
       {/* Sous-menu Services - deuxième ligne */}
       {open === "services" && (
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1 touch-pan-x overscroll-x-contain">
+        <div className="nav-submenu flex gap-1.5 overflow-x-auto scrollbar-hide px-1 touch-pan-x overscroll-x-contain">
           {servicesModes.map((m) => (
             <button key={m} onClick={() => handleSelect(m)}
               className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
@@ -511,7 +511,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
 
       {/* Sous-menu Clients - deuxième ligne */}
       {open === "clients" && (
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-1 touch-pan-x overscroll-x-contain">
+        <div className="nav-submenu flex gap-1.5 overflow-x-auto scrollbar-hide px-1 touch-pan-x overscroll-x-contain">
           {clientsModes.map((m) => (
             <button key={m} onClick={() => handleSelect(m)}
               className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
@@ -527,7 +527,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
 
       {/* Sous-menu Grossistes */}
       {open === "grossistes" && !isCmm && (
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center touch-pan-x overscroll-x-contain">
+        <div className="nav-submenu flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center touch-pan-x overscroll-x-contain">
           {grossistesModes.map((m) => {
             const logo = grossistesLogos[m];
             const isActive = mode === m;
@@ -578,7 +578,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
 
       {/* Sous-menu Fournisseurs */}
       {open === "fournisseurs-menu" && !isCmm && (
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center touch-pan-x overscroll-x-contain">
+        <div className="nav-submenu flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center touch-pan-x overscroll-x-contain">
           {fournisseursModes.map((m) => {
             const logo = fournisseursLogos[m];
             const isActive = mode === m;
