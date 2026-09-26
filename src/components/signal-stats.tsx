@@ -485,18 +485,16 @@ export function SignalStats({
   };
 
   const [qualFocus, setQualFocus] = useState<"sav" | "soucis" | "pieces" | "defauts">("sav");
-  /** Imputation à l'équipe (binôme compris) ou à chaque monteur pris à part. */
-  const [blameMode, setBlameMode] = useState<"equipe" | "monteur">("equipe");
 
   /** Répartition par monteur d'un indicateur qualité. */
   const blameBy = useMemo(() => {
     const build = (entries: { p: any; cab: number | null }[]) => {
       const m = new Map<string, { n: number; items: any[] }>();
       entries.forEach(({ p, cab }) => {
-        const noms = blameMode === "equipe"
-          ? [equipeOf(p, cab)]
-          : monteursOf(p, cab);
-        (noms.length ? noms : ["Non attribué"]).forEach((n) => {
+        /* Une seule liste : le montage solo porte le nom du monteur, le
+           binôme porte le sien. Classée du plus grand nombre de cas au plus
+           petit. */
+        [equipeOf(p, cab)].forEach((n) => {
           const cur = m.get(n) || { n: 0, items: [] as any[] };
           cur.n += 1;
           if (!cur.items.some((x) => x.id === p.id)) cur.items.push(p);
@@ -541,7 +539,7 @@ export function SignalStats({
       pieces: build(fromSig(sig?.pieces || [])),
       defauts: build(fromSig(sig?.defauts || [])),
     };
-  }, [P, sig, blameMode]);
+  }, [P, sig]);
 
   /** Marques d'un projet, enseigne TM Douche regroupée avec la marque réelle. */
   const marquesOf = (p: any): string[] => {
@@ -1138,25 +1136,16 @@ export function SignalStats({
           </div>
 
           {/* Qui a posé la cabine qui pose problème ? */}
-          <Fold defaultOpen
-            title={blameMode === "equipe" ? "Responsabilité par équipe" : "Responsabilité par monteur"}
+          <Fold defaultOpen title="Responsabilité par monteur ou binôme"
             meta={qualFocus === "sav"
               ? "attribution PAR CABINE · seuls les SAV dont la cause est une erreur TM sont imputés"
               : "attribution PAR CABINE : sur un projet multi-cabine, seule l'équipe de la cabine concernée est comptée"}
             right={
-              <div className="sgs-blame-ctl" onClick={(e) => e.stopPropagation()}>
-                <div className="sgs-seg">
-                  {([["equipe", "Équipe"], ["monteur", "Monteur"]] as const).map(([v, lbl]) => (
-                    <button key={v} type="button" className={blameMode === v ? "is-on" : ""}
-                      onClick={() => setBlameMode(v)}>{lbl}</button>
-                  ))}
-                </div>
-                <div className="sgs-seg">
-                  {([["sav", "SAV"], ["soucis", "Soucis"], ["pieces", "Pièces"], ["defauts", "Défauts"]] as const).map(([v, lbl]) => (
-                    <button key={v} type="button" className={qualFocus === v ? "is-on" : ""}
-                      onClick={() => setQualFocus(v)}>{lbl}</button>
-                  ))}
-                </div>
+              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
+                {([["sav", "SAV"], ["soucis", "Soucis"], ["pieces", "Pièces"], ["defauts", "Défauts"]] as const).map(([v, lbl]) => (
+                  <button key={v} type="button" className={qualFocus === v ? "is-on" : ""}
+                    onClick={() => setQualFocus(v)}>{lbl}</button>
+                ))}
               </div>
             }>
             <BarList rows={blameBy[qualFocus]} unit=" cas" onPick={setPick}
