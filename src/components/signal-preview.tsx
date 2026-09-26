@@ -91,7 +91,7 @@ export function SignalPreviewCard({
   project: p,
   mode = "dashboard",
   onClose,
-}: { project: Project; mode?: string; onClose: () => void }) {
+}: { project: Project; mode?: string; onClose?: () => void }) {
   const etat = (mode.startsWith("mesures") ? p.etatMesures : p.etatCMD) || "—";
   const cls = STATUS_CMD_COLORS[etat] || STATUS_MESURES_COLORS[etat] || "bg-gray-100 text-gray-700";
   const j = daysInfo(mode.startsWith("mesures") ? p.dateMesures : p.dateMontage);
@@ -103,10 +103,12 @@ export function SignalPreviewCard({
       <div className="sg-detail-top">
         {j && <span className={`sg-jpill ${j.bgClass} ${j.colorClass}`}>J+{j.days}</span>}
         <span className={`sg-state ${cls}`}>{etat}</span>
-        <button type="button" className="sg-unpin" title="Fermer l'aperçu" aria-label="Fermer l'aperçu"
-          onClick={onClose}>
-          <X className="w-3.5 h-3.5" />
-        </button>
+        {onClose && (
+          <button type="button" className="sg-unpin" title="Fermer l'aperçu" aria-label="Fermer l'aperçu"
+            onClick={onClose}>
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
       <h3 className="sg-detail-title">{p.projet || "Sans nom"}</h3>
       {p.adresseChantier && <p className="sg-detail-addr">{p.adresseChantier}</p>}
@@ -180,13 +182,9 @@ export function SignalPreviewCard({
         </div>
       )}
 
-      {/* Journal des échanges */}
-      {String((p as any).journalEchanges || "").trim() && (
-        <div className="sg-pv-bloc">
-          <span className="sg-pv-titre"><MessageSquare className="w-3.5 h-3.5" /> Journal des échanges</span>
-          <p className="sg-pv-journal">{String((p as any).journalEchanges)}</p>
-        </div>
-      )}
+      {/* Journal des échanges — modifiable ici : c'est juste après l'appel
+          qu'on note le résultat, sans avoir à ouvrir le projet. */}
+      <JournalEditable project={p} />
       {total > 0 && (
         <div className="sg-gauge-wrap">
           <div className="sg-gauge-head">
@@ -212,6 +210,79 @@ export function SignalPreviewCard({
           Ouvrir le projet
         </Link>
       </div>
+    </div>
+  );
+}
+
+
+/** Journal des échanges, modifiable depuis l'aperçu. Écrit dans le MÊME champ
+ *  Notion que la page projet ; la fiche affichée est mise à jour sur place. */
+function JournalEditable({ project }: { project: Project }) {
+  const initial = String((project as any).journalEchanges || "");
+  const [edition, setEdition] = useState(false);
+  const [texte, setTexte] = useState(initial);
+  const [enreg, setEnreg] = useState(false);
+  const [erreur, setErreur] = useState(false);
+
+  useEffect(() => { setTexte(initial); setEdition(false); setErreur(false); }, [project.id, initial]);
+
+  const enregistrer = async () => {
+    setEnreg(true);
+    setErreur(false);
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ journalEchanges: texte }),
+      });
+      if (!res.ok) throw new Error("PATCH");
+      // La fiche vit dans le store : on la met à jour pour refléter la saisie.
+      (project as any).journalEchanges = texte;
+      emit();
+      setEdition(false);
+    } catch {
+      setErreur(true);
+    } finally {
+      setEnreg(false);
+    }
+  };
+
+  return (
+    <div className="sg-pv-bloc">
+      <span className="sg-pv-titre">
+        <MessageSquare className="w-3.5 h-3.5" /> Journal des échanges
+        {!edition && (
+          <button type="button" className="sg-pv-edit" onClick={() => setEdition(true)}>
+            {initial.trim() ? "Modifier" : "Ajouter"}
+          </button>
+        )}
+      </span>
+      {edition ? (
+        <>
+          <textarea
+            className="sg-pv-textarea"
+            value={texte}
+            autoFocus
+            rows={5}
+            placeholder="25.09.26 - 16h31 : appel sans réponse…"
+            onChange={(e) => setTexte(e.target.value)}
+          />
+          <div className="sg-pv-actions">
+            <button type="button" className="sg-pv-btn" disabled={enreg}
+              onClick={() => { setTexte(initial); setEdition(false); setErreur(false); }}>
+              Annuler
+            </button>
+            <button type="button" className="sg-pv-btn is-primary" disabled={enreg} onClick={enregistrer}>
+              {enreg ? "Enregistrement…" : "Enregistrer"}
+            </button>
+          </div>
+          {erreur && <span className="sg-pv-erreur">Enregistrement impossible — réessayez.</span>}
+        </>
+      ) : initial.trim() ? (
+        <p className="sg-pv-journal">{initial}</p>
+      ) : (
+        <p className="sg-pv-vide">Aucun échange noté.</p>
+      )}
     </div>
   );
 }

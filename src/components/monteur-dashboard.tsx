@@ -6,7 +6,7 @@ import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
-import { openSignalPreview, closeSignalPreview } from "@/components/signal-preview";
+import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
@@ -5888,11 +5888,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             return a[0] === "—" ? 1 : b[0] === "—" ? -1 : a[0].localeCompare(b[0]);
           });
           const sel = panelProjects.find((p) => p.id === sgSelected) || panelProjects[0] || null;
-          const selJ = sel ? getDaysInfoFromDate(dateGetter ? dateGetter(sel) : null) : null;
-          const selTotal = sel ? (sel.nbCabines || 0) : 0;
-          const selPosed = sel ? Math.min(sel.nbCabinesInstallees || 0, selTotal) : 0;
-          const selEtat = sel ? (rdvStatusFieldFn(sel) || "—") : "—";
-          const selCls = STATUS_CMD_COLORS[selEtat] || STATUS_MESURES_COLORS[selEtat] || "bg-gray-100 text-gray-700";
 
           return (
             <div className="sg-panel">
@@ -6049,47 +6044,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </div>
 
                 {sel && (
-                  // Colonne d'aperçu qui suit le survol, visible uniquement
-                  // quand la largeur le permet. Le clic sur le n° TM ouvre, lui,
-                  // la fiche flottante partagée (SignalPreviewHost).
+                  /* Colonne d'aperçu qui suit le survol, visible quand la
+                     largeur le permet. Elle affiche la MÊME fiche que le clic
+                     sur le n° TM : une seule source, donc pas de version
+                     appauvrie qui prendrait du retard sur l'autre. */
                   <aside className="sg-detail">
-                    <div className="sg-detail-top">
-                      {selJ && <span className={`sg-jpill ${selJ.bgClass} ${selJ.colorClass}`}>J+{selJ.days}</span>}
-                      <span className={`sg-state ${selCls}`}>{selEtat}</span>
-                    </div>
-                    <h3 className="sg-detail-title">{sel.projet}</h3>
-                    {sel.adresseChantier && <p className="sg-detail-addr">{sel.adresseChantier}</p>}
-                    <div className="sg-fields">
-                      {([
-                        { k: "N° OFR TM", v: sel.ofrTM || "—" },
-                        { k: "N° FOURN.", v: sel.servCmdFournisseurs || sel.cmdFournisseurs || "—" },
-                        { k: "NB. CABINES", v: String(sel.nbCabines || 0) },
-                        { k: "EMPLACEMENT", v: sel.emplacementCabine || "—" },
-                        { k: "ARRIVAGE", v: (sel.arrivageTM || sel.arrivageGrossiste || "").split("T")[0] || "—" },
-                        { k: "COLLABORATEUR", v: sel.collaborateurs || "—" },
-                      ]).map((f) => (
-                        <div key={f.k} className="sg-field">
-                          <span className="sg-field-k">{f.k}</span>
-                          <span className="sg-field-v">{f.v}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {selTotal > 0 && (
-                      <div className="sg-gauge-wrap">
-                        <div className="sg-gauge-head">
-                          <span>Lots</span>
-                          <span className="sg-mono">{selPosed} / {selTotal} posés</span>
-                        </div>
-                        <div className="sg-gauge">
-                          {Array.from({ length: selTotal }).map((_, i) => (
-                            <i key={i} className={i < selPosed ? "is-done" : ""} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div className="sg-detail-actions">
-                      <Link href={`/projet/${sel.id}?mode=dashboard`} className="sg-btn-primary">Ouvrir le projet</Link>
-                    </div>
+                    <SignalPreviewCard project={sel} mode="dashboard" />
                   </aside>
                 )}
               </div>

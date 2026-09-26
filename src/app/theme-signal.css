@@ -2033,6 +2033,38 @@ html[data-ui="signal"] .sg-pv-journal {
   max-height: 160px; overflow-y: auto;
 }
 
+/* Édition depuis l'aperçu : noter un appel sans ouvrir le projet. */
+html[data-ui="signal"] .sg-pv-edit {
+  margin-left: auto;
+  font-family: inherit; font-size: 10px; font-weight: 600;
+  letter-spacing: 0; text-transform: none;
+  color: var(--sg-signal); background: none; border: none; cursor: pointer;
+  padding: 1px 6px; border-radius: 5px;
+}
+html[data-ui="signal"] .sg-pv-edit:hover { background: var(--sg-signal-soft); }
+html[data-ui="signal"] .sg-pv-textarea {
+  width: 100%; resize: vertical; min-height: 84px;
+  padding: 8px 10px; border-radius: 9px;
+  background: var(--sg-paper); border: 1px solid var(--sg-line-strong);
+  color: var(--sg-text); font-family: inherit; font-size: 12.5px; line-height: 1.5;
+}
+html[data-ui="signal"] .sg-pv-textarea:focus {
+  outline: none; border-color: var(--sg-signal);
+  box-shadow: 0 0 0 3px var(--sg-signal-soft);
+}
+html[data-ui="signal"] .sg-pv-actions { display: flex; gap: 8px; justify-content: flex-end; }
+html[data-ui="signal"] .sg-pv-btn {
+  height: 30px; padding: 0 12px; border-radius: 8px;
+  font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  background: var(--sg-paper-2); border: 1px solid var(--sg-line); color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sg-pv-btn.is-primary {
+  background: var(--sg-ink); border-color: var(--sg-ink); color: #fff;
+}
+html[data-ui="signal"] .sg-pv-btn:disabled { opacity: 0.6; cursor: default; }
+html[data-ui="signal"] .sg-pv-erreur { font-size: 11px; color: #dc2626; }
+html[data-ui="signal"] .sg-pv-vide { margin: 0; font-size: 12px; color: var(--sg-text-3); font-style: italic; }
+
 @media (max-width: 767px) {
   html[data-ui="signal"] .sg-plist-link {
     grid-template-columns: minmax(0, 1fr) auto;
