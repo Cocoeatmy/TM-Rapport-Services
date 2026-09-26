@@ -112,6 +112,11 @@ export default function RootLayout({
               <HomeButton />
               <BackButton />
             </div>
+            {/* Emplacement d'accueil pour la barre du thème « Signal »
+                (recherche ouverte + Nouveau projet + fenêtre secondaire), qui
+                s'y greffe par portail. Vide et sans style pour tous les autres
+                thèmes : aucun effet sur leur affichage. */}
+            <div id="signal-header-slot" />
             <div className="flex items-center gap-2 shrink-0">
               <GlobalSearch />
               <CreateProjectButton />

@@ -398,12 +398,21 @@ html[data-ui="signal"] .dash-grid button.glass-card > p:nth-of-type(3) {
    projet, pages d'administration — la barre n'est pas rendue : les deux
    boutons du header restent donc en place, sinon la recherche et la création
    de projet deviendraient inaccessibles. */
-html[data-ui="signal"] body:has(.signal-topbar) .app-hdr-new,
-html[data-ui="signal"] body:has(.signal-topbar) .app-hdr-search { display: none; }
+html[data-ui="signal"] body:has(.signal-headerbar) .app-hdr-new,
+html[data-ui="signal"] body:has(.signal-headerbar) .app-hdr-search { display: none; }
 
-html[data-ui="signal"] .signal-topbar {
+/* La barre vit maintenant DANS l'en-tête, entre les boutons de gauche et la
+   cloche. Elle n'est montée qu'au-dessus de 1024 px (garde `sgWide` côté
+   React) : sur téléphone, les boutons ronds historiques reprennent la main,
+   comme dans le thème Aurora, car la recherche ouverte y prendrait toute la
+   largeur. */
+html[data-ui="signal"] .signal-headerbar {
   display: flex; align-items: center; gap: 12px;
-  padding: 10px 2px 12px 2px;
+  flex: 1 1 auto; min-width: 0;
+  padding: 0 12px;
+}
+html[data-ui="signal"] #signal-header-slot {
+  display: flex; flex: 1 1 auto; min-width: 0;
 }
 html[data-ui="signal"] .signal-topbar-spacer { flex-grow: 1; }
 html[data-ui="signal"] .signal-search {
@@ -1892,16 +1901,11 @@ html[data-ui="signal"] .sgc-row-cab {
    barres d'onglets en défilement horizontal plutôt qu'en retour à la ligne.
    ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 767px) {
-  /* — Barre supérieure — */
-  html[data-ui="signal"] .signal-topbar {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 8px 2px 10px 2px;
-  }
-  html[data-ui="signal"] .signal-search { max-width: none; flex-grow: 1; height: 44px; }
-  html[data-ui="signal"] .signal-kbd { display: none; }
-  html[data-ui="signal"] .signal-topbar-spacer { display: none; }
-  html[data-ui="signal"] .signal-new { height: 44px; flex-grow: 1; justify-content: center; }
+  /* — Barre supérieure —
+     Sur téléphone la barre n'est pas montée du tout (garde `sgWide`) : le
+     header retrouve ses boutons ronds, comme dans le thème Aurora. Le repère
+     d'accueil doit donc cesser d'occuper de la place. */
+  html[data-ui="signal"] #signal-header-slot { display: none; }
 
   /* — En-tête de panneau — */
   html[data-ui="signal"] .sg-panel-head { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }

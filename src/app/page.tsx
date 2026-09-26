@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState, useRef, useDeferredValue, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Onboarding } from "@/components/onboarding";
 import { PullToRefresh } from "@/components/pull-to-refresh";
@@ -294,7 +295,47 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch, ex
   );
 }
 
-function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, onNewProject }: { mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isCmm?: boolean; isSignal?: boolean; onNewProject?: () => void }) {
+/**
+ * Barre du thème « Signal » greffée dans l'en-tête de l'app.
+ *
+ * Elle occupe la place libre au centre du header : recherche ouverte à gauche,
+ * « Nouveau projet » et fenêtre secondaire à droite, juste avant la cloche.
+ * Elle n'est montée QUE sur grand écran : sur téléphone (iOS compris) la place
+ * manque, et l'app reprend alors les boutons ronds historiques du header —
+ * ceux des autres thèmes — sans rien changer pour eux.
+ */
+function SignalHeaderBar({ isAdmin, onNewProject, children }: {
+  isAdmin: boolean; onNewProject: () => void; children?: React.ReactNode;
+}) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setSlot(document.getElementById("signal-header-slot")); }, []);
+
+  if (!slot) return null;
+  return createPortal(
+    <div className="signal-headerbar">
+      <button
+        type="button"
+        className="signal-search"
+        onClick={() => window.dispatchEvent(new CustomEvent("tm-open-search"))}
+      >
+        <Search className="w-4 h-4 shrink-0" />
+        <span className="signal-search-ph">Rechercher un projet ou lancer une action</span>
+        <span className="signal-kbd">⌘K</span>
+      </button>
+      <div className="signal-topbar-spacer" />
+      {isAdmin && (
+        <button type="button" className="signal-new" onClick={onNewProject}>
+          <Plus className="w-4 h-4" />
+          Nouveau projet
+        </button>
+      )}
+      {children}
+    </div>,
+    slot,
+  );
+}
+
+function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, onNewProject }:{ mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isCmm?: boolean; isSignal?: boolean; onNewProject?: () => void }) {
   const [open, setOpen] = useState<string | null>(
     mode.startsWith("grossistes") ? "grossistes" :
     mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
@@ -375,29 +416,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
     )}
     {/* Sur mobile CleanMyMac : les onglets horizontaux sont entièrement masqués
         (remplacés par le CmmMobileDrawer rendu au niveau HomePage). */}
-    {/* Barre supérieure du thème Signal : champ de recherche ouvert à gauche,
-        action principale à droite. Remplace le petit « + » du header (masqué
-        en CSS) et le bouton loupe, conformément à la maquette. */}
-    {isSignal && !isCmm && (
-      <div className="signal-topbar">
-        <button
-          type="button"
-          className="signal-search"
-          onClick={() => window.dispatchEvent(new CustomEvent("tm-open-search"))}
-        >
-          <Search className="w-4 h-4 shrink-0" />
-          <span className="signal-search-ph">Rechercher un projet ou lancer une action</span>
-          <span className="signal-kbd">⌘K</span>
-        </button>
-        <div className="signal-topbar-spacer" />
-        {isAdmin && (
-          <button type="button" className="signal-new" onClick={() => onNewProject?.()}>
-            <Plus className="w-4 h-4" />
-            Nouveau projet
-          </button>
-        )}
-      </div>
-    )}
+    {/* La barre du thème Signal (recherche ouverte + Nouveau projet + fenêtre
+        secondaire) est désormais greffée DANS l'en-tête de l'app, par portail
+        depuis HomePage : voir SignalHeaderBar. */}
     {/* Rail vertical — thème « Signal », desktop uniquement.
         Il reprend À L'IDENTIQUE les 9 entrées de la barre d'onglets et leurs
         comportements : les entrées à sous-menu ouvrent le même sous-menu, qui
@@ -1412,6 +1433,16 @@ function HomePage() {
   // L'aperçu latéral « Signal » se ferme dès qu'on change de vue : il appartient
   // à la liste depuis laquelle il a été ouvert.
   useEffect(() => { closeSignalPreview(); }, [mode]);
+  /* Signal : la barre de recherche ouverte + « Nouveau projet » ne tiennent
+     dans l'en-tête qu'à partir de 1024 px. En dessous (téléphone, iOS), on
+     rend la main aux boutons ronds historiques du header. */
+  const [sgWide, setSgWide] = useState(false);
+  useEffect(() => {
+    const check = () => setSgWide(window.innerWidth >= 1024);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
   // useDeferredValue : l'input répond immédiatement, le filtrage (coûteux)
   // est décalé en tâche de priorité basse → recherche instantanée.
   const deferredSearch = useDeferredValue(search);
@@ -2453,6 +2484,32 @@ function HomePage() {
       })
     : filtered;
 
+  /* Bouton « fenêtre secondaire » : rendu soit dans la barre d'onglets
+     (comportement historique), soit dans l'en-tête en thème Signal. */
+  const floatingWindowButton = (
+    <button
+      onClick={openFloatingWindow}
+      disabled={floatingWindows.length >= 2}
+      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-md active:scale-95 relative shrink-0 ${
+        floatingWindows.length > 0
+          ? "bg-cyan-600 text-white hover:bg-cyan-700"
+          : "bg-white/80 dark:bg-slate-700 text-gray-500 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-600 border border-gray-200 dark:border-gray-600"
+      } disabled:opacity-40 disabled:cursor-not-allowed`}
+      title={
+        floatingWindows.length === 0 ? "Ouvrir une fenêtre secondaire" :
+        floatingWindows.length === 1 ? "Ouvrir une 2ème fenêtre" :
+        "2 fenêtres ouvertes (maximum)"
+      }
+    >
+      <PanelRightOpen className="w-4 h-4" />
+      {floatingWindows.length > 0 && (
+        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white text-cyan-700 text-[9px] font-bold flex items-center justify-center shadow">
+          {floatingWindows.length}
+        </span>
+      )}
+    </button>
+  );
+
   return (
     // `sg-host` : repère de positionnement de l'aperçu latéral « Signal ».
     // La fiche s'ancre dans ce conteneur, donc sur la hauteur de la page
@@ -2461,6 +2518,16 @@ function HomePage() {
       <PullToRefresh />
       <Onboarding />
       {isSignal && <SignalPreviewHost />}
+      {/* Signal (grand écran) : recherche ouverte + Nouveau projet + fenêtre
+          secondaire, greffés dans l'en-tête de l'app. */}
+      {isSignal && !isCmm && sgWide && (
+        <SignalHeaderBar
+          isAdmin={currentUser?.role === "admin"}
+          onNewProject={() => setShowNewProject(true)}
+        >
+          {floatingWindowButton}
+        </SignalHeaderBar>
+      )}
       {/* Drawer mobile CleanMyMac — rendu en dehors du flux normal car position:fixed */}
       {isCmm && (
         <CmmMobileDrawer
@@ -2515,28 +2582,10 @@ function HomePage() {
           }} />
         </div>
         <div className="flex items-center gap-1.5 shrink-0 mt-1.5">
-          {/* Bouton fenêtre flottante — max 2 */}
-          <button
-            onClick={openFloatingWindow}
-            disabled={floatingWindows.length >= 2}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-md active:scale-95 relative ${
-              floatingWindows.length > 0
-                ? "bg-cyan-600 text-white hover:bg-cyan-700"
-                : "bg-white/80 dark:bg-slate-700 text-gray-500 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-600 border border-gray-200 dark:border-gray-600"
-            } disabled:opacity-40 disabled:cursor-not-allowed`}
-            title={
-              floatingWindows.length === 0 ? "Ouvrir une fenêtre secondaire" :
-              floatingWindows.length === 1 ? "Ouvrir une 2ème fenêtre" :
-              "2 fenêtres ouvertes (maximum)"
-            }
-          >
-            <PanelRightOpen className="w-4 h-4" />
-            {floatingWindows.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white text-cyan-700 text-[9px] font-bold flex items-center justify-center shadow">
-                {floatingWindows.length}
-              </span>
-            )}
-          </button>
+          {/* Bouton fenêtre flottante — max 2.
+              En thème Signal sur grand écran il est rendu dans l'en-tête
+              (SignalHeaderBar) : on ne le duplique pas ici. */}
+          {!(isSignal && !isCmm && sgWide) && floatingWindowButton}
 
           {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
             <button
