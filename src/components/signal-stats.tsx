@@ -410,6 +410,106 @@ export function SignalStats({
     };
   }, [sig, P]);
 
+  /* ── Responsabilité par monteur ───────────────────────────────────────────
+     Qui a posé la cabine qui pose problème ? La source est l'attribution PAR
+     CABINE (« Cab1:Micael | Cab2:Claudio & Jacobo ») : chaque monteur coche
+     son nom sur SON montage, donc sur un projet multi-cabine on ne met pas
+     tout le monde dans le même sac. Sans attribution (ancien projet, cabine
+     unique), on retombe sur le champ « Collaborateurs montage ». */
+  const parseCabMap = (raw: string): Map<number, string> => {
+    const map = new Map<number, string>();
+    const re = /Cab(\d+)\s*:([^|]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(raw || ""))) {
+      const v = m[2].trim();
+      if (v) map.set(parseInt(m[1], 10), v);
+    }
+    return map;
+  };
+  const splitNames = (raw: string) => String(raw || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
+
+  /** Monteurs d'une cabine précise, ou de tout le projet si l'index manque. */
+  const monteursOf = (p: any, cab?: number | null): string[] => {
+    const attr = parseCabMap(p?.attributionCabines || "");
+    if (attr.size > 0) {
+      if (cab != null && attr.has(cab)) return splitNames(attr.get(cab)!);
+      const tous = new Set<string>();
+      attr.forEach((v) => splitNames(v).forEach((n) => tous.add(n)));
+      if (tous.size) return [...tous];
+    }
+    return splitNames(p?.collaborateurs || "");
+  };
+
+  /** Index de cabine d'un signalement, via son libellé et les noms de cabines. */
+  const cabIndexOf = (p: any, label?: string): number | null => {
+    if (!label) return null;
+    const direct = label.match(/cab(?:ine)?\s*(\d+)/i);
+    if (direct) return Number(direct[1]);
+    const noms = parseCabMap(p?.nomsCabines || "");
+    let found: number | null = null;
+    noms.forEach((v, k) => {
+      if (found == null && v.trim().toLowerCase() === label.trim().toLowerCase()) found = k;
+    });
+    return found;
+  };
+
+  /** Cabines concernées par un SAV, d'après les colonnes encodées par cabine. */
+  const cabinesSavOf = (p: any): number[] => {
+    const keys = new Set<number>();
+    [p?.causeSavCabines, p?.savRetouchesCabines, p?.collaborateursSavCabines, p?.datesRdvSavCabines]
+      .forEach((raw) => parseCabMap(raw || "").forEach((_v, k) => keys.add(k)));
+    return [...keys];
+  };
+
+  const [qualFocus, setQualFocus] = useState<"sav" | "soucis" | "pieces" | "defauts">("sav");
+
+  /** Répartition par monteur d'un indicateur qualité. */
+  const blameBy = useMemo(() => {
+    const build = (entries: { p: any; cab: number | null }[]) => {
+      const m = new Map<string, { n: number; items: any[] }>();
+      entries.forEach(({ p, cab }) => {
+        const noms = monteursOf(p, cab);
+        (noms.length ? noms : ["Non attribué"]).forEach((n) => {
+          const cur = m.get(n) || { n: 0, items: [] as any[] };
+          cur.n += 1;
+          if (!cur.items.some((x) => x.id === p.id)) cur.items.push(p);
+          m.set(n, cur);
+        });
+      });
+      return [...m.entries()]
+        .map(([label, v]) => ({
+          label, value: v.n, sub: `${v.items.length} proj.`, items: v.items,
+          color: label === "Non attribué" ? "#cbd5e1" : getCollaboratorColor(label).dot,
+        }))
+        .sort((a, b) => b.value - a.value);
+    };
+
+    const savEntries: { p: any; cab: number | null }[] = [];
+    P.forEach((p: any) => {
+      const aSav = String(p.etatSAV || "").trim() || String(p.commentairesSav || "").trim();
+      if (!aSav) return;
+      const cabs = cabinesSavOf(p);
+      if (cabs.length) cabs.forEach((c) => savEntries.push({ p, cab: c }));
+      else savEntries.push({ p, cab: null });
+    });
+
+    const soucisEntries = P
+      .filter((p: any) => p.soucisMontage === true || String(p.etatCMD || "") === "Soucis montage")
+      .map((p: any) => ({ p, cab: null }));
+
+    const fromSig = (list: any[]) => (list || []).flatMap((s) => {
+      const p = P.find((x: any) => x.id === s.projectId);
+      return p ? [{ p, cab: cabIndexOf(p, s.cabineLabel) }] : [];
+    });
+
+    return {
+      sav: build(savEntries),
+      soucis: build(soucisEntries),
+      pieces: build(fromSig(sig?.pieces || [])),
+      defauts: build(fromSig(sig?.defauts || [])),
+    };
+  }, [P, sig]);
+
   const TABS = [
     { id: "activite" as const, label: "Activité" },
     { id: "equipes" as const, label: "Équipes & monteurs", n: byCollab.length },
@@ -932,6 +1032,21 @@ export function SignalStats({
               unit=" proj."
             />
           </div>
+
+          {/* Qui a posé la cabine qui pose problème ? */}
+          <Fold defaultOpen title="Responsabilité par monteur"
+            meta="attribution PAR CABINE : sur un projet multi-cabine, seul le monteur de la cabine concernée est compté"
+            right={
+              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
+                {([["sav", "SAV"], ["soucis", "Soucis"], ["pieces", "Pièces"], ["defauts", "Défauts"]] as const).map(([v, lbl]) => (
+                  <button key={v} type="button" className={qualFocus === v ? "is-on" : ""}
+                    onClick={() => setQualFocus(v)}>{lbl}</button>
+                ))}
+              </div>
+            }>
+            <BarList rows={blameBy[qualFocus]} unit=" cas" onPick={setPick}
+              empty="Aucun cas sur cette période." />
+          </Fold>
 
           {/* Signalements saisis dans l'app — bloc AJOUTÉ, les indicateurs
               ci-dessus restent inchangés (ils reposent sur les anciennes
