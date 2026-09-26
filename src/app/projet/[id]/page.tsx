@@ -7319,6 +7319,22 @@ function ProjectPageContent({ id }: { id: string }) {
                 </div>
               </div>
             )}
+
+            {/* Journal des échanges — MÊME champ Notion que dans Informations
+                dates : on le retrouve ici, au bas des contacts, là où on note
+                ce que donne un appel. Les deux emplacements écrivent au même
+                endroit et se mettent à jour ensemble. */}
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+              <EditableTextField
+                label="Journal des échanges"
+                value={project.journalEchanges}
+                projectId={id}
+                fieldName="journalEchanges"
+                notionField="Journal des échanges"
+                multiline
+                onUpdate={(v) => setProject({ ...project, journalEchanges: v })}
+              />
+            </div>
           </CardContent>
         </Card>
 
