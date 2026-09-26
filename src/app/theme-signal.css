@@ -2065,6 +2065,27 @@ html[data-ui="signal"] .sg-pv-btn:disabled { opacity: 0.6; cursor: default; }
 html[data-ui="signal"] .sg-pv-erreur { font-size: 11px; color: #dc2626; }
 html[data-ui="signal"] .sg-pv-vide { margin: 0; font-size: 12px; color: var(--sg-text-3); font-style: italic; }
 
+/* Signalements encore ouverts dans l'aperçu. */
+html[data-ui="signal"] .sg-pv-sig {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 11px; border-radius: 9px;
+  font-size: 12.5px; font-weight: 500;
+}
+html[data-ui="signal"] .sg-pv-sig i {
+  width: 7px; height: 7px; border-radius: 999px; flex-shrink: 0;
+}
+html[data-ui="signal"] .sg-pv-sig b {
+  margin-left: auto;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 12px; font-weight: 700;
+}
+html[data-ui="signal"] .sg-pv-sig.is-piece { background: #fff1e6; color: #9a3412; }
+html[data-ui="signal"] .sg-pv-sig.is-piece i { background: #ea580c; }
+html[data-ui="signal"] .sg-pv-sig.is-defaut { background: #fee2e2; color: #991b1b; }
+html[data-ui="signal"] .sg-pv-sig.is-defaut i { background: #dc2626; }
+html[data-ui="signal"].dark .sg-pv-sig.is-piece { background: #3a2208; color: #fdba74; }
+html[data-ui="signal"].dark .sg-pv-sig.is-defaut { background: #3b0f0f; color: #fca5a5; }
+
 @media (max-width: 767px) {
   html[data-ui="signal"] .sg-plist-link {
     grid-template-columns: minmax(0, 1fr) auto;

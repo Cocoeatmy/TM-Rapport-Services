@@ -5866,7 +5866,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           // Bascule « Par date » / « Par région (NPA) » — même logique que le
           // rendu classique (extraction du code postal de l'adresse chantier).
           const sgRegion = panelSortOf(showSummaryPanel) === "region";
-          const sgNpa = (addr: string) => { const m = (addr || "").match(/\b(\d{4})\b/); return m ? m[1] : ""; };
+          /* NPA cherché dans l'adresse PUIS dans le nom du projet : s'arrêter à
+             la première chaîne non vide envoyait « Rue de la Gare 11 » (sans
+             code postal) dans « Sans code postal » alors que le nom du projet
+             porte bien « 1337 Vallorbe ». */
+          const sgNpaDe = (s2: string) => { const m = (s2 || "").match(/\b(\d{4})\b/); return m ? m[1] : ""; };
+          const sgNpa = (addr: string) => sgNpaDe(addr);
           const sgNpaVille = (addr: string) => {
             const m = (addr || "").match(/\b(\d{4})\s+([^,]+)/);
             return m ? `${m[1]} ${m[2].trim()}` : (sgNpa(addr) || "Sans adresse");
@@ -5874,11 +5879,25 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           const byKey = new Map<string, Project[]>();
           panelProjects.forEach((p) => {
             const key = sgRegion
-              ? (sgNpa(p.adresseChantier || p.projet || "") || "no-code")
+              ? (sgNpaDe(p.adresseChantier) || sgNpaDe(p.projet) || "no-code")
               : ((dateGetter ? (dateGetter(p) || "") : "").split("T")[0] || "—");
             if (!byKey.has(key)) byKey.set(key, []);
             (byKey.get(key) as Project[]).push(p);
           });
+          /* GARANTIE : un projet de la liste doit apparaître, quel que soit le
+             tri. On vérifie que le regroupement n'en a perdu aucun ; les
+             éventuels manquants rejoignent « Sans code postal » plutôt que de
+             disparaître silencieusement — un RDV invisible ne se fixe jamais. */
+          {
+            const vus = new Set<string>();
+            byKey.forEach((rows) => rows.forEach((p) => vus.add(p.id)));
+            const oublies = panelProjects.filter((p) => !vus.has(p.id));
+            if (oublies.length) {
+              const cle = sgRegion ? "no-code" : "—";
+              if (!byKey.has(cle)) byKey.set(cle, []);
+              (byKey.get(cle) as Project[]).push(...oublies);
+            }
+          }
           const sgGroups = [...byKey.entries()].sort((a, b) => {
             if (sgRegion) {
               if (a[0] === "no-code") return 1;
@@ -6478,7 +6497,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               panelProjects.forEach((p) => {
                 // Tri par RÉGION : groupe par code postal (NPA) de l'adresse chantier.
                 if (isRegionMode) {
-                  const npa = extractNpa(p.adresseChantier || p.projet || "");
+                  // Adresse PUIS nom du projet : une adresse sans code postal
+                  // ne doit pas masquer celui que porte le nom du projet.
+                  const npa = extractNpa(p.adresseChantier) || extractNpa(p.projet);
                   const key = npa || "no-code";
                   if (!dayMap[key]) dayMap[key] = [];
                   dayMap[key].push(p);

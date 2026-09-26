@@ -19,7 +19,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { X, Phone, FileText, MessageSquare, Package } from "lucide-react";
+import { X, Phone, FileText, MessageSquare, Package, AlertTriangle } from "lucide-react";
 import { supplierLogo } from "@/lib/supplier-logos";
 import type { Project } from "@/lib/notion";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
@@ -182,6 +182,10 @@ export function SignalPreviewCard({
         </div>
       )}
 
+      {/* Signalements encore ouverts : un projet peut rester à traiter pour une
+          pièce manquante ou un défaut, même montage terminé. */}
+      <SignalementsOuverts projectId={p.id} />
+
       {/* Journal des échanges — modifiable ici : c'est juste après l'appel
           qu'on note le résultat, sans avoir à ouvrir le projet. */}
       <JournalEditable project={p} />
@@ -214,6 +218,49 @@ export function SignalPreviewCard({
   );
 }
 
+
+
+/** Pièces manquantes et défauts encore ouverts sur ce projet. Ils vivent hors
+ *  Notion (saisis dans l'app) : on les lit à la demande, par projet. */
+function SignalementsOuverts({ projectId }: { projectId: string }) {
+  const [etat, setEtat] = useState<{ pieces: number; defauts: number } | null>(null);
+
+  useEffect(() => {
+    let vivant = true;
+    setEtat(null);
+    Promise.all([
+      fetch(`/api/pieces?projectId=${encodeURIComponent(projectId)}`).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+      fetch(`/api/defauts?projectId=${encodeURIComponent(projectId)}`).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+    ]).then(([pieces, defauts]) => {
+      if (!vivant) return;
+      const ouvertes = (Array.isArray(pieces) ? pieces : [])
+        .filter((x: any) => !(x.status === "recu" || x.resolved === true)).length;
+      const ouverts = (Array.isArray(defauts) ? defauts : [])
+        .filter((x: any) => !(x.status === "resolu" || x.resolved === true)).length;
+      setEtat({ pieces: ouvertes, defauts: ouverts });
+    });
+    return () => { vivant = false; };
+  }, [projectId]);
+
+  // Rien à signaler : on n'encombre pas la fiche d'une section vide.
+  if (!etat || (etat.pieces === 0 && etat.defauts === 0)) return null;
+
+  return (
+    <div className="sg-pv-bloc">
+      <span className="sg-pv-titre"><AlertTriangle className="w-3.5 h-3.5" /> Signalements ouverts</span>
+      {etat.pieces > 0 && (
+        <span className="sg-pv-sig is-piece">
+          <i /> Pièces manquantes <b>{etat.pieces}</b>
+        </span>
+      )}
+      {etat.defauts > 0 && (
+        <span className="sg-pv-sig is-defaut">
+          <i /> Défauts ouverts <b>{etat.defauts}</b>
+        </span>
+      )}
+    </div>
+  );
+}
 
 /** Journal des échanges, modifiable depuis l'aperçu. Écrit dans le MÊME champ
  *  Notion que la page projet ; la fiche affichée est mise à jour sur place. */
