@@ -2716,11 +2716,25 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 if (/team/i.test(label)) return getCollaboratorColor("Team TM").dot;
                 return getTeamColor(label).dot || "#3b82f6";
               };
+              /* Même source que le calendrier : les montages DÉJÀ FAITS sortent
+                 des listes actives (clôturés/terminés), et la semaine
+                 paraissait vide alors que les cabines avaient bien été posées.
+                 Un montage sur plusieurs jours compte sur chacun de ses jours
+                 ouvrés, comme dans le calendrier. */
+              const weekSource = [...projects, ...terminatedProjects]
+                .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+                .filter((p) => p.dateMontage);
+              const daysOfProject = (p: Project): string[] => {
+                const start = (p.dateMontage || "").split("T")[0];
+                if (!start) return [];
+                const end = (p.dateMontageEnd || "").split("T")[0];
+                return end && end > start ? getWorkingDays(start, end) : [start];
+              };
               const bars = ["Lun", "Mar", "Mer", "Jeu", "Ven"].map((d, i) => {
                 const dt = new Date(monday);
                 dt.setDate(monday.getDate() + i);
                 const key = formatLocalDate(dt);
-                const dayProjects = projects.filter((p) => (p.dateMontage || "").split("T")[0] === key);
+                const dayProjects = weekSource.filter((p) => daysOfProject(p).includes(key));
                 const byGroup = new Map<string, number>();
                 dayProjects.forEach((p) => {
                   const label = (p.collaborateurs || "").trim() || "Non attribué";
