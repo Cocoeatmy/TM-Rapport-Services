@@ -246,9 +246,19 @@ export function SignalStats({
       .sort((a, b) => b.value - a.value);
   }, [P]);
 
+  /* Un projet de SERVICE PUR (remplacement de joints, réfection des silicones…)
+     ne comporte ni marque ni série de cabine : le compter faussait les deux
+     répartitions avec des dizaines de lignes « Non renseigné ». On l'écarte
+     quand « Type de services » vaut UNIQUEMENT « Services » — dès qu'il porte
+     aussi Mesures ou Montage, une cabine est bien en jeu et il compte. */
+  const isServicePur = (p: any) => {
+    const t: string[] = Array.isArray(p?.typeServices) ? p.typeServices : [];
+    return t.length === 1 && /^\s*services?\s*$/i.test(t[0] || "");
+  };
+
   const byList = (field: string) => {
     const m = new Map<string, { cab: number; items: any[] }>();
-    P.forEach((p) => {
+    P.filter((p) => !isServicePur(p)).forEach((p) => {
       let arr: string[] = Array.isArray(p[field]) ? p[field] : [];
       /* « TM Douche » est notre propre enseigne : le client ne doit pas voir la
          marque réelle, mais nous si. Le projet forme donc UNE seule entrée
@@ -813,10 +823,10 @@ export function SignalStats({
 
       {tab === "repartition" && (
         <div className="sgs-grid2">
-          <Fold title="Cabines par fournisseur" meta="cabines des projets terminés · cliquez une ligne pour voir les projets">
+          <Fold title="Cabines par fournisseur" meta="cabines des projets terminés · services purs exclus · cliquez une ligne pour voir les projets">
             <BarList rows={byFournisseur} unit=" cab." onPick={setPick} />
           </Fold>
-          <Fold title="Cabines par série" meta="cabines des projets terminés · cliquez une ligne pour voir les projets">
+          <Fold title="Cabines par série" meta="cabines des projets terminés · services purs exclus · cliquez une ligne pour voir les projets">
             <BarList rows={bySerie} unit=" cab." onPick={setPick} />
           </Fold>
           <Fold className="sgs-span2" title="Répartition géographique"
