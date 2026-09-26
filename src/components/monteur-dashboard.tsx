@@ -5841,6 +5841,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
            Les autres thèmes ne passent jamais ici. */
         if (isSignal && rdvStatusFieldFn) {
           const dateGetter = showSummaryPanel ? PANEL_DATE_FIELD[showSummaryPanel] : undefined;
+          /* Pastille de délai TOUJOURS parlante.
+             getDaysInfoFromDate ne répond que pour une date PASSÉE : un
+             arrivage encore à venir (« Cabines à recevoir ») tombait donc sur
+             un « — » muet. On distingue désormais trois cas : jours écoulés
+             (J+x), arrivage attendu (J−x, en bleu) et absence de date. */
+          const sgDelay = (raw: string | null | undefined) => {
+            const info = getDaysInfoFromDate(raw);
+            if (info) return { text: `J+${info.days}`, cls: `${info.bgClass} ${info.colorClass}`, title: `Arrivé il y a ${info.days} jour${info.days > 1 ? "s" : ""}` };
+            const d = String(raw || "").split("T")[0];
+            const ref = d ? new Date(d + "T00:00:00") : null;
+            if (!ref || isNaN(ref.getTime())) {
+              return { text: "—", cls: "bg-gray-100 text-gray-400 dark:bg-slate-700 dark:text-gray-500", title: "Aucune date d'arrivage renseignée" };
+            }
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const jours = Math.max(0, Math.ceil((ref.getTime() - today.getTime()) / 86400000));
+            return {
+              text: jours === 0 ? "Auj." : `J−${jours}`,
+              cls: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
+              title: jours === 0 ? "Arrivage attendu aujourd'hui" : `Arrivage attendu dans ${jours} jour${jours > 1 ? "s" : ""}`,
+            };
+          };
           // Bascule « Par date » / « Par région (NPA) » — même logique que le
           // rendu classique (extraction du code postal de l'adresse chantier).
           const sgRegion = panelSortOf(showSummaryPanel) === "region";
@@ -5972,7 +5994,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           </span>
                         </div>
                         {rows.map((p) => {
-                          const j = getDaysInfoFromDate(dateGetter ? dateGetter(p) : null);
+                          const j = sgDelay(dateGetter ? dateGetter(p) : null);
                           const etat = rdvStatusFieldFn(p) || "—";
                           const cls = STATUS_CMD_COLORS[etat] || STATUS_MESURES_COLORS[etat] || "bg-gray-100 text-gray-700";
                           const tm = parseTMNumbers(p.ofrTM || "");
@@ -5987,7 +6009,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               onFocus={() => setSgSelected(p.id)}
                               className={`sg-prow${on ? " is-sel" : ""}`}
                             >
-                              <span className={`sg-jpill ${j ? `${j.bgClass} ${j.colorClass}` : ""}`}>{j ? `J+${j.days}` : "—"}</span>
+                              <span className={`sg-jpill ${j.cls}`} title={j.title}>{j.text}</span>
                               {/* Le n° TM ouvre l'APERÇU (et l'épingle) ; tout le
                                   reste de la ligne ouvre le projet complet. */}
                               <span
