@@ -3446,16 +3446,18 @@ function ProjectPageContent({ id }: { id: string }) {
   const toggleMacTab = (id: string) => setMacTabs((prev) => {
     // Signal : un seul onglet ouvert à la fois (et jamais aucun) — c'est ce qui
     // évite le mur de cartes des autres présentations.
-    if (isSignalUi) return prev.has(id) && prev.size === 1 ? prev : new Set([id]);
+    // Sur iPhone, Signal reprend le comportement historique des boutons ronds
+    // (ouverture/fermeture libre) : l'exclusivité ne vaut que sur ordinateur.
+    if (isSignalUi && !isIOS) return prev.has(id) && prev.size === 1 ? prev : new Set([id]);
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
   // Signal : ouvre « Cabines » par défaut plutôt qu'une page vide.
   useEffect(() => {
-    if (!isSignalUi) return;
+    if (!isSignalUi || isIOS) return;
     setMacTabs((prev) => (prev.size === 0 ? new Set(["cabines"]) : prev));
-  }, [isSignalUi]);
+  }, [isSignalUi, isIOS]);
   /** true = section masquée (présentation onglets, onglet fermé). */
   const macHidden = (id: string) => isTab && !macTabs.has(id);
   // Clé de rafraîchissement pour DefautsList : incrémentée à chaque
@@ -6728,7 +6730,10 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Thème Signal : barre d'onglets horizontale AVEC LIBELLÉS, comme la
           maquette. Onglets exclusifs (cf. toggleMacTab) : une seule section à
           l'écran, plus de mur de cartes. Remplace le rail macOS et la barre iOS. */}
-      {isSignalUi && (
+      {/* Barre d'onglets horizontale du thème Signal — ORDINATEUR seulement.
+          Sur iPhone la place manque : on garde alors les boutons ronds
+          historiques (mêmes que le thème Aurora), plus lisibles au pouce. */}
+      {isSignalUi && !isIOS && (
         <div className="sgp-tabs">
           {(() => {
             // Libellés courts (la maquette) + compteurs réels.
@@ -6787,7 +6792,7 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Barre d'onglets horizontale (iOS). Même principe que le rail macOS mais
           à l'horizontale, sous l'en-tête. "rapport" est exclu : sur iOS il reste
           piloté par le bouton dédié. Cachée en mode rapport. */}
-      {isIOS && !isSignalUi && !showRapport && (
+      {isIOS && !showRapport && (
         <div className="px-4 mt-3">
           <div className="flex justify-between items-center pb-1">
             {(() => {
