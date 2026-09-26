@@ -1523,6 +1523,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   /* Légende du calendrier Signal : libellé de collaborateur/binôme épinglé.
      Quand il est renseigné, le mois n'affiche plus que ses interventions. */
   const [calLegend, setCalLegend] = useState<string | null>(null);
+  /* iPhone : les trois cartes d'agenda (aujourd'hui / demain / après-demain)
+     sont repliées d'office — dépliées, elles occupaient tout l'écran pour
+     afficher surtout des zéros. Ensemble des jours ouverts. */
+  const [sgDaysOpen, setSgDaysOpen] = useState<Set<string>>(() => new Set());
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
   const [isIOS, setIsIOS] = useState(false);
 
@@ -2663,21 +2667,49 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 title: "Après-demain", accent: "var(--sg-text)", date: sgShift(2),
                 d: sgDay(sgShift(2)),
               },
-            ]).map((col) => (
-              <div key={col.title} className="sg-card">
+            ]).map((col) => {
+              const lignes = [
+                { label: "Montages", count: col.d.montages, cab: col.d.montagesCab, color: "#1b63ff" },
+                { label: "Mesures", count: col.d.mesures, cab: col.d.mesuresCab, color: "#0e7490" },
+                { label: "Services", count: col.d.services, cab: col.d.servicesCab, color: "#6d28d9" },
+                { label: "SAV", count: col.d.sav, cab: col.d.savCab, color: "#b45309" },
+                { label: "Garanties", count: col.d.garanties, cab: col.d.garantiesCab, color: "#15803d" },
+              ];
+              const total = lignes.reduce((s2, r) => s2 + r.count, 0);
+              const ouvert = !isIOS || sgDaysOpen.has(col.title);
+              // Sur iPhone : seules les catégories non vides sont listées.
+              const visibles = isIOS ? lignes.filter((r) => r.count > 0) : lignes;
+              return (
+              <div key={col.title} className={`sg-card${isIOS && !ouvert ? " is-folded" : ""}`}>
                 <div className="sg-card-head">
-                  <span className="sg-card-title" style={{ color: col.accent }}>{col.title}</span>
-                  <span className="sg-card-meta">
-                    {new Date(col.date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}
-                  </span>
+                  {isIOS ? (
+                    <button type="button" className="sg-day-toggle"
+                      aria-expanded={ouvert}
+                      disabled={total === 0}
+                      onClick={() => setSgDaysOpen((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(col.title)) next.delete(col.title); else next.add(col.title);
+                        return next;
+                      })}>
+                      <span className="sg-card-title" style={{ color: col.accent }}>{col.title}</span>
+                      <span className="sg-day-total">{total}</span>
+                      <span className="sg-card-meta">
+                        {new Date(col.date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}
+                      </span>
+                      {total > 0 && (ouvert
+                        ? <ChevronUp className="w-4 h-4 sg-day-chev" />
+                        : <ChevronDown className="w-4 h-4 sg-day-chev" />)}
+                    </button>
+                  ) : (
+                    <>
+                      <span className="sg-card-title" style={{ color: col.accent }}>{col.title}</span>
+                      <span className="sg-card-meta">
+                        {new Date(col.date + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}
+                      </span>
+                    </>
+                  )}
                 </div>
-                {([
-                  { label: "Montages", count: col.d.montages, cab: col.d.montagesCab, color: "#1b63ff" },
-                  { label: "Mesures", count: col.d.mesures, cab: col.d.mesuresCab, color: "#0e7490" },
-                  { label: "Services", count: col.d.services, cab: col.d.servicesCab, color: "#6d28d9" },
-                  { label: "SAV", count: col.d.sav, cab: col.d.savCab, color: "#b45309" },
-                  { label: "Garanties", count: col.d.garanties, cab: col.d.garantiesCab, color: "#15803d" },
-                ]).map((r) => (
+                {ouvert && visibles.map((r) => (
                   <button
                     key={r.label}
                     type="button"
@@ -2698,7 +2730,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   </button>
                 ))}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* À planifier */}

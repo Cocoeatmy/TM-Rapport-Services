@@ -1783,6 +1783,29 @@ html[data-ui="signal"] .sg-plist-act-del { right: 78px; }
 html[data-ui="signal"] .sg-plist-act-del:hover { color: #b91c1c; border-color: #e7b0b0; }
 
 /* Écrans étroits : la ligne se replie en deux niveaux lisibles au pouce. */
+/* ── Agenda replié (iPhone) ───────────────────────────────────────────────
+   Les trois cartes du jour ne montrent que leur total tant qu'on ne les
+   déplie pas : sur un écran de téléphone, cinq lignes à zéro par carte
+   repoussaient tout le reste du tableau de bord hors de vue. */
+html[data-ui="signal"] .sg-card.is-folded { padding-bottom: 10px; }
+html[data-ui="signal"] .sg-day-toggle {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: inherit; text-align: left;
+}
+html[data-ui="signal"] .sg-day-toggle:disabled { cursor: default; opacity: 0.75; }
+html[data-ui="signal"] .sg-day-total {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 12px; font-weight: 700;
+  padding: 1px 8px; border-radius: 999px;
+  background: var(--sg-signal-soft); color: var(--sg-signal);
+}
+html[data-ui="signal"] .sg-day-toggle:disabled .sg-day-total {
+  background: var(--sg-paper-2); color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-day-toggle .sg-card-meta { margin-left: auto; }
+html[data-ui="signal"] .sg-day-chev { color: var(--sg-text-3); flex-shrink: 0; }
+
 @media (max-width: 767px) {
   html[data-ui="signal"] .sg-plist-link {
     grid-template-columns: minmax(0, 1fr) auto;
