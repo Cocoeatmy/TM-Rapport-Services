@@ -4810,7 +4810,7 @@ function HomePage() {
 
       {/* Boutons Calendrier / Collaborateurs */}
       {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
-        <div className="flex gap-3 mb-4">
+        <div className="flex gap-3 mb-4 sgv-tiles">
           <button
             onClick={() => setViewMode("calendar")}
             className="glass-card flex items-center gap-2 px-4 py-3 rounded-xl hover:bg-white/80 transition-all active:scale-95"
@@ -6250,7 +6250,7 @@ function HomePage() {
 
       {/* VUE LISTE (standard) */}
       {viewMode === "list" && (
-      <div className="relative mb-4 max-w-lg">
+      <div className="relative mb-4 max-w-lg sgv-search">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <Input
           placeholder="Rechercher un projet, OFR, chantier..."
@@ -6278,7 +6278,7 @@ function HomePage() {
         <div className="sm:flex sm:gap-6">
           {/* Filtres à gauche - desktop uniquement */}
           <div className="w-52 shrink-0 hidden sm:block">
-            <div className="sticky top-[68px] space-y-4 glass-panel rounded-2xl p-3">
+            <div className="sticky top-[68px] space-y-4 glass-panel rounded-2xl p-3 sgv-filters">
               {/* Statuts */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
@@ -6484,7 +6484,7 @@ function HomePage() {
             )}
             {/* Conflict / overload warnings */}
             {conflicts.length > 0 && (
-              <div className="space-y-2 mb-4">
+              <div className="space-y-2 mb-4 sgv-alerts">
                 {conflicts.map((c, i) => {
                   const key = c.collaborateur + "::" + c.date;
                   const isActive = conflictFilter === key;
