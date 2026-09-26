@@ -6077,7 +6077,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         }
 
         return (
-          <div className="glass-card no-lift rounded-2xl p-4 space-y-1.5">
+          <div className="glass-card no-lift rounded-2xl p-4 space-y-1.5 sgL-panel">
             <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 {panelTitle} ({rdvFiltered ? `${panelProjects.length} / ${rdvTotalCount}` : (rdvStatusFieldFn ? rdvTotalCount : panelProjects.length)})
@@ -6580,7 +6580,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
               return grouped.map((group) => (
                 <div key={group.dateKey} className="mb-1">
-                  <div className={`flex items-center gap-2 px-3 py-2 mt-3 mb-1 rounded-lg shadow-sm ${
+                  <div className={`sgL-grp flex items-center gap-2 px-3 py-2 mt-3 mb-1 rounded-lg shadow-sm ${
                     group.isToday
                       ? "bg-green-600 dark:bg-green-700"
                       : group.isThisWeek
@@ -6655,7 +6655,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       : (isMontagePanel && cabInstalled > 0 ? `${cabInstalled}/${cabTotal} cab.` : `${cabTotal} cab.`);
                     return (
                       <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`}
-                        className={`${isRdvAFixerPanel ? "flex flex-col" : "flex items-center"} gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
+                        className={`sgL-row ${isRdvAFixerPanel ? "flex flex-col" : "flex items-center"} gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-200/60 dark:hover:bg-blue-800/30 transition-colors text-xs ${rowBg}`}>
                         {isRdvAFixerPanel && (
                           <>
                             {/* PORTRAIT : nom en haut, TM/chantier/N° à gauche, badges empilés à droite */}

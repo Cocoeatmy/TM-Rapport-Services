@@ -2129,6 +2129,53 @@ html[data-ui="signal"].dark .sg-pv-sig.is-defaut { background: #3b0f0f; color: #
   }
 }
 
+/* ── Panneaux du tableau de bord encore au rendu d'origine ───────────────
+   Projets en cours, Mesures/Montages/Services/SAV du jour, Soucis montage,
+   Rapports en attente, Mesures non commandées, SAV, Archives, Arrivage,
+   Emplacement cabines, Cabines cette semaine… Ils gardent leur markup, mais
+   adoptent la grammaire de « RDV Montage à fixer » : papier blanc, filets
+   fins, bande de groupe à barre encre, plus de zébrage teinté. */
+html[data-ui="signal"] .sgL-panel {
+  background: var(--sg-paper);
+  border: 1px solid var(--sg-line);
+  border-radius: 14px;
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 12px;
+}
+/* Bande de groupe : le bandeau plein (bleu, vert ou ardoise) devient la même
+   bande claire à barre encre que les listes denses. */
+html[data-ui="signal"] .sgL-grp {
+  background: var(--sg-grp-bg);
+  border: 1px solid var(--sg-grp-line);
+  border-left: 3px solid var(--sg-ink);
+  border-radius: 7px;
+  box-shadow: none;
+  padding: 4px 10px;
+  margin: 10px 0 2px 0;
+}
+html[data-ui="signal"] .sgL-grp > span { color: var(--sg-text); }
+html[data-ui="signal"] .sgL-grp > span:first-child { font-size: 12px; font-weight: 700; }
+/* Compteur de droite : pastille claire au lieu du blanc translucide. */
+html[data-ui="signal"] .sgL-grp > span.ml-auto {
+  background: transparent;
+  color: var(--sg-text-2);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 10px; padding: 0;
+}
+/* Lignes : filet de séparation, survol sobre, pas de zébrage. */
+html[data-ui="signal"] .sgL-row {
+  background: var(--sg-paper);
+  border: 1px solid transparent;
+  border-bottom-color: var(--sg-line);
+  border-radius: 8px;
+  padding: 5px 10px;
+}
+html[data-ui="signal"] .sgL-row:hover {
+  background: var(--sg-paper-2);
+  border-color: var(--sg-line-strong);
+}
+
 @media (max-width: 767px) {
   html[data-ui="signal"] .sg-plist-link {
     grid-template-columns: minmax(0, 1fr) auto;
