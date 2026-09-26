@@ -426,7 +426,8 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
     {isSignal && !isCmm && (
       <nav aria-label="Navigation principale" className="signal-rail hidden lg:flex">
         {[
-          { id: "dashboard",    label: "Tableau de bord", Icon: LayoutGrid,  active: mode === "dashboard",                                  act: () => { handleSelect("dashboard"); setOpen(null); } },
+          /* Pas d'entrée « Tableau de bord » : le bouton Accueil de l'en-tête y
+             ramène déjà, l'icône faisait doublon. */
           { id: "services",     label: "Services",        Icon: Ruler,       active: isServicesActive || open === "services",                act: () => setOpen(open === "services" ? null : "services") },
           { id: "clients",      label: "CRM",             Icon: UsersIcon,   active: isClientsActive || open === "clients",                  act: () => setOpen(open === "clients" ? null : "clients") },
           { id: "grossistes",   label: "Grossistes",      Icon: ShoppingBag, active: isGrossisteActive || open === "grossistes",             act: () => setOpen(open === "grossistes" ? null : "grossistes") },
