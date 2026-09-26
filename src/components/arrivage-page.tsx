@@ -74,6 +74,13 @@ const ALL_STATUTS = [
   "Terminé",
 ];
 
+/** Découpe une liste de références en préservant l'ordre saisi : deux numéros
+ *  de projet se lisent alors du plus ancien au plus récent, l'un sous l'autre. */
+function splitRefs(raw: string): string[] {
+  if (!raw) return [];
+  return raw.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
+}
+
 function toInputDate(iso: string | null): string {
   if (!iso) return "";
   // ISO date: "2024-03-15" or "2024-03-15T..." → take first 10 chars
@@ -187,6 +194,24 @@ export default function ArrivagePage() {
     : showAll
       ? searchableProjects.filter((p) => visibleStatuts.has(p.etatCMD))
       : [];
+
+  /* Regroupement par statut (thème Signal) : chaque état forme son propre
+     tableau, dans l'ordre du cycle d'arrivage. Hors Signal, et pendant une
+     recherche, la liste reste continue comme avant. */
+  const projectGroups: [string, Project[]][] = (() => {
+    if (!isSignalUi || search.trim()) return [["", filteredProjects]];
+    const map = new Map<string, Project[]>();
+    filteredProjects.forEach((p) => {
+      const k = p.etatCMD || "Sans statut";
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(p);
+    });
+    const order = [...ARRIVAGE_STATUTS, "Sans statut"];
+    return [...map.entries()].sort((a, b) => {
+      const ia = order.indexOf(a[0]), ib = order.indexOf(b[0]);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+  })();
 
   // Persiste le choix des statuts visibles.
   useEffect(() => {
@@ -577,8 +602,20 @@ export default function ArrivagePage() {
         </div>
       ) : null}
 
-      {/* Project cards */}
-      {filteredProjects.map((p) => {
+      {/* Projets — regroupés par statut en thème Signal, pour que chaque état
+          forme un tableau distinct au lieu d'une liste continue. */}
+      {projectGroups.map(([statut, list]) => (
+      <div key={statut || "tous"} className={isSignalUi ? "sgA-group" : "contents"}>
+      {isSignalUi && statut && (
+        <div className="sg-grp">
+          <span className="sg-grp-label">{statut}</span>
+          <i className="sg-rule" />
+          <span className="sg-grp-sum">
+            {list.length} projet{list.length > 1 ? "s" : ""} · {list.reduce((s2, x) => s2 + (x.nbCabines || 0), 0)} cab.
+          </span>
+        </div>
+      )}
+      {list.map((p) => {
         const isExpanded = expandedId === p.id;
         const statusColor = statusClasses("État - CMD", p.etatCMD, STATUS_CMD_COLORS[p.etatCMD] || "bg-gray-100 text-gray-700");
         const f = forms[p.id];
@@ -586,9 +623,42 @@ export default function ArrivagePage() {
         return (
           <div
             key={p.id}
-            className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden"
+            className={isSignalUi
+              ? "sgA-card"
+              : "bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden"}
           >
-            {/* Card header — clicable */}
+            {/* En-tête de carte — cliquable.
+                Thème Signal : ligne dense, même grammaire visuelle que
+                « RDV Montage à fixer » (colonnes alignées, pastille d'état,
+                références empilées). Ailleurs : la carte historique. */}
+            {isSignalUi ? (
+              <button
+                onClick={() => handleExpand(p)}
+                className={`sg-prow sgA-row${isExpanded ? " is-sel" : ""}`}
+              >
+                <span className="sg-mono sg-refs">
+                  {splitRefs(p.ofrTM).length
+                    ? splitRefs(p.ofrTM).map((n, k) => <i key={`${n}-${k}`}>{n}</i>)
+                    : "—"}
+                </span>
+                <span className="sg-mono sg-dim sg-refs">
+                  {(() => {
+                    const refs = splitRefs(p.servCmdFournisseurs || p.cmdFournisseurs || p.cmdGrossiste || p.cmdTMUsine || "");
+                    return refs.length ? refs.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—";
+                  })()}
+                </span>
+                <span className="sg-pname">{p.projet || "Sans nom"}</span>
+                <span className={`sg-state ${statusColor}`}>{p.etatCMD || "—"}</span>
+                <span className="sg-place">
+                  <span>{p.fournisseurs.join(", ") || "—"}</span>
+                </span>
+                <span className="sg-mono sg-dim sgA-serie">{p.seriesCabines.join(", ") || "—"}</span>
+                <span className="sg-mono sg-right sg-strong">{p.nbCabines || 0}</span>
+                {isExpanded
+                  ? <ChevronUp className="w-4 h-4 sg-plist-chev" />
+                  : <ChevronDown className="w-4 h-4 sg-plist-chev" />}
+              </button>
+            ) : (
             <button
               onClick={() => handleExpand(p)}
               className="w-full text-left px-5 py-4 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-slate-750 transition-colors"
@@ -671,6 +741,7 @@ export default function ArrivagePage() {
                 )}
               </div>
             </button>
+            )}
 
             {/* Accordion — formulaire */}
             {isExpanded && (
@@ -968,6 +1039,8 @@ export default function ArrivagePage() {
           </div>
         );
       })}
+      </div>
+      ))}
     </div>
   );
 }

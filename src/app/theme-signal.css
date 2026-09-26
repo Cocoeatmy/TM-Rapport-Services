@@ -1070,10 +1070,28 @@ html[data-ui="signal"] .sg-list { flex-grow: 1; min-width: 0; padding: 6px 12px 
 html[data-ui="signal"] .sg-cols,
 html[data-ui="signal"] .sg-prow {
   display: grid;
-  grid-template-columns: 56px 96px 92px minmax(0, 1fr) 128px 92px 56px 40px;
+  /* 112px pour le n° OFR TM : « TM-2600786 » tient en entier, y compris quand
+     deux numéros sont empilés — ils étaient tronqués par « … ». */
+  grid-template-columns: 56px 112px 92px minmax(0, 1fr) 128px 92px 56px 40px;
   gap: 10px;
   align-items: center;
 }
+
+/* ── Page « Arrivage cabines » en thème Signal ────────────────────────────
+   Les cartes deviennent des lignes de tableau, groupées par statut. Le
+   formulaire d'arrivage se déplie toujours sous la ligne. */
+html[data-ui="signal"] .sgA-group { display: block; margin-bottom: 2px; }
+html[data-ui="signal"] .sgA-card {
+  background: transparent; border: none; border-radius: 0;
+}
+html[data-ui="signal"] .sgA-card:has(.sgA-row.is-sel) {
+  background: var(--sg-paper); border: 1px solid var(--sg-line);
+  border-radius: 10px; margin: 4px 0; overflow: hidden;
+}
+html[data-ui="signal"] .sgA-row {
+  grid-template-columns: 112px 104px minmax(0, 1fr) 128px 132px 92px 44px 20px;
+}
+html[data-ui="signal"] .sgA-serie { text-align: right; }
 html[data-ui="signal"] .sg-pers {
   justify-self: end;
   font-family: var(--font-mono);
@@ -1619,25 +1637,29 @@ html[data-ui="signal"] .sg-plist-row:hover { background: var(--sg-paper-2); }
 
 html[data-ui="signal"] .sg-plist-link {
   display: grid;
-  grid-template-columns: 98px minmax(0, 1fr) 132px 84px 78px 40px 18px;
-  gap: 12px;
+  /* Même gabarit que la liste dense « RDV Montage à fixer » : colonnes
+     alignées, lignes serrées, une seule grammaire visuelle dans tout le
+     thème. La colonne des n° OFR TM accueille deux numéros empilés. */
+  grid-template-columns: 112px minmax(0, 1fr) 128px 84px 78px 40px 18px;
+  gap: 10px;
   align-items: center;
-  padding: 11px 14px;
+  padding: 4px 10px;
+  min-height: 34px;
   color: inherit;
   text-decoration: none;
 }
 html[data-ui="signal"] .sg-plist-tm {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   font-size: 12px; color: var(--sg-text-2);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  overflow: hidden; white-space: nowrap;
 }
 html[data-ui="signal"] .sg-plist-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 html[data-ui="signal"] .sg-plist-name {
-  font-size: 14px; font-weight: 600; color: var(--sg-text);
+  font-size: 13px; font-weight: 500; color: var(--sg-text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 html[data-ui="signal"] .sg-plist-sub {
-  font-size: 12px; color: var(--sg-text-3);
+  font-size: 11px; color: var(--sg-text-3);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 html[data-ui="signal"] .sg-plist-extra {
@@ -1649,8 +1671,8 @@ html[data-ui="signal"] .sg-plist-extra {
 }
 html[data-ui="signal"] .sg-plist-state {
   justify-self: start;
-  font-size: 10px; font-weight: 600;
-  padding: 3px 9px; border-radius: 999px;
+  font-size: 10px; font-weight: 600; line-height: 1.6;
+  padding: 1px 8px; border-radius: 999px;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 html[data-ui="signal"] .sg-plist-date {
@@ -1659,7 +1681,7 @@ html[data-ui="signal"] .sg-plist-date {
 }
 html[data-ui="signal"] .sg-plist-people { display: flex; gap: -4px; }
 html[data-ui="signal"] .sg-plist-av {
-  width: 24px; height: 24px; border-radius: 999px;
+  width: 21px; height: 21px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 9px; font-weight: 700;
   border: 2px solid var(--sg-paper); margin-left: -6px;
@@ -1667,7 +1689,7 @@ html[data-ui="signal"] .sg-plist-av {
 html[data-ui="signal"] .sg-plist-av:first-child { margin-left: 0; }
 html[data-ui="signal"] .sg-plist-cab {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: 13px; font-weight: 600; color: var(--sg-text); text-align: right;
+  font-size: 12px; font-weight: 600; color: var(--sg-text); text-align: right;
 }
 html[data-ui="signal"] .sg-plist-chev { color: var(--sg-text-3); }
 
