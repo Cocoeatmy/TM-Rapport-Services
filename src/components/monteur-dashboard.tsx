@@ -1513,6 +1513,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   };
   const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
+  /* Légende du calendrier Signal : libellé de collaborateur/binôme épinglé.
+     Quand il est renseigné, le mois n'affiche plus que ses interventions. */
+  const [calLegend, setCalLegend] = useState<string | null>(null);
   const [userActivities, setUserActivities] = useState<Record<string, string>>({});
   const [isIOS, setIsIOS] = useState(false);
 
@@ -1619,6 +1622,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     // fermer = revenir au dashboard collaborateur, pas afficher la grille admin.
     if (forcePanel) { onForcePanelClose?.(); return; }
     setShowSummaryPanel(null);
+    setCalLegend(null);
     try { sessionStorage.removeItem("tm-dash-panel"); } catch {}
   };
 
@@ -3798,6 +3802,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
              liste dense cliquable. */
           if (isSignal) {
             const cabOfDay = (list: Project[]) => list.reduce((s, p) => s + (p.nbCabines || 0), 0);
+            const labelOf = (p: Project) => (p.collaborateurs || "").trim() || "Non attribué";
+            /* Légende cliquable : le mois se restreint au collaborateur/binôme
+               épinglé. La légende elle-même reste calculée sur le mois complet
+               pour que les autres pastilles restent accessibles. */
+            const dayMapF: Record<string, Project[]> = calLegend
+              ? Object.entries(dayMap).reduce((acc, [k, v]) => {
+                  const kept = v.filter((p) => labelOf(p) === calLegend);
+                  if (kept.length) acc[k] = kept;
+                  return acc;
+                }, {} as Record<string, Project[]>)
+              : dayMap;
             const segsOfDay = (list: Project[]) => {
               const m = new Map<string, number>();
               list.forEach((p) => {
@@ -3812,8 +3827,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   : getTeamColor(label).dot || "#3b82f6",
               })).sort((a, b) => b.cab - a.cab);
             };
-            const monthTotal = Object.keys(dayMap).reduce((s, k) => s + cabOfDay(dayMap[k]), 0);
-            const monthProjects = new Set(Object.values(dayMap).flat().map((p) => p.id)).size;
+            const monthTotal = Object.keys(dayMapF).reduce((s, k) => s + cabOfDay(dayMapF[k]), 0);
+            const monthProjects = new Set(Object.values(dayMapF).flat().map((p) => p.id)).size;
             const legend = (() => {
               const m = new Map<string, number>();
               Object.values(dayMap).flat().forEach((p) => {
@@ -3827,7 +3842,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   : getTeamColor(label).dot || "#3b82f6",
               }));
             })();
-            const selList = calendarSelectedDay ? (dayMap[calendarSelectedDay] || []) : [];
+            const selList = calendarSelectedDay ? (dayMapF[calendarSelectedDay] || []) : [];
+            /* Liste du mois pour le collaborateur épinglé : une ligne par
+               projet (dédoublonné), du plus proche au plus lointain. */
+            const legendList: { day: string; p: Project }[] = calLegend
+              ? (() => {
+                  const seen = new Set<string>();
+                  return Object.entries(dayMapF)
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .flatMap(([day, list]) => list.map((p) => ({ day, p })))
+                    .filter(({ p }) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
+                })()
+              : [];
 
             return (
               <div className="sgc">
@@ -3862,7 +3888,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     {cells.map((d, i) => {
                       if (d === null) return <span key={`e${i}`} className="sgc-cell is-blank" />;
                       const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-                      const list = dayMap[key] || [];
+                      const list = dayMapF[key] || [];
                       const cab = cabOfDay(list);
                       const segs = segsOfDay(list);
                       const isToday = key === todayStr2;
@@ -3893,16 +3919,65 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
                   {legend.length > 0 && (
                     <div className="sg-bars-legend">
-                      {legend.map((l) => (
-                        <span key={l.label} className="sg-bars-leg">
-                          <i style={{ background: l.color }} />
-                          {l.label}
-                          <b>{l.cab}</b>
-                        </span>
-                      ))}
+                      {legend.map((l) => {
+                        const on = calLegend === l.label;
+                        return (
+                          <button
+                            key={l.label}
+                            type="button"
+                            className={`sg-bars-leg is-btn${on ? " is-on" : ""}${calLegend && !on ? " is-dim" : ""}`}
+                            aria-pressed={on}
+                            title={on ? "Afficher tout le mois" : `Voir les projets de ${l.label}`}
+                            onClick={() => { setCalLegend(on ? null : l.label); setCalendarSelectedDay(null); }}
+                          >
+                            <i style={{ background: l.color }} />
+                            {l.label}
+                            <b>{l.cab}</b>
+                          </button>
+                        );
+                      })}
+                      {calLegend && (
+                        <button type="button" className="sg-bars-leg is-btn is-clear"
+                          onClick={() => { setCalLegend(null); setCalendarSelectedDay(null); }}>
+                          <X className="w-3 h-3" /> Tout afficher
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
+
+                {/* Filtre monteur actif : liste du mois, sauf si un jour
+                    précis est ouvert (le panneau du jour prend alors la main). */}
+                {calLegend && !calendarSelectedDay && (
+                  <div className="sgc-day-panel">
+                    <div className="sgc-day-head">
+                      <span className="sgc-day-title">{calLegend}</span>
+                      <span className="sgc-day-meta">
+                        {legendList.length} projet{legendList.length > 1 ? "s" : ""} · {monthTotal} cab. · <span className="capitalize">{monthLabel}</span>
+                      </span>
+                      <button type="button" className="sg-unpin" aria-label="Retirer le filtre"
+                        onClick={() => { setCalLegend(null); setCalendarSelectedDay(null); }}>
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    {legendList.length === 0 && <p className="sg-empty">Aucune intervention ce mois-ci.</p>}
+                    {legendList.map(({ day, p }) => {
+                      const isMes = (p.dateMesures || "").split("T")[0] === day && !(p.dateMontage || "").startsWith(day);
+                      return (
+                        <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`} className="sgc-row">
+                          <span className="sg-mono sgc-row-day">
+                            {new Date(day + "T12:00:00").toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}
+                          </span>
+                          <span className="sg-mono sgc-row-tm">{p.ofrTM || "—"}</span>
+                          <span className={`sgc-row-type ${isMes ? "is-mes" : "is-mon"}`}>{isMes ? "Mesures" : "Montage"}</span>
+                          <span className="sgc-row-name">{p.projet}</span>
+                          <span className="sg-mono sgc-row-cab">{p.nbCabines || 0} cab.</span>
+                          <ChevronRight className="w-4 h-4 sg-plist-chev" />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {calendarSelectedDay && (
                   <div className="sgc-day-panel">

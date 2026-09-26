@@ -783,6 +783,31 @@ html[data-ui="signal"] .sg-bars-leg b {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   font-size: 11px; font-weight: 700; color: var(--sg-text);
 }
+/* Pastille de légende cliquable : filtre le mois sur un monteur/binôme.
+   `is-on` = filtre actif, `is-dim` = les autres pastilles reculent. */
+html[data-ui="signal"] .sg-bars-leg.is-btn {
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease,
+              color 140ms ease, opacity 140ms ease;
+}
+html[data-ui="signal"] .sg-bars-leg.is-btn:hover {
+  background: var(--sg-paper);
+  border-color: var(--sg-line-strong);
+  color: var(--sg-text);
+}
+html[data-ui="signal"] .sg-bars-leg.is-btn:focus-visible {
+  outline: 2px solid var(--sg-signal); outline-offset: 2px;
+}
+html[data-ui="signal"] .sg-bars-leg.is-on {
+  background: var(--sg-ink); border-color: var(--sg-ink); color: #fff;
+}
+html[data-ui="signal"] .sg-bars-leg.is-on b { color: #fff; }
+html[data-ui="signal"] .sg-bars-leg.is-dim { opacity: 0.45; }
+html[data-ui="signal"] .sg-bars-leg.is-dim:hover { opacity: 1; }
+html[data-ui="signal"] .sg-bars-leg.is-clear {
+  border-style: dashed; color: var(--sg-text-3);
+}
+
 html[data-ui="signal"] .sg-bar-val {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -1781,6 +1806,11 @@ html[data-ui="signal"] .sgc-row-av i {
 }
 html[data-ui="signal"] .sgc-row-av i:first-child { margin-left: 0; }
 html[data-ui="signal"] .sgc-row-tm { font-size: 12px; }
+/* Colonne date : remplace les avatars dans la liste filtrée par monteur,
+   où l'avatar serait le même sur chaque ligne. */
+html[data-ui="signal"] .sgc-row-day {
+  font-size: 12px; font-weight: 600; color: var(--sg-text-3);
+}
 html[data-ui="signal"] .sgc-row-type {
   justify-self: start; font-size: 10px; font-weight: 700;
   padding: 3px 9px; border-radius: 999px; white-space: nowrap;
@@ -1805,7 +1835,8 @@ html[data-ui="signal"] .sgc-row-cab {
     grid-template-areas: "av name cab" "av tm type";
     row-gap: 3px;
   }
-  html[data-ui="signal"] .sgc-row-av { grid-area: av; }
+  html[data-ui="signal"] .sgc-row-av,
+  html[data-ui="signal"] .sgc-row-day { grid-area: av; }
   html[data-ui="signal"] .sgc-row-name { grid-area: name; }
   html[data-ui="signal"] .sgc-row-cab { grid-area: cab; }
   html[data-ui="signal"] .sgc-row-tm { grid-area: tm; }
