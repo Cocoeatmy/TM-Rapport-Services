@@ -16,6 +16,7 @@
 
 import { useMemo, useState } from "react";
 import { TrendingUp, TrendingDown, Minus, RefreshCw, FileText } from "lucide-react";
+import { getTeamColor, getCollaboratorColor } from "@/lib/collaborators";
 
 export type SignalStatsMonth = {
   mesures: number; cabines: number; montages: number; demontages: number;
@@ -161,7 +162,7 @@ export function SignalStats({
       });
     });
     return [...m.entries()]
-      .map(([label, v]) => ({ label, value: Math.round(v.cab), sub: `${v.nb} proj.`, color: hueFor(label) }))
+      .map(([label, v]) => ({ label, value: Math.round(v.cab), sub: `${v.nb} proj.`, color: getCollaboratorColor(label).dot }))
       .sort((a, b) => b.value - a.value);
   }, [P]);
 
@@ -174,7 +175,10 @@ export function SignalStats({
       m.set(label, cur);
     });
     return [...m.entries()]
-      .map(([label, v]) => ({ label, value: v.cab, sub: `${v.nb} proj.`, color: hueFor(label) }))
+      .map(([label, v]) => ({
+        label, value: v.cab, sub: `${v.nb} proj.`,
+        color: label === "Non attribué" ? "#cbd5e1" : getTeamColor(label).dot,
+      }))
       .sort((a, b) => b.value - a.value);
   }, [P]);
 
@@ -233,11 +237,11 @@ export function SignalStats({
         });
     });
     const hours = [...byC.entries()]
-      .map(([label, v]) => ({ label, value: Math.round(v.min / 6) / 10, sub: `${v.cab} cab.`, color: hueFor(label) }))
+      .map(([label, v]) => ({ label, value: Math.round(v.min / 6) / 10, sub: `${v.cab} cab.`, color: getCollaboratorColor(label).dot }))
       .sort((a, b) => b.value - a.value);
     const avgPerCab = [...byC.entries()]
       .filter(([, v]) => v.cab > 0)
-      .map(([label, v]) => ({ label, value: Math.round(v.min / v.cab), sub: fmtH(Math.round(v.min / v.cab)), color: hueFor(label) }))
+      .map(([label, v]) => ({ label, value: Math.round(v.min / v.cab), sub: fmtH(Math.round(v.min / v.cab)), color: getCollaboratorColor(label).dot }))
       .sort((a, b) => a.value - b.value);
     return { totalMin, totalCab, globalAvg: totalCab ? Math.round(totalMin / totalCab) : 0, hours, avgPerCab };
   }, [P]);

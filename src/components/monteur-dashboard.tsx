@@ -5,7 +5,7 @@ import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
+import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
@@ -2698,11 +2698,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               // Couleur d'un groupe : palette collaborateurs de l'app. Un binôme
               // « A & B » prend la couleur de A (la légende lève l'ambiguïté),
               // « Team » et les projets non attribués ont leur propre ton.
+              // Couleur d'équipe : chaque binôme a la sienne (comme les
+              // calendriers macOS), au lieu d'hériter de celle du premier monteur.
               const groupColor = (label: string): string => {
                 if (!label || label === "Non attribué") return "#cbd5e1";
-                if (/team/i.test(label)) return "#0f766e";
-                const first = label.split("&")[0].trim();
-                return getCollaboratorColor(first).dot || "#3b82f6";
+                if (/team/i.test(label)) return getCollaboratorColor("Team TM").dot;
+                return getTeamColor(label).dot || "#3b82f6";
               };
               const bars = ["Lun", "Mar", "Mer", "Jeu", "Ven"].map((d, i) => {
                 const dt = new Date(monday);
@@ -3807,8 +3808,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 label,
                 cab,
                 color: label === "Non attribué" ? "#cbd5e1"
-                  : /team/i.test(label) ? "#0f766e"
-                  : getCollaboratorColor(label.split("&")[0].trim()).dot || "#3b82f6",
+                  : /team/i.test(label) ? getCollaboratorColor("Team TM").dot
+                  : getTeamColor(label).dot || "#3b82f6",
               })).sort((a, b) => b.cab - a.cab);
             };
             const monthTotal = Object.keys(dayMap).reduce((s, k) => s + cabOfDay(dayMap[k]), 0);
@@ -3822,8 +3823,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([label, cab]) => ({
                 label, cab,
                 color: label === "Non attribué" ? "#cbd5e1"
-                  : /team/i.test(label) ? "#0f766e"
-                  : getCollaboratorColor(label.split("&")[0].trim()).dot || "#3b82f6",
+                  : /team/i.test(label) ? getCollaboratorColor("Team TM").dot
+                  : getTeamColor(label).dot || "#3b82f6",
               }));
             })();
             const selList = calendarSelectedDay ? (dayMap[calendarSelectedDay] || []) : [];
