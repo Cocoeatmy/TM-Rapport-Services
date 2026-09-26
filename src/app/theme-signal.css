@@ -2124,9 +2124,12 @@ html[data-ui="signal"] .sgc-row-cab {
   html[data-ui="signal"] .sg-cols { display: none; }
   html[data-ui="signal"] .sg-prow {
     grid-template-columns: auto minmax(0, 1fr) auto;
+    /* Le n° de projet occupe sa propre ligne : il doit se lire EN ENTIER,
+       deux numéros empilés compris. Les pastilles descendent en dessous. */
     grid-template-areas:
-      "delay name  cab"
-      "tm    state state";
+      "name  name  cab"
+      "tm    tm    tm"
+      "state state state";
     row-gap: 6px;
     padding: 11px 12px;
     border: 1px solid var(--sg-line);
@@ -2134,12 +2137,27 @@ html[data-ui="signal"] .sgc-row-cab {
     margin-bottom: 7px;
     border-radius: 12px;
   }
-  html[data-ui="signal"] .sg-prow .sg-jpill { grid-area: delay; padding: 3px 8px; }
+  /* Tri par date : le J+x est déjà sur la bande de date, inutile de le
+     répéter sur chaque ligne. */
+  html[data-ui="signal"] .sg-list:not(.is-region) .sg-prow .sg-jpill { display: none; }
+  /* Tri par région : le J+x reprend sa place, juste à gauche de l'état. */
+  html[data-ui="signal"] .sg-list.is-region .sg-prow {
+    grid-template-areas:
+      "name  name  cab"
+      "tm    tm    tm"
+      "delay state state";
+  }
+  html[data-ui="signal"] .sg-prow .sg-jpill { grid-area: delay; padding: 3px 8px; justify-self: start; }
   html[data-ui="signal"] .sg-prow .sg-pname {
     grid-area: name; white-space: normal; line-height: 1.35; font-size: 13.5px;
   }
-  html[data-ui="signal"] .sg-prow .sg-tmbtn { grid-area: tm; }
-  html[data-ui="signal"] .sg-prow .sg-state { grid-area: state; justify-self: end; }
+  /* Numéro centré dans sa cellule et jamais tronqué. */
+  html[data-ui="signal"] .sg-prow .sg-tmbtn {
+    grid-area: tm; align-self: center; justify-self: start; max-width: 100%;
+  }
+  html[data-ui="signal"] .sg-prow .sg-refs { overflow: visible; }
+  html[data-ui="signal"] .sg-prow .sg-refs i { overflow: visible; text-overflow: clip; white-space: normal; }
+  html[data-ui="signal"] .sg-prow .sg-state { grid-area: state; justify-self: end; align-self: center; }
   html[data-ui="signal"] .sg-prow .sg-strong { grid-area: cab; }
   html[data-ui="signal"] .sg-prow .sg-dim,
   html[data-ui="signal"] .sg-prow .sg-place,

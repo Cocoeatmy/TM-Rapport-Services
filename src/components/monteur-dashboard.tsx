@@ -5937,7 +5937,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </div>
 
               <div className="sg-split">
-                <div className="sg-list">
+                {/* `is-region` : en tri par région, la pastille J+x n'est plus
+                    portée par l'en-tête de groupe — elle doit rester sur la
+                    ligne. En tri par date elle y ferait doublon. */}
+                <div className={`sg-list${sgRegion ? " is-region" : ""}`}>
                   <div className="sg-cols">
                     <span>DÉLAI</span><span>N° OFR TM</span><span>N° FOURN.</span>
                     <span>PROJET</span><span>ÉTAT</span><span>EMPLACEMENT</span>
