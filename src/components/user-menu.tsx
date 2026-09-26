@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette, Image as ImageIcon, Monitor, Mail, Loader2, Check, Radio } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette, Image as ImageIcon, Monitor, Mail, Loader2, Check, Radio, FileSpreadsheet, Package } from "lucide-react";
 import { getCollaboratorInitials } from "@/lib/collaborators";
 import { isSaveToGalleryEnabled, setSaveToGalleryEnabled } from "@/lib/save-to-gallery";
 import { toast } from "sonner";
@@ -216,16 +216,25 @@ export function UserMenu() {
                 </span>
               )}
             </div>
+            {/* Le tableau de bord d'administration a été supprimé : ses analyses
+                sont dans les Statistiques et ses rapports dans la page Rapports.
+                Le menu mène donc directement à ces destinations. */}
             {user.role === "admin" && (
               <button
-                onClick={() => {
-                  setOpen(false);
-                  router.push("/admin");
-                }}
+                onClick={() => { setOpen(false); router.push("/admin/rapports"); }}
                 className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
               >
-                <Shield className="w-4 h-4" />
-                Tableau de bord
+                <FileSpreadsheet className="w-4 h-4" />
+                Rapports
+              </button>
+            )}
+            {user.role === "admin" && (
+              <button
+                onClick={() => { setOpen(false); router.push("/admin/pieces-defauts"); }}
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              >
+                <Package className="w-4 h-4" />
+                Pièces &amp; Défauts
               </button>
             )}
             {user.role === "admin" && (

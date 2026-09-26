@@ -249,7 +249,7 @@ export default function UtilisateursPage() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => router.push("/admin")}
+          onClick={() => router.back()}
           className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200"
         >
           <ArrowLeft className="w-5 h-5" />

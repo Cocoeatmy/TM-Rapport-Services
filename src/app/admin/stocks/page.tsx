@@ -175,7 +175,7 @@ export default function StocksPage() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <button
-          onClick={() => router.push("/admin")}
+          onClick={() => router.back()}
           className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 shrink-0"
         >
           <ArrowLeft className="w-5 h-5 dark:text-gray-100" />
