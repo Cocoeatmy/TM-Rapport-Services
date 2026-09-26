@@ -14,7 +14,7 @@
  * les seules séries visibles.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, TrendingDown, Minus, RefreshCw, FileText, ChevronDown, ChevronUp, X, ChevronRight, MapPin } from "lucide-react";
 import Link from "next/link";
 import { cantonLabel, regionLabel } from "@/lib/swiss-cantons";
@@ -200,6 +200,24 @@ export function SignalStats({
   const [geoMode, setGeoMode] = useState<"npa" | "canton" | "region">("npa");
   /** Groupe sélectionné : ouvre la liste des projets qui le composent. */
   const [pick, setPick] = useState<BarRow | null>(null);
+  /* Signalements saisis DANS l'app (pièces manquantes, défauts). Ils vivent
+     hors Notion : on les lit à part, et ils complètent les indicateurs
+     historiques sans les modifier — ceux-ci reposent sur d'anciennes colonnes
+     Notion qu'on laisse telles quelles. */
+  const [sig, setSig] = useState<{ pieces: any[]; defauts: any[] } | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    Promise.all([
+      fetch("/api/pieces").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+      fetch("/api/defauts").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+    ]).then(([pieces, defauts]) => {
+      if (vivant) setSig({
+        pieces: Array.isArray(pieces) ? pieces : [],
+        defauts: Array.isArray(defauts) ? defauts : [],
+      });
+    });
+    return () => { vivant = false; };
+  }, []);
 
   /* ── Analyses par groupe, calculées depuis les projets de la période ──── */
   const P = useMemo(() => (Array.isArray(projects) ? projects : []), [projects]);
@@ -357,6 +375,40 @@ export function SignalStats({
     const rate = (n: number) => (total ? Math.round((n / total) * 1000) / 10 : 0);
     return { total, soucis, pieces, defauts, sav, rate };
   }, [P]);
+
+  /** Signalements rattachés aux projets de la période affichée. */
+  const sigStats = useMemo(() => {
+    if (!sig) return null;
+    const ids = new Set(P.map((p: any) => p.id));
+    const pieces = sig.pieces.filter((s) => ids.has(s.projectId));
+    const defauts = sig.defauts.filter((s) => ids.has(s.projectId));
+    // Une pièce est close quand elle est reçue ; un défaut quand il est résolu.
+    const piecesClose = pieces.filter((s) => s.status === "recu" || s.resolved === true);
+    const defautsClose = defauts.filter((s) => s.status === "resolu" || s.resolved === true);
+    const projetsTouches = new Set([...pieces, ...defauts].map((s) => s.projectId));
+    const parProjet = (() => {
+      const m = new Map<string, any[]>();
+      [...pieces, ...defauts].forEach((s) => {
+        const proj = P.find((p: any) => p.id === s.projectId);
+        if (!proj) return;
+        const label = proj.projet || proj.ofrTM || "Sans nom";
+        if (!m.has(label)) m.set(label, []);
+        if (!m.get(label)!.some((x: any) => x.id === proj.id)) m.get(label)!.push(proj);
+        (m.get(label) as any).count = ((m.get(label) as any).count || 0) + 1;
+      });
+      return [...m.entries()]
+        .map(([label, items]) => ({ label, value: (items as any).count || items.length, sub: `${items.length} proj.`, color: hueFor(label), items }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 15);
+    })();
+    return {
+      pieces, defauts, piecesClose, defautsClose,
+      piecesOuvertes: pieces.length - piecesClose.length,
+      defautsOuverts: defauts.length - defautsClose.length,
+      projetsTouches: projetsTouches.size,
+      parProjet,
+    };
+  }, [sig, P]);
 
   const TABS = [
     { id: "activite" as const, label: "Activité" },
@@ -880,6 +932,48 @@ export function SignalStats({
               unit=" proj."
             />
           </div>
+
+          {/* Signalements saisis dans l'app — bloc AJOUTÉ, les indicateurs
+              ci-dessus restent inchangés (ils reposent sur les anciennes
+              colonnes Notion, renseignées autrement). */}
+          <div className="sgs-kpis">
+            {[
+              { label: "Pièces signalées", n: sigStats?.pieces.length ?? 0, foot: `${sigStats?.piecesOuvertes ?? 0} en attente`, color: "#f59e0b" },
+              { label: "Pièces reçues", n: sigStats?.piecesClose.length ?? 0, foot: "signalements clos", color: "#16a34a" },
+              { label: "Défauts signalés", n: sigStats?.defauts.length ?? 0, foot: `${sigStats?.defautsOuverts ?? 0} non résolus`, color: "#dc2626" },
+              { label: "Projets concernés", n: sigStats?.projetsTouches ?? 0, foot: `sur ${fmt(quality.total)} projets`, color: "#6366f1" },
+            ].map((k, i) => (
+              <div key={k.label} className="sgs-kpi" style={{ animationDelay: `${i * 45}ms` }}>
+                <div className="sgs-kpi-top">
+                  <span className="sgs-kpi-label">{k.label}</span>
+                </div>
+                <span className="sgs-kpi-value" style={{ color: k.color }}>
+                  {sig ? fmt(k.n) : "…"}
+                </span>
+                <span className="sgs-kpi-foot">{k.foot}</span>
+              </div>
+            ))}
+          </div>
+
+          <Fold title="Signalements par état"
+            meta="pièces manquantes et défauts saisis dans l'app, sur la période">
+            <BarList
+              rows={[
+                { label: "Pièces en attente", value: sigStats?.piecesOuvertes ?? 0, color: "#f59e0b" },
+                { label: "Pièces reçues", value: sigStats?.piecesClose.length ?? 0, color: "#16a34a" },
+                { label: "Défauts non résolus", value: sigStats?.defautsOuverts ?? 0, color: "#dc2626" },
+                { label: "Défauts résolus", value: sigStats?.defautsClose.length ?? 0, color: "#0f766e" },
+              ]}
+              unit=" signal."
+              empty="Aucun signalement sur cette période."
+            />
+          </Fold>
+
+          <Fold title="Projets les plus signalés"
+            meta="nombre de signalements par projet · cliquez pour ouvrir le projet">
+            <BarList rows={sigStats?.parProjet ?? []} unit=" signal."
+              empty="Aucun signalement sur cette période." onPick={setPick} />
+          </Fold>
         </>
       )}
 
