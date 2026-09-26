@@ -26,6 +26,18 @@ type Retour = { ok: boolean; message: string } | null;
 export default function RapportsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
+  /* Page reservee aux administrateurs : un collaborateur qui taperait
+     l'adresse est renvoye a l'accueil, le menu ne suffit pas a proteger. */
+  const [autorise, setAutorise] = useState<boolean | null>(null);
+  useEffect(() => {
+    fetch("/api/auth")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.user?.role !== "admin") { router.replace("/"); setAutorise(false); }
+        else setAutorise(true);
+      })
+      .catch(() => { router.replace("/"); setAutorise(false); });
+  }, [router]);
   const [chargement, setChargement] = useState(true);
 
   const now = new Date();
@@ -99,6 +111,16 @@ export default function RapportsPage() {
       </p>
     );
   };
+
+  // Rien n'est peint tant que le role n'est pas confirme : pas d'aperçu
+  // fugace du contenu pour un collaborateur.
+  if (autorise !== true) {
+    return (
+      <p className="flex items-center gap-2 text-sm text-gray-400 px-4 py-10">
+        <Loader2 className="w-4 h-4 animate-spin" /> Vérification des droits…
+      </p>
+    );
+  }
 
   return (
     <div className="px-3 sm:px-4 py-4 w-full max-w-5xl mx-auto">
