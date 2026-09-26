@@ -3652,6 +3652,11 @@ function HomePage() {
         // DB1: daily services data
         const svcFiltered = statsServices.filter((r: any) => {
           if (r.objectif) return false; // lignes "Objectif" exclues des chiffres réels
+          // Ligne non rattachable à un mois : elle ne peut apparaître dans
+          // aucune évolution mensuelle, donc elle ne doit pas non plus entrer
+          // dans les totaux — sans quoi les indicateurs dépassent la somme des
+          // mois affichés (cumuls, récapitulatifs, lignes de contrôle…).
+          if (!r.mois) return false;
           if (statsDateMode === "year" && filterYear && r.annee !== filterYear) return false;
           if (statsDateMode === "month" && filterMonth && r.mois !== filterMonth) return false;
           if ((statsDateMode === "range" || statsDateMode === "rolling12") && (statsEffFrom || statsEffTo)) {
@@ -3660,7 +3665,11 @@ function HomePage() {
             let rowDate: string | null = null;
             if (r.mois) rowDate = `${r.mois}-${jour}`;
             else if (r.annee) rowDate = `${r.annee}-01-${jour}`;
-            if (!rowDate) return true;
+            // Une ligne sans mois NI année ne peut pas être située dans la
+            // période : la garder gonflait les indicateurs (elle entrait dans
+            // les totaux mais pas dans le tableau mensuel, d'où des KPI très
+            // supérieurs à la somme des mois affichés).
+            if (!rowDate) return false;
             const fromDate = statsEffFrom || "0000-00-00";
             const toDate   = statsEffTo   || "9999-12-31";
             if (rowDate < fromDate || rowDate > toDate) return false;
