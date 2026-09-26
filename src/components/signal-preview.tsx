@@ -19,7 +19,8 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { X } from "lucide-react";
+import { X, Phone, FileText, MessageSquare, Package } from "lucide-react";
+import { supplierLogo } from "@/lib/supplier-logos";
 import type { Project } from "@/lib/notion";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 
@@ -73,6 +74,17 @@ function daysInfo(raw: string | null | undefined) {
   return { colorClass, bgClass, days };
 }
 
+/** Rend cliquables les numéros de téléphone d'un texte libre : on appelle
+ *  depuis l'aperçu, sans ouvrir le projet. */
+function linkifyTel(texte: string) {
+  const parts = texte.split(/(\+?\d[\d\s.\/-]{7,}\d)/g);
+  return parts.map((part, i) => {
+    if (i % 2 === 0) return <span key={i}>{part}</span>;
+    const num = part.replace(/[^\d+]/g, "");
+    return <a key={i} href={`tel:${num}`} className="sg-pv-tel">{part.trim()}</a>;
+  });
+}
+
 /* ── La fiche elle-même ──────────────────────────────────────────────────── */
 
 export function SignalPreviewCard({
@@ -106,6 +118,9 @@ export function SignalPreviewCard({
           { k: "EMPLACEMENT", v: p.emplacementCabine || "—" },
           { k: "ARRIVAGE", v: (p.arrivageTM || p.arrivageGrossiste || "").split("T")[0] || "—" },
           { k: "COLLABORATEUR", v: p.collaborateurs || "—" },
+          { k: "SÉRIE", v: (p.seriesCabines || []).join(", ") || "—" },
+          { k: "CARTONS", v: p.nbCartons != null ? String(p.nbCartons) : "—" },
+          { k: "PERS. MONTAGE", v: (p as any).nbCollaborateursMontage ? String((p as any).nbCollaborateursMontage) : "—" },
         ]).map((f) => (
           <div key={f.k} className="sg-field">
             <span className="sg-field-k">{f.k}</span>
@@ -113,6 +128,65 @@ export function SignalPreviewCard({
           </div>
         ))}
       </div>
+
+      {/* Fournisseurs — logo quand la maison en a un, nom sinon. */}
+      {(p.fournisseurs || []).length > 0 && (
+        <div className="sg-pv-bloc">
+          <span className="sg-pv-titre"><Package className="w-3.5 h-3.5" /> Fournisseur</span>
+          <div className="sg-pv-fourns">
+            {(p.fournisseurs || []).map((f: string) => {
+              const logo = supplierLogo(f);
+              return (
+                <span key={f} className="sg-pv-fourn" title={f}>
+                  {logo
+                    ? <img src={logo.src} alt={f} style={logo.white ? { filter: "invert(1)" } : undefined} />
+                    : null}
+                  <b>{f}</b>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Contacts : numéros cliquables, pour appeler sans ouvrir le projet. */}
+      {(p.contactsRDV || p.contacts) && (
+        <div className="sg-pv-bloc">
+          <span className="sg-pv-titre"><Phone className="w-3.5 h-3.5" /> Contacts</span>
+          {[
+            { t: "Pour RDV", v: p.contactsRDV },
+            { t: "Projet", v: p.contacts },
+          ].filter((c) => String(c.v || "").trim()).map((c) => (
+            <div key={c.t} className="sg-pv-contact">
+              <span className="sg-pv-contact-t">{c.t}</span>
+              <span className="sg-pv-contact-v">{linkifyTel(String(c.v))}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Documents pour Montage */}
+      {((p as any).documentsMontagee || []).length > 0 && (
+        <div className="sg-pv-bloc">
+          <span className="sg-pv-titre"><FileText className="w-3.5 h-3.5" /> Documents pour Montage</span>
+          <div className="sg-pv-docs">
+            {((p as any).documentsMontagee as { name: string; url: string }[]).map((d, i) => (
+              <a key={`${d.url}-${i}`} href={d.url} target="_blank" rel="noopener noreferrer"
+                className="sg-pv-doc" title={d.name}>
+                {d.name || `Document ${i + 1}`}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Journal des échanges */}
+      {String((p as any).journalEchanges || "").trim() && (
+        <div className="sg-pv-bloc">
+          <span className="sg-pv-titre"><MessageSquare className="w-3.5 h-3.5" /> Journal des échanges</span>
+          <p className="sg-pv-journal">{String((p as any).journalEchanges)}</p>
+        </div>
+      )}
       {total > 0 && (
         <div className="sg-gauge-wrap">
           <div className="sg-gauge-head">

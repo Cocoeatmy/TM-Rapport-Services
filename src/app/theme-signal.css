@@ -1973,6 +1973,66 @@ html[data-ui="signal"] .sgv-row:hover {
 }
 html[data-ui="signal"] .sgv-row p { font-size: 13px; font-weight: 500; }
 
+/* ── Blocs enrichis de l'aperçu de projet ────────────────────────────────
+   Fournisseur, contacts, documents, journal : de quoi fixer un rendez-vous
+   sans ouvrir le projet. */
+html[data-ui="signal"] .sg-pv-bloc {
+  display: flex; flex-direction: column; gap: 6px;
+  padding-top: 10px; border-top: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-pv-titre {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-pv-fourns { display: flex; flex-wrap: wrap; gap: 8px; }
+html[data-ui="signal"] .sg-pv-fourn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 4px 10px 4px 6px; border-radius: 9px;
+  background: var(--sg-paper-2); border: 1px solid var(--sg-line);
+  font-size: 12px; color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sg-pv-fourn img {
+  height: 16px; width: auto; max-width: 62px; object-fit: contain;
+}
+html[data-ui="signal"] .sg-pv-fourn b { font-weight: 600; color: var(--sg-text); }
+
+html[data-ui="signal"] .sg-pv-contact {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 7px 10px; border-radius: 9px; background: var(--sg-paper-2);
+}
+html[data-ui="signal"] .sg-pv-contact-t {
+  font-size: 10px; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-pv-contact-v {
+  font-size: 12.5px; color: var(--sg-text); white-space: pre-line; line-height: 1.5;
+}
+/* Numéro cliquable : un appel part d'ici, sans ouvrir le projet. */
+html[data-ui="signal"] .sg-pv-tel {
+  font-family: var(--font-mono); font-weight: 600;
+  color: var(--sg-signal); text-decoration: none;
+  padding: 1px 4px; margin: 0 -2px; border-radius: 5px;
+}
+html[data-ui="signal"] .sg-pv-tel:hover { background: var(--sg-signal-soft); }
+
+html[data-ui="signal"] .sg-pv-docs { display: flex; flex-direction: column; gap: 4px; }
+html[data-ui="signal"] .sg-pv-doc {
+  display: block; padding: 6px 10px; border-radius: 8px;
+  background: var(--sg-paper-2); border: 1px solid var(--sg-line);
+  font-size: 12px; color: var(--sg-signal); text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sg-pv-doc:hover { border-color: var(--sg-signal); }
+
+html[data-ui="signal"] .sg-pv-journal {
+  margin: 0; padding: 8px 10px; border-radius: 9px;
+  background: var(--sg-paper-2);
+  font-size: 12px; color: var(--sg-text-2); line-height: 1.5;
+  white-space: pre-line;
+  max-height: 160px; overflow-y: auto;
+}
+
 @media (max-width: 767px) {
   html[data-ui="signal"] .sg-plist-link {
     grid-template-columns: minmax(0, 1fr) auto;
