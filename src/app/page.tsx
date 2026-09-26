@@ -1515,7 +1515,19 @@ function HomePage() {
     };
     setHeights();
     window.addEventListener("resize", setHeights);
-    return () => window.removeEventListener("resize", setHeights);
+    // La hauteur du header bouge APRÈS le montage (badge de notifications,
+    // boutons conditionnels, polices). Mesurée une seule fois, la variable
+    // restait fausse et la barre collante laissait un liseré clair sous le
+    // header une fois la page défilée. On suit donc sa taille réelle.
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(setHeights);
+      const header = document.getElementById("main-header");
+      const navbar = document.getElementById("main-navbar");
+      if (header) ro.observe(header);
+      if (navbar) ro.observe(navbar);
+    }
+    return () => { window.removeEventListener("resize", setHeights); ro?.disconnect(); };
   }, []);
 
   /* Restauration d'une vue par le geste de navigation (thème Signal).

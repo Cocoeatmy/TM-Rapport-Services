@@ -189,6 +189,19 @@ html[data-ui="signal"] .glass-navbar {
    exclues par :not(.nav-logo-chip). */
 html[data-ui="signal"] #main-navbar {
   color: var(--sg-on-ink);
+  position: sticky; /* déjà posé par la page — rappelé pour l'ancrage ci-dessous */
+}
+/* Soudure au header : le bandeau encre est prolongé vers le haut. Si la barre
+   collante s'arrête un ou deux pixels sous le header (hauteur mesurée, arrondis
+   de zoom), plus aucun liseré clair n'apparaît en défilant. La bande passe
+   DERRIÈRE le header, opaque et de même encre : invisible en haut de page. */
+html[data-ui="signal"] #main-navbar::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 100%;
+  height: 44px;
+  background: var(--sg-ink);
+  pointer-events: none;
 }
 html[data-ui="signal"] #main-navbar button:not(.nav-logo-chip) {
   color: var(--sg-on-ink-dim);
