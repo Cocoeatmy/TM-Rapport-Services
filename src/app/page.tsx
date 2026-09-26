@@ -1506,6 +1506,25 @@ function HomePage() {
     return () => window.removeEventListener("resize", setHeights);
   }, []);
 
+  /* Restauration d'une vue par le geste de navigation (thème Signal).
+     Le mode et les filtres sont portés par l'état React et initialisés une
+     seule fois : changer l'URL ne suffit donc pas à revenir à la section
+     précédente. Le composant de geste nous transmet l'URL cible ici. */
+  useEffect(() => {
+    const onRestore = (e: Event) => {
+      const url = (e as CustomEvent)?.detail?.url;
+      if (typeof url !== "string") return;
+      const sp = new URL(url, window.location.origin).searchParams;
+      const m = sp.get("mode") || "dashboard";
+      if (validModes.includes(m as Mode)) setMode(m as Mode);
+      setStatusFilter(sp.get("status"));
+      setCollabFilter(sp.get("collab"));
+      setQuickFilter(sp.get("quick"));
+    };
+    window.addEventListener("tm-restore-view", onRestore);
+    return () => window.removeEventListener("tm-restore-view", onRestore);
+  }, []);
+
   // Sync filters to URL (without search — search uses debounce to avoid losing focus)
   useEffect(() => {
     if (isInitialMount.current) {
