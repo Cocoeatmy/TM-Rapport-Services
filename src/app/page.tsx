@@ -8,7 +8,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, PanelRightOpen, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, ShieldCheck, Compass, Receipt, AlertTriangle, CheckCircle2, Clock, Truck } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, ShieldCheck, Compass, Receipt, AlertTriangle, CheckCircle2, Clock, Truck } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -2499,23 +2499,28 @@ function HomePage() {
   /* Bouton « fenêtre secondaire » : rendu soit dans la barre d'onglets
      (comportement historique), soit dans l'en-tête en thème Signal. */
   const floatingWindowButton = (
+    /* Même gabarit que les autres boutons de l'en-tête : rond, translucide sur
+       le bandeau. L'icône « deux colonnes » dit ce qu'on obtient — une seconde
+       fenêtre à côté de la première — là où le panneau latéral prêtait à
+       confusion avec un volet de navigation. */
     <button
       onClick={openFloatingWindow}
       disabled={floatingWindows.length >= 2}
-      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-md active:scale-95 relative shrink-0 ${
+      className={`w-9 h-9 shrink-0 rounded-full border flex items-center justify-center transition-all active:scale-95 relative disabled:opacity-40 disabled:cursor-not-allowed ${
         floatingWindows.length > 0
-          ? "bg-cyan-600 text-white hover:bg-cyan-700"
-          : "bg-white/80 dark:bg-slate-700 text-gray-500 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-600 border border-gray-200 dark:border-gray-600"
-      } disabled:opacity-40 disabled:cursor-not-allowed`}
+          ? "bg-white/30 border-white/40 text-white"
+          : "bg-white/15 border-white/20 text-white hover:bg-white/25"
+      }`}
       title={
-        floatingWindows.length === 0 ? "Ouvrir une fenêtre secondaire" :
-        floatingWindows.length === 1 ? "Ouvrir une 2ème fenêtre" :
+        floatingWindows.length === 0 ? "Ouvrir une fenêtre secondaire, côte à côte" :
+        floatingWindows.length === 1 ? "Ouvrir une 2ᵉ fenêtre secondaire" :
         "2 fenêtres ouvertes (maximum)"
       }
+      aria-label="Ouvrir une fenêtre secondaire"
     >
-      <PanelRightOpen className="w-4 h-4" />
+      <Columns2 className="w-4 h-4" />
       {floatingWindows.length > 0 && (
-        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white text-cyan-700 text-[9px] font-bold flex items-center justify-center shadow">
+        <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-white text-[#1e3a5f] text-[9px] font-bold flex items-center justify-center shadow">
           {floatingWindows.length}
         </span>
       )}
