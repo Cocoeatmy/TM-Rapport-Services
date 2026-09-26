@@ -446,6 +446,23 @@ export function SignalStats({
     return splitNames(p?.collaborateurs || "");
   };
 
+  /** Libellé d'ÉQUIPE d'une cabine : « Claudio & Micael », tel que saisi.
+   *  Un binôme se juge comme un binôme — imputer deux cas à Micael sans dire
+   *  qu'il était accompagné de Claudio donnait une lecture fausse. */
+  const equipeOf = (p: any, cab?: number | null): string => {
+    const noms = monteursOf(p, cab);
+    return noms.length ? [...noms].sort((a, b) => a.localeCompare(b)).join(" & ") : "Non attribué";
+  };
+
+  /** Cause du SAV d'une cabine, sinon celle du projet. */
+  const causeSavOf = (p: any, cab?: number | null): string => {
+    const map = parseCabMap(p?.causeSavCabines || "");
+    if (cab != null && map.has(cab)) return map.get(cab)!;
+    return String(p?.causeSAV || "");
+  };
+  /** Un SAV n'est imputable au monteur que si la cause est une erreur TM. */
+  const estErreurTM = (cause: string) => /\btm\b/i.test(cause || "");
+
   /** Index de cabine d'un signalement, via son libellé et les noms de cabines. */
   const cabIndexOf = (p: any, label?: string): number | null => {
     if (!label) return null;
@@ -468,13 +485,17 @@ export function SignalStats({
   };
 
   const [qualFocus, setQualFocus] = useState<"sav" | "soucis" | "pieces" | "defauts">("sav");
+  /** Imputation à l'équipe (binôme compris) ou à chaque monteur pris à part. */
+  const [blameMode, setBlameMode] = useState<"equipe" | "monteur">("equipe");
 
   /** Répartition par monteur d'un indicateur qualité. */
   const blameBy = useMemo(() => {
     const build = (entries: { p: any; cab: number | null }[]) => {
       const m = new Map<string, { n: number; items: any[] }>();
       entries.forEach(({ p, cab }) => {
-        const noms = monteursOf(p, cab);
+        const noms = blameMode === "equipe"
+          ? [equipeOf(p, cab)]
+          : monteursOf(p, cab);
         (noms.length ? noms : ["Non attribué"]).forEach((n) => {
           const cur = m.get(n) || { n: 0, items: [] as any[] };
           cur.n += 1;
@@ -485,7 +506,9 @@ export function SignalStats({
       return [...m.entries()]
         .map(([label, v]) => ({
           label, value: v.n, sub: `${v.items.length} proj.`, items: v.items,
-          color: label === "Non attribué" ? "#cbd5e1" : getCollaboratorColor(label).dot,
+          color: label === "Non attribué" ? "#cbd5e1"
+            : label.includes("&") ? getTeamColor(label).dot
+            : getCollaboratorColor(label).dot,
         }))
         .sort((a, b) => b.value - a.value);
     };
@@ -493,9 +516,14 @@ export function SignalStats({
     const savEntries: { p: any; cab: number | null }[] = [];
     P.forEach((p: any) => {
       if (!hasSav(p)) return;
+      /* Un SAV dû au client ou au fournisseur n'est pas la faute du monteur :
+         seule une cause « Erreur TM » lui est imputée. */
       const cabs = cabinesSavOf(p);
-      if (cabs.length) cabs.forEach((c) => savEntries.push({ p, cab: c }));
-      else savEntries.push({ p, cab: null });
+      if (cabs.length) {
+        cabs.forEach((c) => { if (estErreurTM(causeSavOf(p, c))) savEntries.push({ p, cab: c }); });
+      } else if (estErreurTM(causeSavOf(p, null))) {
+        savEntries.push({ p, cab: null });
+      }
     });
 
     const soucisEntries = P
@@ -513,7 +541,7 @@ export function SignalStats({
       pieces: build(fromSig(sig?.pieces || [])),
       defauts: build(fromSig(sig?.defauts || [])),
     };
-  }, [P, sig]);
+  }, [P, sig, blameMode]);
 
   const TABS = [
     { id: "activite" as const, label: "Activité" },
@@ -1039,14 +1067,25 @@ export function SignalStats({
           </div>
 
           {/* Qui a posé la cabine qui pose problème ? */}
-          <Fold defaultOpen title="Responsabilité par monteur"
-            meta="attribution PAR CABINE : sur un projet multi-cabine, seul le monteur de la cabine concernée est compté"
+          <Fold defaultOpen
+            title={blameMode === "equipe" ? "Responsabilité par équipe" : "Responsabilité par monteur"}
+            meta={qualFocus === "sav"
+              ? "attribution PAR CABINE · seuls les SAV dont la cause est une erreur TM sont imputés"
+              : "attribution PAR CABINE : sur un projet multi-cabine, seule l'équipe de la cabine concernée est comptée"}
             right={
-              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
-                {([["sav", "SAV"], ["soucis", "Soucis"], ["pieces", "Pièces"], ["defauts", "Défauts"]] as const).map(([v, lbl]) => (
-                  <button key={v} type="button" className={qualFocus === v ? "is-on" : ""}
-                    onClick={() => setQualFocus(v)}>{lbl}</button>
-                ))}
+              <div className="sgs-blame-ctl" onClick={(e) => e.stopPropagation()}>
+                <div className="sgs-seg">
+                  {([["equipe", "Équipe"], ["monteur", "Monteur"]] as const).map(([v, lbl]) => (
+                    <button key={v} type="button" className={blameMode === v ? "is-on" : ""}
+                      onClick={() => setBlameMode(v)}>{lbl}</button>
+                  ))}
+                </div>
+                <div className="sgs-seg">
+                  {([["sav", "SAV"], ["soucis", "Soucis"], ["pieces", "Pièces"], ["defauts", "Défauts"]] as const).map(([v, lbl]) => (
+                    <button key={v} type="button" className={qualFocus === v ? "is-on" : ""}
+                      onClick={() => setQualFocus(v)}>{lbl}</button>
+                  ))}
+                </div>
               </div>
             }>
             <BarList rows={blameBy[qualFocus]} unit=" cas" onPick={setPick}

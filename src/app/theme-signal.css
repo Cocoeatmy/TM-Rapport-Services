@@ -1524,6 +1524,10 @@ html[data-ui="signal"] .sgs-seg button {
   background: transparent; color: var(--sg-text-2);
 }
 html[data-ui="signal"] .sgs-seg button.is-on { background: var(--sg-ink); color: #ffffff; font-weight: 600; }
+/* Deux sélecteurs côte à côte (équipe/monteur puis indicateur). */
+html[data-ui="signal"] .sgs-blame-ctl {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
 
 /* Graphe */
 html[data-ui="signal"] .sgs-chart { position: relative; }
