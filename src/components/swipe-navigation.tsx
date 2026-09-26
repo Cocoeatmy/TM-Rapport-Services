@@ -87,6 +87,10 @@ export function SwipeNavigation() {
     // `router.replace` ne déclenche pas popstate : on observe l'URL.
     const poll = window.setInterval(record, 350);
     window.addEventListener("popstate", record);
+    // Une vue qui s'ouvre sans changer de route (panneau du tableau de bord)
+    // signale son étape immédiatement, sans attendre la relecture périodique :
+    // un geste de retour lancé aussitôt après trouve l'étape déjà en place.
+    window.addEventListener("tm-url-changed", record);
 
     const goTo = (url: string) => {
       suppress.current = true;
@@ -176,6 +180,7 @@ export function SwipeNavigation() {
       window.clearInterval(poll);
       window.clearInterval(idle);
       window.removeEventListener("popstate", record);
+      window.removeEventListener("tm-url-changed", record);
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove);

@@ -1644,6 +1644,43 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* ── Le panneau ouvert devient une étape de navigation ────────────────────
+     Ouvrir « RDV Montage à fixer » depuis le tableau de bord ne changeait pas
+     l'URL : pour le geste de retour, cette étape n'existait pas et il
+     remontait directement au dernier projet consulté. On inscrit donc le
+     panneau dans l'URL (?panel=…). Thème Signal uniquement, puisque lui seul
+     a le geste — les autres thèmes gardent leur URL inchangée. */
+  useEffect(() => {
+    if (!isSignal || forcePanel) return;
+    const url = new URL(window.location.href);
+    const current = url.searchParams.get("panel");
+    const wanted = showSummaryPanel || null;
+    if (current === wanted) return;
+    if (wanted) url.searchParams.set("panel", wanted);
+    else url.searchParams.delete("panel");
+    window.history.replaceState(null, "", url.pathname + url.search);
+    // Prévient la pile de navigation sans attendre sa relecture périodique.
+    window.dispatchEvent(new Event("tm-url-changed"));
+  }, [showSummaryPanel, isSignal, forcePanel]);
+
+  /* Retour / avance au geste : la vue est portée par l'état React, l'URL seule
+     ne suffit pas à la restaurer. */
+  useEffect(() => {
+    if (!isSignal || forcePanel) return;
+    const onRestore = (e: Event) => {
+      const url = (e as CustomEvent<{ url?: string }>).detail?.url;
+      const target = new URL(url || window.location.href, window.location.origin);
+      const panel = target.searchParams.get("panel");
+      setShowSummaryPanel((panel as typeof showSummaryPanel) ?? null);
+      try {
+        if (panel) sessionStorage.setItem("tm-dash-panel", panel);
+        else sessionStorage.removeItem("tm-dash-panel");
+      } catch {}
+    };
+    window.addEventListener("tm-restore-view", onRestore);
+    return () => window.removeEventListener("tm-restore-view", onRestore);
+  }, [isSignal, forcePanel]);
+
   // Le bouton Accueil ferme tout panneau ouvert (dashboard déjà monté).
   useEffect(() => {
     const handler = () => closePanel();
