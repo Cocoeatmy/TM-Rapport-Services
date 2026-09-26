@@ -417,12 +417,28 @@ export function SignalStats({
         .sort((a, b) => b.value - a.value)
         .slice(0, 15);
     })();
+    /* Projets derrière une liste de signalements : chaque compteur doit
+       pouvoir s'ouvrir sur ce qu'il recouvre, comme les autres. */
+    const projetsDe = (list: any[]) => {
+      const vus = new Set<string>();
+      return list.flatMap((s) => {
+        if (vus.has(s.projectId)) return [];
+        vus.add(s.projectId);
+        const p = P.find((x: any) => x.id === s.projectId);
+        return p ? [p] : [];
+      });
+    };
+    const piecesOuvertesList = pieces.filter((s) => !(s.status === "recu" || s.resolved === true));
+    const defautsOuvertsList = defauts.filter((s) => !(s.status === "resolu" || s.resolved === true));
     return {
       pieces, defauts, piecesClose, defautsClose,
-      piecesOuvertes: pieces.length - piecesClose.length,
-      defautsOuverts: defauts.length - defautsClose.length,
+      piecesOuvertes: piecesOuvertesList.length,
+      defautsOuverts: defautsOuvertsList.length,
       projetsTouches: projetsTouches.size,
       parProjet,
+      projetsDe,
+      piecesOuvertesList, defautsOuvertsList,
+      tousProjets: projetsDe([...pieces, ...defauts]),
     };
   }, [sig, P]);
 
@@ -1158,12 +1174,16 @@ export function SignalStats({
               colonnes Notion, renseignées autrement). */}
           <div className="sgs-kpis">
             {[
-              { label: "Pièces signalées", n: sigStats?.pieces.length ?? 0, foot: `${sigStats?.piecesOuvertes ?? 0} en attente`, color: "#f59e0b" },
-              { label: "Pièces reçues", n: sigStats?.piecesClose.length ?? 0, foot: "signalements clos", color: "#16a34a" },
-              { label: "Défauts signalés", n: sigStats?.defauts.length ?? 0, foot: `${sigStats?.defautsOuverts ?? 0} non résolus`, color: "#dc2626" },
-              { label: "Projets concernés", n: sigStats?.projetsTouches ?? 0, foot: `sur ${fmt(quality.total)} projets`, color: "#6366f1" },
+              { label: "Pièces signalées", n: sigStats?.pieces.length ?? 0, foot: `${sigStats?.piecesOuvertes ?? 0} en attente`, color: "#f59e0b", items: sigStats?.projetsDe(sigStats.pieces) },
+              { label: "Pièces reçues", n: sigStats?.piecesClose.length ?? 0, foot: "signalements clos", color: "#16a34a", items: sigStats?.projetsDe(sigStats.piecesClose) },
+              { label: "Défauts signalés", n: sigStats?.defauts.length ?? 0, foot: `${sigStats?.defautsOuverts ?? 0} non résolus`, color: "#dc2626", items: sigStats?.projetsDe(sigStats.defauts) },
+              { label: "Projets concernés", n: sigStats?.projetsTouches ?? 0, foot: `sur ${fmt(quality.total)} projets`, color: "#6366f1", items: sigStats?.tousProjets },
             ].map((k, i) => (
-              <div key={k.label} className="sgs-kpi" style={{ animationDelay: `${i * 45}ms` }}>
+              <button key={k.label} type="button"
+                className="sgs-kpi is-click" style={{ animationDelay: `${i * 45}ms` }}
+                disabled={!k.items?.length}
+                title={k.items?.length ? `Voir les ${k.items.length} projets concernés` : undefined}
+                onClick={() => setPick({ label: k.label, value: k.n, color: k.color, items: k.items })}>
                 <div className="sgs-kpi-top">
                   <span className="sgs-kpi-label">{k.label}</span>
                 </div>
@@ -1171,7 +1191,7 @@ export function SignalStats({
                   {sig ? fmt(k.n) : "…"}
                 </span>
                 <span className="sgs-kpi-foot">{k.foot}</span>
-              </div>
+              </button>
             ))}
           </div>
 
@@ -1207,13 +1227,14 @@ export function SignalStats({
             meta="pièces manquantes et défauts saisis dans l'app, sur la période">
             <BarList
               rows={[
-                { label: "Pièces en attente", value: sigStats?.piecesOuvertes ?? 0, color: "#f59e0b" },
-                { label: "Pièces reçues", value: sigStats?.piecesClose.length ?? 0, color: "#16a34a" },
-                { label: "Défauts non résolus", value: sigStats?.defautsOuverts ?? 0, color: "#dc2626" },
-                { label: "Défauts résolus", value: sigStats?.defautsClose.length ?? 0, color: "#0f766e" },
+                { label: "Pièces en attente", value: sigStats?.piecesOuvertes ?? 0, color: "#f59e0b", items: sigStats?.projetsDe(sigStats.piecesOuvertesList) },
+                { label: "Pièces reçues", value: sigStats?.piecesClose.length ?? 0, color: "#16a34a", items: sigStats?.projetsDe(sigStats.piecesClose) },
+                { label: "Défauts non résolus", value: sigStats?.defautsOuverts ?? 0, color: "#dc2626", items: sigStats?.projetsDe(sigStats.defautsOuvertsList) },
+                { label: "Défauts résolus", value: sigStats?.defautsClose.length ?? 0, color: "#0f766e", items: sigStats?.projetsDe(sigStats.defautsClose) },
               ]}
               unit=" signal."
               empty="Aucun signalement sur cette période."
+              onPick={setPick}
             />
           </Fold>
 
