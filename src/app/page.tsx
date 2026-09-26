@@ -3841,7 +3841,6 @@ function HomePage() {
 
         // Collaborator stats — tous les projets clôturés (cmd + services + sav terminés)
         // + projets actifs dont la date de montage est passée (réalisés mais pas encore clôturés)
-        const todayForStats = new Date().toISOString().split("T")[0];
         const allProjectsRaw: Project[] = (() => {
           const seenIds = new Set<string>();
           const add = (list: Project[]) => list.filter(p => !seenIds.has(p.id) && !!seenIds.add(p.id));
@@ -3852,14 +3851,20 @@ function HomePage() {
             ...add(projectsData["sav-termine"] || []),
             ...add(projectsData["mesures-termine"] || []),
           ];
-          // 2. Projets actifs dont le montage est déjà passé (clôture pas encore faite dans Notion)
+          /* 2. Projets encore ouverts mais dont le montage est RÉELLEMENT fait
+             (toutes les cabines posées), la clôture n'ayant pas encore été
+             saisie dans Notion.
+             Auparavant on retenait tout projet dont la DATE de montage était
+             passée : un rendez-vous simplement planifié, voire reporté,
+             gonflait donc les statistiques avec des cabines jamais posées. */
           const active = [
             ...(projectsData["cmd"] || []),
             ...(projectsData["services"] || []),
             ...(projectsData["sav"] || []),
           ].filter(p => {
-            const date = (p.dateMontage || "").split("T")[0];
-            return date && date <= todayForStats;
+            const total = p.nbCabines || 0;
+            const posees = p.nbCabinesInstallees || 0;
+            return total > 0 && posees >= total;
           });
           add(active);
           return [...terminated, ...active.filter(p => !terminated.some(t => t.id === p.id))];

@@ -92,3 +92,58 @@ export function cantonLabel(address: string): string {
   const c = cantonOf(address);
   return c ? (CANTON_LABELS[c] || c) : "Indéterminé";
 }
+
+/**
+ * Régions de travail (districts et bassins usuels), déduites du code postal.
+ *
+ * C'est une APPROXIMATION assumée : les limites de districts ne suivent pas
+ * exactement les plages de codes postaux. Elle reste suffisamment juste pour
+ * répondre à « où travaillons-nous le plus », et tout ce qui sort des plages
+ * connues tombe dans « Autre région » plutôt que d'être mal rangé.
+ */
+const REGION_RANGES: [number, number, string][] = [
+  [1000, 1019, "Lausanne"],
+  [1020, 1033, "Ouest lausannois"],
+  [1034, 1059, "Gros-de-Vaud"],
+  [1060, 1099, "Lavaux-Oron"],
+  [1100, 1199, "Morges"],
+  [1200, 1259, "Genève"],
+  [1260, 1279, "Nyon"],
+  [1280, 1290, "Genève"],
+  [1291, 1291, "Nyon"],
+  [1292, 1294, "Genève"],
+  [1295, 1297, "Nyon"],
+  [1298, 1298, "Genève"],
+  [1299, 1299, "Nyon"],
+  [1300, 1329, "Morges"],
+  [1330, 1359, "Jura-Nord vaudois"],
+  [1400, 1469, "Jura-Nord vaudois"],
+  [1470, 1529, "Broye"],
+  [1530, 1599, "Broye"],
+  [1600, 1629, "Veveyse / Oron"],
+  [1630, 1669, "Gruyère"],
+  [1670, 1699, "Glâne"],
+  [1700, 1749, "Sarine (Fribourg)"],
+  [1750, 1785, "Sarine (Fribourg)"],
+  [1786, 1799, "Lac / Broye fribourgeoise"],
+  [1800, 1849, "Riviera - Pays-d'Enhaut"],
+  [1850, 1899, "Chablais"],
+  [1900, 1999, "Valais central"],
+  [2000, 2149, "Neuchâtel"],
+  [2300, 2416, "Montagnes neuchâteloises"],
+  [2500, 2599, "Bienne"],
+  [2600, 2762, "Jura bernois"],
+  [2800, 2999, "Jura"],
+  [3900, 3999, "Haut-Valais"],
+];
+
+/** Région d'un chantier, ou « Autre région » hors des plages connues. */
+export function regionLabel(address: string): string {
+  const npa = (address || "").match(/\b(\d{4})\b/);
+  if (!npa) return "Sans adresse";
+  const n = Number(npa[1]);
+  for (const [from, to, name] of REGION_RANGES) {
+    if (n >= from && n <= to) return name;
+  }
+  return "Autre région";
+}

@@ -18,7 +18,7 @@ import { useMemo, useState } from "react";
 import { TrendingUp, TrendingDown, Minus, RefreshCw, FileText, ChevronDown, ChevronUp, X, ChevronRight, MapPin } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { cantonLabel } from "@/lib/swiss-cantons";
+import { cantonLabel, regionLabel } from "@/lib/swiss-cantons";
 
 /* Carte Leaflet : chargée seulement quand la carte est dépliée — elle géocode
    les adresses, inutile de payer ça à l'ouverture de la page. */
@@ -204,7 +204,7 @@ export function SignalStats({
   /** Onglet d'analyse : rien n'est affiché en vrac, on choisit son angle. */
   const [tab, setTab] = useState<"activite" | "equipes" | "repartition" | "qualite">("activite");
   /** Vue géographique : par localité ou par canton. */
-  const [geoMode, setGeoMode] = useState<"npa" | "canton">("npa");
+  const [geoMode, setGeoMode] = useState<"npa" | "canton" | "region">("npa");
   /** Groupe sélectionné : ouvre la liste des projets qui le composent. */
   const [pick, setPick] = useState<BarRow | null>(null);
 
@@ -249,8 +249,16 @@ export function SignalStats({
   const byList = (field: string) => {
     const m = new Map<string, { cab: number; items: any[] }>();
     P.forEach((p) => {
-      const arr: string[] = Array.isArray(p[field]) ? p[field] : [];
-      (arr.length ? arr : ["—"]).forEach((k: string) => {
+      let arr: string[] = Array.isArray(p[field]) ? p[field] : [];
+      /* « TM Douche » est notre propre enseigne : le client ne doit pas voir la
+         marque réelle, mais nous si. Le projet forme donc UNE seule entrée
+         « TM Douche / Bernstein » — et non deux lignes qui compteraient ses
+         cabines deux fois. */
+      if (field === "fournisseurs" && arr.some((f) => /tm\s*douche/i.test(f || ""))) {
+        const autres = arr.filter((f) => !/tm\s*douche/i.test(f || ""));
+        arr = [autres.length ? `TM Douche / ${autres.join(", ")}` : "TM Douche"];
+      }
+      (arr.length ? arr : ["Non renseigné"]).forEach((k: string) => {
         const cur = m.get(k) || { cab: 0, items: [] };
         cur.cab += cabOf(p); cur.items.push(p);
         m.set(k, cur);
@@ -312,13 +320,15 @@ export function SignalStats({
   }, [P]);
 
   /** Répartition géographique : par localité (NPA) ou par canton. */
-  const geoBy = (mode: "npa" | "canton") => {
+  const geoBy = (mode: "npa" | "canton" | "region") => {
     const m = new Map<string, { cab: number; items: any[] }>();
     P.forEach((p) => {
       const addr = String(p.adresseChantier || p.projet || "");
       let label: string;
       if (mode === "canton") {
         label = cantonLabel(addr);
+      } else if (mode === "region") {
+        label = regionLabel(addr);
       } else {
         const mm = addr.match(/\b(\d{4})\s+([^,]+)/);
         label = mm ? `${mm[1]} ${mm[2].trim()}` : "Sans adresse";
@@ -333,6 +343,7 @@ export function SignalStats({
   };
   const byGeoNpa = useMemo(() => geoBy("npa").slice(0, 20), [P]);
   const byGeoCanton = useMemo(() => geoBy("canton"), [P]);
+  const byGeoRegion = useMemo(() => geoBy("region"), [P]);
 
   const quality = useMemo(() => {
     const total = P.length || 0;
@@ -800,24 +811,27 @@ export function SignalStats({
 
       {tab === "repartition" && (
         <div className="sgs-grid2">
-          <Fold title="Cabines par fournisseur" meta="volume par marque · cliquez une ligne pour voir les projets">
+          <Fold title="Cabines par fournisseur" meta="cabines des projets terminés · cliquez une ligne pour voir les projets">
             <BarList rows={byFournisseur} unit=" cab." onPick={setPick} />
           </Fold>
-          <Fold title="Cabines par série" meta="modèles les plus posés · cliquez une ligne pour voir les projets">
+          <Fold title="Cabines par série" meta="cabines des projets terminés · cliquez une ligne pour voir les projets">
             <BarList rows={bySerie} unit=" cab." onPick={setPick} />
           </Fold>
           <Fold className="sgs-span2" title="Répartition géographique"
             meta={geoMode === "canton"
               ? "par canton · déduit du code postal et de l'adresse"
-              : "par localité (NPA) · 20 premières"}
+              : geoMode === "region"
+                ? "par région de travail · approximation par code postal"
+                : "par localité (NPA) · 20 premières"}
             right={
               <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
                 <button type="button" className={geoMode === "npa" ? "is-on" : ""} onClick={() => setGeoMode("npa")}>Localité</button>
+                <button type="button" className={geoMode === "region" ? "is-on" : ""} onClick={() => setGeoMode("region")}>Région</button>
                 <button type="button" className={geoMode === "canton" ? "is-on" : ""} onClick={() => setGeoMode("canton")}>Canton</button>
               </div>
             }>
-            <BarList rows={geoMode === "canton" ? byGeoCanton : byGeoNpa} unit=" cab."
-              empty="Aucune adresse exploitable." onPick={setPick} />
+            <BarList rows={geoMode === "canton" ? byGeoCanton : geoMode === "region" ? byGeoRegion : byGeoNpa}
+              unit=" cab." empty="Aucune adresse exploitable." onPick={setPick} />
           </Fold>
           <Fold className="sgs-span2" title="Carte des chantiers"
             meta="où nous travaillons le plus · les adresses sont localisées au premier affichage">
