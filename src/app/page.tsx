@@ -6528,9 +6528,9 @@ function HomePage() {
                 <div className="text-center py-12 text-gray-400"><p className="text-lg">Aucun projet trouvé</p></div>
               );
               return (
-                <div className="glass-card rounded-2xl overflow-hidden">
+                <div className="glass-card rounded-2xl overflow-hidden sgv-mes">
                   {/* En-tête colonnes */}
-                  <div className="flex items-center gap-2 px-3 py-2 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-2 px-3 py-2 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 sgv-mes-cols">
                     <span className="w-20 shrink-0">N° OFR TM</span>
                     <span className="w-20 shrink-0 hidden sm:block">Date demande</span>
                     <span className="w-20 shrink-0 hidden sm:block">Date</span>
@@ -6539,7 +6539,7 @@ function HomePage() {
                   </div>
                   {sortedMonths.flatMap((monthKey) => [
                     /* ── Séparateur mois ── */
-                    <div key={`sep-${monthKey}`} className="flex items-center gap-2 px-3 py-1.5">
+                    <div key={`sep-${monthKey}`} className="flex items-center gap-2 px-3 py-1.5 sgv-mes-grp">
                       <div className="flex-1 h-px bg-cyan-200/70 dark:bg-cyan-700/40" />
                       <span className="text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 shrink-0 px-1.5 capitalize">
                         {fmtMoisKey(monthKey)} ({mGroups[monthKey].length})
@@ -6565,7 +6565,7 @@ function HomePage() {
                           prefetch={true}
                           onMouseEnter={() => prefetchProject(p.id)}
                           onTouchStart={() => prefetchProject(p.id)}
-                          className={`flex items-center gap-2 px-3 py-2 hover:bg-cyan-50/60 dark:hover:bg-cyan-900/20 transition-colors text-xs ${rowBg}`}
+                          className={`flex items-center gap-2 px-3 py-2 hover:bg-cyan-50/60 dark:hover:bg-cyan-900/20 transition-colors text-xs sgv-mes-row ${rowBg}`}
                         >
                           {/* N° OFR TM */}
                           <span className="w-20 shrink-0 font-mono text-gray-500 dark:text-gray-400 text-[11px] leading-tight truncate">

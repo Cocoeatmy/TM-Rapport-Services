@@ -1888,6 +1888,48 @@ html[data-ui="signal"] .sgv-alerts button {
   padding: 8px 12px;
 }
 
+/* Vue Mesures : tableau par mois, aligné sur la liste dense.
+   Les teintes cyan et le zébrage d'origine sont neutralisés — la page se lit
+   comme « RDV Montage à fixer ». */
+html[data-ui="signal"] .sgv-mes {
+  background: var(--sg-paper);
+  border: 1px solid var(--sg-line);
+  border-radius: 14px;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+html[data-ui="signal"] .sgv-mes-cols {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.08em; font-weight: 400;
+  color: var(--sg-text-3);
+  border-bottom: 1px solid var(--sg-line);
+  padding: 8px 12px 6px 12px;
+}
+/* Bande de mois : même barre encre que les groupes de la liste dense. */
+html[data-ui="signal"] .sgv-mes-grp {
+  margin: 10px 10px 2px 10px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  background: var(--sg-grp-bg);
+  border: 1px solid var(--sg-grp-line);
+  border-left: 3px solid var(--sg-ink);
+}
+html[data-ui="signal"] .sgv-mes-grp > div { display: none; } /* filets décoratifs */
+html[data-ui="signal"] .sgv-mes-grp > span {
+  font-size: 12px; font-weight: 700; letter-spacing: -0.01em;
+  color: var(--sg-text);
+  padding: 0;
+}
+/* Lignes : plus de zébrage teinté, un filet fin et un survol sobre. */
+html[data-ui="signal"] .sgv-mes-row {
+  background: var(--sg-paper);
+  border-bottom: 1px solid var(--sg-line);
+  padding: 4px 12px;
+  min-height: 32px;
+}
+html[data-ui="signal"] .sgv-mes-row:hover { background: var(--sg-paper-2); }
+html[data-ui="signal"] .sgv-mes-row span.font-mono { color: var(--sg-text-2); }
+
 @media (max-width: 767px) {
   html[data-ui="signal"] .sg-plist-link {
     grid-template-columns: minmax(0, 1fr) auto;
