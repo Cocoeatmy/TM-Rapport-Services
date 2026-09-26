@@ -1930,6 +1930,49 @@ html[data-ui="signal"] .sgv-mes-row {
 html[data-ui="signal"] .sgv-mes-row:hover { background: var(--sg-paper-2); }
 html[data-ui="signal"] .sgv-mes-row span.font-mono { color: var(--sg-text-2); }
 
+/* Vues CRM / Grossistes / Fournisseurs / Sanitaires — même grammaire. */
+html[data-ui="signal"] .sgv-subtabs button {
+  border-radius: 999px;
+  font-size: 12.5px;
+  border: 1px solid var(--sg-line);
+  background: var(--sg-paper);
+  color: var(--sg-text-2);
+  padding: 6px 14px;
+}
+html[data-ui="signal"] .sgv-subtabs button.bg-\[\#1e3a5f\] {
+  background: var(--sg-ink); border-color: var(--sg-ink); color: #fff;
+}
+
+/* Pastilles de type et de statut : filet fin, plus de bague épaisse. */
+html[data-ui="signal"] .sgv-chips button {
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border: 1px solid var(--sg-line);
+  box-shadow: none;
+}
+html[data-ui="signal"] .sgv-chips button.ring-2 {
+  --tw-ring-color: transparent;
+  border-color: var(--sg-ink);
+  box-shadow: inset 0 0 0 1px var(--sg-ink);
+}
+
+/* Lignes de projets : zébrage bleuté remplacé par un filet de séparation. */
+html[data-ui="signal"] .sgv-row {
+  background: var(--sg-paper);
+  border: 1px solid transparent;
+  border-bottom-color: var(--sg-line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  min-height: 36px;
+}
+html[data-ui="signal"] .sgv-row:hover {
+  background: var(--sg-paper-2);
+  border-color: var(--sg-line-strong);
+}
+html[data-ui="signal"] .sgv-row p { font-size: 13px; font-weight: 500; }
+
 @media (max-width: 767px) {
   html[data-ui="signal"] .sg-plist-link {
     grid-template-columns: minmax(0, 1fr) auto;

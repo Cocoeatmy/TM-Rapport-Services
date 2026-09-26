@@ -3245,7 +3245,7 @@ function HomePage() {
         return (
           <div>
             {/* Onglets Projets / Stats */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4 sgv-subtabs">
               <button onClick={() => setSubView("projets")}
                 className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${subView === "projets" ? "bg-[#1e3a5f] text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300"}`}>
                 Projets ({fUnion.length})
@@ -3258,7 +3258,7 @@ function HomePage() {
 
             {subView === "projets" ? (
               <>
-                <div className="relative mb-3 max-w-lg">
+                <div className="relative mb-3 max-w-lg sgv-search">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input placeholder="Rechercher..." className="pl-9 h-11 rounded-xl glass-input" value={search} onChange={(e) => setSearch(e.target.value)} />
                 </div>
@@ -3280,7 +3280,7 @@ function HomePage() {
                 </div>
                 {/* Récap par type dans la période (pointage facture mensuelle).
                     « Tous » réinitialise le type (fait aussi office de filtre type). */}
-                <div className="flex flex-wrap gap-2 mb-3">
+                <div className="flex flex-wrap gap-2 mb-3 sgv-chips">
                   <button onClick={() => { setFournisseurType("tous"); setStatusFilter(null); }}
                     title="Tous les types"
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-gray-700 bg-gray-100 dark:bg-slate-700 dark:text-gray-200 ${fournisseurType === "tous" && statusFilter !== "Soucis montage" ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
@@ -3308,7 +3308,7 @@ function HomePage() {
                   </button>
                 </div>
                 {/* Puces de statut (état du type sélectionné, dans la période) */}
-                <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide">
+                <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide sgv-chips">
                   <button onClick={() => setStatusFilter(null)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${!statusFilter ? "bg-[#1e3a5f] text-white border-[#1e3a5f]" : "bg-white text-gray-600 border-gray-200"}`}>
                     Tous ({Object.values(fStatusCounts).reduce((a, b) => a + b, 0)})
                   </button>
@@ -3339,7 +3339,7 @@ function HomePage() {
                     const rowBg = idx % 2 === 0 ? "bg-white/70 dark:bg-slate-800/50" : "bg-blue-50/40 dark:bg-blue-950/15";
                     return (
                       <Link key={project.id} href={`/projet/${project.id}?mode=${fTypeCardMode}`} prefetch={!isFloatingWindow}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100/60 dark:hover:bg-blue-900/30 transition-colors ${rowBg}`}>
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100/60 dark:hover:bg-blue-900/30 transition-colors sgv-row ${rowBg}`}>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-snug line-clamp-2">{project.projet}</p>
                           <div className="mt-0.5 flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
