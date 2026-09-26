@@ -503,6 +503,34 @@ export default function ArrivagePage() {
       {showAll && !search.trim() && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">Statuts&nbsp;:</span>
+          {/* « Tous » : tout cocher d'un geste pour voir l'ensemble des
+              arrivages à venir, ou tout décocher pour repartir à zéro. */}
+          {(() => {
+            const all = ARRIVAGE_STATUTS.every((s) => visibleStatuts.has(s));
+            const total = searchableProjects.filter((p) => ARRIVAGE_STATUTS.includes(p.etatCMD)).length;
+            return (
+              <button
+                type="button"
+                onClick={() => setVisibleStatuts(all ? new Set() : new Set(ARRIVAGE_STATUTS))}
+                aria-pressed={all}
+                title={all ? "Décocher tous les statuts" : "Afficher tous les statuts"}
+                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 font-semibold ${
+                  all
+                    ? "border-sky-400 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300"
+                    : "border-gray-200 dark:border-slate-600 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700"
+                }`}
+              >
+                <span
+                  className={`w-3.5 h-3.5 rounded-[4px] border flex items-center justify-center shrink-0 ${
+                    all ? "bg-sky-500 border-sky-500 text-white" : "border-gray-300 dark:border-slate-500"
+                  }`}
+                >
+                  {all && <Check className="w-2.5 h-2.5" />}
+                </span>
+                Tous <span className="opacity-60">({total})</span>
+              </button>
+            );
+          })()}
           {ARRIVAGE_STATUTS.map((s) => {
             const checked = visibleStatuts.has(s);
             const count = searchableProjects.filter((p) => p.etatCMD === s).length;
