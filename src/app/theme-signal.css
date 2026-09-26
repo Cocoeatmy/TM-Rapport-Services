@@ -510,15 +510,24 @@ html[data-ui="signal"] .signal-rail-item.is-active::before {
      ses marges pour que la page remonte — elle reprend sa hauteur d'elle-même
      dès qu'un sous-menu ou un bouton s'y affiche. */
   html[data-ui="signal"] #main-navbar {
+    /* Plus rien à coller en haut : sans contenu, une barre collante de
+       hauteur nulle continuait à peindre son fond encre par-dessus le titre
+       de la page. Elle redevient un bloc ordinaire, entièrement replié. */
+    position: static;
     padding-top: 0;
     padding-bottom: 0;
   }
+  /* La pile d'onglets n'a plus de contenu visible : sa marge basse ferait
+     à elle seule une bande encre sous l'en-tête. */
+  html[data-ui="signal"] #main-navbar .nav-stack { margin-bottom: 0; }
   /* Les sous-menus portent alors leur propre respiration, sinon ils
      colleraient au bord bas de l'en-tête. */
   html[data-ui="signal"] #main-navbar .nav-submenu {
     padding-top: 7px;
     padding-bottom: 8px;
   }
+  /* Le titre de la page remonte juste sous l'en-tête. */
+  html[data-ui="signal"] .sg-host { padding-top: 10px; }
 }
 
 /* ── Dashboard propre au thème Signal ─────────────────────────────────────

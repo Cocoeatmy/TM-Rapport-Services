@@ -450,7 +450,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
         ))}
       </nav>
     )}
-    <div className={`mb-4 space-y-1.5${isCmm ? " hidden" : ""}`}>
+    <div className={`nav-stack mb-4 space-y-1.5${isCmm ? " hidden" : ""}`}>
       {/* Ligne principale — masquée sur desktop en thème Signal (remplacée par
           le rail) ; elle reste la navigation sur mobile/tablette. */}
       <div className={`p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain${isSignal ? " lg:hidden" : ""}`}>
