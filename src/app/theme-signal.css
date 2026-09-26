@@ -1855,6 +1855,24 @@ html[data-ui="signal"] .sgc-day-meta {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   font-size: 11px; color: var(--sg-text-3);
 }
+/* Charge du jour par monteur, dans l'espace libre de l'en-tête. */
+html[data-ui="signal"] .sgc-day-load {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-left: 6px; min-width: 0;
+}
+html[data-ui="signal"] .sgc-load {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px 2px 3px; border-radius: 999px;
+  background: var(--sg-paper-2); border: 1px solid var(--sg-line);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 11px; font-weight: 600; color: var(--sg-text-2);
+  white-space: nowrap;
+}
+html[data-ui="signal"] .sgc-load i {
+  width: 20px; height: 20px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; font-style: normal;
+}
 html[data-ui="signal"] .sgc-row {
   display: grid;
   grid-template-columns: 54px 96px 84px minmax(0, 1fr) 68px 18px;

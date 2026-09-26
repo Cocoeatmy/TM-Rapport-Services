@@ -4001,6 +4001,33 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       <span className="sgc-day-meta">
                         {selList.length} intervention{selList.length > 1 ? "s" : ""} · {cabOfDay(selList)} cab.
                       </span>
+                      {/* Charge du jour, monteur par monteur. Sur un binôme,
+                          chacun porte les cabines du projet : ils y sont tous
+                          les deux. */}
+                      {(() => {
+                        const m = new Map<string, number>();
+                        selList.forEach((p) => {
+                          const names = (p.collaborateurs || "").split("&").map((s) => s.trim()).filter(Boolean);
+                          (names.length ? names : ["Non attribué"]).forEach((n) => {
+                            m.set(n, (m.get(n) || 0) + (p.nbCabines || 0));
+                          });
+                        });
+                        const load = [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+                        if (!load.length) return null;
+                        return (
+                          <span className="sgc-day-load">
+                            {load.map(([name, cab]) => {
+                              const c = getCollaboratorColor(name);
+                              return (
+                                <span key={name} className="sgc-load" title={`${name} — ${cab} cabine${cab > 1 ? "s" : ""}`}>
+                                  <i style={{ backgroundColor: c.bg, color: c.text }}>{getCollaboratorInitials(name)}</i>
+                                  {cab} cab.
+                                </span>
+                              );
+                            })}
+                          </span>
+                        );
+                      })()}
                       <button type="button" className="sg-unpin" aria-label="Fermer le jour"
                         onClick={() => setCalendarSelectedDay(null)}>
                         <X className="w-3.5 h-3.5" />
