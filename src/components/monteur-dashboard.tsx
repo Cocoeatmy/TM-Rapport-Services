@@ -4001,26 +4001,40 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       <span className="sgc-day-meta">
                         {selList.length} intervention{selList.length > 1 ? "s" : ""} · {cabOfDay(selList)} cab.
                       </span>
-                      {/* Charge du jour, monteur par monteur. Sur un binôme,
-                          chacun porte les cabines du projet : ils y sont tous
-                          les deux. */}
+                      {/* Charge du jour par ÉQUIPE réellement affectée : un
+                          monteur seul et le même monteur en binôme sont deux
+                          charges distinctes. Les additionner laissait croire
+                          qu'il pose seul les cabines du binôme. La somme des
+                          pastilles est donc égale au total du jour. */}
                       {(() => {
                         const m = new Map<string, number>();
                         selList.forEach((p) => {
-                          const names = (p.collaborateurs || "").split("&").map((s) => s.trim()).filter(Boolean);
-                          (names.length ? names : ["Non attribué"]).forEach((n) => {
-                            m.set(n, (m.get(n) || 0) + (p.nbCabines || 0));
-                          });
+                          const label = (p.collaborateurs || "").trim() || "Non attribué";
+                          m.set(label, (m.get(label) || 0) + (p.nbCabines || 0));
                         });
                         const load = [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
                         if (!load.length) return null;
                         return (
                           <span className="sgc-day-load">
-                            {load.map(([name, cab]) => {
-                              const c = getCollaboratorColor(name);
+                            {load.map(([label, cab]) => {
+                              const names = label.split("&").map((s) => s.trim()).filter(Boolean);
+                              const duo = names.length > 1;
+                              const team = getTeamColor(label);
                               return (
-                                <span key={name} className="sgc-load" title={`${name} — ${cab} cabine${cab > 1 ? "s" : ""}`}>
-                                  <i style={{ backgroundColor: c.bg, color: c.text }}>{getCollaboratorInitials(name)}</i>
+                                <span
+                                  key={label}
+                                  className={`sgc-load${duo ? " is-duo" : ""}`}
+                                  style={duo ? { borderColor: team.dot, background: team.bg } : undefined}
+                                  title={`${label}${duo ? " (binôme)" : ""} — ${cab} cabine${cab > 1 ? "s" : ""}`}
+                                >
+                                  {(names.length ? names : [label]).slice(0, 2).map((n) => {
+                                    const c = getCollaboratorColor(n);
+                                    return (
+                                      <i key={n} style={{ backgroundColor: c.bg, color: c.text }}>
+                                        {getCollaboratorInitials(n)}
+                                      </i>
+                                    );
+                                  })}
                                   {cab} cab.
                                 </span>
                               );

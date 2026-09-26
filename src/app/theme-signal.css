@@ -1895,7 +1895,13 @@ html[data-ui="signal"] .sgc-load i {
   width: 20px; height: 20px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 9px; font-weight: 700; font-style: normal;
+  border: 1.5px solid var(--sg-paper);
 }
+/* Binôme : deux vignettes qui se chevauchent et le liseré de la couleur du
+   binôme — on distingue au premier coup d'œil une charge à deux d'une charge
+   en solo. */
+html[data-ui="signal"] .sgc-load.is-duo i + i { margin-left: -8px; }
+html[data-ui="signal"] .sgc-load.is-duo { padding-left: 4px; }
 html[data-ui="signal"] .sgc-row {
   display: grid;
   grid-template-columns: 54px 96px 84px minmax(0, 1fr) 68px 18px;
