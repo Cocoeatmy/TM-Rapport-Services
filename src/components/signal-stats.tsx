@@ -119,6 +119,7 @@ export function SignalStats({
   projects,
   byMonth,
   monthKeys,
+  allByMonth,
   totals: totalsProp,
   rangeLabel,
   filter,
@@ -128,6 +129,9 @@ export function SignalStats({
   projects?: any[];
   byMonth: Record<string, SignalStatsMonth>;
   monthKeys: string[];
+  /** TOUS les mois disponibles, hors filtre de période : nécessaire pour
+   *  comparer la période affichée à celle qui la précède. */
+  allByMonth?: Record<string, SignalStatsMonth>;
   /** Totaux calculés sur les lignes brutes par la page (source de vérité). */
   totals?: Partial<Record<SerieId, number>>;
   rangeLabel?: string;
@@ -303,13 +307,53 @@ export function SignalStats({
     return t;
   }, [monthKeys, byMonth, totalsProp]);
 
-  /** Variation du dernier mois complet par rapport au précédent. */
+  /* ── Comparaison « à date » ───────────────────────────────────────────────
+     L'ancien badge comparait les deux derniers mois de la période : sur une
+     année passée cela revenait à comparer novembre et décembre, ce qui ne
+     voulait rien dire. On compare désormais la période affichée à la période
+     de MÊME DURÉE qui la précède — et on écarte le mois en cours, forcément
+     incomplet, des deux côtés, pour que la comparaison reste honnête au jour
+     du jour. */
+  const cmp = useMemo(() => {
+    const nowKey = (() => {
+      const n = new Date();
+      return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+    })();
+    // Mois complets de la période affichée (le mois courant est exclu).
+    const cur = rows.map((r) => r.key).filter((k) => k < nowKey).sort();
+    if (cur.length === 0) return null;
+    // Même nombre de mois, juste avant le premier mois affiché.
+    const prev: string[] = [];
+    const [y0, m0] = cur[0].split("-").map(Number);
+    for (let i = cur.length; i >= 1; i--) {
+      const d = new Date(y0, m0 - 1 - i, 1);
+      prev.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    }
+    const src = allByMonth || byMonth;
+    const sum = (keys: string[], id: SerieId) =>
+      keys.reduce((s2, k) => s2 + ((src[k]?.[id] as number) || 0), 0);
+    const label = (keys: string[]) => {
+      if (keys.length === 0) return "—";
+      return keys.length === 1 ? monthLabel(keys[0]) : `${monthLabel(keys[0])} – ${monthLabel(keys[keys.length - 1])}`;
+    };
+    return { cur, prev, sum, curLabel: label(cur), prevLabel: label(prev) };
+  }, [rows, allByMonth, byMonth]);
+
+  /** Variation de la période affichée face à la précédente, de même durée. */
   const delta = (id: SerieId): number | null => {
-    if (rows.length < 2) return null;
-    const a = rows[rows.length - 2].v[id] || 0;
-    const b = rows[rows.length - 1].v[id] || 0;
-    if (a === 0) return b === 0 ? 0 : null;
+    if (!cmp) return null;
+    const a = cmp.sum(cmp.prev, id);
+    const b = cmp.sum(cmp.cur, id);
+    if (a === 0) return null; // rien à comparer : pas de badge trompeur
     return ((b - a) / a) * 100;
+  };
+
+  /** Texte de survol : les deux périodes et leurs valeurs, en toutes lettres. */
+  const deltaTitle = (id: SerieId, label: string): string => {
+    if (!cmp) return "";
+    const a = cmp.sum(cmp.prev, id);
+    const b = cmp.sum(cmp.cur, id);
+    return `${label} — ${cmp.curLabel} : ${b}  ·  ${cmp.prevLabel} : ${a}`;
   };
 
   const visible = SERIES.filter((s) => !hidden.has(s.id));
@@ -344,6 +388,14 @@ export function SignalStats({
         <div>
           <h1 className="sgs-h1">Statistiques</h1>
           {rangeLabel && <p className="sgs-sub">{rangeLabel}</p>}
+          {/* Sans cette ligne, personne ne sait à quoi se rapportent les
+              pourcentages affichés sur les indicateurs. */}
+          {cmp && (
+            <p className="sgs-sub sgs-cmp">
+              Évolution&nbsp;: {cmp.curLabel} comparé à {cmp.prevLabel}
+              <span className="sgs-cmp-hint"> · mois en cours exclu des deux côtés</span>
+            </p>
+          )}
         </div>
         <div className="sgs-head-actions">
           <button
@@ -450,7 +502,8 @@ export function SignalStats({
               <div className="sgs-kpi-top">
                 <span className="sgs-kpi-label">{k.label}</span>
                 {d !== null && (
-                  <span className={`sgs-delta ${d > 0.5 ? "up" : d < -0.5 ? "down" : "flat"}`}>
+                  <span className={`sgs-delta ${d > 0.5 ? "up" : d < -0.5 ? "down" : "flat"}`}
+                    title={deltaTitle(k.id, k.label)}>
                     {d > 0.5 ? <TrendingUp className="w-3 h-3" /> : d < -0.5 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
                     {Math.abs(Math.round(d))}%
                   </span>
@@ -636,7 +689,9 @@ export function SignalStats({
             <span role="columnheader">Mois</span>
             {visible.map((s) => <span key={s.id} role="columnheader" className="sgs-right">{s.label}</span>)}
           </div>
-          {[...rows].reverse().map((r) => (
+          {/* Ordre chronologique : janvier en haut, décembre en bas — on lit
+              l'année dans le même sens que le graphique juste au-dessus. */}
+          {rows.map((r) => (
             <div key={r.key} className="sgs-tr" role="row">
               <span role="cell" className="sgs-tr-m">{r.label}</span>
               {visible.map((s) => {

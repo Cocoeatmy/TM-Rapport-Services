@@ -3694,6 +3694,24 @@ function HomePage() {
           svcByMonth[key].ca += r.ca;
         });
         const monthlyKeys = Object.keys(svcByMonth).sort();
+
+        /* Même agrégation, mais SANS le filtre de période : la période qui
+           précède celle affichée est par définition hors filtre, et sans ces
+           chiffres aucune évolution ne peut être calculée. */
+        const svcAllByMonth: Record<string, { mesures: number; cabines: number; montages: number; demontages: number; services: number; sav: number; ofr: number; ca: number }> = {};
+        statsServices.forEach((r: any) => {
+          if (r.objectif || !r.mois) return;
+          const k = r.mois;
+          if (!svcAllByMonth[k]) svcAllByMonth[k] = { mesures: 0, cabines: 0, montages: 0, demontages: 0, services: 0, sav: 0, ofr: 0, ca: 0 };
+          svcAllByMonth[k].mesures += r.mesures;
+          svcAllByMonth[k].cabines += r.cabines;
+          svcAllByMonth[k].montages += r.montages;
+          svcAllByMonth[k].demontages += r.demontages;
+          svcAllByMonth[k].services += r.services;
+          svcAllByMonth[k].sav += r.sav;
+          svcAllByMonth[k].ofr += r.ofr;
+          svcAllByMonth[k].ca += r.ca;
+        });
         const last12 = monthlyKeys.slice(-12);
 
         // KPIs from DB1
@@ -3857,6 +3875,10 @@ function HomePage() {
               projects={allProjects}
               byMonth={svcByMonth}
               monthKeys={monthlyKeys}
+              /* Tous les mois disponibles, HORS filtre de période : permet de
+                 comparer la période affichée à celle qui la précède, laquelle
+                 est par définition en dehors du filtre. */
+              allByMonth={svcAllByMonth}
               /* Totaux calculés sur les LIGNES filtrées (et non sur les agrégats
                  mensuels) : identiques à ceux de la page statistiques historique,
                  y compris pour d'éventuelles lignes sans mois identifiable. */

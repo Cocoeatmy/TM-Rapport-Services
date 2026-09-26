@@ -1308,6 +1308,9 @@ html[data-ui="signal"] .sgs-h1 {
   margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.03em; color: var(--sg-text);
 }
 html[data-ui="signal"] .sgs-sub { margin: 3px 0 0 0; font-size: 13px; color: var(--sg-text-3); }
+/* Base de calcul des pourcentages, dite explicitement sous le titre. */
+html[data-ui="signal"] .sgs-cmp { font-size: 12px; }
+html[data-ui="signal"] .sgs-cmp-hint { opacity: 0.7; }
 html[data-ui="signal"] .sgs-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 html[data-ui="signal"] .sgs-head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 html[data-ui="signal"] .sgs-report {
