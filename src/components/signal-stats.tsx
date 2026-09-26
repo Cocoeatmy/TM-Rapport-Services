@@ -400,13 +400,15 @@ export function SignalStats({
     // Mois complets de la période affichée (le mois courant est exclu).
     const cur = rows.map((r) => r.key).filter((k) => k < nowKey).sort();
     if (cur.length === 0) return null;
-    // Même nombre de mois, juste avant le premier mois affiché.
-    const prev: string[] = [];
-    const [y0, m0] = cur[0].split("-").map(Number);
-    for (let i = cur.length; i >= 1; i--) {
-      const d = new Date(y0, m0 - 1 - i, 1);
-      prev.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-    }
+    /* Période de référence : LES MÊMES MOIS, un an plus tôt.
+       Prendre « les N mois qui précèdent » comparait 2026 (janvier→août) à
+       mai→décembre 2025, deux saisons différentes : le pourcentage n'avait
+       aucun sens. Un décalage d'exactement douze mois donne toujours la
+       comparaison attendue — année contre année, mois contre même mois. */
+    const prev = cur.map((k) => {
+      const [y, m] = k.split("-");
+      return `${Number(y) - 1}-${m}`;
+    });
     const src = allByMonth || byMonth;
     const sum = (keys: string[], id: SerieId) =>
       keys.reduce((s2, k) => s2 + ((src[k]?.[id] as number) || 0), 0);
@@ -471,7 +473,7 @@ export function SignalStats({
           {cmp && (
             <p className="sgs-sub sgs-cmp">
               Évolution&nbsp;: {cmp.curLabel} comparé à {cmp.prevLabel}
-              <span className="sgs-cmp-hint"> · mois en cours exclu des deux côtés</span>
+              <span className="sgs-cmp-hint"> · mêmes mois un an plus tôt, mois en cours exclu</span>
             </p>
           )}
         </div>
