@@ -4,6 +4,7 @@ import { createNotification } from "@/app/api/notifications/route";
 import { sendPushToUser } from "@/lib/send-push";
 import { emailEnabled } from "@/lib/email-prefs";
 import { Resend } from "resend";
+import { escapeHtml } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -82,7 +83,11 @@ function formatH(h: number): string {
 }
 
 function formatSwissDateFromISO(iso: string): string {
-  const [y, m, d] = iso.split("-");
+  // La date Notion peut porter une heure (« 2026-09-24T14:00:00.000+02:00 ») :
+  // découper sur « - » sans retirer l'heure produisait
+  // « 24T14:00:00.000+02:00.09.2026 ». On ne garde que la partie calendaire.
+  const [y, m, d] = String(iso || "").split("T")[0].split("-");
+  if (!y || !m || !d) return "";
   return `${d}.${m}.${y}`;
 }
 
@@ -293,20 +298,43 @@ function buildTelegramMessage(projects: Project[], dayLabel: string): string {
     return msg;
   }
 
+  /* Un montage = quatre lignes courtes, lues d'un coup d'œil sur un
+     téléphone : numéro, chantier, monteurs, durée et cabines. La date a
+     disparu — tous les montages du message sont du même jour, elle ne
+     distinguait rien et occupait une ligne. */
+  const extrait = (txt: string, max = 90) => {
+    const t = String(txt || "").replace(/\s+/g, " ").trim();
+    return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+  };
+
   for (const p of projects) {
     const entries = parseEntries(p.heureArrivee, p.heureDepart);
     const total = totalHours(entries);
-    const dateStr = p.dateMontage ? formatSwissDateFromISO(p.dateMontage) : "—";
-    const collab = p.collaborateurs || "—";
-    const soucisFlag = p.soucisMontage ? " ⚠" : "";
 
-    msg += `▪ <b>${p.projet || p.ofrTM}</b>${soucisFlag}\n`;
-    msg += `  ${collab} · ${dateStr}`;
-    if (total > 0) msg += ` · ${formatH(total)}`;
-    if (p.nbCabines) msg += ` · ${p.nbCabines} cab.`;
+    msg += `▪ <b>${escapeHtml(p.ofrTM || "—")}</b>\n`;
+    msg += `${escapeHtml(p.projet || "—")}\n`;
+    msg += `${escapeHtml(p.collaborateurs || "—")}\n`;
+
+    const meta = [
+      total > 0 ? formatH(total) : null,
+      p.nbCabines ? `${p.nbCabines} cab.` : null,
+    ].filter(Boolean).join(" - ");
+    if (meta) msg += `${meta}\n`;
+
+    // Signalements : seulement quand il y en a, chacun sur sa ligne.
+    const signalements: string[] = [];
+    if (p.soucisMontage) signalements.push("Soucis de montage");
+    if (String(p.infoPiecesManquantes || "").trim()) {
+      signalements.push(`Pièce manquante : ${extrait(p.infoPiecesManquantes)}`);
+    }
+    if (String(p.infoDefautsSignale || "").trim()) {
+      signalements.push(`Défaut : ${extrait(p.infoDefautsSignale)}`);
+    }
+    signalements.forEach((t) => { msg += `⚠ ${escapeHtml(t)}\n`; });
+
     msg += "\n";
   }
-  return msg;
+  return msg.trimEnd();
 }
 
 // ─── Week label ───────────────────────────────────────────────────────────────
