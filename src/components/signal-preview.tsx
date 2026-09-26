@@ -117,7 +117,14 @@ export function SignalPreviewCard({
         <div className="sg-gauge-wrap">
           <div className="sg-gauge-head">
             <span>Lots</span>
-            <span className="sg-mono">{posed} / {total} posés</span>
+            {/* Avancement du montage : le pourcentage se lit d'un coup d'œil,
+                le détail « x / y » reste à côté pour le chiffre exact. */}
+            <span className="sg-mono">
+              <b className={`sg-gauge-pct${posed >= total ? " is-done" : posed > 0 ? " is-wip" : ""}`}>
+                {Math.round((posed / total) * 100)} %
+              </b>
+              {posed} / {total} posés
+            </span>
           </div>
           <div className="sg-gauge">
             {Array.from({ length: total }).map((_, i) => (

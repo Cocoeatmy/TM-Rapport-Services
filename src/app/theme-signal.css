@@ -1248,6 +1248,26 @@ html[data-ui="signal"] .sg-gauge-head {
   display: flex; align-items: baseline; justify-content: space-between;
   font-size: 12px; font-weight: 600; color: var(--sg-text-2);
 }
+/* Pourcentage d'avancement du montage, devant le détail « x / y posés ». */
+html[data-ui="signal"] .sg-gauge-pct {
+  display: inline-block; margin-right: 8px;
+  padding: 1px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 700;
+  background: var(--sg-paper-2); color: var(--sg-text-3);
+  border: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-gauge-pct.is-wip {
+  background: #fff3da; border-color: #f2d9a6; color: #92500e;
+}
+html[data-ui="signal"] .sg-gauge-pct.is-done {
+  background: #dcfce7; border-color: #a7e8bf; color: #166534;
+}
+html[data-ui="signal"].dark .sg-gauge-pct.is-wip {
+  background: #3a2a0c; border-color: #6b4d15; color: #fbbf24;
+}
+html[data-ui="signal"].dark .sg-gauge-pct.is-done {
+  background: #0d2e1a; border-color: #1d5b33; color: #6ee7a0;
+}
 html[data-ui="signal"] .sg-gauge { display: flex; gap: 3px; }
 html[data-ui="signal"] .sg-gauge i { height: 8px; flex-grow: 1; border-radius: 2px; background: var(--sg-line-strong); }
 html[data-ui="signal"] .sg-gauge i.is-done { background: #15803d; }
