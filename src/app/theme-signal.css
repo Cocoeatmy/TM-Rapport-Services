@@ -2086,6 +2086,49 @@ html[data-ui="signal"] .sg-pv-sig.is-defaut i { background: #dc2626; }
 html[data-ui="signal"].dark .sg-pv-sig.is-piece { background: #3a2208; color: #fdba74; }
 html[data-ui="signal"].dark .sg-pv-sig.is-defaut { background: #3b0f0f; color: #fca5a5; }
 
+/* ── Largeurs intermédiaires (tablette en portrait, fenêtre réduite) ──────
+   Entre 768 et 1279 px la grille dense tient encore, mais le nom du projet
+   n'avait plus de place et se coupait par des points de suspension. On rogne
+   les colonnes secondaires et on laisse le nom passer à la ligne : le titre
+   se lit EN ENTIER sans ouvrir le projet. */
+@media (min-width: 768px) and (max-width: 1279px) {
+  html[data-ui="signal"] .sg-cols,
+  html[data-ui="signal"] .sg-prow {
+    grid-template-columns: 50px 104px 80px minmax(0, 1fr) 104px 74px 44px 26px;
+    gap: 8px;
+    align-items: start;
+  }
+  html[data-ui="signal"] .sg-pname {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.3;
+    padding: 2px 0;
+  }
+  /* Les pastilles restent alignées sur la première ligne du nom. */
+  html[data-ui="signal"] .sg-prow .sg-jpill,
+  html[data-ui="signal"] .sg-prow .sg-state,
+  html[data-ui="signal"] .sg-prow .sg-place,
+  html[data-ui="signal"] .sg-prow .sg-pers,
+  html[data-ui="signal"] .sg-prow .sg-strong,
+  html[data-ui="signal"] .sg-prow .sg-refs { margin-top: 2px; }
+  html[data-ui="signal"] .sg-state { font-size: 9.5px; padding: 1px 6px; }
+
+  /* Mêmes largeurs pour la vue Arrivage et les listes d'accueil. */
+  html[data-ui="signal"] .sgA-row {
+    grid-template-columns: 104px 88px minmax(0, 1fr) 104px 96px 74px 40px 18px;
+    gap: 8px;
+  }
+  html[data-ui="signal"] .sg-plist-link {
+    grid-template-columns: 104px minmax(0, 1fr) 104px 74px 66px 36px 16px;
+    gap: 8px;
+    align-items: start;
+  }
+  html[data-ui="signal"] .sg-plist-name {
+    white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.3;
+  }
+}
+
 @media (max-width: 767px) {
   html[data-ui="signal"] .sg-plist-link {
     grid-template-columns: minmax(0, 1fr) auto;
