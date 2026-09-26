@@ -366,12 +366,18 @@ export function SignalStats({
   const byGeoCanton = useMemo(() => geoBy("canton"), [P]);
   const byGeoRegion = useMemo(() => geoBy("region"), [P]);
 
+  /* « Aucun SAV » est une VALEUR du champ État - SAV, pas une absence : tester
+     seulement que le champ est rempli comptait donc 100 % des projets. Même
+     règle que partout ailleurs dans l'app (page.tsx : hasSAV). */
+  const hasSav = (p: any) =>
+    p?.sav === true || (String(p?.etatSAV || "").trim() && String(p.etatSAV).trim() !== "Aucun SAV");
+
   const quality = useMemo(() => {
     const total = P.length || 0;
     const soucis = P.filter((p) => p.soucisMontage === true || String(p.etatCMD || "") === "Soucis montage").length;
     const pieces = P.filter((p) => String(p.infoPiecesManquantes || "").trim()).length;
     const defauts = P.filter((p) => String(p.infoDefautsSignale || "").trim()).length;
-    const sav = P.filter((p) => String(p.etatSAV || "").trim() || String(p.commentairesSav || "").trim()).length;
+    const sav = P.filter(hasSav).length;
     const rate = (n: number) => (total ? Math.round((n / total) * 1000) / 10 : 0);
     return { total, soucis, pieces, defauts, sav, rate };
   }, [P]);
@@ -486,8 +492,7 @@ export function SignalStats({
 
     const savEntries: { p: any; cab: number | null }[] = [];
     P.forEach((p: any) => {
-      const aSav = String(p.etatSAV || "").trim() || String(p.commentairesSav || "").trim();
-      if (!aSav) return;
+      if (!hasSav(p)) return;
       const cabs = cabinesSavOf(p);
       if (cabs.length) cabs.forEach((c) => savEntries.push({ p, cab: c }));
       else savEntries.push({ p, cab: null });
