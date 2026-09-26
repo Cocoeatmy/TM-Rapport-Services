@@ -2176,6 +2176,13 @@ html[data-ui="signal"] .sgL-row:hover {
   border-color: var(--sg-line-strong);
 }
 
+/* Base de comparaison du pourcentage, sous la valeur de l'indicateur. */
+html[data-ui="signal"] .sgs-kpi-vs {
+  display: block; margin-top: 2px;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 10px; color: var(--sg-text-3); line-height: 1.35;
+}
+
 @media (max-width: 767px) {
   html[data-ui="signal"] .sg-plist-link {
     grid-template-columns: minmax(0, 1fr) auto;

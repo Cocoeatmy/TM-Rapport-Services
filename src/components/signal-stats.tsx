@@ -687,7 +687,18 @@ export function SignalStats({
   );
 
   const totals = useMemo(() => {
-    // Priorité aux totaux fournis par la page (calculés sur les lignes brutes).
+    /* Mois ÉPINGLÉS : les indicateurs doivent porter sur ces mois-là, pas sur
+       toute la période. Sans ça, épingler août à octobre affichait le graphe
+       des trois mois au-dessus des totaux de l'historique complet — d'où des
+       chiffres sans rapport avec ce qu'on regarde. */
+    if (picked.size > 0) {
+      const t: Record<string, number> = {};
+      rows.forEach((r) => {
+        (Object.keys(r.v) as SerieId[]).forEach((id) => { t[id] = (t[id] || 0) + (r.v[id] || 0); });
+      });
+      return t;
+    }
+    // Sinon, priorité aux totaux fournis par la page (lignes brutes).
     if (totalsProp) return totalsProp as Record<string, number>;
     const t: Record<string, number> = {};
     (Object.keys(SERIES.reduce((a, s) => ({ ...a, [s.id]: 1 }), { ca: 1 } as Record<string, number>)) as string[])
@@ -698,7 +709,7 @@ export function SignalStats({
       (Object.keys(v) as SerieId[]).forEach((id) => { t[id] = (t[id] || 0) + (v[id] || 0); });
     });
     return t;
-  }, [monthKeys, byMonth, totalsProp]);
+  }, [monthKeys, byMonth, totalsProp, picked, rows]);
 
   /* ── Comparaison « à date » ───────────────────────────────────────────────
      L'ancien badge comparait les deux derniers mois de la période : sur une
@@ -905,6 +916,17 @@ export function SignalStats({
                 )}
               </div>
               <span className="sgs-kpi-value" style={{ color: k.color }}>{fmt(totals[k.id] || 0, k.money)}</span>
+              {/* Base de comparaison ÉCRITE sous le chiffre. Le pourcentage
+                  porte sur les mois complets ; la valeur affichée au-dessus
+                  inclut le mois en cours. Sans cette ligne, l'écart entre les
+                  deux passait pour une erreur de calcul. */}
+              {d !== null && cmp && (
+                <span className="sgs-kpi-vs">
+                  {fmt(cmp.sum(cmp.cur, k.id), k.money)} sur {cmp.curLabel}
+                  {" · "}
+                  {fmt(cmp.sum(cmp.prev, k.id), k.money)} sur {cmp.prevLabel}
+                </span>
+              )}
               <svg className="sgs-spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
                 <path d={smoothPath(sPts)} fill="none" stroke={k.color} strokeWidth="2" strokeLinecap="round" opacity="0.75" />
               </svg>
