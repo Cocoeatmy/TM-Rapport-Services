@@ -543,6 +543,77 @@ export function SignalStats({
     };
   }, [P, sig, blameMode]);
 
+  /** Marques d'un projet, enseigne TM Douche regroupée avec la marque réelle. */
+  const marquesOf = (p: any): string[] => {
+    const arr: string[] = Array.isArray(p?.fournisseurs) ? p.fournisseurs : [];
+    if (arr.some((f) => /tm\s*douche/i.test(f || ""))) {
+      const autres = arr.filter((f) => !/tm\s*douche/i.test(f || ""));
+      return [autres.length ? `TM Douche / ${autres.join(", ")}` : "TM Douche"];
+    }
+    return arr.length ? arr : ["Non renseigné"];
+  };
+
+  /** SAV répartis par CAUSE : erreur fournisseur, client, TM… avec leur part. */
+  const savByCause = useMemo(() => {
+    const m = new Map<string, any[]>();
+    let total = 0;
+    P.forEach((p: any) => {
+      if (!hasSav(p)) return;
+      const cabs = cabinesSavOf(p);
+      const causes = cabs.length ? cabs.map((c) => causeSavOf(p, c)) : [causeSavOf(p, null)];
+      causes.forEach((raw) => {
+        const label = String(raw || "").trim() || "Cause non renseignée";
+        if (!m.has(label)) m.set(label, []);
+        const items = m.get(label)!;
+        if (!items.some((x) => x.id === p.id)) items.push(p);
+        (items as any).count = ((items as any).count || 0) + 1;
+        total += 1;
+      });
+    });
+    return [...m.entries()]
+      .map(([label, items]) => {
+        const n = (items as any).count || items.length;
+        return {
+          label, value: n, items,
+          sub: total ? `${Math.round((n / total) * 1000) / 10}%` : "—",
+          color: /\btm\b/i.test(label) ? "#dc2626" : hueFor(label),
+        };
+      })
+      .sort((a, b) => b.value - a.value);
+  }, [P]);
+
+  /** Axe d'analyse des signalements : marque ou série de cabine. */
+  const [sigAxis, setSigAxis] = useState<"marque" | "serie">("marque");
+  const [sigKind, setSigKind] = useState<"tout" | "pieces" | "defauts">("tout");
+
+  /** Signalements répartis par marque ou par série, pour cibler les récurrences. */
+  const sigByProduit = useMemo(() => {
+    if (!sig) return [];
+    const source = sigKind === "pieces" ? sig.pieces
+      : sigKind === "defauts" ? sig.defauts
+      : [...sig.pieces, ...sig.defauts];
+    const m = new Map<string, any[]>();
+    source.forEach((s) => {
+      const p = P.find((x: any) => x.id === s.projectId);
+      if (!p) return;
+      const cles = sigAxis === "marque"
+        ? marquesOf(p)
+        : (Array.isArray(p.seriesCabines) && p.seriesCabines.length ? p.seriesCabines : ["Non renseignée"]);
+      cles.forEach((k: string) => {
+        if (!m.has(k)) m.set(k, []);
+        const items = m.get(k)!;
+        if (!items.some((x) => x.id === p.id)) items.push(p);
+        (items as any).count = ((items as any).count || 0) + 1;
+      });
+    });
+    return [...m.entries()]
+      .map(([label, items]) => ({
+        label, value: (items as any).count || items.length, items,
+        sub: `${items.length} proj.`, color: hueFor(label),
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [sig, P, sigAxis, sigKind]);
+
   const TABS = [
     { id: "activite" as const, label: "Activité" },
     { id: "equipes" as const, label: "Équipes & monteurs", n: byCollab.length },
@@ -1113,6 +1184,34 @@ export function SignalStats({
               </div>
             ))}
           </div>
+
+          <Fold title="SAV par cause"
+            meta="part de chaque cause sur l'ensemble des SAV de la période · erreur fournisseur, client ou TM">
+            <BarList rows={savByCause} unit=" SAV" onPick={setPick}
+              empty="Aucun SAV sur cette période." />
+          </Fold>
+
+          <Fold title={sigAxis === "marque" ? "Signalements par marque" : "Signalements par série"}
+            meta="pièces manquantes et défauts, pour repérer les produits qui posent problème"
+            right={
+              <div className="sgs-blame-ctl" onClick={(e) => e.stopPropagation()}>
+                <div className="sgs-seg">
+                  {([["marque", "Marque"], ["serie", "Série"]] as const).map(([v, lbl]) => (
+                    <button key={v} type="button" className={sigAxis === v ? "is-on" : ""}
+                      onClick={() => setSigAxis(v)}>{lbl}</button>
+                  ))}
+                </div>
+                <div className="sgs-seg">
+                  {([["tout", "Tout"], ["pieces", "Pièces"], ["defauts", "Défauts"]] as const).map(([v, lbl]) => (
+                    <button key={v} type="button" className={sigKind === v ? "is-on" : ""}
+                      onClick={() => setSigKind(v)}>{lbl}</button>
+                  ))}
+                </div>
+              </div>
+            }>
+            <BarList rows={sigByProduit} unit=" signal." onPick={setPick}
+              empty="Aucun signalement sur cette période." />
+          </Fold>
 
           <Fold title="Signalements par état"
             meta="pièces manquantes et défauts saisis dans l'app, sur la période">
