@@ -65,6 +65,12 @@ export interface Lot {
   nom: string;
   /** Pièce équipée, quand la cabine en porte le nom : « SDD parentale ». */
   piece: string;
+  /**
+   * D'où vient le libellé : « cabine » s'il est écrit dans Notion, « titre »
+   * s'il a fallu le déduire du nom du projet, « defaut » s'il n'y avait rien.
+   * Ce qui n'est pas « cabine » est une déduction, donc à confirmer.
+   */
+  origine: "cabine" | "titre" | "defaut";
   batiment: string;
   etage: string;
   sanitaire: string;
@@ -389,6 +395,9 @@ export function lotsDeLOffre(p: ProjetChantier): Lot[] {
     const brut = (noms[n] || "").trim();
     const cabEstLot = ressembleAUnLot(brut);
     const nom = cabEstLot ? brut : (lotDuTitre || brut || `Cabine ${n}`);
+    const origine: Lot["origine"] = cabEstLot || (!lotDuTitre && brut)
+      ? "cabine"
+      : lotDuTitre ? "titre" : "defaut";
     // « Cabine 1 SDD parentale » → on ne garde que la pièce.
     const piece = cabEstLot || !brut
       ? ""
@@ -398,6 +407,7 @@ export function lotsDeLOffre(p: ProjetChantier): Lot[] {
       ...base,
       cab: total > 1 ? n : null,
       nom,
+      origine,
       piece: piece && piece.toLowerCase() !== nom.toLowerCase() ? piece : "",
       batiment: info.batiment || commun.batiment,
       etage: info.etage || commun.etage,

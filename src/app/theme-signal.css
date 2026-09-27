@@ -3305,3 +3305,34 @@ html[data-ui="signal"] .sgch-lien {
   border: 1px dashed var(--sg-line-strong); background: var(--sg-paper-2);
 }
 html[data-ui="signal"] .sgch-lien > span { font-size: 11px; color: var(--sg-text-3); }
+
+/* Renommage d'un lot : le libellé déduit se distingue de celui qui est écrit. */
+html[data-ui="signal"] .sgch-confirmer {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 9px 12px; border-radius: 10px;
+  border: 1px solid #f2d9a6; background: #fff8ec; color: #92500e;
+}
+html[data-ui="signal"] .sgch-confirmer > span { flex: 1; min-width: 220px; font-size: 11.5px; line-height: 1.5; }
+html[data-ui="signal"] .sgch-confirmer b { font-weight: 700; }
+html[data-ui="signal"] .sgch-confirmer .sgch-export { margin-left: 0; }
+html[data-ui="signal"].dark .sgch-confirmer {
+  border-color: #56421d; background: #2a2113; color: #f0b866;
+}
+html[data-ui="signal"] .sgch-crayon {
+  display: inline-flex; padding: 2px; border: 0; background: transparent;
+  cursor: pointer; color: var(--sg-text-3); opacity: 0;
+}
+html[data-ui="signal"] .sgch-table tr:hover .sgch-crayon { opacity: 1; }
+html[data-ui="signal"] .sgch-crayon:hover { color: var(--sg-signal); }
+html[data-ui="signal"] .sgch-deduit {
+  font-style: normal; font-size: 9px; font-weight: 700; letter-spacing: 0.03em;
+  padding: 1px 5px; border-radius: 999px; text-transform: uppercase;
+  background: #fff3da; color: #92500e;
+}
+html[data-ui="signal"].dark .sgch-deduit { background: #3a2c14; color: #f0b866; }
+html[data-ui="signal"] .sgch-saisie {
+  width: 100%; min-width: 120px; height: 24px; padding: 0 6px;
+  border: 1px solid var(--sg-signal); border-radius: 6px;
+  background: var(--sg-paper); color: var(--sg-text);
+  font-family: inherit; font-size: 12px; outline: none;
+}

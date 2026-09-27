@@ -13,7 +13,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Building2, Search, ChevronRight, ArrowLeft, Loader2, Download, Ruler,
-  ShoppingCart, Truck, Wrench, FileText, X, Link2, Check,
+  ShoppingCart, Truck, Wrench, FileText, X, Link2, Check, Pencil, Save,
 } from "lucide-react";
 import { STATUS_CMD_COLORS } from "@/lib/constants";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
@@ -129,8 +129,60 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
     posees: lotsOnglet.filter((l) => l.pose).length,
   }), [lotsOnglet]);
 
+  /* ── Renommage des lots ─────────────────────────────────────────────────
+     Le libellé déduit du titre n'existe nulle part : il est recalculé à
+     chaque affichage. L'écrire dans « Lot (nom de cabine) » le rend définitif
+     et profite partout — fiche projet, rapport, mesures. C'est ici qu'on le
+     fait, parce que c'est ici qu'on voit qu'il manque. */
+  const [renommes, setRenommes] = useState<Record<string, string>>({});
+  const [enEdition, setEnEdition] = useState<string | null>(null);
+  const [saisie, setSaisie] = useState("");
+  const [envoi, setEnvoi] = useState(false);
+  const cleLot = (l: Lot) => `${l.projectId}|${l.cab ?? 1}`;
+
+  /** Écrit des libellés dans Notion, une requête par offre concernée. */
+  const enregistrer = async (aEcrire: { lot: Lot; nom: string }[]) => {
+    if (aEcrire.length === 0) return;
+    setEnvoi(true);
+    try {
+      const parProjet = new Map<string, { cab: number; nom: string }[]>();
+      aEcrire.forEach(({ lot, nom }) => {
+        const liste = parProjet.get(lot.projectId) || [];
+        liste.push({ cab: lot.cab ?? 1, nom });
+        parProjet.set(lot.projectId, liste);
+      });
+      await Promise.all([...parProjet.entries()].map(([id, cabines]) =>
+        fetch(`/api/projects/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          // Delta : le serveur fusionne avec les cabines déjà nommées.
+          body: JSON.stringify({
+            nomsCabines: cabines
+              .sort((a, b) => a.cab - b.cab)
+              .map((x) => `Cab${x.cab}:${x.nom}`).join(" | "),
+          }),
+        })));
+      setRenommes((p2) => {
+        const n = { ...p2 };
+        aEcrire.forEach(({ lot, nom }) => { n[cleLot(lot)] = nom; });
+        return n;
+      });
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  /** Lots dont le libellé n'est qu'une déduction, donc à confirmer. */
+  const aConfirmer = useMemo(
+    () => lotsOnglet.filter((l) => l.origine !== "cabine" && !renommes[cleLot(l)]),
+    [lotsOnglet, renommes],
+  );
+
   const lots = useMemo(() => {
     const tri = [...lotsOnglet]
+      .map((l) => (renommes[cleLot(l)]
+        ? { ...l, nom: renommes[cleLot(l)], origine: "cabine" as const }
+        : l))
       .filter((l) => etat === "tous" ? true : etat === "termine" ? l.statut === "Terminé" : l.statut !== "Terminé")
       .sort(comparerLots);
     const q = norm(filtre.trim());
@@ -140,7 +192,7 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
       const foin = norm(`${l.nom} ${l.piece} ${l.batiment} ${l.etage} ${l.ofrTM} ${l.marque} ${l.serie} ${l.grossiste} ${l.statut} ${l.infos}`);
       return mots.every((m) => foin.includes(m));
     });
-  }, [lotsOnglet, filtre, etat]);
+  }, [lotsOnglet, filtre, etat, renommes]);
 
   /* Un lot vendu en plusieurs cabines (douche + baignoire, deux salles d'eau)
      tient sur UNE ligne : la colonne « Cab. » en donne le nombre, et la ligne
@@ -338,6 +390,21 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
         <span className="sgch-compte">{lignes.length} lots · {lots.length} cab.</span>
       </div>
 
+      {aConfirmer.length > 0 && (
+        <div className="sgch-confirmer">
+          <span>
+            <b>{aConfirmer.length} libellé{aConfirmer.length > 1 ? "s" : ""} déduit{aConfirmer.length > 1 ? "s" : ""} du titre</b>
+            {" — "}le champ « Lot (nom de cabine) » est vide ou générique dans Notion.
+            Les enregistrer les rend définitifs, ici comme sur la fiche projet.
+          </span>
+          <button type="button" className="sgch-export" disabled={envoi}
+            onClick={() => enregistrer(aConfirmer.map((l) => ({ lot: l, nom: l.nom })))}>
+            {envoi ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            Enregistrer dans Notion
+          </button>
+        </div>
+      )}
+
       <div className="sgch-table-wrap">
         <table className="sgch-table">
           <thead>
@@ -368,7 +435,28 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
                             <ChevronRight className={`w-3.5 h-3.5${deplie ? " sgch-plier-on" : ""}`} />
                           </button>
                         )}
-                        <Link href={`/projet/${l.projectId}?mode=dashboard`}>{l.nom}</Link>
+                        {enEdition === cleLot(l) ? (
+                          <input className="sgch-saisie" autoFocus value={saisie}
+                            onChange={(e) => setSaisie(e.target.value)}
+                            onBlur={() => setEnEdition(null)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") setEnEdition(null);
+                              if (e.key === "Enter" && saisie.trim()) {
+                                // Toutes les cabines du lot portent le même libellé.
+                                enregistrer(g.lots.map((x) => ({ lot: x, nom: saisie.trim() })));
+                                setEnEdition(null);
+                              }
+                            }} />
+                        ) : (
+                          <>
+                            <Link href={`/projet/${l.projectId}?mode=dashboard`}>{l.nom}</Link>
+                            <button type="button" className="sgch-crayon" title="Renommer ce lot dans Notion"
+                              onClick={() => { setSaisie(l.nom); setEnEdition(cleLot(l)); }}>
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            {l.origine !== "cabine" && <i className="sgch-deduit" title="Libellé déduit du titre du projet, pas encore enregistré">déduit</i>}
+                          </>
+                        )}
                       </span>
                       {g.qte === 1 && l.piece ? <span className="sgch-piece">{l.piece}</span> : null}
                       {l.infos ? <span className="sgch-infos" title={l.infos}>{l.infos}</span> : null}
