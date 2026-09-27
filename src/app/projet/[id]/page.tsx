@@ -51,8 +51,6 @@ import {
 // MontageChecklist supprimée (section retirée)
 import { ProjectChat } from "@/components/project-chat";
 // GPS DÉSACTIVÉ — décommenter pour réactiver le pointage GPS automatique
-// import { GPSTracker } from "@/components/gps-tracker";
-// import { AdminGpsTimer } from "@/components/admin-gps-timer";
 import { SiteTimer } from "@/components/site-timer";
 // StockUsage supprimée (section retirée)
 import { SAVForm } from "@/components/sav-form";
@@ -8060,18 +8058,6 @@ function ProjectPageContent({ id }: { id: string }) {
                       offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureDepart: time }) }).catch(console.error);
                     }}
                   />
-                  {/* GPS DÉSACTIVÉ — décommenter le bloc ci-dessous pour réactiver
-                  <GPSTracker
-                    chantierAddress={project.adresseChantier}
-                    projectId={id}
-                    silent={currentUser?.role !== "admin"}
-                    heureArrivee={project.heureArrivee}
-                    heureDepart={project.heureDepart}
-                  />
-                  {isAdmin && (
-                    <AdminGpsTimer projectId={id} />
-                  )}
-                  */}
                   {/* Heures arrivée/départ intégrées dans le SiteTimer ci-dessus */}
                   {heureArrivee && heureDepart && (() => {
                     const [ah, am] = heureArrivee.split(":").map(Number);

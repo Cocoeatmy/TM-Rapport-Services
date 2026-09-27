@@ -86,10 +86,12 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  */
 export async function prefetchTodaysProjects(
   allProjects: Project[],
-  userName: string
-): Promise<void> {
-  if (typeof window === "undefined") return;
-  if (!navigator.onLine) return;
+  userName: string,
+  /** Ignore le délai d'une heure — bouton « Préparer la journée ». */
+  force = false,
+): Promise<number> {
+  if (typeof window === "undefined") return 0;
+  if (!navigator.onLine) return 0;
 
   const todayStr = new Date().toISOString().split("T")[0];
   // Date limite : aujourd'hui + 7 jours
@@ -100,7 +102,7 @@ export async function prefetchTodaysProjects(
   // ── Throttle : 1 exécution par heure maximum ─────────────────────────────
   const ONE_HOUR_MS = 60 * 60 * 1000;
   const lastTs = parseInt(localStorage.getItem(LS_LAST_PREFETCH) || "0", 10);
-  if (Date.now() - lastTs < ONE_HOUR_MS) return;
+  if (!force && Date.now() - lastTs < ONE_HOUR_MS) return lireEtat().projets;
 
   const mine = allProjects.filter((p) => {
     const start = p.dateMontage || "";
@@ -115,7 +117,15 @@ export async function prefetchTodaysProjects(
     );
   });
 
-  if (mine.length === 0) return;
+  if (mine.length === 0) {
+    // Aucun chantier : on note quand même le passage, l'interface doit
+    // pouvoir dire « rien à préparer aujourd'hui » plutôt que de rester muette.
+    try {
+      localStorage.setItem(LS_LAST_PREFETCH, String(Date.now()));
+      localStorage.setItem(LS_OFFLINE_READY, "[]");
+    } catch {}
+    return 0;
+  }
 
   // Marque immédiatement l'exécution pour éviter le double-déclenchement.
   try { localStorage.setItem(LS_LAST_PREFETCH, String(Date.now())); } catch {}
@@ -142,7 +152,37 @@ export async function prefetchTodaysProjects(
   // Marque ces projets comme disponibles hors ligne
   try {
     localStorage.setItem(LS_OFFLINE_READY, JSON.stringify(mine.map((p) => p.id)));
+    window.dispatchEvent(new CustomEvent("tm-offline-ready"));
   } catch {}
+  return mine.length;
+}
+
+export interface EtatHorsLigne {
+  /** Nombre de chantiers téléchargés pour un usage sans réseau. */
+  projets: number;
+  /** Horodatage de la dernière préparation, 0 si jamais faite. */
+  quand: number;
+}
+
+/**
+ * Ce qui est réellement disponible sans réseau.
+ *
+ * L'information existait déjà, mais n'était affichée nulle part : un monteur
+ * ne pouvait pas vérifier, avant de partir, que sa journée était chargée. Or
+ * c'est précisément le moment où il peut encore y remédier.
+ */
+export function lireEtat(): EtatHorsLigne {
+  if (typeof window === "undefined") return { projets: 0, quand: 0 };
+  try {
+    const raw = localStorage.getItem(LS_OFFLINE_READY);
+    const ids = raw ? (JSON.parse(raw) as string[]) : [];
+    return {
+      projets: Array.isArray(ids) ? ids.length : 0,
+      quand: parseInt(localStorage.getItem(LS_LAST_PREFETCH) || "0", 10) || 0,
+    };
+  } catch {
+    return { projets: 0, quand: 0 };
+  }
 }
 
 /** Retourne true si ce projet est marqué comme disponible hors ligne. */

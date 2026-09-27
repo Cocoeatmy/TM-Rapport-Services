@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
 import { TourneeAssistant } from "@/components/tournee-assistant";
+import { PreteHorsLigne } from "@/components/prete-hors-ligne";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
@@ -2828,6 +2829,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               ))}
             </div>
           </div>
+
+          {/* État hors-ligne : ce qui est téléchargé, ce qui reste à envoyer.
+              Placé AVANT le reste car c'est la vérification du matin, celle
+              qu'on fait pendant qu'on a encore du réseau. */}
+          <PreteHorsLigne projets={[...projects, ...terminatedProjects]} nom={userName} />
 
           {/* Charge de la semaine + Signaux, côte à côte */}
           <div className="sg-duo">
