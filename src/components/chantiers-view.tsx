@@ -9,7 +9,7 @@
  * à la pose. Le regroupement vit dans `@/lib/chantiers` ; ici on n'affiche.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Building2, Search, ChevronRight, ArrowLeft, Loader2, Download, Ruler,
@@ -27,6 +27,11 @@ const ETATS: [Etat, string][] = [["encours", "En cours"], ["termine", "Terminé"
 
 function norm(s: string): string {
   return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+/** « Rue de Corcelles 12 à 2034 Neuchâtel » → « …12, 2034 Neuchâtel ». */
+function sansA(titre: string): string {
+  return (titre || "").replace(/\s+à\s+(?=\d{4}\b)/g, ", ");
 }
 
 function jour(iso: string | null): string {
@@ -92,24 +97,54 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
     });
   }, [c.lots, filtre, etat]);
 
+  /* Un lot vendu en plusieurs cabines (douche + baignoire, deux salles d'eau)
+     tient sur UNE ligne : la colonne « Cab. » en donne le nombre, et la ligne
+     se déplie pour voir chaque cabine. Sans cela, le même appartement
+     apparaissait deux ou trois fois de suite. */
+  const lignes = useMemo(() => {
+    const m = new Map<string, Lot[]>();
+    lots.forEach((l) => {
+      const cle = `${l.projectId}|${l.nom.toLowerCase()}`;
+      const liste = m.get(cle);
+      if (liste) liste.push(l); else m.set(cle, [l]);
+    });
+    return [...m.entries()].map(([cle, ls]) => ({
+      cle, lots: ls, chef: ls[0], qte: ls.length,
+      poses: ls.filter((x) => x.pose).length,
+    }));
+  }, [lots]);
+
+  const [ouverts, setOuverts] = useState<Set<string>>(new Set());
+  const basculer = (cle: string) => setOuverts((p) => {
+    const n = new Set(p);
+    if (n.has(cle)) n.delete(cle); else n.add(cle);
+    return n;
+  });
+
   /* Export : le tableau tel qu'il est affiché, ouvrable dans Excel. Le
      point-virgule est le séparateur attendu par Excel en configuration
      suisse/française, et le BOM évite les accents cassés. */
   const exporter = () => {
     const cols = [
-      "Bâtiment", "Étage", "Lot", "Pièce", "Sanitaire", "Grossiste", "N° OFR Grossiste",
+      "Bâtiment", "Étage", "Lot", "Cabines", "Pièce", "Sanitaire", "Grossiste", "N° OFR Grossiste",
       "Marque", "Série", "Emplacement", "Mesuré", "Date mesures", "OFR TM",
       "Date offre", "Commande", "Date commande", "Livraison", "Posé",
       "Date pose", "Statut", "Infos",
     ];
-    const lignes = lots.map((l) => [
-      l.batiment, l.etage, l.nom, l.piece, l.sanitaire, l.grossiste, l.ofrGrossiste,
-      l.marque, l.serie, l.emplacement, l.mesure ? "OUI" : "NON", jour(l.dateMesures),
-      l.ofrTM, jour(l.dateOffre), l.cmd, jour(l.dateCMD), jour(l.livraison),
-      l.pose ? "OUI" : "NON", jour(l.datePose), l.statut, l.infos,
-    ]);
+    const corps = lignes.map((g) => {
+      const l = g.chef;
+      return [
+        l.batiment, l.etage, l.nom, String(g.qte),
+        [...new Set(g.lots.map((x) => x.piece).filter(Boolean))].join(" / "),
+        l.sanitaire, l.grossiste, l.ofrGrossiste,
+        l.marque, l.serie, l.emplacement, l.mesure ? "OUI" : "NON", jour(l.dateMesures),
+        l.ofrTM, jour(l.dateOffre), l.cmd, jour(l.dateCMD), jour(l.livraison),
+        g.poses === g.qte ? "OUI" : g.poses > 0 ? `${g.poses}/${g.qte}` : "NON",
+        jour(l.datePose), l.statut, l.infos,
+      ];
+    });
     const echap = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const csv = "﻿" + [cols, ...lignes].map((r) => r.map(echap).join(";")).join("\r\n");
+    const csv = "﻿" + [cols, ...corps].map((r) => r.map(echap).join(";")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
@@ -164,7 +199,7 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
             </button>
           ))}
         </span>
-        <span className="sgch-compte">{lots.length} / {c.nbLots}</span>
+        <span className="sgch-compte">{lignes.length} lots · {lots.length} cab.</span>
       </div>
 
       <div className="sgch-table-wrap">
@@ -173,58 +208,92 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
             <tr>
               <th>Bât.</th><th>Étage</th><th>Lot</th>
               <th>Marque / série</th><th>Grossiste</th>
-              <th className="sgch-c">Mesure</th><th>OFR TM</th>
+              <th className="sgch-c">Mesure</th><th className="sgch-c">Cab.</th>
+              <th>OFR TM</th>
               <th className="sgch-c">CMD</th><th className="sgch-c">Livraison</th>
               <th className="sgch-c">Posé</th><th>Statut</th>
             </tr>
           </thead>
           <tbody>
-            {lots.map((l, i) => (
-              <tr key={`${l.projectId}-${l.cab ?? 0}-${i}`}>
-                <td>{l.batiment || "—"}</td>
-                <td>{l.etage || "—"}</td>
-                <td className="sgch-lot">
-                  <Link href={`/projet/${l.projectId}?mode=dashboard`}>
-                    {l.nom}
-                    {l.cab ? <em>cab. {l.cab}</em> : null}
-                  </Link>
-                  {l.piece ? <span className="sgch-piece">{l.piece}</span> : null}
-                  {l.infos ? <span className="sgch-infos" title={l.infos}>{l.infos}</span> : null}
-                </td>
-                <td>
-                  {l.marque || "—"}
-                  {l.serie ? <span className="sgch-serie">{l.serie}</span> : null}
-                </td>
-                <td>
-                  {l.grossiste || "—"}
-                  {l.ofrGrossiste ? <span className="sgch-serie">{l.ofrGrossiste}</span> : null}
-                </td>
-                <td className="sgch-c">
-                  <span className={`sgch-ou${l.mesure ? " is-oui" : ""}`}>{l.mesure ? "OUI" : "NON"}</span>
-                  {l.dateMesures ? <span className="sgch-d">{jour(l.dateMesures)}</span> : null}
-                </td>
-                <td className="sgch-mono">
-                  {l.ofrTM || "—"}
-                  {l.dateOffre ? <span className="sgch-d">{jour(l.dateOffre)}</span> : null}
-                </td>
-                <td className="sgch-c sgch-mono">
-                  {l.cmd || (l.dateCMD ? "—" : "")}
-                  {l.dateCMD ? <span className="sgch-d">{jour(l.dateCMD)}</span> : null}
-                  {!l.cmd && !l.dateCMD ? <span className="sgch-vide">—</span> : null}
-                </td>
-                <td className="sgch-c sgch-mono">
-                  {l.livraison ? jour(l.livraison) : <span className="sgch-vide">—</span>}
-                </td>
-                <td className="sgch-c">
-                  <span className={`sgch-ou${l.pose ? " is-oui" : ""}`}>{l.pose ? "OUI" : "NON"}</span>
-                  {l.datePose ? <span className="sgch-d">{jour(l.datePose)}</span> : null}
-                </td>
-                <td className="sgch-statut">{l.statut || "—"}</td>
-              </tr>
-            ))}
+            {lignes.map((g) => {
+              const l = g.chef;
+              const deplie = ouverts.has(g.cle);
+              return (
+                <Fragment key={g.cle}>
+                  <tr className={g.qte > 1 ? "sgch-groupe" : undefined}>
+                    <td>{l.batiment || "—"}</td>
+                    <td>{l.etage || "—"}</td>
+                    <td className="sgch-lot">
+                      <span className="sgch-lot-tete">
+                        {g.qte > 1 && (
+                          <button type="button" className="sgch-plier" onClick={() => basculer(g.cle)}
+                            aria-expanded={deplie}
+                            aria-label={deplie ? "Replier les cabines" : "Voir les cabines"}>
+                            <ChevronRight className={`w-3.5 h-3.5${deplie ? " sgch-plier-on" : ""}`} />
+                          </button>
+                        )}
+                        <Link href={`/projet/${l.projectId}?mode=dashboard`}>{l.nom}</Link>
+                      </span>
+                      {g.qte === 1 && l.piece ? <span className="sgch-piece">{l.piece}</span> : null}
+                      {l.infos ? <span className="sgch-infos" title={l.infos}>{l.infos}</span> : null}
+                    </td>
+                    <td>
+                      {l.marque || "—"}
+                      {l.serie ? <span className="sgch-serie">{l.serie}</span> : null}
+                    </td>
+                    <td>
+                      {l.grossiste || "—"}
+                      {l.ofrGrossiste ? <span className="sgch-serie">{l.ofrGrossiste}</span> : null}
+                    </td>
+                    <td className="sgch-c">
+                      <span className={`sgch-ou${l.mesure ? " is-oui" : ""}`}>{l.mesure ? "OUI" : "NON"}</span>
+                      {l.dateMesures ? <span className="sgch-d">{jour(l.dateMesures)}</span> : null}
+                    </td>
+                    <td className="sgch-c sgch-qte">{g.qte}</td>
+                    <td className="sgch-mono">
+                      {l.ofrTM || "—"}
+                      {l.dateOffre ? <span className="sgch-d">{jour(l.dateOffre)}</span> : null}
+                    </td>
+                    <td className="sgch-c sgch-mono">
+                      {l.cmd || null}
+                      {l.dateCMD ? <span className="sgch-d">{jour(l.dateCMD)}</span> : null}
+                      {!l.cmd && !l.dateCMD ? <span className="sgch-vide">—</span> : null}
+                    </td>
+                    <td className="sgch-c sgch-mono">
+                      {l.livraison ? jour(l.livraison) : <span className="sgch-vide">—</span>}
+                    </td>
+                    <td className="sgch-c">
+                      {/* Sur un lot à plusieurs cabines, « OUI » serait faux tant
+                          qu'il en reste une à poser : on montre le compte. */}
+                      <span className={`sgch-ou${g.poses === g.qte ? " is-oui" : g.poses > 0 ? " is-part" : ""}`}>
+                        {g.poses === g.qte ? "OUI" : g.poses > 0 ? `${g.poses}/${g.qte}` : "NON"}
+                      </span>
+                      {l.datePose ? <span className="sgch-d">{jour(l.datePose)}</span> : null}
+                    </td>
+                    <td className="sgch-statut">{l.statut || "—"}</td>
+                  </tr>
+                  {deplie && g.lots.map((x) => (
+                    <tr key={`${g.cle}-${x.cab}`} className="sgch-sous">
+                      <td colSpan={2} />
+                      <td className="sgch-lot">
+                        <span className="sgch-souscab">cab. {x.cab}</span>
+                        {x.piece ? <span className="sgch-piece">{x.piece}</span> : null}
+                      </td>
+                      <td colSpan={4} />
+                      <td className="sgch-mono">{x.ofrTM}</td>
+                      <td colSpan={2} />
+                      <td className="sgch-c">
+                        <span className={`sgch-ou${x.pose ? " is-oui" : ""}`}>{x.pose ? "OUI" : "NON"}</span>
+                      </td>
+                      <td />
+                    </tr>
+                  ))}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
-        {lots.length === 0 && (
+        {lignes.length === 0 && (
           <p className="sgch-vide-msg">
             Aucun lot {etat === "termine" ? "terminé" : etat === "encours" ? "en cours" : ""} ne correspond.
           </p>
@@ -236,7 +305,7 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
         {c.offres.map((o) => (
           <Link key={o.id} href={`/projet/${o.id}?mode=dashboard`} className="sgch-offre">
             <b>{o.ofrTM || "—"}</b>
-            <span>{o.projet}</span>
+            <span>{sansA(o.projet)}</span>
             <em>{o.nbCabines || 1} cab.</em>
             <span className="sgch-offre-st">{o.etatCMD}</span>
             <ChevronRight className="w-4 h-4" />

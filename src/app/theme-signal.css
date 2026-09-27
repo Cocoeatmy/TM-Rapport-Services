@@ -3097,3 +3097,28 @@ html[data-ui="signal"] .sgch-piece {
   display: block; font-size: 10px; line-height: 1.35;
   color: var(--sg-text-3); font-style: italic;
 }
+
+/* Lot vendu en plusieurs cabines : une ligne qui se déplie. */
+html[data-ui="signal"] .sgch-lot-tete { display: flex; align-items: center; gap: 4px; }
+html[data-ui="signal"] .sgch-plier {
+  display: inline-flex; padding: 0; border: 0; background: transparent;
+  cursor: pointer; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgch-plier:hover { color: var(--sg-signal); }
+html[data-ui="signal"] .sgch-plier-on { transform: rotate(90deg); }
+html[data-ui="signal"] .sgch-qte {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-weight: 700; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgch-groupe td { background: var(--sg-paper-2); }
+html[data-ui="signal"] .sgch-sous td {
+  padding-top: 3px; padding-bottom: 3px;
+  background: var(--sg-paper-2); border-bottom-style: dashed;
+}
+html[data-ui="signal"] .sgch-souscab {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--sg-text-3);
+  padding-left: 18px;
+}
+/* Pose partielle : ni vert ni rouge — il reste une cabine à poser. */
+html[data-ui="signal"] .sgch-ou.is-part { background: #fff3da; color: #92500e; }
+html[data-ui="signal"].dark .sgch-ou.is-part { background: #3a2c14; color: #f0b866; }

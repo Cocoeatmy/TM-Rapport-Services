@@ -393,29 +393,32 @@ export interface OptionsChantiers {
 function nommerChantier(offres: ProjetChantier[], rue: string): string {
   const titres = offres.map((o) => (o.projet || "").trim()).filter(Boolean);
   if (titres.length === 0) return rue;
+  /* Le titre est nettoyé de sa localité ET du « à » qui l'introduisait, sans
+     quoi le nom du chantier se terminerait par un « à » orphelin. */
   const propre = (v: string) =>
     detacherLocalite(v).avant.replace(/^[\s,\-–]+/, "").replace(/[\s,\-–]+$/, "").trim();
 
   if (titres.length === 1) return propre(titres[0]) || rue;
 
-  // Suffixe commun.
+  /* Partie commune de la fin des titres, comparée MOT À MOT.
+     Caractère par caractère, « Rue de Corcelles 12 » et « rue de Corcelles 12 »
+     ne partageaient que « celles 12 », et le nom du chantier s'affichait coupé
+     au milieu d'un mot. La comparaison ignore casse et accents ; les mots
+     retenus sont ceux du premier titre, avec leur orthographe d'origine. */
+  const mots = titres.map((t) => propre(t).split(/\s+/).filter(Boolean));
+  const ref = mots[0];
+  const court = mots.reduce((m, w) => Math.min(m, w.length), Infinity);
   let j = 0;
-  const court = titres.reduce((m, t) => Math.min(m, t.length), Infinity);
-  while (j < court && titres.every((t) => t[t.length - 1 - j] === titres[0][titres[0].length - 1 - j])) j++;
-  let suffixe = titres[0].slice(titres[0].length - j);
-  const debut = Math.max(suffixe.indexOf(" - "), suffixe.indexOf(", "));
-  if (debut >= 0) suffixe = suffixe.slice(debut + 2);
-  suffixe = propre(suffixe);
+  while (
+    j < court &&
+    mots.every((w) => sansAccents(w[w.length - 1 - j]).toLowerCase()
+      === sansAccents(ref[ref.length - 1 - j]).toLowerCase())
+  ) j++;
+  const suffixe = ref.slice(ref.length - j).join(" ").replace(/^[,\-–\s]+/, "").trim();
   if (suffixe.length >= 6) return suffixe;
 
-  // Repli : préfixe commun, coupé lui aussi sur un séparateur.
-  let i = 0;
-  while (i < court && titres.every((t) => t[i] === titres[0][i])) i++;
-  let prefixe = titres[0].slice(0, i);
-  const coupe = Math.max(prefixe.lastIndexOf(" - "), prefixe.lastIndexOf(", "));
-  if (coupe > 8) prefixe = prefixe.slice(0, coupe);
-  prefixe = propre(prefixe);
-  return prefixe.length >= 6 ? prefixe : rue;
+  // Repli : la rue, toujours propre, plutôt qu'un préfixe qui porte la marque.
+  return rue || propre(titres[0]);
 }
 
 /**
