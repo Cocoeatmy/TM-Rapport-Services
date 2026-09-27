@@ -13,7 +13,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Building2, Search, ChevronRight, ArrowLeft, Loader2, Download, Ruler,
-  ShoppingCart, Truck, Wrench, FileText, X,
+  ShoppingCart, Truck, Wrench, FileText, X, Link2, Check,
 } from "lucide-react";
 import { STATUS_CMD_COLORS } from "@/lib/constants";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
@@ -242,6 +242,22 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
     }
   };
 
+  const [lienEtat, setLienEtat] = useState<"repos" | "encours" | "ok" | "erreur">("repos");
+  const copierLien = async () => {
+    setLienEtat("encours");
+    try {
+      const r = await fetch(`/api/chantier-lien?sig=${encodeURIComponent(c.id)}`);
+      const d = await r.json();
+      if (!r.ok || !d.url) throw new Error("lien");
+      await navigator.clipboard.writeText(d.url);
+      setLienEtat("ok");
+      setTimeout(() => setLienEtat("repos"), 2500);
+    } catch {
+      setLienEtat("erreur");
+      setTimeout(() => setLienEtat("repos"), 3000);
+    }
+  };
+
   return (
     <div className="sgch">
       <div className="sgch-detail-head">
@@ -257,6 +273,21 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
         <button type="button" className="sgch-export" onClick={exporter}>
           <Download className="w-3.5 h-3.5" /> Excel
         </button>
+      </div>
+
+      {/* Lien de suivi : à donner à la régie ou au sanitaire. Il ouvre une page
+          publique, toujours à jour, sans prix ni notes internes. La signature
+          est calculée par le serveur — le navigateur ne détient pas la clé. */}
+      <div className="sgch-lien">
+        <button type="button" className="sgch-retour" onClick={copierLien} disabled={lienEtat === "encours"}>
+          {lienEtat === "ok" ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
+          {lienEtat === "ok" ? "Lien copié" : "Copier le lien de suivi"}
+        </button>
+        <span>
+          {lienEtat === "erreur"
+            ? "Lien indisponible — réessayez."
+            : "Page publique en lecture seule : avancement des lots, sans prix ni notes internes."}
+        </span>
       </div>
 
       <div className="sgch-entete">

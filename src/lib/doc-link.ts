@@ -76,3 +76,13 @@ export function signMesure(projectId: string, cab: number): string {
 export function signArrivage(projectId: string): string {
   return createHmac("sha256", SECRET).update(`arrivage|${projectId}`).digest("hex").slice(0, 32);
 }
+
+/**
+ * Signature HMAC d'un CHANTIER (et non d'un projet) pour le lien de suivi
+ * public. La clé n'est pas un identifiant Notion mais la signature d'adresse
+ * calculée par `src/lib/chantiers.ts` — « 2034|rue de corcelles » — puisqu'un
+ * chantier n'existe nulle part ailleurs que dans ce regroupement.
+ */
+export function signChantier(signature: string): string {
+  return createHmac("sha256", SECRET).update(`chantier|${signature}`).digest("hex").slice(0, 32);
+}

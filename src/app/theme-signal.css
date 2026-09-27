@@ -3297,3 +3297,11 @@ html[data-ui="signal"] .sgs-cy-val {
   font-size: 19px; font-weight: 700; color: var(--sg-text);
 }
 html[data-ui="signal"] .sgs-cy-sub { font-size: 10.5px; color: var(--sg-text-3); }
+
+/* Lien de suivi public d'un chantier. */
+html[data-ui="signal"] .sgch-lien {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 10px; border-radius: 10px;
+  border: 1px dashed var(--sg-line-strong); background: var(--sg-paper-2);
+}
+html[data-ui="signal"] .sgch-lien > span { font-size: 11px; color: var(--sg-text-3); }
