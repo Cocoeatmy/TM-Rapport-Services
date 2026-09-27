@@ -292,6 +292,92 @@ export function SignalStats({
   const byFournisseur = useMemo(() => byList("fournisseurs"), [P]);
   const bySerie = useMemo(() => byList("seriesCabines"), [P]);
 
+  /* ── Délais réels ───────────────────────────────────────────────────────
+     Toutes ces dates sont saisies depuis toujours ; personne ne les croisait.
+     On raisonne en MÉDIANE et non en moyenne : une commande oubliée six mois
+     dans un coin décalerait une moyenne au point de la rendre inutilisable,
+     alors que la médiane dit ce qui se passe réellement une fois sur deux. */
+  const jourDe = (v: any): number | null => {
+    if (!v) return null;
+    const t = Date.parse(String(v).length <= 10 ? `${v}T12:00:00` : String(v));
+    return Number.isNaN(t) ? null : t;
+  };
+  const ecart = (a: any, b: any): number | null => {
+    const d1 = jourDe(a), d2 = jourDe(b);
+    if (d1 === null || d2 === null) return null;
+    const j = Math.round((d2 - d1) / 86400000);
+    // Au-delà d'un an, c'est une erreur de saisie plutôt qu'un délai.
+    return j >= 0 && j <= 365 ? j : null;
+  };
+  const mediane = (xs: number[]): number => {
+    if (xs.length === 0) return 0;
+    const t = [...xs].sort((a, b) => a - b);
+    const m = Math.floor(t.length / 2);
+    return t.length % 2 ? t[m] : Math.round((t[m - 1] + t[m]) / 2);
+  };
+  const centile = (xs: number[], q: number): number => {
+    if (xs.length === 0) return 0;
+    const t = [...xs].sort((a, b) => a - b);
+    return t[Math.min(t.length - 1, Math.floor(q * t.length))];
+  };
+
+  const dateCommande = (p: any) => p.dateCMDUsine || p.dateCMDRecue;
+  const dateLivraison = (p: any) => p.arrivageTM || p.arrivageGrossiste;
+
+  /** Délai commande → livraison, par fournisseur. */
+  const delaisFournisseur = useMemo(() => {
+    const m = new Map<string, { jours: number[]; items: any[] }>();
+    P.forEach((p: any) => {
+      const j = ecart(dateCommande(p), dateLivraison(p));
+      if (j === null) return;
+      const marques: string[] = (p.fournisseurs || []).length ? p.fournisseurs : ["Sans marque"];
+      marques.forEach((f: string) => {
+        const cur = m.get(f) || { jours: [], items: [] };
+        cur.jours.push(j); cur.items.push(p);
+        m.set(f, cur);
+      });
+    });
+    return [...m.entries()]
+      // Sous cinq commandes, une médiane ne veut rien dire.
+      .filter(([, v]) => v.jours.length >= 5)
+      .map(([label, v]) => ({
+        label,
+        value: mediane(v.jours),
+        color: hueFor(label),
+        sub: `${v.jours.length} cmd · 9/10 sous ${centile(v.jours, 0.9)} j`,
+        items: v.items,
+      }))
+      .sort((a, b) => a.value - b.value);
+  }, [P]);
+
+  /** Les quatre étapes du cycle, en médiane sur la période affichée. */
+  const cycle = useMemo(() => {
+    const etapes: { label: string; sens: string; jours: number[] }[] = [
+      { label: "Mesures → offre", sens: "notre réactivité", jours: [] },
+      { label: "Offre → commande", sens: "décision du client", jours: [] },
+      { label: "Commande → livraison", sens: "délai fournisseur", jours: [] },
+      { label: "Livraison → pose", sens: "notre planification", jours: [] },
+    ];
+    P.forEach((p: any) => {
+      const paires: [any, any][] = [
+        [p.dateMesuresRecue, p.dateOffre],
+        [p.dateOffre, dateCommande(p)],
+        [dateCommande(p), dateLivraison(p)],
+        [dateLivraison(p), p.dateMontage],
+      ];
+      paires.forEach(([a, b], i) => {
+        const j = ecart(a, b);
+        if (j !== null) etapes[i].jours.push(j);
+      });
+    });
+    return etapes.map((e) => ({
+      ...e,
+      n: e.jours.length,
+      med: mediane(e.jours),
+      haut: centile(e.jours, 0.9),
+    }));
+  }, [P]);
+
   const byStatut = useMemo(() => {
     const m = new Map<string, any[]>();
     P.forEach((p) => {
@@ -1178,6 +1264,28 @@ export function SignalStats({
             }>
             <BarList rows={geoMode === "canton" ? byGeoCanton : geoMode === "region" ? byGeoRegion : byGeoNpa}
               unit=" cab." empty="Aucune adresse exploitable." onPick={setPick} />
+          </Fold>
+          <Fold title="Délais de livraison par fournisseur"
+            meta="de la commande à l'arrivage · médiane en jours · au moins 5 commandes">
+            <BarList rows={delaisFournisseur} unit=" j"
+              empty="Pas assez de commandes datées sur la période."
+              onPick={setPick} />
+          </Fold>
+          <Fold title="Cycle d'un projet" meta="médiane en jours sur la période affichée">
+            <div className="sgs-cycle">
+              {cycle.map((e) => (
+                <div key={e.label} className={`sgs-cy${e.n === 0 ? " is-vide" : ""}`}>
+                  <span className="sgs-cy-tete">
+                    <b>{e.label}</b>
+                    <em>{e.sens}</em>
+                  </span>
+                  <span className="sgs-cy-val">{e.n ? `${e.med} j` : "—"}</span>
+                  <span className="sgs-cy-sub">
+                    {e.n ? `${e.n} projets · 9/10 sous ${e.haut} j` : "aucune date exploitable"}
+                  </span>
+                </div>
+              ))}
+            </div>
           </Fold>
           <Fold className="sgs-span2" title="Projets par statut" meta={`état CMD · ${fmt(quality.total)} projets`}>
             <BarList rows={byStatut} unit=" proj." onPick={setPick} />
