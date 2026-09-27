@@ -54,6 +54,7 @@ export default function RelancesPage() {
         chargement={chargement}
         erreur={erreur}
         onRecharger={charger}
+        avecJournal
         vide="Rien ne traîne : tous les dossiers ont avancé récemment."
       />
     </div>

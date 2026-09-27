@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
           projet: projet.projet || "Sans nom",
           etatCMD: projet.etatCMD || "",
           collaborateurs: projet.collaborateurs || "",
+          journal: projet.journalEchanges || "",
           detail,
         })),
       })),
