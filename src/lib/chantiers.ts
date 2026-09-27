@@ -96,6 +96,12 @@ export interface Chantier {
   nbPosees: number;
   fournisseurs: string[];
   grossistes: string[];
+  /**
+   * Chantier soldé : TOUTES ses offres sont au statut « Terminé ». On ne se
+   * fie pas au pourcentage posé, qui dépend des photos remontées du chantier
+   * et peut rester à 90 % sur une affaire pourtant close.
+   */
+  termine: boolean;
   /** Dernière modification d'une des offres — sert au tri « récents d'abord ». */
   dernierMouvement: string;
 }
@@ -135,13 +141,33 @@ function normaliserVoie(s: string): string {
   return v.replace(/\b\d+[a-z]?\b/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/** Retire la fin « … à 1350 Orbe » / « …, 1022 Chavannes » et la rend à part. */
+/** Le pays en queue d'adresse — « …, 1008 Prilly, Suisse » — n'est pas une rue. */
+const RE_PAYS = /[,;]?\s*(suisse|switzerland|schweiz|svizzera|ch)\s*$/i;
+
+/**
+ * Sépare « rue » et « NPA + localité ».
+ *
+ * Le NPA est cherché À TRAVERS le texte, pas seulement à la fin : la colonne
+ * Notion est souvent écrite à la façon de Google Maps, avec le pays derrière la
+ * localité. Ancrer la recherche à la fin faisait échouer la lecture, et le
+ * dernier morceau — « Suisse » — devenait la rue : tous les chantiers d'une
+ * même commune se retrouvaient alors dans un seul groupe.
+ */
 function detacherLocalite(brut: string): { npa: string; ville: string; avant: string } {
-  const txt = (brut || "").replace(/\s+/g, " ").trim();
-  const m = txt.match(/(\d{4})\s+([^,;]+)$/);
+  const txt = (brut || "").replace(/\s+/g, " ").trim().replace(RE_PAYS, "").trim();
+  // Dernier NPA du texte : un numéro de rue à quatre chiffres est improbable,
+  // et le titre peut en contenir un plus tôt (nom de résidence).
+  const re = /\b(\d{4})\b/g;
+  let m: RegExpExecArray | null = null, x: RegExpExecArray | null;
+  while ((x = re.exec(txt))) m = x;
   if (!m) return { npa: "", ville: "", avant: txt };
-  const avant = txt.slice(0, m.index).replace(/[,;\-–]\s*$/, "").replace(/\s+à\s*$/i, "").trim();
-  return { npa: m[1], ville: m[2].trim(), avant };
+  const ville = txt.slice(m.index + 4).split(/[,;]/)[0].trim();
+  const avant = txt.slice(0, m.index)
+    .replace(/[,;\-–]\s*$/, "")
+    .replace(/\s+(?:à|a)\s*$/i, "")
+    .replace(/[,;\-–]\s*$/, "")
+    .trim();
+  return { npa: m[1], ville, avant };
 }
 
 /**
@@ -170,6 +196,9 @@ export function adresseDe(p: ProjetChantier): { npa: string; ville: string; rue:
   const a = decouperAdresse(p.adresseChantier || "");
   if (a.npa && a.rue) return a;
   const t = decouperAdresse(p.projet || "");
+  // Une source est prise EN BLOC : mélanger le NPA du titre avec la « rue »
+  // d'une adresse illisible produit des groupes qui n'existent pas.
+  if (t.npa && t.rue) return t;
   return {
     npa: a.npa || t.npa,
     ville: a.ville || t.ville,
@@ -181,10 +210,11 @@ export function adresseDe(p: ProjetChantier): { npa: string; ville: string; rue:
 export function signatureChantier(p: ProjetChantier): string {
   const { npa, ville, rue } = adresseDe(p);
   const voie = normaliserVoie(rue);
-  if (!npa && !voie) return "";
   // Sans rue exploitable, le NPA seul regrouperait toute une commune : on
-  // préfère ne pas regrouper du tout.
-  if (!voie) return "";
+  // préfère ne pas regrouper du tout. Même chose si la « rue » n'est que la
+  // localité répétée, ou un mot trop court pour désigner une adresse.
+  if (!voie || voie.length < 4) return "";
+  if (voie === normaliserVoie(ville)) return "";
   return `${npa || sansAccents(ville).toLowerCase()}|${voie}`;
 }
 
@@ -405,6 +435,7 @@ export function construireChantiers(
       nbPosees: lots.filter((l) => l.pose).length,
       fournisseurs: [...new Set(offres.flatMap((o) => o.fournisseurs || []))],
       grossistes: [...new Set(offres.flatMap((o) => o.grossistesNames || []))],
+      termine: offres.every((o) => o.etatCMD === "Terminé"),
       dernierMouvement: offres.reduce((max, o) => (o.lastEditedTime > max ? o.lastEditedTime : max), ""),
     });
   });

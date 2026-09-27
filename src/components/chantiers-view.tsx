@@ -22,6 +22,9 @@ import {
 
 const SEUILS = [5, 10, 15, 20];
 
+type Etat = "tous" | "encours" | "termine";
+const ETATS: [Etat, string][] = [["encours", "En cours"], ["termine", "Terminé"], ["tous", "Tous"]];
+
 function norm(s: string): string {
   return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
@@ -225,6 +228,7 @@ export function ChantiersView() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [recherche, setRecherche] = useState("");
   const [seuil, setSeuil] = useState(10);
+  const [etat, setEtat] = useState<Etat>("encours");
   const [ouvert, setOuvert] = useState<string | null>(null);
 
   useEffect(() => {
@@ -241,15 +245,23 @@ export function ChantiersView() {
     [projets, seuil],
   );
 
+  const comptes = useMemo(() => ({
+    tous: chantiers.length,
+    encours: chantiers.filter((c) => !c.termine).length,
+    termine: chantiers.filter((c) => c.termine).length,
+  }), [chantiers]);
+
   const visibles = useMemo(() => {
+    const parEtat = chantiers.filter((c) =>
+      etat === "tous" ? true : etat === "termine" ? c.termine : !c.termine);
     const q = norm(recherche.trim());
-    if (!q) return chantiers;
+    if (!q) return parEtat;
     const mots = q.split(/\s+/);
-    return chantiers.filter((c) => {
+    return parEtat.filter((c) => {
       const foin = norm(`${c.nom} ${c.rue} ${c.localite} ${c.fournisseurs.join(" ")} ${c.grossistes.join(" ")} ${c.offres.map((o) => o.ofrTM).join(" ")}`);
       return mots.every((m) => foin.includes(m));
     });
-  }, [chantiers, recherche]);
+  }, [chantiers, recherche, etat]);
 
   const choisi = chantiers.find((c) => c.id === ouvert) || null;
   if (choisi) return <DetailChantier c={choisi} onRetour={() => setOuvert(null)} />;
@@ -276,6 +288,13 @@ export function ChantiersView() {
             </button>
           )}
         </span>
+        <span className="sgch-etats">
+          {ETATS.map(([k, label]) => (
+            <button key={k} type="button" className={etat === k ? "is-on" : ""} onClick={() => setEtat(k)}>
+              {label} <b>{comptes[k]}</b>
+            </button>
+          ))}
+        </span>
         <span className="sgch-seuil">
           <em>À partir de</em>
           {SEUILS.map((s) => (
@@ -294,8 +313,9 @@ export function ChantiersView() {
 
       {projets && visibles.length === 0 && (
         <p className="sgch-vide-msg">
-          Aucun chantier à ce seuil. Abaissez-le, ou vérifiez que l&apos;adresse du chantier
-          est renseignée sur les offres.
+          {chantiers.length > 0
+            ? `Aucun chantier ${etat === "termine" ? "terminé" : "en cours"} ne correspond.`
+            : "Aucun chantier à ce seuil. Abaissez-le, ou vérifiez que l'adresse du chantier est renseignée sur les offres."}
         </p>
       )}
 
@@ -319,7 +339,9 @@ export function ChantiersView() {
               <span className="sgch-seg is-liv" style={{ width: `${pct(c.nbLivrees, c.nbLots)}%` }} />
               <span className="sgch-seg is-pos" style={{ width: `${pct(c.nbPosees, c.nbLots)}%` }} />
             </span>
-            <span className="sgch-row-pose">{pct(c.nbPosees, c.nbLots)}% posé</span>
+            <span className="sgch-row-pose">
+              {c.termine ? <em className="sgch-fini">terminé</em> : `${pct(c.nbPosees, c.nbLots)}% posé`}
+            </span>
             <ChevronRight className="w-4 h-4 sgch-chev" />
           </button>
         ))}

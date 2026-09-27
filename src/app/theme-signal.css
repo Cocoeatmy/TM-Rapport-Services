@@ -3068,3 +3068,26 @@ html[data-ui="signal"].dark .sgch-jauge-fill { background: #7fb0ff; }
   html[data-ui="signal"] .sgch-row-chiffres { flex-direction: column; gap: 0; }
   html[data-ui="signal"] .sgch-row-pose { display: none; }
 }
+
+/* Filtre En cours / Terminé de la liste des chantiers. */
+html[data-ui="signal"] .sgch-etats { display: inline-flex; gap: 4px; }
+html[data-ui="signal"] .sgch-etats button {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  height: 28px; padding: 0 10px; border-radius: 999px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-2); font-family: inherit; font-size: 11.5px; font-weight: 600;
+}
+html[data-ui="signal"] .sgch-etats button b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 10.5px; font-weight: 600; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgch-etats button.is-on {
+  background: var(--sg-ink); border-color: var(--sg-ink); color: #fff;
+}
+html[data-ui="signal"] .sgch-etats button.is-on b { color: var(--sg-on-ink-dim); }
+html[data-ui="signal"] .sgch-fini {
+  font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+  padding: 1px 7px; border-radius: 999px;
+  background: #e7f6ec; color: #17683a;
+}
+html[data-ui="signal"].dark .sgch-fini { background: #14301f; color: #63d18e; }
