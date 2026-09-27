@@ -3122,3 +3122,25 @@ html[data-ui="signal"] .sgch-souscab {
 /* Pose partielle : ni vert ni rouge — il reste une cabine à poser. */
 html[data-ui="signal"] .sgch-ou.is-part { background: #fff3da; color: #92500e; }
 html[data-ui="signal"].dark .sgch-ou.is-part { background: #3a2c14; color: #f0b866; }
+
+/* Onglets d'un chantier : un par sanitaire, dédoublé par grossiste au besoin. */
+html[data-ui="signal"] .sgch-onglets {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  padding-bottom: 6px; border-bottom: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgch-onglets button {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  height: 30px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-2); font-family: inherit; font-size: 12px; font-weight: 600;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgch-onglets button:hover { background: var(--sg-paper-2); }
+html[data-ui="signal"] .sgch-onglets button b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 10.5px; font-weight: 600; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgch-onglets button.is-on {
+  background: var(--sg-signal-soft); border-color: var(--sg-signal); color: var(--sg-signal);
+}
+html[data-ui="signal"] .sgch-onglets button.is-on b { color: var(--sg-signal); opacity: 0.75; }

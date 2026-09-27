@@ -300,18 +300,44 @@ function ressembleAUnLot(txt: string): boolean {
  */
 function libelleOffre(p: ProjetChantier): string {
   const t = detacherLocalite(p.projet || "").avant;
+  let morceaux = t.split(/\s+-\s+|,/).map((x) => x.trim()).filter(Boolean);
   // Le dernier morceau est la rue, commune à tout le chantier : elle ne
-  // distingue rien. On garde ce qu'il y a entre la marque et la rue.
-  const morceaux = t.split(/\s+-\s+|,/).map((s) => s.trim()).filter(Boolean);
-  if (morceaux.length > 2) morceaux.pop();
-  // Le premier morceau est la marque ou le grossiste dans la quasi-totalité
-  // des titres (« Ronal - … », « Duka ch AG - … ») : inutile ici.
-  if (morceaux.length > 1) morceaux.shift();
+  // distingue rien.
+  if (morceaux.length > 1) morceaux.pop();
+  /* Restent la marque, le grossiste, le sanitaire… et le lot. On écarte les
+     partenaires nommément : « Getaz Bulle - Symbiose Fitness Aire A1 » doit
+     se lire « Symbiose Fitness Aire A1 », le grossiste ayant sa colonne. */
+  const partenaires = [
+    ...(p.fournisseurs || []), ...(p.grossistesNames || []), ...(p.sanitaireNames || []),
+  ];
+  const utiles = morceaux.filter((m) => !estUnPartenaire(m, partenaires));
+  if (utiles.length > 0) morceaux = utiles;
+  else if (morceaux.length > 1) morceaux.shift();
+
   const reste = morceaux.join(" - ");
   const info = analyserLibelle(reste);
   if (info.lot) return info.lot;
   if (info.batiment) return `Bât. ${info.batiment}`;
   return reste || t;
+}
+
+/**
+ * Ce morceau de titre désigne-t-il un partenaire du projet ?
+ *
+ * La comparaison est faite sur les MOTS, pas sur la chaîne entière : le titre
+ * abrège (« Getaz Bulle ») ce que la relation Notion écrit en entier
+ * (« Gétaz-Miauton SA - Bulle »). Tous les mots du morceau doivent se
+ * retrouver dans le nom du partenaire.
+ */
+function estUnPartenaire(segment: string, noms: string[]): boolean {
+  const decouper = (v: string) =>
+    sansAccents(v).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const mots = decouper(segment);
+  if (mots.length === 0) return false;
+  return noms.some((n) => {
+    const ref = new Set(decouper(n));
+    return ref.size > 0 && mots.every((w) => ref.has(w));
+  });
 }
 
 function aDate(...v: (string | null | undefined)[]): string | null {

@@ -75,6 +75,39 @@ function Jauge({ Icon, label, n, total }: {
 /* ── Détail d'un chantier ───────────────────────────────────────────────── */
 function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) {
   const [filtre, setFiltre] = useState("");
+
+  /* Une même adresse peut réunir plusieurs affaires : un sanitaire par
+     immeuble, parfois deux succursales du même grossiste. Les mélanger dans un
+     seul tableau mêlerait des lots qui ne se suivent pas ensemble — d'où un
+     onglet par couple sanitaire / grossiste. */
+  const onglets = useMemo(() => {
+    const m = new Map<string, Lot[]>();
+    c.lots.forEach((l) => {
+      const cle = `${l.sanitaire}|${l.grossiste}`;
+      const liste = m.get(cle);
+      if (liste) liste.push(l); else m.set(cle, [l]);
+    });
+    const groupes = [...m.entries()].map(([cle, ls]) => ({
+      cle, lots: ls, sanitaire: ls[0].sanitaire, grossiste: ls[0].grossiste,
+    }));
+    // Le grossiste n'est ajouté au libellé que s'il départage deux onglets
+    // du même sanitaire : sinon il alourdirait sans rien distinguer.
+    const parSanitaire = new Map<string, number>();
+    groupes.forEach((g) => parSanitaire.set(g.sanitaire, (parSanitaire.get(g.sanitaire) || 0) + 1));
+    return groupes
+      .map((g) => ({
+        ...g,
+        label: [
+          g.sanitaire || g.grossiste || "Sans sanitaire",
+          g.sanitaire && (parSanitaire.get(g.sanitaire) || 0) > 1 ? g.grossiste : "",
+        ].filter(Boolean).join(" · "),
+      }))
+      .sort((a, b) => b.lots.length - a.lots.length);
+  }, [c.lots]);
+
+  const [onglet, setOnglet] = useState("");
+  const actif = onglets.find((o) => o.cle === onglet) || onglets[0];
+  const lotsOnglet = actif ? actif.lots : c.lots;
   /* La fiche montre TOUT le chantier : un immeuble se lit d'un bloc, et un lot
      posé l'an dernier fait partie de son histoire — son statut « Terminé »
      suffit à le distinguer. Les pastilles restent là pour isoler ce qui reste
@@ -82,13 +115,23 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
   const [etat, setEtat] = useState<Etat>("tous");
 
   const comptes = useMemo(() => ({
-    tous: c.lots.length,
-    encours: c.lots.filter((l) => l.statut !== "Terminé").length,
-    termine: c.lots.filter((l) => l.statut === "Terminé").length,
-  }), [c.lots]);
+    tous: lotsOnglet.length,
+    encours: lotsOnglet.filter((l) => l.statut !== "Terminé").length,
+    termine: lotsOnglet.filter((l) => l.statut === "Terminé").length,
+  }), [lotsOnglet]);
+
+  /* Avancement de l'onglet affiché, et non du chantier entier : les quatre
+     jauges doivent décrire le tableau qu'on a sous les yeux. */
+  const avance = useMemo(() => ({
+    total: lotsOnglet.length,
+    mesurees: lotsOnglet.filter((l) => l.mesure).length,
+    commandees: lotsOnglet.filter((l) => !!l.cmd || !!l.dateCMD).length,
+    livrees: lotsOnglet.filter((l) => !!l.livraison).length,
+    posees: lotsOnglet.filter((l) => l.pose).length,
+  }), [lotsOnglet]);
 
   const lots = useMemo(() => {
-    const tri = [...c.lots]
+    const tri = [...lotsOnglet]
       .filter((l) => etat === "tous" ? true : etat === "termine" ? l.statut === "Terminé" : l.statut !== "Terminé")
       .sort(comparerLots);
     const q = norm(filtre.trim());
@@ -98,7 +141,7 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
       const foin = norm(`${l.nom} ${l.piece} ${l.batiment} ${l.etage} ${l.ofrTM} ${l.marque} ${l.serie} ${l.grossiste} ${l.statut} ${l.infos}`);
       return mots.every((m) => foin.includes(m));
     });
-  }, [c.lots, filtre, etat]);
+  }, [lotsOnglet, filtre, etat]);
 
   /* Un lot vendu en plusieurs cabines (douche + baignoire, deux salles d'eau)
      tient sur UNE ligne : la colonne « Cab. » en donne le nombre, et la ligne
@@ -151,7 +194,8 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${c.nom.replace(/[^\w\s-]/g, "").trim().slice(0, 60) || "chantier"}.csv`;
+    const titre = [c.nom, onglets.length > 1 ? actif?.label : ""].filter(Boolean).join(" - ");
+    a.download = `${titre.replace(/[^\w\s-]/g, "").trim().slice(0, 70) || "chantier"}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -177,11 +221,24 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
         </p>
       </div>
 
+      {onglets.length > 1 && (
+        <div className="sgch-onglets" role="tablist">
+          {onglets.map((o) => (
+            <button key={o.cle} type="button" role="tab"
+              aria-selected={actif?.cle === o.cle}
+              className={actif?.cle === o.cle ? "is-on" : ""}
+              onClick={() => setOnglet(o.cle)}>
+              {o.label} <b>{o.lots.length}</b>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="sgch-jauges">
-        <Jauge Icon={Ruler} label="Mesurés" n={c.nbMesurees} total={c.nbLots} />
-        <Jauge Icon={ShoppingCart} label="Commandés" n={c.nbCommandees} total={c.nbLots} />
-        <Jauge Icon={Truck} label="Livrés" n={c.nbLivrees} total={c.nbLots} />
-        <Jauge Icon={Wrench} label="Posés" n={c.nbPosees} total={c.nbLots} />
+        <Jauge Icon={Ruler} label="Mesurés" n={avance.mesurees} total={avance.total} />
+        <Jauge Icon={ShoppingCart} label="Commandés" n={avance.commandees} total={avance.total} />
+        <Jauge Icon={Truck} label="Livrés" n={avance.livrees} total={avance.total} />
+        <Jauge Icon={Wrench} label="Posés" n={avance.posees} total={avance.total} />
       </div>
 
       <div className="sgch-barre">
@@ -365,7 +422,7 @@ export function ChantiersView() {
   }, [chantiers, recherche, etat]);
 
   const choisi = chantiers.find((c) => c.id === ouvert) || null;
-  if (choisi) return <DetailChantier c={choisi} onRetour={() => setOuvert(null)} />;
+  if (choisi) return <DetailChantier key={choisi.id} c={choisi} onRetour={() => setOuvert(null)} />;
 
   return (
     <div className="sgch">
