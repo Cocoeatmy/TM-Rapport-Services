@@ -131,6 +131,44 @@ function BarList({ rows, unit, empty, onPick }: {
   );
 }
 
+/**
+ * Tableau d'analyse.
+ *
+ * En vrai <table> et non en grille CSS : une grille dont le nombre de colonnes
+ * doit coïncider à la main entre l'en-tête et chaque ligne finit toujours par
+ * se décaler — c'est ce qui s'est produit. Le navigateur dimensionne les
+ * colonnes d'un tableau tout seul, et ne se trompe jamais.
+ */
+function Tableau({ cols, children }: {
+  cols: { titre: string; num?: boolean }[];
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="sgs-t-wrap">
+      <table className="sgs-t">
+        <thead>
+          <tr>
+            {cols.map((c, i) => (
+              <th key={c.titre + i} className={c.num ? "num" : undefined}>{c.titre}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Barre de proportion, pour lire une part sans lire un chiffre. */
+function Part({ valeur, sur, ton }: { valeur: number; sur: number; ton?: string }) {
+  const p = sur > 0 ? Math.min(100, Math.round((valeur / sur) * 100)) : 0;
+  return (
+    <span className="sgs-part" aria-hidden="true">
+      <i className={ton ? `is-${ton}` : undefined} style={{ width: `${p}%` }} />
+    </span>
+  );
+}
+
 /** Carte d'analyse repliable. Fermée par défaut : la page s'ouvre sur une vue
  *  d'ensemble, on déplie ce qu'on veut vraiment lire. */
 function Fold({ title, meta, right, children, defaultOpen = false, className = "" }: {
@@ -1268,19 +1306,22 @@ export function SignalStats({
           <Fold className="sgs-span2" defaultOpen title="Seul ou à deux"
             meta="temps de présence et temps-homme par cabine · les montages « Team » sont écartés">
             {analyses?.equipage?.length ? (
-              <div className="sgs-tab">
-                <div className="sgs-tab-tete">
-                  <span>Composition</span><span>Cabines</span>
-                  <span>Présence / cabine</span><span>Temps-homme / cabine</span>
-                </div>
-                {analyses.equipage.map((l: any) => (
-                  <div key={l.forme} className="sgs-tab-ligne">
-                    <span>{l.forme} <em>· {l.projets} chantiers</em></span>
-                    <span>{l.cabines}</span>
-                    <b>{Math.floor(l.minutesParCabine / 60)}h{String(l.minutesParCabine % 60).padStart(2, "0")}</b>
-                    <b>{Math.floor(l.minutesHommeParCabine / 60)}h{String(l.minutesHommeParCabine % 60).padStart(2, "0")}</b>
-                  </div>
-                ))}
+              <>
+                <Tableau cols={[
+                  { titre: "Composition" }, { titre: "Chantiers", num: true },
+                  { titre: "Cabines", num: true }, { titre: "Présence / cabine", num: true },
+                  { titre: "Temps-homme / cabine", num: true },
+                ]}>
+                  {analyses.equipage.map((l: any) => (
+                    <tr key={l.forme}>
+                      <td className="cle">{l.forme}</td>
+                      <td className="num">{l.projets}</td>
+                      <td className="num">{l.cabines}</td>
+                      <td className="num fort">{Math.floor(l.minutesParCabine / 60)}h{String(l.minutesParCabine % 60).padStart(2, "0")}</td>
+                      <td className="num fort">{Math.floor(l.minutesHommeParCabine / 60)}h{String(l.minutesHommeParCabine % 60).padStart(2, "0")}</td>
+                    </tr>
+                  ))}
+                </Tableau>
                 <p className="sgs-note">
                   Deux mesures, et c&apos;est la seconde qui tranche : la <b>présence</b> dit si
                   le chantier avance plus vite, le <b>temps-homme</b> dit s&apos;il coûte moins.
@@ -1288,7 +1329,7 @@ export function SignalStats({
                   gagnant, au-dessus c&apos;est un confort qui se paie. Les montages attribués à
                   « Team » sont écartés : on ne sait pas combien de personnes s&apos;y trouvaient.
                 </p>
-              </div>
+              </>
             ) : (
               <p className="sgs-empty">Pas assez de chantiers avec heures pointées et monteur identifié.</p>
             )}
@@ -1296,28 +1337,34 @@ export function SignalStats({
           <Fold className="sgs-span2" title="Ce que deviennent les mesures"
             meta="par personne ayant relevé · mesures reçues sur la période">
             {analyses?.mesures?.length ? (
-              <div className="sgs-tab is-large">
-                <div className="sgs-tab-tete">
-                  <span>Relevé par</span><span>Mesures</span><span>Commandées</span>
-                  <span>Encore ouvertes</span><span>Annulées</span><span>Transformation</span>
-                </div>
-                {analyses.mesures.map((l: any) => (
-                  <div key={l.personne} className="sgs-tab-ligne">
-                    <span>{l.personne}</span>
-                    <span>{l.prises}</span>
-                    <span>{l.commandees}</span>
-                    <span>{l.ouvertes || "—"}</span>
-                    <span className={l.annulees > 0 ? "is-alerte" : ""}>{l.annulees || "—"}</span>
-                    <b className={l.taux >= 70 ? "is-bon" : l.taux < 40 ? "is-faible" : ""}>{l.taux} %</b>
-                  </div>
-                ))}
+              <>
+                <Tableau cols={[
+                  { titre: "Relevé par" }, { titre: "Mesures", num: true },
+                  { titre: "Commandées", num: true }, { titre: "Ouvertes", num: true },
+                  { titre: "Annulées", num: true }, { titre: "Transformation", num: true },
+                ]}>
+                  {analyses.mesures.map((l: any) => (
+                    <tr key={l.personne}>
+                      <td className="cle">{l.personne}</td>
+                      <td className="num">{l.prises}</td>
+                      <td className="num">{l.commandees}</td>
+                      <td className="num doux">{l.ouvertes || "—"}</td>
+                      <td className={`num${l.annulees > 0 ? " alerte" : " doux"}`}>{l.annulees || "—"}</td>
+                      <td className="num fort">
+                        <span className={l.taux >= 70 ? "sgs-pct is-bon" : l.taux < 40 ? "sgs-pct is-faible" : "sgs-pct"}>
+                          {l.taux} %
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </Tableau>
                 <p className="sgs-note">
                   À lire avec précaution : une annulation est le plus souvent la décision du
                   client, pas une erreur de relevé. Ce qui s&apos;interprète ici, c&apos;est
                   l&apos;<b>écart</b> entre personnes sur des chantiers comparables — jamais le
                   taux absolu de l&apos;une d&apos;elles. Un relevé fait à deux compte pour chacun.
                 </p>
-              </div>
+              </>
             ) : (
               <p className="sgs-empty">Aucune mesure relevée et attribuée sur la période.</p>
             )}
@@ -1396,26 +1443,34 @@ export function SignalStats({
               </div>
             }>
             {analyses?.rendement?.[axeRendement]?.length ? (
-              <div className="sgs-tab is-large">
-                <div className="sgs-tab-tete">
-                  <span>{axeRendement === "serie" ? "Série" : "Marque"}</span>
-                  <span>Cabines</span><span>Pose</span><span>SAV</span>
-                  <span>Temps / cabine</span><span>CHF / heure</span>
-                </div>
-                {analyses.rendement[axeRendement].map((l: any) => {
-                  const heures = l.minutesParCabine / 60;
-                  const chf = caParCabine !== null && heures > 0 ? Math.round(caParCabine / heures) : null;
-                  return (
-                    <div key={l.cle} className="sgs-tab-ligne">
-                      <span>{l.cle}</span>
-                      <span>{l.cabines}</span>
-                      <span>{Math.round(l.minutesPose / 60)} h</span>
-                      <span>{Math.round(l.minutesSav / 60) || "—"} h</span>
-                      <b>{Math.floor(l.minutesParCabine / 60)}h{String(l.minutesParCabine % 60).padStart(2, "0")}</b>
-                      <b className={chf === null ? "" : "is-bon"}>{chf === null ? "—" : `${chf}`}</b>
-                    </div>
-                  );
-                })}
+              <>
+                <Tableau cols={[
+                  { titre: axeRendement === "serie" ? "Série" : "Marque" },
+                  { titre: "Cabines", num: true }, { titre: "Pose", num: true },
+                  { titre: "SAV", num: true }, { titre: "Temps / cabine", num: true },
+                  { titre: "CHF / heure", num: true },
+                ]}>
+                  {(() => {
+                    const pire = Math.max(1, ...analyses.rendement[axeRendement].map((x: any) => x.minutesParCabine));
+                    return analyses.rendement[axeRendement].map((l: any) => {
+                      const heures = l.minutesParCabine / 60;
+                      const chf = caParCabine !== null && heures > 0 ? Math.round(caParCabine / heures) : null;
+                      return (
+                        <tr key={l.cle}>
+                          <td className="cle">{l.cle}</td>
+                          <td className="num">{l.cabines}</td>
+                          <td className="num doux">{Math.round(l.minutesPose / 60)} h</td>
+                          <td className="num doux">{Math.round(l.minutesSav / 60) || "—"} h</td>
+                          <td className="num fort avec-part">
+                            {Math.floor(l.minutesParCabine / 60)}h{String(l.minutesParCabine % 60).padStart(2, "0")}
+                            <Part valeur={l.minutesParCabine} sur={pire} />
+                          </td>
+                          <td className="num fort">{chf === null ? "—" : `${chf}`}</td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </Tableau>
                 <p className="sgs-note">
                   Notion ne porte pas de prix par projet, seulement un chiffre d&apos;affaires
                   mensuel : la colonne CHF/heure applique donc le MÊME prix moyen
@@ -1425,7 +1480,7 @@ export function SignalStats({
                   pose plus SAV — pour un produit vendu au même tarif. Une série posée en
                   1 h 20 sans SAV vaut mieux qu&apos;une série 15 % plus chère qui en prend trois.
                 </p>
-              </div>
+              </>
             ) : (
               <p className="sgs-empty">Pas assez de cabines posées avec des heures pointées sur la période.</p>
             )}
@@ -1433,18 +1488,31 @@ export function SignalStats({
           <Fold className="sgs-span2" title="Coût de trajet par région"
             meta="aller-retour depuis le dépôt, par cabine posée · chaque chantier pris isolément">
             {analyses?.route?.length ? (
-              <div className="sgs-tab">
-                <div className="sgs-tab-tete">
-                  <span>Région</span><span>Cabines</span><span>Route / cabine</span><span>Km / cabine</span>
-                </div>
-                {analyses.route.map((r: any) => (
-                  <div key={r.region} className="sgs-tab-ligne">
-                    <span>{r.region}</span>
-                    <span>{r.cabines}</span>
-                    <b>{Math.floor(r.minutesParCabine / 60) ? `${Math.floor(r.minutesParCabine / 60)}h${String(r.minutesParCabine % 60).padStart(2, "0")}` : `${r.minutesParCabine} min`}</b>
-                    <span>{r.kmParCabine || "—"}</span>
-                  </div>
-                ))}
+              <>
+                <Tableau cols={[
+                  { titre: "Région" }, { titre: "Chantiers", num: true },
+                  { titre: "Cabines", num: true }, { titre: "Route / cabine", num: true },
+                  { titre: "Km / cabine", num: true },
+                ]}>
+                  {(() => {
+                    const pire = Math.max(1, ...analyses.route.map((x: any) => x.minutesParCabine));
+                    return analyses.route.map((r: any) => (
+                      <tr key={r.region}>
+                        <td className="cle">{r.region}</td>
+                        <td className="num doux">{r.projets}</td>
+                        <td className="num">{r.cabines}</td>
+                        <td className="num fort avec-part">
+                          {Math.floor(r.minutesParCabine / 60)
+                            ? `${Math.floor(r.minutesParCabine / 60)}h${String(r.minutesParCabine % 60).padStart(2, "0")}`
+                            : `${r.minutesParCabine} min`}
+                          <Part valeur={r.minutesParCabine} sur={pire}
+                            ton={r.minutesParCabine > pire * 0.6 ? "chaud" : undefined} />
+                        </td>
+                        <td className="num doux">{r.kmParCabine || "—"}</td>
+                      </tr>
+                    ));
+                  })()}
+                </Tableau>
                 <p className="sgs-note">
                   Le trajet est compté aller-retour pour chaque chantier pris séparément :
                   volontairement pessimiste, car une tournée qui enchaîne plusieurs chantiers
@@ -1452,7 +1520,7 @@ export function SignalStats({
                   dépense, il dit ce que coûterait chaque région si l&apos;on y allait à l&apos;unité —
                   c&apos;est la comparaison qui sert à décider.
                 </p>
-              </div>
+              </>
             ) : (
               <p className="sgs-empty">Pas assez de montages datés et localisés sur la période.</p>
             )}
@@ -1474,29 +1542,45 @@ export function SignalStats({
               </div>
             }>
             {analyses?.transformation?.[axeClient]?.length ? (
-              <div className="sgs-tab is-large">
-                <div className="sgs-tab-tete">
-                  <span>{axeClient === "sanitaire" ? "Sanitaire" : "Grossiste"}</span>
-                  <span>Mesures</span><span>Offres</span><span>Commandes</span>
-                  <span>Transformation</span><span>Perdues</span>
+              <>
+                {/* Entonnoir : trois barres emboîtées se lisent d'un coup d'œil
+                    là où six colonnes de chiffres demandaient un effort. */}
+                <div className="sgs-entonnoir-legende">
+                  <span><i className="is-mesure" /> Mesures prises</span>
+                  <span><i className="is-offre" /> Offres établies</span>
+                  <span><i className="is-commande" /> Commandes obtenues</span>
                 </div>
-                {analyses.transformation[axeClient].map((l: any) => (
-                  <div key={l.client} className="sgs-tab-ligne">
-                    <span>{l.client}</span>
-                    <span>{l.mesures}</span>
-                    <span>{l.offres}</span>
-                    <span>{l.commandes} <em>· {l.cabines} cab.</em></span>
-                    <b className={l.taux >= 70 ? "is-bon" : l.taux < 40 ? "is-faible" : ""}>{l.taux} %</b>
-                    <span className={l.perdues > 0 ? "is-alerte" : ""}>{l.perdues || "—"}</span>
-                  </div>
-                ))}
+                <div className="sgs-entonnoir">
+                  {analyses.transformation[axeClient].map((l: any) => (
+                    <div key={l.client} className="sgs-ent-ligne">
+                      <span className="sgs-ent-nom">
+                        {l.client}
+                        {l.perdues > 0 && (
+                          <em title={`${l.perdues} mesures de plus de 60 jours restées sans commande`}>
+                            {l.perdues} perdue{l.perdues > 1 ? "s" : ""}
+                          </em>
+                        )}
+                      </span>
+                      <span className="sgs-ent-barres">
+                        <i className="is-mesure" style={{ width: "100%" }} />
+                        <i className="is-offre" style={{ width: `${Math.round((l.offres / l.mesures) * 100)}%` }} />
+                        <i className="is-commande" style={{ width: `${Math.round((l.commandes / l.mesures) * 100)}%` }} />
+                        <b>{l.mesures} → {l.offres} → {l.commandes}</b>
+                      </span>
+                      <span className={`sgs-ent-taux${l.taux >= 70 ? " is-bon" : l.taux < 40 ? " is-faible" : ""}`}>
+                        {l.taux} <em>%</em>
+                      </span>
+                      <span className="sgs-ent-cab">{l.cabines} cab.</span>
+                    </div>
+                  ))}
+                </div>
                 <p className="sgs-note">
                   Une mesure est un déplacement de deux heures : ce tableau compte par MESURE,
                   et non par projet, parce que c&apos;est le déplacement qu&apos;il s&apos;agit de
                   rentabiliser. « Perdues » compte les mesures de plus de soixante jours restées
                   sans commande — elles ne reviendront probablement pas.
                 </p>
-              </div>
+              </>
             ) : (
               <p className="sgs-empty">
                 {analyses ? "Aucune mesure reçue sur la période affichée." : "Calcul en cours…"}
@@ -1513,31 +1597,37 @@ export function SignalStats({
               </div>
             }>
             {analyses?.recul?.[axeClient]?.length ? (
-              <div className="sgs-tab is-large">
-                <div className="sgs-tab-tete">
-                  <span>{axeClient === "sanitaire" ? "Sanitaire" : "Grossiste"}</span>
-                  <span>12 mois</span><span>12 précédents</span><span>Écart</span>
-                  <span>Dernier montage</span><span></span>
-                </div>
-                {analyses.recul[axeClient].map((l: any) => (
-                  <div key={l.client} className="sgs-tab-ligne">
-                    <span>{l.client}</span>
-                    <span>{l.recent}</span>
-                    <span>{l.avant}</span>
-                    <b className="is-faible">{l.variation} %</b>
-                    <span>{l.derniereCommande || "—"}</span>
-                    <span className={l.joursDepuis !== null && l.joursDepuis > 180 ? "is-alerte" : ""}>
-                      {l.joursDepuis !== null ? `il y a ${l.joursDepuis} j` : ""}
-                    </span>
-                  </div>
-                ))}
+              <>
+                <Tableau cols={[
+                  { titre: axeClient === "sanitaire" ? "Sanitaire" : "Grossiste" },
+                  { titre: "12 mois précédents", num: true }, { titre: "12 derniers mois", num: true },
+                  { titre: "Écart", num: true }, { titre: "Dernier montage", num: true },
+                ]}>
+                  {analyses.recul[axeClient].map((l: any) => (
+                    <tr key={l.client}>
+                      <td className="cle">{l.client}</td>
+                      <td className="num doux">{l.avant}</td>
+                      <td className="num avec-part">
+                        {l.recent}
+                        <Part valeur={l.recent} sur={l.avant} />
+                      </td>
+                      <td className="num fort"><span className="sgs-pct is-faible">{l.variation} %</span></td>
+                      <td className="num doux">
+                        {l.derniereCommande || "—"}
+                        {l.joursDepuis !== null && (
+                          <em className={l.joursDepuis > 180 ? "alerte" : undefined}>il y a {l.joursDepuis} j</em>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </Tableau>
                 <p className="sgs-note">
                   Cette comparaison ignore la période affichée : deux trimestres ne se
                   comparent pas, la saisonnalité dominerait le signal. Une année entière de
                   chaque côté l&apos;annule. Un client qui pesait moins de cinq cabines l&apos;an
                   passé n&apos;est pas retenu — il n&apos;a pas « décroché », il n&apos;a jamais décollé.
                 </p>
-              </div>
+              </>
             ) : (
               <p className="sgs-empty">
                 {analyses ? "Aucun client en recul marqué : le portefeuille tient." : "Calcul en cours…"}
@@ -1627,19 +1717,25 @@ export function SignalStats({
               </div>
             }>
             {analyses?.degats?.[axeDegats]?.length ? (
-              <div className="sgs-tab">
-                <div className="sgs-tab-tete">
-                  <span>{axeDegats === "marque" ? "Marque" : "Grossiste"}</span>
-                  <span>Abîmées</span><span>Taux</span><span>Couverture</span>
-                </div>
-                {analyses.degats[axeDegats].map((l: any) => (
-                  <div key={l.cle} className="sgs-tab-ligne">
-                    <span>{l.cle}</span>
-                    <span>{l.abimees} <em>/ {l.documentees}</em></span>
-                    <b className={l.taux >= 10 ? "is-faible" : ""}>{l.taux} %</b>
-                    <span className={l.couverture < 60 ? "is-alerte" : ""}>{l.couverture} %</span>
-                  </div>
-                ))}
+              <>
+                <Tableau cols={[
+                  { titre: axeDegats === "marque" ? "Marque" : "Grossiste" },
+                  { titre: "Livraisons vues", num: true }, { titre: "Abîmées", num: true },
+                  { titre: "Taux", num: true }, { titre: "Couverture", num: true },
+                ]}>
+                  {analyses.degats[axeDegats].map((l: any) => (
+                    <tr key={l.cle}>
+                      <td className="cle">{l.cle}</td>
+                      <td className="num doux">{l.documentees}</td>
+                      <td className="num">{l.abimees}</td>
+                      <td className="num fort avec-part">
+                        <span className={l.taux >= 10 ? "sgs-pct is-faible" : "sgs-pct"}>{l.taux} %</span>
+                        <Part valeur={l.taux} sur={100} ton={l.taux >= 10 ? "chaud" : undefined} />
+                      </td>
+                      <td className={`num${l.couverture < 60 ? " alerte" : " doux"}`}>{l.couverture} %</td>
+                    </tr>
+                  ))}
+                </Tableau>
                 <p className="sgs-note">
                   Le SAV met en cause le produit ; les cartons mettent en cause le transport
                   et l&apos;emballage — d&apos;où deux responsables distincts, et deux axes de
@@ -1648,7 +1744,7 @@ export function SignalStats({
                   le bas et ne doit pas servir d&apos;argument. C&apos;est alors la couverture
                   qu&apos;il faut corriger avant le fournisseur.
                 </p>
-              </div>
+              </>
             ) : (
               <p className="sgs-empty">Pas assez de livraisons photographiées sur la période.</p>
             )}
@@ -1662,26 +1758,36 @@ export function SignalStats({
               </div>
             }>
             {analyses?.sav?.[axeSav]?.length ? (
-              <div className="sgs-tab">
-                <div className="sgs-tab-tete">
-                  <span>{axeSav === "marque" ? "Marque" : "Série"}</span>
-                  <span>SAV</span><span>Heures / 100 cab.</span><span>Erreur TM</span>
-                </div>
-                {analyses.sav[axeSav].map((l: any) => (
-                  <div key={l.cle} className="sgs-tab-ligne">
-                    <span>{l.cle}</span>
-                    <span>{l.interventions} <em>· {l.cabinesPosees} cab.</em></span>
-                    <b>{l.heuresPour100} h</b>
-                    <span>{l.erreursTM || "—"}</span>
-                  </div>
-                ))}
+              <>
+                <Tableau cols={[
+                  { titre: axeSav === "marque" ? "Marque" : "Série" },
+                  { titre: "Cabines posées", num: true }, { titre: "SAV", num: true },
+                  { titre: "Heures / 100 cab.", num: true }, { titre: "Erreur TM", num: true },
+                ]}>
+                  {(() => {
+                    const pire = Math.max(1, ...analyses.sav[axeSav].map((x: any) => x.heuresPour100));
+                    return analyses.sav[axeSav].map((l: any) => (
+                      <tr key={l.cle}>
+                        <td className="cle">{l.cle}</td>
+                        <td className="num doux">{l.cabinesPosees}</td>
+                        <td className="num">{l.interventions}</td>
+                        <td className="num fort avec-part">
+                          {l.heuresPour100} h
+                          <Part valeur={l.heuresPour100} sur={pire}
+                            ton={l.heuresPour100 > pire * 0.6 ? "chaud" : undefined} />
+                        </td>
+                        <td className={`num${l.erreursTM > 0 ? " alerte" : " doux"}`}>{l.erreursTM || "—"}</td>
+                      </tr>
+                    ));
+                  })()}
+                </Tableau>
                 <p className="sgs-note">
                   Le dénominateur est le nombre de cabines posées de la même origine sur la
                   période : sans lui, le plus gros fournisseur paraîtrait toujours le pire.
                   Une origine sous dix cabines posées n&apos;est pas affichée. La colonne
                   « Erreur TM » compte les cabines dont la cause du SAV nous est imputée.
                 </p>
-              </div>
+              </>
             ) : (
               <p className="sgs-empty">Aucune heure pointée sur les SAV de la période.</p>
             )}
