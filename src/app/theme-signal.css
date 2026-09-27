@@ -3091,3 +3091,9 @@ html[data-ui="signal"] .sgch-fini {
   background: #e7f6ec; color: #17683a;
 }
 html[data-ui="signal"].dark .sgch-fini { background: #14301f; color: #63d18e; }
+
+/* Pièce équipée, sous le numéro de lot : une précision, pas une identité. */
+html[data-ui="signal"] .sgch-piece {
+  display: block; font-size: 10px; line-height: 1.35;
+  color: var(--sg-text-3); font-style: italic;
+}

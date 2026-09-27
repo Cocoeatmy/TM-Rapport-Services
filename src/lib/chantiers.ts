@@ -59,8 +59,10 @@ export interface Lot {
   ofrTM: string;
   /** Rang de la cabine dans l'offre (1-based) ; null si l'offre n'en a qu'une. */
   cab: number | null;
-  /** Libellé du lot : « App. 202 », « Bât. S », « Barras Ignace »… */
+  /** Libellé du lot : « Lot K », « App. 202 », « Bât. S », « Barras Ignace »… */
   nom: string;
+  /** Pièce équipée, quand la cabine en porte le nom : « SDD parentale ». */
+  piece: string;
   batiment: string;
   etage: string;
   sanitaire: string;
@@ -257,6 +259,22 @@ export function analyserLibelle(txt: string): { batiment: string; etage: string;
 }
 
 /**
+ * Ce libellé désigne-t-il un LOT, ou seulement une pièce de l'appartement ?
+ *
+ * « Lot K », « App. 202 », « Bât. S », « 3.03C » identifient un lot. « SDD »,
+ * « SDD parentale », « Cabine 2 » décrivent la pièce équipée : les afficher en
+ * colonne « Lot » ne dit rien de l'appartement concerné.
+ */
+function ressembleAUnLot(txt: string): boolean {
+  const v = (txt || "").trim();
+  if (!v) return false;
+  if (/^cabine\s*\d*$/i.test(v)) return false;
+  if (RE_APPART.test(v) || RE_LOT.test(v) || RE_BATIMENT.test(v)) return true;
+  // Code court d'un plan d'architecte : « 3.03C », « 28F », « A12 », « K ».
+  return /^[A-Za-z]?\d[\w.\-]{0,6}$/.test(v) || /^[A-Z]\d?$/.test(v);
+}
+
+/**
  * Libellé du lot pour une offre à cabine unique : ce qui distingue cette offre
  * des autres du même chantier. On retire la partie adresse (identique partout)
  * et le préfixe fournisseur/grossiste, il ne reste que le lot ou le client.
@@ -310,23 +328,30 @@ export function lotsDeLOffre(p: ProjetChantier): Lot[] {
     infos: p.diversInfosChantier || "",
   };
 
-  if (total <= 1) {
-    const nom = noms[1] || libelleOffre(p);
-    const info = analyserLibelle(`${nom} ${p.projet}`);
-    return [{
-      ...base, cab: null, nom,
-      batiment: info.batiment, etage: info.etage,
-      pose: termine || installees >= 1 || etats[1] === "Montage terminé",
-    }];
-  }
-
+  /* Le lot se lit d'abord dans le TITRE de l'offre : c'est là qu'il est écrit
+     de façon fiable (« … - Lot K, … »). Le nom de cabine ne sert de lot que
+     s'il en est vraiment un — sur un immeuble commandé en bloc, chaque cabine
+     porte alors son appartement (« App. 1.01 »). Quand il décrit seulement la
+     pièce (« SDD parentale »), il passe en information secondaire plutôt que
+     de remplir la colonne « Lot » avec « Cabine 2 », qui ne dit rien. */
+  const lotDuTitre = libelleOffre(p);
   const commun = analyserLibelle(p.projet || "");
+
   return Array.from({ length: total }, (_, i) => {
     const n = i + 1;
-    const nom = noms[n] || `Cabine ${n}`;
-    const info = analyserLibelle(nom);
+    const brut = (noms[n] || "").trim();
+    const cabEstLot = ressembleAUnLot(brut);
+    const nom = cabEstLot ? brut : (lotDuTitre || brut || `Cabine ${n}`);
+    // « Cabine 1 SDD parentale » → on ne garde que la pièce.
+    const piece = cabEstLot || !brut
+      ? ""
+      : brut.replace(/^cabine\s*\d+\s*/i, "").trim();
+    const info = analyserLibelle(cabEstLot ? brut : `${lotDuTitre} ${p.projet}`);
     return {
-      ...base, cab: n, nom,
+      ...base,
+      cab: total > 1 ? n : null,
+      nom,
+      piece: piece && piece.toLowerCase() !== nom.toLowerCase() ? piece : "",
       batiment: info.batiment || commun.batiment,
       etage: info.etage || commun.etage,
       // Une cabine est posée si son état le dit ; à défaut, le compteur

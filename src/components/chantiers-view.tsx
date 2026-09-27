@@ -67,30 +67,43 @@ function Jauge({ Icon, label, n, total }: {
 /* ── Détail d'un chantier ───────────────────────────────────────────────── */
 function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) {
   const [filtre, setFiltre] = useState("");
+  /* Un chantier de quatre-vingts lots s'ouvre sur ce qu'il reste à faire :
+     les lots clôturés sont à un clic, mais ne noient plus les autres. Sur un
+     chantier soldé, ce filtre n'ouvrirait qu'une page vide — on montre tout. */
+  const [etat, setEtat] = useState<Etat>(
+    () => (c.lots.some((l) => l.statut !== "Terminé") ? "encours" : "tous"));
+
+  const comptes = useMemo(() => ({
+    tous: c.lots.length,
+    encours: c.lots.filter((l) => l.statut !== "Terminé").length,
+    termine: c.lots.filter((l) => l.statut === "Terminé").length,
+  }), [c.lots]);
 
   const lots = useMemo(() => {
-    const tri = [...c.lots].sort(comparerLots);
+    const tri = [...c.lots]
+      .filter((l) => etat === "tous" ? true : etat === "termine" ? l.statut === "Terminé" : l.statut !== "Terminé")
+      .sort(comparerLots);
     const q = norm(filtre.trim());
     if (!q) return tri;
     const mots = q.split(/\s+/);
     return tri.filter((l) => {
-      const foin = norm(`${l.nom} ${l.batiment} ${l.etage} ${l.ofrTM} ${l.marque} ${l.serie} ${l.grossiste} ${l.statut} ${l.infos}`);
+      const foin = norm(`${l.nom} ${l.piece} ${l.batiment} ${l.etage} ${l.ofrTM} ${l.marque} ${l.serie} ${l.grossiste} ${l.statut} ${l.infos}`);
       return mots.every((m) => foin.includes(m));
     });
-  }, [c.lots, filtre]);
+  }, [c.lots, filtre, etat]);
 
   /* Export : le tableau tel qu'il est affiché, ouvrable dans Excel. Le
      point-virgule est le séparateur attendu par Excel en configuration
      suisse/française, et le BOM évite les accents cassés. */
   const exporter = () => {
     const cols = [
-      "Bâtiment", "Étage", "Lot", "Sanitaire", "Grossiste", "N° OFR Grossiste",
+      "Bâtiment", "Étage", "Lot", "Pièce", "Sanitaire", "Grossiste", "N° OFR Grossiste",
       "Marque", "Série", "Emplacement", "Mesuré", "Date mesures", "OFR TM",
       "Date offre", "Commande", "Date commande", "Livraison", "Posé",
       "Date pose", "Statut", "Infos",
     ];
     const lignes = lots.map((l) => [
-      l.batiment, l.etage, l.nom, l.sanitaire, l.grossiste, l.ofrGrossiste,
+      l.batiment, l.etage, l.nom, l.piece, l.sanitaire, l.grossiste, l.ofrGrossiste,
       l.marque, l.serie, l.emplacement, l.mesure ? "OUI" : "NON", jour(l.dateMesures),
       l.ofrTM, jour(l.dateOffre), l.cmd, jour(l.dateCMD), jour(l.livraison),
       l.pose ? "OUI" : "NON", jour(l.datePose), l.statut, l.infos,
@@ -144,6 +157,13 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
             </button>
           )}
         </span>
+        <span className="sgch-etats">
+          {ETATS.map(([k, label]) => (
+            <button key={k} type="button" className={etat === k ? "is-on" : ""} onClick={() => setEtat(k)}>
+              {label} <b>{comptes[k]}</b>
+            </button>
+          ))}
+        </span>
         <span className="sgch-compte">{lots.length} / {c.nbLots}</span>
       </div>
 
@@ -168,6 +188,7 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
                     {l.nom}
                     {l.cab ? <em>cab. {l.cab}</em> : null}
                   </Link>
+                  {l.piece ? <span className="sgch-piece">{l.piece}</span> : null}
                   {l.infos ? <span className="sgch-infos" title={l.infos}>{l.infos}</span> : null}
                 </td>
                 <td>
@@ -203,7 +224,11 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
             ))}
           </tbody>
         </table>
-        {lots.length === 0 && <p className="sgch-vide-msg">Aucun lot ne correspond au filtre.</p>}
+        {lots.length === 0 && (
+          <p className="sgch-vide-msg">
+            Aucun lot {etat === "termine" ? "terminé" : etat === "encours" ? "en cours" : ""} ne correspond.
+          </p>
+        )}
       </div>
 
       <div className="sgch-offres">
