@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { COLLABORATEURS_LIST } from "@/lib/constants";
 import {
   ArrowLeft, Loader2, Save, CheckCircle2, TrendingUp, Wallet, Timer,
   PiggyBank, Users, Percent, Info,
@@ -58,7 +59,7 @@ const GROUPES: Groupe[] = [
     titre: "Rentabilité par chantier",
     sous: "valeurs moyennes servant au calcul, par cabine ou par heure",
     champs: [
-      { id: "tauxHoraire", label: "Coût horaire d'un monteur", unite: "CHF / h", aide: "Salaire chargé rapporté à l'heure travaillée." },
+      { id: "tauxHoraire", label: "Coût horaire par défaut", unite: "CHF / h", aide: "Utilisé pour un monteur sans taux propre ci-dessous." },
       { id: "coutDeplacement", label: "Coût d'un déplacement", unite: "CHF / chantier", aide: "Véhicule, carburant, temps de trajet moyen." },
       { id: "consommables", label: "Consommables par cabine", unite: "CHF / cabine", aide: "Silicone, visserie, joints, petites fournitures." },
       { id: "achatCabine", label: "Achat moyen d'une cabine", unite: "CHF / cabine", aide: "Prix d'achat vitrage et profilés, hors accessoires." },
@@ -66,6 +67,16 @@ const GROUPES: Groupe[] = [
       { id: "prixVente", label: "Prix de vente moyen d'une cabine", unite: "CHF / cabine", aide: "Laissez vide si le prix varie trop : le calcul se limitera alors aux coûts." },
       { id: "margeCible", label: "Marge cible", unite: "%", aide: "En dessous, le chantier est signalé comme sous-estimé." },
     ],
+  },
+  {
+    titre: "Coût horaire par monteur",
+    sous: "salaire chargé rapporté à l'heure travaillée · laissez vide pour utiliser le taux par défaut",
+    champs: COLLABORATEURS_LIST.map((nom) => ({
+      id: `taux_${nom}`,
+      label: nom,
+      unite: "CHF / h",
+      aide: "",
+    })),
   },
   {
     titre: "Investissement",
@@ -172,7 +183,28 @@ export default function FinancesPage() {
   }, []);
 
   const rentabilite = useMemo(() => {
-    const taux = n("tauxHoraire");
+    const tauxDefaut = n("tauxHoraire");
+    /* Chaque monteur a son coût : on prend la moyenne de ceux qui ont
+       travaillé sur le chantier, et le taux par défaut pour les autres. */
+    const tauxDe = (p: any): number | null => {
+      const attr = String(p.attributionCabines || "");
+      const noms = new Set<string>();
+      const re = /Cab(\d+)\s*:([^|]*)/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(attr))) {
+        m[2].split("&").map((x) => x.trim()).filter(Boolean).forEach((x) => noms.add(x));
+      }
+      if (noms.size === 0) {
+        String(p.collaborateurs || "").split("&").map((x) => x.trim()).filter(Boolean)
+          .forEach((x) => noms.add(x));
+      }
+      const taux = [...noms]
+        .map((nom) => n(`taux_${nom}`) ?? tauxDefaut)
+        .filter((v): v is number => v !== null);
+      if (taux.length === 0) return tauxDefaut;
+      return taux.reduce((s2, v) => s2 + v, 0) / taux.length;
+    };
+    const taux = tauxDefaut ?? (COLLABORATEURS_LIST.some((nom) => n(`taux_${nom}`) !== null) ? 0 : null);
     const dep = n("coutDeplacement") ?? 0;
     const conso = n("consommables") ?? 0;
     const achat = n("achatCabine") ?? 0;
@@ -195,7 +227,7 @@ export default function FinancesPage() {
       .map((p) => {
         const cab = Number(p.nbCabines) || 0;
         const min = minutes(p);
-        const mo = (min / 60) * taux;
+        const mo = (min / 60) * (tauxDe(p) ?? 0);
         const achats = cab * (achat + acc + conso);
         const cout = mo + achats + dep;
         const recette = vente !== null ? cab * vente : null;
@@ -437,7 +469,7 @@ export default function FinancesPage() {
 
             {!rentabilite ? (
               <p className="text-sm text-gray-400">
-                Renseignez au moins le <strong>coût horaire d&apos;un monteur</strong> pour lancer le calcul.
+                Renseignez au moins un <strong>coût horaire</strong> — par défaut ou pour un monteur — afin de lancer le calcul.
               </p>
             ) : rentabilite.lignes.length === 0 ? (
               <p className="text-sm text-gray-400">
