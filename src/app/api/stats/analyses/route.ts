@@ -14,7 +14,7 @@ import { cachedOrFetch } from "@/lib/server-cache";
 import { getData } from "@/lib/kv-store";
 import {
   transformation, coutRoute, coutSav, rendement, clientsEnRecul,
-  degatsLivraison, soloOuBinome,
+  degatsLivraison, soloOuBinome, devenirMesures,
 } from "@/lib/analyses";
 import type { Position } from "@/lib/tournee";
 
@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
         grossiste: degatsLivraison(projets, "grossiste", de, a),
       },
       equipage: soloOuBinome(projets, de, a),
+      mesures: devenirMesures(projets, de, a),
     });
   } catch (e) {
     return NextResponse.json({ error: String((e as Error)?.message || e) }, { status: 500 });

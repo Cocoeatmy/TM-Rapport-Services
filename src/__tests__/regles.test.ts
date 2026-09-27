@@ -195,3 +195,18 @@ describe("assemblage", () => {
     expect(compterFiches(groupes)).toBe(1);
   });
 });
+
+describe("relances — le déplacement évité", () => {
+  it("signale un rendez-vous proche dont les cabines ne sont pas arrivées", () => {
+    const dans = (j: number) =>
+      new Date(MAINTENANT.getTime() + j * 86400000).toISOString().slice(0, 10);
+    const ouvert = { etatCMD: "RDV - fixé", arrivageTM: null, arrivageGrossiste: null };
+    expect(detail("rdv-sans-cabines", p({ ...ouvert, dateMontage: dans(5) }), REGLES_RELANCES)).toBeTruthy();
+    expect(detail("rdv-sans-cabines", p({ ...ouvert, dateMontage: dans(0) }), REGLES_RELANCES)).toMatch(/AUJOURD/);
+    // Cabines arrivées : le déplacement est sûr.
+    expect(detail("rdv-sans-cabines", p({ etatCMD: "RDV - fixé", dateMontage: dans(5) }), REGLES_RELANCES)).toBeNull();
+    // Trop loin pour agir, ou déjà passé : ce n'est plus une relance.
+    expect(detail("rdv-sans-cabines", p({ ...ouvert, dateMontage: dans(40) }), REGLES_RELANCES)).toBeNull();
+    expect(detail("rdv-sans-cabines", p({ ...ouvert, dateMontage: ilYA(3) }), REGLES_RELANCES)).toBeNull();
+  });
+});

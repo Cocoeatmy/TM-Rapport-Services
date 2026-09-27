@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
-import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
@@ -2306,6 +2306,25 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
      de tous les projets (les factures qui dorment sont sur des projets
      terminés, absents des listes du tableau de bord). */
   const [relancesCount, setRelancesCount] = useState<number | null>(null);
+  /* Pièces manquantes et défauts encore ouverts : ils vivent hors Notion,
+     dans le stockage de l'app, et se comptent donc à part. */
+  const [signalementsOuverts, setSignalementsOuverts] = useState<number | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    Promise.all([
+      fetch("/api/pieces").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+      fetch("/api/defauts").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+    ]).then(([pieces, defauts]) => {
+      if (!vivant) return;
+      const ouvertes = (Array.isArray(pieces) ? pieces : [])
+        .filter((x: any) => !(x.status === "recu" || x.resolved === true)).length;
+      const ouverts = (Array.isArray(defauts) ? defauts : [])
+        .filter((x: any) => !(x.status === "resolu" || x.resolved === true)).length;
+      setSignalementsOuverts(ouvertes + ouverts);
+    });
+    return () => { vivant = false; };
+  }, []);
+
   /** Carnet de commandes — calculé par le serveur, comme les relances. */
   const [carnet, setCarnet] = useState<{ jours: number; cabines: number; rythme: { semaines: number | null } } | null>(null);
   useEffect(() => {
@@ -2940,28 +2959,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               );
             })()}
 
-            {/* Carnet de commandes : le travail vendu et pas encore pose. Il
-                ouvre sa propre page — c'est un chiffre qu'on consulte, puis
-                qu'on detaille par fournisseur ou par region. */}
-            <Link href="/carnet" className="sg-card sg-carnet">
-              <div className="sg-card-head">
-                <span className="sg-card-title">Carnet de commandes</span>
-                <span className="sg-card-meta">a poser</span>
-              </div>
-              <div className="sg-carnet-corps">
-                <span className="sg-carnet-val">
-                  {carnet === null ? "…" : carnet.jours.toLocaleString("fr-CH")}
-                  <em>jours-homme</em>
-                </span>
-                <span className="sg-carnet-sub">
-                  {carnet === null
-                    ? "calcul en cours"
-                    : `${carnet.cabines} cabines · ${carnet.rythme.semaines !== null ? `${carnet.rythme.semaines} semaines au rythme actuel` : "rythme inconnu"}`}
-                </span>
-              </div>
-              <ChevronRight className="w-4 h-4 sg-signal-arrow" />
-            </Link>
-
             <div className="sg-card">
               <div className="sg-card-head">
                 <span className="sg-card-title">Signaux</span>
@@ -2980,9 +2977,33 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   <ChevronRight className="w-4 h-4 sg-signal-arrow" />
                 </button>
               ))}
-              {/* Relances : une page à part, et non un panneau. Son calcul
-                  porte sur TOUS les projets, terminés compris, et se fait côté
-                  serveur — le tableau de bord n'a pas ces données en main. */}
+              {/* Ces quatre dernières lignes mènent à des PAGES et non à des
+                  panneaux : leur calcul porte sur tous les projets, terminés
+                  compris, et se fait côté serveur — le tableau de bord n'a pas
+                  ces données en main. */}
+              <Link href="/carnet" className="sg-signal-row">
+                <span className="sg-signal-chip" style={{ background: "#e8eaf6", color: "#3949ab" }}>
+                  <ClipboardList className="w-3.5 h-3.5" />
+                </span>
+                <span className="sg-signal-label">
+                  Carnet de commandes
+                  {carnet && <em className="sg-signal-note">{carnet.cabines} cabines à poser</em>}
+                </span>
+                <span className="sg-signal-count" style={{ color: "#3949ab" }}>
+                  {carnet === null ? "…" : `${carnet.jours} j`}
+                </span>
+                <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+              </Link>
+              <Link href="/admin/pieces-defauts" className="sg-signal-row">
+                <span className="sg-signal-chip" style={{ background: "#e0f2f1", color: "#00695c" }}>
+                  <Box className="w-3.5 h-3.5" />
+                </span>
+                <span className="sg-signal-label">Pièces &amp; défauts</span>
+                <span className="sg-signal-count" style={{ color: "#00695c" }}>
+                  {signalementsOuverts === null ? "…" : signalementsOuverts}
+                </span>
+                <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+              </Link>
               <Link href="/rapport-quotidien" className="sg-signal-row">
                 <span className="sg-signal-chip" style={{ background: "#fdf3d8", color: "#b45309" }}>
                   <Sun className="w-3.5 h-3.5" />

@@ -517,3 +517,58 @@ export function soloOuBinome(
     }))
     .sort((x, y) => ordre.indexOf(x.forme) - ordre.indexOf(y.forme));
 }
+
+/* ── Devenir des mesures ────────────────────────────────────────────────── */
+
+export interface LigneMesures {
+  personne: string;
+  prises: number;
+  commandees: number;
+  annulees: number;
+  ouvertes: number;
+  /** Mesures devenues commande, en pourcentage. */
+  taux: number;
+}
+
+/**
+ * Ce que deviennent les mesures, par personne qui les a relevées.
+ *
+ * L'étape la plus coûteuse quand elle rate : une cabine qui ne rentre pas fait
+ * repartir le chantier à zéro. À lire avec précaution — une annulation est le
+ * plus souvent la décision du client, pas une erreur de relevé. Ce qui
+ * s'interprète, c'est l'ÉCART entre personnes sur des chantiers comparables,
+ * jamais le taux absolu de l'une d'elles.
+ */
+export function devenirMesures(
+  projets: Project[],
+  de?: string, a?: string,
+): LigneMesures[] {
+  const m = new Map<string, LigneMesures>();
+
+  projets.forEach((p) => {
+    if (estServicePur(p)) return;
+    if (!dansFenetre(p.dateMesuresRecue, de, a)) return;
+    if (p.etatMesures !== "Terminé" && !p.dateMesuresRecue) return;
+
+    /* Un relevé fait à deux compte pour chacun : les deux étaient sur place,
+       et l'on cherche à comparer des personnes, pas à répartir un mérite. */
+    const noms = String(p.mesuresTraiteePar || "").split("&")
+      .map((x) => x.trim()).filter(Boolean);
+    if (noms.length === 0) return;
+
+    noms.forEach((personne) => {
+      const cur = m.get(personne)
+        || { personne, prises: 0, commandees: 0, annulees: 0, ouvertes: 0, taux: 0 };
+      cur.prises += 1;
+      if (MORTS.has(p.etatCMD)) cur.annulees += 1;
+      else if (aCommande(p)) cur.commandees += 1;
+      else cur.ouvertes += 1;
+      m.set(personne, cur);
+    });
+  });
+
+  return [...m.values()]
+    .filter((l) => l.prises >= 5)
+    .map((l) => ({ ...l, taux: Math.round((l.commandees / l.prises) * 100) }))
+    .sort((x, y) => y.prises - x.prises);
+}

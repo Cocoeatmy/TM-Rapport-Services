@@ -26,6 +26,7 @@ interface Carnet {
   };
   dormantes: { cabines: number; projets: number; seuilJours: number };
   saison: { mois: number; cabines: number; indice: number; annees: number }[];
+  semainesAVenir: { lundi: string; numero: number; planifiees: number; capacite: number; surcharge: number }[];
 }
 
 const MOIS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
@@ -136,6 +137,41 @@ export default function CarnetPage() {
                 {c.dormantes.projets > 1 ? "s" : ""} — du carnet qui dort.
               </span>
             </Link>
+          )}
+
+          {c.semainesAVenir.length > 0 && (
+            <div className="sgn-bloc">
+              <p className="sgr-bloc-tete">
+                Douze prochaines semaines
+                <em>rendez-vous déjà fixés · capacité {c.rythme.cabinesParSemaine} cab./sem.</em>
+              </p>
+              <div className="sgn-semaines">
+                {c.semainesAVenir.map((w, i) => {
+                  const max = Math.max(1, ...c.semainesAVenir.map((x) => Math.max(x.planifiees, x.capacite)));
+                  return (
+                    <div key={w.lundi} className={`sgn-sem${i === 0 ? " is-courante" : ""}${w.surcharge > 0 ? " is-pleine" : ""}`}
+                      title={`Semaine ${w.numero} — ${w.planifiees} cabines planifiées pour une capacité de ${w.capacite}`}>
+                      <span className="sgn-sem-barre">
+                        <i style={{ height: `${(w.planifiees / max) * 100}%` }} />
+                        {w.capacite > 0 && (
+                          <u style={{ bottom: `${(w.capacite / max) * 100}%` }} />
+                        )}
+                      </span>
+                      <span className="sgn-sem-nb">{w.planifiees || "—"}</span>
+                      <span className="sgn-sem-nom">S{w.numero}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="sgch-vide-msg" style={{ textAlign: "left", padding: "8px 2px 0" }}>
+                Les barres sont les cabines dont la pose est <b>déjà fixée</b> ; le trait
+                horizontal marque la capacité d&apos;une semaine au rythme observé. Une barre
+                au-dessus du trait annonce une semaine qui ne tiendra pas — c&apos;est là qu&apos;il
+                faut décaler un chantier ou appeler un renfort. Une barre très basse est un
+                creux à remplir avec le carnet non planifié
+                {c.cabines - c.planifiees > 0 ? ` (${c.cabines - c.planifiees} cabines en attente de rendez-vous)` : ""}.
+              </p>
+            </div>
           )}
 
           {c.saison.length > 0 && (

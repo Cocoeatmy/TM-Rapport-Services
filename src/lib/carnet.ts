@@ -51,6 +51,19 @@ export interface Carnet {
   /** Cabines livrées depuis longtemps sans rendez-vous : le carnet qui dort. */
   dormantes: { cabines: number; projets: number; seuilJours: number };
   saison: LigneSaison[];
+  semainesAVenir: LigneSemaine[];
+}
+
+export interface LigneSemaine {
+  /** Lundi de la semaine, ISO court. */
+  lundi: string;
+  numero: number;
+  /** Cabines dont la pose est déjà fixée cette semaine-là. */
+  planifiees: number;
+  /** Capacité estimée, d'après le rythme observé. */
+  capacite: number;
+  /** Cabines au-delà de la capacité ; 0 si la semaine tient. */
+  surcharge: number;
 }
 
 export interface LigneSaison {
@@ -150,6 +163,66 @@ function saisonnalite(projets: Project[], maintenant: Date): LigneSaison[] {
   });
 }
 
+/**
+ * Charge des douze prochaines semaines, semaine par semaine.
+ *
+ * Le carnet dit COMBIEN de travail reste, la saisonnalité dans quel MOIS il
+ * tombe ; il manquait QUAND, à la semaine près. Ici on ne calcule rien de
+ * nouveau : on répartit les rendez-vous déjà fixés sur leur semaine réelle, et
+ * on les compare au rythme observé. C'est ce rapprochement — et lui seul — qui
+ * dit s'il faut décaler un chantier ou appeler un renfort, ce qu'un total ne
+ * dit jamais.
+ */
+function chargeAVenir(
+  projets: Project[],
+  cabinesParSemaine: number,
+  maintenant: Date,
+): LigneSemaine[] {
+  // Lundi de la semaine en cours, à midi pour échapper aux changements d'heure.
+  const lundi = new Date(maintenant);
+  lundi.setDate(maintenant.getDate() - ((maintenant.getDay() + 6) % 7));
+  lundi.setHours(12, 0, 0, 0);
+
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  const numeroSemaine = (d: Date): number => {
+    const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    t.setDate(t.getDate() + 3 - ((t.getDay() + 6) % 7));
+    const premier = new Date(t.getFullYear(), 0, 4);
+    return 1 + Math.round(((t.getTime() - premier.getTime()) / 86400000
+      - 3 + ((premier.getDay() + 6) % 7)) / 7);
+  };
+
+  const semaines: LigneSemaine[] = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(lundi);
+    d.setDate(lundi.getDate() + i * 7);
+    return {
+      lundi: iso(d), numero: numeroSemaine(d),
+      planifiees: 0, capacite: Math.round(cabinesParSemaine), surcharge: 0,
+    };
+  });
+  const index = new Map(semaines.map((s, i) => [s.lundi, i]));
+
+  projets.forEach((p) => {
+    if (MORTS.has(p.etatCMD) || p.etatCMD === "Terminé" || estServicePur(p)) return;
+    const t = jourDe(p.dateMontage);
+    if (t === null) return;
+    const d = new Date(t);
+    const l = new Date(d);
+    l.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    l.setHours(12, 0, 0, 0);
+    const i = index.get(iso(l));
+    if (i === undefined) return;
+    semaines[i].planifiees += restantes(p);
+  });
+
+  return semaines.map((s) => ({
+    ...s,
+    surcharge: s.capacite > 0 ? Math.max(0, s.planifiees - s.capacite) : 0,
+  }));
+}
+
 /** Cabines restant à poser sur un projet ; 0 si tout est posé. */
 function restantes(p: Project): number {
   const total = Number(p.nbCabines) || 0;
@@ -245,5 +318,6 @@ export function construireCarnet(projets: Project[], maintenant: Date = new Date
       seuilJours: SEUIL_DORMANT,
     },
     saison: saisonnalite(projets, maintenant),
+    semainesAVenir: chargeAVenir(projets, cabinesParSemaine, maintenant),
   };
 }

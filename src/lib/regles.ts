@@ -44,6 +44,13 @@ function vide(v: string | null | undefined): boolean {
   return !(v || "").trim();
 }
 
+/** Horodatage d'une date ISO, midi par défaut ; null si elle est illisible. */
+function jourDe(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = Date.parse(iso.length <= 10 ? `${iso}T12:00:00` : iso);
+  return Number.isNaN(t) ? null : t;
+}
+
 /** Jours écoulés depuis une date ISO ; null si la date est absente ou future. */
 export function joursDepuis(iso: string | null | undefined, maintenant: Date): number | null {
   if (!iso) return null;
@@ -228,6 +235,24 @@ function depuis(j: number): string {
 }
 
 export const REGLES_RELANCES: Regle[] = [
+  {
+    id: "rdv-sans-cabines",
+    titre: "Rendez-vous fixé, cabines pas encore arrivées",
+    pourquoi: "Un déplacement pour rien coûte une journée à deux monteurs. L'information existe des deux côtés, personne ne les croise.",
+    gravite: "bloquant",
+    verifier: (p, maintenant) => {
+      if (MORTS.has(p.etatCMD) || p.etatCMD === "Terminé") return null;
+      if (arrivage(p)) return null;
+      const t = jourDe(p.dateMontage);
+      if (t === null) return null;
+      // Rendez-vous à venir, dans les dix jours : c'est maintenant qu'on agit.
+      const jours = Math.round((t - maintenant.getTime()) / 86400000);
+      if (jours < 0 || jours > 10) return null;
+      return jours === 0
+        ? `Montage AUJOURD'HUI, aucun arrivage enregistré`
+        : `Montage le ${formatJour(p.dateMontage)}, dans ${jours} jour${jours > 1 ? "s" : ""} — aucun arrivage enregistré`;
+    },
+  },
   {
     id: "livre-sans-rdv",
     titre: "Cabines livrées sans rendez-vous fixé",

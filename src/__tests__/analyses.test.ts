@@ -9,7 +9,7 @@ import { describe, it, expect } from "vitest";
 import type { Project } from "../lib/notion";
 import {
   transformation, coutRoute, coutSav, rendement, clientsEnRecul,
-  degatsLivraison, soloOuBinome,
+  degatsLivraison, soloOuBinome, devenirMesures,
 } from "../lib/analyses";
 
 const MAINTENANT = new Date("2026-09-27T12:00:00Z");
@@ -27,6 +27,7 @@ const BASE = {
   dateMesuresRecue: ilYA(100), dateOffre: ilYA(95),
   dateCMDRecue: null, dateCMDUsine: null, dateMontage: null,
   heureArrivee: "", heureDepart: "", attributionCabines: "", collaborateurs: "",
+  mesuresTraiteePar: "", etatMesures: "Terminé",
   photosCartons: [], photosCartonsRecus: [],
   heureArriveeSav: "", heureDepartSav: "", causeSavCabines: "", causeSAV: "",
   dateSAVRecu: null, dateRDVSAV: null,
@@ -262,5 +263,34 @@ describe("seul ou à deux", () => {
   it("écarte les montages « Team », dont on ignore l'effectif", () => {
     const lignes = soloOuBinome(chantier("Team TM", 8, 120));
     expect(lignes).toEqual([]);
+  });
+});
+
+describe("devenir des mesures", () => {
+  const mesure = (par: string, n: number, o: Record<string, unknown>) => lot(n, {
+    mesuresTraiteePar: par, etatMesures: "Terminé", dateMesuresRecue: ilYA(80), ...o,
+  });
+
+  it("répartit chaque mesure entre commandée, ouverte et annulée", () => {
+    const [l] = devenirMesures([
+      ...mesure("Natalia", 5, { cmdTM: "C" }),
+      ...mesure("Natalia", 3, {}),
+      ...mesure("Natalia", 2, { etatCMD: "Annulé" }),
+    ]);
+    expect(l.prises).toBe(10);
+    expect(l.commandees).toBe(5);
+    expect(l.ouvertes).toBe(3);
+    expect(l.annulees).toBe(2);
+    expect(l.taux).toBe(50);
+  });
+
+  it("compte un relevé fait à deux pour chacun", () => {
+    const lignes = devenirMesures(mesure("Natalia & Micael", 6, { cmdTM: "C" }));
+    expect(lignes).toHaveLength(2);
+    expect(lignes.every((l) => l.prises === 6)).toBe(true);
+  });
+
+  it("n'affiche personne sous cinq relevés", () => {
+    expect(devenirMesures(mesure("Rare", 3, {}))).toEqual([]);
   });
 });

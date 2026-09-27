@@ -743,6 +743,10 @@ html[data-ui="signal"] .sg-card-meta {
   font-size: 11px;
   color: var(--sg-text-3);
 }
+/* Les deux cartes du duo se règlent sur la plus haute — celle des Signaux, qui
+   grandit à chaque ligne ajoutée — et le graphe étire ses barres pour remplir
+   la hauteur au lieu de laisser une bande vide sous les colonnes. */
+html[data-ui="signal"] .sg-duo > .sg-card { height: 100%; }
 html[data-ui="signal"] .sg-chart { display: flex; flex-direction: column; }
 html[data-ui="signal"] .sg-bars {
   flex-grow: 1;
@@ -934,6 +938,9 @@ html[data-ui="signal"] .sg-signal-row {
 }
 html[data-ui="signal"] .sg-signal-row:last-child {
   border-bottom: none;
+}
+html[data-ui="signal"] .sg-signal-note {
+  display: block; font-style: normal; font-size: 10.5px; color: var(--sg-text-3);
 }
 html[data-ui="signal"] .sg-signal-chip {
   width: 26px;
@@ -3614,22 +3621,6 @@ html[data-ui="signal"] .sgn-ligne-sub {
   html[data-ui="signal"] .sgn-piste { display: none; }
 }
 
-/* Tuile Carnet de commandes sur le tableau de bord. */
-html[data-ui="signal"] .sg-carnet {
-  position: relative; display: block; text-decoration: none; color: inherit;
-}
-html[data-ui="signal"] .sg-carnet:hover { border-color: var(--sg-line-strong); }
-html[data-ui="signal"] .sg-carnet-corps { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 4px; }
-html[data-ui="signal"] .sg-carnet-val {
-  display: flex; align-items: baseline; gap: 6px;
-  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: 30px; font-weight: 700; color: var(--sg-text); line-height: 1.1;
-}
-html[data-ui="signal"] .sg-carnet-val em {
-  font-style: normal; font-family: inherit; font-size: 12px; font-weight: 500; color: var(--sg-text-3);
-}
-html[data-ui="signal"] .sg-carnet-sub { font-size: 11.5px; color: var(--sg-text-3); }
-html[data-ui="signal"] .sg-carnet .sg-signal-arrow { position: absolute; top: 14px; right: 12px; }
 
 /* Tableaux d'analyse des Statistiques (transformation, route, coût SAV). */
 html[data-ui="signal"] .sgs-tab { display: flex; flex-direction: column; }
@@ -3741,3 +3732,39 @@ html[data-ui="signal"] .sgg-pieces i.is-sav {
   background: #fdecea; color: #b42318;
 }
 html[data-ui="signal"].dark .sgg-pieces i.is-sav { background: #3a1b1b; color: #ff9c92; }
+
+/* Charge des douze prochaines semaines, sur la page Carnet. */
+html[data-ui="signal"] .sgn-semaines {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px;
+  padding: 12px; border-radius: 12px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+}
+html[data-ui="signal"] .sgn-sem { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+html[data-ui="signal"] .sgn-sem-barre {
+  position: relative; width: 100%; height: 76px;
+  display: flex; align-items: flex-end;
+  border-radius: 5px; background: var(--sg-paper-2);
+  border: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgn-sem-barre i {
+  display: block; width: 100%; border-radius: 4px 4px 3px 3px; background: var(--sg-ink);
+}
+/* Trait de capacité : la limite au-dessus de laquelle la semaine déborde. */
+html[data-ui="signal"] .sgn-sem-barre u {
+  position: absolute; left: -1px; right: -1px; height: 0;
+  border-top: 1px dashed var(--sg-text-3);
+}
+html[data-ui="signal"] .sgn-sem.is-pleine .sgn-sem-barre i { background: #b45309; }
+html[data-ui="signal"] .sgn-sem.is-courante .sgn-sem-barre { border-color: var(--sg-signal); }
+html[data-ui="signal"] .sgn-sem-nb {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 11px; font-weight: 700; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgn-sem.is-pleine .sgn-sem-nb { color: #b45309; }
+html[data-ui="signal"] .sgn-sem-nom { font-size: 9.5px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sgn-sem.is-courante .sgn-sem-nom { color: var(--sg-signal); font-weight: 700; }
+html[data-ui="signal"].dark .sgn-sem-barre i { background: #7fb0ff; }
+html[data-ui="signal"].dark .sgn-sem.is-pleine .sgn-sem-barre i { background: #f0b866; }
+@media (max-width: 720px) {
+  html[data-ui="signal"] .sgn-semaines { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+}

@@ -1293,6 +1293,35 @@ export function SignalStats({
               <p className="sgs-empty">Pas assez de chantiers avec heures pointées et monteur identifié.</p>
             )}
           </Fold>
+          <Fold className="sgs-span2" title="Ce que deviennent les mesures"
+            meta="par personne ayant relevé · mesures reçues sur la période">
+            {analyses?.mesures?.length ? (
+              <div className="sgs-tab is-large">
+                <div className="sgs-tab-tete">
+                  <span>Relevé par</span><span>Mesures</span><span>Commandées</span>
+                  <span>Encore ouvertes</span><span>Annulées</span><span>Transformation</span>
+                </div>
+                {analyses.mesures.map((l: any) => (
+                  <div key={l.personne} className="sgs-tab-ligne">
+                    <span>{l.personne}</span>
+                    <span>{l.prises}</span>
+                    <span>{l.commandees}</span>
+                    <span>{l.ouvertes || "—"}</span>
+                    <span className={l.annulees > 0 ? "is-alerte" : ""}>{l.annulees || "—"}</span>
+                    <b className={l.taux >= 70 ? "is-bon" : l.taux < 40 ? "is-faible" : ""}>{l.taux} %</b>
+                  </div>
+                ))}
+                <p className="sgs-note">
+                  À lire avec précaution : une annulation est le plus souvent la décision du
+                  client, pas une erreur de relevé. Ce qui s&apos;interprète ici, c&apos;est
+                  l&apos;<b>écart</b> entre personnes sur des chantiers comparables — jamais le
+                  taux absolu de l&apos;une d&apos;elles. Un relevé fait à deux compte pour chacun.
+                </p>
+              </div>
+            ) : (
+              <p className="sgs-empty">Aucune mesure relevée et attribuée sur la période.</p>
+            )}
+          </Fold>
           <Fold title="Montage par monteur" meta="cabines posées · binômes répartis à parts égales">
             <BarList rows={byCollab} unit=" cab." empty="Aucun montage attribué sur cette période." onPick={setPick} />
           </Fold>
