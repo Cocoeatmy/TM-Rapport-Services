@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
  * Indique si le thème « Signal » est actif (attribut data-ui sur <html>).
  *
  * Réagit au changement de thème via MutationObserver, comme le fait déjà
- * la détection du thème CleanMyMac dans page.tsx. Rend `false` au premier
+ * la détection des thèmes dans page.tsx. Rend `false` au premier
  * rendu (serveur + hydratation) : les composants doivent donc considérer
  * `false` comme « thème historique », ce qui garantit qu'aucun autre thème
  * ne voit jamais le rendu Signal.

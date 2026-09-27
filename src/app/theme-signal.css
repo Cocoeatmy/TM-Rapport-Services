@@ -5,7 +5,7 @@
 
    Règle d'isolation absolue : chaque sélecteur de ce fichier commence par
    `html[data-ui="signal"]`. Aucune règle ne peut donc atteindre Classique,
-   Aurora, Océan ou CleanMyMac. On n'utilise :
+   Aurora. On n'utilise :
      - aucun `!important` (hors prefers-reduced-motion),
      - aucun `:nth-child` couplé au markup,
      - aucun remappage global de classes Tailwind.

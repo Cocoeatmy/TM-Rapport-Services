@@ -14,7 +14,6 @@ import { CreateProjectButton } from "@/components/create-project-button";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineBanner } from "@/components/offline-banner";
 import { GlobalSearch } from "@/components/global-search";
-import { CmmWindowCorners } from "@/components/cmm-window-corners";
 import { BackButton } from "@/components/back-button";
 import { HomeButton } from "@/components/home-button";
 import "./globals.css";
@@ -92,10 +91,10 @@ export default function RootLayout({
         />
         {/* Applique le thème UI avant l'hydration React pour éviter un flash
             de style au chargement.
-            Lit `tm-ui-mode` (classic|aurora|ocean|cleanmymac|signal). */}
+            Lit `tm-ui-mode` (classic|aurora|signal). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='aurora'||m==='ocean'||m==='cleanmymac'||m==='signal'){document.documentElement.setAttribute('data-ui',m);}}catch(e){}})();`,
+            __html: `(function(){try{var m=localStorage.getItem('tm-ui-mode');if(m==='ocean'||m==='cleanmymac'){m='signal';localStorage.setItem('tm-ui-mode',m);}if(m==='aurora'||m==='signal'){document.documentElement.setAttribute('data-ui',m);}}catch(e){}})();`,
           }}
         />
       </head>
@@ -108,7 +107,7 @@ export default function RootLayout({
         <OfflineBanner />
         <header id="main-header" className="glass-header text-white">
           <div className="flex items-center justify-between gap-2 px-2 sm:px-4 py-3 overflow-x-auto md:overflow-visible scrollbar-hide">
-            <div className="flex items-center gap-2 cmm-header-left shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               <HomeButton />
               <BackButton />
             </div>
@@ -136,7 +135,6 @@ export default function RootLayout({
           </div>
         </header>
         </div>
-        <CmmWindowCorners />
         <main className="flex-1">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>

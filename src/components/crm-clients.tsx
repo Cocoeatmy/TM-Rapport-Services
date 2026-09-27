@@ -1022,7 +1022,7 @@ export function CRMClients({ mode, isAdmin, filterTag, initialSearch }: { mode: 
 
   const filtered = useMemo(() => {
     let result = entries;
-    // Filtre par étiquette (depuis hero CMM)
+    // Filtre par étiquette
     // Cherche dans TOUTES les propriétés (multi_select, select, text…) pour
     // être compatible quel que soit le nom de champ utilisé dans Notion.
     if (filterTag) {

@@ -546,8 +546,6 @@ interface MonteurDashboardProps {
   isAdmin?: boolean;
   onNavigate?: (mode: string) => void;
   terminatedProjectsInit?: Project[];
-  /** Mode CleanMyMac : masque la grille de boutons standard et affiche la zone widgets configurable */
-  cmmMode?: boolean;
 }
 
 // --- Helper functions ---
@@ -1311,7 +1309,7 @@ const RDV_STATUS_ORDER: Record<string, string[]> = {
 };
 
 type ForcedPanel = "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer";
-function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [], cmmMode = false, forcePanel = null, onForcePanelClose }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[]; cmmMode?: boolean; forcePanel?: ForcedPanel | null; onForcePanelClose?: () => void }) {
+function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit = [], forcePanel = null, onForcePanelClose }: { projects: Project[]; userName: string; onNavigate?: (mode: string) => void; terminatedProjectsInit?: Project[]; forcePanel?: ForcedPanel | null; onForcePanelClose?: () => void }) {
   useNotionColors(); // couleurs Notion sur les badges de statut
   const firstName = userName.split(" ")[0];
   const [expandedCollabs, setExpandedCollabs] = useState<Record<string, boolean>>({});
@@ -1453,7 +1451,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   useEffect(() => { setPanelSearch(""); }, [showSummaryPanel]);
 
   // Thème « Signal » actif ? Il dispose de son PROPRE rendu de dashboard.
-  // Tout autre thème (Classique, Aurora, Océan, CleanMyMac) continue d'emprunter
+  // Tout autre thème (Classique, Aurora) continue d'emprunter
   // exactement le même chemin de code qu'avant : rien n'est modifié pour eux.
   const [isSignal, setIsSignal] = useState(false);
   // Projet sélectionné dans la vue maître-détail du thème Signal.
@@ -1711,18 +1709,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     const handler = () => closePanel();
     window.addEventListener("tm-go-home", handler);
     return () => window.removeEventListener("tm-go-home", handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── Widgets CMM configurables ─────────────────────────────────────────────
-  const [cmmWidgets, setCmmWidgets] = useState<string[]>([]);
-  const [cmmConfigOpen, setCmmConfigOpen] = useState(false);
-  useEffect(() => {
-    if (!cmmMode) return;
-    try {
-      const saved = localStorage.getItem(`tm-cmm-widgets-${userName}`);
-      if (saved) setCmmWidgets(JSON.parse(saved));
-    } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2495,8 +2481,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const rdvSavAFixerCount = rdvSavAFixerProjects.length;
 
   // ── renderCard : rendu d'un bouton dashboard par son ID ───────────────────
-  // Défini avant le return pour être partagé entre la grille standard (non-CMM)
-  // et la zone de widgets configurable (thème CleanMyMac).
+  // Défini avant le return, partagé par toute la grille.
   const renderCard = (id: string): React.ReactNode => {
     switch (id) {
       case "mesures-today": return (
@@ -2698,7 +2683,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           Il réutilise les MÊMES données et les MÊMES handlers (openPanel) que
           le dashboard classique — aucune logique métier n'est dupliquée. La
           grille des 22 tuiles reste rendue en dessous : rien n'est retiré. */}
-      {isSignal && !cmmMode && showSummaryPanel === null && (
+      {isSignal && showSummaryPanel === null && (
         <div className="sg-dash">
           <div className="sg-dash-head">
             <div>
@@ -3122,7 +3107,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         </div>
 
         {/* ── Résumé du jour + demain ── */}
-        {!cmmMode && (
+        {(
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row gap-3 sm:gap-8 items-start">
           {/* Aujourd'hui */}
           <div className="flex-1 w-full space-y-1.5">
@@ -3329,152 +3314,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           );
         })()}
 
-        {/* ── CMM Planning Row ─────────────────────────────────────────────── */}
-        {cmmMode && (() => {
-          const tomorrowD = new Date(); tomorrowD.setDate(tomorrowD.getDate() + 1);
-          const tomorrowStr = tomorrowD.toISOString().split("T")[0];
-          const afterTomorrowD = new Date(); afterTomorrowD.setDate(afterTomorrowD.getDate() + 2);
-          const afterTomorrowStr = afterTomorrowD.toISOString().split("T")[0];
-
-          const micaelData = collabData.find(c => c.name === firstName);
-          const micaelTomorrowProjects = micaelData
-            ? micaelData.myProjects.filter(p => projectSpansDate(p, tomorrowStr))
-            : [];
-
-          const collabTodayList = collabData.filter(c => c.todayProjects.length > 0);
-          const collabTomorrowList = collabData
-            .map(c => ({ ...c, tomorrowProjects: c.myProjects.filter(p => projectSpansDate(p, tomorrowStr)) }))
-            .filter(c => c.tomorrowProjects.length > 0);
-          const collabAfterList = collabData
-            .map(c => ({
-              ...c,
-              futureProjects: c.myProjects
-                .filter(p => projectActiveDuringRange(p, afterTomorrowStr, "2099-12-31"))
-                .sort((a, b) => (a.dateMontage || a.dateMesures || "").localeCompare(b.dateMontage || b.dateMesures || "")),
-            }))
-            .filter(c => c.futureProjects.length > 0);
-
-          const tomorrowLabel = new Date(tomorrowStr + "T12:00").toLocaleDateString("fr-CH", { weekday: "short", day: "numeric", month: "short" });
-
-          const cardCls = "flex-shrink-0 min-w-[160px] flex-1 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 space-y-2";
-          const titleCls = "text-[10px] font-semibold uppercase tracking-widest text-white/40";
-          const subtitleCls = "text-[9px] text-white/25 -mt-1";
-          const emptyMsg = (msg: string) => <p className="text-[10px] text-white/20 italic">{msg}</p>;
-
-          const svcItems = [
-            { label: "Projet",   count: todayMontages,  color: "text-orange-400",  panel: "today" as const },
-            { label: "Mesure",   count: todayMesures,   color: "text-cyan-400",    panel: "mesures-today" as const },
-            { label: "SAV",      count: savTodayCount,  color: "text-red-400",     panel: "sav-today" as const },
-            { label: "Service",  count: todayServices,  color: "text-violet-400",  panel: "services-today" as const },
-            { label: "Garantie", count: todayGaranties, color: "text-emerald-400", panel: null as null },
-          ];
-
-          return (
-            <div className="mt-3 pt-3 border-t border-white/10 flex gap-2 overflow-x-auto pb-1">
-              {/* 1 – Services Micael */}
-              <div className={cardCls}>
-                <p className={titleCls}>Services Micael</p>
-                <div className="space-y-0.5">
-                  {svcItems.map(({ label, count, color, panel }) => (
-                    <button
-                      key={label}
-                      onClick={panel ? (e) => openPanel(panel, e as React.MouseEvent<HTMLButtonElement>) : undefined}
-                      className={`flex items-center gap-1.5 w-full text-left ${panel && count > 0 ? "hover:opacity-70 active:scale-95 transition-all" : "cursor-default"}`}
-                    >
-                      <span className={`text-xs font-bold ${count > 0 ? color : "text-white/20"}`}>{count}</span>
-                      <span className="text-[10px] text-white/50">
-                        {`${label}${label !== "SAV" && count !== 1 ? "s" : ""} prévu${count !== 1 ? "s" : ""} aujourd'hui`}
-                      </span>
-                      {panel && count > 0 && <span className="text-white/30 ml-auto text-xs">›</span>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 2 – Planning Micael J+1 */}
-              <div className={cardCls}>
-                <p className={titleCls}>Planning Micael J+1</p>
-                <p className={subtitleCls}>{tomorrowLabel}</p>
-                {micaelTomorrowProjects.length === 0
-                  ? emptyMsg("Aucun projet demain")
-                  : <div className="space-y-1">
-                      {micaelTomorrowProjects.map(p => (
-                        <p key={p.id} className="text-[10px] text-white/60 truncate">
-                          {p.nomChantier || p.projet}
-                        </p>
-                      ))}
-                    </div>
-                }
-              </div>
-
-              {/* 3 – Planning Collaborateurs Aujourd'hui */}
-              <div className={cardCls}>
-                <p className={titleCls}>Planning Collaborateurs</p>
-                <p className={subtitleCls}>Aujourd'hui</p>
-                {collabTodayList.length === 0
-                  ? emptyMsg("Personne planifié")
-                  : <div className="space-y-1">
-                      {collabTodayList.map(c => (
-                        <div key={c.name} className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colors.dot }} />
-                          <span className="text-[10px] font-medium text-white/65 truncate">{c.name}</span>
-                          <span className="text-[9px] text-white/30 ml-auto flex-shrink-0">{c.todayProjects.length}p</span>
-                        </div>
-                      ))}
-                    </div>
-                }
-              </div>
-
-              {/* 4 – Planning Collaborateurs J+1 */}
-              <div className={cardCls}>
-                <p className={titleCls}>Planning Collaborateurs</p>
-                <p className={subtitleCls}>{tomorrowLabel}</p>
-                {collabTomorrowList.length === 0
-                  ? emptyMsg("Aucun RDV demain")
-                  : <div className="space-y-1">
-                      {collabTomorrowList.map(c => (
-                        <div key={c.name} className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.colors.dot }} />
-                          <span className="text-[10px] font-medium text-white/65 truncate">{c.name}</span>
-                          <span className="text-[9px] text-white/30 ml-auto flex-shrink-0">{c.tomorrowProjects.length}p</span>
-                        </div>
-                      ))}
-                    </div>
-                }
-              </div>
-
-              {/* 5 – Planning Collaborateurs Après J+1 */}
-              <div className={cardCls}>
-                <p className={titleCls}>Après J+1</p>
-                <p className={subtitleCls}>Tous les RDV fixés</p>
-                {collabAfterList.length === 0
-                  ? emptyMsg("Aucun RDV à venir")
-                  : <div className="space-y-1 max-h-28 overflow-y-auto">
-                      {collabAfterList.flatMap(c =>
-                        c.futureProjects.slice(0, 4).map(p => {
-                          const dateStr = (p.dateMontage || p.dateMesures || "").split("T")[0];
-                          const dateLbl = dateStr
-                            ? new Date(dateStr + "T12:00").toLocaleDateString("fr-CH", { day: "numeric", month: "short" })
-                            : "";
-                          return (
-                            <div key={`${c.name}-${p.id}`} className="flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.colors.dot }} />
-                              <span className="text-[9px] text-white/35 flex-shrink-0 w-10">{dateLbl}</span>
-                              <span className="text-[9px] text-white/50 truncate">{c.name}</span>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                }
-              </div>
-            </div>
-          );
-        })()}
       </div>
 
-      {/* Summary cards — réorganisables style iOS (masquées en mode CMM) */}
-      {!cmmMode && (() => {
+      {/* Summary cards — réorganisables style iOS */}
+      {(() => {
         // renderCard est défini dans le scope du composant juste avant ce return JSX.
         // La case "__empty__" (zone de dépôt drag-and-drop) est gérée inline ici.
         return (
@@ -3729,10 +3572,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         </div>
       )}
 
-      {/* RDV buttons — thèmes normaux uniquement (non-CMM).
+      {/* RDV buttons.
           Masqués en thème Signal : la section « À planifier » les remplace,
           avec les mêmes panneaux au clic. */}
-      {!cmmMode && !isSignal && (
+      {!isSignal && (
       <div
         className="overflow-hidden"
         style={{
@@ -3789,121 +3632,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       </div>
       </div>
       )}
-
-      {/* ── Widgets configurables CleanMyMac ─────────────────────────────────
-          Uniquement visibles en cmmMode. L'utilisateur choisit quels widgets
-          afficher via un panneau ⚙ — sélection persistée dans localStorage. */}
-      {cmmMode && (() => {
-        const WIDGET_LABELS: Record<string, string> = {
-          "mesures-today":       "Mesures aujourd'hui",
-          "today":               "Montages aujourd'hui",
-          "services-today":      "Services aujourd'hui",
-          "sav-today":           "SAV aujourd'hui",
-          "week":                "Cabines cette semaine",
-          "active":              "Monteurs actifs",
-          "emplacement-cabines": "Emplacement cabines",
-          "rapports-attente":    "Rapports en attente",
-          "sav-non-traites":     "SAV non traités",
-          "soucis-en-cours":     "Soucis en cours",
-          "dossiers-en-cours":   "Projets en cours",
-          "a-facturer":          "À facturer",
-          "calendrier":          "Calendrier",
-          "archives":            "Archives",
-          "arrivage":            "Arrivage cabines",
-          "sav-historique":      "Historique SAV",
-          "soucis-historique":   "Historique soucis",
-          "mesures-sans-commande": "Mesures non commandées",
-          "rdv-mesures-a-fixer":  "RDV Mesures à fixer",
-          "rdv-montage-a-fixer":  "RDV Montage à fixer",
-          "rdv-services-a-fixer": "RDV Services à fixer",
-          "rdv-sav-a-fixer":      "RDV SAV à fixer",
-        };
-        const ALL_WIDGET_IDS = DEFAULT_DASH_ORDER.filter(id => id !== "__empty__");
-
-        const toggleWidget = (id: string) => {
-          const next = cmmWidgets.includes(id)
-            ? cmmWidgets.filter(w => w !== id)
-            : [...cmmWidgets, id];
-          setCmmWidgets(next);
-          try { localStorage.setItem(`tm-cmm-widgets-${userName}`, JSON.stringify(next)); } catch {}
-        };
-
-        return (
-          <div className="space-y-2">
-            {/* En-tête widgets avec bouton config */}
-            <div className="flex items-center justify-between px-1">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/30">
-                Widgets
-              </p>
-              <button
-                onClick={() => setCmmConfigOpen(v => !v)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                  cmmConfigOpen
-                    ? "bg-violet-500/30 text-violet-300 ring-1 ring-violet-500/40"
-                    : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60"
-                }`}
-                title="Configurer les widgets"
-              >
-                <Settings className="w-3 h-3" />
-                Configurer
-              </button>
-            </div>
-
-            {/* Panneau de configuration */}
-            {cmmConfigOpen && (
-              <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-3 space-y-1">
-                <p className="text-[10px] text-white/40 mb-2 px-1">
-                  Sélectionnez les widgets à afficher sur votre accueil
-                </p>
-                <div className="grid grid-cols-2 gap-1">
-                  {ALL_WIDGET_IDS.map(id => {
-                    const active = cmmWidgets.includes(id);
-                    return (
-                      <button
-                        key={id}
-                        onClick={() => toggleWidget(id)}
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-[11px] font-medium transition-all text-left ${
-                          active
-                            ? "bg-violet-500/25 text-violet-200 ring-1 ring-violet-500/30"
-                            : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60"
-                        }`}
-                      >
-                        <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center flex-shrink-0 transition-colors ${
-                          active ? "bg-violet-500 border-violet-400" : "border-white/20"
-                        }`}>
-                          {active && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                        </span>
-                        <span className="line-clamp-1">{WIDGET_LABELS[id] || id}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Grille de widgets actifs */}
-            {cmmWidgets.length > 0 && (
-              <div className={`grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-3`}>
-                {cmmWidgets.map(id => (
-                  <div key={id} className="relative">
-                    {renderCard(id)}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Placeholder si aucun widget sélectionné */}
-            {cmmWidgets.length === 0 && !cmmConfigOpen && (
-              <div className="flex flex-col items-center justify-center py-8 gap-2 text-white/20">
-                <Settings className="w-8 h-8" />
-                <p className="text-xs text-center">
-                  Appuyez sur <span className="font-semibold text-white/30">Configurer</span> pour ajouter des widgets
-                </p>
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
       {/* ── En-tête panneau actif ─────────────────────────────────────────── */}
       {/* Apparaît quand un panneau est ouvert : bouton compact "retour" + label */}
@@ -7727,10 +7455,10 @@ function CollaborateurDashboard({ userName, projects, onNavigate }: { userName: 
   );
 }
 
-export function MonteurDashboard({ userName, projects, isAdmin, onNavigate, terminatedProjectsInit = [], cmmMode = false }: MonteurDashboardProps) {
+export function MonteurDashboard({ userName, projects, isAdmin, onNavigate, terminatedProjectsInit = [] }: MonteurDashboardProps) {
   // Admin view: show all collaborators
   if (isAdmin) {
-    return <AdminDashboard projects={projects} userName={userName} onNavigate={onNavigate} terminatedProjectsInit={terminatedProjectsInit} cmmMode={cmmMode} />;
+    return <AdminDashboard projects={projects} userName={userName} onNavigate={onNavigate} terminatedProjectsInit={terminatedProjectsInit} />;
   }
 
   // Collaborateur (non-admin) view

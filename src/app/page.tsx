@@ -340,7 +340,7 @@ function SignalHeaderBar({ isAdmin, onNewProject, children }: {
   );
 }
 
-function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, onNewProject }:{ mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isCmm?: boolean; isSignal?: boolean; onNewProject?: () => void }) {
+function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProject }:{ mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isSignal?: boolean; onNewProject?: () => void }) {
   const [open, setOpen] = useState<string | null>(
     mode.startsWith("grossistes") ? "grossistes" :
     mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
@@ -413,14 +413,6 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
 
   return (
     <>
-    {/* Sidebar CMM desktop — uniquement rendu quand isCmm est actif */}
-    {isCmm && (
-      <div className="hidden lg:flex flex-col h-full">
-        <CmmSidebarContent mode={mode} projectsData={projectsData} onSwitchMode={handleSelect} isAdmin={isAdmin} />
-      </div>
-    )}
-    {/* Sur mobile CleanMyMac : les onglets horizontaux sont entièrement masqués
-        (remplacés par le CmmMobileDrawer rendu au niveau HomePage). */}
     {/* La barre du thème Signal (recherche ouverte + Nouveau projet + fenêtre
         secondaire) est désormais greffée DANS l'en-tête de l'app, par portail
         depuis HomePage : voir SignalHeaderBar. */}
@@ -428,7 +420,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
         Il reprend À L'IDENTIQUE les 9 entrées de la barre d'onglets et leurs
         comportements : les entrées à sous-menu ouvrent le même sous-menu, qui
         reste rendu juste en dessous. Aucune destination n'est retirée. */}
-    {isSignal && !isCmm && (
+    {isSignal && (
       <nav aria-label="Navigation principale" className="signal-rail hidden lg:flex">
         {[
           /* Pas d'entrée « Tableau de bord » : le bouton Accueil de l'en-tête y
@@ -460,7 +452,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
     )}
     {/* `lg:mb-0` en Signal : les onglets y sont masqués, leur marge basse
         dessinerait une bande vide sous l'en-tête. */}
-    <div className={`nav-stack mb-4 space-y-1.5${isSignal ? " lg:mb-0" : ""}${isCmm ? " hidden" : ""}`}>
+    <div className={`nav-stack mb-4 space-y-1.5${isSignal ? " lg:mb-0" : ""}`}>
       {/* Ligne principale — masquée sur desktop en thème Signal (remplacée par
           le rail) ; elle reste la navigation sur mobile/tablette. */}
       <div className={`p-1.5 max-w-full overflow-x-auto scrollbar-hide touch-pan-x overscroll-x-contain${isSignal ? " lg:hidden" : ""}`}>
@@ -476,13 +468,13 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
             CRM
             <ChevronDown className={`w-3 h-3 transition-transform ${open === "clients" ? "rotate-180" : ""}`} />
           </button>
-          <button onClick={() => isCmm ? (onSwitchMode("grossistes"), setOpen(null)) : setOpen(open === "grossistes" ? null : "grossistes")} className={tabCls(isGrossisteActive || open === "grossistes")}>
+          <button onClick={() => setOpen(open === "grossistes" ? null : "grossistes")} className={tabCls(isGrossisteActive || open === "grossistes")}>
             {isGrossisteActive && grossisteActiveLabel && grossisteActiveLabel !== "Tous" ? `Grossistes · ${grossisteActiveLabel}` : "Grossistes"}
-            {!isCmm && <ChevronDown className={`w-3 h-3 transition-transform ${open === "grossistes" ? "rotate-180" : ""}`} />}
+            <ChevronDown className={`w-3 h-3 transition-transform ${open === "grossistes" ? "rotate-180" : ""}`} />
           </button>
-          <button onClick={() => isCmm ? (onSwitchMode("fournisseurs"), setOpen(null)) : setOpen(open === "fournisseurs-menu" ? null : "fournisseurs-menu")} className={tabCls(isFournisseursActive || open === "fournisseurs-menu")}>
+          <button onClick={() => setOpen(open === "fournisseurs-menu" ? null : "fournisseurs-menu")} className={tabCls(isFournisseursActive || open === "fournisseurs-menu")}>
             {isFournisseursActive && fournisseurActiveLabel && fournisseurActiveLabel !== "Tous" ? `Fournisseurs · ${fournisseurActiveLabel}` : "Fournisseurs"}
-            {!isCmm && <ChevronDown className={`w-3 h-3 transition-transform ${open === "fournisseurs-menu" ? "rotate-180" : ""}`} />}
+            <ChevronDown className={`w-3 h-3 transition-transform ${open === "fournisseurs-menu" ? "rotate-180" : ""}`} />
           </button>
           <button onClick={() => { handleSelect("sanitaires"); setOpen(null); }} className={tabCls(mode === "sanitaires")}>
             Sanitaires
@@ -547,7 +539,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
       )}
 
       {/* Sous-menu Grossistes */}
-      {open === "grossistes" && !isCmm && (
+      {open === "grossistes" && (
         <div className="nav-submenu flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center touch-pan-x overscroll-x-contain">
           {grossistesModes.map((m) => {
             const logo = grossistesLogos[m];
@@ -598,7 +590,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
       )}
 
       {/* Sous-menu Fournisseurs */}
-      {open === "fournisseurs-menu" && !isCmm && (
+      {open === "fournisseurs-menu" && (
         <div className="nav-submenu flex gap-2 overflow-x-auto scrollbar-hide px-1 items-center touch-pan-x overscroll-x-contain">
           {fournisseursModes.map((m) => {
             const logo = fournisseursLogos[m];
@@ -646,249 +638,6 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
         </div>
       )}
     </div>
-    </>
-  );
-}
-
-/* ---- Sidebar de navigation pour le thème CleanMyMac (desktop ≥ lg) ---- */
-function CmmSidebarContent({ mode, projectsData, onSwitchMode, isAdmin }: {
-  mode: string;
-  projectsData: Record<string, any[]>;
-  onSwitchMode: (m: string) => void;
-  isAdmin: boolean;
-}) {
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
-
-  const count = (m: string): number | null => {
-    const v = projectsData[m];
-    return Array.isArray(v) ? v.length : null;
-  };
-  const isActive = (m: string) => mode === m || mode === `${m}-termine` || ((m === "grossistes" || m === "fournisseurs") && mode.startsWith(`${m}-`)) || (m === "signalements" && mode.startsWith("signalements"));
-
-  const activeSection =
-    (mode === "projets-tous" || mode === "archives") ? "suivi" :
-    (["mesures", "cmd", "arrivage", "services", "sav", "garanties", "rdv"].some(m => isActive(m))) ? "services" :
-    mode.startsWith("clients-") ? "crm" :
-    mode.startsWith("grossistes") ? "grossistes" :
-    mode.startsWith("fournisseurs") ? "fournisseurs" :
-    mode === "sanitaires" ? "sanitaires" :
-    mode === "rapport" ? "rapport" :
-    mode === "destockage" ? "destockage" :
-    mode === "stats" ? "stats" :
-    mode.startsWith("signalements") ? "signalements" : "dashboard";
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const SideItem = ({ m, Icon, label, showCount = true }: { m: string; Icon: any; label: string; showCount?: boolean }) => {
-    const active = isActive(m);
-    const cnt = showCount ? count(m) : null;
-    return (
-      <button
-        onClick={() => onSwitchMode(m)}
-        className={`w-full text-left px-3 py-2 rounded-xl text-sm flex items-center gap-2.5 transition-all duration-150 ${
-          active
-            ? "bg-white/[0.13] text-white font-semibold"
-            : "text-white/55 hover:text-white/85 hover:bg-white/[0.07]"
-        }`}
-        style={active ? { borderLeft: "3px solid rgba(210,190,255,0.80)", paddingLeft: "calc(0.75rem - 3px)" } : {}}
-      >
-        <Icon className={`w-4 h-4 shrink-0 ${active ? "text-violet-300" : ""}`} />
-        <span className="flex-1 truncate">{label}</span>
-        {cnt !== null && (
-          <span className={`text-xs tabular-nums ${active ? "text-white/60" : "text-white/30"}`}>{cnt}</span>
-        )}
-      </button>
-    );
-  };
-
-  const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-    <div className="px-2.5 pt-5 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white/25 select-none">
-      {children}
-    </div>
-  );
-
-  const grossistesModes = ["grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen"];
-  const grossistesLabels: Record<string, string> = { grossistes: "Tous", "grossistes-bms": "BMS", "grossistes-dubat": "Dubat", "grossistes-tema": "Tema Sàrl", "grossistes-matway": "MatWay", "grossistes-bringhen": "Bringhen" };
-  const fournisseursModes = ["fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-kermi", "fournisseurs-koralle", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-ronal", "fournisseurs-samo", "fournisseurs-vismaravetro"];
-  const fournisseursLabels: Record<string, string> = { fournisseurs: "Tous", "fournisseurs-duka": "Duka.ch", "fournisseurs-duscholux": "Duscholux", "fournisseurs-kermi": "Kermi", "fournisseurs-koralle": "Koralle", "fournisseurs-nelo": "Nelo", "fournisseurs-novellini": "Novellini", "fournisseurs-ronal": "Ronal", "fournisseurs-samo": "Samo", "fournisseurs-vismaravetro": "Vismaravetro" };
-
-  const SubItem = ({ m, label }: { m: string; label: string }) => {
-    const active = mode === m;
-    return (
-      <button
-        onClick={() => onSwitchMode(m)}
-        className={`w-full text-left py-1.5 pl-8 pr-3 rounded-lg text-xs flex items-center gap-2 transition-all duration-150 ${
-          active ? "text-white bg-white/10 font-medium" : "text-white/45 hover:text-white/75 hover:bg-white/[0.05]"
-        }`}
-      >
-        <span className={`w-1 h-1 rounded-full shrink-0 ${active ? "bg-violet-300" : "bg-white/25"}`} />
-        {label}
-      </button>
-    );
-  };
-
-  return (
-    <nav
-      data-cmm-active-section={activeSection}
-      className="flex flex-col gap-0.5 py-2 px-1.5 overflow-y-auto h-full"
-    >
-      <SectionLabel>Suivi</SectionLabel>
-      <SideItem m="projets-tous" Icon={FolderOpen} label="Projets en cours" showCount={false} />
-      <SideItem m="archives" Icon={Archive} label="Archives" showCount={false} />
-
-      <SectionLabel>Services</SectionLabel>
-      <SideItem m="mesures" Icon={Ruler} label="Mesures" />
-      <SideItem m="cmd" Icon={Wrench} label="Montages" />
-      <SideItem m="arrivage" Icon={Truck} label="Arrivage" showCount={false} />
-      <SideItem m="services" Icon={Settings} label="Services" />
-      <SideItem m="sav" Icon={AlertCircle} label="SAV" />
-      <SideItem m="garanties" Icon={ShieldCheck} label="Garanties" showCount={false} />
-      <SideItem m="rdv" Icon={CalendarDays} label="RDV" showCount={false} />
-
-      <SectionLabel>CRM</SectionLabel>
-      <SideItem m="clients-contacts" Icon={UsersIcon} label="Contacts" showCount={false} />
-      <SideItem m="clients-entreprises" Icon={Building} label="Entreprises" showCount={false} />
-
-      <SectionLabel>Clients</SectionLabel>
-
-      {/* Grossistes — navigation directe (thème CMM) */}
-      <SideItem m="grossistes" Icon={ShoppingBag} label="Grossistes" showCount={false} />
-
-      {/* Fournisseurs — navigation directe (thème CMM) */}
-      <SideItem m="fournisseurs" Icon={Package} label="Fournisseurs" showCount={false} />
-      <SideItem m="sanitaires" Icon={Droplets} label="Sanitaires" showCount={false} />
-
-      <SectionLabel>Autres</SectionLabel>
-      <SideItem m="signalements" Icon={AlertTriangle} label="Signalements" showCount={false} />
-      <SideItem m="a-facturer" Icon={Receipt} label="À facturer" showCount={false} />
-      <SideItem m="collaborateurs" Icon={UsersIcon} label="Collaborateurs" showCount={false} />
-      <SideItem m="emplacement-cabines" Icon={MapPin} label="Emplacement cabines" showCount={false} />
-      <SideItem m="calendrier" Icon={Calendar} label="Calendrier" showCount={false} />
-      <SideItem m="rapport" Icon={FileText} label="Rapport" showCount={false} />
-      <SideItem m="destockage" Icon={Archive} label="Déstockage" showCount={false} />
-      {isAdmin && <SideItem m="stats" Icon={BarChart2} label="Stats" showCount={false} />}
-    </nav>
-  );
-}
-
-/* ---- Drawer mobile CleanMyMac (iOS) ---- */
-/* Visible uniquement sur mobile (< lg). Activé par swipe depuis le bord   */
-/* gauche ou tap sur l'onglet triangulaire. Contient CmmSidebarContent.    */
-function CmmMobileDrawer({ mode, projectsData, onSwitchMode, isAdmin }: {
-  mode: string;
-  projectsData: Record<string, any[]>;
-  onSwitchMode: (m: string) => void;
-  isAdmin: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const touchStartX = useRef<number | null>(null);
-  const touchStartY = useRef<number | null>(null);
-  const DRAWER_W = 252;
-
-  // Détection swipe bord gauche → ouvrir, swipe gauche sur drawer → fermer
-  useEffect(() => {
-    const onStart = (e: TouchEvent) => {
-      touchStartX.current = e.touches[0].clientX;
-      touchStartY.current = e.touches[0].clientY;
-    };
-    const onEnd = (e: TouchEvent) => {
-      if (touchStartX.current === null || touchStartY.current === null) return;
-      const dx = e.changedTouches[0].clientX - touchStartX.current;
-      const dy = Math.abs(e.changedTouches[0].clientY - (touchStartY.current ?? 0));
-      // Ignorer les swipes principalement verticaux
-      if (dy > Math.abs(dx) * 1.2) { touchStartX.current = null; touchStartY.current = null; return; }
-      if (dx > 45 && (touchStartX.current ?? 999) < 40 && !open) setOpen(true);
-      else if (dx < -45 && open) setOpen(false);
-      touchStartX.current = null;
-      touchStartY.current = null;
-    };
-    document.addEventListener("touchstart", onStart, { passive: true });
-    document.addEventListener("touchend", onEnd, { passive: true });
-    return () => {
-      document.removeEventListener("touchstart", onStart);
-      document.removeEventListener("touchend", onEnd);
-    };
-  }, [open]);
-
-  // Ferme le drawer et navigue
-  const handleNav = (m: string) => { onSwitchMode(m); setOpen(false); };
-
-  return (
-    <>
-      {/* ---- Onglet déclencheur (handle) ---- */}
-      {/* Se déplace avec le drawer pour rester visible sur le bord */}
-      <div
-        className="fixed z-[45] lg:hidden transition-[left] duration-300"
-        style={{
-          left: open ? DRAWER_W : 0,
-          top: "50%",
-          transform: "translateY(-50%)",
-          pointerEvents: "auto",
-        }}
-      >
-        <button
-          onClick={() => setOpen((v) => !v)}
-          aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
-          style={{
-            background: "linear-gradient(135deg, rgba(90,40,180,0.85) 0%, rgba(30,10,64,0.90) 100%)",
-            backdropFilter: "blur(14px)",
-            WebkitBackdropFilter: "blur(14px)",
-            border: "1px solid rgba(210,190,255,0.22)",
-            borderLeft: "none",
-            borderRadius: "0 10px 10px 0",
-            padding: "16px 7px 16px 5px",
-            display: "flex",
-            alignItems: "center",
-            cursor: "pointer",
-            boxShadow: "3px 0 16px rgba(120,60,220,0.35)",
-          }}
-        >
-          {/* Triangle SVG : pointe à droite quand fermé, à gauche quand ouvert */}
-          <svg width="9" height="18" viewBox="0 0 9 18" fill="none">
-            {open
-              ? <path d="M9 0L0 9L9 18V0Z" fill="rgba(210,190,255,0.90)" />
-              : <path d="M0 0L9 9L0 18V0Z" fill="rgba(210,190,255,0.90)" />
-            }
-          </svg>
-        </button>
-      </div>
-
-      {/* ---- Backdrop semi-transparent ---- */}
-      <div
-        className="fixed inset-0 z-[43] lg:hidden transition-all duration-300"
-        style={{
-          background: open ? "rgba(4,1,14,0.60)" : "transparent",
-          backdropFilter: open ? "blur(2px)" : "none",
-          WebkitBackdropFilter: open ? "blur(2px)" : "none",
-          pointerEvents: open ? "auto" : "none",
-        }}
-        onClick={() => setOpen(false)}
-      />
-
-      {/* ---- Drawer panel ---- */}
-      <div
-        className="fixed top-0 bottom-0 left-0 z-[44] lg:hidden"
-        style={{
-          width: DRAWER_W,
-          transform: open ? "translateX(0)" : `translateX(-${DRAWER_W}px)`,
-          transition: "transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)",
-          background: "rgba(7,2,20,0.97)",
-          backdropFilter: "blur(40px) saturate(200%)",
-          WebkitBackdropFilter: "blur(40px) saturate(200%)",
-          borderRight: "1px solid rgba(255,255,255,0.07)",
-          boxShadow: open ? "8px 0 40px rgba(0,0,0,0.65)" : "none",
-          paddingTop: "var(--header-h, 56px)",
-          overflowY: "auto",
-          overflowX: "hidden",
-          WebkitOverflowScrolling: "touch",
-        } as React.CSSProperties}
-      >
-        <CmmSidebarContent
-          mode={mode}
-          projectsData={projectsData}
-          onSwitchMode={handleNav}
-          isAdmin={isAdmin}
-        />
-      </div>
     </>
   );
 }
@@ -1023,153 +772,6 @@ function SignalementListView({ subMode }: { subMode: "pieces" | "defauts" }) {
           <p className="text-sm">Aucun signalement trouvé</p>
         </div>
       )}
-    </div>
-  );
-}
-
-/* ====================================================================
-   CmmSectionLanding — page d'accueil style CleanMyMac pour un mode
-   Grande icône à gauche avec parallaxe souris + boutons d'action à droite
-   ==================================================================== */
-function CmmSectionLanding({ icon: Icon, title, subtitle, actions, onAction }: {
-  icon: React.ElementType;
-  title: string;
-  subtitle?: string;
-  actions: { id: string; icon: React.ElementType; label: string; sublabel?: string; logoSrc?: string; logoH?: number; logoFilter?: string }[];
-  onAction: (id: string) => void;
-}) {
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Parallaxe souris — amplitude ±18px horizontal, ±12px vertical
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const el = containerRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      setOffset({
-        x: ((e.clientX - (r.left + r.width  / 2)) / (r.width  / 2)) * 18,
-        y: ((e.clientY - (r.top  + r.height / 2)) / (r.height / 2)) * 12,
-      });
-    };
-    window.addEventListener("mousemove", onMove, { passive: true });
-    return () => window.removeEventListener("mousemove", onMove);
-  }, []);
-
-  return (
-    <div
-      ref={containerRef}
-      className="flex flex-col lg:flex-row items-center justify-center gap-4 sm:gap-8 lg:gap-20 pt-6 pb-8 sm:pt-8 lg:min-h-[62vh] px-3 sm:px-6 select-none"
-    >
-      {/* ---- Icône seule (gauche) — sans titre en dessous ---- */}
-      <div className="flex items-center justify-center flex-shrink-0">
-        <div
-          style={{
-            transform: `translate(${offset.x}px, ${offset.y}px)`,
-            transition: "transform 0.14s cubic-bezier(0.25,0.46,0.45,0.94)",
-          }}
-        >
-          <div className="relative">
-            {/* Halo extérieur */}
-            <div
-              className="absolute inset-0 rounded-full"
-              style={{
-                background: "radial-gradient(circle, rgba(124,58,237,0.55) 0%, transparent 70%)",
-                transform: "scale(2.2)",
-                filter: "blur(28px)",
-                pointerEvents: "none",
-              }}
-            />
-            {/* Cercle principal */}
-            <div
-              className="relative w-36 h-36 sm:w-44 sm:h-44 lg:w-52 lg:h-52 rounded-full flex items-center justify-center"
-              style={{
-                background: "linear-gradient(150deg, rgba(140,70,255,0.22) 0%, rgba(14,5,40,0.65) 100%)",
-                border: "1px solid rgba(210,190,255,0.18)",
-                boxShadow: "0 0 70px rgba(124,58,237,0.22), inset 0 1px 0 rgba(255,255,255,0.07)",
-              }}
-            >
-              <Icon
-                className="w-16 h-16 sm:w-20 sm:h-20 lg:w-[104px] lg:h-[104px]"
-                style={{ color: "rgba(210,190,255,0.88)", strokeWidth: 1.2 }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ---- Titre + sous-titre + boutons (droite) ---- */}
-      <div className={`flex flex-col w-full ${actions.length > 5 ? "sm:max-w-[420px]" : "sm:max-w-[320px]"}`}>
-        {/* Titre en haut */}
-        <h2
-          className="text-2xl sm:text-3xl font-bold tracking-tight mb-1"
-          style={{ color: "rgba(255,255,255,0.95)" }}
-        >
-          {title}
-        </h2>
-        {subtitle && (
-          <p className="text-sm mb-4 sm:mb-8" style={{ color: "rgba(210,190,255,0.50)" }}>
-            {subtitle}
-          </p>
-        )}
-        {/* Boutons — 1 colonne mobile si ≤5 actions, grille 2×N si >5 */}
-        <div className={actions.length > 5 ? "grid grid-cols-1 sm:grid-cols-2 gap-2" : "flex flex-col gap-2"}>
-          {actions.map((action) => (
-            <button
-              key={action.id}
-              onClick={() => onAction(action.id)}
-              className={`w-full flex items-center rounded-xl text-left transition-all duration-150 active:scale-[0.97] ${action.logoSrc ? "justify-center py-4 px-6 gap-0" : "gap-3 px-4 py-3.5 sm:py-3"}`}
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
-              onMouseEnter={(e) => {
-                const el = e.currentTarget;
-                el.style.background = "rgba(255,255,255,0.10)";
-                el.style.borderColor = "rgba(210,190,255,0.25)";
-              }}
-              onMouseLeave={(e) => {
-                const el = e.currentTarget;
-                el.style.background = "rgba(255,255,255,0.06)";
-                el.style.borderColor = "rgba(255,255,255,0.08)";
-              }}
-            >
-              {action.logoSrc ? (
-                /* Mode logo : image centrée grande, pas de texte */
-                <img
-                  src={action.logoSrc}
-                  alt={action.label}
-                  className="w-auto max-w-[280px] object-contain"
-                  style={{ height: `${action.logoH ?? 32}px`, filter: action.logoFilter ?? "drop-shadow(0 0 4px rgba(255,255,255,0.08))" }}
-                />
-              ) : (
-                <>
-                  {/* Icône action */}
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ background: "rgba(124,58,237,0.25)" }}
-                  >
-                    <action.icon style={{ width: 15, height: 15, color: "rgba(210,190,255,0.85)" }} />
-                  </div>
-                  {/* Texte */}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.90)" }}>
-                      {action.label}
-                    </div>
-                    {action.sublabel && (
-                      <div className="text-xs mt-0.5 truncate" style={{ color: "rgba(210,190,255,0.38)" }}>
-                        {action.sublabel}
-                      </div>
-                    )}
-                  </div>
-                  {/* Chevron */}
-                  <ChevronRight style={{ width: 14, height: 14, color: "rgba(210,190,255,0.30)", flexShrink: 0 }} />
-                </>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -1430,17 +1032,6 @@ function HomePage() {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
 
-  // Détecte si le thème CleanMyMac est actif (attribut data-ui sur <html>)
-  // Réagit aux changements via MutationObserver (ex: basculement depuis UserMenu)
-  const [isCmm, setIsCmm] = useState(false);
-  useEffect(() => {
-    const check = () => setIsCmm(document.documentElement.getAttribute("data-ui") === "cleanmymac");
-    check();
-    const obs = new MutationObserver(check);
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-ui"] });
-    return () => obs.disconnect();
-  }, []);
-
   // Même mécanisme pour le thème « Signal » (rail vertical sur desktop).
   const [isSignal, setIsSignal] = useState(false);
   useEffect(() => {
@@ -1506,8 +1097,6 @@ function HomePage() {
   const [collabFilter, setCollabFilter] = useState<string | null>(collabParam || collaborateurParam);
   const [quickFilter, setQuickFilter] = useState<string | null>(quickParam);
   const [rapportSubFilter, setRapportSubFilter] = useState<"en-cours" | "en-attente" | "cloture" | null>(null);
-  // CleanMyMac : contrôle l'affichage du hero par mode (null = liste normale)
-  const [cmmHeroMode, setCmmHeroMode] = useState<string | null>(null);
   const [crmTagFilter, setCrmTagFilter] = useState<string | null>(null);
   const [subView, setSubView] = useState<"projets" | "stats">("projets");
   // Filtre TYPE d'activité de la vue Fournisseurs (suivi mensuel).
@@ -1527,7 +1116,6 @@ function HomePage() {
       setStatusFilter(null);
       setCollabFilter(null);
       setSearch("");
-      setCmmHeroMode(null);
       setCrmTagFilter(null);
       setSubView("projets");
       try { window.scrollTo({ top: 0 }); } catch {}
@@ -2298,25 +1886,25 @@ function HomePage() {
     if (quickFilter === "rdv-a-fixer" && p.etatCMD !== "Cabine à aller chercher" && p.etatCMD !== "Récéptionné - RDV à fixer") {
       return false;
     }
-    // ---- Filtres CMM Mesures ----
+    // ---- Filtres Mesures ----
     if (quickFilter === "mesures-today" && p.dateMesures !== formatLocalDate(new Date())) return false;
     if (quickFilter === "mesures-rdv" && !p.dateMesures) return false;
     if (quickFilter === "mesures-rdv-a-fixer" && !!p.dateMesures) return false;
     if (quickFilter === "mesures-non-cmd" && !(p.etatMesures === "Terminé" && p.etatCMD === "Cabines mesurées")) return false;
-    // ---- Filtres CMM Montages ----
+    // ---- Filtres Montages ----
     if (quickFilter === "cmd-today" && p.dateMontage !== formatLocalDate(new Date())) return false;
     if (quickFilter === "cmd-rdv-a-fixer" && p.etatCMD !== "Cabine à aller chercher" && p.etatCMD !== "Récéptionné - RDV à fixer") return false;
     if (quickFilter === "cmd-rdv-etablis" && !p.dateMontage) return false;
-    // ---- Filtres CMM Services ----
+    // ---- Filtres Services ----
     if (quickFilter === "services-today" && p.dateMontage !== formatLocalDate(new Date())) return false;
     if (quickFilter === "services-rdv-a-fixer" && p.etatCMD !== "Cabine à aller chercher" && p.etatCMD !== "Récéptionné - RDV à fixer") return false;
     if (quickFilter === "services-rdv-etablis" && !p.dateMontage) return false;
-    // ---- Filtres CMM SAV ----
+    // ---- Filtres SAV ----
     if (quickFilter === "sav-today" && p.dateSAVRecu !== formatLocalDate(new Date())) return false;
     if (quickFilter === "sav-rdv-a-fixer" && !!p.dateSAVRecu) return false;
     if (quickFilter === "sav-rdv-etablis" && !p.dateSAVRecu) return false;
     if (quickFilter === "sav-cloture" && p.etatSAV !== "Terminé") return false;
-    // ---- Filtres CMM Garanties ----
+    // ---- Filtres Garanties ----
     if (quickFilter === "garanties-today" && p.dateMontage !== formatLocalDate(new Date())) return false;
     if (quickFilter === "garanties-rdv-a-fixer" && !!p.dateMontage) return false;
     if (quickFilter === "garanties-rdv-etablis" && !p.dateMontage) return false;
@@ -2522,7 +2110,7 @@ function HomePage() {
 
   /* Signal sur grand écran : navigation par le rail, actions dans l'en-tête.
      La barre d'onglets n'a alors plus rien à montrer. */
-  const sgRailOnly = isSignal && !isCmm && sgWide;
+  const sgRailOnly = isSignal && sgWide;
 
   /* Bouton « fenêtre secondaire » : rendu soit dans la barre d'onglets
      (comportement historique), soit dans l'en-tête en thème Signal. */
@@ -2565,36 +2153,13 @@ function HomePage() {
       {isSignal && <SignalPreviewHost />}
       {/* Signal (grand écran) : recherche ouverte + Nouveau projet + fenêtre
           secondaire, greffés dans l'en-tête de l'app. */}
-      {isSignal && !isCmm && sgWide && (
+      {isSignal && sgWide && (
         <SignalHeaderBar
           isAdmin={currentUser?.role === "admin"}
           onNewProject={() => setShowNewProject(true)}
         >
           {floatingWindowButton}
         </SignalHeaderBar>
-      )}
-      {/* Drawer mobile CleanMyMac — rendu en dehors du flux normal car position:fixed */}
-      {isCmm && (
-        <CmmMobileDrawer
-          mode={mode}
-          projectsData={projectsData}
-          isAdmin={currentUser?.role === "admin" || false}
-          onSwitchMode={(m: string) => {
-            setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements", "arrivage"];
-            setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
-            if (m === "archives") {
-              fetch("/api/projects/all").then((r) => r.json()).then((data) => {
-                const all = Array.isArray(data) ? data : [];
-                setProjectsData((prev) => {
-                  const updated = { ...prev, archives: all };
-                  saveProjectsCache(updated);
-                  return updated;
-                });
-              }).catch(() => {});
-            }
-          }}
-        />
       )}
       {/* Toast notification */}
       {toast && (
@@ -2617,11 +2182,8 @@ function HomePage() {
       >
       <div className={sgRailOnly ? "" : "flex items-start gap-2"}>
         <div className={sgRailOnly ? "" : "flex-1 min-w-0"}>
-          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isCmm={isCmm} isSignal={isSignal} onNewProject={() => setShowNewProject(true)} onSwitchMode={(m: Mode) => {
+          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isSignal={isSignal} onNewProject={() => setShowNewProject(true)} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
-            // CMM : afficher le hero pour les modes qui en ont un
-            const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements", "arrivage"];
-            setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
               fetch("/api/projects/all").then((r) => r.json()).then((data) => {
@@ -2715,11 +2277,8 @@ function HomePage() {
                 userName={currentUser.name}
                 projects={tagged}
                 isAdmin={currentUser?.role === "admin"}
-                cmmMode={isCmm}
                 onNavigate={(m) => {
                   setMode(m as Mode); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
-                  const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs"];
-                  setCmmHeroMode(isCmm && cmmHeroModes.includes(m) ? m : null);
                 }}
                 terminatedProjectsInit={projectsData["cmd-termine"] || []}
               />
@@ -2755,7 +2314,7 @@ function HomePage() {
           return dB.localeCompare(dA);
         });
 
-        // Filtrage par sous-catégorie CMM
+        // Filtrage par sous-catégorie
         const rapportBase = rapportSubFilter
           ? sorted.filter((p) => {
               const isTermine = ["cmd-termine", "services-termine", "sav-termine"].some((k) =>
@@ -2797,7 +2356,7 @@ function HomePage() {
 
         return (
           <div>
-            {/* Chip sous-filtre CMM Rapport */}
+            {/* Chip sous-filtre Rapport */}
             {rapportSubFilter && (
               <div className="mb-4 flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-sm font-medium">
@@ -3032,26 +2591,12 @@ function HomePage() {
       })()}
 
       {/* VUE CLIENTS - CRM Notion */}
-      {mode.startsWith("clients-") && !(isCmm && (mode === "clients-contacts" || mode === "clients-entreprises") && cmmHeroMode === mode) && (
+      {mode.startsWith("clients-") && (
         <>
-          {/* Bouton retour vers hero CMM Contacts / Entreprises */}
-          {isCmm && (mode === "clients-contacts" || mode === "clients-entreprises") && cmmHeroMode === null && (
-            <button
-              onClick={() => { setCmmHeroMode(mode); setCrmTagFilter(null); }}
-              className="mb-4 flex items-center gap-1.5 text-sm transition-all duration-150"
-              style={{ color: "rgba(210,190,255,0.60)" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.90)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.60)"; }}
-            >
-              <ChevronLeft style={{ width: 15, height: 15 }} />
-              {mode === "clients-contacts" ? "Contacts" : "Entreprises"}
-              {crmTagFilter && <span className="ml-1 text-xs opacity-70">— {crmTagFilter}</span>}
-            </button>
-          )}
           <CRMClients
             mode={mode as "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes"}
             isAdmin={currentUser?.role === "admin"}
-            filterTag={isCmm ? crmTagFilter : null}
+            filterTag={null}
             initialSearch={qParam || ""}
           />
         </>
@@ -3061,8 +2606,8 @@ function HomePage() {
           filtres Type/Période/Statut, lignes compactes, « Tous » multi-types,
           inclusion des terminés, bouton « Générer rapport ». */}
       {(
-        (mode.startsWith("fournisseurs") && !mode.startsWith("fournisseurs-menu") && !(isCmm && mode === "fournisseurs" && cmmHeroMode === "fournisseurs")) ||
-        (mode.startsWith("grossistes") && !(isCmm && mode === "grossistes" && cmmHeroMode === "grossistes")) ||
+        (mode.startsWith("fournisseurs") && !mode.startsWith("fournisseurs-menu")) ||
+        (mode.startsWith("grossistes")) ||
         (mode === "sanitaires")
       ) && (() => {
         // Famille de partenaire courante.
@@ -3764,7 +3309,6 @@ function HomePage() {
         const totalServices = svcFiltered.reduce((s: number, r: any) => s + r.services, 0);
         const totalSAV = svcFiltered.reduce((s: number, r: any) => s + r.sav, 0);
         const totalOFR = svcFiltered.reduce((s: number, r: any) => s + r.ofr, 0);
-
 
         // ── Période B (mode comparaison) ──────────────────────────────────
         const filterBYear = statsBMode === "year" ? Number(statsBYear) : null;
@@ -5250,7 +4794,7 @@ function HomePage() {
       })()}
 
       {/* VUE PROJETS (admin) — absolument tous les projets, statut inclus */}
-      {mode === "projets-tous" && !(isCmm && cmmHeroMode === "projets-tous") && (() => {
+      {mode === "projets-tous" && (() => {
         const allProjects = (projectsData["projets-tous"] || [])
           .slice()
           .sort((a: any, b: any) => ((b.dateMontage || "").localeCompare(a.dateMontage || "")));
@@ -5649,7 +5193,7 @@ function HomePage() {
       })()}
 
       {/* VUE EMPLACEMENT CABINES */}
-      {mode === "emplacement-cabines" && !(isCmm && cmmHeroMode === "emplacement-cabines") && (() => {
+      {mode === "emplacement-cabines" && (() => {
         const EMPL_COLORS: Record<string, { badge: string; header: string }> = {
           "Dépôt TM":                { badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",         header: "bg-amber-600 dark:bg-amber-700"    },
           "Getaz Yverdon":           { badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",             header: "bg-blue-700 dark:bg-blue-800"      },
@@ -5750,7 +5294,7 @@ function HomePage() {
       })()}
 
       {/* VUE CALENDRIER */}
-      {mode === "calendrier" && !(isCmm && cmmHeroMode === "calendrier") && (() => {
+      {mode === "calendrier" && (() => {
         const today = formatLocalDate(new Date());
         const allActive = projectsData["calendrier"] || projectsData["all-active"] || [];
         const q = deferredSearch.toLowerCase();
@@ -5800,7 +5344,7 @@ function HomePage() {
       {/* ======================================================== */}
       {/* VUE SIGNALEMENTS — pièces manquantes ou défauts (KV)     */}
       {/* ======================================================== */}
-      {mode === "signalements-pieces" && !(isCmm && cmmHeroMode === "signalements") && (
+      {mode === "signalements-pieces" && (
         <div>
           <div className="flex items-center gap-2 mb-5">
             <Package className="w-5 h-5 text-orange-500" />
@@ -5810,7 +5354,7 @@ function HomePage() {
         </div>
       )}
 
-      {mode === "signalements-defauts" && !(isCmm && cmmHeroMode === "signalements") && (
+      {mode === "signalements-defauts" && (
         <div>
           <div className="flex items-center gap-2 mb-5">
             <AlertTriangle className="w-5 h-5 text-red-500" />
@@ -5819,7 +5363,6 @@ function HomePage() {
           <SignalementListView subMode="defauts" />
         </div>
       )}
-
 
       {/* ======================================================== */}
       {/* VUE ARRIVAGE — suivi de l'arrivage des cabines             */}
@@ -5832,434 +5375,11 @@ function HomePage() {
       {mode === "chantiers" && <ChantiersView />}
 
       {/* ======================================================== */}
-      {/* CleanMyMac Hero — Mesures (affiché à la place de la liste)  */}
-      {/* ======================================================== */}
-      {isCmm && mode === "mesures" && cmmHeroMode === "mesures" && (
-        <>
-          <CmmSectionLanding
-            icon={Ruler}
-            title="Mesures"
-            subtitle="Gérez et suivez vos rendez-vous de mesure"
-            actions={[
-              { id: "today",   icon: CalendarDays, label: "Mesures aujourd'hui",    sublabel: "Rendez-vous du jour"     },
-              { id: "rdv",     icon: Calendar,     label: "RDV Mesures",            sublabel: "Tous les rendez-vous"    },
-              { id: "non-cmd", icon: AlertCircle,  label: "Mesures non commandées", sublabel: "Mesures terminées — à commander" },
-            ]}
-            onAction={(id) => {
-              setCmmHeroMode(null);
-              setQuickFilter(
-                id === "today"   ? "mesures-today"   :
-                id === "rdv"     ? "mesures-rdv"     :
-                "mesures-non-cmd"
-              );
-            }}
-          />
-        </>
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Montages                               */}
-      {/* ======================================================== */}
-      {isCmm && mode === "cmd" && cmmHeroMode === "cmd" && (
-        <CmmSectionLanding
-          icon={Wrench}
-          title="Montages"
-          subtitle="Suivez et planifiez vos chantiers de montage"
-          actions={[
-            { id: "today",       icon: CalendarDays, label: "Montage aujourd'hui",      sublabel: "Chantiers du jour"            },
-            { id: "rdv-a-fixer", icon: Calendar,     label: "RDV à fixer Montages",     sublabel: "Réception — date à planifier" },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setQuickFilter(id === "today" ? "cmd-today" : "cmd-rdv-a-fixer");
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Services                               */}
-      {/* ======================================================== */}
-      {isCmm && mode === "services" && cmmHeroMode === "services" && (
-        <CmmSectionLanding
-          icon={Settings}
-          title="Services"
-          subtitle="Gérez vos interventions et services clients"
-          actions={[
-            { id: "today",       icon: CalendarDays, label: "Services aujourd'hui",     sublabel: "Interventions du jour"        },
-            { id: "rdv-a-fixer", icon: Calendar,     label: "RDV à fixer Services",     sublabel: "Interventions — date à fixer" },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setQuickFilter(id === "today" ? "services-today" : "services-rdv-a-fixer");
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — SAV                                    */}
-      {/* ======================================================== */}
-      {isCmm && mode === "sav" && cmmHeroMode === "sav" && (
-        <CmmSectionLanding
-          icon={AlertCircle}
-          title="SAV"
-          subtitle="Suivi des retours et interventions SAV"
-          actions={[
-            { id: "today",   icon: CalendarDays, label: "SAV aujourd'hui",   sublabel: "SAV reçus aujourd'hui"  },
-            { id: "rdv",     icon: Calendar,     label: "RDV à fixer SAV",   sublabel: "SAV sans date planifiée" },
-            { id: "cloture", icon: Archive,      label: "SAV clôturé",       sublabel: "Dossiers terminés"       },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setQuickFilter(
-              id === "today"   ? "sav-today"       :
-              id === "rdv"     ? "sav-rdv-a-fixer" :
-              "sav-cloture"
-            );
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Garanties                              */}
-      {/* ======================================================== */}
-      {isCmm && mode === "garanties" && cmmHeroMode === "garanties" && (
-        <CmmSectionLanding
-          icon={ShieldCheck}
-          title="Garanties"
-          subtitle="Gestion des dossiers de garantie"
-          actions={[
-            { id: "today",   icon: CalendarDays, label: "Garantie aujourd'hui",    sublabel: "Échéances du jour"     },
-            { id: "rdv",     icon: Calendar,     label: "RDV à fixer garantie",    sublabel: "Dossiers sans RDV"     },
-            { id: "cloture", icon: Archive,      label: "Garantie clôturé",        sublabel: "Dossiers terminés"     },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setQuickFilter(
-              id === "today"   ? "garanties-today"       :
-              id === "rdv"     ? "garanties-rdv-a-fixer" :
-              "garanties-cloture"
-            );
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — RDV                                    */}
-      {/* ======================================================== */}
-      {isCmm && mode === "rdv" && cmmHeroMode === "rdv" && (
-        <CmmSectionLanding
-          icon={CalendarDays}
-          title="RDV"
-          subtitle="Vue d'ensemble des rendez-vous par service"
-          actions={[
-            { id: "mesures:mesures-rdv-a-fixer",       icon: Ruler,        label: "Mesures",   sublabel: "RDV à fixer"  },
-            { id: "mesures:mesures-rdv",               icon: Ruler,        label: "Mesures",   sublabel: "RDV établis"  },
-            { id: "cmd:cmd-rdv-a-fixer",               icon: Wrench,       label: "Montages",  sublabel: "RDV à fixer"  },
-            { id: "cmd:cmd-rdv-etablis",               icon: Wrench,       label: "Montages",  sublabel: "RDV établis"  },
-            { id: "services:services-rdv-a-fixer",     icon: Settings,     label: "Services",  sublabel: "RDV à fixer"  },
-            { id: "services:services-rdv-etablis",     icon: Settings,     label: "Services",  sublabel: "RDV établis"  },
-            { id: "sav:sav-rdv-a-fixer",               icon: AlertCircle,  label: "SAV",       sublabel: "RDV à fixer"  },
-            { id: "sav:sav-rdv-etablis",               icon: AlertCircle,  label: "SAV",       sublabel: "RDV établis"  },
-            { id: "garanties:garanties-rdv-a-fixer",   icon: ShieldCheck,  label: "Garanties", sublabel: "RDV à fixer"  },
-            { id: "garanties:garanties-rdv-etablis",   icon: ShieldCheck,  label: "Garanties", sublabel: "RDV établis"  },
-          ]}
-          onAction={(id) => {
-            const [targetMode, filter] = id.split(":");
-            setCmmHeroMode(null);
-            setMode(targetMode as Mode);
-            setQuickFilter(filter);
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Signalements                           */}
-      {/* ======================================================== */}
-      {isCmm && mode === "signalements" && cmmHeroMode === "signalements" && (
-        <CmmSectionLanding
-          icon={AlertTriangle}
-          title="Signalements"
-          subtitle="Pièces manquantes et défauts signalés sur les projets"
-          actions={[
-            { id: "pieces",  icon: Package,        label: "Pièces manquantes", sublabel: "Articles commandés ou en attente" },
-            { id: "defauts", icon: AlertCircle,    label: "Défauts signalés",  sublabel: "Problèmes en cours ou résolus"    },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setMode(id === "pieces" ? "signalements-pieces" : "signalements-defauts");
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Contacts                               */}
-      {/* ======================================================== */}
-      {isCmm && mode === "clients-contacts" && cmmHeroMode === "clients-contacts" && (
-        <CmmSectionLanding
-          icon={UsersIcon}
-          title="Contacts"
-          subtitle="Vos contacts classés par type de relation"
-          actions={[
-            { id: "Grossistes",           icon: ShoppingBag, label: "Grossistes"           },
-            { id: "Fournisseurs",          icon: Package,     label: "Fournisseurs"          },
-            { id: "Sanitaires",            icon: Droplets,    label: "Sanitaires"            },
-            { id: "Architectes",           icon: Compass,     label: "Architectes"           },
-            { id: "Entreprises générales", icon: Building,    label: "Entreprises générales" },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setCrmTagFilter(id);
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Entreprises                            */}
-      {/* ======================================================== */}
-      {isCmm && mode === "clients-entreprises" && cmmHeroMode === "clients-entreprises" && (
-        <CmmSectionLanding
-          icon={Building}
-          title="Entreprises"
-          subtitle="Vos entreprises partenaires et clientes"
-          actions={[
-            { id: "Grossistes",              icon: ShoppingBag, label: "Grossistes"              },
-            { id: "Fournisseurs",            icon: Package,     label: "Fournisseurs"            },
-            { id: "Sanitaires",              icon: Droplets,    label: "Sanitaires"              },
-            { id: "Bureau d'études sanitaire", icon: FileText,  label: "Bureau d'études"         },
-            { id: "Carreleurs",              icon: LayoutGrid,  label: "Carreleurs"              },
-            { id: "Entreprises générales",   icon: Building,    label: "Entreprises générales"   },
-            { id: "Architectes",             icon: Compass,     label: "Architectes"             },
-            { id: "Ingénieurs",              icon: Wrench,      label: "Ingénieurs"              },
-            { id: "Agences immobilières",    icon: Home,        label: "Agences immobilières"    },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setCrmTagFilter(id);
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Projets en cours                        */}
-      {/* ======================================================== */}
-      {isCmm && mode === "projets-tous" && cmmHeroMode === "projets-tous" && (
-        <CmmSectionLanding
-          icon={FolderOpen}
-          title="Projets en cours"
-          subtitle="Vue d'ensemble de tous vos dossiers actifs"
-          actions={[
-            { id: "en-attente-mesures",  icon: Ruler,        label: "En attente de mesures",          sublabel: "Projets sans mesures effectuées"        },
-            { id: "cabines-mesurees",    icon: ShieldCheck,  label: "Cabines mesurées",               sublabel: "Mesurées — non encore commandées"        },
-            { id: "ofr-sans-mesures",    icon: FileText,     label: "OFR envoyées sans mesures",      sublabel: "Offre envoyée avant mesures"             },
-            { id: "cabines-cmd",         icon: Package,      label: "Cabines en CMD",                 sublabel: "Commandes en cours"                      },
-            { id: "cabines-recevoir",    icon: Archive,      label: "Cabines à recevoir",             sublabel: "Livraison attendue"                      },
-            { id: "cabines-aller",       icon: Wrench,       label: "Cabines à aller chercher",       sublabel: "Marchandise prête — à récupérer"         },
-            { id: "receptionne-rdv",     icon: CalendarDays, label: "Réceptionné – RDV à fixer",      sublabel: "Reçu — date de montage à planifier"      },
-            { id: "rdv-attendre",        icon: AlertCircle,  label: "RDV – Attendre NEWS",            sublabel: "En attente de nouvelles du client"       },
-            { id: "rdv-fixe",            icon: Calendar,     label: "RDV – Fixé",                     sublabel: "Date de montage confirmée"               },
-            { id: "montages-partiel",    icon: Settings,     label: "Montages partiel",               sublabel: "Montage partiellement effectué"          },
-            { id: "soucis-montages",     icon: AlertCircle,  label: "Soucis montages",                sublabel: "Dossiers avec problème de montage"       },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setPAllSAV(false);
-            setPAllSoucis(false);
-            setPAllStatusCMD(
-              id === "en-attente-mesures" ? ["En attente de mesures"] :
-              id === "cabines-mesurees"   ? ["Cabines mesurées"] :
-              id === "ofr-sans-mesures"   ? ["OFR envoyées sans mesures"] :
-              id === "cabines-cmd"        ? ["Cabines en CMD"] :
-              id === "cabines-recevoir"   ? ["Cabines à recevoir"] :
-              id === "cabines-aller"      ? ["Cabine à aller chercher"] :
-              id === "receptionne-rdv"    ? ["Récéptionné - RDV à fixer"] :
-              id === "rdv-attendre"       ? ["RDV - Attendre news"] :
-              id === "rdv-fixe"           ? ["RDV - fixé"] :
-              id === "montages-partiel"   ? ["Montage partiel"] :
-              id === "soucis-montages"    ? ["Soucis montage"] :
-              []
-            );
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Archives                                */}
-      {/* ======================================================== */}
-      {isCmm && mode === "archives" && cmmHeroMode === "archives" && (
-        <CmmSectionLanding
-          icon={Archive}
-          title="Archives"
-          subtitle="Historique de vos projets terminés et clôturés"
-          actions={[
-            { id: "all", icon: CalendarDays, label: "Voir les archives",    sublabel: "Tous les projets terminés" },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Rapport                                */}
-      {/* ======================================================== */}
-      {isCmm && mode === "rapport" && cmmHeroMode === "rapport" && (
-        <CmmSectionLanding
-          icon={FileText}
-          title="Rapport"
-          subtitle="Suivi et envoi des rapports de montage"
-          actions={[
-            { id: "en-cours",   icon: FolderOpen,   label: "Rapport en cours",   sublabel: "Montages débutés — cabines manquantes" },
-            { id: "en-attente", icon: AlertCircle,  label: "Rapport en attente", sublabel: "Montage terminé — rapport non envoyé"  },
-            { id: "cloture",    icon: Archive,      label: "Rapport clôturé",    sublabel: "Rapport envoyé au client"              },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setRapportSubFilter(id as "en-cours" | "en-attente" | "cloture");
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Collaborateurs                         */}
-      {/* ======================================================== */}
-      {isCmm && mode === "collaborateurs" && cmmHeroMode === "collaborateurs" && (
-        <CmmSectionLanding
-          icon={UsersIcon}
-          title="Collaborateurs"
-          subtitle="Projets par collaborateur"
-          actions={[
-            { id: "Claudio",   icon: UsersIcon, label: "Claudio"   },
-            { id: "Jean-Marc", icon: UsersIcon, label: "Jean-Marc" },
-            { id: "Jacobo",    icon: UsersIcon, label: "Jacobo"    },
-            { id: "Miguel",    icon: UsersIcon, label: "Miguel"     },
-            { id: "Loïc",      icon: UsersIcon, label: "Loïc"      },
-            { id: "binome",    icon: UsersIcon, label: "Binôme",   sublabel: "Projets à plusieurs collaborateurs" },
-            { id: "Team TM",   icon: UsersIcon, label: "Team",     sublabel: "Projets assignés à toute l'équipe"  },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            if (id === "binome") {
-              setCollabFilter("Binôme");
-            } else {
-              setCollabFilter(id);
-            }
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Emplacement cabines                    */}
-      {/* ======================================================== */}
-      {isCmm && mode === "emplacement-cabines" && cmmHeroMode === "emplacement-cabines" && (
-        <CmmSectionLanding
-          icon={MapPin}
-          title="Emplacement cabines"
-          subtitle="Localisation et suivi des cabines installées"
-          actions={[
-            { id: "all",     icon: MapPin,      label: "Tous les emplacements", sublabel: "Vue complète"                         },
-            { id: "depot",   icon: Archive,     label: "Dépôt TM",              sublabel: "Cabines stockées chez TM"             },
-            { id: "getaz",   icon: ShoppingBag, label: "Getaz",                 sublabel: "Getaz Yverdon · Bussigny · Payerne"   },
-            { id: "dubat",   icon: ShoppingBag, label: "Dubat",                 sublabel: "Dubat Villars-ste-Croix · Yverdon"    },
-            { id: "bringhen",icon: ShoppingBag, label: "Bringhen",              sublabel: "Dépôt Bringhen"                       },
-            { id: "sanitas", icon: ShoppingBag, label: "Sanitas Troesch",       sublabel: "Dépôt Sanitas"                        },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setQuickFilter(id === "all" ? null : `emplacement-${id}`);
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Calendrier                             */}
-      {/* ======================================================== */}
-      {isCmm && mode === "calendrier" && cmmHeroMode === "calendrier" && (
-        <CmmSectionLanding
-          icon={Calendar}
-          title="Calendrier"
-          subtitle="Planning et agenda des interventions"
-          actions={[
-            { id: "today", icon: CalendarDays, label: "Aujourd'hui",      sublabel: "Interventions du jour"          },
-            { id: "week",  icon: Calendar,     label: "Cette semaine",    sublabel: "Planning des 7 prochains jours" },
-            { id: "all",   icon: FolderOpen,   label: "Tout le planning", sublabel: "Vue complète du calendrier"     },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setQuickFilter(id === "all" ? null : `calendrier-${id}`);
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Grossistes                              */}
-      {/* ======================================================== */}
-      {isCmm && mode === "grossistes" && cmmHeroMode === "grossistes" && (
-        <CmmSectionLanding
-          icon={ShoppingBag}
-          title="Grossistes"
-          subtitle="Accédez aux projets par grossiste partenaire"
-          actions={[
-            { id: "grossistes-bms",      icon: ShoppingBag, label: "BMS",       logoSrc: "/logos/fournisseurs/BMS-Logo-cmm.png",      logoH: 32 },
-            { id: "grossistes-dubat",     icon: ShoppingBag, label: "Dubat",     logoSrc: "/logos/fournisseurs/Dubat-Logo.png",         logoH: 33, logoFilter: "brightness(0) invert(1) drop-shadow(0 0 4px rgba(255,255,255,0.08))" },
-            { id: "grossistes-matway",    icon: ShoppingBag, label: "Matway",    logoSrc: "/logos/fournisseurs/Matway-Logo.png",        logoH: 60 },
-            { id: "grossistes-tema",      icon: ShoppingBag, label: "Tema Sàrl", logoSrc: "/logos/fournisseurs/Tema-Logo.png",          logoH: 46 },
-            { id: "grossistes-bringhen",  icon: ShoppingBag, label: "Bringhen",  logoSrc: "/logos/fournisseurs/Bringhen-cmm.png",  logoH: 25 },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setMode(id as Mode);
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
-      {/* CleanMyMac Hero — Fournisseurs                            */}
-      {/* ======================================================== */}
-      {isCmm && mode === "fournisseurs" && cmmHeroMode === "fournisseurs" && (
-        <CmmSectionLanding
-          icon={Package}
-          title="Fournisseurs"
-          subtitle="Accédez aux projets par fournisseur de produits"
-          actions={[
-            { id: "fournisseurs-duka",         icon: Package, label: "Duka.ch",      logoSrc: "/logos/fournisseurs/Duka-cmm.png",              logoH: 33 },
-            { id: "fournisseurs-duscholux",     icon: Package, label: "Duscholux",    logoSrc: "/logos/fournisseurs/Duscholux-logo-cmm.png",     logoH: 24 },
-            { id: "fournisseurs-kermi",         icon: Package, label: "Kermi",        logoSrc: "/logos/fournisseurs/Kermi-logo-cmm.png",         logoH: 36 },
-            { id: "fournisseurs-koralle",       icon: Package, label: "Koralle",      logoSrc: "/logos/fournisseurs/Koralle-logo-cmm.png",       logoH: 37 },
-            { id: "fournisseurs-nelo",          icon: Package, label: "Nelo",         logoSrc: "/logos/fournisseurs/Nelo-logo-cmm.png",          logoH: 44 },
-            { id: "fournisseurs-novellini",     icon: Package, label: "Novellini",    logoSrc: "/logos/fournisseurs/Novellini-logo-cmm.png",     logoH: 26 },
-            { id: "fournisseurs-ronal",         icon: Package, label: "Ronal",        logoSrc: "/logos/fournisseurs/Ronal-cmm.png",              logoH: 25 },
-            { id: "fournisseurs-samo",          icon: Package, label: "Samo",         logoSrc: "/logos/fournisseurs/Samo-logo-cmm.png",          logoH: 36 },
-            { id: "fournisseurs-vismaravetro",  icon: Package, label: "Vismaravetro", logoSrc: "/logos/fournisseurs/Vismaravetro-cmm.png",       logoH: 48 },
-          ]}
-          onAction={(id) => {
-            setCmmHeroMode(null);
-            setMode(id as Mode);
-          }}
-        />
-      )}
-
-      {/* ======================================================== */}
       {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
-      {/* et sauf quand un hero CMM est affiché)                   */}
       {/* ======================================================== */}
       {(() => {
-        const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements", "arrivage"];
-        const cmmHeroActive = isCmm && cmmHeroModes.includes(mode) && cmmHeroMode === mode;
-        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && !cmmHeroActive;
+        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage";
       })() && (<>
-        {/* Bouton retour vers hero CMM (visible après avoir cliqué un bouton d'action) */}
-        {isCmm && ["mesures","cmd","services","sav","projets-tous","archives","rapport","collaborateurs","emplacement-cabines","calendrier"].includes(mode) && cmmHeroMode === null && (
-          <button
-            onClick={() => { setCmmHeroMode(mode); setQuickFilter(null); }}
-            className="mb-4 flex items-center gap-1.5 text-sm transition-all duration-150"
-            style={{ color: "rgba(210,190,255,0.60)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.90)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(210,190,255,0.60)"; }}
-          >
-            <ChevronLeft style={{ width: 15, height: 15 }} />
-            {mode === "mesures" ? "Mesures" : mode === "cmd" ? "Montages" : mode === "services" ? "Services" : mode === "projets-tous" ? "Projets en cours" : mode === "archives" ? "Archives" : mode === "rapport" ? "Rapport" : mode === "collaborateurs" ? "Collaborateurs" : mode === "emplacement-cabines" ? "Emplacement cabines" : mode === "calendrier" ? "Calendrier" : "SAV"}
-          </button>
-        )}
       {/* Favoris */}
       {viewMode === "list" && (() => {
         const favIds = typeof window !== "undefined" ? getFavorites() : [];

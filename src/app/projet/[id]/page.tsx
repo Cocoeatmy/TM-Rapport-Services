@@ -10896,7 +10896,7 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Confirmation : photos manquantes avant enregistrement / envoi */}
       {missingPhotosPrompt && typeof document !== "undefined" && createPortal(
         // Rendu via Portal vers document.body : sinon un ancêtre
-        // transformé/filtré (typique du thème Ocean) casse
+        // transformé/filtré par un thème casse
         // `position: fixed` et la modale tombe en flow normal au
         // bas de la page — l'utilisateur devait alors scroller pour
         // la trouver. En portail au niveau body le containing block

@@ -64,7 +64,7 @@ export function ThemeColorSync() {
     apply();
     // Suivre les changements de thème (data-ui / dark) et de section.
     const obs = new MutationObserver(apply);
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-ui", "data-cmm-active-section"] });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-ui"] });
     obs.observe(document.body, { attributes: true, attributeFilter: ["class", "style"] });
     /* Repli : certains fonds changent via `:has(...)` (onglet actif) sans
        muter d'attribut observé → on ré-échantillonne périodiquement. Chaque

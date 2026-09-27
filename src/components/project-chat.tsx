@@ -116,7 +116,7 @@ export function ProjectChat({ projectId }: { projectId: string }) {
   if (!mounted) return null;
 
   // ⚠️ On rend TOUJOURS via un Portal vers document.body. Sinon, en
-  // thème Ocean (et plus généralement dès qu'un ancêtre crée un
+  // certains thèmes (dès qu'un ancêtre crée un
   // containing block via transform/filter/contain), `position: fixed`
   // est cassé et la bulle / le panneau se retrouvent en flow normal
   // au bas de la page — l'utilisateur doit alors scroller pour les
@@ -126,7 +126,7 @@ export function ProjectChat({ projectId }: { projectId: string }) {
   // Style en dur (et pas via Tailwind) pour le positionnement fixed.
   // Raisons :
   //   - garantit que la valeur est appliquée même si une règle CSS
-  //     d'un thème (ou un override Ocean) écrase position/bottom/left.
+  //     d'un thème écrase position/bottom/left.
   //   - max(...) avec env(safe-area-inset-bottom) pousse le bouton
   //     au-dessus de l'indicateur home iOS quand l'app tourne en PWA.
   //   - translateZ(0) crée un compositing layer GPU : sur iOS Safari
