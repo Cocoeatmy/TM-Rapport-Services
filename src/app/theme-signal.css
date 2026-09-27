@@ -3376,3 +3376,72 @@ html[data-ui="signal"] .sgq-journal-saisie button {
 }
 html[data-ui="signal"] .sgq-journal-saisie button:disabled { opacity: 0.5; cursor: default; }
 html[data-ui="signal"] .sgq-journal-err { font-size: 11px; color: #b42318; }
+
+/* Rentabilité d'un chantier — bloc replié, réservé à l'administration. */
+html[data-ui="signal"] .sgch-fold {
+  border: 1px solid var(--sg-line); border-radius: 12px;
+  background: var(--sg-paper); overflow: hidden;
+}
+html[data-ui="signal"] .sgch-fold > summary {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 10px 12px; list-style: none;
+  font-size: 13px; font-weight: 600; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgch-fold > summary::-webkit-details-marker { display: none; }
+html[data-ui="signal"] .sgch-fold > summary:hover { background: var(--sg-paper-2); }
+html[data-ui="signal"] .sgch-fold > summary em {
+  margin-left: auto; font-style: normal; font-size: 9.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 1px 7px; border-radius: 999px;
+  background: var(--sg-grp-bg); color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgch-renta {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 0 12px 12px; border-top: 1px solid var(--sg-line); padding-top: 12px;
+}
+html[data-ui="signal"] .sgch-renta-kpis {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
+}
+html[data-ui="signal"] .sgch-renta-kpis > div {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 9px 11px; border-radius: 10px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper-2);
+}
+html[data-ui="signal"] .sgch-renta-kpis b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 17px; font-weight: 700; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgch-renta-kpis span { font-size: 10.5px; color: var(--sg-text-3); line-height: 1.4; }
+html[data-ui="signal"] .sgch-renta-titre {
+  display: flex; align-items: center; gap: 6px; margin: 0;
+  font-size: 11.5px; color: #92500e;
+}
+html[data-ui="signal"] .sgch-renta-titre.is-ok { color: #17683a; }
+html[data-ui="signal"] .sgch-renta-liste { display: flex; flex-direction: column; gap: 2px; }
+html[data-ui="signal"] .sgch-renta-ligne {
+  display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 68px 62px;
+  gap: 8px; align-items: center; text-decoration: none;
+  padding: 6px 9px; border-radius: 8px;
+  border: 1px solid transparent; border-bottom-color: var(--sg-line);
+  color: var(--sg-text-2); font-size: 11.5px;
+}
+html[data-ui="signal"] .sgch-renta-ligne:hover { background: var(--sg-paper-2); border-color: var(--sg-line-strong); }
+html[data-ui="signal"] .sgch-renta-ligne b {
+  font-weight: 600; color: var(--sg-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgch-renta-ligne span {
+  font-size: 10.5px; color: var(--sg-text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgch-renta-ligne em,
+html[data-ui="signal"] .sgch-renta-ligne i {
+  font-style: normal; text-align: right;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 11px;
+}
+html[data-ui="signal"] .sgch-renta-ligne i { font-weight: 700; color: #92500e; }
+@media (max-width: 720px) {
+  html[data-ui="signal"] .sgch-renta-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-ui="signal"] .sgch-renta-ligne { grid-template-columns: minmax(0, 1fr) 62px 56px; }
+  html[data-ui="signal"] .sgch-renta-ligne span { display: none; }
+}

@@ -14,6 +14,7 @@ import Link from "next/link";
 import {
   Building2, Search, ChevronRight, ArrowLeft, Loader2, Download, Ruler,
   ShoppingCart, Truck, Wrench, FileText, X, Link2, Check, Pencil, Save,
+  Timer, AlertTriangle,
 } from "lucide-react";
 import { STATUS_CMD_COLORS } from "@/lib/constants";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
@@ -71,8 +72,138 @@ function Jauge({ Icon, label, n, total }: {
   );
 }
 
+/** Durée en heures et minutes, à partir de minutes pointées. */
+function duree(min: number): string {
+  if (min <= 0) return "—";
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return h ? `${h}h${m ? String(m).padStart(2, "0") : ""}` : `${m} min`;
+}
+
+function medianeDe(xs: number[]): number {
+  if (xs.length === 0) return 0;
+  const t = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(t.length / 2);
+  return t.length % 2 ? t[m] : Math.round((t[m - 1] + t[m]) / 2);
+}
+
+/**
+ * Rentabilité d'un chantier — réservée à l'administration.
+ *
+ * Le temps par cabine se lit ici, au moment où l'on regarde le chantier, et
+ * non dans une page ouverte une fois par trimestre. On compare chaque lot à la
+ * MÉDIANE du chantier lui-même : deux immeubles n'ont pas le même rythme, et
+ * ce qui compte est de repérer les lots qui sortent de leur propre série.
+ *
+ * Le coût n'apparaît que si un taux horaire est saisi dans Indicateurs
+ * financiers ; à défaut, les heures se lisent quand même.
+ */
+function Rentabilite({ lots }: { lots: Lot[] }) {
+  const [taux, setTaux] = useState<Record<string, number> | null>(null);
+
+  useEffect(() => {
+    let vivant = true;
+    fetch("/api/finances")
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((d) => { if (vivant) setTaux(d || {}); })
+      .catch(() => { if (vivant) setTaux({}); });
+    return () => { vivant = false; };
+  }, []);
+
+  const pointes = useMemo(() => lots.filter((l) => l.minutes > 0), [lots]);
+  const med = useMemo(() => medianeDe(pointes.map((l) => l.minutes)), [pointes]);
+  const total = pointes.reduce((s2, l) => s2 + l.minutes, 0);
+
+  /* Taux du monteur si connu, sinon le taux général. Une moyenne des monteurs
+     d'un binôme reflète ce que coûte réellement l'heure passée à deux. */
+  const tauxDe = (monteur: string): number | null => {
+    if (!taux) return null;
+    const general = Number(taux.tauxHoraire);
+    const noms = monteur.split("&").map((x) => x.trim()).filter(Boolean);
+    const valeurs = noms
+      .map((nom) => Number(taux[`taux_${nom}`]))
+      .filter((v) => Number.isFinite(v) && v > 0);
+    if (valeurs.length > 0) return valeurs.reduce((a, b) => a + b, 0) / valeurs.length;
+    return Number.isFinite(general) && general > 0 ? general : null;
+  };
+
+  const cout = useMemo(() => {
+    if (!taux) return null;
+    let somme = 0, connus = 0;
+    pointes.forEach((l) => {
+      const t = tauxDe(l.monteur);
+      if (t !== null) { somme += (l.minutes / 60) * t; connus++; }
+    });
+    return connus > 0 ? { somme, connus } : null;
+  }, [pointes, taux]);
+
+  // Au-delà de la moitié en plus que la médiane, le lot a dérapé.
+  const derapages = useMemo(
+    () => pointes.filter((l) => med > 0 && l.minutes > med * 1.5)
+      .sort((a, b) => b.minutes - a.minutes),
+    [pointes, med],
+  );
+
+  if (pointes.length === 0) {
+    return (
+      <p className="sgch-vide-msg">
+        Aucune heure pointée sur ce chantier — la rentabilité ne peut pas être calculée.
+      </p>
+    );
+  }
+
+  return (
+    <div className="sgch-renta">
+      <div className="sgch-renta-kpis">
+        <div><b>{duree(med)}</b><span>par cabine, médiane</span></div>
+        <div><b>{duree(total)}</b><span>pointées sur {pointes.length} cabine{pointes.length > 1 ? "s" : ""}</span></div>
+        <div>
+          <b>{cout ? `${Math.round(cout.somme).toLocaleString("fr-CH")} CHF` : "—"}</b>
+          <span>
+            {cout
+              ? `main-d'œuvre${cout.connus < pointes.length ? ` · ${cout.connus}/${pointes.length} cabines` : ""}`
+              : "taux horaire non saisi"}
+          </span>
+        </div>
+        <div>
+          <b>{lots.length - pointes.length}</b>
+          <span>cabine{lots.length - pointes.length > 1 ? "s" : ""} sans heures</span>
+        </div>
+      </div>
+
+      {derapages.length > 0 && (
+        <>
+          <p className="sgch-renta-titre">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            {derapages.length} lot{derapages.length > 1 ? "s" : ""} au-delà de la moitié en plus
+            que la médiane du chantier
+          </p>
+          <div className="sgch-renta-liste">
+            {derapages.slice(0, 8).map((l, i) => (
+              <Link key={`${l.projectId}-${l.cab ?? 0}-${i}`} href={`/projet/${l.projectId}?mode=dashboard`}
+                className="sgch-renta-ligne">
+                <b>{l.nom}</b>
+                <span>{l.monteur || "Monteur non renseigné"}</span>
+                <em>{duree(l.minutes)}</em>
+                <i>+{Math.round(((l.minutes - med) / med) * 100)} %</i>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+      {derapages.length === 0 && (
+        <p className="sgch-renta-titre is-ok">
+          <Timer className="w-3.5 h-3.5" /> Aucun lot ne sort de la série : le chantier tient son rythme.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ── Détail d'un chantier ───────────────────────────────────────────────── */
-function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) {
+function DetailChantier({ c, onRetour, estAdmin }: {
+  c: Chantier; onRetour: () => void; estAdmin: boolean;
+}) {
   const [filtre, setFiltre] = useState("");
 
   /* Une même adresse peut réunir plusieurs affaires : un sanitaire par
@@ -369,6 +500,19 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
         <Jauge Icon={Wrench} label="Posés" n={avance.posees} total={avance.total} />
       </div>
 
+      {/* Réservé à l'administration : le coût d'un montage ne regarde pas
+          l'équipe qui l'exécute. La page ne demande pas le droit, elle le
+          constate — l'API des paramètres financiers, elle, le vérifie. */}
+      {estAdmin && (
+        <details className="sgch-fold">
+          <summary>
+            <Timer className="w-4 h-4" /> Rentabilité du chantier
+            <em>admin</em>
+          </summary>
+          <Rentabilite lots={lotsOnglet} />
+        </details>
+      )}
+
       <div className="sgch-barre">
         <span className="sgch-recherche">
           <Search className="w-3.5 h-3.5" />
@@ -585,6 +729,18 @@ export function ChantiersView() {
   const [etat, setEtat] = useState<Etat>("encours");
   const [ouvert, setOuvert] = useState<string | null>(null);
 
+  /* Le rôle sert uniquement à MASQUER le bloc de rentabilité ; les données
+     financières restent protégées par leur propre API. */
+  const [estAdmin, setEstAdmin] = useState(false);
+  useEffect(() => {
+    let vivant = true;
+    fetch("/api/auth")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivant) setEstAdmin(d?.user?.role === "admin"); })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, []);
+
   useEffect(() => {
     let vivant = true;
     fetch("/api/chantiers")
@@ -615,7 +771,10 @@ export function ChantiersView() {
   }, [chantiers, recherche, etat]);
 
   const choisi = chantiers.find((c) => c.id === ouvert) || null;
-  if (choisi) return <DetailChantier key={choisi.id} c={choisi} onRetour={() => setOuvert(null)} />;
+  if (choisi) {
+    return <DetailChantier key={choisi.id} c={choisi} estAdmin={estAdmin}
+      onRetour={() => setOuvert(null)} />;
+  }
 
   return (
     <div className="sgch">

@@ -51,6 +51,11 @@ export interface ProjetChantier {
   emplacementCabine: string;
   /** « Claudio & Jacobo » — sert aux pastilles de la liste des offres. */
   collaborateurs?: string;
+  /* Heures pointées et monteur, encodés « CabN:valeur » sur les projets
+     multi-cabines. Ils servent au calcul de rentabilité, réservé à l'admin. */
+  heureArrivee?: string;
+  heureDepart?: string;
+  attributionCabines?: string;
   typeServices: string[];
   lastEditedTime: string;
 }
@@ -65,6 +70,10 @@ export interface Lot {
   nom: string;
   /** Pièce équipée, quand la cabine en porte le nom : « SDD parentale ». */
   piece: string;
+  /** Minutes réellement pointées sur cette cabine ; 0 si non pointées. */
+  minutes: number;
+  /** Monteur responsable de cette cabine, tel que coché sur place. */
+  monteur: string;
   /**
    * D'où vient le libellé : « cabine » s'il est écrit dans Notion, « titre »
    * s'il a fallu le déduire du nom du projet, « defaut » s'il n'y avait rien.
@@ -348,6 +357,14 @@ function estUnPartenaire(segment: string, noms: string[]): boolean {
   });
 }
 
+/** « Cab2:08:15 » ou « 08:15 » → minutes depuis minuit ; null si absent. */
+function heureCabine(raw: string, n: number): number | null {
+  const map = parseNomsCabines(raw || "");
+  const valeur = map[n] ?? (Object.keys(map).length === 0 ? (raw || "") : "");
+  const m = String(valeur).match(/(\d{1,2}):(\d{2})/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
 function aDate(...v: (string | null | undefined)[]): string | null {
   for (const x of v) if (x) return x;
   return null;
@@ -403,7 +420,12 @@ export function lotsDeLOffre(p: ProjetChantier): Lot[] {
       ? ""
       : brut.replace(/^cabine\s*\d+\s*/i, "").trim();
     const info = analyserLibelle(cabEstLot ? brut : `${lotDuTitre} ${p.projet}`);
+    const arrivee = heureCabine(p.heureArrivee || "", n);
+    const depart = heureCabine(p.heureDepart || "", n);
+    const attributions = parseNomsCabines(p.attributionCabines || "");
     return {
+      minutes: arrivee !== null && depart !== null && depart > arrivee ? depart - arrivee : 0,
+      monteur: attributions[n] || p.collaborateurs || "",
       ...base,
       cab: total > 1 ? n : null,
       nom,
@@ -582,6 +604,8 @@ export function alleger(p: ProjetChantier): ProjetChantier {
     dateMontage: p.dateMontage, diversInfosChantier: p.diversInfosChantier,
     emplacementCabine: p.emplacementCabine, typeServices: p.typeServices,
     collaborateurs: p.collaborateurs, lastEditedTime: p.lastEditedTime,
+    heureArrivee: p.heureArrivee, heureDepart: p.heureDepart,
+    attributionCabines: p.attributionCabines,
   };
 }
 
