@@ -954,23 +954,20 @@ export async function getProjects(): Promise<Project[]> {
   );
 }
 
+/**
+ * Projets à l'étape des mesures.
+ *
+ * Le seul critère est « État - CMD = En attente de mesures ». Une liste des
+ * huit valeurs attendues d'« État - Mesures » filtrait auparavant ces projets :
+ * ceux dont l'état de mesure était vide — ou portait une valeur ajoutée depuis
+ * dans Notion — n'étaient chargés NULLE PART, et restaient donc invisibles
+ * dans « RDV Mesures à fixer » alors qu'ils attendaient précisément un appel.
+ */
 export async function getProjectsMesures(): Promise<Project[]> {
   return queryAll(
     {
       and: [
         { property: "État - CMD", status: { equals: "En attente de mesures" } },
-        {
-          or: [
-            { property: "État - Mesures", status: { equals: "Pas contacté" } },
-            { property: "État - Mesures", status: { equals: "Contact sans réponse" } },
-            { property: "État - Mesures", status: { equals: "OFR envoyée sans mesures" } },
-            { property: "État - Mesures", status: { equals: "Mesures non relevées - attendre news" } },
-            { property: "État - Mesures", status: { equals: "RDV - Fixé" } },
-            { property: "État - Mesures", status: { equals: "RDV - Attendre news" } },
-            { property: "État - Mesures", status: { equals: "Mesures partielles" } },
-            { property: "État - Mesures", status: { equals: "Mesures relevées - attente news" } },
-          ],
-        },
       ],
     },
     [{ property: "Date Montage", direction: "descending" }]

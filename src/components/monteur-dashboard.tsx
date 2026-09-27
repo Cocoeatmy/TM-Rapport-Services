@@ -1280,6 +1280,26 @@ function earliestSavRecuDate(p: Project): string {
   return pick.length ? pick.sort()[0] : "";
 }
 
+/**
+ * Un rendez-vous de mesure reste-t-il à fixer sur ce projet ?
+ *
+ * Deux portes d'entrée : l'état de MESURE dit explicitement qu'il reste à
+ * contacter, ou bien l'état de COMMANDE dit que le projet attend ses mesures —
+ * ce second cas couvre les fiches dont l'état de mesure est vide, qui
+ * échappaient à la liste alors qu'elles attendaient justement un appel.
+ *
+ * Deux états ferment la porte quelle que soit l'entrée : le rendez-vous est
+ * déjà fixé, ou les mesures sont faites. Les laisser entrer contredirait le
+ * nom même de la liste.
+ */
+const MESURES_A_FIXER = ["Pas contacté", "Contact sans réponse", "RDV - Attendre news"];
+const MESURES_CLOSES = ["RDV - Fixé", "Terminé"];
+function aMesurerAFixer(p: Project): boolean {
+  const etat = p.etatMesures || "";
+  if (MESURES_CLOSES.includes(etat)) return false;
+  return MESURES_A_FIXER.includes(etat) || p.etatCMD === "En attente de mesures";
+}
+
 // Panneaux groupés par une date Notion spécifique + toggle "date / région (NPA)".
 // Clé = id du panneau ; valeur = date à utiliser pour le regroupement.
 const PANEL_DATE_FIELD: Record<string, (p: Project) => string | null | undefined> = {
@@ -2402,9 +2422,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
   // ── RDV à fixer (4 catégories) ────────────────────────────────────────────
   const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel", "Livraison partielle", "Cabines à recevoir"];
-  // RDV Mesures à fixer : État - Mesures = Pas contacté / Contact sans réponse / RDV - Attendre news
   const rdvMesuresAFixerProjects = projects
-    .filter((p) => ["Pas contacté", "Contact sans réponse", "RDV - Attendre news"].includes(p.etatMesures || ""))
+    .filter(aMesurerAFixer)
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
   const rdvMesuresAFixerCount = rdvMesuresAFixerProjects.length;
   // RDV Montage à fixer : État - CMD dans RDV_MONTAGE_CMD, EXCLUT les services
@@ -7056,7 +7075,7 @@ function CollaborateurDashboard({ userName, projects, onNavigate }: { userName: 
   const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel", "Livraison partielle", "Cabines à recevoir"];
   const isServiceProject = (p: Project) => (p.typeServices || []).some((t) => t === "Services" || t.includes("Services"));
   const byProjet = (a: Project, b: Project) => (a.projet || "").localeCompare(b.projet || "");
-  const rdvMesuresAFixer = projects.filter((p) => ["Pas contacté", "Contact sans réponse", "RDV - Attendre news"].includes(p.etatMesures || "")).sort(byProjet);
+  const rdvMesuresAFixer = projects.filter(aMesurerAFixer).sort(byProjet);
   const rdvMontageAFixer = projects.filter((p) => RDV_MONTAGE_CMD.includes(p.etatCMD || "") && !isServiceProject(p)).sort(byProjet);
   const rdvServicesAFixer = projects.filter((p) => isServiceProject(p) && RDV_MONTAGE_CMD.includes(p.etatCMD || "")).sort(byProjet);
   const rdvSavAFixer = projects.filter((p) => ["A contacter", "Contact sans réponse", "Attente news"].includes(p.etatSAV || "")).sort(byProjet);
