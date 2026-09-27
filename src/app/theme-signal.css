@@ -2183,6 +2183,103 @@ html[data-ui="signal"] .sgs-kpi-vs {
   font-size: 10px; color: var(--sg-text-3); line-height: 1.35;
 }
 
+/* ── Assistant de tournée ─────────────────────────────────────────────────
+   Réutilise le tiroir des statistiques ; seuls les réglages et la liste
+   d'étapes lui sont propres. */
+html[data-ui="signal"] .sg-tournee-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--sg-signal); background: var(--sg-signal-soft);
+  color: var(--sg-signal); font-family: inherit; font-size: 12px; font-weight: 600;
+  cursor: pointer; margin-left: auto;
+}
+html[data-ui="signal"] .sg-tournee-btn:hover { background: var(--sg-signal); color: #fff; }
+
+html[data-ui="signal"] .sgt-body { display: flex; flex-direction: column; gap: 14px; }
+html[data-ui="signal"] .sgt-champ { display: flex; flex-direction: column; gap: 6px; }
+html[data-ui="signal"] .sgt-champ > span {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgt-champ > span em {
+  font-style: normal; text-transform: none; letter-spacing: 0; opacity: 0.7;
+}
+html[data-ui="signal"] .sgt-champ input {
+  height: 36px; padding: 0 10px; border-radius: 9px;
+  background: var(--sg-paper); border: 1px solid var(--sg-line-strong);
+  color: var(--sg-text); font-family: inherit; font-size: 13px;
+}
+html[data-ui="signal"] .sgt-champ input:focus {
+  outline: none; border-color: var(--sg-signal);
+  box-shadow: 0 0 0 3px var(--sg-signal-soft);
+}
+html[data-ui="signal"] .sgt-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+html[data-ui="signal"] .sgt-nombre { display: flex; gap: 6px; }
+html[data-ui="signal"] .sgt-nombre button {
+  flex: 1; height: 36px; border-radius: 9px; cursor: pointer;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-2); font-family: var(--font-mono); font-size: 14px; font-weight: 700;
+}
+html[data-ui="signal"] .sgt-nombre button.is-on {
+  background: var(--sg-ink); border-color: var(--sg-ink); color: #fff;
+}
+
+html[data-ui="signal"] .sgt-suggestions { display: flex; flex-wrap: wrap; gap: 5px; }
+html[data-ui="signal"] .sgt-suggestions button {
+  padding: 3px 9px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--sg-line); background: var(--sg-paper-2);
+  color: var(--sg-text-2); font-family: inherit; font-size: 11px;
+}
+html[data-ui="signal"] .sgt-suggestions button b {
+  font-family: var(--font-mono); font-size: 10px; margin-left: 4px; opacity: 0.7;
+}
+html[data-ui="signal"] .sgt-suggestions button.is-on {
+  background: var(--sg-ink); border-color: var(--sg-ink); color: #fff;
+}
+
+html[data-ui="signal"] .sgt-go { gap: 8px; height: 40px; }
+
+html[data-ui="signal"] .sgt-resultat {
+  display: flex; flex-direction: column; gap: 10px;
+  padding-top: 12px; border-top: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgt-bilan { display: flex; flex-wrap: wrap; gap: 6px; }
+html[data-ui="signal"] .sgt-bilan span {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--sg-paper-2); border: 1px solid var(--sg-line);
+  font-size: 11.5px; color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sgt-note { margin: 0; font-size: 11px; color: var(--sg-text-3); line-height: 1.45; }
+
+html[data-ui="signal"] .sgt-etapes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+html[data-ui="signal"] .sgt-etapes li {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: 10px;
+  background: var(--sg-paper); border: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgt-etapes li:hover { border-color: var(--sg-signal); }
+html[data-ui="signal"] .sgt-num {
+  width: 22px; height: 22px; border-radius: 999px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--sg-ink); color: #fff;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+}
+html[data-ui="signal"] .sgt-etape {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px;
+  color: inherit; text-decoration: none;
+}
+html[data-ui="signal"] .sgt-etape-haut { display: flex; align-items: baseline; gap: 8px; }
+html[data-ui="signal"] .sgt-npa { font-size: 11px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sgt-etape-nom {
+  font-size: 12.5px; color: var(--sg-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgt-etape-meta {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--sg-text-3);
+}
+
 @media (max-width: 767px) {
   html[data-ui="signal"] .sg-plist-link {
     grid-template-columns: minmax(0, 1fr) auto;

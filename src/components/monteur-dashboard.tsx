@@ -7,6 +7,7 @@ import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, Chevro
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
+import { TourneeAssistant } from "@/components/tournee-assistant";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
@@ -1540,6 +1541,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   /* Légende du calendrier Signal : libellé de collaborateur/binôme épinglé.
      Quand il est renseigné, le mois n'affiche plus que ses interventions. */
   const [calLegend, setCalLegend] = useState<string | null>(null);
+  /** Assistant de tournée (panneau « RDV Montage à fixer »). */
+  const [tourneeOuverte, setTourneeOuverte] = useState(false);
   /* iPhone : les trois cartes d'agenda (aujourd'hui / demain / après-demain)
      sont repliées d'office — dépliées, elles occupaient tout l'écran pour
      afficher surtout des zéros. Ensemble des jours ouverts. */
@@ -5979,6 +5982,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     );
                   })}
                 </div>
+                {/* Assistant de tournée — uniquement là où il a du sens :
+                    des montages à planifier, donc des déplacements à grouper. */}
+                {showSummaryPanel === "rdv-montage-a-fixer" && (
+                  <button type="button" className="sg-tournee-btn"
+                    onClick={(e) => { e.stopPropagation(); setTourneeOuverte(true); }}
+                    title="Proposer une tournée en regroupant les chantiers proches">
+                    <Route className="w-3.5 h-3.5" />
+                    Tournée
+                  </button>
+                )}
                 {showSummaryPanel && PANEL_DATE_FIELD[showSummaryPanel] && (
                   <div className="sg-seg">
                     <button type="button" onClick={(e) => { e.stopPropagation(); setPanelSort(showSummaryPanel as string, "date"); }}
@@ -5988,6 +6001,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   </div>
                 )}
               </div>
+
+              {tourneeOuverte && (
+                <TourneeAssistant
+                  projets={panelProjects}
+                  historique={terminatedProjects}
+                  onClose={() => setTourneeOuverte(false)}
+                />
+              )}
 
               <div className="sg-split">
                 {/* `is-region` : en tri par région, la pastille J+x n'est plus
