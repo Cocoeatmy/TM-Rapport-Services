@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
-import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
@@ -2302,6 +2302,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   }).sort((a, b) => ((b.dateMontage || "").split("T")[0]).localeCompare((a.dateMontage || "").split("T")[0]));
   const rapportsAttenteCount = rapportsAttenteProjects.length;
 
+  /* Nombre de dossiers à relancer — calculé par le serveur, qui seul dispose
+     de tous les projets (les factures qui dorment sont sur des projets
+     terminés, absents des listes du tableau de bord). */
+  const [relancesCount, setRelancesCount] = useState<number | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    fetch("/api/controles?jeu=relances")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivant && d) setRelancesCount(d.fiches ?? 0); })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, []);
+
   // SAV non traités : tous les SAV actifs (pas terminés/annulés)
   const savNonTraitesProjects = projects.filter((p) =>
     (p as any)._source === "sav" &&
@@ -2935,6 +2948,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   <ChevronRight className="w-4 h-4 sg-signal-arrow" />
                 </button>
               ))}
+              {/* Relances : une page à part, et non un panneau. Son calcul
+                  porte sur TOUS les projets, terminés compris, et se fait côté
+                  serveur — le tableau de bord n'a pas ces données en main. */}
+              <Link href="/relances" className="sg-signal-row">
+                <span className="sg-signal-chip" style={{ background: "#e4ecff", color: "#1d4ed8" }}>
+                  <BellRing className="w-3.5 h-3.5" />
+                </span>
+                <span className="sg-signal-label">Relances</span>
+                <span className="sg-signal-count" style={{ color: "#1d4ed8" }}>
+                  {relancesCount === null ? "…" : relancesCount}
+                </span>
+                <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+              </Link>
             </div>
           </div>
 
