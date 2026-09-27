@@ -195,7 +195,7 @@ export function SignalStats({
   const [refreshing, setRefreshing] = useState(false);
   const [making, setMaking] = useState(false);
   /** Onglet d'analyse : rien n'est affiché en vrac, on choisit son angle. */
-  const [tab, setTab] = useState<"activite" | "equipes" | "repartition" | "qualite">("activite");
+  const [tab, setTab] = useState<"activite" | "equipes" | "repartition" | "qualite" | "clients">("activite");
   /** Vue géographique : par localité ou par canton. */
   const [geoMode, setGeoMode] = useState<"npa" | "canton" | "region">("npa");
   /** Groupe sélectionné : ouvre la liste des projets qui le composent. */
@@ -756,11 +756,43 @@ export function SignalStats({
       .sort((a, b) => b.value - a.value);
   }, [P]);
 
+  /* ── Analyses calculées par le serveur ──────────────────────────────────
+     Elles portent sur des projets que cette page n'a pas : les offres sans
+     commande n'y figurent pas, et le coût de trajet demande le cache de
+     géocodage. On les demande pour la période RÉELLEMENT affichée, celle des
+     mois retenus, pour que les chiffres se lisent ensemble. */
+  const [analyses, setAnalyses] = useState<any | null>(null);
+  const [axeClient, setAxeClient] = useState<"sanitaire" | "grossiste">("sanitaire");
+  const [axeSav, setAxeSav] = useState<"marque" | "serie">("marque");
+
+  const fenetre = useMemo(() => {
+    const vus = picked.size > 0 ? monthKeys.filter((k) => picked.has(k)) : monthKeys.slice(-14);
+    if (vus.length === 0) return null;
+    const premier = vus[0], dernier = vus[vus.length - 1];
+    const [y, m] = dernier.split("-").map(Number);
+    const fin = new Date(y, m, 0);
+    return {
+      de: `${premier}-01`,
+      a: `${dernier}-${String(fin.getDate()).padStart(2, "0")}`,
+    };
+  }, [monthKeys, picked]);
+
+  useEffect(() => {
+    if (!fenetre) return;
+    let vivant = true;
+    fetch(`/api/stats/analyses?de=${fenetre.de}&a=${fenetre.a}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivant && d && !d.error) setAnalyses(d); })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, [fenetre?.de, fenetre?.a]);
+
   const TABS = [
     { id: "activite" as const, label: "Activité" },
     { id: "equipes" as const, label: "Équipes & monteurs", n: byCollab.length },
     { id: "repartition" as const, label: "Répartition", n: byFournisseur.length + bySerie.length },
     { id: "qualite" as const, label: "Qualité", n: quality.soucis.length + quality.defauts.length },
+    { id: "clients" as const, label: "Clients", n: analyses?.transformation?.sanitaire?.length || 0 },
   ];
 
   const keys = useMemo(
@@ -1287,8 +1319,78 @@ export function SignalStats({
               ))}
             </div>
           </Fold>
+          <Fold className="sgs-span2" title="Coût de trajet par région"
+            meta="aller-retour depuis le dépôt, par cabine posée · chaque chantier pris isolément">
+            {analyses?.route?.length ? (
+              <div className="sgs-tab">
+                <div className="sgs-tab-tete">
+                  <span>Région</span><span>Cabines</span><span>Route / cabine</span><span>Km / cabine</span>
+                </div>
+                {analyses.route.map((r: any) => (
+                  <div key={r.region} className="sgs-tab-ligne">
+                    <span>{r.region}</span>
+                    <span>{r.cabines}</span>
+                    <b>{Math.floor(r.minutesParCabine / 60) ? `${Math.floor(r.minutesParCabine / 60)}h${String(r.minutesParCabine % 60).padStart(2, "0")}` : `${r.minutesParCabine} min`}</b>
+                    <span>{r.kmParCabine || "—"}</span>
+                  </div>
+                ))}
+                <p className="sgs-note">
+                  Le trajet est compté aller-retour pour chaque chantier pris séparément :
+                  volontairement pessimiste, car une tournée qui enchaîne plusieurs chantiers
+                  d&apos;une même région coûte bien moins. Le chiffre ne dit pas ce qu&apos;on
+                  dépense, il dit ce que coûterait chaque région si l&apos;on y allait à l&apos;unité —
+                  c&apos;est la comparaison qui sert à décider.
+                </p>
+              </div>
+            ) : (
+              <p className="sgs-empty">Pas assez de montages datés et localisés sur la période.</p>
+            )}
+          </Fold>
           <Fold className="sgs-span2" title="Projets par statut" meta={`état CMD · ${fmt(quality.total)} projets`}>
             <BarList rows={byStatut} unit=" proj." onPick={setPick} />
+          </Fold>
+        </div>
+      )}
+
+      {tab === "clients" && (
+        <div className="sgs-grid2">
+          <Fold className="sgs-span2" defaultOpen title="Taux de transformation"
+            meta="mesures reçues sur la période, et ce qu'elles sont devenues · au moins 3 mesures par client"
+            right={
+              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className={axeClient === "sanitaire" ? "is-on" : ""} onClick={() => setAxeClient("sanitaire")}>Sanitaire</button>
+                <button type="button" className={axeClient === "grossiste" ? "is-on" : ""} onClick={() => setAxeClient("grossiste")}>Grossiste</button>
+              </div>
+            }>
+            {analyses?.transformation?.[axeClient]?.length ? (
+              <div className="sgs-tab is-large">
+                <div className="sgs-tab-tete">
+                  <span>{axeClient === "sanitaire" ? "Sanitaire" : "Grossiste"}</span>
+                  <span>Mesures</span><span>Offres</span><span>Commandes</span>
+                  <span>Transformation</span><span>Perdues</span>
+                </div>
+                {analyses.transformation[axeClient].map((l: any) => (
+                  <div key={l.client} className="sgs-tab-ligne">
+                    <span>{l.client}</span>
+                    <span>{l.mesures}</span>
+                    <span>{l.offres}</span>
+                    <span>{l.commandes} <em>· {l.cabines} cab.</em></span>
+                    <b className={l.taux >= 70 ? "is-bon" : l.taux < 40 ? "is-faible" : ""}>{l.taux} %</b>
+                    <span className={l.perdues > 0 ? "is-alerte" : ""}>{l.perdues || "—"}</span>
+                  </div>
+                ))}
+                <p className="sgs-note">
+                  Une mesure est un déplacement de deux heures : ce tableau compte par MESURE,
+                  et non par projet, parce que c&apos;est le déplacement qu&apos;il s&apos;agit de
+                  rentabiliser. « Perdues » compte les mesures de plus de soixante jours restées
+                  sans commande — elles ne reviendront probablement pas.
+                </p>
+              </div>
+            ) : (
+              <p className="sgs-empty">
+                {analyses ? "Aucune mesure reçue sur la période affichée." : "Calcul en cours…"}
+              </p>
+            )}
           </Fold>
         </div>
       )}
@@ -1364,6 +1466,39 @@ export function SignalStats({
             ))}
           </div>
 
+          <Fold title="Ce que coûte le SAV, en heures"
+            meta="heures pointées sur les SAV, rapportées à 100 cabines posées de la même origine"
+            right={
+              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className={axeSav === "marque" ? "is-on" : ""} onClick={() => setAxeSav("marque")}>Marque</button>
+                <button type="button" className={axeSav === "serie" ? "is-on" : ""} onClick={() => setAxeSav("serie")}>Série</button>
+              </div>
+            }>
+            {analyses?.sav?.[axeSav]?.length ? (
+              <div className="sgs-tab">
+                <div className="sgs-tab-tete">
+                  <span>{axeSav === "marque" ? "Marque" : "Série"}</span>
+                  <span>SAV</span><span>Heures / 100 cab.</span><span>Erreur TM</span>
+                </div>
+                {analyses.sav[axeSav].map((l: any) => (
+                  <div key={l.cle} className="sgs-tab-ligne">
+                    <span>{l.cle}</span>
+                    <span>{l.interventions} <em>· {l.cabinesPosees} cab.</em></span>
+                    <b>{l.heuresPour100} h</b>
+                    <span>{l.erreursTM || "—"}</span>
+                  </div>
+                ))}
+                <p className="sgs-note">
+                  Le dénominateur est le nombre de cabines posées de la même origine sur la
+                  période : sans lui, le plus gros fournisseur paraîtrait toujours le pire.
+                  Une origine sous dix cabines posées n&apos;est pas affichée. La colonne
+                  « Erreur TM » compte les cabines dont la cause du SAV nous est imputée.
+                </p>
+              </div>
+            ) : (
+              <p className="sgs-empty">Aucune heure pointée sur les SAV de la période.</p>
+            )}
+          </Fold>
           <Fold title="Récurrence SAV"
             meta="chantiers revenus plusieurs fois en SAV · un cas isolé n'y figure pas">
             <BarList rows={savRecurrence} unit=" SAV" onPick={setPick}

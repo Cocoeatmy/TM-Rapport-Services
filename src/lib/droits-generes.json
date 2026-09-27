@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-09-27T20:25:47.896Z",
+  "genereLe": "2026-09-27T20:31:10.355Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -950,6 +950,16 @@
       "type": "api",
       "fichier": "src/app/api/signalements/route.ts",
       "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/stats/analyses",
+      "type": "api",
+      "fichier": "src/app/api/stats/analyses/route.ts",
+      "niveau": "connecte",
       "gardePage": false,
       "methodes": [
         "GET"
