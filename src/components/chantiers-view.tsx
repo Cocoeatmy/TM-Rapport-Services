@@ -29,9 +29,12 @@ function norm(s: string): string {
   return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-/** « Rue de Corcelles 12 à 2034 Neuchâtel » → « …12, 2034 Neuchâtel ». */
+/** « Rue de Corcelles 12 à 2034 Neuchâtel » → « …12, 2034 Neuchâtel ».
+ *  La normalisation NFC est indispensable : le « à » arrive parfois décomposé
+ *  (un « a » suivi d'un accent combinant), que le caractère précomposé de
+ *  l'expression régulière ne reconnaît pas. */
 function sansA(titre: string): string {
-  return (titre || "").replace(/\s+à\s+(?=\d{4}\b)/g, ", ");
+  return (titre || "").normalize("NFC").replace(/\s+[àa]\s+(?=\d{4}\b)/g, ", ");
 }
 
 function jour(iso: string | null): string {

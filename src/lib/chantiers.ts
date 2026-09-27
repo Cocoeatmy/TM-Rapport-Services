@@ -162,14 +162,33 @@ function detacherLocalite(brut: string): { npa: string; ville: string; avant: st
   const re = /\b(\d{4})\b/g;
   let m: RegExpExecArray | null = null, x: RegExpExecArray | null;
   while ((x = re.exec(txt))) m = x;
-  if (!m) return { npa: "", ville: "", avant: txt };
+  if (!m) return { npa: "", ville: "", avant: coupeFin(txt) };
   const ville = txt.slice(m.index + 4).split(/[,;]/)[0].trim();
-  const avant = txt.slice(0, m.index)
-    .replace(/[,;\-–]\s*$/, "")
-    .replace(/\s+(?:à|a)\s*$/i, "")
-    .replace(/[,;\-–]\s*$/, "")
-    .trim();
-  return { npa: m[1], ville, avant };
+  return { npa: m[1], ville, avant: coupeFin(txt.slice(0, m.index)) };
+}
+
+/**
+ * Nettoie la fin d'un libellé : ponctuation orpheline, puis le « à » qui
+ * introduisait la localité (« Ch. de Pernessy à 1052 … » → « Ch. de Pernessy »).
+ *
+ * Le mot est reconnu APRÈS suppression des accents, et non par une expression
+ * régulière sur « à » : Notion renvoie parfois la lettre sous forme décomposée
+ * — un « a » suivi d'un accent combinant — que le caractère précomposé de
+ * l'expression ne reconnaissait pas. Le « à » restait alors collé au nom.
+ */
+function coupeFin(v: string): string {
+  const mots = v.trim().split(/\s+/).filter(Boolean);
+  const nu = (w: string) => sansAccents(w).toLowerCase().replace(/[^a-z0-9]/g, "");
+  /* « A » en majuscule sans accent est une lettre de bâtiment — « Bât. A » —
+     et non le connecteur : on ne le retire jamais. */
+  const estConnecteur = (w: string) =>
+    nu(w) === "a" && (sansAccents(w) !== w || w === w.toLowerCase());
+  while (mots.length) {
+    const dernier = mots[mots.length - 1];
+    if (nu(dernier) === "" || estConnecteur(dernier)) mots.pop();
+    else break;
+  }
+  return mots.join(" ").replace(/[,;\-–]\s*$/, "").trim();
 }
 
 /**
