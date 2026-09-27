@@ -516,6 +516,36 @@ export function construireChantiers(
   return chantiers.sort((a, b) => b.dernierMouvement.localeCompare(a.dernierMouvement));
 }
 
+/**
+ * Regroupe les cabines d'un MÊME lot sur une seule ligne.
+ *
+ * Un appartement peut recevoir deux cabines — une douche et une baignoire, ou
+ * deux salles d'eau. Elles appartiennent à la même offre et portent le même
+ * numéro de lot : les lister séparément ferait apparaître l'appartement deux
+ * fois de suite. L'ordre d'entrée est conservé, l'appelant ayant déjà trié.
+ */
+export interface LigneLot {
+  cle: string;
+  lots: Lot[];
+  /** Lot de référence — les colonnes communes à toutes les cabines. */
+  chef: Lot;
+  qte: number;
+  poses: number;
+}
+
+export function grouperParLot(lots: Lot[]): LigneLot[] {
+  const m = new Map<string, Lot[]>();
+  lots.forEach((l) => {
+    const cle = `${l.projectId}|${l.nom.toLowerCase()}`;
+    const liste = m.get(cle);
+    if (liste) liste.push(l); else m.set(cle, [l]);
+  });
+  return [...m.entries()].map(([cle, ls]) => ({
+    cle, lots: ls, chef: ls[0], qte: ls.length,
+    poses: ls.filter((x) => x.pose).length,
+  }));
+}
+
 /** Pourcentage entier, sans division par zéro. */
 export function pct(n: number, total: number): number {
   return total > 0 ? Math.round((n / total) * 100) : 0;

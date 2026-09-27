@@ -3144,3 +3144,15 @@ html[data-ui="signal"] .sgch-onglets button.is-on {
   background: var(--sg-signal-soft); border-color: var(--sg-signal); color: var(--sg-signal);
 }
 html[data-ui="signal"] .sgch-onglets button.is-on b { color: var(--sg-signal); opacity: 0.75; }
+
+/* Deux exports côte à côte : le PDF complet, puis le tableau affiché. */
+html[data-ui="signal"] .sgch-export.sgch-pdf {
+  margin-left: auto;
+  border-color: var(--sg-line-strong);
+  background: var(--sg-paper); color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sgch-export.sgch-pdf:hover {
+  background: var(--sg-ink); border-color: var(--sg-ink); color: #fff;
+}
+html[data-ui="signal"] .sgch-export.sgch-pdf + .sgch-export { margin-left: 0; }
+html[data-ui="signal"] .sgch-export:disabled { opacity: 0.6; cursor: progress; }

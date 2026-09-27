@@ -16,7 +16,7 @@ import {
   ShoppingCart, Truck, Wrench, FileText, X,
 } from "lucide-react";
 import {
-  construireChantiers, pct,
+  construireChantiers, grouperParLot, pct,
   type Chantier, type Lot, type ProjetChantier,
 } from "@/lib/chantiers";
 
@@ -147,18 +147,7 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
      tient sur UNE ligne : la colonne « Cab. » en donne le nombre, et la ligne
      se déplie pour voir chaque cabine. Sans cela, le même appartement
      apparaissait deux ou trois fois de suite. */
-  const lignes = useMemo(() => {
-    const m = new Map<string, Lot[]>();
-    lots.forEach((l) => {
-      const cle = `${l.projectId}|${l.nom.toLowerCase()}`;
-      const liste = m.get(cle);
-      if (liste) liste.push(l); else m.set(cle, [l]);
-    });
-    return [...m.entries()].map(([cle, ls]) => ({
-      cle, lots: ls, chef: ls[0], qte: ls.length,
-      poses: ls.filter((x) => x.pose).length,
-    }));
-  }, [lots]);
+  const lignes = useMemo(() => grouperParLot(lots), [lots]);
 
   const [ouverts, setOuverts] = useState<Set<string>>(new Set());
   const basculer = (cle: string) => setOuverts((p) => {
@@ -200,14 +189,71 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
     URL.revokeObjectURL(url);
   };
 
+  /* Rapport PDF : il couvre le chantier ENTIER — tous les onglets, tous les
+     lots, terminés compris — là où l'export Excel reprend le tableau affiché.
+     Un document qu'on transmet à un sanitaire ou à une régie doit se suffire
+     à lui-même. La bibliothèque PDF est chargée à la demande : elle pèse
+     lourd, et la page ne doit pas la porter tant qu'on ne clique pas. */
+  const [pdfEnCours, setPdfEnCours] = useState(false);
+  const rapportPdf = async () => {
+    setPdfEnCours(true);
+    try {
+      const { generateChantierPDF } = await import("@/components/chantier-pdf");
+      const sections = onglets.map((o) => {
+        const tri = [...o.lots].sort(comparerLots);
+        return {
+          label: o.label,
+          lignes: grouperParLot(tri),
+          total: o.lots.length,
+          mesurees: o.lots.filter((l) => l.mesure).length,
+          commandees: o.lots.filter((l) => !!l.cmd || !!l.dateCMD).length,
+          livrees: o.lots.filter((l) => !!l.livraison).length,
+          posees: o.lots.filter((l) => l.pose).length,
+        };
+      });
+      const blob = await generateChantierPDF({
+        nom: c.nom,
+        adresse: c.rue,
+        localite: c.localite,
+        fournisseurs: c.fournisseurs,
+        nbOffres: c.offres.length,
+        nbLots: sections.reduce((n, x) => n + x.lignes.length, 0),
+        nbCabines: c.nbLots,
+        mesurees: c.nbMesurees,
+        commandees: c.nbCommandees,
+        livrees: c.nbLivrees,
+        posees: c.nbPosees,
+        sections,
+        offres: c.offres.map((o) => ({
+          ofrTM: o.ofrTM || "", projet: sansA(o.projet),
+          cabines: o.nbCabines || 1, statut: o.etatCMD || "",
+        })),
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${c.nom.replace(/[^\w\s-]/g, "").trim().slice(0, 60) || "chantier"}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setPdfEnCours(false);
+    }
+  };
+
   return (
     <div className="sgch">
       <div className="sgch-detail-head">
         <button type="button" className="sgch-retour" onClick={onRetour}>
           <ArrowLeft className="w-4 h-4" /> Chantiers
         </button>
+        <button type="button" className="sgch-export sgch-pdf" onClick={rapportPdf} disabled={pdfEnCours}>
+          {pdfEnCours
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : <FileText className="w-3.5 h-3.5" />}
+          Rapport PDF
+        </button>
         <button type="button" className="sgch-export" onClick={exporter}>
-          <Download className="w-3.5 h-3.5" /> Exporter
+          <Download className="w-3.5 h-3.5" /> Excel
         </button>
       </div>
 
