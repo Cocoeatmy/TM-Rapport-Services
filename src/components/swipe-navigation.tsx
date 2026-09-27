@@ -5,7 +5,8 @@
  *
  *   • Pavé tactile (macOS) : balayage horizontal à deux doigts (évènements
  *     `wheel` avec deltaX).
- *   • Écran tactile (iOS / Android) : balayage horizontal du doigt.
+ *   • Écran tactile (iOS / Android) : balayage horizontal du doigt DEPUIS UN
+ *     BORD de l'écran, comme le geste natif d'iOS.
  *
  * Pourquoi un historique applicatif plutôt que router.back() ?
  * L'application change de section (Mesures, Montages, SAV, CRM…) avec
@@ -25,6 +26,10 @@ import { useIsSignalTheme } from "@/lib/use-signal-theme";
 
 const WHEEL_THRESHOLD = 140;  // px cumulés (pavé tactile)
 const TOUCH_THRESHOLD = 90;   // px parcourus (doigt)
+/* Largeur des zones de bord, en px, où un balayage du doigt est pris pour une
+   navigation — comme le geste natif d'iOS. Ailleurs, le doigt appartient à la
+   page : un simple mouvement au milieu de l'écran ne doit PAS changer de page. */
+const EDGE_ZONE = 30;
 const IDLE_RESET = 260;       // ms sans évènement → on repart de zéro
 const LOCK_AFTER = 700;       // ms de verrou après une navigation
 const MAX_STACK = 60;
@@ -163,13 +168,23 @@ export function SwipeNavigation() {
     };
 
     /* ── Écran tactile (iOS / Android) ────────────────────────────────── */
+    /* Le geste ne part QUE d'un bord, comme sur iOS : bord gauche pour revenir
+       en arrière, bord droit pour repartir en avant. Sans cette contrainte, un
+       glissement au milieu de l'écran — pour faire défiler une liste ou juste
+       poser le doigt — changeait de page. Le sens est imposé par le bord de
+       départ : depuis la gauche, seul un mouvement vers la droite compte. */
     let tx = 0, ty = 0, tracking = false, tdx = 0;
+    let bord: "gauche" | "droite" | null = null;
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) { tracking = false; return; }
+      if (e.touches.length !== 1) { tracking = false; bord = null; return; }
       tx = e.touches[0].clientX;
       ty = e.touches[0].clientY;
       tdx = 0;
-      tracking = Date.now() >= lockRef.current;
+      const largeur = window.innerWidth;
+      bord = tx <= EDGE_ZONE ? "gauche"
+        : tx >= largeur - EDGE_ZONE ? "droite"
+        : null;
+      tracking = bord !== null && Date.now() >= lockRef.current;
     };
     const onTouchMove = (e: TouchEvent) => {
       if (!tracking || e.touches.length !== 1) return;
@@ -178,6 +193,10 @@ export function SwipeNavigation() {
       // Geste vertical → défilement normal, on abandonne définitivement.
       if (Math.abs(dy) > Math.abs(dx)) { tracking = false; hide(); return; }
       if (Math.abs(dx) < 8) return;
+      // Sens contraire au bord de départ : ce n'est pas une navigation.
+      if ((bord === "gauche" && dx < 0) || (bord === "droite" && dx > 0)) {
+        tracking = false; hide(); return;
+      }
       // Une zone défilante horizontalement garde la priorité.
       // dx > 0 (doigt vers la droite) équivaut à deltaX < 0.
       if (scrollableAncestor(e.target, -dx)) { tracking = false; hide(); return; }
@@ -190,6 +209,7 @@ export function SwipeNavigation() {
       else hide();
       tracking = false;
       tdx = 0;
+      bord = null;
     };
 
     const onIdle = () => { if (Date.now() - lastRef.current > IDLE_RESET) hide(); };
