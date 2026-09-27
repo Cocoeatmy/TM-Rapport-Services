@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-09-27T20:14:27.614Z",
+  "genereLe": "2026-09-27T20:25:47.896Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -164,6 +164,16 @@
       "methodes": [
         "GET",
         "POST"
+      ]
+    },
+    {
+      "url": "/api/carnet",
+      "type": "api",
+      "fichier": "src/app/api/carnet/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
       ]
     },
     {
@@ -1082,6 +1092,14 @@
         "PATCH",
         "DELETE"
       ]
+    },
+    {
+      "url": "/carnet",
+      "type": "page",
+      "fichier": "src/app/carnet/page.tsx",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": []
     },
     {
       "url": "/ch/[token]",

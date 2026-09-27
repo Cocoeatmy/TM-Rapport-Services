@@ -113,13 +113,43 @@ function localiteDe(texte: string): string {
   return m ? m[2].trim() : "";
 }
 
-function minutesPointees(p: CandidatSource): number | null {
-  const lire = (raw?: string) => {
-    const m = String(raw || "").match(/(\d{1,2}):(\d{2})/);
+/**
+ * Minutes réellement passées sur un projet, cabines multiples comprises.
+ *
+ * Sur un projet multi-cabines, les heures sont encodées « Cab1:08:00 |
+ * Cab2:10:30 » : ne lire que la PREMIÈRE paire donnait la durée de la seule
+ * cabine 1, puis la divisait par le nombre de cabines — soit un barème deux
+ * ou trois fois trop court sur les gros chantiers, ceux-là mêmes qui pèsent le
+ * plus dans une journée.
+ */
+export function minutesPointees(p: CandidatSource): number | null {
+  const heure = (raw: string): number | null => {
+    const m = raw.match(/(\d{1,2}):(\d{2})/);
     return m ? Number(m[1]) * 60 + Number(m[2]) : null;
   };
-  const a = lire(p.heureArrivee);
-  const b = lire(p.heureDepart);
+  const parCabine = (raw?: string): Record<number, string> => {
+    const map: Record<number, string> = {};
+    const re = /Cab(\d+)\s*:\s*([^|]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(String(raw || "")))) map[Number(m[1])] = m[2].trim();
+    return map;
+  };
+
+  const arrivees = parCabine(p.heureArrivee);
+  const departs = parCabine(p.heureDepart);
+  const cabines = [...new Set([...Object.keys(arrivees), ...Object.keys(departs)].map(Number))];
+
+  if (cabines.length > 0) {
+    let total = 0;
+    cabines.forEach((n) => {
+      const a = heure(arrivees[n] || ""), b = heure(departs[n] || "");
+      if (a !== null && b !== null && b > a) total += b - a;
+    });
+    return total > 0 ? total : null;
+  }
+
+  // Projet mono-cabine : une seule paire, sans préfixe.
+  const a = heure(String(p.heureArrivee || "")), b = heure(String(p.heureDepart || ""));
   if (a === null || b === null || b <= a) return null;
   return b - a;
 }

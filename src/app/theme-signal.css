@@ -3543,3 +3543,90 @@ html[data-ui="signal"] .sgr-carte-note {
   margin-top: 3px; padding-top: 4px; border-top: 1px dashed var(--sg-line);
   font-size: 10.5px; color: var(--sg-text-3); line-height: 1.45;
 }
+
+/* Carnet de commandes. */
+html[data-ui="signal"] .sgn-kpis {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px;
+}
+html[data-ui="signal"] .sgn-kpis > div {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 13px; border-radius: 12px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+}
+html[data-ui="signal"] .sgn-kpis > div.is-fort { background: var(--sg-ink); border-color: var(--sg-ink); }
+html[data-ui="signal"] .sgn-kpis b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 26px; font-weight: 700; line-height: 1.1; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgn-kpis b.sgn-date { font-size: 15px; text-transform: capitalize; line-height: 1.3; }
+html[data-ui="signal"] .sgn-kpis > div.is-fort b { color: #fff; }
+html[data-ui="signal"] .sgn-kpis span { font-size: 11.5px; color: var(--sg-text-2); }
+html[data-ui="signal"] .sgn-kpis > div.is-fort span { color: var(--sg-on-ink); }
+html[data-ui="signal"] .sgn-kpis em { font-style: normal; font-size: 10.5px; color: var(--sg-text-3); line-height: 1.4; }
+html[data-ui="signal"] .sgn-kpis > div.is-fort em { color: var(--sg-on-ink-dim); }
+
+html[data-ui="signal"] .sgn-alerte {
+  display: flex; align-items: center; gap: 10px; text-decoration: none;
+  padding: 10px 13px; border-radius: 11px; margin-bottom: 14px;
+  border: 1px solid #f2d9a6; background: #fff8ec; color: #92500e;
+}
+html[data-ui="signal"] .sgn-alerte:hover { background: #fdf0d8; }
+html[data-ui="signal"] .sgn-alerte b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 20px; font-weight: 700;
+}
+html[data-ui="signal"] .sgn-alerte span { flex: 1; font-size: 11.5px; line-height: 1.45; }
+html[data-ui="signal"].dark .sgn-alerte { border-color: #56421d; background: #2a2113; color: #f0b866; }
+
+html[data-ui="signal"] .sgn-bloc { margin-bottom: 16px; }
+html[data-ui="signal"] .sgn-liste {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--sg-line); border-radius: 12px;
+  background: var(--sg-paper); overflow: hidden;
+}
+html[data-ui="signal"] .sgn-ligne {
+  display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(60px, 1fr) 76px 52px;
+  gap: 10px; align-items: center;
+  padding: 7px 12px; border-bottom: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgn-ligne:last-child { border-bottom: 0; }
+html[data-ui="signal"] .sgn-ligne-nom {
+  font-size: 12.5px; color: var(--sg-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgn-piste {
+  height: 6px; border-radius: 999px; background: var(--sg-grp-bg); overflow: hidden;
+}
+html[data-ui="signal"] .sgn-piste i { display: block; height: 100%; background: var(--sg-ink); }
+html[data-ui="signal"].dark .sgn-piste i { background: #7fb0ff; }
+html[data-ui="signal"] .sgn-ligne-val {
+  text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 13px; font-weight: 700; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgn-ligne-val em { font-style: normal; font-size: 9.5px; font-weight: 500; color: var(--sg-text-3); }
+html[data-ui="signal"] .sgn-ligne-sub {
+  text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 11px; color: var(--sg-text-3);
+}
+@media (max-width: 720px) {
+  html[data-ui="signal"] .sgn-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-ui="signal"] .sgn-ligne { grid-template-columns: minmax(0, 1fr) 70px 46px; }
+  html[data-ui="signal"] .sgn-piste { display: none; }
+}
+
+/* Tuile Carnet de commandes sur le tableau de bord. */
+html[data-ui="signal"] .sg-carnet {
+  position: relative; display: block; text-decoration: none; color: inherit;
+}
+html[data-ui="signal"] .sg-carnet:hover { border-color: var(--sg-line-strong); }
+html[data-ui="signal"] .sg-carnet-corps { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 4px; }
+html[data-ui="signal"] .sg-carnet-val {
+  display: flex; align-items: baseline; gap: 6px;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 30px; font-weight: 700; color: var(--sg-text); line-height: 1.1;
+}
+html[data-ui="signal"] .sg-carnet-val em {
+  font-style: normal; font-family: inherit; font-size: 12px; font-weight: 500; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-carnet-sub { font-size: 11.5px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sg-carnet .sg-signal-arrow { position: absolute; top: 14px; right: 12px; }

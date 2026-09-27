@@ -2306,6 +2306,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
      de tous les projets (les factures qui dorment sont sur des projets
      terminés, absents des listes du tableau de bord). */
   const [relancesCount, setRelancesCount] = useState<number | null>(null);
+  /** Carnet de commandes — calculé par le serveur, comme les relances. */
+  const [carnet, setCarnet] = useState<{ jours: number; cabines: number; rythme: { semaines: number | null } } | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    fetch("/api/carnet")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivant && d && typeof d.jours === "number") setCarnet(d); })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, []);
   useEffect(() => {
     let vivant = true;
     fetch("/api/controles?jeu=relances")
@@ -2929,6 +2939,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </div>
               );
             })()}
+
+            {/* Carnet de commandes : le travail vendu et pas encore pose. Il
+                ouvre sa propre page — c'est un chiffre qu'on consulte, puis
+                qu'on detaille par fournisseur ou par region. */}
+            <Link href="/carnet" className="sg-card sg-carnet">
+              <div className="sg-card-head">
+                <span className="sg-card-title">Carnet de commandes</span>
+                <span className="sg-card-meta">a poser</span>
+              </div>
+              <div className="sg-carnet-corps">
+                <span className="sg-carnet-val">
+                  {carnet === null ? "…" : carnet.jours.toLocaleString("fr-CH")}
+                  <em>jours-homme</em>
+                </span>
+                <span className="sg-carnet-sub">
+                  {carnet === null
+                    ? "calcul en cours"
+                    : `${carnet.cabines} cabines · ${carnet.rythme.semaines !== null ? `${carnet.rythme.semaines} semaines au rythme actuel` : "rythme inconnu"}`}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+            </Link>
 
             <div className="sg-card">
               <div className="sg-card-head">
