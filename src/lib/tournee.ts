@@ -74,6 +74,14 @@ export interface Tournee {
   etendue: string;
   /** true quand la journée dépasse 8 h 30. */
   heuresSupp: boolean;
+  /** Attente cumulée devant une porte avant une heure imposée. */
+  minutesAttente: number;
+  /** Retard sur une heure imposée : 0 si tout est tenu. */
+  retardMax: number;
+  /** Horaire de chaque étape, dans l'ordre de visite. */
+  horaires: { id: string; arrivee: string; depart: string; impose?: string; enRetard: boolean }[];
+  /** Heure de retour au dépôt. */
+  retourDepot: string;
 }
 
 const DEFAUT_MINUTES_PAR_CABINE = 90;
@@ -198,6 +206,18 @@ export function lieuDepot(pos?: Position | null): Lieu {
   };
 }
 
+/** « 07:30 » → 450 minutes. */
+export function enMinutes(hhmm: string): number | null {
+  const m = String(hhmm || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+/** 450 → « 07:30 ». */
+export function enHeure(min: number): string {
+  const h = Math.floor(min / 60) % 24, m = Math.round(min % 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 export interface Contraintes {
   nombre: number;
   secteur?: string;
@@ -206,8 +226,13 @@ export interface Contraintes {
   minutesMax?: number;
   /** Montage imposé : il sera dans la tournée quoi qu'il arrive. */
   obligatoire?: string;
-  /** Sélection manuelle : la tournée est exactement cette liste, ordonnée. */
+  /** Chantiers imposés. S'ils sont moins nombreux que `nombre`, la tournée est
+   *  COMPLÉTÉE autour d'eux avec les meilleurs voisins. */
   imposes?: string[];
+  /** Heure d'arrivée imposée sur certains chantiers, « HH:MM ». */
+  heures?: Record<string, string>;
+  /** Heure de départ du dépôt, « HH:MM ». */
+  departHeure?: string;
 }
 
 function correspondSecteur(c: Candidat, secteur: string): boolean {
@@ -229,23 +254,61 @@ function permutations<T>(arr: T[]): T[][] {
   return out;
 }
 
-/** Journée complète pour un ordre donné : dépôt → étapes → dépôt. */
-function evaluer(etapes: Candidat[], depot: Lieu) {
-  let minutesTrajet = 0, kmTotal = 0;
+/**
+ * Déroulé de la journée pour un ordre donné : dépôt → étapes → dépôt.
+ *
+ * Une heure d'arrivée imposée est respectée si possible : on attend devant la
+ * porte plutôt que d'entrer trop tôt, et tout retard est mesuré — il sert à
+ * écarter les ordres qui ne tiennent pas le rendez-vous.
+ */
+function evaluer(
+  etapes: Candidat[],
+  depot: Lieu,
+  heures: Record<string, number> = {},
+  depart = 450,
+) {
+  let minutesTrajet = 0, kmTotal = 0, minutesAttente = 0, retardMax = 0;
+  let t = depart;
   let precedent: Lieu = depot;
+  const horaires: Tournee["horaires"] = [];
+
   etapes.forEach((c) => {
-    const t = trajet(precedent, c);
-    minutesTrajet += t.minutes; kmTotal += t.km;
+    const tr = trajet(precedent, c);
+    minutesTrajet += tr.minutes; kmTotal += tr.km;
+    t += tr.minutes;
+    const impose = heures[c.id];
+    let enRetard = false;
+    if (impose != null) {
+      if (t < impose) { minutesAttente += impose - t; t = impose; }
+      else if (t > impose) { retardMax = Math.max(retardMax, t - impose); enRetard = true; }
+    }
+    const arrivee = t;
+    t += c.minutes;
+    horaires.push({
+      id: c.id, arrivee: enHeure(arrivee), depart: enHeure(t),
+      impose: impose != null ? enHeure(impose) : undefined, enRetard,
+    });
     precedent = c;
   });
+
   const retour = trajet(precedent, depot);
   minutesTrajet += retour.minutes; kmTotal += retour.km;
+  t += retour.minutes;
+
   const minutesPose = etapes.reduce((s, c) => s + c.minutes, 0);
-  return { minutesTrajet, kmTotal, minutesPose, total: minutesPose + minutesTrajet };
+  return {
+    minutesTrajet, kmTotal, minutesPose, minutesAttente, retardMax, horaires,
+    retourDepot: enHeure(t),
+    // La journée inclut l'attente : elle est bien passée hors du dépôt.
+    total: t - depart,
+  };
 }
 
-/** Meilleur ordre de visite pour un ensemble donné. */
-function ordonner(etapes: Candidat[], depot: Lieu): Candidat[] {
+/** Meilleur ordre de visite : le retard sur une heure imposée prime sur tout. */
+function ordonner(
+  etapes: Candidat[], depot: Lieu,
+  heures: Record<string, number> = {}, depart = 450,
+): Candidat[] {
   if (etapes.length <= 2) return etapes;
   if (etapes.length > 7) {
     // Au-delà, on se contente du plus proche en plus proche.
@@ -253,24 +316,37 @@ function ordonner(etapes: Candidat[], depot: Lieu): Candidat[] {
     const ordre: Candidat[] = [];
     let cur: Lieu = depot;
     while (reste.length) {
-      reste.sort((a, b) => trajet(cur, a).minutes - trajet(cur, b).minutes);
+      // Une heure imposée tire l'étape vers sa place dans la journée.
+      reste.sort((a, b) => {
+        const ha = heures[a.id], hb = heures[b.id];
+        if (ha != null && hb != null) return ha - hb;
+        if (ha != null) return -1;
+        if (hb != null) return 1;
+        return trajet(cur, a).minutes - trajet(cur, b).minutes;
+      });
       const suivant = reste.shift()!;
       ordre.push(suivant);
       cur = suivant;
     }
     return ordre;
   }
-  let meilleur = etapes, meilleurTotal = Infinity;
+  let meilleur = etapes, meilleurScore = Infinity;
   permutations(etapes).forEach((p) => {
-    const t = evaluer(p, depot).total;
-    if (t < meilleurTotal) { meilleurTotal = t; meilleur = p; }
+    const e = evaluer(p, depot, heures, depart);
+    // Un retard coûte très cher : mieux vaut une journée plus longue qu'un
+    // rendez-vous manqué.
+    const score = e.total + e.retardMax * 100;
+    if (score < meilleurScore) { meilleurScore = score; meilleur = p; }
   });
   return meilleur;
 }
 
-function finaliser(etapes: Candidat[], depot: Lieu, minutesMax: number): Tournee {
-  const ordre = ordonner(etapes, depot);
-  const e = evaluer(ordre, depot);
+function finaliser(
+  etapes: Candidat[], depot: Lieu, minutesMax: number,
+  heures: Record<string, number>, depart: number,
+): Tournee {
+  const ordre = ordonner(etapes, depot, heures, depart);
+  const e = evaluer(ordre, depot, heures, depart);
   return {
     etapes: ordre,
     cabines: ordre.reduce((s, c) => s + c.cabines, 0),
@@ -281,6 +357,10 @@ function finaliser(etapes: Candidat[], depot: Lieu, minutesMax: number): Tournee
     kmApprox: e.kmTotal,
     etendue: resumeEtendue(ordre),
     heuresSupp: e.total > (minutesMax || JOURNEE_MINUTES),
+    minutesAttente: e.minutesAttente,
+    retardMax: e.retardMax,
+    horaires: e.horaires,
+    retourDepot: e.retourDepot,
   };
 }
 
@@ -289,39 +369,49 @@ export function construireTournee(
   contraintes: Contraintes,
   posDepot?: Position | null,
 ): Tournee | null {
-  const { nombre, secteur, cartonsMax = 0, minutesMax = JOURNEE_MINUTES, obligatoire, imposes } = contraintes;
+  const {
+    nombre, secteur, cartonsMax = 0, minutesMax = JOURNEE_MINUTES,
+    obligatoire, imposes, heures = {}, departHeure = "07:30",
+  } = contraintes;
   const depot = lieuDepot(posDepot);
+  const depart = enMinutes(departHeure) ?? 450;
   if (candidats.length === 0) return null;
 
-  // Sélection manuelle : on ordonne exactement ce qui est demandé.
-  if (imposes && imposes.length > 0) {
-    const choisis = candidats.filter((c) => imposes.includes(c.id));
-    return choisis.length ? finaliser(choisis, depot, minutesMax) : null;
-  }
+  // Heures imposées, converties une fois pour toutes.
+  const horaires: Record<string, number> = {};
+  Object.entries(heures).forEach(([id, h]) => {
+    const m = enMinutes(h);
+    if (m !== null) horaires[id] = m;
+  });
+
+  /* Chantiers imposés : ceux cochés à la main, plus l'éventuel montage
+     obligatoire. Ils seront TOUS dans la tournée ; si leur nombre est
+     inférieur au nombre voulu, on complète autour d'eux. */
+  const idsImposes = new Set([...(imposes || []), ...(obligatoire ? [obligatoire] : [])]);
+  const requis = candidats.filter((c) => idsImposes.has(c.id));
 
   const pool = secteur?.trim() ? candidats.filter((c) => correspondSecteur(c, secteur)) : candidats;
-  if (pool.length === 0) return null;
 
-  const impose = obligatoire ? candidats.find((c) => c.id === obligatoire) : undefined;
-
-  /** Construit une journée en partant d'un premier chantier donné. */
-  const depuis = (premier: Candidat): Candidat[] => {
-    const etapes: Candidat[] = [premier];
-    let cartons = premier.cartons;
-    let cur: Lieu = premier;
+  /** Complète une base jusqu'au nombre voulu, au plus proche et dans les temps. */
+  const completer = (base: Candidat[]): Candidat[] => {
+    const etapes = [...base];
+    let cartons = etapes.reduce((s2, c) => s2 + c.cartons, 0);
 
     while (etapes.length < nombre) {
+      const dernier: Lieu = etapes.length ? etapes[etapes.length - 1] : depot;
       const restants = pool
         .filter((c) => !etapes.some((e) => e.id === c.id))
         .filter((c) => cartonsMax === 0 || cartons + c.cartons <= cartonsMax)
-        // Le plus proche du point courant, pose comprise.
         .sort((a, b) =>
-          (trajet(cur, a).minutes + a.minutes) - (trajet(cur, b).minutes + b.minutes));
+          (trajet(dernier, a).minutes + a.minutes) - (trajet(dernier, b).minutes + b.minutes));
       let ajoute = false;
       for (const c of restants) {
         const essai = [...etapes, c];
-        if (minutesMax > 0 && evaluer(ordonner(essai, depot), depot).total > minutesMax) continue;
-        etapes.push(c); cartons += c.cartons; cur = c; ajoute = true;
+        const e = evaluer(ordonner(essai, depot, horaires, depart), depot, horaires, depart);
+        // On n'ajoute jamais un chantier qui fait manquer un rendez-vous.
+        if (e.retardMax > 0) continue;
+        if (minutesMax > 0 && e.total > minutesMax) continue;
+        etapes.push(c); cartons += c.cartons; ajoute = true;
         break;
       }
       if (!ajoute) break;
@@ -329,12 +419,18 @@ export function construireTournee(
     return etapes;
   };
 
-  const departs = impose ? [impose] : pool;
-  let meilleure: Tournee | null = null;
+  // Des chantiers imposés : ils forment la base, on complète autour.
+  if (requis.length > 0) {
+    const etapes = requis.length >= nombre ? requis : completer(requis);
+    return finaliser(etapes, depot, minutesMax, horaires, depart);
+  }
 
-  for (const d of departs) {
-    const t = finaliser(depuis(d), depot, minutesMax);
-    // Priorité au nombre d'étapes atteint, puis à la journée la plus courte.
+  if (pool.length === 0) return null;
+
+  // Rien d'imposé : on essaie chaque chantier comme point de départ.
+  let meilleure: Tournee | null = null;
+  for (const d of pool) {
+    const t = finaliser(completer([d]), depot, minutesMax, horaires, depart);
     const mieux = !meilleure
       || t.etapes.length > meilleure.etapes.length
       || (t.etapes.length === meilleure.etapes.length && t.minutesTotal < meilleure.minutesTotal);

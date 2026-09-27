@@ -2253,17 +2253,6 @@ html[data-ui="signal"] .sgt-bilan span {
 }
 html[data-ui="signal"] .sgt-note { margin: 0; font-size: 11px; color: var(--sg-text-3); line-height: 1.45; }
 
-html[data-ui="signal"] .sgt-modes { display: flex; gap: 6px; }
-html[data-ui="signal"] .sgt-modes button {
-  flex: 1; height: 34px; border-radius: 9px; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  border: 1px solid var(--sg-line); background: var(--sg-paper);
-  color: var(--sg-text-2); font-family: inherit; font-size: 12.5px; font-weight: 600;
-}
-html[data-ui="signal"] .sgt-modes button.is-on {
-  background: var(--sg-ink); border-color: var(--sg-ink); color: #fff;
-}
-
 /* Choix des chantiers : liste déroulante interne, pour ne pas noyer le reste. */
 html[data-ui="signal"] .sgt-liste {
   display: flex; flex-direction: column; gap: 3px;
@@ -2272,12 +2261,30 @@ html[data-ui="signal"] .sgt-liste {
   border: 1px solid var(--sg-line); background: var(--sg-paper-2);
 }
 html[data-ui="signal"] .sgt-choix {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 5px 8px; border-radius: 7px; cursor: pointer; text-align: left;
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  padding: 2px 6px 2px 2px; border-radius: 7px;
   border: 1px solid transparent; background: transparent;
-  color: var(--sg-text-2); font-family: inherit;
+  color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sgt-choix-btn {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 6px; border-radius: 6px; cursor: pointer; text-align: left;
+  border: 0; background: transparent; color: inherit; font-family: inherit;
 }
 html[data-ui="signal"] .sgt-choix:hover { background: var(--sg-paper); }
+/* Heure d'arrivée exigée par le client : l'ordre du jour s'y plie. */
+html[data-ui="signal"] .sgt-heure {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  padding: 2px 6px; border-radius: 999px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgt-heure input {
+  width: 62px; border: 0; background: transparent; padding: 0;
+  font-family: var(--sg-mono, ui-monospace, monospace); font-size: 11px;
+  color: var(--sg-text); outline: none;
+}
 html[data-ui="signal"] .sgt-choix.is-on {
   background: var(--sg-signal-soft); border-color: var(--sg-signal); color: var(--sg-signal);
 }
@@ -2297,6 +2304,20 @@ html[data-ui="signal"] .sgt-choix-txt em {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 html[data-ui="signal"] .sgt-choix.is-on .sgt-choix-txt em { color: inherit; opacity: 0.8; }
+
+/* Horaire de l'étape : « 08:12 → 09:45 », rouge si l'heure exigée est ratée. */
+html[data-ui="signal"] .sgt-h {
+  display: inline-flex; align-items: center; gap: 4px; margin-right: 6px;
+  font-family: var(--sg-mono, ui-monospace, monospace); font-weight: 700;
+  color: var(--sg-text);
+}
+html[data-ui="signal"] .sgt-h em {
+  font-style: normal; font-weight: 600; font-size: 10px;
+  padding: 0 5px; border-radius: 999px;
+  background: var(--sg-signal-soft); color: var(--sg-signal);
+}
+html[data-ui="signal"] .sgt-h.is-retard { color: #b42318; }
+html[data-ui="signal"] .sgt-h.is-retard em { background: #fee4e2; color: #b42318; }
 
 html[data-ui="signal"] .sgt-bilan span.is-warn {
   background: #fff3da; border-color: #f2d9a6; color: #92500e;

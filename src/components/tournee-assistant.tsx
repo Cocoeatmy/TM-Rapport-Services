@@ -6,10 +6,10 @@
  * La journée part du dépôt d'Yverdon et y revient ; les trajets comptent
  * autant que les poses, sans quoi « 5 h de pose » cache une journée de 10 h.
  *
- * Trois façons de composer la tournée :
- *   • automatique — on donne le nombre de montages, l'app cherche ;
- *   • avec un montage imposé — il y sera, les autres sont choisis autour ;
- *   • à la main — on coche les chantiers, l'app ne fait qu'ordonner le trajet.
+ * On coche les montages que l'on doit faire — aucun, un seul ou plusieurs —
+ * et l'app COMPLÈTE la journée autour d'eux jusqu'au nombre demandé, en
+ * choisissant les voisins les plus proches. Un chantier peut exiger une heure
+ * d'arrivée : l'ordre est alors calculé pour la tenir, quitte à attendre.
  *
  * Elle propose, elle ne décide pas : rien n'est écrit dans Notion.
  */
@@ -17,8 +17,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Route, X, MapPin, Package, Clock, ChevronRight, Sparkles, Pin, ListChecks,
-  Loader2, AlertTriangle,
+  Route, X, MapPin, Package, Clock, ChevronRight, Sparkles,
+  Loader2, AlertTriangle, Home,
 } from "lucide-react";
 import {
   preparerCandidats, construireTournee, formatMinutes, DEPOT, JOURNEE_MINUTES,
@@ -37,9 +37,10 @@ export function TourneeAssistant({
   const [secteur, setSecteur] = useState("");
   const [cartonsMax, setCartonsMax] = useState("");
   const [heuresMax, setHeuresMax] = useState("8.5");
-  const [obligatoire, setObligatoire] = useState<string | null>(null);
-  const [choixManuel, setChoixManuel] = useState(false);
   const [coches, setCoches] = useState<Set<string>>(new Set());
+  /** Heure d'arrivée imposée, par chantier — « HH:MM ». */
+  const [heures, setHeures] = useState<Record<string, string>>({});
+  const [departHeure, setDepartHeure] = useState("07:30");
   const [resultat, setResultat] = useState<Tournee | null | "vide">(null);
 
   /* ── Coordonnées ────────────────────────────────────────────────────────
@@ -86,8 +87,9 @@ export function TourneeAssistant({
       secteur: secteur.trim() || undefined,
       cartonsMax: Number(cartonsMax) || 0,
       minutesMax: Math.round((Number(heuresMax) || 0) * 60) || JOURNEE_MINUTES,
-      obligatoire: obligatoire || undefined,
-      imposes: choixManuel ? [...coches] : undefined,
+      imposes: [...coches],
+      heures,
+      departHeure,
     }, posDepot);
     setResultat(t ?? "vide");
   };
@@ -127,44 +129,36 @@ export function TourneeAssistant({
             </p>
           )}
 
-          {/* Mode de composition */}
-          <div className="sgt-modes">
-            <button type="button" className={!choixManuel ? "is-on" : ""} onClick={() => setChoixManuel(false)}>
-              <Sparkles className="w-3.5 h-3.5" /> Automatique
-            </button>
-            <button type="button" className={choixManuel ? "is-on" : ""} onClick={() => setChoixManuel(true)}>
-              <ListChecks className="w-3.5 h-3.5" /> Je choisis
-            </button>
+          <label className="sgt-champ">
+            <span>Montages dans la journée</span>
+            <div className="sgt-nombre">
+              {[2, 3, 4, 5, 6].map((n) => (
+                <button key={n} type="button" className={nombre === n ? "is-on" : ""}
+                  onClick={() => setNombre(n)}>{n}</button>
+              ))}
+            </div>
+          </label>
+
+          <div className="sgt-duo">
+            <label className="sgt-champ">
+              <span>Départ du dépôt</span>
+              <input type="time" value={departHeure} onChange={(e) => setDepartHeure(e.target.value)} />
+            </label>
+            <label className="sgt-champ">
+              <span>Secteur <em>facultatif</em></span>
+              <input value={secteur} onChange={(e) => setSecteur(e.target.value)}
+                placeholder="Localité, NPA, région…" />
+            </label>
           </div>
-
-          {!choixManuel && (
-            <>
-              <label className="sgt-champ">
-                <span>Montages dans la journée</span>
-                <div className="sgt-nombre">
-                  {[2, 3, 4, 5, 6].map((n) => (
-                    <button key={n} type="button" className={nombre === n ? "is-on" : ""}
-                      onClick={() => setNombre(n)}>{n}</button>
-                  ))}
-                </div>
-              </label>
-
-              <label className="sgt-champ">
-                <span>Secteur de départ <em>facultatif</em></span>
-                <input value={secteur} onChange={(e) => setSecteur(e.target.value)}
-                  placeholder="Localité, code postal ou région…" />
-                {secteurs.length > 0 && (
-                  <div className="sgt-suggestions">
-                    {secteurs.slice(0, 6).map(([r, n]) => (
-                      <button key={r} type="button" className={secteur === r ? "is-on" : ""}
-                        onClick={() => setSecteur(secteur === r ? "" : r)}>
-                        {r} <b>{n}</b>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </label>
-            </>
+          {secteurs.length > 0 && (
+            <div className="sgt-suggestions">
+              {secteurs.slice(0, 6).map(([r, n]) => (
+                <button key={r} type="button" className={secteur === r ? "is-on" : ""}
+                  onClick={() => setSecteur(secteur === r ? "" : r)}>
+                  {r} <b>{n}</b>
+                </button>
+              ))}
+            </div>
           )}
 
           <div className="sgt-duo">
@@ -180,37 +174,40 @@ export function TourneeAssistant({
             </label>
           </div>
 
-          {/* Coche en mode manuel, épingle en automatique */}
+          {/* Chantiers imposés : ils seront dans la tournée, le reste est
+              complété autour d'eux. Une heure d'arrivée peut être exigée. */}
           <div className="sgt-champ">
             <span>
-              {choixManuel ? `Chantiers retenus (${coches.size})` : "Montage obligatoire — facultatif"}
+              Montages imposés <em>{coches.size > 0 ? `${coches.size} retenu${coches.size > 1 ? "s" : ""}` : "facultatif"}</em>
             </span>
             <div className="sgt-liste">
               {candidats.map((c) => {
-                const actif = choixManuel ? coches.has(c.id) : obligatoire === c.id;
+                const actif = coches.has(c.id);
                 return (
-                  <button key={c.id} type="button"
-                    className={`sgt-choix${actif ? " is-on" : ""}`}
-                    onClick={() => choixManuel
-                      ? basculerCoche(c.id)
-                      : setObligatoire(obligatoire === c.id ? null : c.id)}>
-                    {choixManuel
-                      ? <span className="sgt-case">{actif ? "✓" : ""}</span>
-                      : <Pin className="w-3.5 h-3.5 shrink-0" />}
-                    <span className="sgt-choix-txt">
-                      <b className="sg-mono">{c.ofrTM}</b> {c.npa} {c.localite}
-                      <em>{c.projet}</em>
-                    </span>
-                  </button>
+                  <div key={c.id} className={`sgt-choix${actif ? " is-on" : ""}`}>
+                    <button type="button" className="sgt-choix-btn" onClick={() => basculerCoche(c.id)}>
+                      <span className="sgt-case">{actif ? "✓" : ""}</span>
+                      <span className="sgt-choix-txt">
+                        <b className="sg-mono">{c.ofrTM}</b> {c.npa} {c.localite}
+                        <em>{c.projet}</em>
+                      </span>
+                    </button>
+                    {actif && (
+                      <label className="sgt-heure" title="Heure d'arrivée imposée — laissez vide si libre">
+                        <Clock className="w-3 h-3" />
+                        <input type="time" value={heures[c.id] || ""}
+                          onChange={(e) => setHeures((p2) => ({ ...p2, [c.id]: e.target.value }))} />
+                      </label>
+                    )}
+                  </div>
                 );
               })}
             </div>
           </div>
 
-          <button type="button" className="sg-btn-primary sgt-go" onClick={calculer}
-            disabled={choixManuel && coches.size === 0}>
+          <button type="button" className="sg-btn-primary sgt-go" onClick={calculer}>
             <Sparkles className="w-4 h-4" />
-            {choixManuel ? "Calculer le meilleur itinéraire" : "Proposer une tournée"}
+            {coches.size > 0 ? "Compléter et ordonner la tournée" : "Proposer une tournée"}
           </button>
 
           {resultat === "vide" && (
@@ -235,7 +232,22 @@ export function TourneeAssistant({
                 <span><Clock className="w-3.5 h-3.5" />{formatMinutes(resultat.minutesPose)} de pose</span>
                 <span><MapPin className="w-3.5 h-3.5" />{resultat.etendue}</span>
                 <span><Package className="w-3.5 h-3.5" />{resultat.cartons || "—"} cartons · {resultat.cabines} cab.</span>
+                <span><Home className="w-3.5 h-3.5" />Retour {resultat.retourDepot}</span>
+                {resultat.minutesAttente > 0 && (
+                  <span className="is-warn">
+                    <Clock className="w-3.5 h-3.5" />
+                    {formatMinutes(resultat.minutesAttente)} d&apos;attente
+                  </span>
+                )}
               </div>
+
+              {resultat.retardMax > 0 && (
+                <p className="sgt-note sgt-alerte">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Une heure imposée ne peut pas être tenue — {formatMinutes(resultat.retardMax)} de
+                  retard au mieux. Retirez un montage ou avancez l&apos;heure de départ.
+                </p>
+              )}
 
               {resultat.heuresSupp && (
                 <p className="sgt-note sgt-alerte">
@@ -252,27 +264,37 @@ export function TourneeAssistant({
               />
 
               <ol className="sgt-etapes">
-                {resultat.etapes.map((c, i) => (
-                  <li key={c.id}>
-                    <span className="sgt-num">{i + 1}</span>
-                    <Link href={`/projet/${c.id}?mode=dashboard`} className="sgt-etape">
-                      <span className="sgt-etape-haut">
-                        <b className="sg-mono">{c.ofrTM}</b>
-                        <span className="sgt-npa">{c.npa} {c.localite}</span>
-                      </span>
-                      <span className="sgt-etape-nom">{c.projet}</span>
-                      <span className="sgt-etape-meta">
-                        {c.cabines} cab. · {formatMinutes(c.minutes)}
-                        {c.cartons ? ` · ${c.cartons} cartons` : ""}
-                      </span>
-                    </Link>
-                    <ChevronRight className="w-4 h-4 sg-plist-chev" />
-                  </li>
-                ))}
+                {resultat.etapes.map((c, i) => {
+                  const h = resultat.horaires[i];
+                  return (
+                    <li key={c.id}>
+                      <span className="sgt-num">{i + 1}</span>
+                      <Link href={`/projet/${c.id}?mode=dashboard`} className="sgt-etape">
+                        <span className="sgt-etape-haut">
+                          <b className="sg-mono">{c.ofrTM}</b>
+                          <span className="sgt-npa">{c.npa} {c.localite}</span>
+                        </span>
+                        <span className="sgt-etape-nom">{c.projet}</span>
+                        <span className="sgt-etape-meta">
+                          {h && (
+                            <b className={`sgt-h${h.enRetard ? " is-retard" : ""}`}>
+                              {h.arrivee} → {h.depart}
+                              {h.impose ? <em> imposé {h.impose}</em> : null}
+                            </b>
+                          )}
+                          {c.cabines} cab. · {formatMinutes(c.minutes)}
+                          {c.cartons ? ` · ${c.cartons} cartons` : ""}
+                        </span>
+                      </Link>
+                      <ChevronRight className="w-4 h-4 sg-plist-chev" />
+                    </li>
+                  );
+                })}
               </ol>
 
               <p className="sgt-note">
-                Départ et retour au dépôt de {DEPOT}, trajets compris dans la journée.
+                Départ de {DEPOT} à {departHeure}, retour au même dépôt à {resultat.retourDepot},
+                trajets compris dans la journée.
                 Durées de pose d&apos;après les heures réellement pointées sur les montages
                 terminés du même fournisseur ; temps de route estimés à vol d&apos;oiseau
                 majoré — pour les kilomètres réels, ouvrez l&apos;itinéraire dans Google Maps.
