@@ -1,0 +1,1165 @@
+{
+  "genereLe": "2026-09-27T20:08:44.164Z",
+  "publicMiddleware": {
+    "prefixes": [
+      "/api/auth",
+      "/api/cron/",
+      "/api/client/",
+      "/api/share-link",
+      "/api/doc",
+      "/api/fiche",
+      "/api/sav",
+      "/api/synthese",
+      "/api/pdf",
+      "/api/rapport-signalements",
+      "/api/photos/",
+      "/api/reminders",
+      "/api/notion-webhook",
+      "/client/",
+      "/f/",
+      "/s/",
+      "/sav/",
+      "/sig/",
+      "/ch/",
+      "/_next",
+      "/icons"
+    ],
+    "exacts": [
+      "/login",
+      "/manifest.json",
+      "/favicon.ico",
+      "/sw.js"
+    ]
+  },
+  "entrees": [
+    {
+      "url": "/",
+      "type": "page",
+      "fichier": "src/app/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/admin/anomalies",
+      "type": "page",
+      "fichier": "src/app/admin/anomalies/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/admin/droits",
+      "type": "page",
+      "fichier": "src/app/admin/droits/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/admin/finances",
+      "type": "page",
+      "fichier": "src/app/admin/finances/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/admin/heures",
+      "type": "page",
+      "fichier": "src/app/admin/heures/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/admin/heures/[monteur]",
+      "type": "page",
+      "fichier": "src/app/admin/heures/[monteur]/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/admin/pieces-defauts",
+      "type": "page",
+      "fichier": "src/app/admin/pieces-defauts/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/admin/rapports",
+      "type": "page",
+      "fichier": "src/app/admin/rapports/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/admin/stocks",
+      "type": "page",
+      "fichier": "src/app/admin/stocks/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/admin/utilisateurs",
+      "type": "page",
+      "fichier": "src/app/admin/utilisateurs/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/api/ai",
+      "type": "api",
+      "fichier": "src/app/api/ai/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/arrivage/[id]",
+      "type": "api",
+      "fichier": "src/app/api/arrivage/[id]/route.tsx",
+      "niveau": "signe-ou-connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/auth",
+      "type": "api",
+      "fichier": "src/app/api/auth/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST",
+        "GET",
+        "DELETE"
+      ]
+    },
+    {
+      "url": "/api/backup",
+      "type": "api",
+      "fichier": "src/app/api/backup/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST",
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cabine-attribution",
+      "type": "api",
+      "fichier": "src/app/api/cabine-attribution/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/chantier-lien",
+      "type": "api",
+      "fichier": "src/app/api/chantier-lien/route.ts",
+      "niveau": "signe-ou-connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/chantiers",
+      "type": "api",
+      "fichier": "src/app/api/chantiers/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/chat",
+      "type": "api",
+      "fichier": "src/app/api/chat/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/client/[token]",
+      "type": "api",
+      "fichier": "src/app/api/client/[token]/route.ts",
+      "niveau": "ouvert",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/client/[token]/track",
+      "type": "api",
+      "fichier": "src/app/api/client/[token]/track/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST",
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/controles",
+      "type": "api",
+      "fichier": "src/app/api/controles/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/crm",
+      "type": "api",
+      "fichier": "src/app/api/crm/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST",
+        "PATCH",
+        "DELETE"
+      ]
+    },
+    {
+      "url": "/api/crm/entry",
+      "type": "api",
+      "fichier": "src/app/api/crm/entry/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cron/backup",
+      "type": "api",
+      "fichier": "src/app/api/cron/backup/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cron/daily-report",
+      "type": "api",
+      "fichier": "src/app/api/cron/daily-report/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cron/rapport-hebdo",
+      "type": "api",
+      "fichier": "src/app/api/cron/rapport-hebdo/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cron/rdv-reminders",
+      "type": "api",
+      "fichier": "src/app/api/cron/rdv-reminders/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cron/stats-precalc",
+      "type": "api",
+      "fichier": "src/app/api/cron/stats-precalc/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cron/sync",
+      "type": "api",
+      "fichier": "src/app/api/cron/sync/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cron/warm-all",
+      "type": "api",
+      "fichier": "src/app/api/cron/warm-all/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/daily-report",
+      "type": "api",
+      "fichier": "src/app/api/daily-report/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/defauts",
+      "type": "api",
+      "fichier": "src/app/api/defauts/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST",
+        "DELETE",
+        "PATCH"
+      ]
+    },
+    {
+      "url": "/api/destockage",
+      "type": "api",
+      "fichier": "src/app/api/destockage/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST",
+        "PATCH",
+        "DELETE"
+      ]
+    },
+    {
+      "url": "/api/destockage-upload",
+      "type": "api",
+      "fichier": "src/app/api/destockage-upload/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/destockage/pdf",
+      "type": "api",
+      "fichier": "src/app/api/destockage/pdf/route.tsx",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/destockage/pdf/all",
+      "type": "api",
+      "fichier": "src/app/api/destockage/pdf/all/route.tsx",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/doc",
+      "type": "api",
+      "fichier": "src/app/api/doc/route.ts",
+      "niveau": "signe",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/doc-proxy",
+      "type": "api",
+      "fichier": "src/app/api/doc-proxy/route.ts",
+      "niveau": "ouvert",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/email-prefs",
+      "type": "api",
+      "fichier": "src/app/api/email-prefs/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/fiche/[id]",
+      "type": "api",
+      "fichier": "src/app/api/fiche/[id]/route.tsx",
+      "niveau": "signe-ou-connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/fiche/[id]/docs",
+      "type": "api",
+      "fichier": "src/app/api/fiche/[id]/docs/route.ts",
+      "niveau": "signe-ou-connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/file-proxy",
+      "type": "api",
+      "fichier": "src/app/api/file-proxy/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/finances",
+      "type": "api",
+      "fichier": "src/app/api/finances/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/force-sync",
+      "type": "api",
+      "fichier": "src/app/api/force-sync/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/geocode",
+      "type": "api",
+      "fichier": "src/app/api/geocode/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/gps-pointage/[projectId]",
+      "type": "api",
+      "fichier": "src/app/api/gps-pointage/[projectId]/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST",
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/logs",
+      "type": "api",
+      "fichier": "src/app/api/logs/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/mesures/[id]/download",
+      "type": "api",
+      "fichier": "src/app/api/mesures/[id]/download/route.ts",
+      "niveau": "signe-ou-connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/mesures/analyze/[id]",
+      "type": "api",
+      "fichier": "src/app/api/mesures/analyze/[id]/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/notifications",
+      "type": "api",
+      "fichier": "src/app/api/notifications/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST",
+        "PATCH"
+      ]
+    },
+    {
+      "url": "/api/notify",
+      "type": "api",
+      "fichier": "src/app/api/notify/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/notion-colors",
+      "type": "api",
+      "fichier": "src/app/api/notion-colors/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/notion-webhook",
+      "type": "api",
+      "fichier": "src/app/api/notion-webhook/route.ts",
+      "niveau": "ouvert",
+      "gardePage": false,
+      "methodes": [
+        "POST",
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/pdf/[id]",
+      "type": "api",
+      "fichier": "src/app/api/pdf/[id]/route.tsx",
+      "niveau": "signe-ou-connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/photos/[id]/download",
+      "type": "api",
+      "fichier": "src/app/api/photos/[id]/download/route.ts",
+      "niveau": "signe-ou-connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/photos/attach",
+      "type": "api",
+      "fichier": "src/app/api/photos/attach/route.ts",
+      "niveau": "ouvert",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/photos/sign",
+      "type": "api",
+      "fichier": "src/app/api/photos/sign/route.ts",
+      "niveau": "ouvert",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/pieces",
+      "type": "api",
+      "fichier": "src/app/api/pieces/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST",
+        "DELETE",
+        "PATCH"
+      ]
+    },
+    {
+      "url": "/api/planning-pdf",
+      "type": "api",
+      "fichier": "src/app/api/planning-pdf/route.tsx",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/preferences/dashboard-order/[collab]",
+      "type": "api",
+      "fichier": "src/app/api/preferences/dashboard-order/[collab]/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/projects",
+      "type": "api",
+      "fichier": "src/app/api/projects/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST",
+        "DELETE"
+      ]
+    },
+    {
+      "url": "/api/projects/[id]",
+      "type": "api",
+      "fichier": "src/app/api/projects/[id]/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
+      "url": "/api/projects/[id]/cabine-order",
+      "type": "api",
+      "fichier": "src/app/api/projects/[id]/cabine-order/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/projects/[id]/comments",
+      "type": "api",
+      "fichier": "src/app/api/projects/[id]/comments/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/projects/[id]/offres",
+      "type": "api",
+      "fichier": "src/app/api/projects/[id]/offres/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/all",
+      "type": "api",
+      "fichier": "src/app/api/projects/all/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/all-active",
+      "type": "api",
+      "fichier": "src/app/api/projects/all-active/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/cmd-termine",
+      "type": "api",
+      "fichier": "src/app/api/projects/cmd-termine/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/field-options",
+      "type": "api",
+      "fichier": "src/app/api/projects/field-options/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/mesures",
+      "type": "api",
+      "fichier": "src/app/api/projects/mesures/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/mesures-annulees",
+      "type": "api",
+      "fichier": "src/app/api/projects/mesures-annulees/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/mesures-sans-commande",
+      "type": "api",
+      "fichier": "src/app/api/projects/mesures-sans-commande/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/mesures-termine",
+      "type": "api",
+      "fichier": "src/app/api/projects/mesures-termine/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/sav",
+      "type": "api",
+      "fichier": "src/app/api/projects/sav/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/sav-termine",
+      "type": "api",
+      "fichier": "src/app/api/projects/sav-termine/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/search",
+      "type": "api",
+      "fichier": "src/app/api/projects/search/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/services",
+      "type": "api",
+      "fichier": "src/app/api/projects/services/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/services-termine",
+      "type": "api",
+      "fichier": "src/app/api/projects/services-termine/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/snapshot",
+      "type": "api",
+      "fichier": "src/app/api/projects/snapshot/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/version",
+      "type": "api",
+      "fichier": "src/app/api/projects/version/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/push/subscribe",
+      "type": "api",
+      "fichier": "src/app/api/push/subscribe/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST",
+        "DELETE"
+      ]
+    },
+    {
+      "url": "/api/rapport-fournisseurs",
+      "type": "api",
+      "fichier": "src/app/api/rapport-fournisseurs/route.tsx",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/rapport-mensuel",
+      "type": "api",
+      "fichier": "src/app/api/rapport-mensuel/route.tsx",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/rapport-signalements/[id]",
+      "type": "api",
+      "fichier": "src/app/api/rapport-signalements/[id]/route.tsx",
+      "niveau": "signe-ou-connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/rapport-stats",
+      "type": "api",
+      "fichier": "src/app/api/rapport-stats/route.tsx",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/reminders",
+      "type": "api",
+      "fichier": "src/app/api/reminders/route.ts",
+      "niveau": "ouvert",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/sav/[id]",
+      "type": "api",
+      "fichier": "src/app/api/sav/[id]/route.tsx",
+      "niveau": "signe-ou-connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/share-link",
+      "type": "api",
+      "fichier": "src/app/api/share-link/route.ts",
+      "niveau": "cle-secrete",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/signalements",
+      "type": "api",
+      "fichier": "src/app/api/signalements/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/stats/clients",
+      "type": "api",
+      "fichier": "src/app/api/stats/clients/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/stats/consultations",
+      "type": "api",
+      "fichier": "src/app/api/stats/consultations/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/stats/marques",
+      "type": "api",
+      "fichier": "src/app/api/stats/marques/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/stats/series",
+      "type": "api",
+      "fichier": "src/app/api/stats/series/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/stats/services",
+      "type": "api",
+      "fichier": "src/app/api/stats/services/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/stocks",
+      "type": "api",
+      "fichier": "src/app/api/stocks/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST",
+        "PATCH",
+        "DELETE"
+      ]
+    },
+    {
+      "url": "/api/sync-status",
+      "type": "api",
+      "fichier": "src/app/api/sync-status/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/synthese/[id]",
+      "type": "api",
+      "fichier": "src/app/api/synthese/[id]/route.tsx",
+      "niveau": "signe-ou-connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/telegram-webhook",
+      "type": "api",
+      "fichier": "src/app/api/telegram-webhook/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST",
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/transcribe",
+      "type": "api",
+      "fichier": "src/app/api/transcribe/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/upload",
+      "type": "api",
+      "fichier": "src/app/api/upload/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/user-activity",
+      "type": "api",
+      "fichier": "src/app/api/user-activity/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "POST",
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/users",
+      "type": "api",
+      "fichier": "src/app/api/users/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST",
+        "PATCH",
+        "DELETE"
+      ]
+    },
+    {
+      "url": "/ch/[token]",
+      "type": "page",
+      "fichier": "src/app/ch/[token]/page.tsx",
+      "niveau": "signe",
+      "gardePage": false,
+      "methodes": []
+    },
+    {
+      "url": "/client/[token]",
+      "type": "page",
+      "fichier": "src/app/client/[token]/page.tsx",
+      "niveau": "ouvert",
+      "gardePage": false,
+      "methodes": []
+    },
+    {
+      "url": "/client/[token]/mesures",
+      "type": "page",
+      "fichier": "src/app/client/[token]/mesures/page.tsx",
+      "niveau": "ouvert",
+      "gardePage": false,
+      "methodes": []
+    },
+    {
+      "url": "/f/[token]",
+      "type": "api",
+      "fichier": "src/app/f/[token]/route.ts",
+      "niveau": "signe",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/login",
+      "type": "page",
+      "fichier": "src/app/login/page.tsx",
+      "niveau": "ouvert",
+      "gardePage": false,
+      "methodes": []
+    },
+    {
+      "url": "/projet/[id]",
+      "type": "page",
+      "fichier": "src/app/projet/[id]/page.tsx",
+      "niveau": "admin-ecran",
+      "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/relances",
+      "type": "page",
+      "fichier": "src/app/relances/page.tsx",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": []
+    },
+    {
+      "url": "/s/[token]",
+      "type": "api",
+      "fichier": "src/app/s/[token]/route.ts",
+      "niveau": "signe",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/sav/[token]",
+      "type": "api",
+      "fichier": "src/app/sav/[token]/route.ts",
+      "niveau": "signe",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/sig/[token]",
+      "type": "api",
+      "fichier": "src/app/sig/[token]/route.ts",
+      "niveau": "signe",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    }
+  ]
+}

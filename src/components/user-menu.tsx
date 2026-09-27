@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette, Image as ImageIcon, Monitor, Mail, Loader2, Check, Radio, FileSpreadsheet, Package, TrendingUp, ClipboardCheck } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Waves, Palette, Image as ImageIcon, Monitor, Mail, Loader2, Check, Radio, FileSpreadsheet, Package, TrendingUp, ClipboardCheck, ShieldCheck } from "lucide-react";
 import { getCollaboratorInitials } from "@/lib/collaborators";
 import { isSaveToGalleryEnabled, setSaveToGalleryEnabled } from "@/lib/save-to-gallery";
 import { toast } from "sonner";
@@ -235,6 +235,15 @@ export function UserMenu() {
               >
                 <TrendingUp className="w-4 h-4" />
                 Indicateurs financiers
+              </button>
+            )}
+            {user.role === "admin" && (
+              <button
+                onClick={() => { setOpen(false); router.push("/admin/droits"); }}
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                Droits d&apos;accès
               </button>
             )}
             {user.role === "admin" && (
