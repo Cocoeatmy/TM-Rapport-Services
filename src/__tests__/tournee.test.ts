@@ -7,7 +7,8 @@
  */
 import { describe, it, expect } from "vitest";
 import {
-  preparerCandidats, construireTournee, enMinutes, enHeure, formatMinutes,
+  preparerCandidats, construireTournee, construireSemaine, prochainsJoursOuvres,
+  enMinutes, enHeure, formatMinutes,
   JOURNEE_MINUTES, type CandidatSource, type Position,
 } from "../lib/tournee";
 
@@ -138,5 +139,39 @@ describe("journée", () => {
 
   it("ne rend rien quand il n'y a aucun candidat", () => {
     expect(construireTournee([], { nombre: 3 }, depot)).toBeNull();
+  });
+});
+
+describe("semaine", () => {
+  it("ne place jamais deux fois le même chantier", () => {
+    const s = construireSemaine(candidats(), { nombre: 2, minutesMax: 600 }, depot, 3);
+    const ids = s.jours.flatMap((j) => j.tournee.etapes.map((e) => e.id));
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("n'impose les chantiers cochés que le premier jour", () => {
+    const s = construireSemaine(
+      candidats(), { nombre: 1, imposes: ["G"], minutesMax: 600 }, depot, 3);
+    expect(s.jours[0].tournee.etapes.map((e) => e.id)).toContain("G");
+    s.jours.slice(1).forEach((j) => {
+      expect(j.tournee.etapes.map((e) => e.id)).not.toContain("G");
+    });
+  });
+
+  it("annonce ce qui reste hors des journées planifiées", () => {
+    const s = construireSemaine(candidats(), { nombre: 1, minutesMax: 600 }, depot, 2);
+    const places = s.jours.flatMap((j) => j.tournee.etapes.length).reduce((a, b) => a + b, 0);
+    expect(places + s.restants.length).toBe(5);
+  });
+
+  it("propose des jours ouvrés, jamais un samedi ni un dimanche", () => {
+    // Le 26.09.2026 est un samedi.
+    const jours = prochainsJoursOuvres(5, new Date("2026-09-26T09:00:00"));
+    jours.forEach((iso) => {
+      const d = new Date(`${iso}T12:00:00`).getDay();
+      expect(d).not.toBe(0);
+      expect(d).not.toBe(6);
+    });
+    expect(jours[0]).toBe("2026-09-28");
   });
 });

@@ -3253,3 +3253,26 @@ html[data-ui="signal"] .sgq-ok {
   html[data-ui="signal"] .sgq-ligne { grid-template-columns: 92px minmax(0, 1fr) 18px; }
   html[data-ui="signal"] .sgq-ligne-statut { display: none; }
 }
+
+/* Onglets des journées d'une semaine planifiée. */
+html[data-ui="signal"] .sgt-jours {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  padding-bottom: 8px; border-bottom: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgt-jours button {
+  display: inline-flex; align-items: baseline; gap: 5px; cursor: pointer;
+  padding: 5px 10px; border-radius: 9px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-2); font-family: inherit; font-size: 12px; font-weight: 600;
+}
+html[data-ui="signal"] .sgt-jours button:hover { background: var(--sg-paper-2); }
+html[data-ui="signal"] .sgt-jours button b,
+html[data-ui="signal"] .sgt-jours button em {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-style: normal; font-size: 10.5px; font-weight: 600; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgt-jours button.is-on {
+  background: var(--sg-ink); border-color: var(--sg-ink); color: #fff;
+}
+html[data-ui="signal"] .sgt-jours button.is-on b,
+html[data-ui="signal"] .sgt-jours button.is-on em { color: var(--sg-on-ink-dim); }

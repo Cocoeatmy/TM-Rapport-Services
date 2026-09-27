@@ -21,10 +21,18 @@ import {
   Loader2, AlertTriangle, Home, Search, Plus,
 } from "lucide-react";
 import {
-  preparerCandidats, construireTournee, formatMinutes, DEPOT, JOURNEE_MINUTES,
-  type CandidatSource, type Tournee, type Position,
+  preparerCandidats, construireSemaine, formatMinutes, DEPOT, JOURNEE_MINUTES,
+  type CandidatSource, type Semaine, type Position,
 } from "@/lib/tournee";
 import { TourneeCarte } from "@/components/tournee-carte";
+
+/** « 2026-09-29 » → « Lun 29.09 » : la date proposée, pas un numéro de jour. */
+function nomDeJour(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  const nom = d.toLocaleDateString("fr-CH", { weekday: "short" });
+  return `${nom.charAt(0).toUpperCase()}${nom.slice(1).replace(".", "")} ${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 function normaliser(v: string): string {
   return (v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -68,7 +76,11 @@ export function TourneeAssistant({
   /** Heure d'arrivée imposée, par chantier — « HH:MM ». */
   const [heures, setHeures] = useState<Record<string, string>>({});
   const [departHeure, setDepartHeure] = useState("07:30");
-  const [resultat, setResultat] = useState<Tournee | null | "vide">(null);
+  /* Une journée n'est qu'une semaine d'un jour : un seul calcul, un seul
+     affichage, et le mode « semaine » n'est qu'un nombre de jours différent. */
+  const [nbJours, setNbJours] = useState(1);
+  const [semaine, setSemaine] = useState<Semaine | null | "vide">(null);
+  const [jourActif, setJourActif] = useState(0);
 
   /* ── Coordonnées ────────────────────────────────────────────────────────
      Sans elles, les trajets ne sont qu'une grille par code postal. Elles sont
@@ -142,7 +154,7 @@ export function TourneeAssistant({
   }, [candidats]);
 
   const calculer = () => {
-    const t = construireTournee(candidats, {
+    const s = construireSemaine(candidats, {
       nombre,
       secteur: secteur.trim() || undefined,
       cartonsMax: Number(cartonsMax) || 0,
@@ -150,9 +162,13 @@ export function TourneeAssistant({
       imposes: [...coches],
       heures,
       departHeure,
-    }, posDepot);
-    setResultat(t ?? "vide");
+    }, posDepot, nbJours);
+    setJourActif(0);
+    setSemaine(s.jours.length ? s : "vide");
   };
+
+  const jour = semaine && semaine !== "vide" ? semaine.jours[jourActif] : null;
+  const resultat = jour ? jour.tournee : null;
 
   const basculerCoche = (id: string) => {
     setCoches((prev) => {
@@ -190,11 +206,23 @@ export function TourneeAssistant({
           )}
 
           <label className="sgt-champ">
-            <span>Montages dans la journée</span>
+            <span>Montages par journée</span>
             <div className="sgt-nombre">
               {[2, 3, 4, 5, 6].map((n) => (
                 <button key={n} type="button" className={nombre === n ? "is-on" : ""}
                   onClick={() => setNombre(n)}>{n}</button>
+              ))}
+            </div>
+          </label>
+
+          {/* Planifier plusieurs jours d'affilée n'est pas répéter une journée :
+              ce qui est posé lundi ne peut plus l'être mardi. */}
+          <label className="sgt-champ">
+            <span>Jours à planifier <em>{nbJours === 1 ? "une journée" : "d'affilée"}</em></span>
+            <div className="sgt-nombre">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button key={n} type="button" className={nbJours === n ? "is-on" : ""}
+                  onClick={() => setNbJours(n)}>{n}</button>
               ))}
             </div>
           </label>
@@ -281,18 +309,35 @@ export function TourneeAssistant({
 
           <button type="button" className="sg-btn-primary sgt-go" onClick={calculer}>
             <Sparkles className="w-4 h-4" />
-            {coches.size > 0 ? "Compléter et ordonner la tournée" : "Proposer une tournée"}
+            {nbJours > 1
+              ? `Proposer ${nbJours} journées`
+              : coches.size > 0 ? "Compléter et ordonner la tournée" : "Proposer une tournée"}
           </button>
 
-          {resultat === "vide" && (
+          {semaine === "vide" && (
             <p className="sg-empty">
               Aucune combinaison ne tient dans ces contraintes. Élargissez le secteur,
               augmentez la durée de journée ou réduisez le nombre de montages.
             </p>
           )}
 
-          {resultat && resultat !== "vide" && (
+          {semaine && semaine !== "vide" && resultat && (
             <div className="sgt-resultat">
+              {semaine.jours.length > 1 && (
+                <div className="sgt-jours" role="tablist">
+                  {semaine.jours.map((j) => (
+                    <button key={j.index} type="button" role="tab"
+                      aria-selected={j.index === jourActif}
+                      className={j.index === jourActif ? "is-on" : ""}
+                      onClick={() => setJourActif(j.index)}>
+                      {nomDeJour(j.date)}
+                      <b>{j.tournee.etapes.length}</b>
+                      <em>{formatMinutes(j.tournee.minutesTotal)}</em>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="sgt-bilan">
                 <span className={resultat.heuresSupp ? "is-warn" : ""}>
                   <Clock className="w-3.5 h-3.5" />
@@ -333,7 +378,7 @@ export function TourneeAssistant({
                       <div className="sgt-suggests">
                         {resultat.suggestions.map((sg) => (
                           <button key={sg.candidat.id} type="button" className="sgt-suggest"
-                            onClick={() => { basculerCoche(sg.candidat.id); setResultat(null); }}>
+                            onClick={() => { basculerCoche(sg.candidat.id); setSemaine(null); }}>
                             <Plus className="w-3.5 h-3.5 shrink-0" />
                             <span className="sgt-suggest-txt">
                               <b className="sg-mono">{sg.candidat.ofrTM}</b> {sg.candidat.npa} {sg.candidat.localite}
@@ -405,6 +450,14 @@ export function TourneeAssistant({
                   );
                 })}
               </ol>
+
+              {semaine.restants.length > 0 && semaine.jours.length > 1 && (
+                <p className="sgt-note">
+                  {semaine.restants.length} montage{semaine.restants.length > 1 ? "s" : ""} hors
+                  de ces {semaine.jours.length} journées — les plus éloignés, ou ceux qui ne
+                  tiennent pas dans le temps restant.
+                </p>
+              )}
 
               <p className="sgt-note">
                 Départ de {DEPOT} à {departHeure}, retour au même dépôt à {resultat.retourDepot},

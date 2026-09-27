@@ -510,3 +510,69 @@ export function formatMinutes(min: number): string {
   const m = Math.round(min % 60);
   return m ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
 }
+
+/* ── Semaine ──────────────────────────────────────────────────────────────
+   Planifier cinq journées d'affilée n'est pas planifier cinq fois une
+   journée : ce qui est posé lundi ne peut plus l'être mardi. On construit
+   donc les jours l'un après l'autre en retirant à chaque fois les chantiers
+   déjà placés. Comme chaque journée est complétée « au moins coûteux », les
+   chantiers d'une même région tombent naturellement le même jour, ce qui
+   évite de traverser deux fois le canton dans la semaine. */
+
+export interface JourTournee {
+  /** Rang dans la semaine, 0 pour le premier jour. */
+  index: number;
+  /** Date ouvrable proposée, au format ISO court. */
+  date: string;
+  tournee: Tournee;
+}
+
+export interface Semaine {
+  jours: JourTournee[];
+  /** Chantiers qui n'entrent dans aucune des journées demandées. */
+  restants: Candidat[];
+}
+
+/** Les n prochains jours ouvrés, aujourd'hui compris s'il en est un. */
+export function prochainsJoursOuvres(n: number, depuis: Date = new Date()): string[] {
+  const jours: string[] = [];
+  const d = new Date(depuis.getFullYear(), depuis.getMonth(), depuis.getDate());
+  while (jours.length < n) {
+    const jour = d.getDay();
+    if (jour !== 0 && jour !== 6) {
+      jours.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return jours;
+}
+
+export function construireSemaine(
+  candidats: Candidat[],
+  contraintes: Contraintes,
+  posDepot?: Position | null,
+  nbJours = 5,
+  depuis: Date = new Date(),
+): Semaine {
+  const dates = prochainsJoursOuvres(nbJours, depuis);
+  let restants = [...candidats];
+  const jours: JourTournee[] = [];
+
+  for (let i = 0; i < nbJours; i++) {
+    /* Les chantiers imposés et leurs heures ne valent que pour le PREMIER
+       jour : ce sont les rendez-vous que l'utilisateur a déjà en tête. Les
+       jours suivants sont librement composés dans ce qui reste. */
+    const duJour: Contraintes = i === 0
+      ? contraintes
+      : { ...contraintes, imposes: [], obligatoire: undefined, heures: {} };
+
+    const t = construireTournee(restants, duJour, posDepot);
+    if (!t || t.etapes.length === 0) break;
+
+    jours.push({ index: i, date: dates[i], tournee: t });
+    const pris = new Set(t.etapes.map((e) => e.id));
+    restants = restants.filter((c) => !pris.has(c.id));
+  }
+
+  return { jours, restants };
+}
