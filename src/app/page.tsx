@@ -8,7 +8,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, ShieldCheck, Compass, Receipt, AlertTriangle, CheckCircle2, Clock, Truck } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, ShieldCheck, Compass, Receipt, AlertTriangle, CheckCircle2, Clock, Truck, Building2 } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +80,11 @@ const DestockageView = dynamic(() => import("@/components/destockage-view").then
 });
 
 const ArrivagePage = dynamic(() => import("@/components/arrivage-page"), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const ChantiersView = dynamic(() => import("@/components/chantiers-view").then(m => ({ default: m.ChantiersView })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
@@ -435,6 +440,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
           { id: "sanitaires",   label: "Sanitaires",      Icon: Droplets,    active: mode === "sanitaires",                                 act: () => { handleSelect("sanitaires"); setOpen(null); } },
           { id: "rapport",      label: "Rapport",         Icon: FileText,    active: mode === "rapport",                                    act: () => { handleSelect("rapport"); setOpen(null); } },
           { id: "destockage",   label: "Déstockage",      Icon: Archive,     active: mode === "destockage",                                 act: () => { handleSelect("destockage"); setOpen(null); } },
+          { id: "chantiers",    label: "Chantiers PPE",   Icon: Building2,   active: mode === "chantiers",                                  act: () => { handleSelect("chantiers"); setOpen(null); } },
           ...(isAdmin ? [{ id: "stats", label: "Stats", Icon: BarChart2, active: mode === "stats", act: () => { handleSelect("stats"); setOpen(null); } }] : []),
         ].map((it) => (
           <button
@@ -488,6 +494,14 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
           <button onClick={() => { handleSelect("destockage"); setOpen(null); }} className={tabCls(mode === "destockage")}>
             Déstockage
           </button>
+          {/* Chantiers PPE : rendu UNIQUEMENT en thème Signal, où il complète le
+              rail du bureau. Les autres thèmes gardent leur barre d'onglets à
+              l'identique. */}
+          {isSignal && (
+            <button onClick={() => { handleSelect("chantiers"); setOpen(null); }} className={tabCls(mode === "chantiers")}>
+              Chantiers
+            </button>
+          )}
           {isAdmin && (
             <button onClick={() => { handleSelect("stats"); setOpen(null); }} className={tabCls(mode === "stats")}>
               Stats
@@ -1406,8 +1420,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv" | "arrivage";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts", "arrivage"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv" | "arrivage" | "chantiers";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts", "arrivage", "chantiers"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -2614,7 +2628,7 @@ function HomePage() {
               (SignalHeaderBar) : on ne le duplique pas ici. */}
           {floatingWindowButton}
 
-          {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
+          {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
             <button
               onClick={() => setShowNewProject(true)}
               className="w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
@@ -4815,7 +4829,7 @@ function HomePage() {
       })()}
 
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
         <div className="flex gap-3 mb-4 sgv-tiles">
           <button
             onClick={() => setViewMode("calendar")}
@@ -5799,6 +5813,11 @@ function HomePage() {
       {mode === "arrivage" && <ArrivagePage />}
 
       {/* ======================================================== */}
+      {/* VUE CHANTIERS — PPE / locatif, suivi lot par lot          */}
+      {/* ======================================================== */}
+      {mode === "chantiers" && <ChantiersView />}
+
+      {/* ======================================================== */}
       {/* CleanMyMac Hero — Mesures (affiché à la place de la liste)  */}
       {/* ======================================================== */}
       {isCmm && mode === "mesures" && cmmHeroMode === "mesures" && (
@@ -6212,7 +6231,7 @@ function HomePage() {
       {(() => {
         const cmmHeroModes = ["mesures", "cmd", "services", "sav", "garanties", "rdv", "clients-contacts", "clients-entreprises", "projets-tous", "archives", "grossistes", "fournisseurs", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "signalements", "arrivage"];
         const cmmHeroActive = isCmm && cmmHeroModes.includes(mode) && cmmHeroMode === mode;
-        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && !cmmHeroActive;
+        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && !cmmHeroActive;
       })() && (<>
         {/* Bouton retour vers hero CMM (visible après avoir cliqué un bouton d'action) */}
         {isCmm && ["mesures","cmd","services","sav","projets-tous","archives","rapport","collaborateurs","emplacement-cabines","calendrier"].includes(mode) && cmmHeroMode === null && (

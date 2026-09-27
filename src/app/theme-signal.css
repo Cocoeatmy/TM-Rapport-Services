@@ -2812,3 +2812,259 @@ html[data-ui="signal"] .sgc-row-cab {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ── Chantiers PPE & locatif ──────────────────────────────────────────────
+   Un tableau de suivi qui remplace un classeur Excel : il doit rester dense
+   et lisible sur une largeur d'écran, d'où la police monospace pour les
+   colonnes de dates et de numéros, et le défilement horizontal du tableau
+   plutôt qu'un retour à la ligne qui casserait l'alignement des colonnes. */
+html[data-ui="signal"] .sgch { display: flex; flex-direction: column; gap: 14px; }
+
+html[data-ui="signal"] .sgch-entete h2 {
+  margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.01em;
+  color: var(--sg-text);
+}
+html[data-ui="signal"] .sgch-entete p {
+  margin: 3px 0 0; font-size: 12px; color: var(--sg-text-3); line-height: 1.45;
+}
+
+html[data-ui="signal"] .sgch-detail-head { display: flex; align-items: center; gap: 8px; }
+html[data-ui="signal"] .sgch-retour,
+html[data-ui="signal"] .sgch-export {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  height: 30px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--sg-line-strong); background: var(--sg-paper);
+  color: var(--sg-text-2); font-family: inherit; font-size: 12px; font-weight: 600;
+}
+html[data-ui="signal"] .sgch-retour:hover { background: var(--sg-paper-2); }
+html[data-ui="signal"] .sgch-export {
+  margin-left: auto; border-color: var(--sg-signal);
+  background: var(--sg-signal-soft); color: var(--sg-signal);
+}
+html[data-ui="signal"] .sgch-export:hover { background: var(--sg-signal); color: #fff; }
+
+/* Barre d'outils : recherche à gauche, réglage à droite. */
+html[data-ui="signal"] .sgch-barre {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+html[data-ui="signal"] .sgch-recherche {
+  flex: 1; min-width: 200px;
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 34px; padding: 0 10px; border-radius: 10px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgch-recherche input {
+  flex: 1; min-width: 0; border: 0; background: transparent; outline: none;
+  font-family: inherit; font-size: 12.5px; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgch-recherche button {
+  display: inline-flex; border: 0; background: transparent; cursor: pointer;
+  color: var(--sg-text-3); padding: 2px;
+}
+html[data-ui="signal"] .sgch-compte {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 11px; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgch-seuil {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgch-seuil em { font-style: normal; }
+html[data-ui="signal"] .sgch-seuil button {
+  min-width: 28px; height: 26px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-2); font-family: var(--font-mono); font-size: 11.5px; font-weight: 600;
+}
+html[data-ui="signal"] .sgch-seuil button.is-on {
+  background: var(--sg-ink); border-color: var(--sg-ink); color: #fff;
+}
+
+/* Liste : une ligne par chantier, avec l'avancement d'un coup d'œil. */
+html[data-ui="signal"] .sgch-liste {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--sg-line); border-radius: 12px;
+  background: var(--sg-paper); overflow: hidden;
+}
+html[data-ui="signal"] .sgch-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 9px 12px; cursor: pointer; text-align: left;
+  border: 0; border-bottom: 1px solid var(--sg-line);
+  background: var(--sg-paper); color: var(--sg-text); font-family: inherit;
+}
+html[data-ui="signal"] .sgch-row:last-child { border-bottom: 0; }
+html[data-ui="signal"] .sgch-row:hover { background: var(--sg-paper-2); }
+html[data-ui="signal"] .sgch-row-main {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px;
+}
+html[data-ui="signal"] .sgch-row-main b {
+  font-size: 13px; font-weight: 600; line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgch-row-main em {
+  font-style: normal; font-size: 11px; color: var(--sg-text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgch-row-chiffres {
+  display: flex; gap: 10px; flex-shrink: 0;
+  font-size: 10.5px; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgch-row-chiffres b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 12px; color: var(--sg-text);
+}
+/* Les quatre étapes se superposent (mesuré ⊇ commandé ⊇ livré ⊇ posé) :
+   empilées côte à côte, leurs largeurs dépasseraient 100 %. */
+html[data-ui="signal"] .sgch-row-prog {
+  position: relative; flex-shrink: 0;
+  width: 140px; height: 8px; border-radius: 999px;
+  background: var(--sg-grp-bg); overflow: hidden;
+}
+html[data-ui="signal"] .sgch-seg {
+  position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px;
+}
+html[data-ui="signal"] .sgch-seg.is-mes { background: #c7d6ef; }
+html[data-ui="signal"] .sgch-seg.is-cmd { background: #8fb0e6; }
+html[data-ui="signal"] .sgch-seg.is-liv { background: #4f83db; }
+html[data-ui="signal"] .sgch-seg.is-pos { background: var(--sg-ink); }
+html[data-ui="signal"] .sgch-row-pose {
+  flex-shrink: 0; width: 62px; text-align: right;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 11px; color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sgch-chev { color: var(--sg-text-3); flex-shrink: 0; }
+
+/* Jauges du détail. */
+html[data-ui="signal"] .sgch-jauges {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
+}
+html[data-ui="signal"] .sgch-jauge {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 9px 11px; border-radius: 11px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+}
+html[data-ui="signal"] .sgch-jauge-tete {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgch-jauge-tete b {
+  margin-left: auto; color: var(--sg-text);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 12px;
+}
+html[data-ui="signal"] .sgch-jauge-piste {
+  display: block; height: 6px; border-radius: 999px;
+  background: var(--sg-grp-bg); overflow: hidden;
+}
+html[data-ui="signal"] .sgch-jauge-fill {
+  display: block; height: 100%; border-radius: 999px; background: var(--sg-ink);
+}
+html[data-ui="signal"] .sgch-jauge-pct {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 10px; color: var(--sg-text-3);
+}
+
+/* Tableau des lots. */
+html[data-ui="signal"] .sgch-table-wrap {
+  border: 1px solid var(--sg-line); border-radius: 12px;
+  background: var(--sg-paper); overflow-x: auto;
+}
+html[data-ui="signal"] .sgch-table {
+  width: 100%; border-collapse: collapse; font-size: 11.5px;
+}
+html[data-ui="signal"] .sgch-table th {
+  position: sticky; top: 0; z-index: 1; text-align: left; white-space: nowrap;
+  padding: 7px 9px; background: var(--sg-grp-bg); color: var(--sg-text-2);
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--sg-grp-line);
+}
+html[data-ui="signal"] .sgch-table td {
+  padding: 6px 9px; vertical-align: top; color: var(--sg-text-2);
+  border-bottom: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgch-table tr:last-child td { border-bottom: 0; }
+html[data-ui="signal"] .sgch-table tbody tr:hover td { background: var(--sg-paper-2); }
+html[data-ui="signal"] .sgch-table .sgch-c { text-align: center; white-space: nowrap; }
+html[data-ui="signal"] .sgch-mono {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 11px;
+}
+html[data-ui="signal"] .sgch-lot a {
+  color: var(--sg-text); font-weight: 600; text-decoration: none;
+}
+html[data-ui="signal"] .sgch-lot a:hover { color: var(--sg-signal); text-decoration: underline; }
+html[data-ui="signal"] .sgch-lot em {
+  font-style: normal; margin-left: 5px; font-size: 10px; color: var(--sg-text-3);
+  font-family: var(--font-mono);
+}
+html[data-ui="signal"] .sgch-infos,
+html[data-ui="signal"] .sgch-serie,
+html[data-ui="signal"] .sgch-d {
+  display: block; font-size: 10px; color: var(--sg-text-3); line-height: 1.35;
+}
+html[data-ui="signal"] .sgch-d {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+}
+html[data-ui="signal"] .sgch-infos {
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgch-vide { color: var(--sg-text-3); }
+html[data-ui="signal"] .sgch-statut { font-size: 11px; white-space: nowrap; }
+/* OUI / NON : c'est la colonne que l'œil balaie, elle doit trancher. */
+html[data-ui="signal"] .sgch-ou {
+  display: inline-block; padding: 1px 6px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+  background: #fdecea; color: #b42318;
+}
+html[data-ui="signal"] .sgch-ou.is-oui { background: #e7f6ec; color: #17683a; }
+
+html[data-ui="signal"] .sgch-vide-msg {
+  margin: 0; padding: 18px 4px; text-align: center;
+  font-size: 12.5px; color: var(--sg-text-3);
+}
+
+/* Offres du chantier, sous le tableau : accès direct aux fiches. */
+html[data-ui="signal"] .sgch-offres { display: flex; flex-direction: column; gap: 2px; }
+html[data-ui="signal"] .sgch-offres h3 {
+  display: flex; align-items: center; gap: 6px; margin: 0 0 4px;
+  font-size: 12px; font-weight: 700; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgch-offre {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px; border-radius: 8px; text-decoration: none;
+  border: 1px solid transparent; border-bottom-color: var(--sg-line);
+  background: var(--sg-paper); color: var(--sg-text-2); font-size: 11.5px;
+}
+html[data-ui="signal"] .sgch-offre:hover {
+  background: var(--sg-paper-2); border-color: var(--sg-line-strong);
+}
+html[data-ui="signal"] .sgch-offre b {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgch-offre > span:not(.sgch-offre-st) {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgch-offre em {
+  flex-shrink: 0; font-style: normal; font-size: 10.5px; color: var(--sg-text-3);
+  font-family: var(--font-mono);
+}
+html[data-ui="signal"] .sgch-offre-st {
+  flex-shrink: 0; font-size: 10.5px; color: var(--sg-text-3);
+  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Mode sombre : les pastilles OUI/NON et les segments d'avancement. */
+html[data-ui="signal"].dark .sgch-ou { background: #3a1b1b; color: #ff9c92; }
+html[data-ui="signal"].dark .sgch-ou.is-oui { background: #14301f; color: #63d18e; }
+html[data-ui="signal"].dark .sgch-seg.is-mes { background: #24344d; }
+html[data-ui="signal"].dark .sgch-seg.is-cmd { background: #33517f; }
+html[data-ui="signal"].dark .sgch-seg.is-liv { background: #3f72c4; }
+html[data-ui="signal"].dark .sgch-seg.is-pos { background: #7fb0ff; }
+html[data-ui="signal"].dark .sgch-jauge-fill { background: #7fb0ff; }
+
+/* Écrans étroits : les jauges passent sur deux rangs, la ligne de liste se
+   simplifie (l'avancement détaillé reste dans la fiche du chantier). */
+@media (max-width: 720px) {
+  html[data-ui="signal"] .sgch-jauges { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-ui="signal"] .sgch-row-prog { width: 70px; }
+  html[data-ui="signal"] .sgch-row-chiffres { flex-direction: column; gap: 0; }
+  html[data-ui="signal"] .sgch-row-pose { display: none; }
+}
