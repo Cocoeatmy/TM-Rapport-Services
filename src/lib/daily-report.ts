@@ -3,7 +3,7 @@
 
 import type { Project } from "@/lib/notion";
 import { escapeHtml } from "@/lib/telegram";
-import { docLink } from "@/lib/doc-link";
+import { docLink, appBaseUrl } from "@/lib/doc-link";
 
 /** ISO local (YYYY-MM-DD) d'une date. */
 export function isoDay(d: Date): string {
@@ -149,9 +149,40 @@ function projectCardHtml(p: Project): string {
 }
 
 /** Corps HTML de l'e-mail du rapport quotidien. */
+/**
+ * Bandeau de contrôle, ajouté au rapport des SEULS administrateurs.
+ *
+ * Les pages Anomalie Notion et Relances ne seront consultées que les jours où
+ * l'on y pense ; deux chiffres dans l'e-mail du matin suffisent à ramener
+ * l'attention dessus quand il y a lieu. Un monteur n'a rien à en faire : ce
+ * bandeau ne part pas dans son rapport.
+ */
+function bandeauControle(a: { anomalies: number; relances: number }, base: string): string {
+  if (a.anomalies === 0 && a.relances === 0) return "";
+  const lien = (url: string, txt: string) =>
+    `<a href="${escapeHtml(base)}${url}" style="color:#92500e;font-weight:700">${escapeHtml(txt)}</a>`;
+  const morceaux: string[] = [];
+  if (a.anomalies > 0) {
+    morceaux.push(lien("/admin/anomalies",
+      `${a.anomalies} fiche${a.anomalies > 1 ? "s" : ""} à corriger`));
+  }
+  if (a.relances > 0) {
+    morceaux.push(lien("/relances",
+      `${a.relances} dossier${a.relances > 1 ? "s" : ""} à relancer`));
+  }
+  return `<div style="background:#fff8ec;border:1px solid #f2d9a6;border-radius:10px;padding:10px 14px;margin:0 0 16px">
+      <p style="color:#92500e;font-size:13px;margin:0">⚠️ ${morceaux.join(" &nbsp;·&nbsp; ")}</p>
+    </div>`;
+}
+
 export function buildDailyReportEmailHtml(
   projects: Project[],
-  opts: { dayIso: string; greetName?: string },
+  opts: {
+    dayIso: string;
+    greetName?: string;
+    /** Compteurs de contrôle — renseignés pour les administrateurs seulement. */
+    alertes?: { anomalies: number; relances: number };
+  },
 ): string {
   const dateLabel = new Date(opts.dayIso + "T12:00:00").toLocaleDateString("fr-CH", {
     weekday: "long", day: "2-digit", month: "long", year: "numeric",
@@ -168,6 +199,7 @@ export function buildDailyReportEmailHtml(
     </div>
     <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;padding:20px 24px">
       ${opts.greetName ? `<p style="color:#1e293b;font-size:15px;margin:0 0 8px">Bonjour ${escapeHtml(opts.greetName)} 👋</p>` : ""}
+      ${opts.alertes ? bandeauControle(opts.alertes, appBaseUrl()) : ""}
       ${intro}
       ${projects.map(projectCardHtml).join("")}
     </div>

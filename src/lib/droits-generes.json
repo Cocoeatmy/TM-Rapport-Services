@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-09-27T20:08:44.164Z",
+  "genereLe": "2026-09-27T20:14:27.614Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -329,6 +329,16 @@
       "gardePage": false,
       "methodes": [
         "POST"
+      ]
+    },
+    {
+      "url": "/api/daily-report/apercu",
+      "type": "api",
+      "fichier": "src/app/api/daily-report/apercu/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET"
       ]
     },
     {
@@ -1121,6 +1131,14 @@
       "fichier": "src/app/projet/[id]/page.tsx",
       "niveau": "admin-ecran",
       "gardePage": true,
+      "methodes": []
+    },
+    {
+      "url": "/rapport-quotidien",
+      "type": "page",
+      "fichier": "src/app/rapport-quotidien/page.tsx",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
       "methodes": []
     },
     {

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
-import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
@@ -2951,6 +2951,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               {/* Relances : une page à part, et non un panneau. Son calcul
                   porte sur TOUS les projets, terminés compris, et se fait côté
                   serveur — le tableau de bord n'a pas ces données en main. */}
+              <Link href="/rapport-quotidien" className="sg-signal-row">
+                <span className="sg-signal-chip" style={{ background: "#fdf3d8", color: "#b45309" }}>
+                  <Sun className="w-3.5 h-3.5" />
+                </span>
+                <span className="sg-signal-label">Rapport quotidien</span>
+                <span className="sg-signal-count" style={{ color: "#b45309" }}>
+                  {todayMontages}
+                </span>
+                <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+              </Link>
               <Link href="/relances" className="sg-signal-row">
                 <span className="sg-signal-chip" style={{ background: "#e4ecff", color: "#1d4ed8" }}>
                   <BellRing className="w-3.5 h-3.5" />

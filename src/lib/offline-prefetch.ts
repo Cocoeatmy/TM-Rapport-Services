@@ -18,6 +18,40 @@ import type { Project } from "./notion";
 const LS_OFFLINE_READY    = "tm-offline-ready-projects";
 const LS_LAST_PREFETCH    = "tm-offline-prefetch-ts"; // timestamp Unix (ms)
 
+/** Champ Notion des documents de montage — le nom attendu par /api/file-proxy. */
+const CHAMP_DOCS = "Documents pour Montage";
+/** Au-delà, on encombre le téléphone pour un plan qu'on n'ouvrira pas. */
+const MAX_DOCS = 6;
+
+/**
+ * Pré-cache les documents de montage d'un projet imminent.
+ *
+ * C'est ce qui manquait vraiment hors ligne : la page projet et ses données
+ * étaient déjà là, mais les plans — ce qu'on ouvre réellement dans un sous-sol
+ * sans réseau — n'arrivaient qu'à la première consultation, donc en ligne.
+ *
+ * Les octets passent par /api/file-proxy, que le service worker sait servir
+ * depuis son cache quand le réseau manque. On ne touche PAS aux PDF générés
+ * (fiche de travail, rapports) : ils sont volontairement exclus du cache, un
+ * PDF périmé ayant déjà causé assez de confusion.
+ */
+async function prefetchDocuments(project: Project): Promise<void> {
+  const docs = (project.documentsMontagee || []).slice(0, MAX_DOCS);
+  if (docs.length === 0) return;
+  const urls = docs.map((_, i) =>
+    `${location.origin}/api/file-proxy?projectId=${encodeURIComponent(project.id)}`
+    + `&field=${encodeURIComponent(CHAMP_DOCS)}&index=${i}`);
+
+  // Le service worker met en cache ce qu'on lui désigne explicitement : une
+  // simple requête ne suffit pas ici, /api/file-proxy répondant par une
+  // redirection que le SW laisse passer tant qu'on est en ligne.
+  try {
+    const reg = await navigator.serviceWorker?.ready;
+    const sw = reg?.active || navigator.serviceWorker?.controller;
+    if (sw) sw.postMessage({ type: "PRECACHE_URLS", urls });
+  } catch { /* pas de service worker : tant pis, l'app reste utilisable */ }
+}
+
 /** Pré-cache une page projet et ses données API essentielles. */
 async function prefetchOne(projectId: string): Promise<void> {
   const urls = [
@@ -86,10 +120,22 @@ export async function prefetchTodaysProjects(
   // Marque immédiatement l'exécution pour éviter le double-déclenchement.
   try { localStorage.setItem(LS_LAST_PREFETCH, String(Date.now())); } catch {}
 
+  /* Les documents ne sont pré-cachés que pour les montages IMMINENTS — le jour
+     même et le lendemain. Sur sept jours, on téléchargerait des dizaines de
+     plans dont la plupart auront changé d'ici là. */
+  const demain = new Date();
+  demain.setDate(demain.getDate() + 1);
+  const demainStr = demain.toISOString().split("T")[0];
+  const imminent = (p: Project) => {
+    const d = (p.dateMontage || "").split("T")[0];
+    return d === todayStr || d === demainStr;
+  };
+
   // Pré-cache en séquence avec pause pour ne pas surcharger le réseau
   // Limite augmentée à 20 projets (7 jours × quelques projets/jour)
   for (const p of mine.slice(0, 20)) {
     await prefetchOne(p.id);
+    if (imminent(p)) await prefetchDocuments(p);
     await sleep(300); // étale les requêtes
   }
 
