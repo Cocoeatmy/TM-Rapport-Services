@@ -75,11 +75,11 @@ function Jauge({ Icon, label, n, total }: {
 /* ── Détail d'un chantier ───────────────────────────────────────────────── */
 function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) {
   const [filtre, setFiltre] = useState("");
-  /* Un chantier de quatre-vingts lots s'ouvre sur ce qu'il reste à faire :
-     les lots clôturés sont à un clic, mais ne noient plus les autres. Sur un
-     chantier soldé, ce filtre n'ouvrirait qu'une page vide — on montre tout. */
-  const [etat, setEtat] = useState<Etat>(
-    () => (c.lots.some((l) => l.statut !== "Terminé") ? "encours" : "tous"));
+  /* La fiche montre TOUT le chantier : un immeuble se lit d'un bloc, et un lot
+     posé l'an dernier fait partie de son histoire — son statut « Terminé »
+     suffit à le distinguer. Les pastilles restent là pour isoler ce qui reste
+     à faire quand la liste est longue. */
+  const [etat, setEtat] = useState<Etat>("tous");
 
   const comptes = useMemo(() => ({
     tous: c.lots.length,
@@ -273,7 +273,11 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
                       </span>
                       {l.datePose ? <span className="sgch-d">{jour(l.datePose)}</span> : null}
                     </td>
-                    <td className="sgch-statut">{l.statut || "—"}</td>
+                    <td className="sgch-statut">
+                      {l.statut === "Terminé"
+                        ? <span className="sgch-fini">Terminé</span>
+                        : (l.statut || "—")}
+                    </td>
                   </tr>
                   {deplie && g.lots.map((x) => (
                     <tr key={`${g.cle}-${x.cab}`} className="sgch-sous">
