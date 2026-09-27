@@ -5248,7 +5248,14 @@ function ProjectPageContent({ id }: { id: string }) {
         }
       } catch {}
     };
-    const interval = setInterval(refetch, 15_000); // 15 s — sans cache CDN, pas d'ISR Writes
+    /* 20 s, et rien quand l'écran est éteint : un monteur laisse la fiche
+       ouverte toute la journée sur le chantier, et ces relectures réveillaient
+       la radio sans que personne ne regarde. Le retour au premier plan
+       relit immédiatement (juste en dessous). */
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      refetch();
+    }, 20_000);
     // Refetch immédiat quand l'onglet redevient visible : "instant
     // fresh" au retour sur l'app sans attendre le prochain tick.
     const onVisible = () => {

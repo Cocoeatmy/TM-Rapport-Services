@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Timer, MapPin, LogOut } from "lucide-react";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 
@@ -90,18 +90,32 @@ export function AdminGpsTimer({ projectId }: AdminGpsTimerProps) {
       }
     };
     load();
-    const interval = setInterval(load, 30000);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      load();
+    }, 30000);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
   }, [projectId]);
 
-  // Tick toutes les secondes pour le chrono live des sessions ouvertes.
+  /* Chrono des sessions ouvertes : une seconde, mais UNIQUEMENT s'il y a une
+     session en cours et que l'écran est allumé. Sans ces deux conditions,
+     l'application se redessinait une fois par seconde toute la journée pour
+     afficher une durée figée. */
+  const sessionOuverte = useMemo(
+    () => buildSessions(events).some((x) => !x.departure),
+    [events],
+  );
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 1000);
+    if (!sessionOuverte) return;
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      setNow(Date.now());
+    }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [sessionOuverte]);
 
   if (!loaded) return null;
   if (events.length === 0) {

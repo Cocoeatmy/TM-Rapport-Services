@@ -45,8 +45,17 @@ export function ProjectChat({ projectId }: { projectId: string }) {
   // batterie & data.
   useEffect(() => {
     loadMessages();
-    const interval = setInterval(loadMessages, open ? 10000 : 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadMessages();
+    }, open ? 10000 : 30000);
+    // Retour au premier plan : on relit tout de suite, sans attendre le tick.
+    const auRetour = () => { if (!document.hidden) loadMessages(); };
+    document.addEventListener("visibilitychange", auRetour);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", auRetour);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, projectId]);
 

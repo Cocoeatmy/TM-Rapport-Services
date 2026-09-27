@@ -14,6 +14,7 @@ import { saveToCache, getCacheTimestamp, getQueue, processQueue, isOnline } from
 import { processPendingUploads, countPendingUploads, retryAllFailedUploads, resetBackoffForAll, countPermanentlyFailed } from "@/lib/idb-uploads";
 import { acquireWakeLock, releaseWakeLock, reacquireWakeLockIfWanted } from "@/lib/wake-lock";
 import { toast } from "sonner";
+import { intervalleVisible } from "@/lib/timers";
 
 export function SyncButton() {
   const [syncing, setSyncing] = useState(false);
@@ -124,7 +125,11 @@ export function SyncButton() {
     };
     document.addEventListener("visibilitychange", handleVisibility);
 
-    const interval = setInterval(async () => {
+    /* Cette boucle interroge le serveur et lit la file locale : elle n'a
+       aucune raison de tourner écran éteint, où iOS la ralentit de toute façon
+       sans cesser de réveiller la radio. */
+    const arreter = intervalleVisible(() => { void tick(); }, 30000, false);
+    const tick = async () => {
       await refreshCount();
       const upCount = await countPendingUploads();
       const failedCount = await countPermanentlyFailed();
@@ -151,7 +156,7 @@ export function SyncButton() {
           autoSync();
         }
       } catch {}
-    }, 30000);
+    };
 
     return () => {
       cancelled = true;
@@ -161,7 +166,7 @@ export function SyncButton() {
       window.removeEventListener("tm-pending-upload-removed", onPendingRemoved);
       window.removeEventListener("tm-offline-queued", onPendingChange);
       document.removeEventListener("visibilitychange", handleVisibility);
-      clearInterval(interval);
+      arreter();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -177,8 +182,8 @@ export function SyncButton() {
   // Recalcule la couleur du nuage (vert/orange/rouge) au fil du temps même
   // sans nouvelle synchro.
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 30000);
-    return () => clearInterval(id);
+    const arreterTick = intervalleVisible(() => setTick((t) => t + 1), 30000);
+    return arreterTick;
   }, []);
 
   const autoSyncingRef = useRef(false);

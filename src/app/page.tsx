@@ -2185,6 +2185,10 @@ function HomePage() {
         ? ACTIVE_DASH
         : (MODE_API[mode] ? [MODE_API[mode]] : []);
       if (urls.length === 0) return;
+      /* Écran éteint ou application en arrière-plan : ces quatre requêtes ne
+         servent à personne et réveillent la radio. Le retour au premier plan
+         déclenche un rafraîchissement immédiat (plus bas). */
+      if (typeof document !== "undefined" && document.hidden) return;
       urls.forEach(applyUrl);
       // Double-tap : capte la revalidation serveur déclenchée par la 1re passe.
       setTimeout(() => {
@@ -2193,7 +2197,13 @@ function HomePage() {
       }, 7000);
     };
     const timer = setInterval(poll, POLL_MS);
-    return () => clearInterval(timer);
+    // Au retour au premier plan, on ne fait pas attendre l'utilisateur.
+    const auRetour = () => { if (!document.hidden) poll(); };
+    document.addEventListener("visibilitychange", auRetour);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", auRetour);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]); // relancé à chaque changement de mode
 

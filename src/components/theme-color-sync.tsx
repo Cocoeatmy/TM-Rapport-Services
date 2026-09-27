@@ -66,9 +66,13 @@ export function ThemeColorSync() {
     const obs = new MutationObserver(apply);
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-ui", "data-cmm-active-section"] });
     obs.observe(document.body, { attributes: true, attributeFilter: ["class", "style"] });
-    // Repli : certains fonds changent via `:has(...)` (onglet actif) sans muter
-    // d'attribut observé → on ré-échantillonne périodiquement (léger).
-    const t = window.setInterval(apply, 1500);
+    /* Repli : certains fonds changent via `:has(...)` (onglet actif) sans
+       muter d'attribut observé → on ré-échantillonne périodiquement. Chaque
+       passage lit des styles calculés, ce qui force le navigateur à recalculer
+       la mise en page : toutes les 1,5 s, écran éteint compris, cela pesait
+       pour rien. Quatre secondes au premier plan suffisent, l'observateur de
+       mutations couvrant les vrais changements. */
+    const t = window.setInterval(() => { if (!document.hidden) apply(); }, 4000);
     document.addEventListener("visibilitychange", apply);
 
     return () => {

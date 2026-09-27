@@ -113,8 +113,11 @@ export function SwipeNavigation() {
       if (backStack.current.length > MAX_STACK) backStack.current.shift();
       fwdStack.current = []; // une nouvelle navigation efface l'avant
     };
-    // `router.replace` ne déclenche pas popstate : on observe l'URL.
-    const poll = window.setInterval(record, 350);
+    /* `router.replace` ne déclenche pas popstate : on observe l'URL. Ce filet
+       tournait dix fois par seconde à deux minuteurs, écran éteint compris —
+       c'est beaucoup pour un rattrapage dont l'évènement `tm-url-changed`
+       fait déjà l'essentiel. Une seconde suffit, et rien en arrière-plan. */
+    const poll = window.setInterval(() => { if (!document.hidden) record(); }, 1000);
     window.addEventListener("popstate", record);
     // Une vue qui s'ouvre sans changer de route (panneau du tableau de bord)
     // signale son étape immédiatement, sans attendre la relecture périodique :
@@ -163,6 +166,7 @@ export function SwipeNavigation() {
       lastRef.current = now;
       accRef.current += e.deltaX;
       e.preventDefault();
+      programmerEffacement();
       paint(accRef.current, Math.abs(accRef.current) / WHEEL_THRESHOLD);
       if (Math.abs(accRef.current) >= WHEEL_THRESHOLD) fire(accRef.current < 0);
     };
@@ -212,8 +216,16 @@ export function SwipeNavigation() {
       bord = null;
     };
 
-    const onIdle = () => { if (Date.now() - lastRef.current > IDLE_RESET) hide(); };
-    const idle = window.setInterval(onIdle, 200);
+    /* L'effacement de l'indicateur n'a de sens qu'APRÈS un geste : on ne
+       surveille donc plus en continu, on programme un effacement à la fin de
+       chaque mouvement. Un minuteur de moins, en permanence. */
+    let effacement: ReturnType<typeof setTimeout> | null = null;
+    const programmerEffacement = () => {
+      if (effacement) clearTimeout(effacement);
+      effacement = setTimeout(() => {
+        if (Date.now() - lastRef.current >= IDLE_RESET) hide();
+      }, IDLE_RESET + 20);
+    };
 
     window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -223,7 +235,7 @@ export function SwipeNavigation() {
 
     return () => {
       window.clearInterval(poll);
-      window.clearInterval(idle);
+      if (effacement) clearTimeout(effacement);
       window.removeEventListener("popstate", record);
       window.removeEventListener("tm-url-changed", record);
       window.removeEventListener("wheel", onWheel);

@@ -17,6 +17,19 @@ type WakeLockSentinelLike = { release: () => Promise<void>; released?: boolean }
 
 let sentinel: WakeLockSentinelLike | null = null;
 let wanted = false; // veut-on garder l'écran allumé en ce moment ?
+let minuteur: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Durée maximale du verrou.
+ *
+ * Garder l'écran allumé est, de très loin, ce qui consomme le plus : un envoi
+ * qui n'aboutit jamais — photo trop lourde, réseau de sous-sol, serveur qui
+ * refuse — maintenait l'écran allumé tant que l'application restait ouverte,
+ * et vidait la batterie en une après-midi. Dix minutes suffisent largement à
+ * vider une file normale ; au-delà, c'est que quelque chose ne passe pas, et
+ * l'écran n'y changera rien.
+ */
+const DUREE_MAX_MS = 10 * 60_000;
 
 function supported(): boolean {
   return typeof navigator !== "undefined" && "wakeLock" in navigator;
@@ -26,6 +39,10 @@ function supported(): boolean {
 export async function acquireWakeLock(): Promise<void> {
   wanted = true;
   if (!supported()) return;
+  // Chaque demande relance le compte à rebours : tant que la file avance, le
+  // verrou tient ; dès qu'elle stagne, il s'éteint tout seul.
+  if (minuteur) clearTimeout(minuteur);
+  minuteur = setTimeout(() => { releaseWakeLock(); }, DUREE_MAX_MS);
   if (sentinel && !sentinel.released) return;
   if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
   try {
@@ -41,6 +58,7 @@ export async function acquireWakeLock(): Promise<void> {
 /** Relâche le verrou d'écran (file vide). */
 export async function releaseWakeLock(): Promise<void> {
   wanted = false;
+  if (minuteur) { clearTimeout(minuteur); minuteur = null; }
   const s = sentinel;
   sentinel = null;
   try { await s?.release(); } catch {}
