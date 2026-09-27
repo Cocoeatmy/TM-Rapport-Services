@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowLeft, Loader2, Save, CheckCircle2, TrendingUp, Wallet, Timer,
   PiggyBank, Users, Percent, Info,
@@ -51,6 +52,19 @@ const GROUPES: Groupe[] = [
       { id: "depensesAcquisition", label: "Dépenses d'acquisition", unite: "CHF", aide: "Publicité, démarchage, salons, commissions d'apport." },
       { id: "nouveauxClients", label: "Nouveaux clients", unite: "clients", aide: "Clients qui ont commandé pour la première fois." },
       { id: "nbClients", label: "Clients actifs", unite: "clients", aide: "Clients distincts ayant commandé sur la période." },
+    ],
+  },
+  {
+    titre: "Rentabilité par chantier",
+    sous: "valeurs moyennes servant au calcul, par cabine ou par heure",
+    champs: [
+      { id: "tauxHoraire", label: "Coût horaire d'un monteur", unite: "CHF / h", aide: "Salaire chargé rapporté à l'heure travaillée." },
+      { id: "coutDeplacement", label: "Coût d'un déplacement", unite: "CHF / chantier", aide: "Véhicule, carburant, temps de trajet moyen." },
+      { id: "consommables", label: "Consommables par cabine", unite: "CHF / cabine", aide: "Silicone, visserie, joints, petites fournitures." },
+      { id: "achatCabine", label: "Achat moyen d'une cabine", unite: "CHF / cabine", aide: "Prix d'achat vitrage et profilés, hors accessoires." },
+      { id: "accessoires", label: "Accessoires par cabine", unite: "CHF / cabine", aide: "Barres, poignées, pièces complémentaires." },
+      { id: "prixVente", label: "Prix de vente moyen d'une cabine", unite: "CHF / cabine", aide: "Laissez vide si le prix varie trop : le calcul se limitera alors aux coûts." },
+      { id: "margeCible", label: "Marge cible", unite: "%", aide: "En dessous, le chantier est signalé comme sous-estimé." },
     ],
   },
   {
@@ -142,6 +156,93 @@ export default function FinancesPage() {
 
   const ca = caParAnnee[annee] ?? 0;
   const annees = Object.keys(caParAnnee).sort();
+
+  /* ── Rentabilité par chantier ─────────────────────────────────────────
+     Les heures réellement pointées croisées avec les coûts saisis. Aucune
+     recette n'existe par projet dans l'app : la marge n'apparaît donc que si
+     un prix de vente moyen est renseigné, et elle est alors une ESTIMATION,
+     dite comme telle. Sans prix, on compare les coûts entre eux, ce qui
+     suffit à repérer les dérives. */
+  const [chantiers, setChantiers] = useState<any[]>([]);
+  useEffect(() => {
+    fetch("/api/projects/cmd-termine")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setChantiers(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
+
+  const rentabilite = useMemo(() => {
+    const taux = n("tauxHoraire");
+    const dep = n("coutDeplacement") ?? 0;
+    const conso = n("consommables") ?? 0;
+    const achat = n("achatCabine") ?? 0;
+    const acc = n("accessoires") ?? 0;
+    const vente = n("prixVente");
+    const cible = n("margeCible");
+    if (taux === null) return null; // sans coût horaire, rien n'est calculable
+
+    const minutes = (p: any) => {
+      const lire = (raw?: string) => {
+        const m = String(raw || "").match(/(\d{1,2}):(\d{2})/);
+        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+      };
+      const a = lire(p.heureArrivee), b = lire(p.heureDepart);
+      return a !== null && b !== null && b > a ? b - a : 0;
+    };
+
+    const lignes = chantiers
+      .filter((p) => String(p.dateMontage || "").startsWith(annee))
+      .map((p) => {
+        const cab = Number(p.nbCabines) || 0;
+        const min = minutes(p);
+        const mo = (min / 60) * taux;
+        const achats = cab * (achat + acc + conso);
+        const cout = mo + achats + dep;
+        const recette = vente !== null ? cab * vente : null;
+        const marge = recette !== null ? recette - cout : null;
+        const margePct = recette !== null && recette > 0 ? (marge! / recette) * 100 : null;
+        return {
+          id: p.id,
+          ofrTM: p.ofrTM || "—",
+          projet: p.projet || "Sans nom",
+          serie: (p.seriesCabines || []).join(", ") || "Non renseignée",
+          fournisseur: (p.fournisseurs || []).join(", ") || "Non renseigné",
+          cabines: cab,
+          minutes: min,
+          coutMO: mo,
+          cout,
+          coutParCabine: cab > 0 ? cout / cab : 0,
+          marge, margePct,
+        };
+      })
+      .filter((l) => l.cabines > 0 && l.minutes > 0);
+
+    if (lignes.length === 0) return { lignes: [], moyenneCoutCabine: 0, parSerie: [], cible };
+
+    const moyenneCoutCabine =
+      lignes.reduce((s2, l) => s2 + l.coutParCabine, 0) / lignes.length;
+
+    // Regroupement par série : repérer les modèles qui dérivent.
+    const m = new Map<string, { n: number; cab: number; cout: number; min: number }>();
+    lignes.forEach((l) => {
+      const cur = m.get(l.serie) || { n: 0, cab: 0, cout: 0, min: 0 };
+      cur.n += 1; cur.cab += l.cabines; cur.cout += l.cout; cur.min += l.minutes;
+      m.set(l.serie, cur);
+    });
+    const parSerie = [...m.entries()]
+      .map(([serie, v]) => ({
+        serie, chantiers: v.n, cabines: v.cab,
+        coutParCabine: v.cab > 0 ? v.cout / v.cab : 0,
+        minutesParCabine: v.cab > 0 ? v.min / v.cab : 0,
+      }))
+      .sort((a, b) => b.coutParCabine - a.coutParCabine);
+
+    return {
+      lignes: lignes.sort((a, b) =>
+        (a.margePct ?? -a.coutParCabine) - (b.margePct ?? -b.coutParCabine)),
+      moyenneCoutCabine, parSerie, cible,
+    };
+  }, [chantiers, annee, n]);
 
   /* ── Indicateurs ────────────────────────────────────────────────────────
      Chacun dit ce qui lui manque plutôt que d'afficher un chiffre faux. */
@@ -324,6 +425,107 @@ export default function FinancesPage() {
               </div>
             </div>
           ))}
+
+          {/* ── Rentabilité par chantier ── */}
+          <div className="glass-card rounded-2xl p-5 mb-4">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              Contrôle de rentabilité par chantier
+            </h2>
+            <p className="text-xs text-gray-400 mb-4">
+              heures réellement pointées croisées avec les coûts ci-dessus · montages {annee}
+            </p>
+
+            {!rentabilite ? (
+              <p className="text-sm text-gray-400">
+                Renseignez au moins le <strong>coût horaire d&apos;un monteur</strong> pour lancer le calcul.
+              </p>
+            ) : rentabilite.lignes.length === 0 ? (
+              <p className="text-sm text-gray-400">
+                Aucun montage {annee} avec des heures pointées — le calcul repose sur ces heures.
+              </p>
+            ) : (
+              <>
+                {/* Modèles qui dérivent */}
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                  Coût par cabine selon la série
+                </h3>
+                <div className="space-y-1 mb-5">
+                  {rentabilite.parSerie.map((s2) => {
+                    const ecart = rentabilite.moyenneCoutCabine > 0
+                      ? ((s2.coutParCabine - rentabilite.moyenneCoutCabine) / rentabilite.moyenneCoutCabine) * 100
+                      : 0;
+                    return (
+                      <div key={s2.serie} className="flex items-center gap-3 text-sm py-1.5 border-b border-gray-100 dark:border-gray-700/50">
+                        <span className="flex-1 min-w-0 truncate text-gray-700 dark:text-gray-300">{s2.serie}</span>
+                        <span className="text-xs text-gray-400 w-28 text-right">
+                          {s2.chantiers} chantier{s2.chantiers > 1 ? "s" : ""} · {s2.cabines} cab.
+                        </span>
+                        <span className="text-xs text-gray-400 w-20 text-right">
+                          {Math.round(s2.minutesParCabine)} min/cab.
+                        </span>
+                        <span className="font-semibold w-24 text-right text-gray-900 dark:text-gray-100">
+                          {fmtCHF(s2.coutParCabine)}
+                        </span>
+                        <span className={`text-xs font-semibold w-16 text-right ${
+                          ecart > 10 ? "text-red-600" : ecart < -10 ? "text-green-600" : "text-gray-400"}`}>
+                          {ecart > 0 ? "+" : ""}{Math.round(ecart)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[11px] text-gray-400 pt-1">
+                    Écart au coût moyen de {fmtCHF(rentabilite.moyenneCoutCabine)} par cabine.
+                    Au-delà de +10 %, la série coûte plus cher que la moyenne à poser.
+                  </p>
+                </div>
+
+                {/* Chantiers, du moins rentable au plus rentable */}
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                  Chantiers {rentabilite.lignes[0]?.margePct !== null ? "du moins au plus rentable" : "du plus coûteux au moins coûteux"}
+                </h3>
+                <div className="space-y-1">
+                  {rentabilite.lignes.slice(0, 25).map((l) => {
+                    const deficitaire = l.marge !== null && l.marge < 0;
+                    const sousEstime = !deficitaire && l.margePct !== null
+                      && rentabilite.cible !== null && l.margePct < rentabilite.cible;
+                    const cher = l.margePct === null
+                      && rentabilite.moyenneCoutCabine > 0
+                      && l.coutParCabine > rentabilite.moyenneCoutCabine * 1.1;
+                    return (
+                      <Link key={l.id} href={`/projet/${l.id}?mode=dashboard`}
+                        className={`flex items-center gap-3 text-sm py-2 px-2 rounded-lg border ${
+                          deficitaire ? "border-red-200 bg-red-50/60 dark:bg-red-900/10"
+                          : sousEstime || cher ? "border-amber-200 bg-amber-50/60 dark:bg-amber-900/10"
+                          : "border-transparent hover:bg-gray-50 dark:hover:bg-slate-700/30"}`}>
+                        <span className="font-mono text-xs text-gray-500 w-24 shrink-0">{l.ofrTM}</span>
+                        <span className="flex-1 min-w-0 truncate text-gray-800 dark:text-gray-200">{l.projet}</span>
+                        <span className="text-xs text-gray-400 w-24 text-right shrink-0">
+                          {l.cabines} cab. · {Math.round(l.minutes / 6) / 10} h
+                        </span>
+                        <span className="text-xs text-gray-500 w-24 text-right shrink-0">{fmtCHF(l.cout)}</span>
+                        {l.margePct !== null ? (
+                          <span className={`text-xs font-bold w-20 text-right shrink-0 ${
+                            deficitaire ? "text-red-600" : sousEstime ? "text-amber-600" : "text-green-600"}`}>
+                            {Math.round(l.margePct)}%
+                          </span>
+                        ) : (
+                          <span className={`text-xs font-bold w-20 text-right shrink-0 ${cher ? "text-amber-600" : "text-gray-400"}`}>
+                            {fmtCHF(l.coutParCabine)}/cab.
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
+                  {rentabilite.lignes[0]?.margePct !== null
+                    ? "Marge ESTIMÉE : l'app ne connaît pas le prix de vente réel de chaque chantier, elle applique le prix moyen saisi ci-dessus. Rouge = déficitaire, orange = sous la marge cible."
+                    : "Sans prix de vente moyen, seuls les coûts sont comparés entre eux. Orange = plus de 10 % au-dessus du coût moyen par cabine."}
+                  {" "}Les heures proviennent du pointage des monteurs ; un chantier sans heures pointées n&apos;apparaît pas.
+                </p>
+              </>
+            )}
+          </div>
 
           <div className="flex items-center gap-3 pb-10">
             <button
