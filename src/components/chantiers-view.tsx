@@ -17,10 +17,7 @@ import {
 } from "lucide-react";
 import { STATUS_CMD_COLORS } from "@/lib/constants";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
-import {
-  construireChantiers, grouperParLot, pct,
-  type Chantier, type Lot, type ProjetChantier,
-} from "@/lib/chantiers";
+import { grouperParLot, pct, type Chantier, type Lot } from "@/lib/chantiers";
 
 const SEUILS = [10, 15, 20, 30];
 
@@ -488,7 +485,12 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
 
 /* ── Liste des chantiers ────────────────────────────────────────────────── */
 export function ChantiersView() {
-  const [projets, setProjets] = useState<ProjetChantier[] | null>(null);
+  /* Les chantiers arrivent tout regroupés. Le regroupement a besoin de TOUS
+     les projets, et les télécharger pour n'en tirer qu'une quarantaine de
+     groupes n'a aucun sens sur un téléphone : le serveur, qui les a déjà en
+     cache, fait le calcul. Les seuils supérieurs ne sont ensuite qu'un filtre
+     instantané sur ce qui est en main. */
+  const [tous, setTous] = useState<Chantier[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [recherche, setRecherche] = useState("");
   const [seuil, setSeuil] = useState(10);
@@ -497,17 +499,14 @@ export function ChantiersView() {
 
   useEffect(() => {
     let vivant = true;
-    fetch("/api/projects/all")
+    fetch("/api/chantiers")
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((d: ProjetChantier[]) => { if (vivant) setProjets(Array.isArray(d) ? d : []); })
+      .then((d) => { if (vivant) setTous(Array.isArray(d.chantiers) ? d.chantiers : []); })
       .catch((e) => { if (vivant) setErreur(String(e.message || e)); });
     return () => { vivant = false; };
   }, []);
 
-  const chantiers = useMemo(
-    () => (projets ? construireChantiers(projets, { seuilCabines: seuil }) : []),
-    [projets, seuil],
-  );
+  const chantiers = useMemo(() => (tous || []).filter((c) => c.nbLots >= seuil), [tous, seuil]);
 
   const comptes = useMemo(() => ({
     tous: chantiers.length,
@@ -571,12 +570,12 @@ export function ChantiersView() {
         </span>
       </div>
 
-      {!projets && !erreur && (
-        <p className="sgch-vide-msg"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Chargement des projets…</p>
+      {!tous && !erreur && (
+        <p className="sgch-vide-msg"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Analyse des chantiers…</p>
       )}
       {erreur && <p className="sgch-vide-msg">Chargement impossible — {erreur}</p>}
 
-      {projets && visibles.length === 0 && (
+      {tous && visibles.length === 0 && (
         <p className="sgch-vide-msg">
           {chantiers.length > 0
             ? `Aucun chantier ${etat === "termine" ? "terminé" : "en cours"} ne correspond.`

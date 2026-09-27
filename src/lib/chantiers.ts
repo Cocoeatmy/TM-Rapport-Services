@@ -548,6 +548,33 @@ export function grouperParLot(lots: Lot[]): LigneLot[] {
   }));
 }
 
+/**
+ * Réduit un projet aux seuls champs dont les chantiers ont besoin.
+ *
+ * Les fiches Notion transportent des tableaux de photos et de documents qui
+ * pèsent l'essentiel de la charge utile et ne servent à rien ici. Les projeter
+ * avant de les envoyer au navigateur divise la réponse par un facteur
+ * considérable, sans rien changer à l'affichage.
+ */
+export function alleger(p: ProjetChantier): ProjetChantier {
+  return {
+    id: p.id, projet: p.projet, ofrTM: p.ofrTM, adresseChantier: p.adresseChantier,
+    nbCabines: p.nbCabines, nbCabinesInstallees: p.nbCabinesInstallees,
+    nomsCabines: p.nomsCabines, etatMontage: p.etatMontage,
+    etatCMD: p.etatCMD, etatMesures: p.etatMesures,
+    fournisseurs: p.fournisseurs, seriesCabines: p.seriesCabines,
+    grossistesNames: p.grossistesNames, sanitaireNames: p.sanitaireNames,
+    ofrGrossiste: p.ofrGrossiste,
+    cmdTM: p.cmdTM, cmdTMUsine: p.cmdTMUsine, cmdGrossiste: p.cmdGrossiste,
+    dateMesuresRecue: p.dateMesuresRecue, dateOffre: p.dateOffre,
+    dateCMDRecue: p.dateCMDRecue, dateCMDUsine: p.dateCMDUsine,
+    arrivageTM: p.arrivageTM, arrivageGrossiste: p.arrivageGrossiste,
+    dateMontage: p.dateMontage, diversInfosChantier: p.diversInfosChantier,
+    emplacementCabine: p.emplacementCabine, typeServices: p.typeServices,
+    collaborateurs: p.collaborateurs, lastEditedTime: p.lastEditedTime,
+  };
+}
+
 /** Pourcentage entier, sans division par zéro. */
 export function pct(n: number, total: number): number {
   return total > 0 ? Math.round((n / total) * 100) : 0;
