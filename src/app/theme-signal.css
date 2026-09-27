@@ -3178,3 +3178,31 @@ html[data-ui="signal"] .sgt-recherche b {
   font-size: 10.5px; font-weight: 600; color: var(--sg-text-3);
 }
 html[data-ui="signal"] .sgt-rien { padding: 10px 8px; text-align: center; }
+
+/* Chantiers proches écartés faute de temps : proposés, pas imposés. */
+html[data-ui="signal"] .sgt-manque { display: flex; flex-direction: column; gap: 6px; }
+html[data-ui="signal"] .sgt-suggests { display: flex; flex-direction: column; gap: 3px; }
+html[data-ui="signal"] .sgt-suggest {
+  display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer;
+  padding: 6px 8px; border-radius: 8px; text-align: left;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-2); font-family: inherit;
+}
+html[data-ui="signal"] .sgt-suggest:hover {
+  border-color: var(--sg-signal); background: var(--sg-signal-soft); color: var(--sg-signal);
+}
+html[data-ui="signal"] .sgt-suggest-txt {
+  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  font-size: 11.5px; line-height: 1.35;
+}
+html[data-ui="signal"] .sgt-suggest-txt em {
+  font-style: normal; font-size: 11px; color: var(--sg-text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgt-suggest:hover .sgt-suggest-txt em { color: inherit; opacity: 0.8; }
+html[data-ui="signal"] .sgt-suggest-cout {
+  flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 10.5px; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgt-suggest-cout em { font-style: normal; font-size: 10px; }

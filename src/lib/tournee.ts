@@ -82,6 +82,24 @@ export interface Tournee {
   horaires: { id: string; arrivee: string; depart: string; impose?: string; enRetard: boolean }[];
   /** Heure de retour au dépôt. */
   retourDepot: string;
+  /** Montages demandés mais non placés — 0 quand la journée est complète. */
+  manquants: number;
+  /**
+   * Chantiers les plus proches qu'on n'a PAS pu ajouter, avec ce qu'ils
+   * coûteraient. Sans eux, une tournée incomplète ne dit pas pourquoi : c'est
+   * souvent une poignée de minutes au-delà de la journée, et l'utilisateur est
+   * le seul à pouvoir trancher.
+   */
+  suggestions: Suggestion[];
+}
+
+export interface Suggestion {
+  candidat: Candidat;
+  /** Durée totale de la journée si on l'ajoutait. */
+  totalSiAjoute: number;
+  /** Minutes ajoutées à la journée actuelle. */
+  minutesAjoutees: number;
+  raison: "duree" | "cartons" | "retard";
 }
 
 const DEFAUT_MINUTES_PAR_CABINE = 90;
@@ -344,6 +362,7 @@ function ordonner(
 function finaliser(
   etapes: Candidat[], depot: Lieu, minutesMax: number,
   heures: Record<string, number>, depart: number,
+  demande = 0, suggestions: Suggestion[] = [],
 ): Tournee {
   const ordre = ordonner(etapes, depot, heures, depart);
   const e = evaluer(ordre, depot, heures, depart);
@@ -361,6 +380,8 @@ function finaliser(
     retardMax: e.retardMax,
     horaires: e.horaires,
     retourDepot: e.retourDepot,
+    manquants: Math.max(0, demande - ordre.length),
+    suggestions,
   };
 }
 
@@ -392,37 +413,73 @@ export function construireTournee(
 
   const pool = secteur?.trim() ? candidats.filter((c) => correspondSecteur(c, secteur)) : candidats;
 
-  /** Complète une base jusqu'au nombre voulu, au plus proche et dans les temps. */
+  /**
+   * Complète une base jusqu'au nombre voulu.
+   *
+   * À chaque tour, on essaie CHAQUE chantier encore libre, on réordonne la
+   * journée avec lui, et on retient celui qui l'allonge le moins. C'est la
+   * bonne mesure de « proximité » : un chantier sur la route du retour coûte
+   * quelques minutes, un autre à trente kilomètres de côté en coûte cent, même
+   * si les deux sont à la même distance à vol d'oiseau du dernier arrêt.
+   *
+   * Les refusés ne sont pas oubliés : les plus proches ressortent en
+   * suggestions, avec ce qu'ils coûteraient, car un dépassement de dix minutes
+   * sur la journée se négocie — mais c'est à l'utilisateur de le décider.
+   */
+  const refuses = new Map<string, Suggestion>();
   const completer = (base: Candidat[]): Candidat[] => {
-    const etapes = [...base];
+    let etapes = [...base];
     let cartons = etapes.reduce((s2, c) => s2 + c.cartons, 0);
+    let totalActuel = etapes.length
+      ? evaluer(ordonner(etapes, depot, horaires, depart), depot, horaires, depart).total
+      : 0;
 
     while (etapes.length < nombre) {
-      const dernier: Lieu = etapes.length ? etapes[etapes.length - 1] : depot;
-      const restants = pool
-        .filter((c) => !etapes.some((e) => e.id === c.id))
-        .filter((c) => cartonsMax === 0 || cartons + c.cartons <= cartonsMax)
-        .sort((a, b) =>
-          (trajet(dernier, a).minutes + a.minutes) - (trajet(dernier, b).minutes + b.minutes));
-      let ajoute = false;
-      for (const c of restants) {
-        const essai = [...etapes, c];
-        const e = evaluer(ordonner(essai, depot, horaires, depart), depot, horaires, depart);
+      let meilleur: { c: Candidat; total: number } | null = null;
+      const tours: Suggestion[] = [];
+
+      for (const c of pool) {
+        if (etapes.some((e) => e.id === c.id)) continue;
+        if (cartonsMax > 0 && cartons + c.cartons > cartonsMax) {
+          tours.push({ candidat: c, totalSiAjoute: totalActuel, minutesAjoutees: 0, raison: "cartons" });
+          continue;
+        }
+        const e = evaluer(ordonner([...etapes, c], depot, horaires, depart), depot, horaires, depart);
+        const sugg: Suggestion = {
+          candidat: c, totalSiAjoute: e.total,
+          minutesAjoutees: Math.max(0, e.total - totalActuel),
+          raison: e.retardMax > 0 ? "retard" : "duree",
+        };
         // On n'ajoute jamais un chantier qui fait manquer un rendez-vous.
-        if (e.retardMax > 0) continue;
-        if (minutesMax > 0 && e.total > minutesMax) continue;
-        etapes.push(c); cartons += c.cartons; ajoute = true;
+        if (e.retardMax > 0) { tours.push(sugg); continue; }
+        if (minutesMax > 0 && e.total > minutesMax) { tours.push(sugg); continue; }
+        if (!meilleur || e.total < meilleur.total) meilleur = { c, total: e.total };
+      }
+
+      if (!meilleur) {
+        // Journée bouclée : on garde les refus de ce tour comme suggestions.
+        tours.forEach((t) => {
+          const vu = refuses.get(t.candidat.id);
+          if (!vu || t.minutesAjoutees < vu.minutesAjoutees) refuses.set(t.candidat.id, t);
+        });
         break;
       }
-      if (!ajoute) break;
+      etapes = [...etapes, meilleur.c];
+      cartons += meilleur.c.cartons;
+      totalActuel = meilleur.total;
     }
     return etapes;
   };
 
+  /** Les trois refus les moins coûteux, du plus proche au plus lointain. */
+  const suggestions = () => [...refuses.values()]
+    .sort((a, b) => a.minutesAjoutees - b.minutesAjoutees)
+    .slice(0, 3);
+
   // Des chantiers imposés : ils forment la base, on complète autour.
   if (requis.length > 0) {
     const etapes = requis.length >= nombre ? requis : completer(requis);
-    return finaliser(etapes, depot, minutesMax, horaires, depart);
+    return finaliser(etapes, depot, minutesMax, horaires, depart, nombre, suggestions());
   }
 
   if (pool.length === 0) return null;
@@ -430,7 +487,8 @@ export function construireTournee(
   // Rien d'imposé : on essaie chaque chantier comme point de départ.
   let meilleure: Tournee | null = null;
   for (const d of pool) {
-    const t = finaliser(completer([d]), depot, minutesMax, horaires, depart);
+    refuses.clear();
+    const t = finaliser(completer([d]), depot, minutesMax, horaires, depart, nombre, suggestions());
     const mieux = !meilleure
       || t.etapes.length > meilleure.etapes.length
       || (t.etapes.length === meilleure.etapes.length && t.minutesTotal < meilleure.minutesTotal);

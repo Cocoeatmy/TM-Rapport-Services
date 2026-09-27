@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Route, X, MapPin, Package, Clock, ChevronRight, Sparkles,
-  Loader2, AlertTriangle, Home, Search,
+  Loader2, AlertTriangle, Home, Search, Plus,
 } from "lucide-react";
 import {
   preparerCandidats, construireTournee, formatMinutes, DEPOT, JOURNEE_MINUTES,
@@ -314,6 +314,46 @@ export function TourneeAssistant({
                   </span>
                 )}
               </div>
+
+              {/* Journée incomplète : dire POURQUOI, et proposer ce qui s'en
+                  approche le plus. Un refus muet laisse croire à une panne. */}
+              {resultat.manquants > 0 && (
+                <div className="sgt-manque">
+                  <p className="sgt-note sgt-alerte">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    {resultat.etapes.length} montage{resultat.etapes.length > 1 ? "s" : ""} sur {nombre} :
+                    {" "}aucun autre chantier ne tient dans {heuresMax} h de journée.
+                  </p>
+                  {resultat.suggestions.length > 0 && (
+                    <>
+                      <p className="sgt-note">
+                        Les plus proches, avec la journée qu&apos;ils feraient — cliquez pour
+                        l&apos;ajouter quand même&nbsp;:
+                      </p>
+                      <div className="sgt-suggests">
+                        {resultat.suggestions.map((sg) => (
+                          <button key={sg.candidat.id} type="button" className="sgt-suggest"
+                            onClick={() => { basculerCoche(sg.candidat.id); setResultat(null); }}>
+                            <Plus className="w-3.5 h-3.5 shrink-0" />
+                            <span className="sgt-suggest-txt">
+                              <b className="sg-mono">{sg.candidat.ofrTM}</b> {sg.candidat.npa} {sg.candidat.localite}
+                              <em>{sg.candidat.projet}</em>
+                            </span>
+                            <span className="sgt-suggest-cout">
+                              {sg.raison === "cartons"
+                                ? "cartons"
+                                : sg.raison === "retard"
+                                  ? "heure ratée"
+                                  : `journée ${formatMinutes(sg.totalSiAjoute)}`}
+                              <em>+{formatMinutes(sg.minutesAjoutees)}</em>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               {resultat.retardMax > 0 && (
                 <p className="sgt-note sgt-alerte">
