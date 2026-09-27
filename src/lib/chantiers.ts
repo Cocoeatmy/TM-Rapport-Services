@@ -380,8 +380,6 @@ function estUnLot(p: ProjetChantier): boolean {
 export interface OptionsChantiers {
   /** Nombre de cabines à partir duquel un chantier mérite un suivi. */
   seuilCabines?: number;
-  /** Nombre d'offres à partir duquel un chantier mérite un suivi. */
-  seuilOffres?: number;
 }
 
 /**
@@ -421,14 +419,16 @@ function nommerChantier(offres: ProjetChantier[], rue: string): string {
 }
 
 /**
- * Construit les chantiers à suivre. Un chantier est retenu s'il porte au moins
- * `seuilCabines` cabines OU s'il rassemble au moins `seuilOffres` offres — la
- * seconde règle attrape les immeubles vendus lot par lot, où chaque offre ne
- * compte qu'une cabine.
+ * Construit les chantiers à suivre.
+ *
+ * Un chantier est retenu sur le nombre de CABINES, jamais sur le nombre
+ * d'offres : trois offres d'une douche à la même adresse ne sont pas une PPE,
+ * et les faire apparaître ici noyait les vrais immeubles. Peu importe que les
+ * cabines viennent d'une offre unique ou de vingt offres d'un lot chacune.
  */
 export function construireChantiers(
   projets: ProjetChantier[],
-  { seuilCabines = 10, seuilOffres = 3 }: OptionsChantiers = {},
+  { seuilCabines = 10 }: OptionsChantiers = {},
 ): Chantier[] {
   const groupes = new Map<string, ProjetChantier[]>();
   projets.filter(estUnLot).forEach((p) => {
@@ -443,7 +443,7 @@ export function construireChantiers(
   const chantiers: Chantier[] = [];
   groupes.forEach((offres, cle) => {
     const lots = offres.flatMap(lotsDeLOffre);
-    if (lots.length < seuilCabines && offres.length < seuilOffres) return;
+    if (lots.length < seuilCabines) return;
 
     const { npa, ville, rue } = adresseDe(offres[0]);
     chantiers.push({

@@ -20,7 +20,7 @@ import {
   type Chantier, type Lot, type ProjetChantier,
 } from "@/lib/chantiers";
 
-const SEUILS = [5, 10, 15, 20];
+const SEUILS = [10, 15, 20, 30];
 
 type Etat = "tous" | "encours" | "termine";
 const ETATS: [Etat, string][] = [["encours", "En cours"], ["termine", "Terminé"], ["tous", "Tous"]];
@@ -296,9 +296,10 @@ export function ChantiersView() {
       <div className="sgch-entete">
         <h2 className="flex items-center gap-2"><Building2 className="w-5 h-5" /> Chantiers PPE &amp; locatif</h2>
         <p>
-          Immeubles suivis lot par lot. Un chantier apparaît dès qu&apos;il atteint le
-          nombre de cabines choisi, ou qu&apos;il rassemble trois offres à la même adresse.
-          Les offres annulées et les interventions de service pures sont écartées.
+          Immeubles suivis lot par lot, regroupés par adresse : une offre de vingt
+          cabines ou vingt offres d&apos;une cabine reviennent au même. Un chantier
+          apparaît à partir du nombre de cabines choisi. Les offres annulées et les
+          interventions de service pures sont écartées.
         </p>
       </div>
 
