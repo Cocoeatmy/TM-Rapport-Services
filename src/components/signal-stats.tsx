@@ -916,17 +916,24 @@ export function SignalStats({
                 )}
               </div>
               <span className="sgs-kpi-value" style={{ color: k.color }}>{fmt(totals[k.id] || 0, k.money)}</span>
-              {/* Base de comparaison ÉCRITE sous le chiffre. Le pourcentage
-                  porte sur les mois complets ; la valeur affichée au-dessus
-                  inclut le mois en cours. Sans cette ligne, l'écart entre les
-                  deux passait pour une erreur de calcul. */}
-              {d !== null && cmp && (
-                <span className="sgs-kpi-vs">
-                  {fmt(cmp.sum(cmp.cur, k.id), k.money)} sur {cmp.curLabel}
-                  {" · "}
-                  {fmt(cmp.sum(cmp.prev, k.id), k.money)} sur {cmp.prevLabel}
-                </span>
-              )}
+              {/* Base de comparaison écrite sous le chiffre.
+                  La valeur de la période courante n'est REPETEE que si elle
+                  differe du grand chiffre : le pourcentage porte sur les mois
+                  complets, tandis que le chiffre affiche inclut le mois en
+                  cours, et sans cette precision l'ecart passerait pour une
+                  erreur de calcul. Sur une periode close — une annee passee —
+                  les deux sont identiques, et la repeter n'apprend rien. */}
+              {d !== null && cmp && (() => {
+                const courant = fmt(cmp.sum(cmp.cur, k.id), k.money);
+                const affiche = fmt(totals[k.id] || 0, k.money);
+                return (
+                  <span className="sgs-kpi-vs">
+                    {courant === affiche ? cmp.curLabel : `${courant} sur ${cmp.curLabel}`}
+                    {" · "}
+                    {fmt(cmp.sum(cmp.prev, k.id), k.money)} sur {cmp.prevLabel}
+                  </span>
+                );
+              })()}
               <svg className="sgs-spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
                 <path d={smoothPath(sPts)} fill="none" stroke={k.color} strokeWidth="2" strokeLinecap="round" opacity="0.75" />
               </svg>
