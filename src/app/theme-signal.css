@@ -2436,8 +2436,12 @@ html[data-ui="signal"] .sgc-row-type {
 }
 html[data-ui="signal"] .sgc-row-type.is-mon { background: #e8f0ff; color: #1b4ed8; }
 html[data-ui="signal"] .sgc-row-type.is-mes { background: #e1f3f6; color: #0e7490; }
+/* Prestation seule (ni pose, ni mesure) : teinte propre, pour ne pas la
+   confondre avec un montage. */
+html[data-ui="signal"] .sgc-row-type.is-srv { background: #f1e9fe; color: #6d28d9; }
 html[data-ui="signal"].dark .sgc-row-type.is-mon { background: #12244a; color: #8fb6ff; }
 html[data-ui="signal"].dark .sgc-row-type.is-mes { background: #0b2b33; color: #67e8f9; }
+html[data-ui="signal"].dark .sgc-row-type.is-srv { background: #241241; color: #c4b5fd; }
 html[data-ui="signal"] .sgc-row-name {
   font-size: 13px; font-weight: 500; color: var(--sg-text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

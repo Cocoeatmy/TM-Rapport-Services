@@ -574,6 +574,23 @@ function parseTMNumbers(raw: string): string[] {
   });
 }
 
+/**
+ * Nature d'une intervention pour l'affichage : Mesures, Services ou Montage.
+ *
+ * « Type de services » valant EXACTEMENT « Services » désigne une prestation
+ * seule (joints, silicones, réglages) : ce n'est pas un montage et l'étiqueter
+ * ainsi induisait en erreur. Dès que le champ porte autre chose en plus
+ * (Montage, Mesures…), une cabine est posée et l'étiquette Montage reprend.
+ */
+function typeIntervention(p: Project, jourIso: string): "Mesures" | "Services" | "Montage" {
+  const mesureCeJour = (p.dateMesures || "").split("T")[0] === jourIso
+    && !(p.dateMontage || "").startsWith(jourIso);
+  if (mesureCeJour) return "Mesures";
+  const t = Array.isArray(p.typeServices) ? p.typeServices : [];
+  if (t.length === 1 && /^\s*services?\s*$/i.test(t[0] || "")) return "Services";
+  return "Montage";
+}
+
 /** Découpe une liste de références (commandes fournisseur, etc.) en préservant
  *  l'ordre saisi — contrairement à parseTMNumbers qui trie numériquement. */
 function splitRefs(raw: string): string[] {
@@ -4058,7 +4075,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     </div>
                     {legendList.length === 0 && <p className="sg-empty">Aucune intervention ce mois-ci.</p>}
                     {legendList.map(({ day, p }) => {
-                      const isMes = (p.dateMesures || "").split("T")[0] === day && !(p.dateMontage || "").startsWith(day);
+                      const typeInt = typeIntervention(p, day);
                       return (
                         <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`} className="sgc-row">
                           <span className="sg-mono sgc-row-day">
@@ -4071,7 +4088,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               return refs.length ? refs.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—";
                             })()}
                           </span>
-                          <span className={`sgc-row-type ${isMes ? "is-mes" : "is-mon"}`}>{isMes ? "Mesures" : "Montage"}</span>
+                          <span className={`sgc-row-type ${typeInt === "Mesures" ? "is-mes" : typeInt === "Services" ? "is-srv" : "is-mon"}`}>{typeInt}</span>
                           <span className="sgc-row-name">{p.projet}</span>
                           <span className="sg-mono sgc-row-cab">{p.nbCabines || 0} cab.</span>
                           <ChevronRight className="w-4 h-4 sg-plist-chev" />
@@ -4138,7 +4155,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     </div>
                     {selList.length === 0 && <p className="sg-empty">Aucune intervention ce jour.</p>}
                     {selList.map((p) => {
-                      const isMes = (p.dateMesures || "").split("T")[0] === calendarSelectedDay && !(p.dateMontage || "").startsWith(calendarSelectedDay);
+                      const typeInt = typeIntervention(p, calendarSelectedDay);
                       const names = (p.collaborateurs || "").split("&").map((n) => n.trim()).filter(Boolean);
                       return (
                         <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`} className="sgc-row">
@@ -4156,7 +4173,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               return refs.length ? refs.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—";
                             })()}
                           </span>
-                          <span className={`sgc-row-type ${isMes ? "is-mes" : "is-mon"}`}>{isMes ? "Mesures" : "Montage"}</span>
+                          <span className={`sgc-row-type ${typeInt === "Mesures" ? "is-mes" : typeInt === "Services" ? "is-srv" : "is-mon"}`}>{typeInt}</span>
                           <span className="sgc-row-name">{p.projet}</span>
                           <span className="sg-mono sgc-row-cab">{p.nbCabines || 0} cab.</span>
                           <ChevronRight className="w-4 h-4 sg-plist-chev" />
