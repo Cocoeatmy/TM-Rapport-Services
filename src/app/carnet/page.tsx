@@ -25,7 +25,10 @@ interface Carnet {
     semaines: number | null; dateAbsorption: string | null;
   };
   dormantes: { cabines: number; projets: number; seuilJours: number };
+  saison: { mois: number; cabines: number; indice: number; annees: number }[];
 }
+
+const MOIS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
 
 function dateLongue(iso: string | null): string {
   if (!iso) return "—";
@@ -133,6 +136,38 @@ export default function CarnetPage() {
                 {c.dormantes.projets > 1 ? "s" : ""} — du carnet qui dort.
               </span>
             </Link>
+          )}
+
+          {c.saison.length > 0 && (
+            <div className="sgn-bloc">
+              <p className="sgr-bloc-tete">
+                Saisonnalité<em>écart à la moyenne, sur 24 mois</em>
+              </p>
+              <div className="sgn-saison">
+                {c.saison.map((m) => {
+                  const moisCourant = new Date().getMonth() + 1 === m.mois;
+                  return (
+                    <div key={m.mois} className={`sgn-mois${moisCourant ? " is-courant" : ""}${m.annees === 0 ? " is-vide" : ""}`}
+                      title={`${m.cabines} cabines posées sur ${m.annees} année${m.annees > 1 ? "s" : ""}`}>
+                      <span className="sgn-mois-barre">
+                        <i className={m.indice >= 0 ? "is-haut" : "is-bas"}
+                          style={{ height: `${Math.min(100, Math.abs(m.indice))}%` }} />
+                      </span>
+                      <span className="sgn-mois-nom">{MOIS[m.mois - 1]}</span>
+                      <span className="sgn-mois-val">
+                        {m.annees === 0 ? "—" : `${m.indice > 0 ? "+" : ""}${m.indice}%`}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="sgch-vide-msg" style={{ textAlign: "left", padding: "8px 2px 0" }}>
+                Le carnet dit combien de travail reste ; ces barres disent dans quel mois il
+                tombe. Un carnet de six semaines en septembre, mois historiquement chargé,
+                ne se lit pas comme le même carnet en juin. Le mois en cours est exclu du
+                calcul — incomplet, il tirerait son propre indice vers le bas.
+              </p>
+            </div>
           )}
 
           <Table titre="Par étape" lignes={c.parEtape} total={c.cabines} />

@@ -441,6 +441,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
           { id: "rapport",      label: "Rapport",         Icon: FileText,    active: mode === "rapport",                                    act: () => { handleSelect("rapport"); setOpen(null); } },
           { id: "destockage",   label: "Déstockage",      Icon: Archive,     active: mode === "destockage",                                 act: () => { handleSelect("destockage"); setOpen(null); } },
           { id: "chantiers",    label: "Chantiers PPE",   Icon: Building2,   active: mode === "chantiers",                                  act: () => { handleSelect("chantiers"); setOpen(null); } },
+          { id: "garanties",    label: "Garanties",       Icon: ShieldCheck, active: false,                                                 act: () => { window.location.href = "/garanties"; } },
           ...(isAdmin ? [{ id: "stats", label: "Stats", Icon: BarChart2, active: mode === "stats", act: () => { handleSelect("stats"); setOpen(null); } }] : []),
         ].map((it) => (
           <button
@@ -501,6 +502,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isCmm, isSignal, on
             <button onClick={() => { handleSelect("chantiers"); setOpen(null); }} className={tabCls(mode === "chantiers")}>
               Chantiers
             </button>
+          )}
+          {isSignal && (
+            <Link href="/garanties" className={tabCls(false)}>Garanties</Link>
           )}
           {isAdmin && (
             <button onClick={() => { handleSelect("stats"); setOpen(null); }} className={tabCls(mode === "stats")}>

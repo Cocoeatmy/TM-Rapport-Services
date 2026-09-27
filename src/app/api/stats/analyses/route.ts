@@ -12,7 +12,10 @@ import { verifyToken } from "@/lib/auth";
 import { getAllProjectsRaw } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
 import { getData } from "@/lib/kv-store";
-import { transformation, coutRoute, coutSav } from "@/lib/analyses";
+import {
+  transformation, coutRoute, coutSav, rendement, clientsEnRecul,
+  degatsLivraison, soloOuBinome,
+} from "@/lib/analyses";
 import type { Position } from "@/lib/tournee";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +56,22 @@ export async function GET(req: NextRequest) {
         marque: coutSav(projets, "marque", de, a),
         serie: coutSav(projets, "serie", de, a),
       },
+      rendement: {
+        marque: rendement(projets, "marque", de, a),
+        serie: rendement(projets, "serie", de, a),
+      },
+      /* Le recul se mesure sur douze mois glissants, indépendamment de la
+         période affichée : comparer deux trimestres n'aurait aucun sens, la
+         saisonnalité dominerait le signal. */
+      recul: {
+        sanitaire: clientsEnRecul(projets, "sanitaire"),
+        grossiste: clientsEnRecul(projets, "grossiste"),
+      },
+      degats: {
+        marque: degatsLivraison(projets, "marque", de, a),
+        grossiste: degatsLivraison(projets, "grossiste", de, a),
+      },
+      equipage: soloOuBinome(projets, de, a),
     });
   } catch (e) {
     return NextResponse.json({ error: String((e as Error)?.message || e) }, { status: 500 });

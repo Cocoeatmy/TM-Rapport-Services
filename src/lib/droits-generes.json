@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-09-27T20:31:10.355Z",
+  "genereLe": "2026-09-27T20:46:07.615Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -488,6 +488,16 @@
       "methodes": [
         "GET",
         "POST"
+      ]
+    },
+    {
+      "url": "/api/garanties",
+      "type": "api",
+      "fichier": "src/app/api/garanties/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
       ]
     },
     {
@@ -1144,6 +1154,14 @@
       "methodes": [
         "GET"
       ]
+    },
+    {
+      "url": "/garanties",
+      "type": "page",
+      "fichier": "src/app/garanties/page.tsx",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": []
     },
     {
       "url": "/login",

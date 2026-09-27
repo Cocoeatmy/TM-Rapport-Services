@@ -764,6 +764,8 @@ export function SignalStats({
   const [analyses, setAnalyses] = useState<any | null>(null);
   const [axeClient, setAxeClient] = useState<"sanitaire" | "grossiste">("sanitaire");
   const [axeSav, setAxeSav] = useState<"marque" | "serie">("marque");
+  const [axeRendement, setAxeRendement] = useState<"marque" | "serie">("serie");
+  const [axeDegats, setAxeDegats] = useState<"marque" | "grossiste">("marque");
 
   const fenetre = useMemo(() => {
     const vus = picked.size > 0 ? monthKeys.filter((k) => picked.has(k)) : monthKeys.slice(-14);
@@ -828,6 +830,15 @@ export function SignalStats({
     });
     return t;
   }, [monthKeys, byMonth, totalsProp, picked, rows]);
+
+  /* Prix moyen d'un montage sur la période : le seul prix dont on dispose,
+     Notion ne portant pas de montant par projet. Le dénominateur est le
+     nombre de MONTAGES, pas les cabines mesurées. */
+  const caParCabine = useMemo(() => {
+    const ca = Number(totals?.ca) || 0;
+    const n = Number(totals?.montages) || 0;
+    return ca > 0 && n > 0 ? ca / n : null;
+  }, [totals]);
 
   /* ── Comparaison « à date » ───────────────────────────────────────────────
      L'ancien badge comparait les deux derniers mois de la période : sur une
@@ -1254,6 +1265,34 @@ export function SignalStats({
 
       {tab === "equipes" && (
         <div className="sgs-grid2">
+          <Fold className="sgs-span2" defaultOpen title="Seul ou à deux"
+            meta="temps de présence et temps-homme par cabine · les montages « Team » sont écartés">
+            {analyses?.equipage?.length ? (
+              <div className="sgs-tab">
+                <div className="sgs-tab-tete">
+                  <span>Composition</span><span>Cabines</span>
+                  <span>Présence / cabine</span><span>Temps-homme / cabine</span>
+                </div>
+                {analyses.equipage.map((l: any) => (
+                  <div key={l.forme} className="sgs-tab-ligne">
+                    <span>{l.forme} <em>· {l.projets} chantiers</em></span>
+                    <span>{l.cabines}</span>
+                    <b>{Math.floor(l.minutesParCabine / 60)}h{String(l.minutesParCabine % 60).padStart(2, "0")}</b>
+                    <b>{Math.floor(l.minutesHommeParCabine / 60)}h{String(l.minutesHommeParCabine % 60).padStart(2, "0")}</b>
+                  </div>
+                ))}
+                <p className="sgs-note">
+                  Deux mesures, et c&apos;est la seconde qui tranche : la <b>présence</b> dit si
+                  le chantier avance plus vite, le <b>temps-homme</b> dit s&apos;il coûte moins.
+                  Un binôme qui divise la présence par deux fait match nul ; en dessous il est
+                  gagnant, au-dessus c&apos;est un confort qui se paie. Les montages attribués à
+                  « Team » sont écartés : on ne sait pas combien de personnes s&apos;y trouvaient.
+                </p>
+              </div>
+            ) : (
+              <p className="sgs-empty">Pas assez de chantiers avec heures pointées et monteur identifié.</p>
+            )}
+          </Fold>
           <Fold title="Montage par monteur" meta="cabines posées · binômes répartis à parts égales">
             <BarList rows={byCollab} unit=" cab." empty="Aucun montage attribué sur cette période." onPick={setPick} />
           </Fold>
@@ -1318,6 +1357,49 @@ export function SignalStats({
                 </div>
               ))}
             </div>
+          </Fold>
+          <Fold className="sgs-span2" title="Temps consommé par cabine"
+            meta="pose et SAV réunis · le CA moyen de la période rapporte l'un à l'autre"
+            right={
+              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className={axeRendement === "serie" ? "is-on" : ""} onClick={() => setAxeRendement("serie")}>Série</button>
+                <button type="button" className={axeRendement === "marque" ? "is-on" : ""} onClick={() => setAxeRendement("marque")}>Marque</button>
+              </div>
+            }>
+            {analyses?.rendement?.[axeRendement]?.length ? (
+              <div className="sgs-tab is-large">
+                <div className="sgs-tab-tete">
+                  <span>{axeRendement === "serie" ? "Série" : "Marque"}</span>
+                  <span>Cabines</span><span>Pose</span><span>SAV</span>
+                  <span>Temps / cabine</span><span>CHF / heure</span>
+                </div>
+                {analyses.rendement[axeRendement].map((l: any) => {
+                  const heures = l.minutesParCabine / 60;
+                  const chf = caParCabine !== null && heures > 0 ? Math.round(caParCabine / heures) : null;
+                  return (
+                    <div key={l.cle} className="sgs-tab-ligne">
+                      <span>{l.cle}</span>
+                      <span>{l.cabines}</span>
+                      <span>{Math.round(l.minutesPose / 60)} h</span>
+                      <span>{Math.round(l.minutesSav / 60) || "—"} h</span>
+                      <b>{Math.floor(l.minutesParCabine / 60)}h{String(l.minutesParCabine % 60).padStart(2, "0")}</b>
+                      <b className={chf === null ? "" : "is-bon"}>{chf === null ? "—" : `${chf}`}</b>
+                    </div>
+                  );
+                })}
+                <p className="sgs-note">
+                  Notion ne porte pas de prix par projet, seulement un chiffre d&apos;affaires
+                  mensuel : la colonne CHF/heure applique donc le MÊME prix moyen
+                  {caParCabine !== null ? ` (${Math.round(caParCabine)} CHF par montage sur la période)` : ""}
+                  {" "}à toutes les lignes. Ce que ce tableau compare n&apos;est donc pas le prix,
+                  c&apos;est le TEMPS que chaque {axeRendement === "serie" ? "série" : "marque"} dévore —
+                  pose plus SAV — pour un produit vendu au même tarif. Une série posée en
+                  1 h 20 sans SAV vaut mieux qu&apos;une série 15 % plus chère qui en prend trois.
+                </p>
+              </div>
+            ) : (
+              <p className="sgs-empty">Pas assez de cabines posées avec des heures pointées sur la période.</p>
+            )}
           </Fold>
           <Fold className="sgs-span2" title="Coût de trajet par région"
             meta="aller-retour depuis le dépôt, par cabine posée · chaque chantier pris isolément">
@@ -1389,6 +1471,47 @@ export function SignalStats({
             ) : (
               <p className="sgs-empty">
                 {analyses ? "Aucune mesure reçue sur la période affichée." : "Calcul en cours…"}
+              </p>
+            )}
+          </Fold>
+
+          <Fold className="sgs-span2" title="Clients qui décrochent"
+            meta="douze mois glissants comparés aux douze précédents · recul d'au moins 40 %"
+            right={
+              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className={axeClient === "sanitaire" ? "is-on" : ""} onClick={() => setAxeClient("sanitaire")}>Sanitaire</button>
+                <button type="button" className={axeClient === "grossiste" ? "is-on" : ""} onClick={() => setAxeClient("grossiste")}>Grossiste</button>
+              </div>
+            }>
+            {analyses?.recul?.[axeClient]?.length ? (
+              <div className="sgs-tab is-large">
+                <div className="sgs-tab-tete">
+                  <span>{axeClient === "sanitaire" ? "Sanitaire" : "Grossiste"}</span>
+                  <span>12 mois</span><span>12 précédents</span><span>Écart</span>
+                  <span>Dernier montage</span><span></span>
+                </div>
+                {analyses.recul[axeClient].map((l: any) => (
+                  <div key={l.client} className="sgs-tab-ligne">
+                    <span>{l.client}</span>
+                    <span>{l.recent}</span>
+                    <span>{l.avant}</span>
+                    <b className="is-faible">{l.variation} %</b>
+                    <span>{l.derniereCommande || "—"}</span>
+                    <span className={l.joursDepuis !== null && l.joursDepuis > 180 ? "is-alerte" : ""}>
+                      {l.joursDepuis !== null ? `il y a ${l.joursDepuis} j` : ""}
+                    </span>
+                  </div>
+                ))}
+                <p className="sgs-note">
+                  Cette comparaison ignore la période affichée : deux trimestres ne se
+                  comparent pas, la saisonnalité dominerait le signal. Une année entière de
+                  chaque côté l&apos;annule. Un client qui pesait moins de cinq cabines l&apos;an
+                  passé n&apos;est pas retenu — il n&apos;a pas « décroché », il n&apos;a jamais décollé.
+                </p>
+              </div>
+            ) : (
+              <p className="sgs-empty">
+                {analyses ? "Aucun client en recul marqué : le portefeuille tient." : "Calcul en cours…"}
               </p>
             )}
           </Fold>
@@ -1466,6 +1589,41 @@ export function SignalStats({
             ))}
           </div>
 
+          <Fold title="Livraisons abîmées"
+            meta="d'après les photos de dégâts prises à la réception des cartons"
+            right={
+              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className={axeDegats === "marque" ? "is-on" : ""} onClick={() => setAxeDegats("marque")}>Marque</button>
+                <button type="button" className={axeDegats === "grossiste" ? "is-on" : ""} onClick={() => setAxeDegats("grossiste")}>Grossiste</button>
+              </div>
+            }>
+            {analyses?.degats?.[axeDegats]?.length ? (
+              <div className="sgs-tab">
+                <div className="sgs-tab-tete">
+                  <span>{axeDegats === "marque" ? "Marque" : "Grossiste"}</span>
+                  <span>Abîmées</span><span>Taux</span><span>Couverture</span>
+                </div>
+                {analyses.degats[axeDegats].map((l: any) => (
+                  <div key={l.cle} className="sgs-tab-ligne">
+                    <span>{l.cle}</span>
+                    <span>{l.abimees} <em>/ {l.documentees}</em></span>
+                    <b className={l.taux >= 10 ? "is-faible" : ""}>{l.taux} %</b>
+                    <span className={l.couverture < 60 ? "is-alerte" : ""}>{l.couverture} %</span>
+                  </div>
+                ))}
+                <p className="sgs-note">
+                  Le SAV met en cause le produit ; les cartons mettent en cause le transport
+                  et l&apos;emballage — d&apos;où deux responsables distincts, et deux axes de
+                  lecture. La colonne <b>Couverture</b> dit quelle part des livraisons a
+                  effectivement été photographiée : en dessous de 60 %, le taux est faux vers
+                  le bas et ne doit pas servir d&apos;argument. C&apos;est alors la couverture
+                  qu&apos;il faut corriger avant le fournisseur.
+                </p>
+              </div>
+            ) : (
+              <p className="sgs-empty">Pas assez de livraisons photographiées sur la période.</p>
+            )}
+          </Fold>
           <Fold title="Ce que coûte le SAV, en heures"
             meta="heures pointées sur les SAV, rapportées à 100 cabines posées de la même origine"
             right={

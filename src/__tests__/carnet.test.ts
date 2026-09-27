@@ -120,3 +120,36 @@ describe("carnet — rythme et alertes", () => {
     expect(c.dormantes.cabines).toBe(1);
   });
 });
+
+describe("saisonnalité", () => {
+  /** n cabines posées au mois `mois` de l'année `an`. */
+  const posesDuMois = (an: number, mois: number, n: number) =>
+    Array.from({ length: n }, (_, i) => p({
+      id: `s${an}-${mois}-${i}`, etatCMD: "Terminé",
+      nbCabines: 1, nbCabinesInstallees: 1,
+      dateMontage: `${an}-${String(mois).padStart(2, "0")}-15`,
+    }));
+
+  it("mesure l'écart à la moyenne, mois par mois", () => {
+    const projets = [
+      ...Array.from({ length: 12 }, (_, m) => posesDuMois(2025, m + 1, 10)).flat(),
+      ...posesDuMois(2025, 11, 10), // novembre double
+    ];
+    const c = construireCarnet(projets, MAINTENANT);
+    const novembre = c.saison.find((s) => s.mois === 11)!;
+    const juin = c.saison.find((s) => s.mois === 6)!;
+    expect(novembre.indice).toBeGreaterThan(0);
+    expect(juin.indice).toBeLessThan(0);
+    expect(novembre.cabines).toBe(20);
+  });
+
+  it("exclut le mois en cours, qui est incomplet", () => {
+    // Septembre 2026 est le mois de la date de référence.
+    const c = construireCarnet(posesDuMois(2026, 9, 30), MAINTENANT);
+    expect(c.saison.every((s) => s.cabines === 0) || c.saison.length === 0).toBe(true);
+  });
+
+  it("ne rend rien quand aucun montage n'a été posé", () => {
+    expect(construireCarnet([p({})], MAINTENANT).saison).toEqual([]);
+  });
+});

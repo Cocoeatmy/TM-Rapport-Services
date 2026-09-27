@@ -269,3 +269,251 @@ export function coutSav(
     }))
     .sort((x, y) => y.heuresPour100 - x.heuresPour100);
 }
+
+/* ── Rendement horaire ──────────────────────────────────────────────────── */
+
+export interface LigneRendement {
+  cle: string;
+  cabines: number;
+  minutesPose: number;
+  minutesSav: number;
+  /** Minutes totales consommées par cabine, SAV compris. */
+  minutesParCabine: number;
+}
+
+/**
+ * Temps consommé par cabine, pose et SAV réunis, par marque ou par série.
+ *
+ * C'est la moitié du rendement horaire : l'autre moitié — le prix — n'existe
+ * pas par projet dans Notion, seulement en chiffre d'affaires mensuel. La page
+ * combine donc ces minutes avec le CA moyen par cabine de la période, et le
+ * dit clairement : ce que ce tableau compare, c'est le TEMPS que chaque série
+ * dévore pour un produit vendu au même prix moyen.
+ */
+export function rendement(
+  projets: Project[],
+  axe: "marque" | "serie",
+  de?: string, a?: string,
+): LigneRendement[] {
+  const champ = (p: Project) => (axe === "marque" ? p.fournisseurs : p.seriesCabines) || [];
+  const m = new Map<string, LigneRendement>();
+  const ligne = (cle: string) => {
+    const cur = m.get(cle) || { cle, cabines: 0, minutesPose: 0, minutesSav: 0, minutesParCabine: 0 };
+    m.set(cle, cur);
+    return cur;
+  };
+
+  projets.forEach((p) => {
+    if (p.etatCMD !== "Terminé" || estServicePur(p)) return;
+    if (!dansFenetre(p.dateMontage, de, a)) return;
+    const n = Number(p.nbCabinesInstallees) || Number(p.nbCabines) || 0;
+    if (n <= 0) return;
+    const pose = minutesPointees(p) ?? 0;
+    const sav = minutesSav(p);
+    champ(p).forEach((k) => {
+      const l = ligne(k || "Non renseigné");
+      l.cabines += n;
+      l.minutesPose += pose;
+      l.minutesSav += sav;
+    });
+  });
+
+  return [...m.values()]
+    // Sous dix cabines et sans heures pointées, la moyenne ne vaut rien.
+    .filter((l) => l.cabines >= 10 && l.minutesPose > 0)
+    .map((l) => ({
+      ...l,
+      minutesParCabine: Math.round((l.minutesPose + l.minutesSav) / l.cabines),
+    }))
+    .sort((x, y) => x.minutesParCabine - y.minutesParCabine);
+}
+
+/* ── Clients en recul ───────────────────────────────────────────────────── */
+
+export interface LigneRecul {
+  client: string;
+  /** Cabines posées sur les douze derniers mois. */
+  recent: number;
+  /** Cabines posées sur les douze mois précédents. */
+  avant: number;
+  variation: number;
+  derniereCommande: string | null;
+  joursDepuis: number | null;
+}
+
+/**
+ * Clients dont le volume recule.
+ *
+ * Un sanitaire passé de quarante cabines à trois est une information
+ * commerciale de premier ordre, et elle disparaît dans un total qui, lui,
+ * continue de monter. On compare douze mois glissants aux douze précédents —
+ * une année entière de chaque côté, pour que la saisonnalité s'annule.
+ */
+export function clientsEnRecul(
+  projets: Project[],
+  axe: "sanitaire" | "grossiste",
+  maintenant: Date = new Date(),
+): LigneRecul[] {
+  const fin = maintenant.getTime();
+  const unAn = 365 * 86400000;
+  const m = new Map<string, { recent: number; avant: number; derniere: number | null }>();
+
+  projets.forEach((p) => {
+    if (MORTS.has(p.etatCMD) || estServicePur(p)) return;
+    const t = jourDe(p.dateMontage);
+    if (t === null || t > fin) return;
+    const n = Number(p.nbCabinesInstallees) || Number(p.nbCabines) || 0;
+    if (n <= 0) return;
+
+    const noms = axe === "sanitaire" ? (p.sanitaireNames || []) : (p.grossistesNames || []);
+    const client = noms[0];
+    if (!client) return;
+
+    const cur = m.get(client) || { recent: 0, avant: 0, derniere: null };
+    if (t >= fin - unAn) cur.recent += n;
+    else if (t >= fin - 2 * unAn) cur.avant += n;
+    if (cur.derniere === null || t > cur.derniere) cur.derniere = t;
+    m.set(client, cur);
+  });
+
+  return [...m.entries()]
+    // Un client qui pesait moins de cinq cabines l'an passé ne « recule » pas.
+    .filter(([, v]) => v.avant >= 5 && v.recent < v.avant * 0.6)
+    .map(([client, v]) => ({
+      client,
+      recent: v.recent,
+      avant: v.avant,
+      variation: Math.round(((v.recent - v.avant) / v.avant) * 100),
+      derniereCommande: v.derniere ? new Date(v.derniere).toISOString().slice(0, 10) : null,
+      joursDepuis: v.derniere ? Math.round((fin - v.derniere) / 86400000) : null,
+    }))
+    .sort((x, y) => (y.avant - y.recent) - (x.avant - x.recent));
+}
+
+/* ── Dégâts à la livraison ──────────────────────────────────────────────── */
+
+export interface LigneDegats {
+  cle: string;
+  /** Livraisons dont l'état des cartons a été photographié. */
+  documentees: number;
+  /** Livraisons portant des photos de dégâts. */
+  abimees: number;
+  taux: number;
+  /** Part des livraisons de la période qui ont été photographiées. */
+  couverture: number;
+}
+
+/**
+ * Livraisons abîmées, par fournisseur ou par grossiste.
+ *
+ * Le SAV met en cause le produit ; les cartons mettent en cause le transport
+ * et l'emballage — donc des responsables différents. La `couverture` est
+ * publiée avec le taux, et non cachée : si la moitié des livraisons n'est pas
+ * photographiée, le taux est faux vers le bas, et il faut le savoir avant de
+ * s'en servir dans une négociation.
+ */
+export function degatsLivraison(
+  projets: Project[],
+  axe: "marque" | "grossiste",
+  de?: string, a?: string,
+): LigneDegats[] {
+  const champ = (p: Project) => (axe === "marque" ? p.fournisseurs : p.grossistesNames) || [];
+  const m = new Map<string, { livrees: number; documentees: number; abimees: number }>();
+
+  projets.forEach((p) => {
+    if (MORTS.has(p.etatCMD) || estServicePur(p)) return;
+    const quand = p.arrivageTM || p.arrivageGrossiste;
+    if (!dansFenetre(quand, de, a)) return;
+
+    const recues = (p.photosCartonsRecus || []).length;
+    const degats = (p.photosCartons || []).length;
+    champ(p).forEach((k) => {
+      const cle = k || "Non renseigné";
+      const cur = m.get(cle) || { livrees: 0, documentees: 0, abimees: 0 };
+      cur.livrees += 1;
+      if (recues > 0 || degats > 0) cur.documentees += 1;
+      if (degats > 0) cur.abimees += 1;
+      m.set(cle, cur);
+    });
+  });
+
+  return [...m.entries()]
+    .filter(([, v]) => v.documentees >= 5)
+    .map(([cle, v]) => ({
+      cle,
+      documentees: v.documentees,
+      abimees: v.abimees,
+      taux: Math.round((v.abimees / v.documentees) * 100),
+      couverture: Math.round((v.documentees / v.livrees) * 100),
+    }))
+    .sort((x, y) => y.taux - x.taux);
+}
+
+/* ── Solo ou binôme ─────────────────────────────────────────────────────── */
+
+export interface LigneEquipage {
+  /** « Seul » ou « À deux ». */
+  forme: string;
+  cabines: number;
+  projets: number;
+  /** Minutes de présence sur place, par cabine. */
+  minutesParCabine: number;
+  /** Minutes × nombre de personnes, par cabine : le vrai coût. */
+  minutesHommeParCabine: number;
+}
+
+/**
+ * Un binôme pose-t-il plus de deux fois ce qu'un monteur seul pose ?
+ *
+ * Deux mesures, et la seconde tranche : le temps de PRÉSENCE par cabine dit si
+ * le chantier avance plus vite, le temps-HOMME par cabine dit s'il coûte moins.
+ * Un binôme qui divise la présence par deux fait match nul ; c'est en dessous
+ * qu'il est gagnant, au-dessus qu'il est un confort payé.
+ */
+export function soloOuBinome(
+  projets: Project[],
+  de?: string, a?: string,
+): LigneEquipage[] {
+  const m = new Map<string, { cabines: number; projets: number; minutes: number; minutesHomme: number }>();
+
+  projets.forEach((p) => {
+    if (p.etatCMD !== "Terminé" || estServicePur(p)) return;
+    if (!dansFenetre(p.dateMontage, de, a)) return;
+    const n = Number(p.nbCabinesInstallees) || Number(p.nbCabines) || 0;
+    const minutes = minutesPointees(p) ?? 0;
+    if (n <= 0 || minutes <= 0) return;
+
+    /* Nombre de personnes : l'attribution par cabine d'abord, qui est cochée
+       sur place, sinon le champ « Collaborateurs montages ». « Team » désigne
+       l'équipe entière : on ne sait pas combien, on l'écarte plutôt que de
+       deviner. */
+    const attr = String(p.attributionCabines || "");
+    const noms = attr
+      ? [...attr.matchAll(/Cab\d+\s*:\s*([^|]*)/g)].map((x) => x[1])
+      : [String(p.collaborateurs || "")];
+    const personnes = new Set(
+      noms.flatMap((v) => v.split("&").map((x) => x.trim()).filter(Boolean)));
+    if (personnes.size === 0) return;
+    if ([...personnes].some((x) => /team/i.test(x))) return;
+
+    const forme = personnes.size === 1 ? "Seul" : personnes.size === 2 ? "À deux" : "À trois ou plus";
+    const cur = m.get(forme) || { cabines: 0, projets: 0, minutes: 0, minutesHomme: 0 };
+    cur.cabines += n;
+    cur.projets += 1;
+    cur.minutes += minutes;
+    cur.minutesHomme += minutes * personnes.size;
+    m.set(forme, cur);
+  });
+
+  const ordre = ["Seul", "À deux", "À trois ou plus"];
+  return [...m.entries()]
+    .filter(([, v]) => v.projets >= 5)
+    .map(([forme, v]) => ({
+      forme,
+      cabines: v.cabines,
+      projets: v.projets,
+      minutesParCabine: Math.round(v.minutes / v.cabines),
+      minutesHommeParCabine: Math.round(v.minutesHomme / v.cabines),
+    }))
+    .sort((x, y) => ordre.indexOf(x.forme) - ordre.indexOf(y.forme));
+}

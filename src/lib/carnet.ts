@@ -50,6 +50,17 @@ export interface Carnet {
   };
   /** Cabines livrées depuis longtemps sans rendez-vous : le carnet qui dort. */
   dormantes: { cabines: number; projets: number; seuilJours: number };
+  saison: LigneSaison[];
+}
+
+export interface LigneSaison {
+  /** 1 = janvier. */
+  mois: number;
+  cabines: number;
+  /** Écart à la moyenne mensuelle, en pourcentage. */
+  indice: number;
+  /** Années observées pour ce mois — au-dessous de deux, l'indice est fragile. */
+  annees: number;
 }
 
 const MORTS = new Set(["Annulé"]);
@@ -92,6 +103,51 @@ function etapeDe(p: Project): string {
   if (aCommande(p)) return "Commandée, en attente de livraison";
   if (p.dateMesuresRecue || p.etatMesures === "Terminé") return "Mesurée, pas encore commandée";
   return "En attente de mesures";
+}
+
+/**
+ * Saisonnalité de la pose, sur les vingt-quatre derniers mois complets.
+ *
+ * Le carnet annonce « six semaines de travail » sans dire si elles tombent
+ * dans un mois habituellement chargé ou creux. L'indice répond à la question
+ * qui suit immédiatement : faut-il renforcer l'équipe, ou est-ce le pic
+ * d'automne qui retombera de lui-même ?
+ */
+function saisonnalite(projets: Project[], maintenant: Date): LigneSaison[] {
+  const fin = new Date(maintenant.getFullYear(), maintenant.getMonth(), 1).getTime();
+  const debut = new Date(maintenant.getFullYear() - 2, maintenant.getMonth(), 1).getTime();
+
+  const parMois = new Map<number, { cabines: number; annees: Set<number> }>();
+  let total = 0;
+  projets.forEach((p) => {
+    if (MORTS.has(p.etatCMD) || estServicePur(p)) return;
+    const t = jourDe(p.dateMontage);
+    // Le mois en cours est exclu : incomplet, il tirerait son indice vers le bas.
+    if (t === null || t < debut || t >= fin) return;
+    const n = Number(p.nbCabinesInstallees) || Number(p.nbCabines) || 0;
+    if (n <= 0) return;
+    const d = new Date(t);
+    const m = d.getMonth() + 1;
+    const cur = parMois.get(m) || { cabines: 0, annees: new Set<number>() };
+    cur.cabines += n;
+    cur.annees.add(d.getFullYear());
+    parMois.set(m, cur);
+    total += n;
+  });
+
+  const moisObserves = parMois.size;
+  if (moisObserves === 0 || total === 0) return [];
+  const moyenne = total / moisObserves;
+
+  return Array.from({ length: 12 }, (_, i) => {
+    const v = parMois.get(i + 1);
+    return {
+      mois: i + 1,
+      cabines: v?.cabines ?? 0,
+      indice: v ? Math.round(((v.cabines - moyenne) / moyenne) * 100) : -100,
+      annees: v?.annees.size ?? 0,
+    };
+  });
 }
 
 /** Cabines restant à poser sur un projet ; 0 si tout est posé. */
@@ -188,5 +244,6 @@ export function construireCarnet(projets: Project[], maintenant: Date = new Date
       projets: dormants.length,
       seuilJours: SEUIL_DORMANT,
     },
+    saison: saisonnalite(projets, maintenant),
   };
 }

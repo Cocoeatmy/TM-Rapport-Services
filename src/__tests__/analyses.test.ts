@@ -7,7 +7,10 @@
  */
 import { describe, it, expect } from "vitest";
 import type { Project } from "../lib/notion";
-import { transformation, coutRoute, coutSav } from "../lib/analyses";
+import {
+  transformation, coutRoute, coutSav, rendement, clientsEnRecul,
+  degatsLivraison, soloOuBinome,
+} from "../lib/analyses";
 
 const MAINTENANT = new Date("2026-09-27T12:00:00Z");
 const ilYA = (j: number) =>
@@ -23,6 +26,8 @@ const BASE = {
   cmdTM: "", cmdTMUsine: "", cmdGrossiste: "",
   dateMesuresRecue: ilYA(100), dateOffre: ilYA(95),
   dateCMDRecue: null, dateCMDUsine: null, dateMontage: null,
+  heureArrivee: "", heureDepart: "", attributionCabines: "", collaborateurs: "",
+  photosCartons: [], photosCartonsRecus: [],
   heureArriveeSav: "", heureDepartSav: "", causeSavCabines: "", causeSAV: "",
   dateSAVRecu: null, dateRDVSAV: null,
 } as unknown as Project;
@@ -139,6 +144,123 @@ describe("coût du SAV", () => {
 
   it("écarte une origine trop peu posée pour être comparée", () => {
     const lignes = coutSav([...pose("Rare", 4), ...sav("Rare", 2)], "marque");
+    expect(lignes).toEqual([]);
+  });
+});
+
+describe("temps consommé par cabine", () => {
+  const pose = (serie: string, n: number, minutes: number) => lot(n, {
+    etatCMD: "Terminé", dateMontage: ilYA(30), seriesCabines: [serie],
+    nbCabines: 1, nbCabinesInstallees: 1,
+    heureArrivee: "08:00", heureDepart: `${8 + minutes / 60}:00`,
+  });
+
+  it("classe du plus rapide au plus lent, SAV compris", () => {
+    const lignes = rendement([
+      ...pose("Rapide", 12, 120),
+      ...pose("Lente", 12, 240),
+    ], "serie");
+    expect(lignes.map((l) => l.cle)).toEqual(["Rapide", "Lente"]);
+    expect(lignes[0].minutesParCabine).toBe(120);
+  });
+
+  it("ajoute les heures de SAV au temps consommé", () => {
+    const sansSav = rendement(pose("S", 12, 120), "serie")[0];
+    const avecSav = rendement([
+      ...pose("S", 12, 120),
+      ...lot(1, {
+        etatCMD: "Terminé", dateMontage: ilYA(30), seriesCabines: ["S"],
+        nbCabines: 1, nbCabinesInstallees: 1,
+        heureArrivee: "08:00", heureDepart: "10:00",
+        dateSAVRecu: ilYA(20), heureArriveeSav: "08:00", heureDepartSav: "12:00",
+      }),
+    ], "serie")[0];
+    expect(avecSav.minutesSav).toBe(240);
+    expect(avecSav.minutesParCabine).toBeGreaterThan(sansSav.minutesParCabine);
+  });
+
+  it("écarte une série trop peu posée pour être comparée", () => {
+    expect(rendement(pose("Rare", 4, 120), "serie")).toEqual([]);
+  });
+});
+
+describe("clients qui décrochent", () => {
+  const commandes = (client: string, n: number, jours: number) => lot(n, {
+    etatCMD: "Terminé", dateMontage: ilYA(jours), sanitaireNames: [client],
+    nbCabines: 1, nbCabinesInstallees: 1,
+  });
+
+  it("repère une chute d'une année sur l'autre", () => {
+    const lignes = clientsEnRecul([
+      ...commandes("Décroche", 20, 400),
+      ...commandes("Décroche", 3, 100),
+    ], "sanitaire", MAINTENANT);
+    expect(lignes[0].client).toBe("Décroche");
+    expect(lignes[0].avant).toBe(20);
+    expect(lignes[0].recent).toBe(3);
+    expect(lignes[0].variation).toBe(-85);
+  });
+
+  it("laisse tranquille un client stable ou en hausse", () => {
+    const lignes = clientsEnRecul([
+      ...commandes("Stable", 10, 400),
+      ...commandes("Stable", 11, 100),
+    ], "sanitaire", MAINTENANT);
+    expect(lignes).toEqual([]);
+  });
+
+  it("ignore un client qui n'a jamais décollé", () => {
+    const lignes = clientsEnRecul([
+      ...commandes("Minuscule", 3, 400),
+    ], "sanitaire", MAINTENANT);
+    expect(lignes).toEqual([]);
+  });
+});
+
+describe("livraisons abîmées", () => {
+  const livraison = (marque: string, n: number, degats: boolean) => lot(n, {
+    arrivageTM: ilYA(20), fournisseurs: [marque],
+    photosCartonsRecus: [{ name: "c", url: "u" }],
+    photosCartons: degats ? [{ name: "d", url: "u" }] : [],
+  });
+
+  it("calcule le taux sur les livraisons documentées, pas sur toutes", () => {
+    const lignes = degatsLivraison([
+      ...livraison("Duka", 2, true),
+      ...livraison("Duka", 8, false),
+      ...lot(10, { arrivageTM: ilYA(20), fournisseurs: ["Duka"], photosCartonsRecus: [], photosCartons: [] }),
+    ], "marque");
+    expect(lignes[0].documentees).toBe(10);
+    expect(lignes[0].taux).toBe(20);
+    expect(lignes[0].couverture).toBe(50);
+  });
+
+  it("n'affiche pas un fournisseur trop peu documenté", () => {
+    expect(degatsLivraison(livraison("Rare", 3, true), "marque")).toEqual([]);
+  });
+});
+
+describe("seul ou à deux", () => {
+  const chantier = (personnes: string, n: number, minutes: number) => lot(n, {
+    etatCMD: "Terminé", dateMontage: ilYA(30), nbCabines: 1, nbCabinesInstallees: 1,
+    attributionCabines: `Cab1:${personnes}`,
+    heureArrivee: "08:00", heureDepart: `${8 + minutes / 60}:00`,
+  });
+
+  it("distingue présence et temps-homme", () => {
+    const lignes = soloOuBinome([
+      ...chantier("Claudio", 6, 240),
+      ...chantier("Claudio & Jacobo", 6, 120),
+    ]);
+    const seul = lignes.find((l) => l.forme === "Seul")!;
+    const deux = lignes.find((l) => l.forme === "À deux")!;
+    // Deux fois plus vite en présence, mais exactement le même temps-homme.
+    expect(deux.minutesParCabine).toBe(seul.minutesParCabine / 2);
+    expect(deux.minutesHommeParCabine).toBe(seul.minutesHommeParCabine);
+  });
+
+  it("écarte les montages « Team », dont on ignore l'effectif", () => {
+    const lignes = soloOuBinome(chantier("Team TM", 8, 120));
     expect(lignes).toEqual([]);
   });
 });
