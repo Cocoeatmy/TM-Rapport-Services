@@ -40,7 +40,11 @@ function useLeaflet() {
   return pret;
 }
 
-export function TourneeCarte({ etapes }: { etapes: { id: string; adresse: string; localite: string }[] }) {
+export function TourneeCarte({ etapes, depart }: {
+  etapes: { id: string; adresse: string; localite: string }[];
+  /** Dépôt : la journée en part et y revient. */
+  depart?: string;
+}) {
   const leafletPret = useLeaflet();
   const divRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
@@ -120,13 +124,20 @@ export function TourneeCarte({ etapes }: { etapes: { id: string; adresse: string
   // Nettoyage à la fermeture du panneau.
   useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } }, []);
 
+  /* Itinéraire complet : dépôt → chantiers → dépôt, comme se déroule la
+     journée. Sans dépôt, on relie simplement les chantiers entre eux. */
   const lienGoogle = (() => {
-    const a = etapes.map((e) => encodeURIComponent(e.adresse || e.localite)).filter(Boolean);
-    if (a.length === 0) return null;
-    if (a.length === 1) return `https://www.google.com/maps/search/?api=1&query=${a[0]}`;
-    const etapesInter = a.slice(1, -1).join("|");
-    return `https://www.google.com/maps/dir/?api=1&origin=${a[0]}&destination=${a[a.length - 1]}`
-      + (etapesInter ? `&waypoints=${etapesInter}` : "") + "&travelmode=driving";
+    const etapesEnc = etapes.map((e) => encodeURIComponent(e.adresse || e.localite)).filter(Boolean);
+    if (etapesEnc.length === 0) return null;
+    if (depart) {
+      const d = encodeURIComponent(depart);
+      return `https://www.google.com/maps/dir/?api=1&origin=${d}&destination=${d}`
+        + `&waypoints=${etapesEnc.join("|")}&travelmode=driving`;
+    }
+    if (etapesEnc.length === 1) return `https://www.google.com/maps/search/?api=1&query=${etapesEnc[0]}`;
+    const inter = etapesEnc.slice(1, -1).join("|");
+    return `https://www.google.com/maps/dir/?api=1&origin=${etapesEnc[0]}&destination=${etapesEnc[etapesEnc.length - 1]}`
+      + (inter ? `&waypoints=${inter}` : "") + "&travelmode=driving";
   })();
 
   const introuvables = points.filter((p) => p.lat == null).length;

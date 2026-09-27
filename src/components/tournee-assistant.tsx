@@ -3,20 +3,26 @@
 /**
  * Assistant de tournée — panneau latéral du thème « Signal ».
  *
- * On indique combien de montages on veut enchaîner, éventuellement un secteur,
- * et la capacité du véhicule ; l'assistant propose la combinaison la moins
- * dispersée parmi les projets de la liste affichée.
+ * La journée part du dépôt d'Yverdon et y revient ; les trajets comptent
+ * autant que les poses, sans quoi « 5 h de pose » cache une journée de 10 h.
  *
- * Il propose, il ne décide pas : rien n'est écrit dans Notion. Chaque étape
- * reste un lien vers son projet, où l'on fixe le rendez-vous comme d'habitude.
+ * Trois façons de composer la tournée :
+ *   • automatique — on donne le nombre de montages, l'app cherche ;
+ *   • avec un montage imposé — il y sera, les autres sont choisis autour ;
+ *   • à la main — on coche les chantiers, l'app ne fait qu'ordonner le trajet.
+ *
+ * Elle propose, elle ne décide pas : rien n'est écrit dans Notion.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Route, X, MapPin, Package, Clock, ChevronRight, Sparkles } from "lucide-react";
 import {
-  preparerCandidats, construireTournee, formatMinutes,
-  type CandidatSource, type Tournee,
+  Route, X, MapPin, Package, Clock, ChevronRight, Sparkles, Pin, ListChecks,
+  Loader2, AlertTriangle,
+} from "lucide-react";
+import {
+  preparerCandidats, construireTournee, formatMinutes, DEPOT, JOURNEE_MINUTES,
+  type CandidatSource, type Tournee, type Position,
 } from "@/lib/tournee";
 import { TourneeCarte } from "@/components/tournee-carte";
 
@@ -30,20 +36,47 @@ export function TourneeAssistant({
   const [nombre, setNombre] = useState(3);
   const [secteur, setSecteur] = useState("");
   const [cartonsMax, setCartonsMax] = useState("");
-  const [heuresMax, setHeuresMax] = useState("8");
+  const [heuresMax, setHeuresMax] = useState("8.5");
+  const [obligatoire, setObligatoire] = useState<string | null>(null);
+  const [choixManuel, setChoixManuel] = useState(false);
+  const [coches, setCoches] = useState<Set<string>>(new Set());
   const [resultat, setResultat] = useState<Tournee | null | "vide">(null);
 
+  /* ── Coordonnées ────────────────────────────────────────────────────────
+     Sans elles, les trajets ne sont qu'une grille par code postal. Elles sont
+     conservées côté serveur : la première tournée les résout, les suivantes
+     sont instantanées. */
+  const [positions, setPositions] = useState<Record<string, Position | null>>({});
+  const [posDepot, setPosDepot] = useState<Position | null>(null);
+  const [geoRestant, setGeoRestant] = useState<number | null>(null);
+
+  useEffect(() => {
+    let vivant = true;
+    const adresses = [DEPOT, ...projets.map((p) => p.adresseChantier || "").filter(Boolean)];
+    const demander = async () => {
+      const r = await fetch("/api/geocode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adresses }),
+      }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      if (!vivant || !r) { setGeoRestant(0); return; }
+      setPositions((prev) => ({ ...prev, ...r.resultats }));
+      if (r.resultats?.[DEPOT]) setPosDepot(r.resultats[DEPOT]);
+      setGeoRestant(r.restant || 0);
+      if (r.restant > 0 && vivant) demander();
+    };
+    demander();
+    return () => { vivant = false; };
+  }, [projets]);
+
   const candidats = useMemo(
-    () => preparerCandidats(projets, historique),
-    [projets, historique],
+    () => preparerCandidats(projets, historique, positions),
+    [projets, historique, positions],
   );
 
-  /** Secteurs proposés : ceux réellement présents dans la liste. */
   const secteurs = useMemo(() => {
     const m = new Map<string, number>();
-    candidats.forEach((c) => {
-      if (c.region) m.set(c.region, (m.get(c.region) || 0) + 1);
-    });
+    candidats.forEach((c) => { if (c.region) m.set(c.region, (m.get(c.region) || 0) + 1); });
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [candidats]);
 
@@ -52,9 +85,19 @@ export function TourneeAssistant({
       nombre,
       secteur: secteur.trim() || undefined,
       cartonsMax: Number(cartonsMax) || 0,
-      minutesMax: Math.round((Number(heuresMax) || 0) * 60),
-    });
+      minutesMax: Math.round((Number(heuresMax) || 0) * 60) || JOURNEE_MINUTES,
+      obligatoire: obligatoire || undefined,
+      imposes: choixManuel ? [...coches] : undefined,
+    }, posDepot);
     setResultat(t ?? "vide");
+  };
+
+  const basculerCoche = (id: string) => {
+    setCoches((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
   };
 
   return (
@@ -67,7 +110,7 @@ export function TourneeAssistant({
               <Route className="w-4 h-4" /> Assistant de tournée
             </h2>
             <p className="sgs-card-meta">
-              {candidats.length} montage{candidats.length > 1 ? "s" : ""} à planifier dans la liste
+              Départ et retour&nbsp;: {DEPOT} · {candidats.length} montage{candidats.length > 1 ? "s" : ""} à planifier
             </p>
           </div>
           <button type="button" className="sg-unpin" aria-label="Fermer" onClick={onClose}>
@@ -76,40 +119,53 @@ export function TourneeAssistant({
         </div>
 
         <div className="sgs-drawer-body sgt-body">
-          {/* Réglages */}
-          <label className="sgt-champ">
-            <span>Montages dans la tournée</span>
-            <div className="sgt-nombre">
-              {[2, 3, 4, 5, 6].map((n) => (
-                <button key={n} type="button" className={nombre === n ? "is-on" : ""}
-                  onClick={() => setNombre(n)}>{n}</button>
-              ))}
-            </div>
-          </label>
+          {geoRestant !== null && geoRestant > 0 && (
+            <p className="sgt-note sgt-carte-etat">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Localisation des adresses — {geoRestant} restante{geoRestant > 1 ? "s" : ""}.
+              Les temps de trajet seront plus justes une fois terminé.
+            </p>
+          )}
 
-          <label className="sgt-champ">
-            <span>Secteur de départ <em>facultatif</em></span>
-            <input
-              value={secteur}
-              onChange={(e) => setSecteur(e.target.value)}
-              placeholder="Localité, code postal ou région…"
-              list="sgt-secteurs"
-            />
-            <datalist id="sgt-secteurs">
-              {secteurs.map(([r]) => <option key={r} value={r} />)}
-            </datalist>
-            {secteurs.length > 0 && (
-              <div className="sgt-suggestions">
-                {secteurs.slice(0, 6).map(([r, n]) => (
-                  <button key={r} type="button"
-                    className={secteur === r ? "is-on" : ""}
-                    onClick={() => setSecteur(secteur === r ? "" : r)}>
-                    {r} <b>{n}</b>
-                  </button>
-                ))}
-              </div>
-            )}
-          </label>
+          {/* Mode de composition */}
+          <div className="sgt-modes">
+            <button type="button" className={!choixManuel ? "is-on" : ""} onClick={() => setChoixManuel(false)}>
+              <Sparkles className="w-3.5 h-3.5" /> Automatique
+            </button>
+            <button type="button" className={choixManuel ? "is-on" : ""} onClick={() => setChoixManuel(true)}>
+              <ListChecks className="w-3.5 h-3.5" /> Je choisis
+            </button>
+          </div>
+
+          {!choixManuel && (
+            <>
+              <label className="sgt-champ">
+                <span>Montages dans la journée</span>
+                <div className="sgt-nombre">
+                  {[2, 3, 4, 5, 6].map((n) => (
+                    <button key={n} type="button" className={nombre === n ? "is-on" : ""}
+                      onClick={() => setNombre(n)}>{n}</button>
+                  ))}
+                </div>
+              </label>
+
+              <label className="sgt-champ">
+                <span>Secteur de départ <em>facultatif</em></span>
+                <input value={secteur} onChange={(e) => setSecteur(e.target.value)}
+                  placeholder="Localité, code postal ou région…" />
+                {secteurs.length > 0 && (
+                  <div className="sgt-suggestions">
+                    {secteurs.slice(0, 6).map(([r, n]) => (
+                      <button key={r} type="button" className={secteur === r ? "is-on" : ""}
+                        onClick={() => setSecteur(secteur === r ? "" : r)}>
+                        {r} <b>{n}</b>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </label>
+            </>
+          )}
 
           <div className="sgt-duo">
             <label className="sgt-champ">
@@ -118,44 +174,82 @@ export function TourneeAssistant({
                 onChange={(e) => setCartonsMax(e.target.value)} placeholder="illimité" />
             </label>
             <label className="sgt-champ">
-              <span>Heures max. <em>journée</em></span>
+              <span>Heures max. <em>trajets compris</em></span>
               <input type="number" inputMode="decimal" step="0.5" value={heuresMax}
-                onChange={(e) => setHeuresMax(e.target.value)} placeholder="illimité" />
+                onChange={(e) => setHeuresMax(e.target.value)} placeholder="8.5" />
             </label>
           </div>
 
-          <button type="button" className="sg-btn-primary sgt-go" onClick={calculer}>
-            <Sparkles className="w-4 h-4" /> Proposer une tournée
+          {/* Coche en mode manuel, épingle en automatique */}
+          <div className="sgt-champ">
+            <span>
+              {choixManuel ? `Chantiers retenus (${coches.size})` : "Montage obligatoire — facultatif"}
+            </span>
+            <div className="sgt-liste">
+              {candidats.map((c) => {
+                const actif = choixManuel ? coches.has(c.id) : obligatoire === c.id;
+                return (
+                  <button key={c.id} type="button"
+                    className={`sgt-choix${actif ? " is-on" : ""}`}
+                    onClick={() => choixManuel
+                      ? basculerCoche(c.id)
+                      : setObligatoire(obligatoire === c.id ? null : c.id)}>
+                    {choixManuel
+                      ? <span className="sgt-case">{actif ? "✓" : ""}</span>
+                      : <Pin className="w-3.5 h-3.5 shrink-0" />}
+                    <span className="sgt-choix-txt">
+                      <b className="sg-mono">{c.ofrTM}</b> {c.npa} {c.localite}
+                      <em>{c.projet}</em>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <button type="button" className="sg-btn-primary sgt-go" onClick={calculer}
+            disabled={choixManuel && coches.size === 0}>
+            <Sparkles className="w-4 h-4" />
+            {choixManuel ? "Calculer le meilleur itinéraire" : "Proposer une tournée"}
           </button>
 
-          {/* Résultat */}
           {resultat === "vide" && (
             <p className="sg-empty">
-              Aucune combinaison ne respecte ces contraintes. Élargissez le secteur,
-              augmentez la capacité ou réduisez le nombre de montages.
+              Aucune combinaison ne tient dans ces contraintes. Élargissez le secteur,
+              augmentez la durée de journée ou réduisez le nombre de montages.
             </p>
           )}
 
           {resultat && resultat !== "vide" && (
             <div className="sgt-resultat">
               <div className="sgt-bilan">
+                <span className={resultat.heuresSupp ? "is-warn" : ""}>
+                  <Clock className="w-3.5 h-3.5" />
+                  Journée {formatMinutes(resultat.minutesTotal)}
+                </span>
+                <span>
+                  <Route className="w-3.5 h-3.5" />
+                  {formatMinutes(resultat.minutesTrajet)} de route
+                  {resultat.kmApprox > 0 ? ` · ~${resultat.kmApprox} km` : ""}
+                </span>
+                <span><Clock className="w-3.5 h-3.5" />{formatMinutes(resultat.minutesPose)} de pose</span>
                 <span><MapPin className="w-3.5 h-3.5" />{resultat.etendue}</span>
-                <span><Clock className="w-3.5 h-3.5" />{formatMinutes(resultat.minutes)} de pose</span>
                 <span><Package className="w-3.5 h-3.5" />{resultat.cartons || "—"} cartons · {resultat.cabines} cab.</span>
               </div>
 
-              {resultat.etapes.length < nombre && (
-                <p className="sgt-note">
-                  {resultat.etapes.length} montage{resultat.etapes.length > 1 ? "s" : ""} seulement :
-                  les autres ne tiennent pas dans les contraintes.
+              {resultat.heuresSupp && (
+                <p className="sgt-note sgt-alerte">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Retour au dépôt au-delà de 8&nbsp;h&nbsp;30 : ce sont des heures supplémentaires.
                 </p>
               )}
 
-              {/* Carte : seulement les étapes retenues, donc quelques adresses —
-                  et leurs coordonnées sont mises en cache côté serveur. */}
-              <TourneeCarte etapes={resultat.etapes.map((c) => ({
-                id: c.id, adresse: c.adresse, localite: `${c.npa} ${c.localite}`.trim(),
-              }))} />
+              <TourneeCarte
+                etapes={resultat.etapes.map((c) => ({
+                  id: c.id, adresse: c.adresse, localite: `${c.npa} ${c.localite}`.trim(),
+                }))}
+                depart={DEPOT}
+              />
 
               <ol className="sgt-etapes">
                 {resultat.etapes.map((c, i) => (
@@ -178,10 +272,10 @@ export function TourneeAssistant({
               </ol>
 
               <p className="sgt-note">
-                Durées estimées d&apos;après les heures réellement pointées sur les montages
-                terminés du même fournisseur. Le regroupement se fait au code postal ;
-                pour les kilomètres et le temps de route réels, ouvrez l&apos;itinéraire
-                dans Google Maps ci-dessus.
+                Départ et retour au dépôt de {DEPOT}, trajets compris dans la journée.
+                Durées de pose d&apos;après les heures réellement pointées sur les montages
+                terminés du même fournisseur ; temps de route estimés à vol d&apos;oiseau
+                majoré — pour les kilomètres réels, ouvrez l&apos;itinéraire dans Google Maps.
               </p>
             </div>
           )}

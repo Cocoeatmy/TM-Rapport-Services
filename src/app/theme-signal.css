@@ -2253,6 +2253,60 @@ html[data-ui="signal"] .sgt-bilan span {
 }
 html[data-ui="signal"] .sgt-note { margin: 0; font-size: 11px; color: var(--sg-text-3); line-height: 1.45; }
 
+html[data-ui="signal"] .sgt-modes { display: flex; gap: 6px; }
+html[data-ui="signal"] .sgt-modes button {
+  flex: 1; height: 34px; border-radius: 9px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-2); font-family: inherit; font-size: 12.5px; font-weight: 600;
+}
+html[data-ui="signal"] .sgt-modes button.is-on {
+  background: var(--sg-ink); border-color: var(--sg-ink); color: #fff;
+}
+
+/* Choix des chantiers : liste déroulante interne, pour ne pas noyer le reste. */
+html[data-ui="signal"] .sgt-liste {
+  display: flex; flex-direction: column; gap: 3px;
+  max-height: 210px; overflow-y: auto;
+  padding: 4px; border-radius: 10px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper-2);
+}
+html[data-ui="signal"] .sgt-choix {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 5px 8px; border-radius: 7px; cursor: pointer; text-align: left;
+  border: 1px solid transparent; background: transparent;
+  color: var(--sg-text-2); font-family: inherit;
+}
+html[data-ui="signal"] .sgt-choix:hover { background: var(--sg-paper); }
+html[data-ui="signal"] .sgt-choix.is-on {
+  background: var(--sg-signal-soft); border-color: var(--sg-signal); color: var(--sg-signal);
+}
+html[data-ui="signal"] .sgt-case {
+  width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--sg-line-strong); background: var(--sg-paper);
+  font-size: 11px; font-weight: 700; color: var(--sg-signal);
+}
+html[data-ui="signal"] .sgt-choix.is-on .sgt-case { border-color: var(--sg-signal); }
+html[data-ui="signal"] .sgt-choix-txt {
+  min-width: 0; display: flex; flex-direction: column; gap: 0;
+  font-size: 11.5px; line-height: 1.35;
+}
+html[data-ui="signal"] .sgt-choix-txt em {
+  font-style: normal; font-size: 11px; color: var(--sg-text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sgt-choix.is-on .sgt-choix-txt em { color: inherit; opacity: 0.8; }
+
+html[data-ui="signal"] .sgt-bilan span.is-warn {
+  background: #fff3da; border-color: #f2d9a6; color: #92500e;
+}
+html[data-ui="signal"] .sgt-alerte {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px; border-radius: 9px;
+  background: #fff3da; color: #92500e;
+}
+
 html[data-ui="signal"] .sgt-carte-bloc { display: flex; flex-direction: column; gap: 6px; }
 html[data-ui="signal"] .sgt-carte {
   height: 220px; border-radius: 12px; overflow: hidden;
