@@ -18,6 +18,7 @@ import {
   preparerCandidats, construireTournee, formatMinutes,
   type CandidatSource, type Tournee,
 } from "@/lib/tournee";
+import { TourneeCarte } from "@/components/tournee-carte";
 
 export function TourneeAssistant({
   projets, historique, onClose,
@@ -150,6 +151,12 @@ export function TourneeAssistant({
                 </p>
               )}
 
+              {/* Carte : seulement les étapes retenues, donc quelques adresses —
+                  et leurs coordonnées sont mises en cache côté serveur. */}
+              <TourneeCarte etapes={resultat.etapes.map((c) => ({
+                id: c.id, adresse: c.adresse, localite: `${c.npa} ${c.localite}`.trim(),
+              }))} />
+
               <ol className="sgt-etapes">
                 {resultat.etapes.map((c, i) => (
                   <li key={c.id}>
@@ -172,8 +179,9 @@ export function TourneeAssistant({
 
               <p className="sgt-note">
                 Durées estimées d&apos;après les heures réellement pointées sur les montages
-                terminés du même fournisseur. Proximité évaluée au code postal, pas en
-                kilomètres routiers.
+                terminés du même fournisseur. Le regroupement se fait au code postal ;
+                pour les kilomètres et le temps de route réels, ouvrez l&apos;itinéraire
+                dans Google Maps ci-dessus.
               </p>
             </div>
           )}

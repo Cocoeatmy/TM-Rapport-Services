@@ -2253,6 +2253,20 @@ html[data-ui="signal"] .sgt-bilan span {
 }
 html[data-ui="signal"] .sgt-note { margin: 0; font-size: 11px; color: var(--sg-text-3); line-height: 1.45; }
 
+html[data-ui="signal"] .sgt-carte-bloc { display: flex; flex-direction: column; gap: 6px; }
+html[data-ui="signal"] .sgt-carte {
+  height: 220px; border-radius: 12px; overflow: hidden;
+  border: 1px solid var(--sg-line); background: var(--sg-paper-2);
+}
+html[data-ui="signal"] .sgt-carte-etat { display: flex; align-items: center; gap: 6px; }
+html[data-ui="signal"] .sgt-gmaps {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 38px; border-radius: 10px; text-decoration: none;
+  background: var(--sg-signal); color: #fff;
+  font-size: 13px; font-weight: 600;
+}
+html[data-ui="signal"] .sgt-gmaps:hover { filter: brightness(1.08); color: #fff; }
+
 html[data-ui="signal"] .sgt-etapes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 html[data-ui="signal"] .sgt-etapes li {
   display: flex; align-items: center; gap: 9px;
