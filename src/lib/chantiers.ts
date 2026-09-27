@@ -49,6 +49,8 @@ export interface ProjetChantier {
   dateMontage: string | null;
   diversInfosChantier: string;
   emplacementCabine: string;
+  /** « Claudio & Jacobo » — sert aux pastilles de la liste des offres. */
+  collaborateurs?: string;
   typeServices: string[];
   lastEditedTime: string;
 }

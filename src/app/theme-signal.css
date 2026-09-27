@@ -3022,33 +3022,16 @@ html[data-ui="signal"] .sgch-vide-msg {
 }
 
 /* Offres du chantier, sous le tableau : accès direct aux fiches. */
-html[data-ui="signal"] .sgch-offres { display: flex; flex-direction: column; gap: 2px; }
+html[data-ui="signal"] .sgch-offres { display: flex; flex-direction: column; gap: 6px; }
+/* Conteneur de la liste dense : c'est lui qui dessine la carte, les lignes
+   sg-plist-* étant partagées avec « RDV Montage à fixer ». */
+html[data-ui="signal"] .sgch-plist {
+  border: 1px solid var(--sg-line); border-radius: 12px;
+  background: var(--sg-paper); overflow: hidden;
+}
 html[data-ui="signal"] .sgch-offres h3 {
   display: flex; align-items: center; gap: 6px; margin: 0 0 4px;
   font-size: 12px; font-weight: 700; color: var(--sg-text);
-}
-html[data-ui="signal"] .sgch-offre {
-  display: flex; align-items: center; gap: 10px;
-  padding: 6px 10px; border-radius: 8px; text-decoration: none;
-  border: 1px solid transparent; border-bottom-color: var(--sg-line);
-  background: var(--sg-paper); color: var(--sg-text-2); font-size: 11.5px;
-}
-html[data-ui="signal"] .sgch-offre:hover {
-  background: var(--sg-paper-2); border-color: var(--sg-line-strong);
-}
-html[data-ui="signal"] .sgch-offre b {
-  flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; color: var(--sg-text);
-}
-html[data-ui="signal"] .sgch-offre > span:not(.sgch-offre-st) {
-  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-html[data-ui="signal"] .sgch-offre em {
-  flex-shrink: 0; font-style: normal; font-size: 10.5px; color: var(--sg-text-3);
-  font-family: var(--font-mono);
-}
-html[data-ui="signal"] .sgch-offre-st {
-  flex-shrink: 0; font-size: 10.5px; color: var(--sg-text-3);
-  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* Mode sombre : les pastilles OUI/NON et les segments d'avancement. */

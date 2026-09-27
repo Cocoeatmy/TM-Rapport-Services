@@ -15,6 +15,8 @@ import {
   Building2, Search, ChevronRight, ArrowLeft, Loader2, Download, Ruler,
   ShoppingCart, Truck, Wrench, FileText, X,
 } from "lucide-react";
+import { STATUS_CMD_COLORS } from "@/lib/constants";
+import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import {
   construireChantiers, grouperParLot, pct,
   type Chantier, type Lot, type ProjetChantier,
@@ -412,15 +414,42 @@ function DetailChantier({ c, onRetour }: { c: Chantier; onRetour: () => void }) 
 
       <div className="sgch-offres">
         <h3><FileText className="w-3.5 h-3.5" /> Offres du chantier</h3>
-        {c.offres.map((o) => (
-          <Link key={o.id} href={`/projet/${o.id}?mode=dashboard`} className="sgch-offre">
-            <b>{o.ofrTM || "—"}</b>
-            <span>{sansA(o.projet)}</span>
-            <em>{o.nbCabines || 1} cab.</em>
-            <span className="sgch-offre-st">{o.etatCMD}</span>
-            <ChevronRight className="w-4 h-4" />
-          </Link>
-        ))}
+        {/* Même grammaire visuelle que « RDV Montage à fixer » : n° TM empilés,
+            libellé et titre sur deux lignes, statut, date, monteurs, cabines. */}
+        <div className="sgch-plist">
+          {c.offres.map((o) => {
+            const refs = (o.ofrTM || "").split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean);
+            const lot = [...new Set(c.lots.filter((l) => l.projectId === o.id).map((l) => l.nom))].join(" · ");
+            const collabs = (o.collaborateurs || "").split(" & ").map((n) => n.trim()).filter(Boolean);
+            return (
+              <div className="sg-plist-row" key={o.id}>
+                <Link href={`/projet/${o.id}?mode=dashboard`} className="sg-plist-link">
+                  <span className="sg-plist-tm sg-refs">
+                    {refs.length ? refs.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—"}
+                  </span>
+                  <span className="sg-plist-main">
+                    <span className="sg-plist-name">{lot || sansA(o.projet)}</span>
+                    <span className="sg-plist-sub">{sansA(o.projet)}</span>
+                  </span>
+                  <span className={`sg-plist-state ${STATUS_CMD_COLORS[o.etatCMD] || "bg-gray-100 text-gray-700"}`}>
+                    {o.etatCMD || "—"}
+                  </span>
+                  <span className="sg-plist-date">{jour(o.dateMontage) || "—"}</span>
+                  <span className="sg-plist-people">
+                    {collabs.slice(0, 3).map((nom) => (
+                      <span key={nom} className="sg-plist-av" title={nom}
+                        style={{ backgroundColor: getCollaboratorColor(nom).bg, color: getCollaboratorColor(nom).text }}>
+                        {getCollaboratorInitials(nom)}
+                      </span>
+                    ))}
+                  </span>
+                  <span className="sg-plist-cab">{o.nbCabines || 1}</span>
+                  <ChevronRight className="w-4 h-4 sg-plist-chev" />
+                </Link>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
