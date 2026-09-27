@@ -18,13 +18,40 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Route, X, MapPin, Package, Clock, ChevronRight, Sparkles,
-  Loader2, AlertTriangle, Home,
+  Loader2, AlertTriangle, Home, Search,
 } from "lucide-react";
 import {
   preparerCandidats, construireTournee, formatMinutes, DEPOT, JOURNEE_MINUTES,
   type CandidatSource, type Tournee, type Position,
 } from "@/lib/tournee";
 import { TourneeCarte } from "@/components/tournee-carte";
+
+function normaliser(v: string): string {
+  return (v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/** Clés sans intérêt pour une recherche : photos, documents, signatures. */
+const CLES_IGNOREES = /^(photos|documents|offres)|url$|signature/i;
+
+/** Aplatit toutes les valeurs textuelles d'un projet en une seule chaîne. */
+function aplatir(v: unknown, profondeur = 0): string {
+  if (v == null || profondeur > 2) return "";
+  if (typeof v === "string" || typeof v === "number") return `${v} `;
+  if (Array.isArray(v)) return v.map((x) => aplatir(x, profondeur + 1)).join(" ");
+  if (typeof v === "object") {
+    return Object.entries(v as Record<string, unknown>)
+      .filter(([k]) => !CLES_IGNOREES.test(k))
+      .map(([, x]) => aplatir(x, profondeur + 1))
+      .join(" ");
+  }
+  return "";
+}
+
+function indexerCandidat(c: { ofrTM: string; projet: string; npa: string; localite: string; region: string; canton: string; source: unknown }): string {
+  return normaliser([
+    c.ofrTM, c.projet, c.npa, c.localite, c.region, c.canton, aplatir(c.source),
+  ].join(" "));
+}
 
 export function TourneeAssistant({
   projets, historique, onClose,
@@ -74,6 +101,39 @@ export function TourneeAssistant({
     () => preparerCandidats(projets, historique, positions),
     [projets, historique, positions],
   );
+
+  /* Recherche dans les montages à planifier.
+     Elle porte sur TOUT ce que le projet contient — sanitaire, client, n° de
+     commande, statut, série… — et non sur une liste de champs choisis
+     d'avance : c'est la seule façon de retrouver un chantier avec le mot qu'on
+     a en tête. Les pièces jointes sont écartées : leurs URL n'apprennent rien
+     et alourdiraient l'index. */
+  const [recherche, setRecherche] = useState("");
+
+  const index = useMemo(() => {
+    const m = new Map<string, string>();
+    candidats.forEach((c) => m.set(c.id, indexerCandidat(c)));
+    return m;
+  }, [candidats]);
+
+  const trouves = useMemo(() => {
+    const q = normaliser(recherche.trim());
+    if (!q) return candidats;
+    const mots = q.split(/\s+/).filter(Boolean);
+    return candidats.filter((c) => {
+      const foin = index.get(c.id) || "";
+      return mots.every((mot) => foin.includes(mot));
+    });
+  }, [candidats, index, recherche]);
+
+  /* Un chantier coché reste visible même s'il sort de la recherche : sans
+     cela, on ne pourrait plus le décocher après avoir change de mots-clés. */
+  const listeAffichee = useMemo(() => {
+    if (!recherche.trim()) return candidats;
+    const vus = new Set(trouves.map((c) => c.id));
+    const gardes = candidats.filter((c) => coches.has(c.id) && !vus.has(c.id));
+    return [...gardes, ...trouves];
+  }, [candidats, trouves, coches, recherche]);
 
   const secteurs = useMemo(() => {
     const m = new Map<string, number>();
@@ -180,8 +240,22 @@ export function TourneeAssistant({
             <span>
               Montages imposés <em>{coches.size > 0 ? `${coches.size} retenu${coches.size > 1 ? "s" : ""}` : "facultatif"}</em>
             </span>
+            <label className="sgt-recherche">
+              <Search className="w-3.5 h-3.5" />
+              <input value={recherche} onChange={(e) => setRecherche(e.target.value)}
+                placeholder="Chercher : sanitaire, client, n° de projet, commande…" />
+              {recherche && (
+                <button type="button" onClick={() => setRecherche("")} aria-label="Effacer">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {recherche.trim() && <b>{trouves.length}</b>}
+            </label>
             <div className="sgt-liste">
-              {candidats.map((c) => {
+              {listeAffichee.length === 0 && (
+                <p className="sgt-note sgt-rien">Aucun montage ne correspond.</p>
+              )}
+              {listeAffichee.map((c) => {
                 const actif = coches.has(c.id);
                 return (
                   <div key={c.id} className={`sgt-choix${actif ? " is-on" : ""}`}>
