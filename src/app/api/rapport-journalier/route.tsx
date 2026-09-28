@@ -14,7 +14,7 @@
  * La route rend le PDF ; elle n'envoie aucun courriel.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getAllActiveProjects, getProjectsCmdTermine, type Project } from "@/lib/notion";
+import { getProjectsMontageJour, type Project } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
 import { isMontageOnDay, collaboratorOnProject, isoDay } from "@/lib/daily-report";
@@ -256,17 +256,8 @@ export async function GET(req: NextRequest) {
   if (!cible) return NextResponse.json({ error: "cible manquante" }, { status: 400 });
 
   try {
-    /* Les montages du jour peuvent déjà être clôturés — on relit donc aussi les
-       terminés, sans quoi une feuille de route rééditée en fin de journée
-       paraîtrait vide. */
-    const [actifs, termines] = await Promise.all([
-      getAllActiveProjects(),
-      getProjectsCmdTermine().catch(() => [] as Project[]),
-    ]);
-    const tous = [...actifs, ...termines]
-      .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
-
-    const duJour = tous.filter((p) => isMontageOnDay(p, jour));
+    const duJour = (await getProjectsMontageJour(jour))
+      .filter((p) => isMontageOnDay(p, jour));
     const projets = duJour
       .filter((p) => type === "equipe"
         ? nfc(p.collaborateurs).trim().toLowerCase() === cible.toLowerCase()
@@ -298,7 +289,9 @@ export async function GET(req: NextRequest) {
     return new NextResponse(pdf, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${nom}.pdf"`,
+        /* Téléchargement, pas ouverture : la feuille se prépare la veille au
+           soir et se relit le matin, souvent hors réseau. */
+        "Content-Disposition": `attachment; filename="${nom}.pdf"`,
         "Cache-Control": "no-store",
       },
     });

@@ -1058,6 +1058,40 @@ export async function getAllProjectsRaw(): Promise<Project[]> {
   );
 }
 
+/**
+ * Les montages d'UN jour, demandés à Notion plutôt que triés en mémoire.
+ *
+ * La feuille de route ne concerne qu'une journée : lire tous les projets
+ * actifs PUIS tous les terminés — plusieurs centaines de fiches, deux
+ * pagination complètes — pour n'en garder trois est ce qui rendait le
+ * document si long à venir. Notion sait filtrer sur la date : une seule
+ * requête, une poignée de résultats.
+ *
+ * La fenêtre déborde d'un jour de part et d'autre, puis `isMontageOnDay`
+ * tranche : Notion compare en temps universel, et un rendez-vous de tout
+ * début ou de toute fin de journée pourrait sinon basculer d'un jour.
+ *
+ * Les projets terminés sont INCLUS — une feuille rééditée en fin de journée
+ * paraîtrait sinon vide. Les annulés sont exclus : ce montage n'aura pas lieu.
+ */
+export async function getProjectsMontageJour(jour: string): Promise<Project[]> {
+  const decale = (n: number) => {
+    const d = new Date(`${jour}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  return queryAll(
+    {
+      and: [
+        { property: "Date Montage", date: { on_or_after: decale(-1) } },
+        { property: "Date Montage", date: { before: decale(2) } },
+        { property: "État - CMD", status: { does_not_equal: "Annulé" } },
+      ],
+    },
+    [{ property: "Date Montage", direction: "ascending" }]
+  );
+}
+
 // Projets dont l'état CMD est "Terminé" (archivage CMD).
 export async function getProjectsCmdTermine(): Promise<Project[]> {
   return queryAll(

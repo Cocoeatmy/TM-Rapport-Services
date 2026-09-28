@@ -44,7 +44,12 @@ const estPublicMiddleware = (url) =>
 function niveauDe(source, url) {
   const a = (re) => re.test(source);
   if (url.startsWith("/api/cron/") || a(/CRON_SECRET/)) return "cron";
+  /* Les deux écritures du même verrou : « si admin, je continue » et « si pas
+     admin, je refuse ». La seconde manquait, et les routes qui l'emploient
+     étaient inventoriées comme simplement connectées — l'inventaire annonçait
+     alors une protection plus faible que celle réellement en place. */
   if (a(/role\s*===\s*["']admin["']/)) return "admin";
+  if (a(/role\s*!==\s*["']admin["'][\s\S]{0,200}?(40[13]|Admin requis)/)) return "admin";
   const signe = a(/sign(Fiche|Sav|Synthese|Pdf|PdfClient|Signalements|Arrivage|Chantier|Doc|Mesure|PhotosZip)/);
   const cookie = a(/verifyToken|auth-token/);
   if (signe && cookie) return "signe-ou-connecte";

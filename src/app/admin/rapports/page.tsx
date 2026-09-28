@@ -23,6 +23,13 @@ const MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
 
 type Retour = { ok: boolean; message: string } | null;
 
+/** Qui travaille un jour donné. */
+type Cibles = { monteurs: string[]; equipes: string[] };
+
+/** Journées déjà lues, le temps de la visite : revenir sur une date affiche
+ *  sa liste aussitôt, sans attendre le réseau. */
+const CIBLES_LUES = new Map<string, Cibles>();
+
 export default function RapportsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -56,33 +63,58 @@ export default function RapportsPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
-  const [cibles, setCibles] = useState<{ monteurs: string[]; equipes: string[] } | null>(null);
+  const [cibles, setCibles] = useState<Cibles | null>(null);
   const [cible, setCible] = useState("");
+  const [telechargement, setTelechargement] = useState(false);
 
   useEffect(() => {
     let vivant = true;
-    setCibles(null);
-    fetch(`/api/daily-report/apercu?date=${jour}`)
+    /* Journée déjà lue : on la réaffiche sans attendre le réseau. Comparer
+       deux dates fait revenir sur la première, et rien n'a changé entre-temps. */
+    const connu = CIBLES_LUES.get(jour);
+    setCibles(connu || null);
+    const poser = (d: Cibles) => {
+      CIBLES_LUES.set(jour, d);
+      if (!vivant) return;
+      setCibles(d);
+      // On reprend la sélection si elle existe encore ce jour-là.
+      const tout = [...d.monteurs, ...d.equipes];
+      setCible((prev) => (tout.includes(prev) ? prev : (tout[0] || "")));
+    };
+    if (connu) { poser(connu); return; }
+    fetch(`/api/rapport-journalier/cibles?date=${jour}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!vivant || !d) return;
-        const monteurs: string[] = (d.parCollaborateur || []).map((x: { nom: string }) => x.nom);
-        const equipes: string[] = (d.equipes || []).filter((e: string) => !monteurs.includes(e));
-        setCibles({ monteurs, equipes });
-        // On reprend la sélection si elle existe encore ce jour-là.
-        setCible((prev) => ([...monteurs, ...equipes].includes(prev) ? prev : (monteurs[0] || equipes[0] || "")));
-      })
+      .then((d) => { if (d) poser({ monteurs: d.monteurs || [], equipes: d.equipes || [] }); })
       .catch(() => { if (vivant) setCibles({ monteurs: [], equipes: [] }); });
     return () => { vivant = false; };
   }, [jour]);
 
-  const ouvrirFeuille = () => {
-    if (!cible) return;
+  /* Téléchargement plutôt qu'ouverture : la feuille se prépare la veille et se
+     relit le matin, souvent hors réseau. On passe par un blob pour garder un
+     retour visible pendant la fabrication du PDF. */
+  const telechargerFeuille = async () => {
+    if (!cible || telechargement) return;
+    setTelechargement(true);
     const type = cibles?.equipes.includes(cible) ? "equipe" : "monteur";
-    window.open(
-      `/api/rapport-journalier?date=${jour}&type=${type}&cible=${encodeURIComponent(cible)}`,
-      "_blank",
-    );
+    try {
+      const res = await fetch(
+        `/api/rapport-journalier?date=${jour}&type=${type}&cible=${encodeURIComponent(cible)}`,
+      );
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Journee ${cible} ${jour}.pdf`.replace(/[^\w\s.-]/g, "").trim();
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("La feuille de route n'a pas pu être produite.");
+    } finally {
+      setTelechargement(false);
+    }
   };
 
   // Les projets alimentent l'export Excel (même source que le tableau de bord).
@@ -322,7 +354,7 @@ export default function RapportsPage() {
                 disabled={!cibles || (cibles.monteurs.length === 0 && cibles.equipes.length === 0)}
                 className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm disabled:opacity-60"
               >
-                {!cibles && <option>Lecture de la journée…</option>}
+                {!cibles && <option>Lecture…</option>}
                 {cibles && cibles.monteurs.length === 0 && cibles.equipes.length === 0 && (
                   <option>Aucun montage ce jour-là</option>
                 )}
@@ -342,15 +374,15 @@ export default function RapportsPage() {
 
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 shrink-0" />
-            Aucun envoi : le document s&apos;ouvre, rien ne part par e-mail.
+            Aucun envoi : le document se télécharge, rien ne part par e-mail.
           </p>
           <button
-            onClick={ouvrirFeuille}
-            disabled={!cible}
+            onClick={telechargerFeuille}
+            disabled={!cible || telechargement}
             className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-60"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            Ouvrir la feuille de route
+            {telechargement ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+            {telechargement ? "Préparation…" : "Télécharger la feuille de route"}
           </button>
         </div>
       </div>

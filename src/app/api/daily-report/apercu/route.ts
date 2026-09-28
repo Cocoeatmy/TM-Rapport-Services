@@ -79,16 +79,8 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    /* Équipes du jour, telles qu'elles sont saisies : « Claudio & Jacobo »,
-       « Team TM »… La feuille de route peut viser un binôme entier, pas
-       seulement une personne. */
-    const equipes = estAdmin
-      ? [...new Set(montages.map((p) => (p.collaborateurs || "").trim()).filter(Boolean))].sort()
-      : [];
-
     return NextResponse.json({
       date: jour,
-      equipes,
       nom: (user as any).name || "",
       estAdmin,
       total: montages.length,

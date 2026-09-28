@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-09-28T15:55:45.468Z",
+  "genereLe": "2026-09-28T16:07:51.098Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -148,7 +148,7 @@
       "url": "/api/backup",
       "type": "api",
       "fichier": "src/app/api/backup/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "POST",
@@ -242,7 +242,7 @@
       "url": "/api/crm",
       "type": "api",
       "fichier": "src/app/api/crm/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -368,7 +368,7 @@
       "url": "/api/destockage",
       "type": "api",
       "fichier": "src/app/api/destockage/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -483,7 +483,7 @@
       "url": "/api/force-sync",
       "type": "api",
       "fichier": "src/app/api/force-sync/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -514,7 +514,7 @@
       "url": "/api/logs",
       "type": "api",
       "fichier": "src/app/api/logs/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -662,7 +662,7 @@
       "url": "/api/projects",
       "type": "api",
       "fichier": "src/app/api/projects/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -685,7 +685,7 @@
       "url": "/api/projects/[id]/cabine-order",
       "type": "api",
       "fichier": "src/app/api/projects/[id]/cabine-order/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -707,7 +707,7 @@
       "url": "/api/projects/[id]/offres",
       "type": "api",
       "fichier": "src/app/api/projects/[id]/offres/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET"
@@ -888,7 +888,17 @@
       "url": "/api/rapport-journalier",
       "type": "api",
       "fichier": "src/app/api/rapport-journalier/route.tsx",
-      "niveau": "connecte",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/rapport-journalier/cibles",
+      "type": "api",
+      "fichier": "src/app/api/rapport-journalier/cibles/route.ts",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET"
@@ -898,7 +908,7 @@
       "url": "/api/rapport-mensuel",
       "type": "api",
       "fichier": "src/app/api/rapport-mensuel/route.tsx",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "POST"
@@ -988,7 +998,7 @@
       "url": "/api/stats/consultations",
       "type": "api",
       "fichier": "src/app/api/stats/consultations/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET"
@@ -1028,7 +1038,7 @@
       "url": "/api/stocks",
       "type": "api",
       "fichier": "src/app/api/stocks/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "GET",
@@ -1061,7 +1071,7 @@
       "url": "/api/telegram-webhook",
       "type": "api",
       "fichier": "src/app/api/telegram-webhook/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "POST",
@@ -1092,7 +1102,7 @@
       "url": "/api/user-activity",
       "type": "api",
       "fichier": "src/app/api/user-activity/route.ts",
-      "niveau": "connecte",
+      "niveau": "admin",
       "gardePage": false,
       "methodes": [
         "POST",
