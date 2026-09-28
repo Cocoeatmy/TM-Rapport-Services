@@ -119,17 +119,21 @@ export default function RootLayout({
                 s'y greffe par portail. Vide et sans style pour tous les autres
                 thèmes : aucun effet sur leur affichage. */}
             <div id="signal-header-slot" />
+            {/* Ordre des boutons. Les deux paires qui se ressemblent sont
+                volontairement séparées : les deux flèches circulaires
+                (Actualiser et la synchro orange) et les deux nuages (la
+                synchro et le téléchargement hors réseau) se confondaient
+                quand elles étaient voisines. */}
             <div className="flex items-center gap-2 shrink-0">
               <GlobalSearch />
               <CreateProjectButton />
-              <NotificationBell />
               {/* Bouton Actualiser : visible pour TOUS (admin + employé). */}
               <RefreshButton />
-              <SyncButton />
+              <NotificationBell />
               {/* BoutonHorsLigne (nuage descendant) : ce qui est TÉLÉCHARGÉ sur
                   l'appareil pour travailler sans réseau — l'inverse du nuage
-                  ci-dessus et de l'avion ci-dessous, qui font remonter. Ne se
-                  monte que sous le thème Signal ; il ne rend rien ailleurs. */}
+                  de synchro et de l'avion, qui font remonter. Ne se monte que
+                  sous le thème Signal ; il ne rend rien ailleurs. */}
               <BoutonHorsLigne />
               {/* SendPendingButton (avion) : quand il est coloré, des photos ne
                   sont pas encore uploadées → l'utilisateur relance en tapant.
@@ -138,6 +142,7 @@ export default function RootLayout({
               {/* ForceSyncButton (orange) : lance la synchro des photos de TOUS les
                   téléphones des collaborateurs → gardé visible (admin). */}
               <ForceSyncButton />
+              <SyncButton />
               <UserMenu />
             </div>
           </div>
