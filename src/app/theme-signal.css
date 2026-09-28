@@ -3915,3 +3915,12 @@ html[data-ui="signal"].dark .sgo.is-pret { border-color: var(--sg-line); backgro
   html[data-ui="signal"] .sgo { flex-wrap: wrap; }
   html[data-ui="signal"] .sgo-txt { flex-basis: 60%; }
 }
+
+/* Chiffre cliquable dans un tableau d'analyse (ouvre la liste des projets). */
+html[data-ui="signal"] .sgs-lien {
+  border: 0; background: transparent; cursor: pointer; padding: 1px 7px;
+  border-radius: 999px; background: var(--sg-signal-soft); color: var(--sg-signal);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 11.5px; font-weight: 700;
+}
+html[data-ui="signal"] .sgs-lien:hover { background: var(--sg-signal); color: #fff; }

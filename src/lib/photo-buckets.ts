@@ -232,6 +232,13 @@ const REQUIRED_PHOTO_GROUPS: { label: string; buckets: PhotoBucketKey[]; min: nu
   { label: "Photos montage", buckets: ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE"], min: 3 },
   { label: "Photos après intervention", buckets: ["APRES_INTERVENTION"], min: 2 },
 ];
+
+/**
+ * Nombre de photos exigées sur une cabine posée — la somme des groupes
+ * ci-dessus. Exporté pour que la statistique de conformité se cale sur la
+ * règle appliquée à l'envoi, au lieu d'en tenir une copie qui dériverait.
+ */
+export const TOTAL_PHOTOS_REQUISES = REQUIRED_PHOTO_GROUPS.reduce((s, g) => s + g.min, 0);
 // Groupes RECOMMANDÉS (rappel contournable) — pas de minimum imposé.
 const OPTIONAL_PHOTO_GROUPS: { label: string; buckets: PhotoBucketKey[] }[] = [
   { label: "Photos démontage", buckets: ["DEMONTAGE"] },

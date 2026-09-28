@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, TrendingDown, Minus, RefreshCw, FileText, ChevronDown, ChevronUp, X, ChevronRight, MapPin } from "lucide-react";
 import Link from "next/link";
 import { cantonLabel, regionLabel } from "@/lib/swiss-cantons";
+import { conformitePhotos, totalPhotos } from "@/lib/photos-stats";
 
 import { getTeamColor, getCollaboratorColor } from "@/lib/collaborators";
 
@@ -804,6 +805,12 @@ export function SignalStats({
   const [axeSav, setAxeSav] = useState<"marque" | "serie">("marque");
   const [axeRendement, setAxeRendement] = useState<"marque" | "serie">("serie");
   const [axeDegats, setAxeDegats] = useState<"marque" | "grossiste">("marque");
+  const [axePhotos, setAxePhotos] = useState<"monteur" | "equipe">("monteur");
+
+  /* Conformité photo — calculée ici, sur les projets déjà en main : la règle
+     vit dans photo-buckets, la même qui bloque l'envoi d'un rapport incomplet. */
+  const photos = useMemo(() => conformitePhotos(P as never, axePhotos), [P, axePhotos]);
+  const photosTotal = useMemo(() => totalPhotos(photos, axePhotos), [photos, axePhotos]);
 
   const fenetre = useMemo(() => {
     const vus = picked.size > 0 ? monthKeys.filter((k) => picked.has(k)) : monthKeys.slice(-14);
@@ -1367,6 +1374,74 @@ export function SignalStats({
               </>
             ) : (
               <p className="sgs-empty">Aucune mesure relevée et attribuée sur la période.</p>
+            )}
+          </Fold>
+          <Fold className="sgs-span2" title="Photos obligatoires"
+            meta="2 avant intervention · 3 montage · 2 après — par cabine posée · QR code et garantie non comptés"
+            right={
+              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className={axePhotos === "monteur" ? "is-on" : ""} onClick={() => setAxePhotos("monteur")}>Monteur</button>
+                <button type="button" className={axePhotos === "equipe" ? "is-on" : ""} onClick={() => setAxePhotos("equipe")}>Équipe</button>
+              </div>
+            }>
+            {photos.length ? (
+              <>
+                {photosTotal && (
+                  <p className="sgs-note" style={{ marginTop: 0, marginBottom: 8 }}>
+                    Sur l&apos;ensemble : <b>{photosTotal.manquantes}</b> photos manquantes sur
+                    {" "}{photosTotal.attendues} demandées ({photosTotal.tauxManquant} %),
+                    et {photosTotal.tauxCabinesCompletes} % des cabines au complet.
+                  </p>
+                )}
+                <Tableau cols={[
+                  { titre: "" }, { titre: axePhotos === "monteur" ? "Monteur" : "Équipe" },
+                  { titre: "Cabines", num: true }, { titre: "Manquantes", num: true },
+                  { titre: "Photos manquantes", num: true }, { titre: "Cabines complètes", num: true },
+                  { titre: "Projets à revoir", num: true },
+                ]}>
+                  {photos.map((l, i) => (
+                    <tr key={l.nom}>
+                      <td className="num doux" style={{ paddingLeft: 0, width: 22 }}>{i + 1}</td>
+                      <td className="cle">{l.nom}</td>
+                      <td className="num doux">{l.cabines}</td>
+                      <td className="num doux">{l.manquantes} <em>/ {l.attendues}</em></td>
+                      <td className="num fort avec-part">
+                        <span className={l.tauxManquant === 0 ? "sgs-pct is-bon" : l.tauxManquant >= 20 ? "sgs-pct is-faible" : "sgs-pct"}>
+                          {l.tauxManquant} %
+                        </span>
+                        <Part valeur={l.tauxManquant} sur={100} ton={l.tauxManquant >= 20 ? "chaud" : undefined} />
+                      </td>
+                      <td className="num">{l.tauxCabinesCompletes} %</td>
+                      <td className="num fort">
+                        {l.projetsIncomplets.length > 0 ? (
+                          <button type="button" className="sgs-lien"
+                            title={`Voir les ${l.projetsIncomplets.length} projets à revoir`}
+                            onClick={() => setPick({
+                              label: `${l.nom} — projets à revoir`,
+                              value: l.projetsIncomplets.length,
+                              color: "#b45309",
+                              items: l.projetsIncomplets as never[],
+                            })}>
+                            {l.projetsIncomplets.length}
+                          </button>
+                        ) : <span className="sgs-pct is-bon">0</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </Tableau>
+                <p className="sgs-note">
+                  Le classement va du plus rigoureux au moins : c&apos;est la comparaison
+                  entre monteurs, sans colonne supplémentaire. Sur un projet à plusieurs
+                  cabines, chacune est imputée à SON monteur d&apos;après l&apos;attribution
+                  cochée sur place — personne ne répond des lots d&apos;un autre. Un binôme
+                  engage en revanche ses deux monteurs sur les mêmes cabines : la règle
+                  était respectée pour les deux, ou pour aucun. Les cabines sous-traitées,
+                  les services purs et les projets sans responsable identifié ne comptent
+                  contre personne.
+                </p>
+              </>
+            ) : (
+              <p className="sgs-empty">Aucune cabine posée avec un responsable identifié sur la période.</p>
             )}
           </Fold>
           <Fold title="Montage par monteur" meta="cabines posées · binômes répartis à parts égales">
