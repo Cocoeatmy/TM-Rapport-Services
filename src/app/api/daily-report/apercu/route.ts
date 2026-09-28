@@ -14,7 +14,7 @@ import { verifyToken, getAllUsers } from "@/lib/auth";
 import { getAllActiveProjects, getAllProjectsRaw, type Project } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
 import { isMontageOnDay, collaboratorOnProject, isoDay } from "@/lib/daily-report";
-import { appliquer, compterFiches, REGLES_ANOMALIES, REGLES_RELANCES } from "@/lib/regles";
+import { appliquer, compterFiches, compterFichesVives, REGLES_ANOMALIES, REGLES_RELANCES } from "@/lib/regles";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -75,7 +75,10 @@ export async function GET(req: NextRequest) {
         .filter((g) => g.regle.gravite === "bloquant");
       alertes = {
         anomalies: compterFiches(anomalies),
-        relances: compterFiches(appliquer(REGLES_RELANCES, tous)),
+        /* Les fiches VIVANTES seulement : compter l'arriéré de dossiers
+           jamais clôturés donnait un millier d'unités que personne ne
+           regardait plus. Le détail reste sur la page Relances. */
+        relances: compterFichesVives(appliquer(REGLES_RELANCES, tous)),
       };
     }
 

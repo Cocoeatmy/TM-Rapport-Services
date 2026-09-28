@@ -12,7 +12,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  ChevronRight, Search, X, Loader2, RefreshCw, CheckCircle2, MessageSquare,
+  ChevronRight, Search, X, Loader2, RefreshCw, CheckCircle2, MessageSquare, Flame,
 } from "lucide-react";
 
 export interface LigneControle {
@@ -24,6 +24,12 @@ export interface LigneControle {
   /** Champ Notion « Journal des échanges » — l'historique des appels. */
   journal: string;
   detail: string;
+  /** Priorité calculée : plus le score est haut, plus c'est pour aujourd'hui. */
+  score?: number;
+  /** Ce qui a fait monter ce dossier, en clair. */
+  raisons?: string[];
+  /** Dossier sans mouvement depuis des mois : à classer, pas à relancer. */
+  dormant?: boolean;
 }
 
 export interface GroupeControle {
@@ -39,6 +45,21 @@ const GRAVITES: { id: GroupeControle["gravite"] | "toutes"; label: string }[] = 
   { id: "bloquant", label: "Bloquant" },
   { id: "important", label: "Important" },
   { id: "mineur", label: "Mineur" },
+];
+
+/**
+ * Deux travaux bien distincts, et c'est le choix par défaut qui compte.
+ *
+ * « À traiter » ne montre que les dossiers encore vivants : c'est la liste
+ * qu'on ouvre le matin. « À classer » rassemble ceux que plus rien n'a fait
+ * bouger depuis des mois — souvent des chantiers réellement faits, dont la
+ * fiche n'a jamais été clôturée. Les mélanger donnait un millier de lignes
+ * que personne n'ouvrait.
+ */
+const ETATS: { id: "actifs" | "dormants" | "tous"; label: string }[] = [
+  { id: "actifs", label: "À traiter" },
+  { id: "dormants", label: "À classer" },
+  { id: "tous", label: "Tout" },
 ];
 
 function norm(s: string): string {
@@ -123,6 +144,9 @@ export function ControlesVue({
 }) {
   const [recherche, setRecherche] = useState("");
   const [gravite, setGravite] = useState<GroupeControle["gravite"] | "toutes">("toutes");
+  /* « À traiter » par défaut : on ouvre cette page pour agir, pas pour
+     contempler un arriéré. */
+  const [etat, setEtat] = useState<"actifs" | "dormants" | "tous">("actifs");
   const [ouverts, setOuverts] = useState<Set<string>>(new Set());
   const [journalOuvert, setJournalOuvert] = useState<string | null>(null);
 
@@ -132,10 +156,19 @@ export function ControlesVue({
     return n;
   });
 
+  /** Le filtre vivant / dormant s'applique avant tout le reste. */
+  const parEtat = useMemo(() => {
+    if (etat === "tous") return groupes;
+    const garder = (p: LigneControle) => (etat === "dormants" ? !!p.dormant : !p.dormant);
+    return groupes
+      .map((g) => ({ ...g, projets: g.projets.filter(garder) }))
+      .filter((g) => g.projets.length > 0);
+  }, [groupes, etat]);
+
   const visibles = useMemo(() => {
     const q = norm(recherche.trim());
     const mots = q ? q.split(/\s+/) : [];
-    return groupes
+    return parEtat
       .filter((g) => gravite === "toutes" || g.gravite === gravite)
       .map((g) => ({
         ...g,
@@ -145,13 +178,43 @@ export function ControlesVue({
         }),
       }))
       .filter((g) => g.projets.length > 0);
-  }, [groupes, recherche, gravite]);
+  }, [parEtat, recherche, gravite]);
 
   const comptes = useMemo(() => {
     const c: Record<string, number> = { toutes: 0, bloquant: 0, important: 0, mineur: 0 };
-    groupes.forEach((g) => { c.toutes += g.projets.length; c[g.gravite] += g.projets.length; });
+    parEtat.forEach((g) => { c.toutes += g.projets.length; c[g.gravite] += g.projets.length; });
     return c;
+  }, [parEtat]);
+
+  const comptesEtat = useMemo(() => {
+    const vus = new Map<string, boolean>();
+    groupes.forEach((g) => g.projets.forEach((p) => {
+      vus.set(p.id, vus.get(p.id) === false ? false : !!p.dormant);
+    }));
+    const dormants = [...vus.values()].filter(Boolean).length;
+    return { actifs: vus.size - dormants, dormants, tous: vus.size };
   }, [groupes]);
+
+  /**
+   * Les dix dossiers à traiter aujourd'hui, toutes règles confondues.
+   *
+   * C'est la réponse à « par quoi je commence ». Les groupes restent en
+   * dessous pour qui veut tout parcourir, mais ils ne répondent pas à cette
+   * question-là : un dossier urgent peut se trouver au fond du quatrième
+   * groupe.
+   */
+  const top = useMemo(() => {
+    if (etat === "dormants") return [];
+    const m = new Map<string, LigneControle & { titre: string }>();
+    parEtat.forEach((g) => g.projets.forEach((p) => {
+      const vu = m.get(p.id);
+      if (!vu || (p.score || 0) > (vu.score || 0)) m.set(p.id, { ...p, titre: g.titre });
+    }));
+    return [...m.values()]
+      .filter((p) => (p.score || 0) > 0)
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .slice(0, 10);
+  }, [parEtat, etat]);
 
   return (
     <div className="sgq">
@@ -165,6 +228,14 @@ export function ControlesVue({
               <X className="w-3.5 h-3.5" />
             </button>
           )}
+        </span>
+        <span className="sgch-etats">
+          {ETATS.map((e) => (
+            <button key={e.id} type="button" className={etat === e.id ? "is-on" : ""}
+              onClick={() => setEtat(e.id)}>
+              {e.label} <b>{comptesEtat[e.id]}</b>
+            </button>
+          ))}
         </span>
         <span className="sgch-etats">
           {GRAVITES.map((g) => (
@@ -191,6 +262,32 @@ export function ControlesVue({
       )}
       {!chargement && groupes.length > 0 && visibles.length === 0 && (
         <p className="sgch-vide-msg">Aucune fiche ne correspond à ce filtre.</p>
+      )}
+
+      {top.length > 0 && !recherche && gravite === "toutes" && (
+        <div className="sgq-top">
+          <p className="sgq-top-tete">
+            <Flame className="w-4 h-4" />
+            Par quoi commencer — {top.length} dossier{top.length > 1 ? "s" : ""}
+            <em>classés par ce qu&apos;ils coûtent s&apos;ils attendent un jour de plus</em>
+          </p>
+          {top.map((p, i) => (
+            <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`} className="sgq-top-ligne">
+              <span className="sgq-top-rang">{i + 1}</span>
+              <b className="sg-mono">{p.ofrTM || "—"}</b>
+              <span className="sgq-top-main">
+                <span className="sgq-ligne-nom">{p.projet}</span>
+                <span className="sgq-ligne-detail">{p.titre} — {p.detail}</span>
+              </span>
+              {(p.raisons || []).length > 0 && (
+                <span className="sgq-top-raisons">
+                  {(p.raisons || []).map((r) => <i key={r}>{r}</i>)}
+                </span>
+              )}
+              <ChevronRight className="w-4 h-4 sg-plist-chev" />
+            </Link>
+          ))}
+        </div>
       )}
 
       <div className="sgq-groupes">

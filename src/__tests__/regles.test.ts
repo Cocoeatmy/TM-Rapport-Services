@@ -9,7 +9,8 @@
 import { describe, it, expect } from "vitest";
 import type { Project } from "../lib/notion";
 import {
-  appliquer, compterFiches, joursDepuis, estServicePur,
+  appliquer, compterFiches, compterFichesVives, joursDepuis, estServicePur,
+  derniereActivite, prioriteDe, DORMANT_JOURS,
   REGLES_ANOMALIES, REGLES_RELANCES,
 } from "../lib/regles";
 
@@ -208,5 +209,78 @@ describe("relances — le déplacement évité", () => {
     // Trop loin pour agir, ou déjà passé : ce n'est plus une relance.
     expect(detail("rdv-sans-cabines", p({ ...ouvert, dateMontage: dans(40) }), REGLES_RELANCES)).toBeNull();
     expect(detail("rdv-sans-cabines", p({ ...ouvert, dateMontage: ilYA(3) }), REGLES_RELANCES)).toBeNull();
+  });
+});
+
+
+describe("priorité — par quoi commencer", () => {
+  const regle = (id: string) => {
+    const r = [...REGLES_RELANCES, ...REGLES_ANOMALIES].find((x) => x.id === id);
+    if (!r) throw new Error(id);
+    return r;
+  };
+  const dans = (j: number) =>
+    new Date(MAINTENANT.getTime() + j * 86400000).toISOString().slice(0, 10);
+
+  it("retient la date la plus récente du dossier", () => {
+    expect(derniereActivite(p({}), MAINTENANT)).toBe(30); // le montage
+    expect(derniereActivite(
+      p({ dateMesuresRecue: null, dateOffre: null, dateCMDRecue: null,
+          arrivageTM: null, dateMontage: null }), MAINTENANT)).toBeNull();
+  });
+
+  it("fait passer devant une intervention imminente", () => {
+    const proche = prioriteDe(regle("rdv-sans-cabines"),
+      p({ dateMontage: dans(1), arrivageTM: null }), MAINTENANT);
+    const lointain = prioriteDe(regle("rdv-sans-cabines"),
+      p({ dateMontage: dans(12), arrivageTM: null }), MAINTENANT);
+    expect(proche.score).toBeGreaterThan(lointain.score);
+    expect(proche.raisons.join(" ")).toMatch(/montage dans 1 j/);
+  });
+
+  it("pèse le nombre de cabines", () => {
+    const gros = prioriteDe(regle("livre-sans-rdv"), p({ nbCabines: 12, dateMontage: null }), MAINTENANT);
+    const petit = prioriteDe(regle("livre-sans-rdv"), p({ nbCabines: 1, dateMontage: null }), MAINTENANT);
+    expect(gros.score).toBeGreaterThan(petit.score);
+  });
+
+  it("écarte un dossier que plus rien n'a fait bouger depuis des mois", () => {
+    const vieux = ilYA(DORMANT_JOURS + 60);
+    const dormant = prioriteDe(regle("offre-sans-commande"), p({
+      dateMesuresRecue: vieux, dateMesures: vieux, dateOffre: vieux,
+      dateCMDRecue: null, dateCMDUsine: null,
+      arrivageTM: null, arrivageGrossiste: null, dateMontage: null,
+    }), MAINTENANT);
+    expect(dormant.dormant).toBe(true);
+
+    const recent = prioriteDe(regle("offre-sans-commande"), p({
+      dateOffre: ilYA(40), dateMesuresRecue: ilYA(45), dateMesures: ilYA(45),
+      dateCMDRecue: null, dateCMDUsine: null,
+      arrivageTM: null, arrivageGrossiste: null, dateMontage: null,
+    }), MAINTENANT);
+    expect(recent.dormant).toBe(false);
+    expect(recent.score).toBeGreaterThan(dormant.score);
+  });
+
+  it("compte séparément les dossiers vivants et l'arriéré à classer", () => {
+    const vieux = ilYA(DORMANT_JOURS + 60);
+    const groupes = appliquer(REGLES_RELANCES, [
+      p({ id: "vif", etatCMD: "RDV - fixé", arrivageTM: null, dateMontage: dans(3) }),
+      p({ id: "vieux", etatCMD: "Cabines mesurées", dateOffre: vieux,
+          dateMesuresRecue: vieux, dateMesures: vieux, cmdTM: "", cmdTMUsine: "",
+          cmdGrossiste: "", dateCMDRecue: null, dateCMDUsine: null,
+          arrivageTM: null, arrivageGrossiste: null, dateMontage: null }),
+    ], MAINTENANT);
+    expect(compterFiches(groupes)).toBe(2);
+    expect(compterFichesVives(groupes)).toBe(1);
+  });
+
+  it("classe le plus prioritaire en tête de son groupe", () => {
+    const groupes = appliquer(REGLES_RELANCES, [
+      p({ id: "loin", etatCMD: "RDV - fixé", arrivageTM: null, dateMontage: dans(9), nbCabines: 1 }),
+      p({ id: "proche", etatCMD: "RDV - fixé", arrivageTM: null, dateMontage: dans(1), nbCabines: 6 }),
+    ], MAINTENANT);
+    const g = groupes.find((x) => x.regle.id === "rdv-sans-cabines")!;
+    expect(g.projets[0].projet.id).toBe("proche");
   });
 });

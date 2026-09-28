@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getAllProjectsRaw } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
-import { appliquer, compterFiches, REGLES_ANOMALIES, REGLES_RELANCES } from "@/lib/regles";
+import { appliquer, compterFiches, compterFichesVives, DORMANT_JOURS, REGLES_ANOMALIES, REGLES_RELANCES } from "@/lib/regles";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -32,13 +32,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       jeu,
       fiches: compterFiches(groupes),
+      /* Deux compteurs, parce que ce sont deux travaux : ce qui se relance
+         cette semaine, et l'arriéré de fiches jamais clôturées. */
+      fichesVives: compterFichesVives(groupes),
+      dormantJours: DORMANT_JOURS,
       total: groupes.reduce((n, g) => n + g.projets.length, 0),
       groupes: groupes.map((g) => ({
         id: g.regle.id,
         titre: g.regle.titre,
         pourquoi: g.regle.pourquoi,
         gravite: g.regle.gravite,
-        projets: g.projets.map(({ projet, detail }) => ({
+        projets: g.projets.map(({ projet, detail, priorite }) => ({
           id: projet.id,
           ofrTM: projet.ofrTM || "",
           projet: projet.projet || "Sans nom",
@@ -46,6 +50,9 @@ export async function GET(req: NextRequest) {
           collaborateurs: projet.collaborateurs || "",
           journal: projet.journalEchanges || "",
           detail,
+          score: priorite.score,
+          raisons: priorite.raisons,
+          dormant: priorite.dormant,
         })),
       })),
     });

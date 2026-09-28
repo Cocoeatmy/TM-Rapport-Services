@@ -33,7 +33,7 @@ export interface Regle {
 
 export interface Trouvaille {
   regle: Regle;
-  projets: { projet: Project; detail: string }[];
+  projets: { projet: Project; detail: string; priorite: Priorite }[];
 }
 
 /* ── Petits outils ──────────────────────────────────────────────────────── */
@@ -343,14 +343,101 @@ export const REGLES_RELANCES: Regle[] = [
   },
 ];
 
+/* ── Priorité ───────────────────────────────────────────────────────────── */
+
+/**
+ * Au-delà de ce silence, un dossier ne se relance plus : il se classe.
+ *
+ * L'application est née en cours de route ; Notion, lui, tourne depuis avril
+ * 2024. Des centaines de fiches anciennes n'ont jamais été clôturées — le
+ * montage a souvent été fait, parfois par quelqu'un d'autre, et la fiche est
+ * restée ouverte. Les règles les signalent à juste titre, mais les compter
+ * avec les dossiers vivants produit un millier de lignes que personne
+ * n'ouvrira jamais. Six mois sans le MOINDRE mouvement : ce n'est plus une
+ * relance en retard, c'est du rangement.
+ */
+export const DORMANT_JOURS = 180;
+
+/** Toutes les dates qu'un projet peut porter, la plus récente l'emporte. */
+export function derniereActivite(p: Project, maintenant: Date): number | null {
+  const jours = [
+    p.dateMesuresRecue, p.dateMesures, p.dateOffre, p.dateCMDRecue, p.dateCMDUsine,
+    arrivage(p), p.dateMontage, p.dateSAVRecu, p.dateSoucisMontage,
+  ].map((d) => joursDepuis(d, maintenant)).filter((j): j is number => j !== null);
+  return jours.length ? Math.min(...jours) : null;
+}
+
+export interface Priorite {
+  /** Plus il est haut, plus le dossier mérite d'être traité aujourd'hui. */
+  score: number;
+  /** Ce qui l'a fait monter, en clair — un classement qu'on ne comprend pas
+   *  ne se suit pas. */
+  raisons: string[];
+  /** Le dossier relève du classement, pas de la relance. */
+  dormant: boolean;
+}
+
+const POIDS_GRAVITE: Record<Gravite, number> = { bloquant: 100, important: 55, mineur: 25 };
+
+/**
+ * Ce qui décide qu'un dossier passe devant un autre.
+ *
+ * Quatre forces, et elles ne se valent pas : une intervention imminente sans
+ * marchandise passe avant tout le reste, parce qu'elle coûtera une journée à
+ * deux monteurs si personne n'appelle aujourd'hui. Vient ensuite ce qui est
+ * gros, puis ce qui dort depuis longtemps, puis l'argent déjà gagné mais pas
+ * encore facturé.
+ *
+ * Un dossier dormant garde son score, divisé : il reste consultable et
+ * classable, sans encombrer la liste de ce qui se traite cette semaine.
+ */
+export function prioriteDe(regle: Regle, p: Project, maintenant: Date): Priorite {
+  const raisons: string[] = [];
+  let score = POIDS_GRAVITE[regle.gravite];
+
+  const cabines = Number(p.nbCabines) || 0;
+  if (cabines > 1) {
+    score += Math.min(cabines, 15) * 4;
+    raisons.push(`${cabines} cabines`);
+  }
+
+  /* Intervention déjà planifiée, et proche : c'est la seule urgence qui a une
+     échéance. Elle pèse plus que tout le reste réuni. */
+  const tMontage = jourDe(p.dateMontage);
+  if (tMontage !== null) {
+    const dans = Math.round((tMontage - maintenant.getTime()) / 86400000);
+    if (dans >= 0 && dans <= 14) {
+      score += (15 - dans) * 10;
+      raisons.push(dans === 0 ? "montage aujourd'hui" : `montage dans ${dans} j`);
+    }
+  }
+
+  const age = derniereActivite(p, maintenant);
+  if (age !== null && age >= 30) {
+    score += Math.min(age, 120) * 0.3;
+    raisons.push(age >= 60 ? `sans mouvement depuis ${Math.round(age / 30)} mois` : `sans mouvement depuis ${age} j`);
+  }
+
+  if (p.facturations === "A facturer") {
+    score += 30;
+    raisons.push("à facturer");
+  }
+
+  const dormant = age !== null && age > DORMANT_JOURS;
+  if (dormant) score *= 0.1;
+
+  return { score: Math.round(score), raisons, dormant };
+}
+
 /* ── Application ────────────────────────────────────────────────────────── */
 
 const ORDRE: Record<Gravite, number> = { bloquant: 0, important: 1, mineur: 2 };
 
 /**
  * Applique un jeu de règles et renvoie les groupes non vides, les plus graves
- * d'abord puis les plus fournis. Les projets d'un groupe sont triés du plus
- * ancien au plus récent : ce qui traîne depuis le plus longtemps remonte.
+ * d'abord puis les plus fournis. Dans chaque groupe, le dossier le plus
+ * prioritaire vient en tête : trier par numéro d'offre, comme avant, revenait
+ * à ranger par ordre d'arrivée une liste qu'on ne lit jamais jusqu'au bout.
  */
 export function appliquer(
   regles: Regle[],
@@ -363,10 +450,13 @@ export function appliquer(
       projets: projets
         .map((projet) => {
           const detail = regle.verifier(projet, maintenant);
-          return detail ? { projet, detail } : null;
+          return detail
+            ? { projet, detail, priorite: prioriteDe(regle, projet, maintenant) }
+            : null;
         })
-        .filter((x): x is { projet: Project; detail: string } => x !== null)
-        .sort((a, b) => (a.projet.ofrTM || "").localeCompare(b.projet.ofrTM || "")),
+        .filter((x): x is Trouvaille["projets"][number] => x !== null)
+        .sort((a, b) => b.priorite.score - a.priorite.score
+          || (a.projet.ofrTM || "").localeCompare(b.projet.ofrTM || "")),
     }))
     .filter((g) => g.projets.length > 0)
     .sort((a, b) =>
@@ -377,4 +467,21 @@ export function appliquer(
 /** Nombre total de fiches concernées — une fiche comptée une seule fois. */
 export function compterFiches(groupes: Trouvaille[]): number {
   return new Set(groupes.flatMap((g) => g.projets.map((x) => x.projet.id))).size;
+}
+
+/**
+ * Nombre de fiches vivantes, dormantes écartées.
+ *
+ * Une fiche est dormante si TOUTES les règles qui la signalent la jugent
+ * telle — ce qui est le cas par construction, la dormance ne dépendant que du
+ * projet. La distinction reste utile : c'est ce compteur-là qui doit mener
+ * la page, l'autre ne mesure qu'un arriéré de classement.
+ */
+export function compterFichesVives(groupes: Trouvaille[]): number {
+  const vus = new Map<string, boolean>();
+  groupes.forEach((g) => g.projets.forEach((x) => {
+    const dejaVif = vus.get(x.projet.id) === false;
+    vus.set(x.projet.id, dejaVif ? false : x.priorite.dormant);
+  }));
+  return [...vus.values()].filter((dormant) => !dormant).length;
 }

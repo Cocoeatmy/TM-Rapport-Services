@@ -17,6 +17,8 @@ import { ControlesVue, type GroupeControle } from "@/components/controles-vue";
 export default function RelancesPage() {
   const [groupes, setGroupes] = useState<GroupeControle[]>([]);
   const [fiches, setFiches] = useState(0);
+  const [vives, setVives] = useState(0);
+  const [dormantJours, setDormantJours] = useState(180);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -25,7 +27,12 @@ export default function RelancesPage() {
     setErreur(null);
     fetch("/api/controles?jeu=relances")
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((d) => { setGroupes(d.groupes || []); setFiches(d.fiches || 0); })
+      .then((d) => {
+        setGroupes(d.groupes || []);
+        setFiches(d.fiches || 0);
+        setVives(d.fichesVives || 0);
+        if (d.dormantJours) setDormantJours(d.dormantJours);
+      })
       .catch((e) => setErreur(String(e.message || e)))
       .finally(() => setChargement(false));
   }, []);
@@ -44,9 +51,21 @@ export default function RelancesPage() {
         </h2>
         <p>
           Les dossiers qui attendent une action de notre côté, du plus urgent au
-          moins pressant. {fiches > 0 ? `${fiches} projet${fiches > 1 ? "s" : ""} à relancer.` : ""}
-          {" "}Les délais sont comptés depuis la dernière étape franchie.
+          moins pressant. Les délais sont comptés depuis la dernière étape franchie.
         </p>
+        {fiches > 0 && (
+          <p>
+            <b>{vives}</b> dossier{vives > 1 ? "s" : ""} à traiter.
+            {fiches > vives && (
+              <>
+                {" "}Les <b>{fiches - vives}</b> autres n&apos;ont plus bougé depuis
+                plus de {Math.round(dormantJours / 30)} mois : ils relèvent du
+                classement — souvent des chantiers réellement faits, dont la fiche
+                n&apos;a jamais été clôturée. Ils sont rangés sous « À classer ».
+              </>
+            )}
+          </p>
+        )}
       </div>
 
       <ControlesVue
