@@ -3896,49 +3896,6 @@ html[data-ui="signal"].dark .sgn-sem.is-pleine .sgn-sem-barre i { background: #f
   html[data-ui="signal"] .sgn-semaines { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
 }
 
-/* ── Journée prête hors ligne ─────────────────────────────────────────────
-   La vérification du matin : elle doit se lire en une seconde, donc une seule
-   ligne, avec la seule action utile au bout. */
-html[data-ui="signal"] .sgo {
-  display: flex; align-items: center; gap: 11px;
-  padding: 10px 13px; margin-bottom: 14px; border-radius: 12px;
-  border: 1px solid #f2d9a6; background: #fff8ec; color: #92500e;
-}
-html[data-ui="signal"] .sgo.is-pret {
-  border-color: var(--sg-line); background: var(--sg-paper); color: var(--sg-text-2);
-}
-html[data-ui="signal"] .sgo-chip {
-  display: flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
-  background: #fdf0d8; color: #92500e;
-}
-html[data-ui="signal"] .sgo.is-pret .sgo-chip { background: #e7f6ec; color: #17683a; }
-html[data-ui="signal"] .sgo-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-html[data-ui="signal"] .sgo-txt b { font-size: 12.5px; font-weight: 600; }
-html[data-ui="signal"] .sgo-txt em {
-  font-style: normal; font-size: 11px; opacity: 0.8; line-height: 1.4;
-}
-html[data-ui="signal"] .sgo-bloque {
-  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
-  padding: 2px 8px; border-radius: 999px;
-  background: #fdecea; color: #b42318; font-size: 11px; font-weight: 700;
-}
-html[data-ui="signal"] .sgo-btn {
-  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; cursor: pointer;
-  height: 30px; padding: 0 12px; border-radius: 999px;
-  border: 1px solid var(--sg-line-strong); background: var(--sg-paper);
-  color: var(--sg-text-2); font-family: inherit; font-size: 12px; font-weight: 600;
-}
-html[data-ui="signal"] .sgo-btn:hover { background: var(--sg-ink); border-color: var(--sg-ink); color: #fff; }
-html[data-ui="signal"] .sgo-btn:disabled { opacity: 0.6; cursor: progress; }
-html[data-ui="signal"].dark .sgo { border-color: #56421d; background: #2a2113; color: #f0b866; }
-html[data-ui="signal"].dark .sgo-chip { background: #3a2c14; color: #f0b866; }
-html[data-ui="signal"].dark .sgo.is-pret { border-color: var(--sg-line); background: var(--sg-paper); color: var(--sg-text-2); }
-@media (max-width: 720px) {
-  html[data-ui="signal"] .sgo { flex-wrap: wrap; }
-  html[data-ui="signal"] .sgo-txt { flex-basis: 60%; }
-}
-
 /* Chiffre cliquable dans un tableau d'analyse (ouvre la liste des projets). */
 html[data-ui="signal"] .sgs-lien {
   border: 0; background: transparent; cursor: pointer; padding: 1px 7px;
@@ -3974,3 +3931,73 @@ html[data-ui="signal"] .sgp-tab.sgp-tab-etat.is-on {
   color: #fff;
   box-shadow: 0 0 0 2px var(--sg-paper), 0 0 0 4px var(--sg-ink);
 }
+
+/* ── Hors réseau : le rond de l'en-tête et son panneau ─────────────────────
+   Le nuage voisin et l'avion disent ce qui REMONTE ; celui-ci dit ce qui est
+   DESCENDU sur l'appareil. Il reste sourd tant que tout va bien, et ne se
+   colore que lorsqu'un geste est attendu — sans quoi un badge permanent
+   cesse d'être lu au bout de deux jours. */
+html[data-ui="signal"] .sgh-off {
+  position: relative; flex-shrink: 0; cursor: pointer;
+  width: 36px; height: 36px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15); color: #ffffff;
+  transition: background 140ms, transform 90ms;
+}
+html[data-ui="signal"] .sgh-off:hover { background: rgba(255, 255, 255, 0.25); }
+html[data-ui="signal"] .sgh-off:active { transform: scale(0.95); }
+html[data-ui="signal"] .sgh-off.is-alerte {
+  border-color: #f2c07a; background: #fdf0d8; color: #92500e;
+}
+html[data-ui="signal"] .sgh-off.is-alerte:hover { background: #fbe6c2; }
+html[data-ui="signal"] .sgh-off-point {
+  position: absolute; top: 2px; right: 2px;
+  width: 9px; height: 9px; border-radius: 999px;
+  background: #e0392b; border: 1.5px solid #ffffff;
+}
+
+html[data-ui="signal"] .sgh-offpop {
+  position: fixed; z-index: 60; width: 320px; max-width: calc(100vw - 16px);
+  padding: 13px; border-radius: 14px;
+  background: var(--sg-paper); border: 1px solid var(--sg-line);
+  box-shadow: var(--sg-shadow-hi, var(--sg-shadow)); color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sgh-offpop-head { display: flex; align-items: flex-start; gap: 10px; }
+html[data-ui="signal"] .sgh-offpop-chip {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 30px; height: 30px; border-radius: 9px;
+  background: #e7f6ec; color: #17683a;
+}
+html[data-ui="signal"] .sgh-offpop-chip.is-alerte { background: #fdf0d8; color: #92500e; }
+html[data-ui="signal"] .sgh-offpop-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+html[data-ui="signal"] .sgh-offpop-txt b { font-size: 13px; font-weight: 600; color: var(--sg-text); }
+html[data-ui="signal"] .sgh-offpop-txt em {
+  font-style: normal; font-size: 11.5px; line-height: 1.4; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgh-offpop-x {
+  flex-shrink: 0; cursor: pointer; width: 24px; height: 24px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--sg-line); background: var(--sg-paper-2); color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgh-offpop-ligne {
+  display: flex; align-items: center; gap: 6px;
+  margin: 9px 0 0 0; font-size: 11.5px; line-height: 1.45; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgh-offpop-ligne.is-alerte { color: #b42318; font-weight: 600; }
+html[data-ui="signal"] .sgh-offpop-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; margin-top: 11px; height: 34px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--sg-line-strong); background: var(--sg-paper-2);
+  color: var(--sg-text-2); font-family: inherit; font-size: 12.5px; font-weight: 600;
+}
+html[data-ui="signal"] .sgh-offpop-btn:hover { background: var(--sg-ink); border-color: var(--sg-ink); color: #fff; }
+html[data-ui="signal"] .sgh-offpop-btn:disabled { opacity: 0.6; cursor: progress; }
+html[data-ui="signal"] .sgh-offpop-note {
+  margin: 8px 0 0 0; font-size: 11px; line-height: 1.45; color: var(--sg-text-3);
+}
+html[data-ui="signal"].dark .sgh-off.is-alerte {
+  border-color: #56421d; background: #3a2c14; color: #f0b866;
+}
+html[data-ui="signal"].dark .sgh-offpop-chip { background: #102b1b; color: #6ee7b7; }
+html[data-ui="signal"].dark .sgh-offpop-chip.is-alerte { background: #3a2c14; color: #f0b866; }

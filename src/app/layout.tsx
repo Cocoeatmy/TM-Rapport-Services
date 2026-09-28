@@ -8,6 +8,7 @@ import { NotificationBell } from "@/components/notifications";
 import { RefreshButton } from "@/components/refresh-button";
 import { ForceSyncButton } from "@/components/force-sync-button";
 import { SendPendingButton } from "@/components/send-pending-button";
+import { BoutonHorsLigne } from "@/components/bouton-hors-ligne";
 import { ThemeColorSync } from "@/components/theme-color-sync";
 import { SwipeNavigation } from "@/components/swipe-navigation";
 import { CreateProjectButton } from "@/components/create-project-button";
@@ -123,6 +124,11 @@ export default function RootLayout({
               {/* Bouton Actualiser : visible pour TOUS (admin + employé). */}
               <RefreshButton />
               <SyncButton />
+              {/* BoutonHorsLigne (nuage descendant) : ce qui est TÉLÉCHARGÉ sur
+                  l'appareil pour travailler sans réseau — l'inverse du nuage
+                  ci-dessus et de l'avion ci-dessous, qui font remonter. Ne se
+                  monte que sous le thème Signal ; il ne rend rien ailleurs. */}
+              <BoutonHorsLigne />
               {/* SendPendingButton (avion) : quand il est coloré, des photos ne
                   sont pas encore uploadées → l'utilisateur relance en tapant.
                   Gardé visible pour TOUS les utilisateurs. */}
