@@ -4069,3 +4069,26 @@ html[data-ui="signal"] .sgs-tri .sgs-seg button { height: 24px; padding: 0 9px; 
 html[data-ui="signal"] .sgs-ent-type {
   display: block; font-style: normal; font-size: 10px; color: var(--sg-text-3);
 }
+
+/* ── Noms de projet dans les LISTES ───────────────────────────────────────
+   Un tableau à colonnes alignées peut tronquer : l'œil suit les colonnes, et
+   l'aperçu latéral donne le titre complet. Une liste, elle, n'a que ce nom
+   pour dire de quel chantier il s'agit — le couper oblige à ouvrir la fiche
+   pour le savoir, ce qui vide la liste de son intérêt.
+
+   Deux lignes au plus : au-delà, les rangées deviennent trop inégales pour
+   qu'on puisse encore parcourir la liste du regard. */
+html[data-ui="signal"] .sgq-ligne-nom,
+html[data-ui="signal"] .sgt-etape-nom,
+html[data-ui="signal"] .sg-plist-name,
+html[data-ui="signal"] .sg-plist-sub,
+html[data-ui="signal"] .sgc-row-name {
+  white-space: normal;
+  text-overflow: clip;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.3;
+}
