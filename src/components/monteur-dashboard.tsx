@@ -2936,14 +2936,31 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           setCalendarSelectedDay(b.key);
                         }}
                       >
-                        <span className="sg-bar-val">{b.cab}</span>
-                        <span className={`sg-bar-stack${b.isToday ? " is-today" : ""}`}
-                              style={{ height: `${Math.round((b.cab / max) * 100)}%` }}>
-                          {b.segs.length === 0 && <i className="sg-bar-seg is-empty" style={{ flexGrow: 1 }} />}
-                          {b.segs.map((s) => (
-                            <i key={s.label} className="sg-bar-seg"
-                               style={{ flexGrow: s.cab, background: s.color }} />
-                          ))}
+                        {/* Deux chiffres, pas un : douze cabines chez neuf
+                            clients ne se planifient pas comme douze cabines
+                            dans le même immeuble. Un jour vide reste un simple
+                            « 0 » — « 0 projet » n'apprendrait rien. */}
+                        <span className="sg-bar-val">
+                          {b.cab === 0 ? "0" : (
+                            <>
+                              {b.cab} <em>cab.</em>
+                              <i>{b.nb} projet{b.nb > 1 ? "s" : ""}</i>
+                            </>
+                          )}
+                        </span>
+                        {/* La barre se mesure sur l'espace QUI RESTE, et non
+                            sur la hauteur totale de la colonne : sinon la plus
+                            haute déborde sur les légendes dès qu'on ajoute une
+                            ligne au-dessus. */}
+                        <span className="sg-bar-zone">
+                          <span className={`sg-bar-stack${b.isToday ? " is-today" : ""}`}
+                                style={{ height: `${Math.round((b.cab / max) * 100)}%` }}>
+                            {b.segs.length === 0 && <i className="sg-bar-seg is-empty" style={{ flexGrow: 1 }} />}
+                            {b.segs.map((s) => (
+                              <i key={s.label} className="sg-bar-seg"
+                                 style={{ flexGrow: s.cab, background: s.color }} />
+                            ))}
+                          </span>
                         </span>
                         <span className="sg-bar-day">{b.d}</span>
                         {/* Date exacte du jour : sans elle, impossible de

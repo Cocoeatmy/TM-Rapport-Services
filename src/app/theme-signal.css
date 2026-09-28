@@ -775,6 +775,18 @@ html[data-ui="signal"] .sg-bar-col {
 html[data-ui="signal"] .sg-bar-col:hover:not(.is-void) { background: var(--sg-paper-2); }
 html[data-ui="signal"] .sg-bar-col.is-void { cursor: default; }
 
+/* Zone de la barre : elle absorbe la hauteur restante de la colonne, une fois
+   les libellés placés. La barre se mesure donc sur cette zone, jamais sur la
+   colonne entière — faute de quoi la plus haute déborderait sur le jour et la
+   date en dessous. */
+html[data-ui="signal"] .sg-bar-zone {
+  flex: 1;
+  width: 100%;
+  min-height: 60px;
+  display: flex;
+  align-items: flex-end;
+}
+
 /* Barre empilée : un segment par collaborateur / binôme / team. */
 html[data-ui="signal"] .sg-bar-stack {
   width: 100%;
@@ -851,11 +863,30 @@ html[data-ui="signal"] .sg-bars-leg.is-clear {
 }
 
 html[data-ui="signal"] .sg-bar-val {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.25;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 12px;
   font-weight: 600;
   color: var(--sg-text);
+}
+/* « cab. » reste discret : c'est le CHIFFRE qu'on lit, l'unité ne fait que
+   lever l'ambiguïté avec le nombre de projets juste en dessous. */
+html[data-ui="signal"] .sg-bar-val em {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-bar-val i {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--sg-text-3);
+  white-space: nowrap;
 }
 html[data-ui="signal"] .sg-bar {
   width: 100%;
