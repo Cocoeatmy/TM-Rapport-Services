@@ -3354,6 +3354,14 @@ function NotionComments({ projectId, onCountChange }: { projectId: string; onCou
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Ce que dit la couleur du bouton « Rapport », en toutes lettres. */
+const ETAT_RAPPORT_TITRE: Record<string, string> = {
+  signalement: "signalement ouvert",
+  termine: "montage terminé",
+  encours: "rendez-vous fixé, montage en cours",
+  afixer: "rendez-vous de montage à fixer",
+};
+
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   return (
@@ -6292,6 +6300,24 @@ function ProjectPageContent({ id }: { id: string }) {
     return has ? n + 1 : n;
   }, 0);
 
+  /**
+   * Couleur du bouton « Rapport » : l'état du chantier, lisible sans l'ouvrir.
+   *
+   * L'ordre compte. Un signalement passe devant tout le reste — un montage
+   * « terminé » avec une pièce manquante n'est pas terminé pour celui qui doit
+   * y retourner. Viennent ensuite la pose achevée, le rendez-vous fixé, puis
+   * le rendez-vous encore à prendre.
+   */
+  const etatRapport: "signalement" | "termine" | "encours" | "afixer" = (() => {
+    const sigOuvert =
+      cabineSignalements.pieces.some((x) => x.status !== "recu")
+      || cabineSignalements.defauts.some((x) => !x.resolved);
+    if (sigOuvert) return "signalement";
+    if (project?.etatCMD === "Terminé" || montageHeaderPercent >= 100) return "termine";
+    if (project?.dateMontage || project?.etatCMD === "RDV - fixé") return "encours";
+    return "afixer";
+  })();
+
   // Nombre de LOTS ayant un rapport personnalisé (texte ajouté à la main) —
   // affiché entre parenthèses sur le bouton filtre « Avec rapport ».
   const rapportLotsCount = cabines.reduce((n, c) => (hasManualRapport(c.rapport) ? n + 1 : n), 0);
@@ -6760,14 +6786,21 @@ function ProjectPageContent({ id }: { id: string }) {
               .map((t) => {
                 const on = macTabs.has(t.id);
                 const n = badgeOf(t.id);
+                /* Le rapport n'est pas un onglet comme les autres : c'est là
+                   qu'on travaille, et sa couleur dit où en est le chantier
+                   sans avoir à l'ouvrir. */
+                const etat = t.id === "rapport" ? ` sgp-tab-etat is-${etatRapport}` : "";
+                const titre = t.id === "rapport"
+                  ? `${t.label} — ${ETAT_RAPPORT_TITRE[etatRapport]}`
+                  : t.label;
                 return (
                   <button
                     key={t.id}
                     type="button"
                     onClick={() => toggleMacTab(t.id)}
-                    className={`sgp-tab${on ? " is-on" : ""}`}
+                    className={`sgp-tab${on ? " is-on" : ""}${etat}`}
                     aria-pressed={on}
-                    title={t.label}
+                    title={titre}
                   >
                     {SHORT[t.id] || t.label}
                     {n > 0 && <span className="sgp-tab-n">{n}</span>}
