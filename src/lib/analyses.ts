@@ -520,6 +520,32 @@ export function soloOuBinome(
 
 /* ── Devenir des mesures ────────────────────────────────────────────────── */
 
+/**
+ * Projet réduit à ce qu'il faut pour l'afficher dans une liste.
+ *
+ * Ces analyses tournent sur le serveur et ne renvoient que des agrégats : y
+ * joindre les fiches entières ferait passer plusieurs mégaoctets sur le
+ * réseau. Cinq champs suffisent à ouvrir la liste, et le clic mène à la fiche
+ * complète.
+ */
+export interface RefProjet {
+  id: string;
+  ofrTM: string;
+  projet: string;
+  adresseChantier: string;
+  nbCabines: number;
+}
+
+function refDe(p: Project): RefProjet {
+  return {
+    id: p.id,
+    ofrTM: p.ofrTM || "",
+    projet: p.projet || "",
+    adresseChantier: p.adresseChantier || "",
+    nbCabines: Number(p.nbCabines) || 0,
+  };
+}
+
 export interface LigneMesures {
   personne: string;
   prises: number;
@@ -528,6 +554,8 @@ export interface LigneMesures {
   ouvertes: number;
   /** Mesures devenues commande, en pourcentage. */
   taux: number;
+  /** Les projets derrière chaque chiffre — « prises » est leur réunion. */
+  projets: { commandees: RefProjet[]; ouvertes: RefProjet[]; annulees: RefProjet[] };
 }
 
 /**
@@ -557,12 +585,14 @@ export function devenirMesures(
     if (noms.length === 0) return;
 
     noms.forEach((personne) => {
-      const cur = m.get(personne)
-        || { personne, prises: 0, commandees: 0, annulees: 0, ouvertes: 0, taux: 0 };
+      const cur: LigneMesures = m.get(personne) || {
+        personne, prises: 0, commandees: 0, annulees: 0, ouvertes: 0, taux: 0,
+        projets: { commandees: [], ouvertes: [], annulees: [] },
+      };
       cur.prises += 1;
-      if (MORTS.has(p.etatCMD)) cur.annulees += 1;
-      else if (aCommande(p)) cur.commandees += 1;
-      else cur.ouvertes += 1;
+      const ou = MORTS.has(p.etatCMD) ? "annulees" : aCommande(p) ? "commandees" : "ouvertes";
+      cur[ou] += 1;
+      cur.projets[ou].push(refDe(p));
       m.set(personne, cur);
     });
   });

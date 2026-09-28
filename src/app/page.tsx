@@ -3464,6 +3464,9 @@ function HomePage() {
           return (
             <SignalStats
               projects={allProjects}
+              /* Non filtrés : une carte peut ainsi porter sa propre période
+                 (conformité photo) sans imposer la sienne à toute la page. */
+              projectsAll={allProjectsRaw}
               byMonth={svcByMonth}
               monthKeys={monthlyKeys}
               /* Tous les mois disponibles, HORS filtre de période : permet de

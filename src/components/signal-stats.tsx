@@ -19,6 +19,7 @@ import { TrendingUp, TrendingDown, Minus, RefreshCw, FileText, ChevronDown, Chev
 import Link from "next/link";
 import { cantonLabel, regionLabel } from "@/lib/swiss-cantons";
 import { conformitePhotos, totalPhotos } from "@/lib/photos-stats";
+import { filterByStatsDate, describeStatsRange, type StatsDateState, DEFAULT_STATS_DATE_STATE } from "@/components/stats-date-filter";
 
 import { getTeamColor, getCollaboratorColor } from "@/lib/collaborators";
 
@@ -195,6 +196,56 @@ function Fold({ title, meta, right, children, defaultOpen = false, className = "
   );
 }
 
+/**
+ * Période propre à une carte, dans son en-tête.
+ *
+ * Le filtre de la page vaut pour tout le tableau de bord : y toucher pour
+ * examiner un seul indicateur déplace tout le reste. Ce sélecteur reprend les
+ * mêmes modes — mois, année, douze mois glissants, plage de dates — mais ne
+ * commande que sa carte, et il la remet à « Tout » par défaut.
+ */
+function PeriodeCarte({ etat, onChange }: {
+  etat: StatsDateState; onChange: (e: StatsDateState) => void;
+}) {
+  const modes: { k: StatsDateState["mode"]; label: string }[] = [
+    { k: "all", label: "Tout" }, { k: "month", label: "Mois" },
+    { k: "year", label: "Année" }, { k: "rolling12", label: "12 mois" },
+    { k: "range", label: "Période" },
+  ];
+  const annees: number[] = [];
+  for (let y = 2024; y <= new Date().getFullYear(); y++) annees.push(y);
+
+  return (
+    <div className="sgs-periode">
+      <div className="sgs-seg">
+        {modes.map((m) => (
+          <button key={m.k} type="button" className={etat.mode === m.k ? "is-on" : ""}
+            onClick={() => onChange({ ...etat, mode: m.k })}>{m.label}</button>
+        ))}
+      </div>
+      {etat.mode === "month" && (
+        <input type="month" className="sgs-date" value={etat.month}
+          onChange={(e) => onChange({ ...etat, month: e.target.value })} />
+      )}
+      {etat.mode === "year" && (
+        <select className="sgs-date" value={etat.year}
+          onChange={(e) => onChange({ ...etat, year: e.target.value })}>
+          {annees.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+        </select>
+      )}
+      {etat.mode === "range" && (
+        <>
+          <input type="date" className="sgs-date" value={etat.from}
+            onChange={(e) => onChange({ ...etat, from: e.target.value })} />
+          <span className="sgs-date-sep">→</span>
+          <input type="date" className="sgs-date" value={etat.to}
+            onChange={(e) => onChange({ ...etat, to: e.target.value })} />
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Palette stable : la même chaîne donne toujours la même teinte. */
 const HUES = ["#3b82f6", "#22c55e", "#06b6d4", "#a855f7", "#f59e0b", "#f43f5e", "#0f766e", "#6366f1", "#84cc16", "#e11d48"];
 function hueFor(s: string): string {
@@ -205,6 +256,7 @@ function hueFor(s: string): string {
 
 export function SignalStats({
   projects,
+  projectsAll,
   byMonth,
   monthKeys,
   allByMonth,
@@ -215,6 +267,9 @@ export function SignalStats({
 }: {
   /** Projets de la période (déjà filtrés par la page) — analyses par groupe. */
   projects?: any[];
+  /** Tous les projets, AVANT le filtre de période de la page : permet à une
+   *  carte de porter sa propre période sans dépendre de celle de la page. */
+  projectsAll?: any[];
   byMonth: Record<string, SignalStatsMonth>;
   monthKeys: string[];
   /** TOUS les mois disponibles, hors filtre de période : nécessaire pour
@@ -807,10 +862,31 @@ export function SignalStats({
   const [axeDegats, setAxeDegats] = useState<"marque" | "grossiste">("marque");
   const [axePhotos, setAxePhotos] = useState<"monteur" | "equipe">("monteur");
 
+  /* La conformité photo porte sa PROPRE période, indépendante de celle de la
+     page : on y cherche la dérive d'un monteur sur un mois précis, sans avoir
+     à déplacer tout le reste du tableau de bord pour aller la voir. */
+  const [datePhotos, setDatePhotos] = useState<StatsDateState>(DEFAULT_STATS_DATE_STATE);
+
   /* Conformité photo — calculée ici, sur les projets déjà en main : la règle
      vit dans photo-buckets, la même qui bloque l'envoi d'un rapport incomplet. */
-  const photos = useMemo(() => conformitePhotos(P as never, axePhotos), [P, axePhotos]);
-  const photosTotal = useMemo(() => totalPhotos(photos, axePhotos), [photos, axePhotos]);
+  const projetsPhotos = useMemo(() => {
+    const base = Array.isArray(projectsAll) && projectsAll.length ? projectsAll : P;
+    return filterByStatsDate(base as never[], datePhotos.mode,
+      datePhotos.from, datePhotos.to, datePhotos.month, datePhotos.year);
+  }, [projectsAll, P, datePhotos]);
+  /* Toutes les lignes, y compris les monteurs seuls : elles servent au total
+     d'ensemble, qui doit couvrir chaque cabine posée. */
+  const photosBrut = useMemo(() => conformitePhotos(projetsPhotos as never, axePhotos), [projetsPhotos, axePhotos]);
+  const photos = useMemo(
+    () => (axePhotos === "equipe" ? photosBrut.filter((l) => l.estEquipe) : photosBrut),
+    [photosBrut, axePhotos],
+  );
+  const photosTotal = useMemo(() => totalPhotos(photosBrut, axePhotos), [photosBrut, axePhotos]);
+  /* Vide pour « Tout » : rappeler la période n'a de sens que si l'on en a
+     choisi une. `describeStatsRange` ne nomme pas les douze mois glissants. */
+  const libellePhotos = datePhotos.mode === "all" ? ""
+    : datePhotos.mode === "rolling12" ? "12 derniers mois"
+    : describeStatsRange(datePhotos);
 
   const fenetre = useMemo(() => {
     const vus = picked.size > 0 ? monthKeys.filter((k) => picked.has(k)) : monthKeys.slice(-14);
@@ -1350,26 +1426,47 @@ export function SignalStats({
                   { titre: "Commandées", num: true }, { titre: "Ouvertes", num: true },
                   { titre: "Annulées", num: true }, { titre: "Transformation", num: true },
                 ]}>
-                  {analyses.mesures.map((l: any) => (
+                  {analyses.mesures.map((l: any) => {
+                    /* Chaque chiffre s'ouvre sur les projets qu'il recouvre :
+                       « sept annulées » ne se vérifie qu'en les lisant. */
+                    const pj = l.projets || { commandees: [], ouvertes: [], annulees: [] };
+                    const lien = (n: number, items: any[], quoi: string, couleur: string) =>
+                      n > 0 && items?.length ? (
+                        <button type="button" className="sgs-lien"
+                          title={`Voir les ${n} mesures ${quoi} de ${l.personne}`}
+                          onClick={() => setPick({
+                            label: `${l.personne} — mesures ${quoi}`,
+                            value: n, color: couleur, items: items as never[],
+                          })}>{n}</button>
+                      ) : (n || "—");
+                    return (
                     <tr key={l.personne}>
                       <td className="cle">{l.personne}</td>
-                      <td className="num">{l.prises}</td>
-                      <td className="num">{l.commandees}</td>
-                      <td className="num doux">{l.ouvertes || "—"}</td>
-                      <td className={`num${l.annulees > 0 ? " alerte" : " doux"}`}>{l.annulees || "—"}</td>
+                      <td className="num">
+                        {lien(l.prises,
+                          [...(pj.commandees || []), ...(pj.ouvertes || []), ...(pj.annulees || [])],
+                          "relevées", "#06b6d4")}
+                      </td>
+                      <td className="num">{lien(l.commandees, pj.commandees, "commandées", "#16a34a")}</td>
+                      <td className="num doux">{lien(l.ouvertes, pj.ouvertes, "encore ouvertes", "#3b82f6")}</td>
+                      <td className={`num${l.annulees > 0 ? " alerte" : " doux"}`}>
+                        {lien(l.annulees, pj.annulees, "annulées", "#dc2626")}
+                      </td>
                       <td className="num fort">
                         <span className={l.taux >= 70 ? "sgs-pct is-bon" : l.taux < 40 ? "sgs-pct is-faible" : "sgs-pct"}>
                           {l.taux} %
                         </span>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </Tableau>
                 <p className="sgs-note">
                   À lire avec précaution : une annulation est le plus souvent la décision du
                   client, pas une erreur de relevé. Ce qui s&apos;interprète ici, c&apos;est
                   l&apos;<b>écart</b> entre personnes sur des chantiers comparables — jamais le
                   taux absolu de l&apos;une d&apos;elles. Un relevé fait à deux compte pour chacun.
+                  Chaque chiffre s&apos;ouvre sur la liste des projets qu&apos;il recouvre.
                 </p>
               </>
             ) : (
@@ -1379,18 +1476,24 @@ export function SignalStats({
           <Fold className="sgs-span2" title="Photos obligatoires"
             meta="2 avant intervention · 3 montage · 2 après — par cabine posée · QR code et garantie non comptés"
             right={
-              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
-                <button type="button" className={axePhotos === "monteur" ? "is-on" : ""} onClick={() => setAxePhotos("monteur")}>Monteur</button>
-                <button type="button" className={axePhotos === "equipe" ? "is-on" : ""} onClick={() => setAxePhotos("equipe")}>Équipe</button>
+              <div className="sgs-head-ctrl" onClick={(e) => e.stopPropagation()}>
+                <div className="sgs-seg">
+                  <button type="button" className={axePhotos === "monteur" ? "is-on" : ""} onClick={() => setAxePhotos("monteur")}>Monteur</button>
+                  <button type="button" className={axePhotos === "equipe" ? "is-on" : ""} onClick={() => setAxePhotos("equipe")}>Équipe</button>
+                </div>
+                <PeriodeCarte etat={datePhotos} onChange={setDatePhotos} />
               </div>
             }>
             {photos.length ? (
               <>
                 {photosTotal && (
                   <p className="sgs-note" style={{ marginTop: 0, marginBottom: 8 }}>
-                    Sur l&apos;ensemble : <b>{photosTotal.manquantes}</b> photos manquantes sur
+                    Sur l&apos;ensemble{libellePhotos ? ` — ${libellePhotos}` : ""} :
+                    {" "}<b>{photosTotal.manquantes}</b> photos manquantes sur
                     {" "}{photosTotal.attendues} demandées ({photosTotal.tauxManquant} %),
                     et {photosTotal.tauxCabinesCompletes} % des cabines au complet.
+                    {" "}Ce total couvre TOUTES les cabines de la période, y compris celles
+                    posées en solo, qui ne figurent pas dans le tableau ci-dessous.
                   </p>
                 )}
                 <Tableau cols={[
@@ -1438,10 +1541,20 @@ export function SignalStats({
                   était respectée pour les deux, ou pour aucun. Les cabines sous-traitées,
                   les services purs et les projets sans responsable identifié ne comptent
                   contre personne.
+                  {axePhotos === "equipe" && (
+                    <> L&apos;axe « Équipe » ne retient que les montages faits à
+                    PLUSIEURS — binômes, trinômes et « Team ». Un monteur seul y
+                    répéterait sa ligne de l&apos;autre onglet sans rien apprendre de
+                    la composition, qui est la question posée ici.</>
+                  )}
                 </p>
               </>
             ) : (
-              <p className="sgs-empty">Aucune cabine posée avec un responsable identifié sur la période.</p>
+              <p className="sgs-empty">
+                {axePhotos === "equipe"
+                  ? "Aucun montage à plusieurs sur cette période — les montages en solo se lisent dans l'onglet « Monteur »."
+                  : "Aucune cabine posée avec un responsable identifié sur cette période."}
+              </p>
             )}
           </Fold>
           <Fold title="Montage par monteur" meta="cabines posées · binômes répartis à parts égales">

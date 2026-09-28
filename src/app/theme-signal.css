@@ -1564,6 +1564,27 @@ html[data-ui="signal"] .sgs-seg button {
   background: transparent; color: var(--sg-text-2);
 }
 html[data-ui="signal"] .sgs-seg button.is-on { background: var(--sg-ink); color: #ffffff; font-weight: 600; }
+
+/* Commandes d'en-tête de carte : axe d'analyse et période propre à la carte.
+   Elles passent à la ligne plutôt que de rogner le titre. */
+html[data-ui="signal"] .sgs-head-ctrl {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 8px; flex-wrap: wrap;
+}
+html[data-ui="signal"] .sgs-periode {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+html[data-ui="signal"] .sgs-periode .sgs-seg button { padding: 0 9px; }
+html[data-ui="signal"] .sgs-date {
+  height: 28px; padding: 0 8px; border-radius: 8px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper-2);
+  color: var(--sg-text-2); font-family: inherit; font-size: 12px;
+}
+html[data-ui="signal"] .sgs-date:focus-visible {
+  outline: 2px solid var(--sg-signal); outline-offset: 1px;
+}
+html[data-ui="signal"] .sgs-date-sep { font-size: 12px; color: var(--sg-text-3); }
+
 /* Indicateur cliquable : ouvre la liste des projets qu'il recouvre. */
 html[data-ui="signal"] .sgs-kpi.is-click {
   width: 100%; text-align: left; font-family: inherit; cursor: pointer;

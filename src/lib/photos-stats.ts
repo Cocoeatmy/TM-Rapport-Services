@@ -37,9 +37,24 @@ export interface ProjetPhotos {
   photosGaranties?: { name: string }[];
 }
 
+/**
+ * Vrai si ce libellé désigne PLUSIEURS personnes.
+ *
+ * Sur l'axe « équipe », une ligne portant un seul nom n'apprend rien : elle
+ * répète le classement par monteur au milieu des binômes, et fausse la lecture
+ * de ce tableau, qui existe pour comparer des compositions entre elles.
+ * « Team » est retenu bien qu'il ne contienne pas d'esperluette : c'est ainsi
+ * qu'on note un montage à plusieurs sans détailler qui s'y trouvait.
+ */
+export function estEquipe(nom: string): boolean {
+  return nom.includes("&") || /\bteams?\b/i.test(nom);
+}
+
 export interface LignePhotos {
   /** Monteur seul, ou équipe telle que saisie selon l'axe demandé. */
   nom: string;
+  /** Plusieurs personnes derrière ce libellé (binôme, trinôme ou « Team »). */
+  estEquipe: boolean;
   cabines: number;
   attendues: number;
   manquantes: number;
@@ -135,6 +150,7 @@ export function conformitePhotos(
   return [...agg.entries()]
     .map(([nom, v]) => ({
       nom,
+      estEquipe: estEquipe(nom),
       cabines: v.cabines,
       attendues: v.attendues,
       manquantes: v.manquantes,
@@ -151,7 +167,9 @@ export function conformitePhotos(
 export function totalPhotos(lignes: LignePhotos[], axe: "monteur" | "equipe") {
   /* Sur l'axe « monteur », un binôme compte deux fois : additionner les lignes
      gonflerait le total. On ne le calcule donc que sur l'axe « équipe », où
-     chaque cabine n'apparaît qu'une fois. */
+     chaque cabine n'apparaît qu'une fois. À appeler sur les lignes ENTIÈRES,
+     avant tout filtrage d'affichage : le total doit couvrir tout le travail
+     de la période, même ce que le tableau choisit de ne pas montrer. */
   if (axe !== "equipe") return null;
   const attendues = lignes.reduce((s, l) => s + l.attendues, 0);
   const manquantes = lignes.reduce((s, l) => s + l.manquantes, 0);

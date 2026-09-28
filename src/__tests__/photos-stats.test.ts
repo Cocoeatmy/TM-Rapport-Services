@@ -7,7 +7,7 @@
  * autant que l'exactitude des pourcentages.
  */
 import { describe, it, expect } from "vitest";
-import { conformitePhotos, totalPhotos, type ProjetPhotos } from "../lib/photos-stats";
+import { conformitePhotos, totalPhotos, estEquipe, type ProjetPhotos } from "../lib/photos-stats";
 
 /** Fabrique les photos d'une cabine : n avant, n montage, n après. */
 function photos(cab: number | null, avant: number, montage: number, apres: number) {
@@ -140,5 +140,27 @@ describe("classement et totaux", () => {
     const t = totalPhotos(conformitePhotos(projets, "equipe"), "equipe")!;
     expect(t.attendues).toBe(7);
     expect(t.manquantes).toBe(1);
+  });
+});
+
+describe("ce qui est une équipe", () => {
+  it("un binôme et « Team » en sont, un monteur seul n'en est pas", () => {
+    expect(estEquipe("Miguel & Claudio")).toBe(true);
+    expect(estEquipe("Team TM")).toBe(true);
+    expect(estEquipe("Claudio & Jean-Marc & Miguel")).toBe(true);
+    expect(estEquipe("Miguel")).toBe(false);
+    expect(estEquipe("Rocha Jorge")).toBe(false);
+    expect(estEquipe("Atelier Art Home")).toBe(false);
+  });
+
+  it("marque les lignes, sans les retirer du total d'ensemble", () => {
+    const lignes = conformitePhotos([
+      p({ id: "a", collaborateurs: "Miguel", ...photos(null, 2, 3, 2) }),
+      p({ id: "b", collaborateurs: "Miguel & Claudio", ...photos(null, 0, 0, 0) }),
+    ], "equipe");
+    expect(lignes.find((l) => l.nom === "Miguel")!.estEquipe).toBe(false);
+    expect(lignes.find((l) => l.nom === "Miguel & Claudio")!.estEquipe).toBe(true);
+    // Le total couvre les deux cabines : un solo travaille aussi.
+    expect(totalPhotos(lignes, "equipe")!.cabines).toBe(2);
   });
 });
