@@ -859,6 +859,8 @@ html[data-ui="signal"] .sg-bars-leg b {
    `is-on` = filtre actif, `is-dim` = les autres pastilles reculent. */
 html[data-ui="signal"] .sg-bars-leg.is-btn {
   cursor: pointer;
+  /* Un <button> n'hérite ni la police ni la casse de son parent. */
+  font-family: inherit; text-align: left;
   transition: background 140ms ease, border-color 140ms ease,
               color 140ms ease, opacity 140ms ease;
 }

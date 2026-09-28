@@ -1505,6 +1505,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [sgCat, setSgCat] = useState<string>("all");
   /** Semaine affichee dans « Charge de la semaine » (0 = semaine en cours). */
   const [sgWeek, setSgWeek] = useState(0);
+  /** Pastille de légende ouverte : les projets qu'elle recouvre. Un chiffre de
+   *  tableau de bord doit pouvoir être ouvert pour voir ce qu'il compte. */
+  const [chargePick, setChargePick] = useState<
+    { titre: string; sous?: string; projets: Project[] } | null
+  >(null);
 
   /** Agenda du thème Signal : décompte d'un jour sur TOUS les projets.
    *  Les compteurs historiques dérivent de collabData (projets attribués à un
@@ -2922,16 +2927,38 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 const cab = segs.reduce((s, x) => s + x.cab, 0);
                 const attente = segs.reduce((s, x) => s + x.attente, 0);
                 const enAttente = dayProjects.filter(marchandiseEnAttente);
-                return { d, key, cab, attente, enAttente, segs, nb: dayProjects.length, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
+                return { d, key, cab, attente, enAttente, segs, projets: dayProjects, nb: dayProjects.length, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
               });
               const max = Math.max(1, ...bars.map((b) => b.cab));
-              // Légende : groupes présents sur la semaine, du plus chargé au moins.
+              /* Légende : groupes présents sur la semaine, du plus chargé au
+                 moins. Chaque pastille porte SES projets — un montage à cheval
+                 sur deux jours figure dans les deux barres mais ne doit
+                 apparaître qu'une fois dans la liste, d'où la clé par id. */
               const legend = (() => {
-                const m = new Map<string, number>();
-                bars.forEach((b) => b.segs.forEach((s) => m.set(s.label, (m.get(s.label) || 0) + s.cab)));
-                return [...m.entries()].sort((a, b) => b[1] - a[1])
-                  .map(([label, cab]) => ({ label, cab, color: groupColor(label) }));
+                const m = new Map<string, { cab: number; projets: Map<string, Project> }>();
+                bars.forEach((b) => {
+                  b.segs.forEach((s) => {
+                    const cur = m.get(s.label) || { cab: 0, projets: new Map<string, Project>() };
+                    cur.cab += s.cab;
+                    b.projets.forEach((p) => {
+                      const label = (p.collaborateurs || "").trim() || "Non attribué";
+                      if (label === s.label) cur.projets.set(p.id, p);
+                    });
+                    m.set(s.label, cur);
+                  });
+                });
+                return [...m.entries()].sort((a, b) => b[1].cab - a[1].cab)
+                  .map(([label, v]) => ({
+                    label, cab: v.cab, color: groupColor(label),
+                    projets: [...v.projets.values()],
+                  }));
               })();
+              const attenteSemaine = (() => {
+                const m = new Map<string, Project>();
+                bars.forEach((b) => b.enAttente.forEach((p) => m.set(p.id, p)));
+                return [...m.values()];
+              })();
+              const attenteCab = bars.reduce((s, b) => s + b.attente, 0);
               return (
                 <div className="sg-card sg-chart">
                   <div className="sg-card-head">
@@ -3024,20 +3051,32 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   {legend.length > 0 && (
                     <div className="sg-bars-legend">
                       {legend.map((l) => (
-                        <span key={l.label} className="sg-bars-leg">
+                        <button key={l.label} type="button" className="sg-bars-leg is-btn"
+                          title={`Voir les ${l.projets.length} projet${l.projets.length > 1 ? "s" : ""} de ${l.label}`}
+                          onClick={() => setChargePick({
+                            titre: l.label,
+                            sous: `semaine ${weekNo} · ${l.cab} cabine${l.cab > 1 ? "s" : ""}`,
+                            projets: l.projets,
+                          })}>
                           <i style={{ background: l.color }} />
                           {l.label}
                           <b>{l.cab}</b>
-                        </span>
+                        </button>
                       ))}
                       {/* La trame ne s'explique pas d'elle-même : on ne la
                           nomme que les semaines où elle apparaît. */}
-                      {bars.some((b) => b.attente > 0) && (
-                        <span className="sg-bars-leg">
+                      {attenteCab > 0 && (
+                        <button type="button" className="sg-bars-leg is-btn"
+                          title={`Voir les ${attenteSemaine.length} projet${attenteSemaine.length > 1 ? "s" : ""} sans marchandise`}
+                          onClick={() => setChargePick({
+                            titre: "Marchandise pas encore réceptionnée",
+                            sous: `semaine ${weekNo} · ${attenteCab} cabine${attenteCab > 1 ? "s" : ""} · emplacement de cabine non renseigné`,
+                            projets: attenteSemaine,
+                          })}>
                           <i className="is-attente" />
                           marchandise pas encore réceptionnée
-                          <b>{bars.reduce((s, b) => s + b.attente, 0)}</b>
-                        </span>
+                          <b>{attenteCab}</b>
+                        </button>
                       )}
                     </div>
                   )}
@@ -3112,6 +3151,43 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               </Link>
             </div>
           </div>
+
+          {/* Projets derrière une pastille de légende : un chiffre du tableau
+              de bord doit pouvoir être ouvert pour voir ce qu'il recouvre. */}
+          {chargePick && (
+            <>
+              <div className="sgs-drawer" role="dialog" aria-label={`Projets — ${chargePick.titre}`}>
+                <div className="sgs-drawer-head">
+                  <div>
+                    <h2 className="sg-card-title">{chargePick.titre}</h2>
+                    <p className="sg-card-meta">
+                      {chargePick.projets.length} projet{chargePick.projets.length > 1 ? "s" : ""}
+                      {chargePick.sous ? ` · ${chargePick.sous}` : ""}
+                    </p>
+                  </div>
+                  <button type="button" className="sg-unpin" aria-label="Fermer"
+                    onClick={() => setChargePick(null)}>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="sgs-drawer-body">
+                  {chargePick.projets.map((p) => (
+                    <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`} className="sgc-row"
+                      onClick={() => setChargePick(null)}>
+                      <span className="sg-mono sgc-row-tm">{p.ofrTM || "—"}</span>
+                      <span className="sgc-row-name">{p.nomChantier || p.projet}</span>
+                      <span className="sg-place">
+                        <MapPin className="w-3 h-3" /><span>{p.adresseChantier || "—"}</span>
+                      </span>
+                      <span className="sg-mono sgc-row-cab">{p.nbCabines || 0} cab.</span>
+                      <ChevronRight className="w-4 h-4 sg-plist-chev" />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+              <div className="sgs-drawer-veil" aria-hidden="true" onClick={() => setChargePick(null)} />
+            </>
+          )}
 
           {/* Rangement des 22 boutons par onglets — aucun n'est supprimé */}
           <div className="sg-cats">
