@@ -1778,10 +1778,36 @@ html[data-ui="signal"] .sgs-drawer-body {
   flex: 1; overflow-y: auto; padding: 12px 14px;
   -webkit-overflow-scrolling: touch;
 }
+/* Ligne de projet dans un tiroir : deux lignes, le nom au-dessus de l'adresse.
+   Côte à côte, ils se partageaient une largeur trop courte et l'on ne lisait
+   qu'un fragment de chacun — il fallait ouvrir la fiche pour savoir de quel
+   chantier il s'agissait, ce qui vide le tiroir de son intérêt. */
 html[data-ui="signal"] .sgs-drawer-body .sgc-row {
-  /* Sans pastille d'état, le nom du projet reprend la place. */
-  grid-template-columns: 104px minmax(0, 1fr) 160px 62px 18px;
+  grid-template-columns: 104px minmax(0, 1fr) 62px 18px;
+  grid-template-rows: auto auto;
+  row-gap: 3px;
+  align-items: center;
+  padding: 10px;
 }
+html[data-ui="signal"] .sgs-drawer-body .sgc-row-tm,
+html[data-ui="signal"] .sgs-drawer-body .sgc-row-cab,
+html[data-ui="signal"] .sgs-drawer-body .sg-plist-chev { grid-row: 1 / span 2; }
+html[data-ui="signal"] .sgs-drawer-body .sgc-row-name {
+  grid-column: 2; grid-row: 1;
+  font-weight: 600; line-height: 1.3;
+  white-space: normal; overflow: visible; text-overflow: clip;
+}
+html[data-ui="signal"] .sgs-drawer-body .sg-place {
+  grid-column: 2; grid-row: 2;
+  align-items: flex-start; white-space: normal; overflow: visible;
+  line-height: 1.35;
+}
+html[data-ui="signal"] .sgs-drawer-body .sg-place span {
+  overflow: visible; text-overflow: clip;
+}
+/* L'épingle reste sur la première ligne de l'adresse, quel qu'en soit le
+   nombre de lignes. */
+html[data-ui="signal"] .sgs-drawer-body .sg-place svg { flex-shrink: 0; margin-top: 2px; }
 
 @keyframes sgsIn { to { opacity: 1; transform: translateY(0); } }
 @keyframes sgsDraw { to { stroke-dashoffset: 0; } }
