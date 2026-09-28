@@ -53,6 +53,22 @@ function aCommande(p: Project): boolean {
 
 /* ── Transformation ─────────────────────────────────────────────────────── */
 
+/**
+ * Une mesure, avec ce qu'elle est devenue.
+ *
+ * Les quatre listes que l'écran propose d'ouvrir — mesures, offres, commandes,
+ * perdues — sont toutes des sous-ensembles des mesures. Les transmettre
+ * séparément aurait multiplié le poids de la réponse par deux et demi ; on
+ * envoie donc chaque mesure une fois, avec ses marqueurs. Les faux sont omis :
+ * en JSON, une clé absente pèse moins qu'un `false`.
+ */
+export interface RefMesure extends RefProjet {
+  offre?: true;
+  commande?: true;
+  /** Plus de soixante jours sans commande : le déplacement est perdu. */
+  perdue?: true;
+}
+
 export interface LigneTransformation {
   client: string;
   mesures: number;
@@ -63,6 +79,8 @@ export interface LigneTransformation {
   /** Commandes rapportées aux mesures, en pourcentage. */
   taux: number;
   cabines: number;
+  /** Les projets derrière les chiffres, pour ouvrir chacun d'eux. */
+  projets: RefMesure[];
 }
 
 /** Une mesure sans commande est perdue au-delà de ce délai. */
@@ -89,18 +107,22 @@ export function transformation(
 
     const noms = axe === "sanitaire" ? (p.sanitaireNames || []) : (p.grossistesNames || []);
     const client = noms[0] || "Sans client renseigné";
-    const cur = m.get(client) || {
+    const cur: LigneTransformation = m.get(client) || {
       client, mesures: 0, offres: 0, commandes: 0, perdues: 0, taux: 0, cabines: 0,
+      projets: [],
     };
+    const ref: RefMesure = refDe(p);
     cur.mesures += 1;
-    if (p.dateOffre) cur.offres += 1;
+    if (p.dateOffre) { cur.offres += 1; ref.offre = true; }
     if (aCommande(p)) {
       cur.commandes += 1;
       cur.cabines += Number(p.nbCabines) || 0;
+      ref.commande = true;
     } else {
       const age = (maintenant.getTime() - (jourDe(p.dateMesuresRecue) ?? 0)) / 86400000;
-      if (age >= DELAI_PERDU) cur.perdues += 1;
+      if (age >= DELAI_PERDU) { cur.perdues += 1; ref.perdue = true; }
     }
+    cur.projets.push(ref);
     m.set(client, cur);
   });
 

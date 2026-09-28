@@ -31,9 +31,23 @@ export async function GET(req: NextRequest) {
 
   const de = req.nextUrl.searchParams.get("de") || undefined;
   const a = req.nextUrl.searchParams.get("a") || undefined;
+  /* Une carte qui porte sa propre période redemande cette route à chaque
+     changement. `only` lui évite de faire recalculer — et retransmettre — les
+     huit autres analyses dont elle n'a que faire. */
+  const only = req.nextUrl.searchParams.get("only") || "";
 
   try {
     const projets = await cachedOrFetch("projects-all-raw", getAllProjectsRaw);
+
+    if (only === "transformation") {
+      return NextResponse.json({
+        periode: { de: de || null, a: a || null },
+        transformation: {
+          sanitaire: transformation(projets, "sanitaire", de, a),
+          grossiste: transformation(projets, "grossiste", de, a),
+        },
+      });
+    }
 
     /* Le géocodage sert au coût de trajet. S'il est vide, la fonction se
        rabat sur l'estimation par code postal : moins précise, jamais fausse
@@ -47,10 +61,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       periode: { de: de || null, a: a || null },
-      transformation: {
-        sanitaire: transformation(projets, "sanitaire", de, a),
-        grossiste: transformation(projets, "grossiste", de, a),
-      },
+      /* `transformation` n'est plus ici : sa carte porte sa propre période et
+         la demande à part (`only=transformation`). L'inclure d'office aurait
+         transmis pour rien les projets de chaque mesure, qu'elle seule ouvre. */
       route: coutRoute(projets, positions, de, a),
       sav: {
         marque: coutSav(projets, "marque", de, a),

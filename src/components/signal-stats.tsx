@@ -19,7 +19,7 @@ import { TrendingUp, TrendingDown, Minus, RefreshCw, FileText, ChevronDown, Chev
 import Link from "next/link";
 import { cantonLabel, regionLabel } from "@/lib/swiss-cantons";
 import { conformitePhotos, totalPhotos } from "@/lib/photos-stats";
-import { filterByStatsDate, describeStatsRange, type StatsDateState, DEFAULT_STATS_DATE_STATE } from "@/components/stats-date-filter";
+import { filterByStatsDate, describeStatsRange, getRolling12Range, type StatsDateState, DEFAULT_STATS_DATE_STATE } from "@/components/stats-date-filter";
 
 import { getTeamColor, getCollaboratorColor } from "@/lib/collaborators";
 
@@ -857,6 +857,12 @@ export function SignalStats({
      mois retenus, pour que les chiffres se lisent ensemble. */
   const [analyses, setAnalyses] = useState<any | null>(null);
   const [axeClient, setAxeClient] = useState<"sanitaire" | "grossiste">("sanitaire");
+  /* Le taux de transformation porte sa propre période et son propre tri : on y
+     cherche un client précis sur un mois précis, sans déplacer le reste. */
+  const [dateTransfo, setDateTransfo] = useState<StatsDateState>(DEFAULT_STATS_DATE_STATE);
+  const [triTransfo, setTriTransfo] = useState<"mesures" | "taux" | "client">("mesures");
+  const [triTransfoAsc, setTriTransfoAsc] = useState(false);
+  const [transfo, setTransfo] = useState<any | null>(null);
   const [axeSav, setAxeSav] = useState<"marque" | "serie">("marque");
   const [axeRendement, setAxeRendement] = useState<"marque" | "serie">("serie");
   const [axeDegats, setAxeDegats] = useState<"marque" | "grossiste">("marque");
@@ -910,12 +916,47 @@ export function SignalStats({
     return () => { vivant = false; };
   }, [fenetre?.de, fenetre?.a]);
 
+  /* Le taux de transformation se redemande seul quand SA période change. La
+     lecture Notion est mutualisée côté serveur ; seul ce calcul est refait. */
+  useEffect(() => {
+    let vivant = true;
+    const q = new URLSearchParams({ only: "transformation" });
+    const r12 = dateTransfo.mode === "rolling12" ? getRolling12Range() : null;
+    if (r12) { q.set("de", r12.from); q.set("a", r12.to); }
+    else if (dateTransfo.mode === "range" && dateTransfo.from && dateTransfo.to) {
+      q.set("de", dateTransfo.from); q.set("a", dateTransfo.to);
+    } else if (dateTransfo.mode === "month" && dateTransfo.month) {
+      const [y, mo] = dateTransfo.month.split("-").map(Number);
+      q.set("de", `${dateTransfo.month}-01`);
+      q.set("a", `${dateTransfo.month}-${String(new Date(y, mo, 0).getDate()).padStart(2, "0")}`);
+    } else if (dateTransfo.mode === "year" && dateTransfo.year) {
+      q.set("de", `${dateTransfo.year}-01-01`); q.set("a", `${dateTransfo.year}-12-31`);
+    }
+    setTransfo(null);
+    fetch(`/api/stats/analyses?${q}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivant && d && !d.error) setTransfo(d.transformation); })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, [dateTransfo]);
+
+  /** Lignes du taux de transformation, dans l'ordre demandé. */
+  const lignesTransfo = useMemo(() => {
+    const src: any[] = transfo?.[axeClient] || [];
+    const sens = triTransfoAsc ? 1 : -1;
+    return [...src].sort((a, b) => {
+      if (triTransfo === "client") return a.client.localeCompare(b.client, "fr") * sens;
+      if (triTransfo === "taux") return (a.taux - b.taux) * sens || a.client.localeCompare(b.client, "fr");
+      return (a.mesures - b.mesures) * sens || a.client.localeCompare(b.client, "fr");
+    });
+  }, [transfo, axeClient, triTransfo, triTransfoAsc]);
+
   const TABS = [
     { id: "activite" as const, label: "Activité" },
     { id: "equipes" as const, label: "Équipes & monteurs", n: byCollab.length },
     { id: "repartition" as const, label: "Répartition", n: byFournisseur.length + bySerie.length },
     { id: "qualite" as const, label: "Qualité", n: quality.soucis.length + quality.defauts.length },
-    { id: "clients" as const, label: "Clients", n: analyses?.transformation?.sanitaire?.length || 0 },
+    { id: "clients" as const, label: "Clients", n: transfo?.sanitaire?.length || 0 },
   ];
 
   const keys = useMemo(
@@ -1724,12 +1765,15 @@ export function SignalStats({
           <Fold className="sgs-span2" defaultOpen title="Taux de transformation"
             meta="mesures reçues sur la période, et ce qu'elles sont devenues · au moins 3 mesures par client"
             right={
-              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
-                <button type="button" className={axeClient === "sanitaire" ? "is-on" : ""} onClick={() => setAxeClient("sanitaire")}>Sanitaire</button>
-                <button type="button" className={axeClient === "grossiste" ? "is-on" : ""} onClick={() => setAxeClient("grossiste")}>Grossiste</button>
+              <div className="sgs-head-ctrl" onClick={(e) => e.stopPropagation()}>
+                <div className="sgs-seg">
+                  <button type="button" className={axeClient === "sanitaire" ? "is-on" : ""} onClick={() => setAxeClient("sanitaire")}>Sanitaire</button>
+                  <button type="button" className={axeClient === "grossiste" ? "is-on" : ""} onClick={() => setAxeClient("grossiste")}>Grossiste</button>
+                </div>
+                <PeriodeCarte etat={dateTransfo} onChange={setDateTransfo} />
               </div>
             }>
-            {analyses?.transformation?.[axeClient]?.length ? (
+            {lignesTransfo.length ? (
               <>
                 {/* Entonnoir : trois barres emboîtées se lisent d'un coup d'œil
                     là où six colonnes de chiffres demandaient un effort. */}
@@ -1737,15 +1781,48 @@ export function SignalStats({
                   <span><i className="is-mesure" /> Mesures prises</span>
                   <span><i className="is-offre" /> Offres établies</span>
                   <span><i className="is-commande" /> Commandes obtenues</span>
+                  {/* Tri : le classement par volume répond à « qui pèse le
+                      plus » ; par taux à « qui transforme le mieux » ; par nom
+                      à « où en est ce client-là ». Trois questions, trois
+                      ordres. */}
+                  <span className="sgs-tri">
+                    Trier par
+                    <span className="sgs-seg">
+                      {([
+                        { k: "mesures" as const, l: "Volume" },
+                        { k: "taux" as const, l: "Taux" },
+                        { k: "client" as const, l: "Client" },
+                      ]).map((t) => (
+                        <button key={t.k} type="button" className={triTransfo === t.k ? "is-on" : ""}
+                          onClick={() => {
+                            // Reclic sur le critère actif : on inverse le sens.
+                            if (triTransfo === t.k) setTriTransfoAsc((v) => !v);
+                            else { setTriTransfo(t.k); setTriTransfoAsc(t.k === "client"); }
+                          }}>
+                          {t.l}
+                          {triTransfo === t.k && (triTransfoAsc ? " ↑" : " ↓")}
+                        </button>
+                      ))}
+                    </span>
+                  </span>
                 </div>
                 <div className="sgs-entonnoir">
-                  {analyses.transformation[axeClient].map((l: any) => (
+                  {lignesTransfo.map((l: any) => {
+                    const pj: any[] = l.projets || [];
+                    const ouvrir = (label: string, items: any[], color: string) =>
+                      items.length > 0 && setPick({ label: `${l.client} — ${label}`, value: items.length, color, items: items as never[] });
+                    const perdues = pj.filter((x) => x.perdue);
+                    return (
                     <div key={l.client} className="sgs-ent-ligne">
                       <span className="sgs-ent-nom">
                         {l.client}
                         {l.perdues > 0 && (
-                          <em title={`${l.perdues} mesures de plus de 60 jours restées sans commande`}>
-                            {l.perdues} perdue{l.perdues > 1 ? "s" : ""}
+                          <em>
+                            <button type="button" className="sgs-lien-nu"
+                              title={`${l.perdues} mesures de plus de 60 jours restées sans commande`}
+                              onClick={() => ouvrir("mesures perdues", perdues, "#b45309")}>
+                              {l.perdues} perdue{l.perdues > 1 ? "s" : ""}
+                            </button>
                           </em>
                         )}
                       </span>
@@ -1753,25 +1830,47 @@ export function SignalStats({
                         <i className="is-mesure" style={{ width: "100%" }} />
                         <i className="is-offre" style={{ width: `${Math.round((l.offres / l.mesures) * 100)}%` }} />
                         <i className="is-commande" style={{ width: `${Math.round((l.commandes / l.mesures) * 100)}%` }} />
-                        <b>{l.mesures} → {l.offres} → {l.commandes}</b>
+                        {/* Chaque étape de l'entonnoir s'ouvre sur ses projets :
+                            « 74 → 63 → 42 » ne se vérifie qu'en les lisant. */}
+                        <b>
+                          <button type="button" className="sgs-lien-nu"
+                            title={`Voir les ${l.mesures} mesures`}
+                            onClick={() => ouvrir("mesures prises", pj, "#06b6d4")}>{l.mesures}</button>
+                          {" → "}
+                          <button type="button" className="sgs-lien-nu"
+                            title={`Voir les ${l.offres} offres`}
+                            onClick={() => ouvrir("offres établies", pj.filter((x) => x.offre), "#3b82f6")}>{l.offres}</button>
+                          {" → "}
+                          <button type="button" className="sgs-lien-nu"
+                            title={`Voir les ${l.commandes} commandes`}
+                            onClick={() => ouvrir("commandes obtenues", pj.filter((x) => x.commande), "#16a34a")}>{l.commandes}</button>
+                        </b>
                       </span>
                       <span className={`sgs-ent-taux${l.taux >= 70 ? " is-bon" : l.taux < 40 ? " is-faible" : ""}`}>
                         {l.taux} <em>%</em>
                       </span>
-                      <span className="sgs-ent-cab">{l.cabines} cab.</span>
+                      <span className="sgs-ent-cab">
+                        <button type="button" className="sgs-lien-nu"
+                          title={`Voir les ${l.commandes} projets commandés (${l.cabines} cabines)`}
+                          onClick={() => ouvrir("projets commandés", pj.filter((x) => x.commande), "#16a34a")}>
+                          {l.cabines} cab.
+                        </button>
+                      </span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <p className="sgs-note">
                   Une mesure est un déplacement de deux heures : ce tableau compte par MESURE,
                   et non par projet, parce que c&apos;est le déplacement qu&apos;il s&apos;agit de
                   rentabiliser. « Perdues » compte les mesures de plus de soixante jours restées
-                  sans commande — elles ne reviendront probablement pas.
+                  sans commande — elles ne reviendront probablement pas. Chaque chiffre s&apos;ouvre
+                  sur la liste des projets qu&apos;il recouvre.
                 </p>
               </>
             ) : (
               <p className="sgs-empty">
-                {analyses ? "Aucune mesure reçue sur la période affichée." : "Calcul en cours…"}
+                {transfo ? "Aucune mesure reçue sur la période choisie." : "Calcul en cours…"}
               </p>
             )}
           </Fold>

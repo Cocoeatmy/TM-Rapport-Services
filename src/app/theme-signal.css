@@ -4018,3 +4018,24 @@ html[data-ui="signal"].dark .sgh-off.is-alerte {
 }
 html[data-ui="signal"].dark .sgh-offpop-chip { background: #102b1b; color: #6ee7b7; }
 html[data-ui="signal"].dark .sgh-offpop-chip.is-alerte { background: #3a2c14; color: #f0b866; }
+
+/* Chiffre cliquable POSÉ SUR un élément coloré (barre d'entonnoir, libellé
+   discret). Contrairement à `.sgs-lien`, il n'a pas de pastille : sur une
+   barre sombre, un fond bleu clair serait illisible. Il reprend donc la
+   couleur de son voisinage et ne se signale que par un soulignement. */
+html[data-ui="signal"] .sgs-lien-nu {
+  border: 0; padding: 0; background: none; cursor: pointer;
+  font: inherit; color: inherit;
+  text-decoration: underline; text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+html[data-ui="signal"] .sgs-lien-nu:hover { color: var(--sg-signal); }
+html[data-ui="signal"] .sgs-lien-nu:focus-visible {
+  outline: 2px solid var(--sg-signal); outline-offset: 2px; border-radius: 3px;
+}
+
+/* Choix du tri, dans la légende de l'entonnoir. */
+html[data-ui="signal"] .sgs-tri {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
+}
+html[data-ui="signal"] .sgs-tri .sgs-seg button { height: 24px; padding: 0 9px; font-size: 11px; }
