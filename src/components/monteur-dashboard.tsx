@@ -2936,25 +2936,23 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           setCalendarSelectedDay(b.key);
                         }}
                       >
-                        {/* Deux chiffres, pas un : douze cabines chez neuf
-                            clients ne se planifient pas comme douze cabines
-                            dans le même immeuble. Un jour vide reste un simple
-                            « 0 » — « 0 projet » n'apprendrait rien. */}
-                        <span className="sg-bar-val">
-                          {b.cab === 0 ? "0" : (
-                            <>
-                              {b.cab} <em>cab.</em>
-                              <i>{b.nb} projet{b.nb > 1 ? "s" : ""}</i>
-                            </>
-                          )}
-                        </span>
-                        {/* La barre se mesure sur l'espace QUI RESTE, et non
-                            sur la hauteur totale de la colonne : sinon la plus
-                            haute déborde sur les légendes dès qu'on ajoute une
-                            ligne au-dessus. */}
+                        {/* Le libellé est POSÉ SUR la barre, à sa hauteur exacte :
+                            calé en haut de colonne, il flottait loin des barres
+                            courtes et on ne savait plus à laquelle il se
+                            rapportait. Les barres sont ramenées à 86 % de la
+                            zone pour lui laisser sa place sans déborder. */}
                         <span className="sg-bar-zone">
+                          <span className="sg-bar-val"
+                                style={{ bottom: `${Math.round((b.cab / max) * 86)}%` }}>
+                            {b.cab === 0 ? "0" : (
+                              <>
+                                <b>{b.cab} cabine{b.cab > 1 ? "s" : ""}</b>
+                                <i>{b.nb} projet{b.nb > 1 ? "s" : ""}</i>
+                              </>
+                            )}
+                          </span>
                           <span className={`sg-bar-stack${b.isToday ? " is-today" : ""}`}
-                                style={{ height: `${Math.round((b.cab / max) * 100)}%` }}>
+                                style={{ height: `${Math.round((b.cab / max) * 86)}%` }}>
                             {b.segs.length === 0 && <i className="sg-bar-seg is-empty" style={{ flexGrow: 1 }} />}
                             {b.segs.map((s) => (
                               <i key={s.label} className="sg-bar-seg"

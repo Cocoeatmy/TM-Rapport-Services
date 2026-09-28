@@ -776,13 +776,14 @@ html[data-ui="signal"] .sg-bar-col:hover:not(.is-void) { background: var(--sg-pa
 html[data-ui="signal"] .sg-bar-col.is-void { cursor: default; }
 
 /* Zone de la barre : elle absorbe la hauteur restante de la colonne, une fois
-   les libellés placés. La barre se mesure donc sur cette zone, jamais sur la
-   colonne entière — faute de quoi la plus haute déborderait sur le jour et la
-   date en dessous. */
+   le jour et la date placés. La barre se mesure donc sur cette zone, jamais
+   sur la colonne entière, et le libellé s'y positionne à la hauteur exacte
+   qu'atteint la barre. */
 html[data-ui="signal"] .sg-bar-zone {
+  position: relative;
   flex: 1;
   width: 100%;
-  min-height: 60px;
+  min-height: 120px;
   display: flex;
   align-items: flex-end;
 }
@@ -862,28 +863,29 @@ html[data-ui="signal"] .sg-bars-leg.is-clear {
   border-style: dashed; color: var(--sg-text-3);
 }
 
+/* Libellé de la colonne : posé juste au-dessus de SA barre, à la hauteur que
+   celle-ci atteint. Calé en haut de colonne, il flottait loin des barres
+   courtes et on ne savait plus à laquelle il se rapportait. */
 html[data-ui="signal"] .sg-bar-val {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin-bottom: 5px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  line-height: 1.25;
+  line-height: 1.3;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--sg-text);
+  pointer-events: none;
 }
-/* « cab. » reste discret : c'est le CHIFFRE qu'on lit, l'unité ne fait que
-   lever l'ambiguïté avec le nombre de projets juste en dessous. */
-html[data-ui="signal"] .sg-bar-val em {
-  font-style: normal;
-  font-size: 9.5px;
-  font-weight: 500;
-  color: var(--sg-text-3);
-}
+html[data-ui="signal"] .sg-bar-val b { font-weight: 700; white-space: nowrap; }
 html[data-ui="signal"] .sg-bar-val i {
   font-style: normal;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 500;
   color: var(--sg-text-3);
   white-space: nowrap;
