@@ -10,7 +10,6 @@ import { ForceSyncButton } from "@/components/force-sync-button";
 import { SendPendingButton } from "@/components/send-pending-button";
 import { BoutonHorsLigne } from "@/components/bouton-hors-ligne";
 import { ThemeColorSync } from "@/components/theme-color-sync";
-import { SwipeNavigation } from "@/components/swipe-navigation";
 import { CreateProjectButton } from "@/components/create-project-button";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { OfflineBanner } from "@/components/offline-banner";
@@ -103,7 +102,10 @@ export default function RootLayout({
         {/* Bandeau hors-ligne + header dans un même conteneur sticky : le
             bandeau se place AU-DESSUS du header (plein haut), sans le recouvrir. */}
         <ThemeColorSync />
-        <SwipeNavigation />
+        {/* La navigation au geste a ete retiree : meme reservee aux bords de
+            l'ecran, elle changeait de page sur un mouvement involontaire. Le
+            bouton Retour de l'en-tete la remplace, et s'appuie sur la meme
+            pile d'adresses visitees (lib/historique-navigation). */}
         <div className="sticky top-0 z-50">
         <OfflineBanner />
         <header id="main-header" className="glass-header text-white">
