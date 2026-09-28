@@ -13,7 +13,7 @@ import { getAllProjectsRaw } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
 import { getData } from "@/lib/kv-store";
 import {
-  transformation, coutRoute, coutSav, rendement, clientsEnRecul,
+  transformation, coutRoute, coutSav, rendement, clientsEnRecul, clientFacture,
   degatsLivraison, soloOuBinome, devenirMesures,
 } from "@/lib/analyses";
 import type { Position } from "@/lib/tournee";
@@ -39,13 +39,19 @@ export async function GET(req: NextRequest) {
   try {
     const projets = await cachedOrFetch("projects-all-raw", getAllProjectsRaw);
 
+    /* Familles de clients réellement présentes, pour que l'écran propose des
+       filtres qui donnent des résultats — une liste écrite en dur vieillirait
+       à la première valeur ajoutée dans Notion. */
+    const familles = [...new Set(projets.map((p) => clientFacture(p).type))]
+      .filter((t) => t && t !== "Non renseigné")
+      .sort((x, y) => x.localeCompare(y, "fr"));
+
     if (only === "transformation") {
+      const type = req.nextUrl.searchParams.get("type") || "tous";
       return NextResponse.json({
         periode: { de: de || null, a: a || null },
-        transformation: {
-          sanitaire: transformation(projets, "sanitaire", de, a),
-          grossiste: transformation(projets, "grossiste", de, a),
-        },
+        familles,
+        transformation: transformation(projets, type, de, a),
       });
     }
 
@@ -76,10 +82,8 @@ export async function GET(req: NextRequest) {
       /* Le recul se mesure sur douze mois glissants, indépendamment de la
          période affichée : comparer deux trimestres n'aurait aucun sens, la
          saisonnalité dominerait le signal. */
-      recul: {
-        sanitaire: clientsEnRecul(projets, "sanitaire"),
-        grossiste: clientsEnRecul(projets, "grossiste"),
-      },
+      familles,
+      recul: clientsEnRecul(projets, "tous"),
       degats: {
         marque: degatsLivraison(projets, "marque", de, a),
         grossiste: degatsLivraison(projets, "grossiste", de, a),

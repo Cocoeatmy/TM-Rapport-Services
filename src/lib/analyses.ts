@@ -51,6 +51,85 @@ function aCommande(p: Project): boolean {
     || !!p.dateCMDRecue || !!p.dateCMDUsine;
 }
 
+/* ── Qui est le client d'un projet ──────────────────────────────────────── */
+
+/**
+ * Le client d'un projet est CELUI À QUI L'ON FACTURE, et c'est le champ
+ * « Type de client » qui le désigne.
+ *
+ * Un projet porte souvent trois entreprises à la fois : un fournisseur, un
+ * grossiste et un sanitaire. Compter le sanitaire comme client était faux dans
+ * la plupart des cas — on n'a jamais travaillé en direct pour MMT ni pour
+ * Milliquet, ces chantiers étaient facturés à Duka ou à Gétaz. Les statistiques
+ * commerciales attribuaient donc des mesures, des taux et des reculs à des
+ * entreprises qui ne nous ont jamais rien commandé.
+ *
+ * « Type de client » dit laquelle des trois facture : s'il vaut Fournisseur,
+ * le client est le fournisseur, quels que soient le grossiste et le sanitaire
+ * inscrits à côté.
+ */
+function sansAccents(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
+
+/** Premier nom non vide d'une relation Notion. */
+function premierNom(noms?: string[]): string {
+  return (noms || []).map((x) => String(x ?? "").trim()).find(Boolean) || "";
+}
+
+export interface ClientProjet {
+  /** Nom à afficher, ou le segment quand l'entreprise n'est pas nommée. */
+  nom: string;
+  /** Famille telle que Notion la nomme, normalisée au singulier. */
+  type: string;
+  /** Le nom vient d'un repli, faute de relation correspondante. */
+  approximatif: boolean;
+}
+
+/**
+ * Le client facturé d'un projet.
+ *
+ * Quand « Type de client » désigne une famille dont la relation est vide — un
+ * projet marqué Fournisseur sans fournisseur renseigné — on se rabat sur ce
+ * qui existe, et on le signale : mieux vaut une attribution probable et
+ * marquée comme telle qu'un projet écarté en silence.
+ */
+export function clientFacture(p: Project): ClientProjet {
+  const t = sansAccents(p.typeClient || "");
+  const fournisseur = premierNom(p.fournisseursNames);
+  const grossiste = premierNom(p.grossistesNames);
+  const sanitaire = premierNom(p.sanitaireNames);
+
+  const choisir = (nom: string, type: string): ClientProjet => {
+    if (nom) return { nom, type, approximatif: false };
+    const repli = fournisseur || grossiste || sanitaire;
+    return repli
+      ? { nom: repli, type, approximatif: true }
+      : { nom: "Sans client renseigné", type, approximatif: true };
+  };
+
+  if (t.startsWith("fournisseur")) return choisir(fournisseur, "Fournisseur");
+  if (t.startsWith("grossiste")) return choisir(grossiste, "Grossiste");
+  if (t.startsWith("sanitaire")) return choisir(sanitaire, "Sanitaire");
+  if (t.startsWith("architecte")) return choisir(premierNom(p.architecteNames), "Architecte");
+  if (t.startsWith("dt") || t.includes("direction")) return choisir(premierNom(p.dtNames), "DT");
+
+  /* Les familles sans entreprise en relation — clients finaux, locataires,
+     régies. Aucun nom n'est disponible côté projet : elles forment un segment,
+     et c'est déjà une lecture utile. Le libellé reprend celui de Notion. */
+  if (t) {
+    const libelle = (p.typeClient || "").trim();
+    return { nom: libelle, type: libelle, approximatif: false };
+  }
+
+  /* « Type de client » vide : on ne sait pas qui facture. L'ordre de repli suit
+     celui qui facture le plus souvent. */
+  const repli = fournisseur || grossiste || sanitaire;
+  return repli
+    ? { nom: repli, type: "Non renseigné", approximatif: true }
+    : { nom: "Sans client renseigné", type: "Non renseigné", approximatif: true };
+}
+
 /* ── Transformation ─────────────────────────────────────────────────────── */
 
 /**
@@ -71,6 +150,8 @@ export interface RefMesure extends RefProjet {
 
 export interface LigneTransformation {
   client: string;
+  /** Famille du client facturé : Fournisseur, Grossiste, Sanitaire… */
+  type: string;
   mesures: number;
   offres: number;
   commandes: number;
@@ -95,21 +176,24 @@ const DELAI_PERDU = 60;
  */
 export function transformation(
   projets: Project[],
-  axe: "sanitaire" | "grossiste",
+  /** Famille de clients à retenir, ou « tous ». Voir `clientFacture`. */
+  filtreType: string,
   de?: string, a?: string,
   maintenant: Date = new Date(),
 ): LigneTransformation[] {
   const m = new Map<string, LigneTransformation>();
+  const vise = sansAccents(filtreType);
 
   projets.forEach((p) => {
     if (MORTS.has(p.etatCMD) || estServicePur(p)) return;
     if (!dansFenetre(p.dateMesuresRecue, de, a)) return;
 
-    const noms = axe === "sanitaire" ? (p.sanitaireNames || []) : (p.grossistesNames || []);
-    const client = noms[0] || "Sans client renseigné";
+    const qui = clientFacture(p);
+    if (vise && vise !== "tous" && sansAccents(qui.type) !== vise) return;
+    const client = qui.nom;
     const cur: LigneTransformation = m.get(client) || {
-      client, mesures: 0, offres: 0, commandes: 0, perdues: 0, taux: 0, cabines: 0,
-      projets: [],
+      client, type: qui.type, mesures: 0, offres: 0, commandes: 0, perdues: 0,
+      taux: 0, cabines: 0, projets: [],
     };
     const ref: RefMesure = refDe(p);
     cur.mesures += 1;
@@ -354,6 +438,8 @@ export function rendement(
 
 export interface LigneRecul {
   client: string;
+  /** Famille du client facturé : Fournisseur, Grossiste, Sanitaire… */
+  type: string;
   /** Cabines posées sur les douze derniers mois. */
   recent: number;
   /** Cabines posées sur les douze mois précédents. */
@@ -373,12 +459,14 @@ export interface LigneRecul {
  */
 export function clientsEnRecul(
   projets: Project[],
-  axe: "sanitaire" | "grossiste",
+  /** Famille de clients à retenir, ou « tous ». Voir `clientFacture`. */
+  filtreType: string,
   maintenant: Date = new Date(),
 ): LigneRecul[] {
   const fin = maintenant.getTime();
   const unAn = 365 * 86400000;
-  const m = new Map<string, { recent: number; avant: number; derniere: number | null }>();
+  const m = new Map<string, { recent: number; avant: number; derniere: number | null; type: string }>();
+  const vise = sansAccents(filtreType);
 
   projets.forEach((p) => {
     if (MORTS.has(p.etatCMD) || estServicePur(p)) return;
@@ -387,11 +475,12 @@ export function clientsEnRecul(
     const n = Number(p.nbCabinesInstallees) || Number(p.nbCabines) || 0;
     if (n <= 0) return;
 
-    const noms = axe === "sanitaire" ? (p.sanitaireNames || []) : (p.grossistesNames || []);
-    const client = noms[0];
-    if (!client) return;
+    const qui = clientFacture(p);
+    if (vise && vise !== "tous" && sansAccents(qui.type) !== vise) return;
+    const client = qui.nom;
+    if (!client || client === "Sans client renseigné") return;
 
-    const cur = m.get(client) || { recent: 0, avant: 0, derniere: null };
+    const cur = m.get(client) || { recent: 0, avant: 0, derniere: null, type: qui.type };
     if (t >= fin - unAn) cur.recent += n;
     else if (t >= fin - 2 * unAn) cur.avant += n;
     if (cur.derniere === null || t > cur.derniere) cur.derniere = t;
@@ -403,6 +492,7 @@ export function clientsEnRecul(
     .filter(([, v]) => v.avant >= 5 && v.recent < v.avant * 0.6)
     .map(([client, v]) => ({
       client,
+      type: v.type,
       recent: v.recent,
       avant: v.avant,
       variation: Math.round(((v.recent - v.avant) / v.avant) * 100),

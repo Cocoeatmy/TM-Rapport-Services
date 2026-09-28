@@ -856,7 +856,10 @@ export function SignalStats({
      géocodage. On les demande pour la période RÉELLEMENT affichée, celle des
      mois retenus, pour que les chiffres se lisent ensemble. */
   const [analyses, setAnalyses] = useState<any | null>(null);
-  const [axeClient, setAxeClient] = useState<"sanitaire" | "grossiste">("sanitaire");
+  /* Famille de clients affichée. « Tous » par défaut : c'est la lecture qui
+     correspond à la réalité de la facturation, toutes familles confondues. */
+  const [axeClient, setAxeClient] = useState("tous");
+  const [familles, setFamilles] = useState<string[]>([]);
   /* Le taux de transformation porte sa propre période et son propre tri : on y
      cherche un client précis sur un mois précis, sans déplacer le reste. */
   const [dateTransfo, setDateTransfo] = useState<StatsDateState>(DEFAULT_STATS_DATE_STATE);
@@ -920,7 +923,7 @@ export function SignalStats({
      lecture Notion est mutualisée côté serveur ; seul ce calcul est refait. */
   useEffect(() => {
     let vivant = true;
-    const q = new URLSearchParams({ only: "transformation" });
+    const q = new URLSearchParams({ only: "transformation", type: axeClient });
     const r12 = dateTransfo.mode === "rolling12" ? getRolling12Range() : null;
     if (r12) { q.set("de", r12.from); q.set("a", r12.to); }
     else if (dateTransfo.mode === "range" && dateTransfo.from && dateTransfo.to) {
@@ -935,28 +938,40 @@ export function SignalStats({
     setTransfo(null);
     fetch(`/api/stats/analyses?${q}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (vivant && d && !d.error) setTransfo(d.transformation); })
+      .then((d) => {
+        if (!vivant || !d || d.error) return;
+        setTransfo(d.transformation);
+        if (Array.isArray(d.familles)) setFamilles(d.familles);
+      })
       .catch(() => {});
     return () => { vivant = false; };
-  }, [dateTransfo]);
+  }, [dateTransfo, axeClient]);
 
   /** Lignes du taux de transformation, dans l'ordre demandé. */
   const lignesTransfo = useMemo(() => {
-    const src: any[] = transfo?.[axeClient] || [];
+    const src: any[] = Array.isArray(transfo) ? transfo : [];
     const sens = triTransfoAsc ? 1 : -1;
     return [...src].sort((a, b) => {
       if (triTransfo === "client") return a.client.localeCompare(b.client, "fr") * sens;
       if (triTransfo === "taux") return (a.taux - b.taux) * sens || a.client.localeCompare(b.client, "fr");
       return (a.mesures - b.mesures) * sens || a.client.localeCompare(b.client, "fr");
     });
-  }, [transfo, axeClient, triTransfo, triTransfoAsc]);
+  }, [transfo, triTransfo, triTransfoAsc]);
+
+  /* Le recul se calcule toutes familles confondues — il porte sur douze mois
+     glissants, indépendants de tout filtre. Le tri par famille se fait donc
+     ici, sans redemander le serveur. */
+  const reculFiltre = useMemo(() => {
+    const src: any[] = analyses?.recul || [];
+    return axeClient === "tous" ? src : src.filter((l) => l.type === axeClient);
+  }, [analyses, axeClient]);
 
   const TABS = [
     { id: "activite" as const, label: "Activité" },
     { id: "equipes" as const, label: "Équipes & monteurs", n: byCollab.length },
     { id: "repartition" as const, label: "Répartition", n: byFournisseur.length + bySerie.length },
     { id: "qualite" as const, label: "Qualité", n: quality.soucis.length + quality.defauts.length },
-    { id: "clients" as const, label: "Clients", n: transfo?.sanitaire?.length || 0 },
+    { id: "clients" as const, label: "Clients", n: Array.isArray(transfo) ? transfo.length : 0 },
   ];
 
   const keys = useMemo(
@@ -1763,12 +1778,16 @@ export function SignalStats({
       {tab === "clients" && (
         <div className="sgs-grid2">
           <Fold className="sgs-span2" defaultOpen title="Taux de transformation"
-            meta="mesures reçues sur la période, et ce qu'elles sont devenues · au moins 3 mesures par client"
+            meta="par client facturé — celui que désigne « Type de client » · mesures reçues sur la période · au moins 3 mesures"
             right={
               <div className="sgs-head-ctrl" onClick={(e) => e.stopPropagation()}>
                 <div className="sgs-seg">
-                  <button type="button" className={axeClient === "sanitaire" ? "is-on" : ""} onClick={() => setAxeClient("sanitaire")}>Sanitaire</button>
-                  <button type="button" className={axeClient === "grossiste" ? "is-on" : ""} onClick={() => setAxeClient("grossiste")}>Grossiste</button>
+                  <button type="button" className={axeClient === "tous" ? "is-on" : ""}
+                    onClick={() => setAxeClient("tous")}>Tous</button>
+                  {familles.map((f) => (
+                    <button key={f} type="button" className={axeClient === f ? "is-on" : ""}
+                      onClick={() => setAxeClient(f)}>{f}</button>
+                  ))}
                 </div>
                 <PeriodeCarte etat={dateTransfo} onChange={setDateTransfo} />
               </div>
@@ -1816,6 +1835,12 @@ export function SignalStats({
                     <div key={l.client} className="sgs-ent-ligne">
                       <span className="sgs-ent-nom">
                         {l.client}
+                        {/* La famille sous le nom : elle dit POURQUOI cette
+                            entreprise est le client, et distingue un Duka
+                            fournisseur d'un Gétaz grossiste. */}
+                        {axeClient === "tous" && l.type && l.type !== "Non renseigné" && (
+                          <i className="sgs-ent-type">{l.type}</i>
+                        )}
                         {l.perdues > 0 && (
                           <em>
                             <button type="button" className="sgs-lien-nu"
@@ -1866,6 +1891,10 @@ export function SignalStats({
                   rentabiliser. « Perdues » compte les mesures de plus de soixante jours restées
                   sans commande — elles ne reviendront probablement pas. Chaque chiffre s&apos;ouvre
                   sur la liste des projets qu&apos;il recouvre.
+                  {" "}Le client retenu est celui À QUI L&apos;ON FACTURE, désigné par
+                  « Type de client » : un chantier chez un sanitaire mais commandé par un
+                  fournisseur compte pour le fournisseur, et non pour le sanitaire — lequel
+                  ne nous a rien commandé.
                 </p>
               </>
             ) : (
@@ -1876,21 +1905,25 @@ export function SignalStats({
           </Fold>
 
           <Fold className="sgs-span2" title="Clients qui décrochent"
-            meta="douze mois glissants comparés aux douze précédents · recul d'au moins 40 %"
+            meta="par client facturé · douze mois glissants comparés aux douze précédents · recul d'au moins 40 %"
             right={
               <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
-                <button type="button" className={axeClient === "sanitaire" ? "is-on" : ""} onClick={() => setAxeClient("sanitaire")}>Sanitaire</button>
-                <button type="button" className={axeClient === "grossiste" ? "is-on" : ""} onClick={() => setAxeClient("grossiste")}>Grossiste</button>
+                <button type="button" className={axeClient === "tous" ? "is-on" : ""}
+                  onClick={() => setAxeClient("tous")}>Tous</button>
+                {familles.map((f) => (
+                  <button key={f} type="button" className={axeClient === f ? "is-on" : ""}
+                    onClick={() => setAxeClient(f)}>{f}</button>
+                ))}
               </div>
             }>
-            {analyses?.recul?.[axeClient]?.length ? (
+            {reculFiltre.length ? (
               <>
                 <Tableau cols={[
-                  { titre: axeClient === "sanitaire" ? "Sanitaire" : "Grossiste" },
+                  { titre: "Client facturé" },
                   { titre: "12 mois précédents", num: true }, { titre: "12 derniers mois", num: true },
                   { titre: "Écart", num: true }, { titre: "Dernier montage", num: true },
                 ]}>
-                  {analyses.recul[axeClient].map((l: any) => (
+                  {reculFiltre.map((l: any) => (
                     <tr key={l.client}>
                       <td className="cle">{l.client}</td>
                       <td className="num doux">{l.avant}</td>

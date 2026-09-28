@@ -4039,3 +4039,7 @@ html[data-ui="signal"] .sgs-tri {
   margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
 }
 html[data-ui="signal"] .sgs-tri .sgs-seg button { height: 24px; padding: 0 9px; font-size: 11px; }
+/* Famille du client facturé, sous son nom : « Fournisseur », « Grossiste »… */
+html[data-ui="signal"] .sgs-ent-type {
+  display: block; font-style: normal; font-size: 10px; color: var(--sg-text-3);
+}

@@ -9,7 +9,7 @@ import { describe, it, expect } from "vitest";
 import type { Project } from "../lib/notion";
 import {
   transformation, coutRoute, coutSav, rendement, clientsEnRecul,
-  degatsLivraison, soloOuBinome, devenirMesures,
+  degatsLivraison, soloOuBinome, devenirMesures, clientFacture,
 } from "../lib/analyses";
 
 const MAINTENANT = new Date("2026-09-27T12:00:00Z");
@@ -23,6 +23,7 @@ const BASE = {
   nbCabines: 1, nbCabinesInstallees: 1,
   fournisseurs: ["Duka"], seriesCabines: ["ProCasa"],
   sanitaireNames: ["Milliquet SA"], grossistesNames: ["Gétaz Nyon"],
+  fournisseursNames: ["Duka"], typeClient: "Sanitaire",
   cmdTM: "", cmdTMUsine: "", cmdGrossiste: "",
   dateMesuresRecue: ilYA(100), dateOffre: ilYA(95),
   dateCMDRecue: null, dateCMDUsine: null, dateMontage: null,
@@ -72,10 +73,60 @@ describe("taux de transformation", () => {
     expect(lignes.map((l) => l.client)).toEqual(["Gros client"]);
   });
 
-  it("sépare les deux axes, sanitaire et grossiste", () => {
-    const projets = lot(4, { sanitaireNames: ["S1"], grossistesNames: ["G1"] });
-    expect(transformation(projets, "sanitaire")[0].client).toBe("S1");
-    expect(transformation(projets, "grossiste")[0].client).toBe("G1");
+  it("retient le client FACTURÉ, pas les entreprises qui l'entourent", () => {
+    /* Le cas réel : un chantier chez MMT, commandé et payé par Duka. Compter
+       MMT comme client attribuait des mesures à une entreprise qui ne nous a
+       jamais rien commandé. */
+    const projets = lot(4, {
+      typeClient: "Fournisseur",
+      fournisseursNames: ["Duka"],
+      grossistesNames: ["Dubat Yverdon"],
+      sanitaireNames: ["MMT SA"],
+    });
+    expect(transformation(projets, "tous")[0].client).toBe("Duka");
+  });
+
+  it("filtre sur la famille du client facturé", () => {
+    const projets = [
+      ...lot(4, { id: "f", typeClient: "Fournisseur", fournisseursNames: ["Duka"] }),
+      ...lot(4, { id: "g", typeClient: "Grossiste", grossistesNames: ["Gétaz Nyon"] }),
+    ];
+    expect(transformation(projets, "tous").map((l) => l.client).sort())
+      .toEqual(["Duka", "Gétaz Nyon"]);
+    expect(transformation(projets, "Fournisseur").map((l) => l.client)).toEqual(["Duka"]);
+    expect(transformation(projets, "Grossiste").map((l) => l.client)).toEqual(["Gétaz Nyon"]);
+  });
+});
+
+describe("qui est le client d'un projet", () => {
+  it("suit « Type de client », quelles que soient les autres entreprises", () => {
+    const base = {
+      fournisseursNames: ["Duka"],
+      grossistesNames: ["Dubat Yverdon"],
+      sanitaireNames: ["Milliquet SA"],
+    };
+    expect(clientFacture(p({ ...base, typeClient: "Fournisseur" })).nom).toBe("Duka");
+    expect(clientFacture(p({ ...base, typeClient: "Grossistes" })).nom).toBe("Dubat Yverdon");
+    expect(clientFacture(p({ ...base, typeClient: "Sanitaires" })).nom).toBe("Milliquet SA");
+  });
+
+  it("accepte le pluriel et les accents de Notion", () => {
+    expect(clientFacture(p({ typeClient: "Fournisseurs", fournisseursNames: ["Duka"] })).type)
+      .toBe("Fournisseur");
+  });
+
+  it("garde en segment les familles sans entreprise en relation", () => {
+    const c = clientFacture(p({ typeClient: "Client final" }));
+    expect(c.nom).toBe("Client final");
+    expect(c.approximatif).toBe(false);
+  });
+
+  it("se rabat en le signalant quand la relation désignée est vide", () => {
+    const c = clientFacture(p({
+      typeClient: "Fournisseur", fournisseursNames: [], grossistesNames: ["Gétaz Nyon"],
+    }));
+    expect(c.nom).toBe("Gétaz Nyon");
+    expect(c.approximatif).toBe(true);
   });
 });
 
@@ -195,7 +246,7 @@ describe("clients qui décrochent", () => {
     const lignes = clientsEnRecul([
       ...commandes("Décroche", 20, 400),
       ...commandes("Décroche", 3, 100),
-    ], "sanitaire", MAINTENANT);
+    ], "tous", MAINTENANT);
     expect(lignes[0].client).toBe("Décroche");
     expect(lignes[0].avant).toBe(20);
     expect(lignes[0].recent).toBe(3);
@@ -206,14 +257,14 @@ describe("clients qui décrochent", () => {
     const lignes = clientsEnRecul([
       ...commandes("Stable", 10, 400),
       ...commandes("Stable", 11, 100),
-    ], "sanitaire", MAINTENANT);
+    ], "tous", MAINTENANT);
     expect(lignes).toEqual([]);
   });
 
   it("ignore un client qui n'a jamais décollé", () => {
     const lignes = clientsEnRecul([
       ...commandes("Minuscule", 3, 400),
-    ], "sanitaire", MAINTENANT);
+    ], "tous", MAINTENANT);
     expect(lignes).toEqual([]);
   });
 });
