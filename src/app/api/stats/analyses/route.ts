@@ -16,6 +16,7 @@ import {
   transformation, coutRoute, coutSav, rendement, clientsEnRecul, clientFacture,
   degatsLivraison, soloOuBinome, devenirMesures,
 } from "@/lib/analyses";
+import { journeeType } from "@/lib/journee";
 import type { Position } from "@/lib/tournee";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +90,7 @@ export async function GET(req: NextRequest) {
         grossiste: degatsLivraison(projets, "grossiste", de, a),
       },
       equipage: soloOuBinome(projets, de, a),
+      journee: journeeType(projets, positions, de, a),
       mesures: devenirMesures(projets, de, a),
     });
   } catch (e) {

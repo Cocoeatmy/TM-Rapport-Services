@@ -246,6 +246,12 @@ function PeriodeCarte({ etat, onChange }: {
   );
 }
 
+/** Minutes en « 7h45 » — la lecture naturelle d'une durée de travail. */
+function hm(min: number): string {
+  const m = Math.max(0, Math.round(min));
+  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`;
+}
+
 /** Palette stable : la même chaîne donne toujours la même teinte. */
 const HUES = ["#3b82f6", "#22c55e", "#06b6d4", "#a855f7", "#f59e0b", "#f43f5e", "#0f766e", "#6366f1", "#84cc16", "#e11d48"];
 function hueFor(s: string): string {
@@ -1442,6 +1448,83 @@ export function SignalStats({
 
       {tab === "equipes" && (
         <div className="sgs-grid2">
+          <Fold className="sgs-span2" defaultOpen title="La journée type"
+            meta="sur une journée payée, ce qui se passe réellement — moyennes par monteur et par jour travaillé">
+            {analyses?.journee?.ensemble ? (
+              <>
+                {(() => {
+                  const e = analyses.journee.ensemble;
+                  const blocs = [
+                    { label: "Journée", min: e.minutesJournee, ton: "" },
+                    { label: "Sur chantier", min: e.minutesChantier, ton: "is-bon" },
+                    { label: "Route (estimée)", min: e.minutesRoute, ton: "" },
+                    { label: "Le reste", min: e.minutesReste, ton: "is-faible" },
+                  ];
+                  return (
+                    <>
+                      <div className="sgs-jbande">
+                        {blocs.map((b) => (
+                          <span key={b.label} className={`sgs-jcase ${b.ton}`}>
+                            <b>{hm(b.min)}</b>
+                            <em>{b.label}</em>
+                          </span>
+                        ))}
+                        <span className="sgs-jcase">
+                          <b>{e.partChantier} %</b>
+                          <em>de la journée sur un chantier</em>
+                        </span>
+                      </div>
+                      <p className="sgs-note" style={{ marginTop: 0 }}>
+                        Sur <b>{e.jours}</b> journées-monteur observées :
+                        {" "}{e.chantiersParJour} chantier{e.chantiersParJour > 1 ? "s" : ""} et
+                        {" "}{e.cabinesParJour} cabine{e.cabinesParJour > 1 ? "s" : ""} par jour.
+                      </p>
+                    </>
+                  );
+                })()}
+                {analyses.journee.parMonteur.length > 0 && (
+                  <Tableau cols={[
+                    { titre: "Monteur" }, { titre: "Jours", num: true },
+                    { titre: "Journée", num: true }, { titre: "Sur chantier", num: true },
+                    { titre: "Route", num: true }, { titre: "Le reste", num: true },
+                    { titre: "Part chantier", num: true },
+                  ]}>
+                    {analyses.journee.parMonteur.map((l: any) => (
+                      <tr key={l.nom}>
+                        <td className="cle">{l.nom}</td>
+                        <td className="num doux">{l.jours}</td>
+                        <td className="num">{hm(l.minutesJournee)}</td>
+                        <td className="num fort">{hm(l.minutesChantier)}</td>
+                        <td className="num doux">{hm(l.minutesRoute)}</td>
+                        <td className="num doux">{hm(l.minutesReste)}</td>
+                        <td className="num fort avec-part">
+                          <span className={l.partChantier >= 70 ? "sgs-pct is-bon" : l.partChantier < 50 ? "sgs-pct is-faible" : "sgs-pct"}>
+                            {l.partChantier} %
+                          </span>
+                          <Part valeur={l.partChantier} sur={100} />
+                        </td>
+                      </tr>
+                    ))}
+                  </Tableau>
+                )}
+                <p className="sgs-note">
+                  Une seule de ces grandeurs est MESURÉE : le temps sur chantier, lu sur les
+                  heures pointées. La <b>route est estimée</b> depuis les adresses — le GPS a
+                  été retiré de l&apos;application — et sert donc à comparer des journées entre
+                  elles, pas à établir une vérité. « Le reste » est ce que l&apos;amplitude de la
+                  journée ne couvre ni par la présence ni par la route : pauses, attentes,
+                  imprévus. Un binôme compte pour deux journées sur la même amplitude — on
+                  décrit la journée d&apos;une personne, pas celle d&apos;un chantier. Les
+                  montages « Team » sont écartés, leur effectif étant inconnu, et un monteur
+                  sous cinq journées n&apos;est pas affiché.
+                </p>
+              </>
+            ) : (
+              <p className="sgs-empty">
+                {analyses ? "Aucune journée avec heures pointées sur la période." : "Calcul en cours…"}
+              </p>
+            )}
+          </Fold>
           <Fold className="sgs-span2" defaultOpen title="Seul ou à deux"
             meta="temps de présence et temps-homme par cabine · les montages « Team » sont écartés">
             {analyses?.equipage?.length ? (

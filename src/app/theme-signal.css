@@ -4135,3 +4135,23 @@ html[data-ui="signal"].dark .sgq-top-raisons i { background: #3a2c14; color: #f0
   html[data-ui="signal"] .sgq-top-main { grid-column: 1 / -1; }
   html[data-ui="signal"] .sgq-top-raisons { grid-column: 1 / -1; justify-content: flex-start; }
 }
+
+/* ── La journée type : quatre blocs qui se lisent d'un coup ───────────────── */
+html[data-ui="signal"] .sgs-jbande {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 8px; margin-bottom: 10px;
+}
+html[data-ui="signal"] .sgs-jcase {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 12px; border-radius: 12px;
+  background: var(--sg-paper-2); border: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sgs-jcase b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 19px; font-weight: 700; color: var(--sg-text);
+}
+html[data-ui="signal"] .sgs-jcase em {
+  font-style: normal; font-size: 10.5px; color: var(--sg-text-3); line-height: 1.3;
+}
+html[data-ui="signal"] .sgs-jcase.is-bon b { color: #17683a; }
+html[data-ui="signal"] .sgs-jcase.is-faible b { color: #b45309; }
