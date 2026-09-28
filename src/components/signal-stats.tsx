@@ -2106,6 +2106,64 @@ export function SignalStats({
 
       {tab === "qualite" && (
         <>
+          <Fold className="sgs-span2" defaultOpen title="Ce que les pièces manquantes font attendre"
+            meta="signalements encore ouverts, par fournisseur du chantier · le plus ancien en tête">
+            {analyses?.pieces?.length ? (
+              <>
+                <Tableau cols={[
+                  { titre: "Fournisseur" }, { titre: "En attente", num: true },
+                  { titre: "Chantiers", num: true }, { titre: "La plus ancienne", num: true },
+                  { titre: "Âge médian", num: true }, { titre: "Délai habituel", num: true },
+                ]}>
+                  {analyses.pieces.map((l: any) => (
+                    <tr key={l.cle}>
+                      <td className="cle">{l.cle}</td>
+                      <td className="num fort">
+                        {l.ouvertes > 0 ? (
+                          <button type="button" className="sgs-lien"
+                            title={`Voir les ${l.ouvertes} pièces en attente`}
+                            onClick={() => setPick({
+                              label: `${l.cle} — pièces en attente`,
+                              value: l.ouvertes,
+                              color: "#b45309",
+                              items: l.details.map((d: any) => ({
+                                id: d.projectId,
+                                ofrTM: `${d.jours} j`,
+                                projet: d.projet,
+                                adresseChantier: d.quoi,
+                                nbCabines: 0,
+                              })) as never[],
+                            })}>{l.ouvertes}</button>
+                        ) : "—"}
+                      </td>
+                      <td className="num doux">{l.chantiers || "—"}</td>
+                      <td className={`num${l.plusAncienne >= 30 ? " alerte" : ""}`}>
+                        {l.ouvertes > 0 ? `${l.plusAncienne} j` : "—"}
+                      </td>
+                      <td className="num doux">{l.ouvertes > 0 ? `${l.ageMedian} j` : "—"}</td>
+                      <td className="num doux">
+                        {l.delaiMedian !== null
+                          ? `${l.delaiMedian} j`
+                          : <em title="Mesuré depuis que l'app horodate la réception">à venir</em>}
+                      </td>
+                    </tr>
+                  ))}
+                </Tableau>
+                <p className="sgs-note">
+                  Une pièce manquante bloque une cabine, parfois un chantier entier : la
+                  colonne <b>Chantiers</b> dit le vrai coût, le nombre de pièces ne le dit pas.
+                  Le <b>délai habituel</b> — du signalement à la réception — ne se mesure que
+                  depuis que l&apos;application horodate le règlement : les pièces réglées
+                  avant n&apos;ont pas de date de clôture, et leur inventer une durée serait
+                  pire que de ne rien dire. La colonne se remplira d&apos;elle-même.
+                </p>
+              </>
+            ) : (
+              <p className="sgs-empty">
+                {analyses ? "Aucune pièce manquante en attente." : "Calcul en cours…"}
+              </p>
+            )}
+          </Fold>
           <Fold className="sgs-span2" defaultOpen title="Ce que coûte de repasser"
             meta="chantiers où l'on est retourné une seconde fois · heures sur place et route estimée"
             right={

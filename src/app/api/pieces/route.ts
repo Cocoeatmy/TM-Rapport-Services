@@ -27,6 +27,16 @@ interface PieceRequest {
   displayInRapport?: boolean;
   /** Pièce manquante RÉGLÉE (reçue/posée). Passe le signalement en vert. */
   resolved?: boolean;
+  /**
+   * Horodatage du règlement — pièce reçue ou posée.
+   *
+   * Sans lui, on ne savait mesurer que l'âge de ce qui ATTEND encore : une
+   * fois la pièce reçue, la durée d'attente disparaissait avec le statut.
+   * Impossible, donc, de dire qu'un fournisseur met trois semaines quand un
+   * autre en met trois jours. Il est posé automatiquement au passage en
+   * « reçu », et retiré si le signalement est rouvert.
+   */
+  resolvedAt?: number;
 }
 
 const KEY = "pieces";
@@ -180,6 +190,15 @@ export async function PATCH(request: NextRequest) {
   if (Array.isArray(photoUrls)) pieces[idx].photoUrls = photoUrls;
   // Renommage d'une cabine : garde la pièce reliée au bon lot.
   if (typeof cabineLabel === "string" && cabineLabel.trim()) pieces[idx].cabineLabel = cabineLabel.trim();
+
+  /* Le règlement s'horodate tout seul : demander la date à celui qui clique
+     ferait manquer la moitié des cas. « Reçu » ou « réglé » vaut règlement ;
+     rouvrir efface la date, sans quoi un aller-retour laisserait derrière lui
+     une durée d'attente fausse. Calculé APRÈS statut et `resolved`, qui
+     peuvent arriver dans la même requête. */
+  const regle = pieces[idx].status === "recu" || pieces[idx].resolved === true;
+  if (regle && !pieces[idx].resolvedAt) pieces[idx].resolvedAt = Date.now();
+  if (!regle && pieces[idx].resolvedAt) delete pieces[idx].resolvedAt;
 
   await setData(KEY, pieces);
   return NextResponse.json({ success: true });

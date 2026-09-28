@@ -18,6 +18,7 @@ import {
   degatsLivraison, soloOuBinome, devenirMesures,
 } from "@/lib/analyses";
 import { journeeType } from "@/lib/journee";
+import { attentePieces, type Signalement } from "@/lib/pieces-attente";
 import type { Position } from "@/lib/tournee";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +94,18 @@ export async function GET(req: NextRequest) {
       equipage: soloOuBinome(projets, de, a),
       journee: journeeType(projets, positions, de, a),
       delais: delaisEtapes(projets, de, a),
+      /* Les signalements de pièces vivent hors Notion, dans le stockage de
+         l'app. Leur fournisseur, lui, est sur le projet : on fait le pont
+         ici, là où les deux sont en main. */
+      pieces: await (async () => {
+        try {
+          const parProjet = new Map(projets.map((p) => [p.id, (p.fournisseurs || [])[0] || ""]));
+          return attentePieces(
+            await getData<Signalement>("pieces"),
+            (id) => parProjet.get(id) || "",
+          );
+        } catch { return []; }
+      })(),
       reprises: {
         fournisseur: reprises(projets, "fournisseur", positions, de, a),
         serie: reprises(projets, "serie", positions, de, a),
