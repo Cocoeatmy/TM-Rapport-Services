@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import type { Project } from "@/lib/notion";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,28 @@ export function KanbanBoard({ projects, mode, onStatusChange }: KanbanBoardProps
     acc[col] = projects.filter((p) => getStatusVal(p) === col);
     return acc;
   }, {});
+
+  /**
+   * Le glisser-déposer n'est proposé qu'aux pointeurs fins — souris et pavé
+   * tactile.
+   *
+   * Au doigt, une carte `draggable` capte le geste : le tableau ne défilait
+   * pas verticalement, et comme les cartes occupent toute la colonne, il n'y
+   * avait aucun endroit où poser le doigt pour faire défiler. Or sur un
+   * téléphone ou une tablette, lire la colonne compte bien plus que déplacer
+   * une carte — ce qui se fait de toute façon depuis la fiche du projet.
+   *
+   * `(pointer: fine)` interroge le pointeur PRINCIPAL : sur un iPad, même avec
+   * un clavier à pavé tactile, le doigt reste principal et le tableau défile.
+   */
+  const [glisserPossible, setGlisserPossible] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const lire = () => setGlisserPossible(mq.matches);
+    lire();
+    mq.addEventListener("change", lire);
+    return () => mq.removeEventListener("change", lire);
+  }, []);
 
   const handleDragStart = useCallback((e: React.DragEvent, projectId: string) => {
     e.dataTransfer.setData("text/plain", projectId);
@@ -126,7 +148,20 @@ export function KanbanBoard({ projects, mode, onStatusChange }: KanbanBoardProps
               </div>
 
               {/* Scrollable card list */}
-              <div className="flex-1 overflow-y-auto p-2 space-y-1.5" style={{ maxHeight: "calc(100vh - 280px)" }}>
+              {/* `touchAction: pan-y` dit au navigateur, avant même le premier
+                  mouvement, que le doigt sert ici à défiler verticalement :
+                  le défilement démarre sans délai. `overscrollBehavior`
+                  empêche la page entière de partir quand on arrive en bout
+                  de colonne. */}
+              <div
+                className="flex-1 overflow-y-auto p-2 space-y-1.5"
+                style={{
+                  maxHeight: "calc(100vh - 280px)",
+                  touchAction: "pan-y",
+                  overscrollBehavior: "contain",
+                  WebkitOverflowScrolling: "touch",
+                }}
+              >
                 {colProjects.length === 0 && (
                   <div className="text-center py-8 text-xs text-gray-400">
                     Aucun projet
@@ -139,12 +174,12 @@ export function KanbanBoard({ projects, mode, onStatusChange }: KanbanBoardProps
                   return (
                     <div
                       key={project.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, project.id)}
-                      onDragEnd={handleDragEnd}
-                      className={`group rounded-xl bg-white/80 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-2.5 cursor-grab active:cursor-grabbing transition-all hover:shadow-md ${
-                        draggingId === project.id ? "opacity-40" : ""
-                      }`}
+                      draggable={glisserPossible}
+                      onDragStart={glisserPossible ? (e) => handleDragStart(e, project.id) : undefined}
+                      onDragEnd={glisserPossible ? handleDragEnd : undefined}
+                      className={`group rounded-xl bg-white/80 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 p-2.5 transition-all hover:shadow-md ${
+                        glisserPossible ? "cursor-grab active:cursor-grabbing" : ""
+                      } ${draggingId === project.id ? "opacity-40" : ""}`}
                     >
                       <Link
                         href={`/projet/${project.id}?mode=${mode}`}
