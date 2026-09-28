@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, FileSpreadsheet, Mail, Send, BarChart3, Loader2, Clock, CheckCircle2, AlertCircle,
+  ArrowLeft, FileSpreadsheet, Mail, Send, BarChart3, Loader2, Clock, CheckCircle2, AlertCircle, Truck,
 } from "lucide-react";
 import type { Project } from "@/lib/notion";
 import { ExportExcel } from "@/components/export-excel";
@@ -47,6 +47,43 @@ export default function RapportsPage() {
   const [envoiJour, setEnvoiJour] = useState(false);
   const [retourMensuel, setRetourMensuel] = useState<Retour>(null);
   const [retourJour, setRetourJour] = useState<Retour>(null);
+
+  /* ── Feuille de route d'un monteur ────────────────────────────────────────
+     Le choix se fait sur ce qui EXISTE ce jour-là : on lit d'abord la journée,
+     puis on propose les monteurs et les équipes réellement concernés. Une liste
+     figée de prénoms proposerait des feuilles vides. */
+  const [jour, setJour] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const [cibles, setCibles] = useState<{ monteurs: string[]; equipes: string[] } | null>(null);
+  const [cible, setCible] = useState("");
+
+  useEffect(() => {
+    let vivant = true;
+    setCibles(null);
+    fetch(`/api/daily-report/apercu?date=${jour}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!vivant || !d) return;
+        const monteurs: string[] = (d.parCollaborateur || []).map((x: { nom: string }) => x.nom);
+        const equipes: string[] = (d.equipes || []).filter((e: string) => !monteurs.includes(e));
+        setCibles({ monteurs, equipes });
+        // On reprend la sélection si elle existe encore ce jour-là.
+        setCible((prev) => ([...monteurs, ...equipes].includes(prev) ? prev : (monteurs[0] || equipes[0] || "")));
+      })
+      .catch(() => { if (vivant) setCibles({ monteurs: [], equipes: [] }); });
+    return () => { vivant = false; };
+  }, [jour]);
+
+  const ouvrirFeuille = () => {
+    if (!cible) return;
+    const type = cibles?.equipes.includes(cible) ? "equipe" : "monteur";
+    window.open(
+      `/api/rapport-journalier?date=${jour}&type=${type}&cible=${encodeURIComponent(cible)}`,
+      "_blank",
+    );
+  };
 
   // Les projets alimentent l'export Excel (même source que le tableau de bord).
   useEffect(() => {
@@ -251,6 +288,70 @@ export default function RapportsPage() {
             {envoiJour ? "Envoi…" : "M'envoyer le rapport du jour"}
           </button>
           <Retour r={retourJour} />
+        </div>
+
+        {/* Feuille de route d'un monteur */}
+        <div className="glass-card rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Truck className="w-5 h-5 text-emerald-600" />
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              Feuille de route d&apos;un monteur
+            </h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Un condensé de la fiche de travail, ramené à ce qu&apos;il faut pour préparer :
+            où prendre la marchandise, combien de cartons charger, quelles séries, et les
+            pièces manquantes déjà signalées. Choisissez un monteur, un binôme ou l&apos;équipe.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <label className="block">
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Jour</span>
+              <input
+                type="date"
+                value={jour}
+                onChange={(e) => setJour(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Monteur ou équipe</span>
+              <select
+                value={cible}
+                onChange={(e) => setCible(e.target.value)}
+                disabled={!cibles || (cibles.monteurs.length === 0 && cibles.equipes.length === 0)}
+                className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+              >
+                {!cibles && <option>Lecture de la journée…</option>}
+                {cibles && cibles.monteurs.length === 0 && cibles.equipes.length === 0 && (
+                  <option>Aucun montage ce jour-là</option>
+                )}
+                {cibles && cibles.monteurs.length > 0 && (
+                  <optgroup label="Monteurs">
+                    {cibles.monteurs.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </optgroup>
+                )}
+                {cibles && cibles.equipes.length > 0 && (
+                  <optgroup label="Équipes et binômes">
+                    {cibles.equipes.map((e) => <option key={e} value={e}>{e}</option>)}
+                  </optgroup>
+                )}
+              </select>
+            </label>
+          </div>
+
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            Aucun envoi : le document s&apos;ouvre, rien ne part par e-mail.
+          </p>
+          <button
+            onClick={ouvrirFeuille}
+            disabled={!cible}
+            className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-60"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Ouvrir la feuille de route
+          </button>
         </div>
       </div>
     </div>

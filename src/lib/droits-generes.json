@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-09-27T21:47:10.389Z",
+  "genereLe": "2026-09-28T15:55:45.468Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -882,6 +882,16 @@
       "gardePage": false,
       "methodes": [
         "POST"
+      ]
+    },
+    {
+      "url": "/api/rapport-journalier",
+      "type": "api",
+      "fichier": "src/app/api/rapport-journalier/route.tsx",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET"
       ]
     },
     {
