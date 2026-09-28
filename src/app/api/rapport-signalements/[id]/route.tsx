@@ -68,16 +68,26 @@ type Item = {
 
 function joinNames(arr?: string[]): string { return arr && arr.length ? arr.map((s) => nfc(s)).join(", ") : ""; }
 // Cellule Contact : entreprise (gras) + contacts (Nom / email / téléphone).
-function ContactCell({ label, company, contacts }: { label: string; company?: string; contacts?: any[] }) {
+/**
+ * Une case de contact du pied de rapport.
+ *
+ * `parEtiquette` change la règle du titre : au lieu d'un intitulé fixe pour
+ * toute la case, CHAQUE contact porte le sien, repris de sa colonne
+ * « Étiquettes » dans Notion — « Concierge », « Régie »… C'est ce que demande
+ * la case « Contacts Autres », dont la nature varie d'un chantier à l'autre :
+ * un intitulé commun n'y apprendrait rien.
+ */
+function ContactCell({ label, company, contacts, parEtiquette = false }: { label: string; company?: string; contacts?: any[]; parEtiquette?: boolean }) {
   const list = (contacts || []).filter((c) => c && (c.name || c.email || c.phone));
   const hasCompany = !!company && company.trim() !== "";
   if (!hasCompany && list.length === 0) return null;
   return (
     <View style={{ width: "33.33%", paddingRight: 10, marginBottom: 8 }}>
-      <Text style={{ fontSize: 7.5, color: "#888", marginBottom: 2 }}>{label}</Text>
+      {parEtiquette ? null : <Text style={{ fontSize: 7.5, color: "#888", marginBottom: 2 }}>{label}</Text>}
       {hasCompany ? <Text style={{ fontSize: 9.5, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(company!)}</Text> : null}
       {list.map((c, i) => (
         <View key={i} style={{ marginTop: 3 }}>
+          {parEtiquette && c.tag ? <Text style={{ fontSize: 7.5, color: "#888", marginBottom: 1 }}>{nfc(c.tag)}</Text> : null}
           {c.name ? <Text style={{ fontSize: 8.5, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(c.name)}</Text> : null}
           {c.email ? <Text style={{ fontSize: 7.5, color: "#555" }}>{c.email}</Text> : null}
           {c.phone ? <Text style={{ fontSize: 7.5, color: "#555" }}>{c.phone}</Text> : null}
@@ -153,6 +163,7 @@ function SignalementsPDF({ project, items }: { project: any; items: Item[] }) {
             <ContactCell label="DT" company={joinNames(project.dtNames)} contacts={project.contactsDTDetails} />
             <ContactCell label="CLIENT FINAL" contacts={project.contactsClientsFinauxDetails} />
             <ContactCell label="LOCATAIRES" contacts={project.contactsLocatairesDetails} />
+            <ContactCell label="AUTRES" parEtiquette contacts={project.contactsAutresDetails} />
           </View>
         </View>
 

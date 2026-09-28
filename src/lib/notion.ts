@@ -152,6 +152,8 @@ export interface ContactDetail {
   email: string;
   phone: string;
   address?: string;
+  /** Colonne « Étiquettes » de la fiche contact — « Concierge », « Régie »… */
+  tag?: string;
 }
 
 export interface Project {
@@ -258,6 +260,7 @@ export interface Project {
   contactsArchitecteRelation: string[];       // « Contacts Architecte »
   contactsClientsFinauxRelation: string[];    // « Contacts Clients finaux »
   contactsLocatairesRelation: string[];       // « Contacts Locataires »
+  contactsAutresRelation: string[];           // « Contacts Autres »
   // Détails résolus (nom, email, téléphone) — remplis dans getProject.
   contactsGrossisteDetails?: ContactDetail[];
   contactsSanitaireDetails?: ContactDetail[];
@@ -265,6 +268,7 @@ export interface Project {
   contactsArchitecteDetails?: ContactDetail[];
   contactsClientsFinauxDetails?: ContactDetail[];
   contactsLocatairesDetails?: ContactDetail[];
+  contactsAutresDetails?: ContactDetail[];
   infoPiecesManquantes: string;
   infoDefautsSignale: string;
   diversInfosChantier: string;
@@ -590,6 +594,7 @@ export function mapPageToProject(page: any): Project {
     contactsArchitecteRelation: extractRelationIds(p["Contacts Architecte"]),
     contactsClientsFinauxRelation: extractRelationIds(p["Contacts Clients finaux"]),
     contactsLocatairesRelation: extractRelationIds(p["Contacts Locataires"]),
+    contactsAutresRelation: extractRelationIds(p["Contacts Autres"]),
     infoPiecesManquantes: extractText(p["Infos - Pièces manquantes"]),
     infoDefautsSignale: extractText(p["Infos - Défauts signalé"]),
     diversInfosChantier: extractText(p["Divers infos chantier"]),
@@ -780,7 +785,7 @@ async function resolveContactDetails(ids: string[]): Promise<Record<string, Cont
     try {
       const page = await notionRetrieveWithRetry(id);
       const props: Record<string, any> = page.properties || {};
-      let name = "", email = "", phone = "", prenom = "", nom = "", address = "";
+      let name = "", email = "", phone = "", prenom = "", nom = "", address = "", tag = "";
       // Reconnaissance par la FORME de la valeur (dernier recours, si le nom de
       // colonne n'indique pas mail/tél). Un e-mail contient « @ » ; un numéro
       // ne contient que chiffres/espaces/+/()/-/. et au moins 6 chiffres.
@@ -789,6 +794,7 @@ async function resolveContactDetails(ids: string[]): Promise<Record<string, Cont
       const keyIsPhone = (k: string) => /t[ée]l|phone|natel|mobile|portable|gsm/i.test(k);
       const keyIsEmail = (k: string) => /mail|courriel|e-?mail/i.test(k);
       const keyIsAddress = (k: string) => /adresse|address/i.test(k);
+      const keyIsTag = (k: string) => /[ée]tiquette|tag/i.test(k);
       // Applique une valeur libre au bon champ (par nom de colonne, sinon forme).
       const applyFreeValue = (key: string, val: string) => {
         if (!val) return;
@@ -810,11 +816,15 @@ async function resolveContactDetails(ids: string[]): Promise<Record<string, Cont
         else if (pr.type === "rich_text") applyFreeValue(key, (pr.rich_text || []).map((t: any) => t.plain_text).join("").trim());
         else if (pr.type === "formula" && pr.formula?.type === "string") applyFreeValue(key, (pr.formula.string || "").trim());
         else if (pr.type === "select" && !address && keyIsAddress(key)) address = pr.select?.name || "";
+        // Étiquettes : sert de titre au-dessus du nom dans les rapports.
+        else if (pr.type === "multi_select" && !tag && keyIsTag(key)) {
+          tag = (pr.multi_select || []).map((t: any) => t.name).filter(Boolean).join(", ");
+        } else if (pr.type === "select" && !tag && keyIsTag(key)) tag = pr.select?.name || "";
       }
       const composed = [prenom, nom].filter(Boolean).join(" ").trim();
-      out[id] = { id, name: name || composed || "", email, phone, address };
+      out[id] = { id, name: name || composed || "", email, phone, address, tag };
     } catch {
-      out[id] = { id, name: "", email: "", phone: "", address: "" };
+      out[id] = { id, name: "", email: "", phone: "", address: "", tag: "" };
     }
   }));
   return out;
@@ -1072,6 +1082,7 @@ export async function getProject(pageId: string): Promise<Project> {
   const allContactIds = [...new Set([
     ...project.contactsProjetRelation, ...project.contactsSanitaireRelation, ...project.contactsDTRelation,
     ...project.contactsArchitecteRelation, ...project.contactsClientsFinauxRelation, ...project.contactsLocatairesRelation,
+    ...project.contactsAutresRelation,
   ])];
   const [names, contacts] = await Promise.all([
     allRelIds.length > 0 ? resolveRelationNames(allRelIds) : Promise.resolve({} as Record<string, string>),
@@ -1098,6 +1109,7 @@ export async function getProject(pageId: string): Promise<Project> {
   project.contactsArchitecteDetails = toDetails(project.contactsArchitecteRelation);
   project.contactsClientsFinauxDetails = toDetails(project.contactsClientsFinauxRelation);
   project.contactsLocatairesDetails = toDetails(project.contactsLocatairesRelation);
+  project.contactsAutresDetails = toDetails(project.contactsAutresRelation);
   return project;
 }
 

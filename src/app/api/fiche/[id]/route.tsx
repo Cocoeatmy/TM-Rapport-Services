@@ -268,19 +268,29 @@ function Cell({ label, value, width, docUrl }: { label: string; value: string; w
   );
 }
 // Cellule Contact : entreprise (gras) + contacts (Nom Prénom / email / téléphone).
-function ContactCell({ label, company, contacts, width }: { label: string; company?: string; contacts?: ContactDetail[]; width: string }) {
+/**
+ * Une case de contact du pied de rapport.
+ *
+ * `parEtiquette` change la règle du titre : au lieu d'un intitulé fixe pour
+ * toute la case, CHAQUE contact porte le sien, repris de sa colonne
+ * « Étiquettes » dans Notion — « Concierge », « Régie »… C'est ce que demande
+ * la case « Contacts Autres », dont la nature varie d'un chantier à l'autre :
+ * un intitulé commun n'y apprendrait rien.
+ */
+function ContactCell({ label, company, contacts, width, parEtiquette = false }: { label: string; company?: string; contacts?: ContactDetail[]; width: string; parEtiquette?: boolean }) {
   const list = (contacts || []).filter((c) => c && (c.name || c.email || c.phone));
   const hasCompany = !!company && company !== "—" && company.trim() !== "";
   // Rôle non renseigné → masqué.
   if (!hasCompany && list.length === 0) return null;
   return (
     <View style={{ width, paddingRight: 10, marginBottom: 8 }}>
-      <Text style={{ fontSize: 8, color: "#888", marginBottom: 2 }}>{label}</Text>
+      {parEtiquette ? null : <Text style={{ fontSize: 8, color: "#888", marginBottom: 2 }}>{label}</Text>}
       {hasCompany ? (
         <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(company!)}</Text>
       ) : null}
       {list.map((c, i) => (
         <View key={i} style={{ marginTop: 3 }}>
+          {parEtiquette && c.tag ? <Text style={{ fontSize: 8, color: "#888", marginBottom: 1 }}>{nfc(c.tag)}</Text> : null}
           {c.name ? <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1a1a1a" }}>{nfc(c.name)}</Text> : null}
           {c.email ? <Link src={`mailto:${c.email.trim()}`} style={{ fontSize: 8, color: "#1e3a5f", textDecoration: "none" }}>{c.email}</Link> : null}
           {c.phone ? <Link src={`tel:${c.phone.replace(/[^\d+]/g, "")}`} style={{ fontSize: 8, color: "#1e3a5f", textDecoration: "none" }}>{c.phone}</Link> : null}
@@ -755,6 +765,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
             <ContactCell label="DT" company={joinVal(project.dtNames)} contacts={project.contactsDTDetails} width="33.33%" />
             <ContactCell label="CLIENT FINAL" contacts={project.contactsClientsFinauxDetails} width="33.33%" />
             <ContactCell label="LOCATAIRES" contacts={project.contactsLocatairesDetails} width="33.33%" />
+            <ContactCell label="AUTRES" parEtiquette contacts={project.contactsAutresDetails} width="33.33%" />
           </View>
         </View>
 
