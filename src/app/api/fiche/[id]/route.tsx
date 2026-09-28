@@ -183,9 +183,30 @@ const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h
 const minToHhmm = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
 const durStr = (n: number) => (n > 0 ? `${Math.floor(n / 60)}h${String(n % 60).padStart(2, "0")}` : "");
 // « 2026-07-30 » → « 30.07 »
+/**
+ * « 2026-09-28 » → « 28.09.26 ».
+ *
+ * L'année était omise : sur une fiche consultée des mois plus tard, ou sur un
+ * chantier repris d'une année sur l'autre, « 28.09 » ne suffit pas à situer
+ * l'intervention.
+ */
 function ddmm(d: string): string {
-  const [, mo, da] = d.split("-");
-  return da && mo ? `${da}.${mo}` : d;
+  const [an, mo, da] = d.split("-");
+  if (!da || !mo) return d;
+  return an ? `${da}.${mo}.${an.slice(2)}` : `${da}.${mo}`;
+}
+
+/**
+ * Plage horaire lisible : « 09h16 à 14h19 ».
+ *
+ * Le tiret entre deux heures au format « 09:16–14:19 » se confond avec un
+ * séparateur de liste sur une ligne dense ; écrite comme on la dit, la plage
+ * ne demande aucun effort de lecture.
+ */
+function plageHoraire(arr?: string, dep?: string): string {
+  const h = (t?: string) => (t || "").replace(":", "h");
+  if (arr && dep) return `${h(arr)} à ${h(dep)}`;
+  return h(arr) || h(dep) || "";
 }
 // Regroupe les timestamps par jour : plage (1ʳᵉ arrivée → dernier départ) +
 // durée cumulée des cabines de la journée.
@@ -217,10 +238,10 @@ function montageDays(ha?: string | null, hd?: string | null, attr?: string | nul
       who: [...v.who].join(" & "),
     }));
 }
-// Ligne « JJ.MM : 08:39–10:12 (1h33) — Miguel » pour une journée.
+// Ligne « JJ.MM.AA : 08h39 à 10h12 (1h33) — Miguel » pour une journée.
 // withWho=false quand le monteur est déjà affiché ailleurs sur la ligne.
 function montageDayLabel(d: MontageDay, withWho = true): string {
-  const span = d.arr && d.dep ? `${d.arr}–${d.dep}` : (d.arr || d.dep || "");
+  const span = plageHoraire(d.arr, d.dep);
   const dur = durStr(d.min);
   const base = `${ddmm(d.date)}${span ? ` : ${span}` : ""}${dur ? ` (${dur})` : ""}`;
   return withWho && d.who ? `${base} — ${d.who}` : base;
@@ -242,7 +263,7 @@ function dateAndWho(date: string, who?: string): string {
   return parts.length ? nfc(parts.join(" — ")) : "—";
 }
 
-// Plage horaire de montage « 08:00–12:30 (4h30) » à partir de « Heure arrivée »
+// Plage horaire de montage « 08h00 à 12h30 (4h30) » à partir de « Heure arrivée »
 // et « Heure départ ». Tolère les préfixes par cabine (« CabN: », date).
 function montageHoursStr(ha?: string | null, hd?: string | null): string {
   const timeOf = (raw?: string | null) => {
@@ -255,7 +276,7 @@ function montageHoursStr(ha?: string | null, hd?: string | null): string {
     const toMin = (t: string) => { const [a, b] = t.split(":").map(Number); return a * 60 + b; };
     const diff = toMin(dep) - toMin(arr);
     const dur = diff > 0 ? ` (${Math.floor(diff / 60)}h${String(diff % 60).padStart(2, "0")})` : "";
-    return `${arr}–${dep}${dur}`;
+    return `${plageHoraire(arr, dep)}${dur}`;
   }
   return arr || dep || "";
 }
@@ -663,7 +684,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
               || [...new Set(days.flatMap((d) => d.who.split(" & ").filter(Boolean)))].join(" & ");
             // Partie « date » de la ligne Montage :
             //  - aucune donnée horaire → repli sur la date Notion (dateMontage) ;
-            //  - 1 journée → « JJ.MM : 08:39–10:12 (1h33) » ;
+            //  - 1 journée → « JJ.MM.AA : 08h39 à 10h12 (1h33) » ;
             //  - N journées → « N jours · 3h10 » (détail dans « Jours de montage »).
             let datePart: string;
             if (days.length === 0) {
@@ -736,7 +757,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
             if (savMulti && pts.length) {
               const totalMin = pts.reduce((s, p) => s + ptMin(p), 0);
               savDatePart = pts.length === 1
-                ? [fmtDate(pts[0].date), (pts[0].arrivee && pts[0].depart) ? `${pts[0].arrivee}–${pts[0].depart}${durStr(ptMin(pts[0])) ? ` (${durStr(ptMin(pts[0]))})` : ""}` : ""].filter(Boolean).join("  ·  ")
+                ? [fmtDate(pts[0].date), (pts[0].arrivee && pts[0].depart) ? `${plageHoraire(pts[0].arrivee, pts[0].depart)}${durStr(ptMin(pts[0])) ? ` (${durStr(ptMin(pts[0]))})` : ""}` : ""].filter(Boolean).join("  ·  ")
                 : `${pts.length} jours${durStr(totalMin) ? `  ·  ${durStr(totalMin)}` : ""}`;
             } else {
               const savDateRaw = ((firstCab && rdv[firstCab]) || project.dateRDVSAV || "").slice(0, 10);
@@ -766,7 +787,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
                       <LineRow
                         key={i}
                         label={i === 0 ? "Jours de SAV" : ""}
-                        value={`${ddmm(p.date)}${(p.arrivee && p.depart) ? ` : ${p.arrivee}–${p.depart}${durStr(ptMin(p)) ? ` (${durStr(ptMin(p))})` : ""}` : ""}${p.collaborateur ? ` — ${p.collaborateur}` : ""}`}
+                        value={`${ddmm(p.date)}${(p.arrivee && p.depart) ? ` : ${plageHoraire(p.arrivee, p.depart)}${durStr(ptMin(p)) ? ` (${durStr(ptMin(p))})` : ""}` : ""}${p.collaborateur ? ` — ${p.collaborateur}` : ""}`}
                       />
                     ))
                   : null}
