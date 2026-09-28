@@ -56,6 +56,22 @@ interface EntityStats {
   savTM: number;
   /** Cabines concernées par un SAV TM — sert au taux sur cabines posées. */
   savTMCabines: number;
+  /** Mesures relevées, offres établies, commandes obtenues — l'entonnoir. */
+  offres: number;
+  commandes: number;
+  tauxTransfo: number;
+  /** Jours médians entre le relevé de mesure et la pose. */
+  delaiJours: number | null;
+  /** Cabines des douze derniers mois, et des douze précédents. */
+  cabines12: number;
+  cabines12Avant: number;
+  /** Chiffre d'affaires cumulé des offres chiffrées, en francs. */
+  montant: number;
+  /** Projets dont le montant n'est pas renseigné — le chiffre est partiel. */
+  montantManquants: number;
+  /** Dernier chantier, et premier : l'âge de la relation. */
+  dernier: string | null;
+  premier: string | null;
   fournisseurs: { name: string; projects: number; cabines: number }[];
   series: { name: string; projects: number; cabines: number }[];
   topClients: { name: string; projects: number; cabines: number }[];
@@ -99,7 +115,13 @@ function projectMatchesFilter(p: any, f: StatsFilter): boolean {
 
 function computeEntityStats(projects: any[], entityName: string, entityType: string, filter?: StatsFilter): EntityStats {
   const nameField = ENTITY_NAMEFIELD[entityType];
-  if (!nameField) return { totalProjects: 0, totalCabines: 0, mesuresCount: 0, savTM: 0, savTMCabines: 0, fournisseurs: [], series: [], topClients: [] };
+  if (!nameField) return {
+    totalProjects: 0, totalCabines: 0, mesuresCount: 0, savTM: 0, savTMCabines: 0,
+    offres: 0, commandes: 0, tauxTransfo: 0, delaiJours: null,
+    cabines12: 0, cabines12Avant: 0, montant: 0, montantManquants: 0,
+    dernier: null, premier: null,
+    fournisseurs: [], series: [], topClients: [],
+  };
 
   const lc = entityName.toLowerCase();
   const noFilter = !filter || (!filter.year && !filter.month && !filter.from && !filter.to);
@@ -198,12 +220,75 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
   const seriesList = sortDesc(sMap);
   if (cabinesSansSerie > 0) seriesList.push({ name: "Non renseigné", projects: projsSansSerie, cabines: cabinesSansSerie });
 
+  /* ── L'entonnoir commercial de ce client ───────────────────────────────
+     Sur `allRelated` et non sur les projets terminés : une offre sans suite
+     n'a jamais de montage, et c'est justement elle qu'on cherche à compter. */
+  const offres = allRelated.filter((x: any) => !!x.dateOffre).length;
+  const aCommande = (x: any) => !!(String(x.cmdTM || "").trim() || String(x.cmdTMUsine || "").trim()
+    || String(x.cmdGrossiste || "").trim() || x.dateCMDRecue || x.dateCMDUsine);
+  const commandes = allRelated.filter(aCommande).length;
+  const tauxTransfo = mesuresCount > 0 ? Math.round((commandes / mesuresCount) * 100) : 0;
+
+  /* ── Le délai que subit le client ──────────────────────────────────────
+     Du relevé de mesure à la pose. On prend la MÉDIANE et non la moyenne :
+     un chantier reporté d'un an écraserait tous les autres. */
+  const delais = related
+    .map((x: any) => {
+      const a = Date.parse(String(x.dateMesures || "").slice(0, 10));
+      const b = Date.parse(String(x.dateMontage || "").slice(0, 10));
+      return Number.isNaN(a) || Number.isNaN(b) ? null : Math.round((b - a) / 86400000);
+    })
+    .filter((d): d is number => d !== null && d >= 0)
+    .sort((x, y) => x - y);
+  const delaiJours = delais.length >= 3 ? delais[Math.floor(delais.length / 2)] : null;
+
+  /* ── La tendance ───────────────────────────────────────────────────────
+     Douze mois glissants contre les douze précédents, INDÉPENDAMMENT du
+     filtre de période : comparer deux trimestres ne dirait rien, la
+     saisonnalité dominerait. On repart donc de tous les projets. */
+  const maintenant = Date.now();
+  const unAn = 365 * 86400000;
+  let cabines12 = 0, cabines12Avant = 0;
+  let dernier: string | null = null, premier: string | null = null;
+  projects.forEach((x: any) => {
+    if (x.etatCMD !== "Terminé") return;
+    if (!Array.isArray(x[nameField]) || !x[nameField].some((n: string) => n.toLowerCase() === lc)) return;
+    const jour = String(x.dateMontage || "").slice(0, 10);
+    const t = Date.parse(jour);
+    if (Number.isNaN(t) || t > maintenant) return;
+    const cab = x.nbCabines || 0;
+    if (t >= maintenant - unAn) cabines12 += cab;
+    else if (t >= maintenant - 2 * unAn) cabines12Avant += cab;
+    if (!dernier || jour > dernier) dernier = jour;
+    if (!premier || jour < premier) premier = jour;
+  });
+
+  /* ── Ce que ça pèse ────────────────────────────────────────────────────
+     « Montant OFR » vient d'être créé : il est vide sur l'historique. On
+     compte donc à part les projets non chiffrés, pour que le total ne passe
+     jamais pour complet. */
+  let montant = 0, montantManquants = 0;
+  related.forEach((x: any) => {
+    const v = Number(x.montantOFR);
+    if (Number.isFinite(v) && v > 0) montant += v; else montantManquants += 1;
+  });
+
   return {
     totalProjects: related.length,
     totalCabines,
     mesuresCount,
     savTM,
     savTMCabines,
+    offres,
+    commandes,
+    tauxTransfo,
+    delaiJours,
+    cabines12,
+    cabines12Avant,
+    montant: Math.round(montant),
+    montantManquants,
+    dernier,
+    premier,
     fournisseurs: fournisseursList,
     series:       seriesList,
     topClients:   entityType !== "entreprises" ? sortDesc(cMap).slice(0, 8) : [],
@@ -409,6 +494,75 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
               : "—"}
           </p>
         </div>
+      </div>
+
+      {/* ── Ce que la relation raconte ───────────────────────────────────
+          Les quatre cases ci-dessus disent le volume ; celles-ci disent la
+          qualité de la relation — ce qui se transforme, ce qu'on fait
+          attendre, où va la tendance, et depuis quand on travaille ensemble. */}
+      <div className="bg-white/70 dark:bg-white/5 border border-gray-100 dark:border-gray-700/50 rounded-xl p-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <TrendingUp className="w-3 h-3 text-gray-400" />
+          <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">La relation</p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div title={`${stats.mesuresCount} mesures relevées → ${stats.offres} offres → ${stats.commandes} commandes`}>
+            <p className="text-[9px] text-gray-400 uppercase tracking-wider">Transformation</p>
+            <p className="text-base font-bold text-gray-800 dark:text-gray-100 leading-tight">
+              {stats.mesuresCount > 0 ? `${stats.tauxTransfo} %` : "—"}
+            </p>
+            <p className="text-[9px] text-gray-400">
+              {stats.mesuresCount} → {stats.offres} → {stats.commandes}
+            </p>
+          </div>
+          <div title="Médiane entre le relevé de mesure et la pose — la moyenne serait écrasée par un chantier reporté">
+            <p className="text-[9px] text-gray-400 uppercase tracking-wider">Mesure → pose</p>
+            <p className="text-base font-bold text-gray-800 dark:text-gray-100 leading-tight">
+              {stats.delaiJours !== null ? `${stats.delaiJours} j` : "—"}
+            </p>
+            <p className="text-[9px] text-gray-400">médiane</p>
+          </div>
+          <div title="Douze mois glissants comparés aux douze précédents, hors filtre de période">
+            <p className="text-[9px] text-gray-400 uppercase tracking-wider">Tendance</p>
+            {(() => {
+              const av = stats.cabines12Avant, ap = stats.cabines12;
+              if (av === 0 && ap === 0) return <p className="text-base font-bold text-gray-400 leading-tight">—</p>;
+              const v = av > 0 ? Math.round(((ap - av) / av) * 100) : null;
+              const ton = v === null ? "text-gray-800 dark:text-gray-100"
+                : v <= -25 ? "text-rose-600 dark:text-rose-400"
+                : v >= 25 ? "text-emerald-600 dark:text-emerald-400"
+                : "text-gray-800 dark:text-gray-100";
+              return (
+                <>
+                  <p className={`text-base font-bold leading-tight ${ton}`}>
+                    {v === null ? "nouveau" : `${v > 0 ? "+" : ""}${v} %`}
+                  </p>
+                  <p className="text-[9px] text-gray-400">{ap} cab. contre {av}</p>
+                </>
+              );
+            })()}
+          </div>
+          <div title={stats.montantManquants > 0
+            ? `${stats.montantManquants} projet(s) sans montant renseigné : le total est partiel`
+            : "Somme des montants d'offre des projets terminés"}>
+            <p className="text-[9px] text-gray-400 uppercase tracking-wider">Montant</p>
+            <p className="text-base font-bold text-gray-800 dark:text-gray-100 leading-tight">
+              {stats.montant > 0 ? `${stats.montant.toLocaleString("fr-CH")} .-` : "—"}
+            </p>
+            <p className="text-[9px] text-gray-400">
+              {stats.montantManquants > 0
+                ? `${stats.montantManquants} projet${stats.montantManquants > 1 ? "s" : ""} sans montant`
+                : "tous chiffrés"}
+            </p>
+          </div>
+        </div>
+        {(stats.premier || stats.dernier) && (
+          <p className="text-[10px] text-gray-400 mt-2">
+            {stats.premier && `Premier chantier le ${new Date(stats.premier).toLocaleDateString("fr-CH")}`}
+            {stats.premier && stats.dernier && " · "}
+            {stats.dernier && `dernier le ${new Date(stats.dernier).toLocaleDateString("fr-CH")}`}
+          </p>
+        )}
       </div>
 
       {/* ── Fournisseurs de cabines ── */}
