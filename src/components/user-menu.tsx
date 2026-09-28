@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, Package, TrendingUp, ClipboardCheck, ShieldCheck } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, Package, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck } from "lucide-react";
 import { getCollaboratorInitials } from "@/lib/collaborators";
 import { isSaveToGalleryEnabled, setSaveToGalleryEnabled } from "@/lib/save-to-gallery";
 import { toast } from "sonner";
@@ -224,6 +224,19 @@ export function UserMenu() {
                 </span>
               )}
             </div>
+            {/* Registre des garanties. Il occupait une place dans la barre de
+                navigation, à côté des vues qu'on ouvre plusieurs fois par jour,
+                alors qu'on le consulte rarement. Sous le thème Signal
+                uniquement : les autres thèmes n'y donnent pas accès. */}
+            {uiMode === "signal" && (
+              <button
+                onClick={() => { setOpen(false); router.push("/garanties"); }}
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              >
+                <BadgeCheck className="w-4 h-4" />
+                Registre des garanties
+              </button>
+            )}
             {/* Le tableau de bord d'administration a été supprimé : ses analyses
                 sont dans les Statistiques et ses rapports dans la page Rapports.
                 Le menu mène donc directement à ces destinations. */}

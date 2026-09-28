@@ -8,7 +8,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, ShieldCheck, Compass, Receipt, AlertTriangle, CheckCircle2, Clock, Truck, Building2 } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, Compass, Receipt, AlertTriangle, CheckCircle2, Clock, Truck, Building2 } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -433,7 +433,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
           { id: "rapport",      label: "Rapport",         Icon: FileText,    active: mode === "rapport",                                    act: () => { handleSelect("rapport"); setOpen(null); } },
           { id: "destockage",   label: "Déstockage",      Icon: Archive,     active: mode === "destockage",                                 act: () => { handleSelect("destockage"); setOpen(null); } },
           { id: "chantiers",    label: "Chantiers PPE",   Icon: Building2,   active: mode === "chantiers",                                  act: () => { handleSelect("chantiers"); setOpen(null); } },
-          { id: "garanties",    label: "Garanties",       Icon: ShieldCheck, active: false,                                                 act: () => { window.location.href = "/garanties"; } },
+          /* Garanties a quitté ce rail pour le menu du profil : on le consulte
+             rarement, il occupait une place entre des vues ouvertes plusieurs
+             fois par jour. */
           ...(isAdmin ? [{ id: "stats", label: "Stats", Icon: BarChart2, active: mode === "stats", act: () => { handleSelect("stats"); setOpen(null); } }] : []),
         ].map((it) => (
           <button
@@ -495,9 +497,8 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
               Chantiers
             </button>
           )}
-          {isSignal && (
-            <Link href="/garanties" className={tabCls(false)}>Garanties</Link>
-          )}
+          {/* Garanties : désormais dans le menu du profil, ici comme sur le
+              rail — une seule porte d'entrée, la même sur tous les écrans. */}
           {isAdmin && (
             <button onClick={() => { handleSelect("stats"); setOpen(null); }} className={tabCls(mode === "stats")}>
               Stats
