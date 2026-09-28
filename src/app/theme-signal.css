@@ -1374,7 +1374,26 @@ html[data-ui="signal"] .sg-btn-primary:hover { background: var(--sg-ink-2); colo
     padding: 16px;
     border-left: 1px solid var(--sg-line);
     background: var(--sg-paper);
+    /* Surtout PAS d'`overflow` ici : il ferait de cette colonne le conteneur
+       de référence de la fiche collante ci-dessous, et comme la colonne est
+       étirée sur toute la hauteur de la liste, elle ne défile jamais — la
+       fiche resterait donc figée en haut, hors de l'écran. */
+  }
+  /* La fiche suit le défilement et ne dépasse jamais la hauteur visible.
+     Sans cela elle descendait avec la liste : en survolant une ligne du bas,
+     on n'en voyait plus qu'une tranche, coupée en haut ou en bas selon la
+     position. */
+  html[data-ui="signal"] .sg-detail:not(.is-open) .sg-detail-in {
+    position: sticky;
+    /* 72px = hauteur de l'en-tête collant + une respiration. */
+    top: 72px;
+    max-height: calc(100vh - 92px);
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    /* Rien d'autre : ni `display: flex`, ni `gap`. L'espacement interne de
+       cette fiche vient des marges de ses propres blocs, et une mise en
+       page flex les doublerait. */
   }
 }
 
