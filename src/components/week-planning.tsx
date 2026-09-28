@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,18 @@ interface WeekPlanningProps {
 export function WeekPlanning({ projects, mode, onDrop }: WeekPlanningProps) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+
+  /* Déplacer un rendez-vous par glisser-déposer n'a de sens qu'avec une souris
+     ou un pavé tactile. Au doigt, une ligne `draggable` capte le geste au lieu
+     de laisser défiler la liste — et les lignes occupent toute la page. */
+  const [glisserPossible, setGlisserPossible] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const lire = () => setGlisserPossible(mq.matches);
+    lire();
+    mq.addEventListener("change", lire);
+    return () => mq.removeEventListener("change", lire);
+  }, []);
 
   const today = new Date();
   const startOfWeek = new Date(today);
@@ -131,11 +143,13 @@ export function WeekPlanning({ projects, mode, onDrop }: WeekPlanningProps) {
                       <Link
                         key={p.id}
                         href={`/projet/${p.id}?mode=${mode}`}
-                        draggable
+                        draggable={glisserPossible}
                         data-project-id={p.id}
-                        onDragStart={(e) => { e.dataTransfer.setData("text/plain", p.id); e.currentTarget.style.opacity = "0.5"; }}
-                        onDragEnd={(e) => { e.currentTarget.style.opacity = "1"; }}
-                        className="flex items-start gap-2 text-xs hover:bg-white/60 dark:hover:bg-gray-700/40 rounded-lg px-2 py-1 transition-colors cursor-grab active:cursor-grabbing"
+                        onDragStart={glisserPossible ? (e) => { e.dataTransfer.setData("text/plain", p.id); e.currentTarget.style.opacity = "0.5"; } : undefined}
+                        onDragEnd={glisserPossible ? (e) => { e.currentTarget.style.opacity = "1"; } : undefined}
+                        className={`flex items-start gap-2 text-xs hover:bg-white/60 dark:hover:bg-gray-700/40 rounded-lg px-2 py-1 transition-colors ${
+                          glisserPossible ? "cursor-grab active:cursor-grabbing" : ""
+                        }`}
                       >
                         <div className="flex -space-x-1 mt-0.5">
                           {names.slice(0, 2).map((n) => (
@@ -150,9 +164,17 @@ export function WeekPlanning({ projects, mode, onDrop }: WeekPlanningProps) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="truncate">{p.nomChantier || p.projet}</div>
-                          {p.adresseChantier && (
-                            <div className="truncate text-[10px] text-gray-400">{p.adresseChantier}</div>
-                          )}
+                          {/* Le numéro d'offre en tête de la seconde ligne : c'est
+                              par lui qu'on retrouve un chantier dans Notion, au
+                              téléphone ou sur un bon de livraison. Le nom seul
+                              obligeait à ouvrir la fiche pour le lire. */}
+                          <div className="truncate text-[10px] text-gray-400">
+                            {p.ofrTM && (
+                              <span className="font-mono text-gray-500 dark:text-gray-400">{p.ofrTM}</span>
+                            )}
+                            {p.ofrTM && p.adresseChantier && " · "}
+                            {p.adresseChantier}
+                          </div>
                         </div>
                         <span className="text-gray-400 shrink-0 mt-0.5">{p.nbCabines} cab.</span>
                       </Link>
