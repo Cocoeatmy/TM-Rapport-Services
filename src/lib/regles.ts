@@ -83,6 +83,68 @@ function arrivage(p: Project): string | null {
   return p.arrivageTM || p.arrivageGrossiste || null;
 }
 
+/**
+ * Couples arrivée / départ pointés, cabine par cabine.
+ *
+ * Les heures sont encodées « Cab1:08:00 | Cab2:09:15 ». Un projet mono-cabine
+ * porte l'heure seule. On rend les paires appariées, avec leur libellé.
+ */
+function heuresParCabine(p: Project): { label: string; debut: number; fin: number }[] {
+  const minutes = (raw: string): number | null => {
+    const m = String(raw || "").match(/(\d{1,2}):(\d{2})/);
+    if (!m) return null;
+    const h = Number(m[1]), mi = Number(m[2]);
+    return h > 23 || mi > 59 ? null : h * 60 + mi;
+  };
+  const parCabine = (raw?: string): Record<string, string> => {
+    const map: Record<string, string> = {};
+    const re = /Cab(\d+)\s*:\s*([^|]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(String(raw || "")))) map[m[1]] = m[2].trim();
+    return map;
+  };
+
+  const a = parCabine(p.heureArrivee), d = parCabine(p.heureDepart);
+  const cabines = [...new Set([...Object.keys(a), ...Object.keys(d)])];
+  if (cabines.length > 0) {
+    return cabines
+      .map((n) => ({ label: `Cabine ${n}`, debut: minutes(a[n] || ""), fin: minutes(d[n] || "") }))
+      .filter((x): x is { label: string; debut: number; fin: number } =>
+        x.debut !== null && x.fin !== null);
+  }
+  const debut = minutes(p.heureArrivee || ""), fin = minutes(p.heureDepart || "");
+  return debut !== null && fin !== null ? [{ label: "", debut, fin }] : [];
+}
+
+/** Une présence plus longue n'est pas une journée de travail mais une erreur. */
+const PRESENCE_MAX = 14 * 60;
+/** En deçà, c'est un départ saisi par erreur — on ne pose pas une cabine en dix minutes. */
+const PRESENCE_MIN = 15;
+
+/**
+ * Ce qui, dans les heures pointées, ne peut pas être vrai.
+ *
+ * On ne juge pas ce qui est simplement inhabituel : une longue journée reste
+ * une longue journée. On ne signale que l'impossible — un départ avant
+ * l'arrivée, une présence de plus de quatorze heures, ou une présence si
+ * courte qu'aucune cabine n'a pu être posée.
+ */
+export function heuresAberrantes(p: Project): string[] {
+  const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}h${String(min % 60).padStart(2, "0")}`;
+  const out: string[] = [];
+  heuresParCabine(p).forEach(({ label, debut, fin }) => {
+    const ou = label ? `${label} : ` : "";
+    if (fin <= debut) {
+      out.push(`${ou}départ ${hhmm(fin)} avant ou égal à l'arrivée ${hhmm(debut)}`);
+      return;
+    }
+    const duree = fin - debut;
+    if (duree > PRESENCE_MAX) out.push(`${ou}${hhmm(duree)} de présence`);
+    else if (duree < PRESENCE_MIN) out.push(`${ou}${duree} min de présence`);
+  });
+  return out;
+}
+
 /** Les lots d'un projet multi-cabines sont-ils nommés ? */
 function lotsNommes(p: Project): boolean {
   const noms = (p.nomsCabines || "").match(/Cab(\d+)\s*:\s*([^|]*)/g) || [];
@@ -175,6 +237,17 @@ export const REGLES_ANOMALIES: Regle[] = [
       const a = /\d{1,2}:\d{2}/.test(p.heureArrivee || "");
       const b = /\d{1,2}:\d{2}/.test(p.heureDepart || "");
       return a && b ? null : "Heure d'arrivée ou de départ manquante";
+    },
+  },
+  {
+    id: "heures-invraisemblables",
+    titre: "Heures pointées invraisemblables",
+    pourquoi: "Elles ne sautent pas aux yeux, mais elles faussent en silence quatre analyses : la journée type, le rendement, « seul ou à deux » et le coût du SAV. Une seule saisie aberrante suffit à déplacer une moyenne.",
+    gravite: "important",
+    verifier: (p) => {
+      if (estServicePur(p)) return null;
+      const anomalies = heuresAberrantes(p);
+      return anomalies.length ? anomalies.join(" · ") : null;
     },
   },
   {

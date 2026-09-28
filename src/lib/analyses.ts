@@ -714,3 +714,268 @@ export function devenirMesures(
     .map((l) => ({ ...l, taux: Math.round((l.commandees / l.prises) * 100) }))
     .sort((x, y) => y.prises - x.prises);
 }
+
+/* ── Le temps que ça prend, étape par étape ─────────────────────────────── */
+
+export interface Etape {
+  /** Libellé de l'étape, tel qu'il s'affiche. */
+  nom: string;
+  /** Jours médians pour la franchir. */
+  jours: number;
+  /** Dossiers sur lesquels l'étape est mesurable. */
+  cas: number;
+}
+
+export interface LigneDelais {
+  /** Fournisseur, ou « Ensemble ». */
+  cle: string;
+  etapes: Etape[];
+  /** Jours médians de la demande de mesure à la pose. */
+  total: number | null;
+  totalCas: number;
+  /**
+   * Dérive du délai commande → arrivage : six derniers mois comparés aux six
+   * précédents, en jours. Positif, le fournisseur ralentit.
+   */
+  derive: number | null;
+}
+
+/** Médiane, et non moyenne : un chantier reporté d'un an écraserait tout. */
+function mediane(v: number[]): number | null {
+  if (v.length === 0) return null;
+  const t = [...v].sort((a, b) => a - b);
+  return t[Math.floor(t.length / 2)];
+}
+
+function ecart(de: string | null | undefined, a: string | null | undefined): number | null {
+  const x = jourDe(de), y = jourDe(a);
+  if (x === null || y === null) return null;
+  const j = Math.round((y - x) / 86400000);
+  /* Un écart négatif est une saisie incohérente, pas un délai. Au-delà de deux
+     ans, c'est une fiche reprise longtemps après : ni l'un ni l'autre ne dit
+     quoi que ce soit du rythme habituel. */
+  return j >= 0 && j <= 730 ? j : null;
+}
+
+const ETAPES: { nom: string; de: (p: Project) => string | null; a: (p: Project) => string | null }[] = [
+  { nom: "Demande → mesure", de: (p) => p.dateMesuresRecue, a: (p) => p.dateMesures },
+  { nom: "Mesure → offre", de: (p) => p.dateMesures, a: (p) => p.dateOffre },
+  { nom: "Offre → commande", de: (p) => p.dateOffre, a: (p) => p.dateCMDRecue || p.dateCMDUsine },
+  { nom: "Commande → arrivage", de: (p) => p.dateCMDUsine || p.dateCMDRecue, a: (p) => p.arrivageTM || p.arrivageGrossiste },
+  { nom: "Arrivage → montage", de: (p) => p.arrivageTM || p.arrivageGrossiste, a: (p) => p.dateMontage },
+];
+
+/** Au-dessous, une médiane ne dit rien. */
+const MINIMUM_CAS = 5;
+
+/**
+ * Combien de jours prend chaque étape, et chez qui le délai dérive.
+ *
+ * La chaîne complète existe dans les fiches depuis toujours — demande de
+ * mesure, relevé, offre, commande, arrivage, pose — mais aucune analyse ne la
+ * lisait. Deux usages en découlent : annoncer au client un délai qui
+ * corresponde à la réalité, et négocier avec un fournisseur sur un chiffre
+ * plutôt que sur une impression.
+ *
+ * La DÉRIVE ne porte que sur « commande → arrivage », la seule étape que le
+ * fournisseur maîtrise seul : les autres dépendent d'abord de nous ou du
+ * client, et leur reprocher un ralentissement serait injuste.
+ */
+export function delaisEtapes(
+  projets: Project[],
+  de?: string, a?: string,
+  maintenant: Date = new Date(),
+): LigneDelais[] {
+  const retenus = projets.filter((p) => {
+    if (MORTS.has(p.etatCMD) || estServicePur(p)) return false;
+    /* La fenêtre porte sur la POSE : c'est la date qui clôt la chaîne, et
+       celle qui situe le dossier dans le temps. */
+    return dansFenetre(p.dateMontage, de, a);
+  });
+
+  const parCle = new Map<string, Project[]>();
+  parCle.set("Ensemble", retenus);
+  retenus.forEach((p) => {
+    const f = (p.fournisseurs || [])[0] || (p.fournisseursNames || [])[0];
+    if (!f) return;
+    const l = parCle.get(f) || [];
+    l.push(p);
+    parCle.set(f, l);
+  });
+
+  const sixMois = maintenant.getTime() - 182 * 86400000;
+  const douzeMois = maintenant.getTime() - 365 * 86400000;
+
+  return [...parCle.entries()]
+    .filter(([cle, l]) => cle === "Ensemble" || l.length >= MINIMUM_CAS)
+    .map(([cle, l]) => {
+      const etapes = ETAPES.map(({ nom, de: d, a: f }) => {
+        const v = l.map((p) => ecart(d(p), f(p))).filter((x): x is number => x !== null);
+        return { nom, jours: mediane(v) ?? 0, cas: v.length };
+      }).filter((e) => e.cas >= MINIMUM_CAS);
+
+      const totaux = l.map((p) => ecart(p.dateMesuresRecue, p.dateMontage))
+        .filter((x): x is number => x !== null);
+
+      /* Dérive : on compare deux fenêtres de six mois sur la seule étape
+         fournisseur. Chacune doit être assez fournie, sinon le chiffre
+         mesurerait le hasard. */
+      const fenetre = (min: number, max: number) => l
+        .filter((p) => {
+          const t = jourDe(p.dateMontage);
+          return t !== null && t >= min && t < max;
+        })
+        .map((p) => ecart(p.dateCMDUsine || p.dateCMDRecue, p.arrivageTM || p.arrivageGrossiste))
+        .filter((x): x is number => x !== null);
+      const recent = fenetre(sixMois, Infinity);
+      const avant = fenetre(douzeMois, sixMois);
+      const derive = recent.length >= MINIMUM_CAS && avant.length >= MINIMUM_CAS
+        ? (mediane(recent) as number) - (mediane(avant) as number)
+        : null;
+
+      return {
+        cle,
+        etapes,
+        total: totaux.length >= MINIMUM_CAS ? mediane(totaux) : null,
+        totalCas: totaux.length,
+        derive,
+      };
+    })
+    .filter((x) => x.etapes.length > 0)
+    /* « Ensemble » en tête, puis les fournisseurs du plus lent au plus rapide
+       sur l'étape qui les concerne. */
+    .sort((x, y) => {
+      if (x.cle === "Ensemble") return -1;
+      if (y.cle === "Ensemble") return 1;
+      const j = (l: LigneDelais) => l.etapes.find((e) => e.nom === "Commande → arrivage")?.jours ?? -1;
+      return j(y) - j(x);
+    });
+}
+
+/* ── Ce que coûte de repasser ───────────────────────────────────────────── */
+
+export interface LigneReprise {
+  /** Fournisseur, série ou cause, selon l'axe demandé. */
+  cle: string;
+  /** Chantiers posés sur la période, pour ramener le reste à une base. */
+  chantiers: number;
+  cabines: number;
+  /** Chantiers ayant nécessité un second déplacement. */
+  reprises: number;
+  /** Part des chantiers où l'on est repassé, en pourcentage. */
+  taux: number;
+  /** Heures de présence sur place lors des reprises. */
+  heuresSurPlace: number;
+  /** Heures de route estimées, aller-retour depuis le dépôt. */
+  heuresRoute: number;
+  /** Total, en heures — c'est le chiffre qui se négocie. */
+  heuresTotal: number;
+  /** Reprises dont la cause nous est imputée. */
+  erreursTM: number;
+}
+
+/** Un second passage a-t-il vraiment eu lieu ? */
+function estUneReprise(p: Project): boolean {
+  /* Le SAV pointé est la preuve d'un déplacement : des heures ont été saisies
+     sur place. Un SAV ouvert sans heures peut n'avoir jamais donné lieu à une
+     visite — on ne le compte pas. */
+  if (minutesSav(p) > 0) return true;
+  /* Un montage partiel, lui, se termine forcément par un second passage. */
+  return /partiel/i.test(String(p.etatMontage || "")) || p.etatCMD === "Montage partiel";
+}
+
+/**
+ * Le coût des seconds déplacements, par fournisseur, série ou cause.
+ *
+ * Un chantier qu'on refait n'apparaît nulle part comme tel : les heures du
+ * SAV sont bien pointées, mais personne ne les rapporte aux chantiers posés.
+ * Or c'est le coût le plus cher et le plus silencieux — une journée à deux
+ * monteurs pour une pièce oubliée ou une cabine rayée à la livraison.
+ *
+ * On ne compte que les reprises PROUVÉES : un SAV avec des heures pointées,
+ * ou un montage partiel, qui se termine forcément par une seconde visite. Un
+ * SAV ouvert et jamais suivi d'un déplacement ne coûte rien en pose.
+ *
+ * La route est ESTIMÉE, aller-retour depuis le dépôt, comme dans le coût de
+ * trajet : depuis le retrait du GPS, aucun kilomètre n'est mesuré.
+ */
+export function reprises(
+  projets: Project[],
+  axe: "fournisseur" | "serie" | "cause",
+  positions: Record<string, Position | null>,
+  de?: string, a?: string,
+): LigneReprise[] {
+  const depot = lieuDepot(positions[cleAdresse("1400 Yverdon-les-Bains")] || undefined);
+
+  const cles = (p: Project): string[] => {
+    if (axe === "fournisseur") return (p.fournisseurs || []).length ? p.fournisseurs : ["Non renseigné"];
+    if (axe === "serie") return (p.seriesCabines || []).length ? p.seriesCabines : ["Non renseignée"];
+    const raw = String(p.causeSavCabines || "");
+    const parCabine = [...raw.matchAll(/Cab\d+\s*:\s*([^|]*)/g)].map((x) => x[1].trim()).filter(Boolean);
+    const valeurs = parCabine.length ? parCabine : [String(p.causeSAV || "").trim()];
+    return [...new Set(valeurs.filter(Boolean))].length ? [...new Set(valeurs.filter(Boolean))] : ["Cause non renseignée"];
+  };
+
+  const m = new Map<string, LigneReprise>();
+  const ligne = (cle: string) => {
+    const cur = m.get(cle) || {
+      cle, chantiers: 0, cabines: 0, reprises: 0, taux: 0,
+      heuresSurPlace: 0, heuresRoute: 0, heuresTotal: 0, erreursTM: 0,
+    };
+    m.set(cle, cur);
+    return cur;
+  };
+
+  projets.forEach((p) => {
+    if (p.etatCMD !== "Terminé" || estServicePur(p)) return;
+    if (!dansFenetre(p.dateMontage, de, a)) return;
+    const cabines = Number(p.nbCabinesInstallees) || Number(p.nbCabines) || 0;
+    if (cabines <= 0) return;
+
+    /* Base de comparaison : sur l'axe « cause », elle n'a pas de sens — une
+       cause n'existe que sur les chantiers repris. On ne la compte donc que
+       sur les axes qui décrivent TOUS les chantiers. */
+    if (axe !== "cause") {
+      cles(p).forEach((cle) => {
+        const l = ligne(cle);
+        l.chantiers += 1;
+        l.cabines += cabines;
+      });
+    }
+
+    if (!estUneReprise(p)) return;
+
+    const minutes = minutesSav(p);
+    const texte = `${p.adresseChantier || ""} ${p.projet || ""}`;
+    const npa = texte.match(/\b(\d{4})\b/)?.[1] || "";
+    const route = npa
+      ? trajet(depot, {
+          npa,
+          region: regionLabel(texte),
+          canton: cantonOf(texte) || "",
+          pos: positions[cleAdresse(p.adresseChantier || "")] || undefined,
+        }).minutes * 2
+      : 0;
+    const tm = compteErreursTM(p);
+
+    cles(p).forEach((cle) => {
+      const l = ligne(cle);
+      if (axe === "cause") l.chantiers += 1;
+      l.reprises += 1;
+      l.heuresSurPlace += minutes;
+      l.heuresRoute += route;
+      if (tm > 0) l.erreursTM += 1;
+    });
+  });
+
+  return [...m.values()]
+    .filter((l) => l.reprises > 0)
+    .map((l) => ({
+      ...l,
+      taux: l.chantiers > 0 ? Math.round((l.reprises / l.chantiers) * 1000) / 10 : 0,
+      heuresSurPlace: Math.round((l.heuresSurPlace / 60) * 10) / 10,
+      heuresRoute: Math.round((l.heuresRoute / 60) * 10) / 10,
+      heuresTotal: Math.round(((l.heuresSurPlace + l.heuresRoute) / 60) * 10) / 10,
+    }))
+    .sort((x, y) => y.heuresTotal - x.heuresTotal);
+}

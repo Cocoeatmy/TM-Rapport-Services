@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 import type { Project } from "../lib/notion";
 import {
   appliquer, compterFiches, compterFichesVives, joursDepuis, estServicePur,
-  derniereActivite, prioriteDe, DORMANT_JOURS,
+  derniereActivite, prioriteDe, heuresAberrantes, DORMANT_JOURS,
   REGLES_ANOMALIES, REGLES_RELANCES,
 } from "../lib/regles";
 
@@ -282,5 +282,35 @@ describe("priorité — par quoi commencer", () => {
     ], MAINTENANT);
     const g = groupes.find((x) => x.regle.id === "rdv-sans-cabines")!;
     expect(g.projets[0].projet.id).toBe("proche");
+  });
+});
+
+
+describe("heures invraisemblables", () => {
+  it("laisse passer une journée normale, même longue", () => {
+    expect(heuresAberrantes(p({ heureArrivee: "07:00", heureDepart: "18:30" }))).toEqual([]);
+  });
+
+  it("signale un départ avant l'arrivée", () => {
+    expect(heuresAberrantes(p({ heureArrivee: "14:00", heureDepart: "09:00" }))[0])
+      .toMatch(/avant ou égal/);
+  });
+
+  it("signale une présence impossible, trop longue ou trop courte", () => {
+    expect(heuresAberrantes(p({ heureArrivee: "06:00", heureDepart: "23:00" }))).toHaveLength(1);
+    expect(heuresAberrantes(p({ heureArrivee: "08:00", heureDepart: "08:05" }))).toHaveLength(1);
+  });
+
+  it("vérifie chaque cabine séparément, et la nomme", () => {
+    const out = heuresAberrantes(p({
+      heureArrivee: "Cab1:08:00 | Cab2:09:00",
+      heureDepart: "Cab1:12:00 | Cab2:08:00",
+    }));
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatch(/^Cabine 2/);
+  });
+
+  it("ne dit rien quand les heures sont absentes — c'est une autre règle", () => {
+    expect(heuresAberrantes(p({ heureArrivee: "", heureDepart: "" }))).toEqual([]);
   });
 });

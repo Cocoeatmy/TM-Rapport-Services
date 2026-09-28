@@ -875,6 +875,9 @@ export function SignalStats({
   const [axeSav, setAxeSav] = useState<"marque" | "serie">("marque");
   const [axeRendement, setAxeRendement] = useState<"marque" | "serie">("serie");
   const [axeDegats, setAxeDegats] = useState<"marque" | "grossiste">("marque");
+  const [axeReprise, setAxeReprise] = useState<"fournisseur" | "serie" | "cause">("fournisseur");
+  /** Fournisseur dont on déplie le détail des étapes. */
+  const [delaiOuvert, setDelaiOuvert] = useState<string | null>("Ensemble");
   const [axePhotos, setAxePhotos] = useState<"monteur" | "equipe">("monteur");
 
   /* La conformité photo porte sa PROPRE période, indépendante de celle de la
@@ -1448,6 +1451,67 @@ export function SignalStats({
 
       {tab === "equipes" && (
         <div className="sgs-grid2">
+          <Fold className="sgs-span2" defaultOpen title="Le temps que ça prend"
+            meta="jours médians à chaque étape, de la demande de mesure à la pose · au moins 5 dossiers par étape">
+            {analyses?.delais?.length ? (
+              <>
+                <div className="sgs-delais">
+                  {analyses.delais.map((l: any) => {
+                    const ouvert = delaiOuvert === l.cle;
+                    return (
+                      <div key={l.cle} className={`sgs-delai${ouvert ? " is-on" : ""}`}>
+                        <button type="button" className="sgs-delai-tete"
+                          onClick={() => setDelaiOuvert(ouvert ? null : l.cle)}>
+                          <b>{l.cle}</b>
+                          <span className="sgs-delai-total">
+                            {l.total !== null ? `${l.total} j` : "—"}
+                            <em>demande → pose</em>
+                          </span>
+                          {/* La dérive ne porte que sur l'étape que le
+                              fournisseur maîtrise seul. */}
+                          {l.derive !== null && (
+                            <span className={`sgs-delai-derive${l.derive > 3 ? " is-mauvais" : l.derive < -3 ? " is-bon" : ""}`}>
+                              {l.derive > 0 ? "+" : ""}{l.derive} j
+                              <em>sur 6 mois</em>
+                            </span>
+                          )}
+                        </button>
+                        {ouvert && (
+                          <div className="sgs-delai-etapes">
+                            {l.etapes.map((e: any) => {
+                              const max = Math.max(1, ...l.etapes.map((x: any) => x.jours));
+                              return (
+                                <div key={e.nom} className="sgs-delai-etape">
+                                  <span>{e.nom}</span>
+                                  <i><b style={{ width: `${Math.round((e.jours / max) * 100)}%` }} /></i>
+                                  <b>{e.jours} j</b>
+                                  <em>{e.cas} dossiers</em>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="sgs-note">
+                  Des MÉDIANES, pas des moyennes : un chantier reporté d&apos;un an écraserait
+                  tout le reste. Un écart négatif ou supérieur à deux ans est écarté — c&apos;est
+                  une saisie incohérente ou une fiche reprise longtemps après, ni l&apos;une ni
+                  l&apos;autre ne disant quoi que ce soit du rythme habituel. La <b>dérive</b>
+                  {" "}compare les six derniers mois aux six précédents sur la seule étape
+                  « commande → arrivage » : c&apos;est la seule que le fournisseur maîtrise
+                  seul. Lui reprocher un retard d&apos;offre ou de rendez-vous serait injuste,
+                  ces étapes dépendent de nous ou du client.
+                </p>
+              </>
+            ) : (
+              <p className="sgs-empty">
+                {analyses ? "Pas assez de dossiers datés sur la période." : "Calcul en cours…"}
+              </p>
+            )}
+          </Fold>
           <Fold className="sgs-span2" defaultOpen title="La journée type"
             meta="sur une journée payée, ce qui se passe réellement — moyennes par monteur et par jour travaillé">
             {analyses?.journee?.ensemble ? (
@@ -2042,6 +2106,62 @@ export function SignalStats({
 
       {tab === "qualite" && (
         <>
+          <Fold className="sgs-span2" defaultOpen title="Ce que coûte de repasser"
+            meta="chantiers où l'on est retourné une seconde fois · heures sur place et route estimée"
+            right={
+              <div className="sgs-seg" onClick={(e) => e.stopPropagation()}>
+                {([["fournisseur", "Fournisseur"], ["serie", "Série"], ["cause", "Cause"]] as const).map(([k, l]) => (
+                  <button key={k} type="button" className={axeReprise === k ? "is-on" : ""}
+                    onClick={() => setAxeReprise(k)}>{l}</button>
+                ))}
+              </div>
+            }>
+            {analyses?.reprises?.[axeReprise]?.length ? (
+              <>
+                <Tableau cols={[
+                  { titre: axeReprise === "cause" ? "Cause" : axeReprise === "serie" ? "Série" : "Fournisseur" },
+                  ...(axeReprise === "cause" ? [] : [{ titre: "Chantiers", num: true }]),
+                  { titre: "Reprises", num: true },
+                  ...(axeReprise === "cause" ? [] : [{ titre: "Taux", num: true }]),
+                  { titre: "Sur place", num: true }, { titre: "Route", num: true },
+                  { titre: "Total", num: true }, { titre: "Dont erreur TM", num: true },
+                ]}>
+                  {analyses.reprises[axeReprise].map((l: any) => (
+                    <tr key={l.cle}>
+                      <td className="cle">{l.cle}</td>
+                      {axeReprise !== "cause" && <td className="num doux">{l.chantiers}</td>}
+                      <td className="num">{l.reprises}</td>
+                      {axeReprise !== "cause" && (
+                        <td className="num fort">
+                          <span className={l.taux >= 15 ? "sgs-pct is-faible" : l.taux <= 5 ? "sgs-pct is-bon" : "sgs-pct"}>
+                            {l.taux} %
+                          </span>
+                        </td>
+                      )}
+                      <td className="num doux">{l.heuresSurPlace} h</td>
+                      <td className="num doux">{l.heuresRoute} h</td>
+                      <td className="num fort">{l.heuresTotal} h</td>
+                      <td className={`num${l.erreursTM > 0 ? " alerte" : " doux"}`}>{l.erreursTM || "—"}</td>
+                    </tr>
+                  ))}
+                </Tableau>
+                <p className="sgs-note">
+                  Un chantier refait n&apos;apparaît nulle part comme tel : les heures du SAV
+                  sont pointées, mais personne ne les rapporte aux chantiers posés. Ne sont
+                  comptées ici que les reprises PROUVÉES — un SAV avec des heures saisies sur
+                  place, ou un montage partiel, qui se termine forcément par une seconde
+                  visite. Un SAV ouvert sans déplacement ne coûte rien en pose. La
+                  <b> route est estimée</b>, aller-retour depuis le dépôt : aucun kilomètre
+                  n&apos;est mesuré depuis le retrait du GPS. Sur l&apos;axe « Cause », le taux
+                  n&apos;a pas de sens — une cause n&apos;existe que sur un chantier repris.
+                </p>
+              </>
+            ) : (
+              <p className="sgs-empty">
+                {analyses ? "Aucune reprise sur la période — ou aucune heure pointée qui la prouve." : "Calcul en cours…"}
+              </p>
+            )}
+          </Fold>
           <div className="sgs-kpis">
             {qualRows.map((k, i) => (
               <button key={k.label} type="button"

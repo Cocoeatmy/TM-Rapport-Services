@@ -14,6 +14,7 @@ import { cachedOrFetch } from "@/lib/server-cache";
 import { getData } from "@/lib/kv-store";
 import {
   transformation, coutRoute, coutSav, rendement, clientsEnRecul, clientFacture,
+  delaisEtapes, reprises,
   degatsLivraison, soloOuBinome, devenirMesures,
 } from "@/lib/analyses";
 import { journeeType } from "@/lib/journee";
@@ -91,6 +92,12 @@ export async function GET(req: NextRequest) {
       },
       equipage: soloOuBinome(projets, de, a),
       journee: journeeType(projets, positions, de, a),
+      delais: delaisEtapes(projets, de, a),
+      reprises: {
+        fournisseur: reprises(projets, "fournisseur", positions, de, a),
+        serie: reprises(projets, "serie", positions, de, a),
+        cause: reprises(projets, "cause", positions, de, a),
+      },
       mesures: devenirMesures(projets, de, a),
     });
   } catch (e) {

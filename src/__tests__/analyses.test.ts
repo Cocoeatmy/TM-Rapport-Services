@@ -10,6 +10,7 @@ import type { Project } from "../lib/notion";
 import {
   transformation, coutRoute, coutSav, rendement, clientsEnRecul,
   degatsLivraison, soloOuBinome, devenirMesures, clientFacture,
+  delaisEtapes, reprises,
 } from "../lib/analyses";
 
 const MAINTENANT = new Date("2026-09-27T12:00:00Z");
@@ -343,5 +344,76 @@ describe("devenir des mesures", () => {
 
   it("n'affiche personne sous cinq relevés", () => {
     expect(devenirMesures(mesure("Rare", 3, {}))).toEqual([]);
+  });
+});
+
+describe("le temps que ça prend", () => {
+  const chaine = (o: Record<string, unknown> = {}) => p({
+    etatCMD: "Terminé",
+    dateMesuresRecue: "2026-01-01", dateMesures: "2026-01-06",
+    dateOffre: "2026-01-10", dateCMDRecue: "2026-01-20", dateCMDUsine: "2026-01-20",
+    arrivageTM: "2026-02-20", dateMontage: "2026-03-02",
+    ...o,
+  });
+
+  it("donne les jours médians de chaque étape", () => {
+    const [ens] = delaisEtapes(lot(6, chaine()), undefined, undefined, MAINTENANT);
+    expect(ens.cle).toBe("Ensemble");
+    const par = Object.fromEntries(ens.etapes.map((e) => [e.nom, e.jours]));
+    expect(par["Demande → mesure"]).toBe(5);
+    expect(par["Commande → arrivage"]).toBe(31);
+    expect(ens.total).toBe(60);
+  });
+
+  it("écarte une chronologie impossible plutôt que de la moyenner", () => {
+    /* Arrivage AVANT la commande : c'est une saisie fautive, pas un délai
+       négatif. L'étape doit disparaître faute de cas, pas être faussée. */
+    const [ens] = delaisEtapes(
+      lot(6, chaine({ arrivageTM: "2026-01-05" })), undefined, undefined, MAINTENANT);
+    expect(ens.etapes.find((e) => e.nom === "Commande → arrivage")).toBeUndefined();
+  });
+
+  it("n'affiche pas un fournisseur trop peu fourni", () => {
+    const lignes = delaisEtapes([
+      ...lot(6, chaine({ fournisseurs: ["Duka"] })),
+      ...lot(2, chaine({ fournisseurs: ["Rare"] })),
+    ], undefined, undefined, MAINTENANT);
+    expect(lignes.map((l) => l.cle)).toEqual(["Ensemble", "Duka"]);
+  });
+});
+
+describe("ce que coûte de repasser", () => {
+  const pose = (o: Record<string, unknown> = {}) => p({
+    etatCMD: "Terminé", dateMontage: ilYA(30), nbCabines: 1, nbCabinesInstallees: 1,
+    ...o,
+  });
+
+  it("ne compte que les reprises prouvées par des heures pointées", () => {
+    const lignes = reprises([
+      ...lot(3, pose({ fournisseurs: ["Duka"] })),
+      ...lot(1, pose({ fournisseurs: ["Duka"], heureArriveeSav: "08:00", heureDepartSav: "10:00" })),
+      // SAV ouvert mais jamais pointé : aucun déplacement prouvé.
+      ...lot(2, pose({ fournisseurs: ["Duka"], causeSAV: "Erreur TM" })),
+    ], "fournisseur", {}, undefined, undefined);
+    const duka = lignes.find((l) => l.cle === "Duka")!;
+    expect(duka.reprises).toBe(1);
+    expect(duka.heuresSurPlace).toBe(2);
+    expect(duka.heuresTotal).toBeGreaterThan(duka.heuresSurPlace); // la route s'ajoute
+  });
+
+  it("compte un montage partiel comme une reprise", () => {
+    const lignes = reprises(
+      lot(2, pose({ fournisseurs: ["Duka"], etatMontage: "Montage partiel" })),
+      "fournisseur", {}, undefined, undefined);
+    expect(lignes[0].reprises).toBe(2);
+  });
+
+  it("rapporte les reprises aux chantiers posés", () => {
+    const lignes = reprises([
+      ...lot(9, pose({ fournisseurs: ["Duka"] })),
+      ...lot(1, pose({ fournisseurs: ["Duka"], heureArriveeSav: "08:00", heureDepartSav: "09:00" })),
+    ], "fournisseur", {}, undefined, undefined);
+    expect(lignes[0].chantiers).toBe(10);
+    expect(lignes[0].taux).toBe(10);
   });
 });
