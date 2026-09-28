@@ -133,6 +133,16 @@ export async function GET(
     }
   }
 
+  // « Photos des cartons réceptionnés » : TOUS les cartons reçus, là où le champ
+  // précédent ne montre que les dégâts constatés. Même traitement, sans bucket.
+  if (!fieldParam || fieldParam === "photosCartonsRecus") {
+    const files = (project.photosCartonsRecus ?? []) as { name: string; url: string }[];
+    for (const file of files) {
+      const cabineIdx = extractCabine(file.name);
+      all.push({ url: file.url, cabineIdx, label: "Cartons receptionnes" });
+    }
+  }
+
   // Signalements : pièces manquantes, défauts signalés, et photos du souci réglé
   // (champs projet Notion). Ignorés quand un champ précis est demandé.
   const signalementFields: { key: "photosPiecesManquantes" | "photosDefautsSignale" | "photosSoucisRegle"; label: string }[] = fieldParam ? [] : [

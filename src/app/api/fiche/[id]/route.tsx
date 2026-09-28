@@ -276,7 +276,20 @@ function Cell({ label, value, width, docUrl }: { label: string; value: string; w
     </View>
   );
 }
-// Cellule Contact : entreprise (gras) + contacts (Nom Prénom / email / téléphone).
+/**
+ * Rend lisible l'état des mesures sur la fiche.
+ *
+ * Notion propose « Projet sans de mesures » — faute de frappe comprise, les
+ * monteurs y lisaient « aucune mesure » et passaient à côté de la flèche de
+ * téléchargement voisine. Or lorsque des documents de montage sont joints, les
+ * mesures EXISTENT : elles ont simplement été relevées par un tiers. Deux
+ * phrases distinctes valent mieux qu'une icône qu'on n'a pas vue.
+ */
+function etatMesuresLisible(etat: string, aDesDocuments: boolean): string {
+  if (!/projet sans de? mesures/i.test(etat || "")) return etat;
+  return aDesDocuments ? "Mesures non relevées par TM Douche Montage" : "Projet sans mesures";
+}
+
 /**
  * Une case de contact du pied de rapport.
  *
@@ -441,7 +454,7 @@ function AddressRow({ address }: { address: string }) {
   );
 }
 
-function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, savReportUrl, reportUrl, syntheseUrl, signalementsUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0, done: 0 }, mesures = [] }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; signalementsUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number; done?: number }; mesures?: { cab: number; nom: string; serie: string; url: string }[] }) {
+function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, cartonsRecusUrl, savReportUrl, reportUrl, syntheseUrl, signalementsUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0, done: 0 }, mesures = [] }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; cartonsRecusUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; signalementsUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number; done?: number }; mesures?: { cab: number; nom: string; serie: string; url: string }[] }) {
   const genDate = new Date().toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich" });
   const sigTotal = (sig?.pieces || 0) + (sig?.defauts || 0) + (sig?.avant || 0);
   const sigDone = sig?.done || 0;
@@ -553,6 +566,17 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
               <Cell label="État cartons réceptionnés" value="Voir les documents" width="33%" docUrl={cartonsDocUrl} />
             ) : null}
           </View>
+          {/* Chaque case disparaît si son champ Notion est vide : une ligne
+              « Voir les documents » sans document ferait perdre un clic. */}
+          {cartonsRecusUrl ? (
+            <View style={{ flexDirection: "row" }}>
+              {/* Deux espaceurs : la case se place sous « État cartons », dans
+                  la même colonne, sans dupliquer de libellé. */}
+              <View style={{ width: "33%" }} />
+              <View style={{ width: "34%" }} />
+              <Cell label="Photos des cartons réceptionnés" value="Voir les documents" width="33%" docUrl={cartonsRecusUrl} />
+            </View>
+          ) : null}
         </View>
 
         {/* Numéro de commande — 3 colonnes : TM | Grossiste | Fournisseur */}
@@ -584,6 +608,10 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
           <Text style={styles.sectionTitle}>Rendez-vous</Text>
           {/* Mesures : barre 100% dès qu'une date existe ; sinon l'état, sans barre.
               Flèche → galerie des documents montage. */}
+          {/* « Projet sans de mesures » se lit comme « il n'y a pas de mesures »,
+              et les monteurs ignoraient alors la flèche de téléchargement juste
+              à côté. Quand des documents de montage existent, les mesures ont
+              bien été relevées — par quelqu'un d'autre : on le dit. */}
           {project.dateMesures ? (
             <ProgressRow
               label="Mesures"
@@ -596,7 +624,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
           ) : (
             <LineRow
               label="Mesures"
-              value={dateAndWho(joinVal(project.etatMesures), project.mesuresTraiteePar)}
+              value={dateAndWho(joinVal(etatMesuresLisible(project.etatMesures, !!mesuresDocUrl)), project.mesuresTraiteePar)}
               docUrl={mesuresDocUrl}
             />
           )}
@@ -926,6 +954,9 @@ export async function GET(
       `${req.nextUrl.origin}/api/photos/${encodeURIComponent(id)}/download?field=${field}&s=${signPhotosZip(id, field)}`;
     const montagePhotosUrl = (project.photosMontage || []).length > 0 ? zipUrl("photosMontage") : undefined;
     const cartonsDocUrl = (project.photosCartons || []).length > 0 ? zipUrl("photosCartons") : undefined;
+    // « Photos des cartons réceptionnés » : tous les cartons reçus, à distinguer
+    // de « État des cartons » qui ne montre que les dégâts constatés.
+    const cartonsRecusUrl = (project.photosCartonsRecus || []).length > 0 ? zipUrl("photosCartonsRecus") : undefined;
     const signalementsUrl = `${req.nextUrl.origin}/api/rapport-signalements/${encodeURIComponent(id)}?s=${signSignalements(id)}`;
     // Flèche SAV → rapport SAV signé (toutes cabines), ouvrable sans login.
     const savReportUrl = `${req.nextUrl.origin}/api/sav/${encodeURIComponent(id)}?s=${signSav(id)}`;
@@ -966,7 +997,7 @@ export async function GET(
       serie: e.serie || "",
       url: `${req.nextUrl.origin}/api/mesures/${encodeURIComponent(id)}/download?cab=${e.cab}&s=${signMesure(id, e.cab)}`,
     }));
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} cartonsDocUrl={cartonsDocUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} signalementsUrl={signalementsUrl} notionComments={notionComments} sig={sig} mesures={mesures} />);
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} cartonsDocUrl={cartonsDocUrl} cartonsRecusUrl={cartonsRecusUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} signalementsUrl={signalementsUrl} notionComments={notionComments} sig={sig} mesures={mesures} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
