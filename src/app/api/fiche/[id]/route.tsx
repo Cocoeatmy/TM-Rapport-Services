@@ -45,15 +45,24 @@ const styles = StyleSheet.create({
     borderBottomColor: "#1e3a5f",
   },
   title: { fontSize: 20, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 10 },
+  /* Boutons de rapport — dimensionnés pour le POUCE, pas pour la page.
+     Une fiche A4 affichée sur un téléphone est réduite d'environ un tiers :
+     un bouton de 7 mm y devient une cible de 4 mm, que les monteurs ne
+     pouvaient atteindre qu'en zoomant. À 70 points de haut sur toute la
+     largeur, la cible reste au-dessus du minimum tactile même page entière
+     à l'écran. */
+  reportBtns: { flexDirection: "row", gap: 10, marginTop: 12 },
   reportBtn: {
+    width: "100%",
     backgroundColor: "#1e3a5f",
-    borderRadius: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    borderRadius: 10,
+    paddingVertical: 20,
+    paddingHorizontal: 8,
     textDecoration: "none",
-    width: 180,
+    justifyContent: "center",
+    minHeight: 70,
   },
-  reportBtnText: { color: "#ffffff", fontSize: 9, fontFamily: "Helvetica-Bold", textAlign: "center" },
+  reportBtnText: { color: "#ffffff", fontSize: 13, fontFamily: "Helvetica-Bold", textAlign: "center" },
   tm: { fontSize: 15, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 6 },
   subtitle: { fontSize: 10, color: "#666", marginTop: 2 },
   section: { marginBottom: 14 },
@@ -441,34 +450,36 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, sav
   const savKeys = new Set<number>();
   savMaps.forEach((m) => Object.keys(m).forEach((k) => savKeys.add(parseInt(k, 10))));
   const hasSav = [...savKeys].some((n) => savMaps.some((m) => m[n]));
+  /* Un rapport par bouton, dans l'ordre où le monteur s'en sert. */
+  const boutons = [
+    reportUrl ? { url: reportUrl, couleur: "#059669", texte: "Rapport de montage" } : null,
+    syntheseUrl ? { url: syntheseUrl, couleur: "#1e3a5f", texte: "Rapport de suivi" } : null,
+    hasSav && savReportUrl ? { url: savReportUrl, couleur: "#ea580c", texte: "Rapport SAV" } : null,
+  ].filter((b): b is { url: string; couleur: string; texte: string } => b !== null);
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* En-tête : logo + titre + n° projet (gros/gras) + nom du chantier.
             À droite : bouton vers le rapport de montage (upload photos + horaires). */}
         <View style={styles.header}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
-            {/* Boutons rapports : même dimension, texte centré, couleurs par type
-                (assorties à l'app) : montage = vert, suivi = navy, SAV = orange. */}
-            <View style={{ flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-              {reportUrl ? (
-                <Link src={reportUrl} style={{ ...styles.reportBtn, backgroundColor: "#059669" }}>
-                  <Text style={styles.reportBtnText}>Ouvrir le rapport de montage</Text>
-                </Link>
-              ) : null}
-              {syntheseUrl ? (
-                <Link src={syntheseUrl} style={{ ...styles.reportBtn, backgroundColor: "#1e3a5f" }}>
-                  <Text style={styles.reportBtnText}>Ouvrir le rapport de suivi</Text>
-                </Link>
-              ) : null}
-              {hasSav && savReportUrl ? (
-                <Link src={savReportUrl} style={{ ...styles.reportBtn, backgroundColor: "#ea580c" }}>
-                  <Text style={styles.reportBtnText}>Ouvrir le rapport SAV</Text>
-                </Link>
-              ) : null}
+          <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
+          {/* Boutons rapports, sur toute la largeur et sous le logo plutôt que
+              serrés dans un coin : couleurs par type, assorties à l'app —
+              montage = vert, suivi = navy, SAV = orange. */}
+          {boutons.length > 0 ? (
+            <View style={styles.reportBtns}>
+              {/* Le « flex » vit sur la View : un Link ne se partage pas
+                  toujours l'espace de façon fiable dans le moteur PDF. */}
+              {boutons.map((b) => (
+                <View key={b.texte} style={{ flex: 1 }}>
+                  <Link src={b.url} style={{ ...styles.reportBtn, backgroundColor: b.couleur }}>
+                    <Text style={styles.reportBtnText}>{b.texte}</Text>
+                  </Link>
+                </View>
+              ))}
             </View>
-          </View>
+          ) : null}
           <Text style={styles.title}>Fiche de travail</Text>
           <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}

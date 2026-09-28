@@ -69,8 +69,14 @@ const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: "Helvetica", fontSize: 10, color: "#1a1a1a" },
   header: { flexDirection: "column", marginBottom: 16, paddingBottom: 6, borderBottomWidth: 2, borderBottomColor: "#b45309" },
   title: { fontSize: 20, fontFamily: "Helvetica-Bold", color: "#b45309", marginTop: 10 },
-  reportBtn: { backgroundColor: "#b45309", borderRadius: 6, paddingVertical: 7, paddingHorizontal: 12, textDecoration: "none", maxWidth: 175 },
-  reportBtnText: { color: "#ffffff", fontSize: 9.5, fontFamily: "Helvetica-Bold", textAlign: "center" },
+  /* Voir le commentaire de la fiche de travail : la cible est dimensionnée
+     pour le pouce sur une page réduite à l'écran d'un téléphone. */
+  reportBtn: {
+    backgroundColor: "#b45309", borderRadius: 10,
+    paddingVertical: 20, paddingHorizontal: 8, marginTop: 12,
+    textDecoration: "none", justifyContent: "center", minHeight: 70,
+  },
+  reportBtnText: { color: "#ffffff", fontSize: 13, fontFamily: "Helvetica-Bold", textAlign: "center" },
   tm: { fontSize: 15, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginTop: 6 },
   subtitle: { fontSize: 10, color: "#666", marginTop: 2 },
   cabTitle: { fontSize: 13, fontFamily: "Helvetica-Bold", color: "#b45309" },
@@ -228,12 +234,12 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
         <View style={{ ...styles.header, borderBottomColor: titleColor }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
             <Image src={LOGO_BASE64} style={{ width: 180, height: 27 }} />
-            {reportBaseUrl ? (
-              <Link src={`${reportBaseUrl}&savCabine=${cabineFilter || savCabs[0] || 1}`} style={styles.reportBtn}>
-                <Text style={styles.reportBtnText}>Ouvrir le rapport SAV</Text>
-              </Link>
-            ) : null}
           </View>
+          {reportBaseUrl ? (
+            <Link src={`${reportBaseUrl}&savCabine=${cabineFilter || savCabs[0] || 1}`} style={styles.reportBtn}>
+              <Text style={styles.reportBtnText}>Ouvrir le rapport SAV</Text>
+            </Link>
+          ) : null}
           <Text style={{ ...styles.title, color: titleColor }}>Rapport SAV{allClosed ? " — clôturé" : ""}</Text>
           <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
