@@ -503,25 +503,28 @@ function formatLocalDate(d: Date): string {
 }
 
 /**
- * États où la marchandise n'est pas (entièrement) en notre possession.
+ * La marchandise de ce projet n'est pas encore réceptionnée.
  *
  * Il arrive, rarement, qu'un rendez-vous soit fixé avant l'arrivée des
  * cabines. Rien ne le signalait : la charge de la semaine affichait ces
  * cabines comme les autres, et l'on ne voyait le problème qu'en ouvrant la
  * fiche — ou le matin du montage.
  *
- * « Cabine à aller chercher » en fait partie : la marchandise existe, mais
- * elle est chez le grossiste, pas dans notre dépôt. Il reste un déplacement à
- * faire, donc quelque chose à prévoir.
+ * Le critère est l'EMPLACEMENT DE CABINE. « État - CMD » ne convient pas :
+ * dans ce cas de figure précis il vaut « RDV - fixé », ce qui décrit le
+ * rendez-vous, pas la marchandise. L'emplacement, lui, ne se renseigne qu'à la
+ * réception — tant qu'il est vide, rien n'est arrivé.
+ *
+ * Un montage déjà posé est écarté : sur les semaines passées, une fiche dont
+ * l'emplacement n'a jamais été saisi ferait apparaître comme manquante une
+ * cabine installée depuis des mois.
  */
-const ETATS_SANS_MARCHANDISE = new Set([
-  "En attente de mesures", "OFR envoyées sans mesures", "Cabines mesurées",
-  "Cabines en CMD", "Cabines à recevoir", "Livraison partielle",
-  "Cabine à aller chercher",
-]);
-
 function marchandiseEnAttente(p: Project): boolean {
-  return ETATS_SANS_MARCHANDISE.has((p.etatCMD || "").trim());
+  if (String(p.emplacementCabine || "").trim()) return false;
+  const total = p.nbCabines || 0;
+  const posees = p.nbCabinesInstallees || 0;
+  if (total > 0 && posees >= total) return false;
+  return (p.etatCMD || "").trim() !== "Terminé";
 }
 
 function getWorkingDays(startStr: string, endStr: string): string[] {
@@ -2963,10 +2966,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         disabled={b.cab === 0}
                         title={b.cab === 0 ? `${b.d} — aucun montage` :
                           `${b.d} — ${b.nb} projet${b.nb > 1 ? "s" : ""} · ${b.cab} cab.\n`
-                          + b.segs.map((s) => `${s.label} : ${s.cab}${s.attente > 0 ? ` (dont ${s.attente} sans marchandise)` : ""}`).join("\n")
+                          + b.segs.map((s) => `${s.label} : ${s.cab}${s.attente > 0 ? ` (dont ${s.attente} non réceptionnée${s.attente > 1 ? "s" : ""})` : ""}`).join("\n")
                           + (b.enAttente.length > 0
-                            ? `\n\nMarchandise pas encore en dépôt :\n`
-                              + b.enAttente.map((p) => `• ${p.ofrTM || p.projet} — ${p.etatCMD}`).join("\n")
+                            ? `\n\nMarchandise pas encore réceptionnée :\n`
+                              + b.enAttente.map((p) => `• ${p.ofrTM || p.projet} — ${p.nbCabines || 0} cab.`).join("\n")
                             : "")}
                         onClick={(e) => {
                           openPanel("calendrier", e);
@@ -3000,7 +3003,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 )}
                                 {/* Rayé dans la couleur du monteur : la cabine
                                     lui est bien attribuée, mais elle n'est pas
-                                    encore là. */}
+                                    encore réceptionnée. */}
                                 {s.attente > 0 && (
                                   <i className="sg-bar-seg is-attente"
                                      style={{ flexGrow: s.attente, ["--raie" as string]: s.color } as React.CSSProperties} />
@@ -3032,7 +3035,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       {bars.some((b) => b.attente > 0) && (
                         <span className="sg-bars-leg">
                           <i className="is-attente" />
-                          marchandise pas encore en dépôt
+                          marchandise pas encore réceptionnée
                           <b>{bars.reduce((s, b) => s + b.attente, 0)}</b>
                         </span>
                       )}
