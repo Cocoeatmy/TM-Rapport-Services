@@ -3451,10 +3451,13 @@ function ProjectPageContent({ id }: { id: string }) {
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
-  // Signal : ouvre « Cabines » par défaut plutôt qu'une page vide.
+  /* Signal : un onglet ouvert d'office, plutôt qu'une page vide.
+     « Projet » et non « Cabines » : c'est la carte d'identité du chantier —
+     adresse, client, statuts — donc ce qu'on cherche en arrivant depuis la
+     recherche. Les cabines se consultent ensuite, en connaissance de cause. */
   useEffect(() => {
     if (!isSignalUi || isIOS) return;
-    setMacTabs((prev) => (prev.size === 0 ? new Set(["cabines"]) : prev));
+    setMacTabs((prev) => (prev.size === 0 ? new Set(["projet"]) : prev));
   }, [isSignalUi, isIOS]);
   /** true = section masquée (présentation onglets, onglet fermé). */
   const macHidden = (id: string) => isTab && !macTabs.has(id);
