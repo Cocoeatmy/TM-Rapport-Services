@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
@@ -500,6 +500,28 @@ function formatLocalDate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/**
+ * États où la marchandise n'est pas (entièrement) en notre possession.
+ *
+ * Il arrive, rarement, qu'un rendez-vous soit fixé avant l'arrivée des
+ * cabines. Rien ne le signalait : la charge de la semaine affichait ces
+ * cabines comme les autres, et l'on ne voyait le problème qu'en ouvrant la
+ * fiche — ou le matin du montage.
+ *
+ * « Cabine à aller chercher » en fait partie : la marchandise existe, mais
+ * elle est chez le grossiste, pas dans notre dépôt. Il reste un déplacement à
+ * faire, donc quelque chose à prévoir.
+ */
+const ETATS_SANS_MARCHANDISE = new Set([
+  "En attente de mesures", "OFR envoyées sans mesures", "Cabines mesurées",
+  "Cabines en CMD", "Cabines à recevoir", "Livraison partielle",
+  "Cabine à aller chercher",
+]);
+
+function marchandiseEnAttente(p: Project): boolean {
+  return ETATS_SANS_MARCHANDISE.has((p.etatCMD || "").trim());
 }
 
 function getWorkingDays(startStr: string, endStr: string): string[] {
@@ -2876,16 +2898,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 dt.setDate(monday.getDate() + i);
                 const key = formatLocalDate(dt);
                 const dayProjects = weekSource.filter((p) => daysOfProject(p).includes(key));
-                const byGroup = new Map<string, number>();
+                /* Chaque groupe se scinde en deux : ce qui est en dépôt et ce
+                   qui ne l'est pas encore. La couleur du monteur reste la
+                   même, seule la trame change — on veut voir QUI pose, et
+                   séparément CE QUI manque. */
+                const byGroup = new Map<string, { recu: number; attente: number }>();
                 dayProjects.forEach((p) => {
                   const label = (p.collaborateurs || "").trim() || "Non attribué";
-                  byGroup.set(label, (byGroup.get(label) || 0) + (p.nbCabines || 0));
+                  const cur = byGroup.get(label) || { recu: 0, attente: 0 };
+                  const n = p.nbCabines || 0;
+                  if (marchandiseEnAttente(p)) cur.attente += n; else cur.recu += n;
+                  byGroup.set(label, cur);
                 });
                 const segs = [...byGroup.entries()]
-                  .map(([label, cab]) => ({ label, cab, color: groupColor(label) }))
+                  .map(([label, v]) => ({
+                    label, recu: v.recu, attente: v.attente,
+                    cab: v.recu + v.attente, color: groupColor(label),
+                  }))
                   .sort((a, b) => b.cab - a.cab);
                 const cab = segs.reduce((s, x) => s + x.cab, 0);
-                return { d, key, cab, segs, nb: dayProjects.length, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
+                const attente = segs.reduce((s, x) => s + x.attente, 0);
+                const enAttente = dayProjects.filter(marchandiseEnAttente);
+                return { d, key, cab, attente, enAttente, segs, nb: dayProjects.length, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
               });
               const max = Math.max(1, ...bars.map((b) => b.cab));
               // Légende : groupes présents sur la semaine, du plus chargé au moins.
@@ -2928,7 +2962,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         className={`sg-bar-col${b.cab === 0 ? " is-void" : ""}${b.isToday ? " is-today" : ""}`}
                         disabled={b.cab === 0}
                         title={b.cab === 0 ? `${b.d} — aucun montage` :
-                          `${b.d} — ${b.nb} projet${b.nb > 1 ? "s" : ""} · ${b.cab} cab.\n${b.segs.map((s) => `${s.label} : ${s.cab}`).join("\n")}`}
+                          `${b.d} — ${b.nb} projet${b.nb > 1 ? "s" : ""} · ${b.cab} cab.\n`
+                          + b.segs.map((s) => `${s.label} : ${s.cab}${s.attente > 0 ? ` (dont ${s.attente} sans marchandise)` : ""}`).join("\n")
+                          + (b.enAttente.length > 0
+                            ? `\n\nMarchandise pas encore en dépôt :\n`
+                              + b.enAttente.map((p) => `• ${p.ofrTM || p.projet} — ${p.etatCMD}`).join("\n")
+                            : "")}
                         onClick={(e) => {
                           openPanel("calendrier", e);
                           setCalendarMonth({ year: b.dt.getFullYear(), month: b.dt.getMonth() });
@@ -2954,8 +2993,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 style={{ height: `${Math.round((b.cab / max) * 86)}%` }}>
                             {b.segs.length === 0 && <i className="sg-bar-seg is-empty" style={{ flexGrow: 1 }} />}
                             {b.segs.map((s) => (
-                              <i key={s.label} className="sg-bar-seg"
-                                 style={{ flexGrow: s.cab, background: s.color }} />
+                              <Fragment key={s.label}>
+                                {s.recu > 0 && (
+                                  <i className="sg-bar-seg"
+                                     style={{ flexGrow: s.recu, background: s.color }} />
+                                )}
+                                {/* Rayé dans la couleur du monteur : la cabine
+                                    lui est bien attribuée, mais elle n'est pas
+                                    encore là. */}
+                                {s.attente > 0 && (
+                                  <i className="sg-bar-seg is-attente"
+                                     style={{ flexGrow: s.attente, ["--raie" as string]: s.color } as React.CSSProperties} />
+                                )}
+                              </Fragment>
                             ))}
                           </span>
                         </span>
@@ -2977,6 +3027,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           <b>{l.cab}</b>
                         </span>
                       ))}
+                      {/* La trame ne s'explique pas d'elle-même : on ne la
+                          nomme que les semaines où elle apparaît. */}
+                      {bars.some((b) => b.attente > 0) && (
+                        <span className="sg-bars-leg">
+                          <i className="is-attente" />
+                          marchandise pas encore en dépôt
+                          <b>{bars.reduce((s, b) => s + b.attente, 0)}</b>
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
