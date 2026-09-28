@@ -47,6 +47,7 @@ import {
   FileSpreadsheet,
   Wrench,
   Download,
+  Banknote,
 } from "lucide-react";
 // MontageChecklist supprimée (section retirée)
 import { ProjectChat } from "@/components/project-chat";
@@ -6994,6 +6995,12 @@ function ProjectPageContent({ id }: { id: string }) {
                   onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdTM: v || "" } : prev)} />
                 <InlineField icon={Hash} label="N° CMD TM - Usine" value={project.cmdTMUsine} projectId={id} fieldName="cmdTMUsine" isAdmin={isAdmin}
                   onUpdate={(v) => setProject((prev) => prev ? { ...prev, cmdTMUsine: v || "" } : prev)} />
+                {/* Montant de l'offre, en francs. Il se saisit ici parce que
+                    c'est ici qu'on a le numéro d'offre sous les yeux. Sans lui,
+                    aucune statistique ne peut parler d'argent. */}
+                <InlineField icon={Banknote} label="Montant OFR (CHF)" type="number"
+                  value={project.montantOFR} projectId={id} fieldName="montantOFR" isAdmin={isAdmin}
+                  onUpdate={(v) => setProject((prev) => prev ? { ...prev, montantOFR: v } : prev)} />
               </div>
               <div />
             </div>

@@ -278,6 +278,15 @@ export interface Project {
   arrivageTM: string | null;
   arrivageGrossiste: string | null;
   nbCartons: number | null;
+  /**
+   * Montant de l'offre, en francs — « Montant OFR ».
+   *
+   * Sans lui, aucune analyse ne peut parler d'argent : le taux de
+   * transformation compte des mesures, le carnet compte des cabines, et la
+   * rentabilité par client, par fournisseur ou par région reste hors
+   * d'atteinte. C'est le seul chiffre qui manquait.
+   */
+  montantOFR: number | null;
   /** Noms des cabines encodés : "Cab1:Apt 28F 1er | Cab2:Apt 28A 2ème | ..." */
   nomsCabines: string;
   /** Monteurs responsables par cabine : "Cab1:Micael | Cab2:Claudio | ..." */
@@ -604,6 +613,7 @@ export function mapPageToProject(page: any): Project {
     arrivageTM: extractDate(p["Arrivage TM"]),
     arrivageGrossiste: extractDate(p["Arrivage Grossiste"]),
     nbCartons: extractNumber(p["Nb. de cartons"]),
+    montantOFR: extractNumber(p["Montant OFR"]),
   };
 }
 
@@ -1476,6 +1486,11 @@ export async function updateProject(
   if ((data as any).nbCartons !== undefined) {
     properties["Nb. de cartons"] = {
       number: (data as any).nbCartons,
+    };
+  }
+  if ((data as any).montantOFR !== undefined) {
+    properties["Montant OFR"] = {
+      number: (data as any).montantOFR,
     };
   }
   // === Champs éditables par l'admin depuis l'app ===
