@@ -1143,12 +1143,21 @@ html[data-ui="signal"] .sgA-group { display: block; margin-bottom: 2px; }
 html[data-ui="signal"] .sgA-card {
   background: transparent; border: none; border-radius: 0;
 }
+/* Date de livraison : la prévision en ambre tant que rien n'est arrivé, la
+   date d'arrivage en gris une fois la marchandise reçue. La couleur dit à
+   elle seule si l'on parle d'une annonce ou d'un fait. */
+html[data-ui="signal"] .sgA-livr {
+  font-size: 11px; text-align: right; white-space: nowrap; color: #b45309;
+}
+html[data-ui="signal"] .sgA-livr.is-arrive { color: var(--sg-text-3); }
+html[data-ui="signal"].dark .sgA-livr { color: #f0b866; }
+
 html[data-ui="signal"] .sgA-card:has(.sgA-row.is-sel) {
   background: var(--sg-paper); border: 1px solid var(--sg-line);
   border-radius: 10px; margin: 4px 0; overflow: hidden;
 }
 html[data-ui="signal"] .sgA-row {
-  grid-template-columns: 112px 104px minmax(0, 1fr) 128px 132px 92px 44px 20px;
+  grid-template-columns: 112px 104px minmax(0, 1fr) 128px 132px 92px 64px 44px 20px;
 }
 html[data-ui="signal"] .sgA-serie { text-align: right; }
 html[data-ui="signal"] .sg-pers {
@@ -2252,7 +2261,7 @@ html[data-ui="signal"].dark .sg-pv-sig.is-defaut { background: #3b0f0f; color: #
 
   /* Mêmes largeurs pour la vue Arrivage et les listes d'accueil. */
   html[data-ui="signal"] .sgA-row {
-    grid-template-columns: 104px 88px minmax(0, 1fr) 104px 96px 74px 40px 18px;
+    grid-template-columns: 104px 88px minmax(0, 1fr) 104px 96px 74px 58px 40px 18px;
     gap: 8px;
   }
   html[data-ui="signal"] .sg-plist-link {

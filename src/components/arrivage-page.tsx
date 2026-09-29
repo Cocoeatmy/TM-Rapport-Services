@@ -25,6 +25,8 @@ interface Project {
   cmdTMUsine: string;
   arrivageGrossiste: string | null;
   arrivageTM: string | null;
+  /** « Prévision livraison » — la seule date connue tant que rien n'est là. */
+  previsionLivraison: string | null;
   bonLivraison: string;
   photosBonLivraison: FileItem[];
   photosCartons: FileItem[];
@@ -653,6 +655,23 @@ export default function ArrivagePage() {
                   <span>{p.fournisseurs.join(", ") || "—"}</span>
                 </span>
                 <span className="sg-mono sg-dim sgA-serie">{p.seriesCabines.join(", ") || "—"}</span>
+                {/* Ce qu'on attend, et quand. L'arrivage effectif l'emporte :
+                    une fois la marchandise là, la prévision n'a plus d'objet.
+                    Sans l'une ni l'autre, un tiret — c'est alors la vérité. */}
+                {(() => {
+                  const arrive = p.arrivageTM || p.arrivageGrossiste;
+                  const quand = arrive || p.previsionLivraison;
+                  const titre = arrive
+                    ? "Arrivé le " + formatDateDisplay(arrive)
+                    : p.previsionLivraison
+                      ? "Livraison annoncée le " + formatDateDisplay(p.previsionLivraison) + " — pas encore reçue"
+                      : "Aucune date de livraison annoncée";
+                  return (
+                    <span className={"sg-mono sgA-livr" + (arrive ? " is-arrive" : "")} title={titre}>
+                      {formatDateDisplay(quand) || "—"}
+                    </span>
+                  );
+                })()}
                 <span className="sg-mono sg-right sg-strong">{p.nbCabines || 0}</span>
                 {isExpanded
                   ? <ChevronUp className="w-4 h-4 sg-plist-chev" />
@@ -716,6 +735,11 @@ export default function ArrivagePage() {
 
                 {/* Dates arrivage */}
                 <div className="flex flex-wrap gap-3 mt-1.5">
+                  {!p.arrivageTM && !p.arrivageGrossiste && p.previsionLivraison && (
+                    <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                      Livraison prévue&nbsp;: <span className="font-medium">{formatDateDisplay(p.previsionLivraison)}</span>
+                    </span>
+                  )}
                   {p.arrivageTM && (
                     <span className="text-[11px] text-gray-500 dark:text-gray-400">
                       Arrivage TM&nbsp;: <span className="font-medium text-gray-700 dark:text-gray-200">{formatDateDisplay(p.arrivageTM)}</span>
