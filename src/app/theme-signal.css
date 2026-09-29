@@ -2161,6 +2161,34 @@ html[data-ui="signal"] .sg-pv-tel {
 }
 html[data-ui="signal"] .sg-pv-tel:hover { background: var(--sg-signal-soft); }
 
+/* Famille de contacts : le grossiste avec son contact, le sanitaire avec le
+   sien. Un liseré à gauche tient la famille ensemble — sorti de sa maison,
+   un numéro ne dit plus à quel titre on appelle. */
+html[data-ui="signal"] .sg-pv-fam {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 7px 10px; border-radius: 9px;
+  background: var(--sg-paper-2);
+  border-left: 2px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-pv-fam-t {
+  font-family: var(--font-mono);
+  font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-pv-soc {
+  font-size: 12.5px; font-weight: 600; color: var(--sg-text); line-height: 1.35;
+}
+html[data-ui="signal"] .sg-pv-pers {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px;
+  font-size: 12px; color: var(--sg-text-2); line-height: 1.5;
+}
+html[data-ui="signal"] .sg-pv-pers b { font-weight: 500; color: var(--sg-text-2); }
+html[data-ui="signal"] .sg-pv-mail {
+  font-size: 11.5px; color: var(--sg-signal); text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+html[data-ui="signal"] .sg-pv-mail:hover { text-decoration: underline; }
+
 html[data-ui="signal"] .sg-pv-docs { display: flex; flex-direction: column; gap: 4px; }
 html[data-ui="signal"] .sg-pv-doc {
   display: block; padding: 6px 10px; border-radius: 8px;

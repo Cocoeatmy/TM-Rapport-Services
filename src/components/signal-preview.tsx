@@ -168,20 +168,8 @@ export function SignalPreviewCard({
       )}
 
       {/* Contacts : numéros cliquables, pour appeler sans ouvrir le projet. */}
-      {(p.contactsRDV || p.contacts) && (
-        <div className="sg-pv-bloc">
-          <span className="sg-pv-titre"><Phone className="w-3.5 h-3.5" /> Contacts</span>
-          {[
-            { t: "Pour RDV", v: p.contactsRDV },
-            { t: "Projet", v: p.contacts },
-          ].filter((c) => String(c.v || "").trim()).map((c) => (
-            <div key={c.t} className="sg-pv-contact">
-              <span className="sg-pv-contact-t">{c.t}</span>
-              <span className="sg-pv-contact-v">{linkifyTel(String(c.v))}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <ContactsProjet project={p} />
+
 
       {/* Documents pour Montage */}
       {((p as any).documentsMontagee || []).length > 0 && (
@@ -235,6 +223,107 @@ export function SignalPreviewCard({
 }
 
 
+
+/* ── Contacts du projet ──────────────────────────────────────────────────
+   Fixer un rendez-vous demande de savoir QUI appeler. Les listes ne portent
+   que les noms d'entreprises ; les personnes, leurs téléphones et leurs
+   adresses vivent dans des relations que seule la lecture d'une fiche
+   résout. On les lit donc à la demande, une fois par projet.
+
+   Les contacts restent groupés par famille — le grossiste avec son contact,
+   le sanitaire avec le sien : un numéro sorti de sa maison ne dit plus à
+   quel titre on appelle. Une famille vide ne s'affiche pas. */
+
+/** Ce qu'on garde d'une fiche déjà lue : inutile de la relire au survol suivant. */
+const ficheLue = new Map<string, Project>();
+
+type Personne = { nom: string; tel: string; mail: string };
+
+/** Personnes d'une famille : les fiches résolues d'abord, les noms sinon. */
+function personnes(details: any[] | undefined, noms: string[] | undefined): Personne[] {
+  if (details && details.length > 0) {
+    return details
+      .map((c) => ({ nom: String(c?.name || "").trim(), tel: String(c?.phone || "").trim(), mail: String(c?.email || "").trim() }))
+      .filter((c) => c.nom || c.tel || c.mail)
+      .map((c) => ({ ...c, nom: c.nom || c.tel || c.mail }));
+  }
+  /* Avant que la fiche complète ne soit lue, la liste ne connaît que des
+     noms : les montrer tout de suite vaut mieux qu'un vide qui se remplit. */
+  return (noms || []).map((n) => String(n || "").trim()).filter(Boolean)
+    .map((nom) => ({ nom, tel: "", mail: "" }));
+}
+
+function ContactsProjet({ project }: { project: Project }) {
+  const [fiche, setFiche] = useState<Project | null>(() => ficheLue.get(project.id) || null);
+
+  useEffect(() => {
+    const deja = ficheLue.get(project.id);
+    setFiche(deja || null);
+    if (deja) return;
+    let vivant = true;
+    /* L'aperçu suit le survol : sans ce délai, traverser la liste à la
+       souris déclencherait une lecture par ligne franchie. */
+    const t = setTimeout(() => {
+      fetch(`/api/projects/${project.id}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d || !d.id) return;
+          ficheLue.set(project.id, d);
+          if (vivant) setFiche(d);
+        })
+        .catch(() => {});
+    }, 300);
+    return () => { vivant = false; clearTimeout(t); };
+  }, [project.id]);
+
+  const p: any = fiche && fiche.id === project.id ? fiche : project;
+
+  const familles = [
+    { titre: "Grossiste", societes: p.grossistesNames, gens: personnes(p.contactsGrossisteDetails, p.contactsProjetNames) },
+    { titre: "Sanitaire", societes: p.sanitaireNames, gens: personnes(p.contactsSanitaireDetails, undefined) },
+    { titre: "DT", societes: p.dtNames, gens: personnes(p.contactsDTDetails, undefined) },
+    { titre: "Architecte", societes: p.architecteNames, gens: personnes(p.contactsArchitecteDetails, undefined) },
+    { titre: "Clients finaux", societes: [], gens: personnes(p.contactsClientsFinauxDetails, undefined) },
+    { titre: "Locataires", societes: [], gens: personnes(p.contactsLocatairesDetails, undefined) },
+    { titre: "Autres", societes: [], gens: personnes(p.contactsAutresDetails, undefined) },
+  ]
+    .map((f) => ({ ...f, societes: (f.societes || []).map((s: any) => String(s || "").trim()).filter(Boolean) }))
+    .filter((f) => f.societes.length > 0 || f.gens.length > 0);
+
+  /* Les deux champs libres de Notion complètent les relations sans les
+     remplacer : on les garde tant qu'ils servent. */
+  const libres = [
+    { t: "Pour RDV", v: String(p.contactsRDV || "").trim() },
+    { t: "Projet", v: String(p.contacts || "").trim() },
+  ].filter((c) => c.v);
+
+  if (familles.length === 0 && libres.length === 0) return null;
+
+  return (
+    <div className="sg-pv-bloc">
+      <span className="sg-pv-titre"><Phone className="w-3.5 h-3.5" /> Contacts</span>
+      {familles.map((f) => (
+        <div key={f.titre} className="sg-pv-fam">
+          <span className="sg-pv-fam-t">{f.titre}</span>
+          {f.societes.map((s: string) => <span key={s} className="sg-pv-soc">{s}</span>)}
+          {f.gens.map((g, i) => (
+            <span key={`${g.nom}-${i}`} className="sg-pv-pers">
+              <b>{g.nom}</b>
+              {g.tel && <a href={`tel:${g.tel.replace(/[^\d+]/g, "")}`} className="sg-pv-tel">{g.tel}</a>}
+              {g.mail && <a href={`mailto:${g.mail}`} className="sg-pv-mail">{g.mail}</a>}
+            </span>
+          ))}
+        </div>
+      ))}
+      {libres.map((c) => (
+        <div key={c.t} className="sg-pv-contact">
+          <span className="sg-pv-contact-t">{c.t}</span>
+          <span className="sg-pv-contact-v">{linkifyTel(c.v)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** Pièces manquantes et défauts encore ouverts sur ce projet. Ils vivent hors
  *  Notion (saisis dans l'app) : on les lit à la demande, par projet. */
