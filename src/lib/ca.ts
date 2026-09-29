@@ -69,6 +69,24 @@ export interface CA {
   parClient: LigneCA[];
   parFournisseur: LigneCA[];
   parRegion: LigneCA[];
+  /**
+   * Ce que les indicateurs financiers peuvent tirer d'eux-mêmes.
+   *
+   * Trois valeurs seulement, sur la douzaine que la page demande : les autres
+   * — salaires, trésorerie, stock, dettes — n'existent nulle part dans les
+   * données de l'application, et les deviner serait pire que les laisser
+   * vides. Un indicateur faux se propage en silence ; un indicateur absent
+   * se voit.
+   */
+  indicateurs: {
+    /** Clients facturés ayant au moins un chantier terminé sur la période. */
+    clientsActifs: number;
+    /** Ceux dont c'est le PREMIER chantier, tous exercices confondus. */
+    nouveauxClients: number;
+    /** Travail fait, pas encore facturé — de l'argent qu'on n'a pas réclamé. */
+    aFacturer: number;
+    aFacturerChantiers: number;
+  };
 }
 
 /**
@@ -164,6 +182,23 @@ export function chiffreAffaires(
 
   let total = 0, service = 0, cleEnMain = 0, cabines = 0, chiffres = 0, sansMontant = 0;
   const prixGlobal: number[] = [];
+  const clientsPeriode = new Set<string>();
+  let aFacturer = 0, aFacturerChantiers = 0;
+
+  /* Première apparition de chaque client, TOUS exercices confondus : un
+     « nouveau client » l'est dans l'absolu, pas dans la fenêtre affichée.
+     Le calculer sur la seule période ferait passer pour nouveau un client
+     de longue date dont on regarde une année isolée. */
+  const premiereFois = new Map<string, string>();
+  projets.forEach((p) => {
+    if (p.etatCMD !== "Terminé") return;
+    const j = String(p.dateMontage || "").slice(0, 10);
+    if (!j) return;
+    const k = cleClient(clientFacture(p).nom);
+    if (!k) return;
+    const vu = premiereFois.get(k);
+    if (!vu || j < vu) premiereFois.set(k, j);
+  });
 
   projets.forEach((p) => {
     if (p.etatCMD !== "Terminé") return;
@@ -175,6 +210,14 @@ export function chiffreAffaires(
     const montant = Number(p.montantOFR);
     if (!Number.isFinite(montant) || montant <= 0) { sansMontant += 1; return; }
     chiffres += 1;
+
+    const client = clientFacture(p).nom;
+    const kClient = cleClient(client);
+    if (kClient) clientsPeriode.add(kClient);
+    /* « À facturer » : le travail est fait, la facture n'est pas partie. Le
+       statut « En attente de rapport » compte aussi — le chantier est clos,
+       c'est notre propre retard qui bloque la facturation. */
+    if (p.facturations !== "Facturé") { aFacturer += montant; aFacturerChantiers += 1; }
 
     const type = prestation(p);
     const cab = Number(p.nbCabinesInstallees) || Number(p.nbCabines) || 0;
@@ -204,7 +247,7 @@ export function chiffreAffaires(
       carte.set(cle, l);
     };
 
-    ajouter(parClient, clientFacture(p).nom);
+    ajouter(parClient, client);
     ajouter(parFournisseur, (p.fournisseurs || [])[0] || "Non renseigné");
     ajouter(parRegion, regionLabel(`${p.adresseChantier || ""} ${p.projet || ""}`) || "Inconnue");
   });
@@ -259,6 +302,15 @@ export function chiffreAffaires(
         };
       })
       .sort((x, y) => x.mois.localeCompare(y.mois)),
+    indicateurs: {
+      clientsActifs: clientsPeriode.size,
+      nouveauxClients: [...clientsPeriode].filter((k) => {
+        const j = premiereFois.get(k);
+        return !!j && (!de || j >= de) && (!a || j <= a);
+      }).length,
+      aFacturer: Math.round(aFacturer),
+      aFacturerChantiers,
+    },
     parClient: conclure(parClient),
     parFournisseur: conclure(parFournisseur),
     parRegion: conclure(parRegion),

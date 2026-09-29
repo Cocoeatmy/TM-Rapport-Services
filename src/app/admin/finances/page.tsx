@@ -19,7 +19,7 @@ import Link from "next/link";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
 import {
   ArrowLeft, Loader2, Save, CheckCircle2, TrendingUp, Wallet, Timer,
-  PiggyBank, Users, Percent, Info,
+  PiggyBank, Users, Percent, Info, ReceiptText, Sparkles,
 } from "lucide-react";
 
 /* ── Champs à saisir ──────────────────────────────────────────────────────
@@ -120,8 +120,32 @@ export default function FinancesPage() {
   const [enregOk, setEnregOk] = useState(false);
 
   /* Chiffre d'affaires réel, par année, depuis la base statistique. */
+  /**
+   * Ce que l'application déduit seule, par exercice.
+   *
+   * Trois valeurs sur la douzaine que cette page demande. Les autres —
+   * salaires, trésorerie, stock, dettes fournisseurs — n'existent nulle part
+   * dans les données : les estimer donnerait des indicateurs faux, qui se
+   * propagent en silence là où un champ vide se voit.
+   */
+  const [deduits, setDeduits] = useState<{
+    clientsActifs: number; nouveauxClients: number;
+    aFacturer: number; aFacturerChantiers: number;
+  } | null>(null);
   const [caParAnnee, setCaParAnnee] = useState<Record<string, number>>({});
   const [annee, setAnnee] = useState<string>(String(new Date().getFullYear()));
+
+  /* Rechargé à chaque changement d'exercice : « clients actifs » n'a de sens
+     que rapporté à une année. */
+  useEffect(() => {
+    if (!annee) return;
+    let vivant = true;
+    fetch(`/api/stats/ca?de=${annee}-01-01&a=${annee}-12-31`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivant && d?.indicateurs) setDeduits(d.indicateurs); })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, [annee]);
 
   useEffect(() => {
     Promise.all([
@@ -308,12 +332,15 @@ export default function FinancesPage() {
       ? (n("tresorerie") as number) / chargesMois
       : null;
 
-    const vmc = n("nbClients") !== null && (n("nbClients") as number) > 0
-      ? ca / (n("nbClients") as number)
-      : null;
+    /* La saisie manuelle prime : on ne remplace jamais un chiffre écrit à la
+       main, on comble seulement le vide. */
+    const nbClients = n("nbClients") ?? deduits?.clientsActifs ?? null;
+    const nouveaux = n("nouveauxClients") ?? deduits?.nouveauxClients ?? null;
 
-    const cac = n("depensesAcquisition") !== null && n("nouveauxClients") !== null && (n("nouveauxClients") as number) > 0
-      ? (n("depensesAcquisition") as number) / (n("nouveauxClients") as number)
+    const vmc = nbClients !== null && nbClients > 0 ? ca / nbClients : null;
+
+    const cac = n("depensesAcquisition") !== null && nouveaux !== null && nouveaux > 0
+      ? (n("depensesAcquisition") as number) / nouveaux
       : null;
 
     const roi = n("investissement") !== null && (n("investissement") as number) > 0 && n("gainInvestissement") !== null
@@ -343,13 +370,26 @@ export default function FinancesPage() {
         id: "vmc", label: "Valeur moyenne client", Icon: Users, color: "#6d28d9",
         valeur: vmc === null ? null : fmtCHF(vmc),
         detail: `Chiffre d'affaires ${annee} divisé par le nombre de clients actifs.`,
-        manque: manque("nbClients"),
+        manque: nbClients !== null ? [] : manque("nbClients"),
+        deduit: n("nbClients") === null && nbClients !== null
+          ? `${nbClients} clients distincts, calculés sur les chantiers terminés` : null,
       },
       {
         id: "cac", label: "Coût d'acquisition client", Icon: Wallet, color: "#be123c",
         valeur: cac === null ? null : fmtCHF(cac),
         detail: "Dépenses d'acquisition divisées par le nombre de nouveaux clients.",
-        manque: manque("depensesAcquisition", "nouveauxClients"),
+        manque: manque("depensesAcquisition").concat(nouveaux === null ? manque("nouveauxClients") : []),
+        deduit: n("nouveauxClients") === null && nouveaux !== null
+          ? `${nouveaux} premiers chantiers cette année` : null,
+      },
+      {
+        id: "a-facturer", label: "À facturer", Icon: ReceiptText, color: "#b45309",
+        valeur: deduits && deduits.aFacturer > 0 ? fmtCHF(deduits.aFacturer) : null,
+        detail: "Chantiers terminés dont la facture n'est pas partie. De l'argent gagné qu'on n'a pas encore réclamé.",
+        manque: [],
+        deduit: deduits && deduits.aFacturer > 0
+          ? `${deduits.aFacturerChantiers} chantier${deduits.aFacturerChantiers > 1 ? "s" : ""} terminé${deduits.aFacturerChantiers > 1 ? "s" : ""}`
+          : null,
       },
       {
         id: "roi", label: "ROI", Icon: Percent, color: "#15803d",
@@ -443,6 +483,15 @@ export default function FinancesPage() {
                   {k.valeur ?? "—"}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{k.detail}</p>
+                {/* D'où vient le chiffre : une valeur déduite doit se
+                    distinguer d'une valeur saisie, sinon on ne sait plus ce
+                    qu'on regarde. */}
+                {"deduit" in k && k.deduit && (
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-2 flex items-start gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0 mt-px" />
+                    Calculé&nbsp;: {k.deduit}
+                  </p>
+                )}
                 {k.manque.length > 0 && (
                   <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2 flex items-start gap-1.5">
                     <Info className="w-3.5 h-3.5 shrink-0 mt-px" />

@@ -515,3 +515,47 @@ describe("offre contre facturé", () => {
     expect(ca.facture!.total).toBe(900);
   });
 });
+
+describe("indicateurs déduits", () => {
+  const fait = (o: Record<string, unknown> = {}) => p({
+    etatCMD: "Terminé", dateMontage: "2026-06-15", nbCabines: 1, nbCabinesInstallees: 1,
+    montantOFR: 1000, typeClient: "Fournisseur", fournisseursNames: ["Duka"],
+    fournisseurs: ["Duka"], cmdTM: "", cmdTMUsine: "", facturations: "Facturé", ...o,
+  });
+
+  it("compte les clients distincts, forme juridique neutralisée", () => {
+    /* « Nelo » et « Nelo GmbH » sont le même client : seule la forme juridique
+       est ôtée. Un mot de plus dans le nom — « Duka ch » — reste distinctif,
+       et c'est voulu : Gétaz Nyon n'est pas Gétaz Miauton. */
+    const ca = chiffreAffaires([
+      fait({ id: "a", fournisseursNames: ["Nelo"] }),
+      fait({ id: "b", fournisseursNames: ["Nelo GmbH"] }),
+      fait({ id: "c", fournisseursNames: ["Duka ch AG"] }),
+    ]);
+    expect(ca.indicateurs.clientsActifs).toBe(2);
+    expect(cleClient("Getaz Nyon")).not.toBe(cleClient("Gétaz Miauton"));
+  });
+
+  it("ne dit nouveau qu'un client dont c'est le premier chantier", () => {
+    /* Duka travaille avec nous depuis 2025 : sur l'exercice 2026 il est actif,
+       pas nouveau. Nelo, lui, arrive en 2026. */
+    const projets = [
+      fait({ id: "vieux", fournisseursNames: ["Duka"], dateMontage: "2025-03-01" }),
+      fait({ id: "suite", fournisseursNames: ["Duka"], dateMontage: "2026-06-15" }),
+      fait({ id: "neuf", fournisseursNames: ["Nelo"], dateMontage: "2026-06-15" }),
+    ];
+    const ca = chiffreAffaires(projets, "2026-01-01", "2026-12-31");
+    expect(ca.indicateurs.clientsActifs).toBe(2);
+    expect(ca.indicateurs.nouveauxClients).toBe(1);
+  });
+
+  it("compte ce qui est fait mais pas encore facturé", () => {
+    const ca = chiffreAffaires([
+      fait({ id: "ok" }),
+      fait({ id: "retard", facturations: "A facturer", montantOFR: 2500 }),
+      fait({ id: "rapport", facturations: "En attente de rapport", montantOFR: 700 }),
+    ]);
+    expect(ca.indicateurs.aFacturer).toBe(3200);
+    expect(ca.indicateurs.aFacturerChantiers).toBe(2);
+  });
+});
