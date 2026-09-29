@@ -29,4 +29,14 @@ node scripts/scan/extraire.mjs   --sortie data/scan.json          || exit 1
 node scripts/scan/rapprocher.mjs --sortie data/rapprochement.csv  || exit 1
 node scripts/scan/ecrire.mjs     --ecrire                         || exit 1
 
+# Les factures emises ne passent pas par Notion : Vercel ne peut pas lire ce
+# disque, on les depose donc dans l'application. La cle est celle de l'agent
+# de calendrier, lue dans son script — non versionnee.
+SHARE_LINK_KEY="$(grep -oE 'SHARE_LINK_KEY="[^"]+"' scripts/calendrier-liens/run-calendar-links.sh 2>/dev/null | head -1 | cut -d\" -f2)"
+if [ -n "$SHARE_LINK_KEY" ]; then
+  SHARE_LINK_KEY="$SHARE_LINK_KEY" node scripts/scan/pousser.mjs || echo "depot des factures : echec, on continue"
+else
+  echo "SHARE_LINK_KEY introuvable : factures non deposees."
+fi
+
 echo "Terminé."

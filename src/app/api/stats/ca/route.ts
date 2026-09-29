@@ -10,7 +10,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getAllProjectsRaw } from "@/lib/notion";
 import { cachedOrFetch } from "@/lib/server-cache";
-import { chiffreAffaires } from "@/lib/ca";
+import { chiffreAffaires, type FactureEmise } from "@/lib/ca";
+import { getData } from "@/lib/kv-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -31,7 +32,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const projets = await cachedOrFetch("projects-all-raw", getAllProjectsRaw);
-    return NextResponse.json(chiffreAffaires(projets, de, a));
+    /* Les factures viennent du Mac, pas de Notion. Leur absence n'est pas une
+       erreur — l'agent n'a peut-être pas encore tourné : le chiffre d'affaires
+       s'affiche alors sans la colonne facturée, plutôt que pas du tout. */
+    let factures: FactureEmise[] = [];
+    try { factures = await getData<FactureEmise>("factures-emises"); } catch { /* pas encore poussées */ }
+    return NextResponse.json(chiffreAffaires(projets, de, a, factures));
   } catch (e) {
     return NextResponse.json({ error: String((e as Error)?.message || e) }, { status: 500 });
   }

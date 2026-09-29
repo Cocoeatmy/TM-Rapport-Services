@@ -12,7 +12,7 @@ import {
   degatsLivraison, soloOuBinome, devenirMesures, clientFacture,
   delaisEtapes, reprises,
 } from "../lib/analyses";
-import { chiffreAffaires, prestation } from "../lib/ca";
+import { chiffreAffaires, prestation, cleClient } from "../lib/ca";
 
 const MAINTENANT = new Date("2026-09-27T12:00:00Z");
 const ilYA = (j: number) =>
@@ -470,5 +470,48 @@ describe("chiffre d'affaires", () => {
       ...lot(2, vendu({ dateMontage: "2025-06-15" })),
     ], "2026-01-01", "2026-12-31");
     expect(ca.chiffres).toBe(2);
+  });
+});
+
+describe("offre contre facturé", () => {
+  const vendu = (o: Record<string, unknown> = {}) => p({
+    etatCMD: "Terminé", dateMontage: "2026-06-15", nbCabines: 1, nbCabinesInstallees: 1,
+    montantOFR: 1000, typeClient: "Fournisseur", fournisseursNames: ["Duka"],
+    fournisseurs: ["Duka"], cmdTM: "", cmdTMUsine: "", ...o,
+  });
+  const f = (o: Record<string, unknown> = {}) =>
+    ({ num: "1", client: "Duka ch AG", date: "2026-06-20", ht: 900, ...o }) as never;
+
+  it("rapproche « Duka » et « Duka ch AG » sous une même clé", () => {
+    expect(cleClient("Duka ch AG")).toBe(cleClient("Duka ch"));
+    expect(cleClient("Nelo GmbH")).toBe(cleClient("Nelo"));
+    expect(cleClient("Gétaz Miauton")).not.toBe(cleClient("Getaz Nyon"));
+  });
+
+  it("compte le facturé à part, sur SA propre date", () => {
+    const ca = chiffreAffaires([vendu()], undefined, undefined, [f(), f({ num: "2", ht: 500 })]);
+    expect(ca.total).toBe(1000);
+    expect(ca.facture!.total).toBe(1400);
+    expect(ca.facture!.nombre).toBe(2);
+  });
+
+  it("montre un mois où l'on a facturé sans avoir posé", () => {
+    /* Le décalage est l'information : une facture de juillet sur un chantier
+       de juin ne doit pas disparaître de la courbe. */
+    const ca = chiffreAffaires([vendu()], undefined, undefined, [f({ date: "2026-07-05" })]);
+    const mois = ca.parMois.map((m) => m.mois);
+    expect(mois).toContain("2026-06");
+    expect(mois).toContain("2026-07");
+    expect(ca.parMois.find((m) => m.mois === "2026-07")!.total).toBe(0);
+  });
+
+  it("ne rend aucune ligne facturée quand rien n'a été poussé", () => {
+    expect(chiffreAffaires([vendu()]).facture).toBeNull();
+  });
+
+  it("respecte la fenêtre pour les factures aussi", () => {
+    const ca = chiffreAffaires([vendu()], "2026-06-01", "2026-06-30",
+      [f({ date: "2026-06-20" }), f({ num: "3", date: "2026-08-01", ht: 7777 })]);
+    expect(ca.facture!.total).toBe(900);
   });
 });

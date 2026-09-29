@@ -187,8 +187,15 @@ async function scannerFactures(compteur) {
        qu'une facture se rattache à un projet quand le numéro d'offre manque. */
     const reference = texte.replace(/\s+/g, " ")
       .match(/R[ée]f[ée]rence\s*:?\s*([A-Z0-9][A-Z0-9 \/.\-]{3,30}?)(?=\s{2}|\s[A-Z][a-z]|$)/i)?.[1]?.trim() || null;
+    /* Le client facturé est le deuxième segment du nom : « Facture n°2600575 -
+       Duscholux AG - … ». C'est l'entité à qui la facture est adressée, donc
+       le client au sens comptable — celui qui paie, pas celui chez qui l'on
+       pose. Aucun rapprochement avec un projet n'est nécessaire pour agréger
+       par client et par mois, et c'est heureux : sur mille quatre cents
+       factures, le rattachement au projet ne tient qu'aux deux tiers. */
+    const client = nom.replace(/^Facture\s*n?\u00b0?\s*\d+\s*-\s*/i, "").split(" - ")[0].trim();
     out.push({
-      num, ht, ttc,
+      num, ht, ttc, client,
       date: dateDuNom(nom),
       reference,
       /* Le sous-dossier « Facturé » marque les factures classées comme

@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-09-29T06:25:24.862Z",
+  "genereLe": "2026-09-29T07:16:13.302Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -992,6 +992,17 @@
       "gardePage": false,
       "methodes": [
         "GET"
+      ]
+    },
+    {
+      "url": "/api/stats/ca/factures",
+      "type": "api",
+      "fichier": "src/app/api/stats/ca/factures/route.ts",
+      "niveau": "proprietaire",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
       ]
     },
     {
