@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CaVue } from "@/components/ca-vue";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
@@ -107,6 +108,14 @@ export default function FinancesPage() {
       .catch(() => { router.replace("/"); setAutorise(false); });
   }, [router]);
   const [chargement, setChargement] = useState(true);
+  /* Deux onglets plutôt qu'une page de plus : les indicateurs financiers
+     posaient déjà ces questions, en attendant des chiffres qu'on n'avait pas.
+     L'onglet se lit dans l'adresse, pour qu'un lien mène droit au bon. */
+  const [onglet, setOnglet] = useState<"indicateurs" | "ca">("indicateurs");
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("onglet");
+    if (p === "ca") setOnglet("ca");
+  }, []);
   const [enreg, setEnreg] = useState(false);
   const [enregOk, setEnregOk] = useState(false);
 
@@ -379,7 +388,21 @@ export default function FinancesPage() {
         </div>
       </div>
 
-      {chargement ? (
+      <div className="flex gap-1.5 mb-4">
+        {([["indicateurs", "Indicateurs"], ["ca", "Chiffre d'affaires"]] as const).map(([k, l]) => (
+          <button key={k} onClick={() => {
+            setOnglet(k);
+            const u = new URL(window.location.href);
+            if (k === "ca") u.searchParams.set("onglet", "ca"); else u.searchParams.delete("onglet");
+            window.history.replaceState(null, "", u.pathname + u.search);
+          }}
+            className={`text-xs font-medium px-4 py-2 rounded-xl transition-colors ${
+              onglet === k ? "bg-[#1e3a5f] text-white" : "glass-card text-gray-600 dark:text-gray-300"
+            }`}>{l}</button>
+        ))}
+      </div>
+
+      {onglet === "ca" ? <CaVue /> : chargement ? (
         <p className="flex items-center gap-2 text-sm text-gray-400 py-10">
           <Loader2 className="w-4 h-4 animate-spin" /> Chargement…
         </p>

@@ -12,6 +12,7 @@ import {
   degatsLivraison, soloOuBinome, devenirMesures, clientFacture,
   delaisEtapes, reprises,
 } from "../lib/analyses";
+import { chiffreAffaires, prestation } from "../lib/ca";
 
 const MAINTENANT = new Date("2026-09-27T12:00:00Z");
 const ilYA = (j: number) =>
@@ -415,5 +416,59 @@ describe("ce que coûte de repasser", () => {
     ], "fournisseur", {}, undefined, undefined);
     expect(lignes[0].chantiers).toBe(10);
     expect(lignes[0].taux).toBe(10);
+  });
+});
+
+describe("chiffre d'affaires", () => {
+  const vendu = (o: Record<string, unknown> = {}) => p({
+    etatCMD: "Terminé", dateMontage: "2026-06-15", nbCabines: 2, nbCabinesInstallees: 2,
+    montantOFR: 1000, typeClient: "Fournisseur", fournisseursNames: ["Duka"],
+    fournisseurs: ["Duka"], cmdTM: "", cmdTMUsine: "",
+    ...o,
+  });
+
+  it("sépare le service du clé en main d'après la commande TM", () => {
+    expect(prestation(vendu())).toBe("service");
+    expect(prestation(vendu({ cmdTM: "CMD-1" }))).toBe("cle-en-main");
+    expect(prestation(vendu({ cmdTMUsine: "U-9" }))).toBe("cle-en-main");
+  });
+
+  it("ne mêle pas le prix d'une cabine à celui d'une pose", () => {
+    /* Trois poses à 500 la cabine, et un clé en main à 4000 la cabine. Le prix
+       par cabine doit rester celui du service — sinon la marchandise revendue
+       passerait pour une prestation. */
+    const ca = chiffreAffaires([
+      ...lot(3, vendu({ montantOFR: 1000 })),
+      vendu({ id: "clé", montantOFR: 8000, cmdTM: "CMD-1" }),
+    ]);
+    expect(ca.service).toBe(3000);
+    expect(ca.cleEnMain).toBe(8000);
+    expect(ca.total).toBe(11000);
+    expect(ca.medianeParCabine).toBe(500);
+  });
+
+  it("compte les montages terminés sans montant, pour ne pas laisser croire à un total complet", () => {
+    const ca = chiffreAffaires([...lot(2, vendu()), vendu({ id: "vide", montantOFR: null })]);
+    expect(ca.chiffres).toBe(2);
+    expect(ca.sansMontant).toBe(1);
+  });
+
+  it("n'attribue rien à un projet non terminé", () => {
+    expect(chiffreAffaires([vendu({ etatCMD: "RDV - fixé" })]).total).toBe(0);
+  });
+
+  it("répartit par client FACTURÉ, pas par sanitaire", () => {
+    const ca = chiffreAffaires(lot(3, vendu({
+      typeClient: "Fournisseur", fournisseursNames: ["Duka"], sanitaireNames: ["MMT SA"],
+    })));
+    expect(ca.parClient.map((l) => l.cle)).toEqual(["Duka"]);
+  });
+
+  it("respecte la fenêtre de dates", () => {
+    const ca = chiffreAffaires([
+      ...lot(2, vendu({ dateMontage: "2026-06-15" })),
+      ...lot(2, vendu({ dateMontage: "2025-06-15" })),
+    ], "2026-01-01", "2026-12-31");
+    expect(ca.chiffres).toBe(2);
   });
 });

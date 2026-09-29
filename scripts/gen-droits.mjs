@@ -48,6 +48,10 @@ function niveauDe(source, url) {
      admin, je refuse ». La seconde manquait, et les routes qui l'emploient
      étaient inventoriées comme simplement connectées — l'inventaire annonçait
      alors une protection plus faible que celle réellement en place. */
+  /* Plus strict que « admin » : une route verrouillee sur une adresse precise.
+     Le chiffre d'affaires est dans ce cas — un compte promu administrateur
+     plus tard n'a aucune raison d'en heriter. */
+  if (a(/PROPRIETAIRE|email\s*!==\s*["'][^"']+@/)) return "proprietaire";
   if (a(/role\s*===\s*["']admin["']/)) return "admin";
   if (a(/role\s*!==\s*["']admin["'][\s\S]{0,200}?(40[13]|Admin requis)/)) return "admin";
   const signe = a(/sign(Fiche|Sav|Synthese|Pdf|PdfClient|Signalements|Arrivage|Chantier|Doc|Mesure|PhotosZip)/);

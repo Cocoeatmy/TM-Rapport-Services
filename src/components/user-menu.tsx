@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, Package, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, Package, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins } from "lucide-react";
 import { getCollaboratorInitials } from "@/lib/collaborators";
 import { isSaveToGalleryEnabled, setSaveToGalleryEnabled } from "@/lib/save-to-gallery";
 import { toast } from "sonner";
@@ -15,6 +15,16 @@ interface UserData {
 }
 
 type UiMode = "classic" | "aurora" | "signal";
+
+/**
+ * Le chiffre d'affaires ne regarde qu'une personne.
+ *
+ * Verrouillé sur l'ADRESSE, pas sur le rôle : un compte promu administrateur
+ * plus tard — pour gérer les utilisateurs, par exemple — n'a aucune raison
+ * d'hériter du chiffre d'affaires au passage. La route API applique la même
+ * règle de son côté ; masquer une entrée de menu ne protège rien.
+ */
+const PROPRIETAIRE = "ferreira.micael@gmail.com";
 
 export function UserMenu() {
   const router = useRouter();
@@ -224,6 +234,15 @@ export function UserMenu() {
                 </span>
               )}
             </div>
+            {(user.email || "").toLowerCase() === PROPRIETAIRE && (
+              <button
+                onClick={() => { setOpen(false); router.push("/admin/finances?onglet=ca"); }}
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+              >
+                <Coins className="w-4 h-4" />
+                Stat CA
+              </button>
+            )}
             {/* Registre des garanties. Il occupait une place dans la barre de
                 navigation, à côté des vues qu'on ouvre plusieurs fois par jour,
                 alors qu'on le consulte rarement. Sous le thème Signal

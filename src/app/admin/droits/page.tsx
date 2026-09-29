@@ -34,6 +34,7 @@ const NIVEAUX: { id: string; titre: string; sens: string; ton: string }[] = [
   { id: "connecte", titre: "Connexion vérifiée", sens: "Le fichier vérifie lui-même le jeton. Tout collaborateur connecté y accède.", ton: "jaune" },
   { id: "admin-ecran", titre: "Admin — écran seulement", sens: "La page renvoie un non-admin à l'accueil, mais ce sont les API qu'elle appelle qui décident réellement.", ton: "jaune" },
   { id: "admin", titre: "Administrateur", sens: "Le rôle est vérifié côté serveur. Un collaborateur reçoit une erreur.", ton: "vert" },
+  { id: "proprietaire", titre: "Propriétaire seul", sens: "Verrouillé sur une adresse précise, pas sur le rôle : même un administrateur n'y accède pas.", ton: "vert" },
 ];
 
 export default function DroitsPage() {
