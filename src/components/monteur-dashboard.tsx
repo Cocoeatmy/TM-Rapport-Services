@@ -6271,9 +6271,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     // La pastille J+x d'en-tête n'a de sens qu'en mode « Par date » :
                     // en mode région la clé de groupe est un code postal.
                     const gInfo = sgRegion || key === "—" ? null : getDaysInfoFromDate(key);
+                    /* Un groupe sans date dont TOUTES les lignes attendent
+                       encore la marchandise ne relève pas d'un oubli de
+                       planification : ce qu'on y cherche est la prévision de
+                       livraison. Le titre le dit alors — mais seulement si
+                       aucune ligne déjà réceptionnée ne s'y trouve, sinon il
+                       promettrait une date qui n'a pas lieu d'exister. */
+                    const attenteLivraison = key === "—" && rows.length > 0
+                      && rows.every((p) => ["Cabines à recevoir", "Livraison partielle"].includes(p.etatCMD || ""));
                     const label = sgRegion
                       ? (key === "no-code" ? "Sans code postal" : sgNpaVille(rows[0]?.adresseChantier || rows[0]?.projet || ""))
-                      : key === "—" ? "Date non définie"
+                      : key === "—" ? (attenteLivraison ? "Prévision livraison" : "Date non définie")
                       : new Date(key + "T12:00:00").toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" });
                     return (
                       <div key={key} className="sg-grp-wrap">
@@ -6849,10 +6857,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   return { dateKey, dateLabel: label, isToday: false, isThisWeek: false, projects: projs };
                 }
                 const d = dateKey !== "no-date" ? new Date(dateKey + "T12:00:00") : null;
-                const label = d ? d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" }) : "Date non définie";
+                /* Cf. le groupe sans date de la vue scindée : quand rien n'est
+                   encore arrivé, le groupe attend une prévision de livraison,
+                   pas une date d'arrivage — et le préfixe « Date d'arrivage »
+                   n'aurait alors aucun sens. */
+                const attenteLivraison = dateKey === "no-date" && dayMap[dateKey].length > 0
+                  && dayMap[dateKey].every((p: any) => ["Cabines à recevoir", "Livraison partielle"].includes(p.etatCMD || ""));
+                const label = d ? d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" })
+                  : attenteLivraison ? "Prévision livraison" : "Date non définie";
                 const capLabel = label.charAt(0).toUpperCase() + label.slice(1);
                 // Préfixe explicite pour lever l'ambiguïté de la date du groupe.
-                const datePrefix = showSummaryPanel === "rdv-montage-a-fixer" ? "Date d'arrivage : " : "";
+                const datePrefix = showSummaryPanel === "rdv-montage-a-fixer" && d ? "Date d'arrivage : " : "";
                 return {
                   dateKey,
                   dateLabel: datePrefix + capLabel,
