@@ -47,6 +47,17 @@ function fetchAllProjectsCached(): Promise<any[]> {
   return _projectsCachePromise;
 }
 
+/** Un délai, avec ce qui permet de le vérifier. */
+interface Delai {
+  /** Jours médians — une moyenne serait écrasée par un chantier reporté. */
+  median: number | null;
+  /** Jours moyens, pour qui veut la comparer à la médiane. */
+  moyen: number | null;
+  /** Dossiers sur lesquels le délai est mesurable. */
+  cas: number;
+  projets: { id: string; ofrTM: string; projet: string; jours: number; de: string; a: string }[];
+}
+
 // Type de stats calculé pour une entité CRM
 interface EntityStats {
   totalProjects: number;
@@ -61,7 +72,18 @@ interface EntityStats {
   commandes: number;
   tauxTransfo: number;
   /** Jours médians entre le relevé de mesure et la pose. */
-  delaiJours: number | null;
+  /**
+   * Les deux attentes que subit un client, chacune comptée depuis SON point
+   * de départ — et c'est là que tout se joue.
+   *
+   *   • MESURE — de la demande reçue au relevé. C'est notre réactivité.
+   *   • MONTAGE — de l'ARRIVAGE de la marchandise à la pose. Compter depuis
+   *     la commande mêlerait le retard du fournisseur au nôtre : le client
+   *     attend peut-être six semaines, mais cinq sont chez le fabricant.
+   *     L'attente qui nous est imputable commence quand les cabines sont là.
+   */
+  delaiMesure: Delai;
+  delaiMontage: Delai;
   /** Cabines des douze derniers mois, et des douze précédents. */
   cabines12: number;
   cabines12Avant: number;
@@ -117,7 +139,9 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
   const nameField = ENTITY_NAMEFIELD[entityType];
   if (!nameField) return {
     totalProjects: 0, totalCabines: 0, mesuresCount: 0, savTM: 0, savTMCabines: 0,
-    offres: 0, commandes: 0, tauxTransfo: 0, delaiJours: null,
+    offres: 0, commandes: 0, tauxTransfo: 0,
+    delaiMesure: { median: null, moyen: null, cas: 0, projets: [] },
+    delaiMontage: { median: null, moyen: null, cas: 0, projets: [] },
     cabines12: 0, cabines12Avant: 0, montant: 0, montantManquants: 0,
     dernier: null, premier: null,
     fournisseurs: [], series: [], topClients: [],
@@ -232,15 +256,46 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
   /* ── Le délai que subit le client ──────────────────────────────────────
      Du relevé de mesure à la pose. On prend la MÉDIANE et non la moyenne :
      un chantier reporté d'un an écraserait tous les autres. */
-  const delais = related
-    .map((x: any) => {
-      const a = Date.parse(String(x.dateMesures || "").slice(0, 10));
-      const b = Date.parse(String(x.dateMontage || "").slice(0, 10));
-      return Number.isNaN(a) || Number.isNaN(b) ? null : Math.round((b - a) / 86400000);
-    })
-    .filter((d): d is number => d !== null && d >= 0)
-    .sort((x, y) => x - y);
-  const delaiJours = delais.length >= 3 ? delais[Math.floor(delais.length / 2)] : null;
+  /**
+   * Un délai entre deux dates d'un projet.
+   *
+   * Un écart négatif est une saisie incohérente, pas une attente. Au-delà de
+   * deux ans, c'est un dossier repris longtemps après : ni l'un ni l'autre ne
+   * dit quoi que ce soit du rythme habituel, et les garder déplacerait la
+   * moyenne sans rien apprendre.
+   */
+  const mesurerDelai = (source: any[], depart: (x: any) => string, arrivee: (x: any) => string): Delai => {
+    const lignes = source
+      .map((x: any) => {
+        const d = String(depart(x) || "").slice(0, 10);
+        const f = String(arrivee(x) || "").slice(0, 10);
+        const a = Date.parse(d), b = Date.parse(f);
+        if (Number.isNaN(a) || Number.isNaN(b)) return null;
+        const jours = Math.round((b - a) / 86400000);
+        if (jours < 0 || jours > 730) return null;
+        return { id: x.id, ofrTM: x.ofrTM || "", projet: x.projet || "Sans nom", jours, de: d, a: f };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((x, y) => y.jours - x.jours);
+    if (lignes.length === 0) return { median: null, moyen: null, cas: 0, projets: [] };
+    const tri = lignes.map((x) => x.jours).sort((x, y) => x - y);
+    return {
+      median: tri[Math.floor(tri.length / 2)],
+      moyen: Math.round(tri.reduce((s2, v) => s2 + v, 0) / tri.length),
+      cas: lignes.length,
+      projets: lignes,
+    };
+  };
+
+  /* Sur allRelated et non sur les seuls projets terminés : une mesure relevée
+     compte dès qu'elle est faite, même si le chantier n'a pas encore eu lieu.
+     Attendre la fin du montage retarderait l'indicateur de plusieurs mois. */
+  const delaiMesure = mesurerDelai(allRelated, (x) => x.dateMesuresRecue, (x) => x.dateMesures);
+  const delaiMontage = mesurerDelai(
+    allRelated,
+    (x) => x.arrivageTM || x.arrivageGrossiste,
+    (x) => x.dateMontage,
+  );
 
   /* ── La tendance ───────────────────────────────────────────────────────
      Douze mois glissants contre les douze précédents, INDÉPENDAMMENT du
@@ -282,7 +337,8 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
     offres,
     commandes,
     tauxTransfo,
-    delaiJours,
+    delaiMesure,
+    delaiMontage,
     cabines12,
     cabines12Avant,
     montant: Math.round(montant),
@@ -344,6 +400,8 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
   const [filterFrom,  setFilterFrom]  = useState("");
   const [filterTo,    setFilterTo]    = useState("");
   const [showRange,   setShowRange]   = useState(false);
+  /** Délai ouvert : un chiffre qu'on ne peut pas ouvrir ne se vérifie pas. */
+  const [delaiOuvert, setDelaiOuvert] = useState<{ titre: string; aide: string; delai: Delai } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -505,7 +563,7 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
           <TrendingUp className="w-3 h-3 text-gray-400" />
           <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">La relation</p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           <div title={`${stats.mesuresCount} mesures relevées → ${stats.offres} offres → ${stats.commandes} commandes`}>
             <p className="text-[9px] text-gray-400 uppercase tracking-wider">Transformation</p>
             <p className="text-base font-bold text-gray-800 dark:text-gray-100 leading-tight">
@@ -515,13 +573,25 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
               {stats.mesuresCount} → {stats.offres} → {stats.commandes}
             </p>
           </div>
-          <div title="Médiane entre le relevé de mesure et la pose — la moyenne serait écrasée par un chantier reporté">
-            <p className="text-[9px] text-gray-400 uppercase tracking-wider">Mesure → pose</p>
-            <p className="text-base font-bold text-gray-800 dark:text-gray-100 leading-tight">
-              {stats.delaiJours !== null ? `${stats.delaiJours} j` : "—"}
-            </p>
-            <p className="text-[9px] text-gray-400">médiane</p>
-          </div>
+          {/* Les deux attentes que subit ce client, ouvrables l'une et
+              l'autre : un délai qu'on ne peut pas ouvrir ne se vérifie pas. */}
+          {([
+            { cle: "mesure" as const, d: stats.delaiMesure, titre: "Demande → mesure",
+              aide: "De la demande de mesure reçue au relevé sur place." },
+            { cle: "montage" as const, d: stats.delaiMontage, titre: "Arrivage → montage",
+              aide: "De l'arrivée de la marchandise à la pose. Compter depuis la commande mêlerait le retard du fournisseur au nôtre." },
+          ]).map(({ cle, d, titre, aide }) => (
+            <button key={cle} type="button" title={aide} className="text-left"
+              onClick={() => d.cas > 0 && setDelaiOuvert({ titre, aide, delai: d })}>
+              <p className="text-[9px] text-gray-400 uppercase tracking-wider">{titre}</p>
+              <p className={`text-base font-bold leading-tight ${d.cas > 0 ? "text-gray-800 dark:text-gray-100 hover:text-blue-600" : "text-gray-300"}`}>
+                {d.median !== null ? `${d.median} j` : "—"}
+              </p>
+              <p className="text-[9px] text-gray-400">
+                {d.cas > 0 ? `médiane · ${d.cas} projet${d.cas > 1 ? "s" : ""}` : "aucune date"}
+              </p>
+            </button>
+          ))}
           <div title="Douze mois glissants comparés aux douze précédents, hors filtre de période">
             <p className="text-[9px] text-gray-400 uppercase tracking-wider">Tendance</p>
             {(() => {
@@ -564,6 +634,56 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
           </p>
         )}
       </div>
+
+      {/* Les projets derrière un délai, du plus long au plus court : c'est
+          l'exceptionnel qu'on veut inspecter, pas la moyenne. */}
+      {delaiOuvert && (
+        <>
+          <div className="fixed inset-0 z-[70] bg-black/30" onClick={() => setDelaiOuvert(null)} aria-hidden="true" />
+          <div className="fixed top-0 right-0 bottom-0 z-[71] w-[min(560px,94vw)] bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-gray-700 shadow-2xl flex flex-col"
+            role="dialog" aria-label={delaiOuvert.titre}>
+            <div className="flex items-start gap-3 px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                  {delaiOuvert.titre} — {entityName}
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {delaiOuvert.delai.cas} projet{delaiOuvert.delai.cas > 1 ? "s" : ""} ·
+                  {" "}médiane {delaiOuvert.delai.median} j · moyenne {delaiOuvert.delai.moyen} j
+                </p>
+                <p className="text-[11px] text-gray-400 mt-1">{delaiOuvert.aide}</p>
+              </div>
+              <button type="button" onClick={() => setDelaiOuvert(null)} aria-label="Fermer"
+                className="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-3 divide-y divide-gray-100 dark:divide-gray-700/50">
+              {delaiOuvert.delai.projets.map((x) => (
+                <a key={x.id} href={`/projet/${x.id}?mode=dashboard`}
+                  className="flex items-center gap-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-lg px-2 -mx-2">
+                  <span className="text-xs font-mono text-gray-400 shrink-0 w-24">{x.ofrTM || "—"}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-medium text-gray-800 dark:text-gray-100 truncate">{x.projet}</span>
+                    <span className="block text-[11px] text-gray-400">
+                      {new Date(x.de).toLocaleDateString("fr-CH")} → {new Date(x.a).toLocaleDateString("fr-CH")}
+                    </span>
+                  </span>
+                  <span className={`font-semibold tabular-nums shrink-0 ${x.jours > (delaiOuvert.delai.median ?? 0) * 2 ? "text-amber-600" : "text-gray-700 dark:text-gray-200"}`}>
+                    {x.jours} j
+                  </span>
+                </a>
+              ))}
+            </div>
+            <p className="px-5 py-3 text-[11px] text-gray-400 border-t border-gray-100 dark:border-gray-700">
+              La <b>médiane</b> mène l&apos;affichage : une moyenne serait écrasée par un
+              chantier reporté d&apos;un an. Les deux figurent ci-dessus. Les écarts négatifs
+              et ceux de plus de deux ans sont écartés — saisie incohérente ou dossier repris
+              longtemps après, ni l&apos;un ni l&apos;autre ne disant rien du rythme habituel.
+            </p>
+          </div>
+        </>
+      )}
 
       {/* ── Fournisseurs de cabines ── */}
       {stats.fournisseurs.length > 0 && (
