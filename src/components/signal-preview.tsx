@@ -120,15 +120,27 @@ export function SignalPreviewCard({
           { k: "EMPLACEMENT", v: p.emplacementCabine || "—" },
           { k: "ARRIVAGE", v: (p.arrivageTM || p.arrivageGrossiste || "").split("T")[0] || "—" },
           { k: "COLLABORATEUR", v: p.collaborateurs || "—" },
-          { k: "SÉRIE", v: (p.seriesCabines || []).join(", ") || "—" },
+          /* Plusieurs séries s'empilent au lieu de se suivre : côte à côte,
+             la seconde était coupée par la largeur de la case, et l'on ne
+             savait même pas qu'il y en avait une. */
+          { k: "SÉRIE", v: (p.seriesCabines || []).filter(Boolean) },
           { k: "CARTONS", v: p.nbCartons != null ? String(p.nbCartons) : "—" },
           { k: "PERS. MONTAGE", v: (p as any).nbCollaborateursMontage ? String((p as any).nbCollaborateursMontage) : "—" },
-        ]).map((f) => (
-          <div key={f.k} className="sg-field">
-            <span className="sg-field-k">{f.k}</span>
-            <span className="sg-field-v">{f.v}</span>
-          </div>
-        ))}
+        ] as { k: string; v: string | string[] }[]).map((f) => {
+          const liste = Array.isArray(f.v) ? f.v : null;
+          return (
+            <div key={f.k} className="sg-field">
+              <span className="sg-field-k">{f.k}</span>
+              {liste
+                ? (
+                  <span className="sg-field-v is-multi">
+                    {liste.length > 0 ? liste.map((x) => <i key={x}>{x}</i>) : "—"}
+                  </span>
+                )
+                : <span className="sg-field-v">{f.v}</span>}
+            </div>
+          );
+        })}
       </div>
 
       {/* Fournisseurs — logo quand la maison en a un, nom sinon. */}

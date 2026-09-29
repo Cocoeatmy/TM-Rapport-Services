@@ -1329,6 +1329,17 @@ html[data-ui="signal"] .sg-field-v {
   font-size: 13px; font-weight: 500; color: var(--sg-text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* Champ à plusieurs valeurs — les séries d'un projet multi-cabines. Empilées
+   plutôt qu'accolées : côte à côte, la seconde était coupée par la largeur de
+   la case, et rien ne signalait qu'elle existait. */
+html[data-ui="signal"] .sg-field-v.is-multi {
+  display: flex; flex-direction: column; gap: 1px;
+  white-space: normal; overflow: visible; text-overflow: clip;
+}
+html[data-ui="signal"] .sg-field-v.is-multi i {
+  font-style: normal; line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 html[data-ui="signal"] .sg-gauge-wrap { display: flex; flex-direction: column; gap: 7px; }
 html[data-ui="signal"] .sg-gauge-head {
   display: flex; align-items: baseline; justify-content: space-between;
