@@ -86,6 +86,12 @@ export interface CA {
     /** Travail fait, pas encore facturé — de l'argent qu'on n'a pas réclamé. */
     aFacturer: number;
     aFacturerChantiers: number;
+    /* Le détail derrière chaque compteur. Un chiffre qu'on ne peut pas ouvrir
+       est un chiffre qu'on ne peut pas vérifier — et « 56 clients » ne se
+       contrôle qu'en les lisant. */
+    detailClients: { nom: string; projets: number; total: number; nouveau: boolean }[];
+    detailNouveaux: { nom: string; date: string; ofrTM: string; projet: string; id: string }[];
+    detailAFacturer: { id: string; ofrTM: string; projet: string; montant: number; statut: string; date: string }[];
   };
 }
 
@@ -182,14 +188,18 @@ export function chiffreAffaires(
 
   let total = 0, service = 0, cleEnMain = 0, cabines = 0, chiffres = 0, sansMontant = 0;
   const prixGlobal: number[] = [];
-  const clientsPeriode = new Set<string>();
+  /* On garde le nom AFFICHABLE derrière chaque clé réduite : « nelo » ne se
+     montre pas, « Nelo GmbH » si. */
+  const clientsPeriode = new Map<string, { nom: string; projets: number; total: number }>();
+  const detailNouveaux: { nom: string; date: string; ofrTM: string; projet: string; id: string }[] = [];
+  const detailAFacturer: { id: string; ofrTM: string; projet: string; montant: number; statut: string; date: string }[] = [];
   let aFacturer = 0, aFacturerChantiers = 0;
 
   /* Première apparition de chaque client, TOUS exercices confondus : un
      « nouveau client » l'est dans l'absolu, pas dans la fenêtre affichée.
      Le calculer sur la seule période ferait passer pour nouveau un client
      de longue date dont on regarde une année isolée. */
-  const premiereFois = new Map<string, string>();
+  const premiereFois = new Map<string, { date: string; ofrTM: string; projet: string; id: string }>();
   projets.forEach((p) => {
     if (p.etatCMD !== "Terminé") return;
     const j = String(p.dateMontage || "").slice(0, 10);
@@ -197,7 +207,9 @@ export function chiffreAffaires(
     const k = cleClient(clientFacture(p).nom);
     if (!k) return;
     const vu = premiereFois.get(k);
-    if (!vu || j < vu) premiereFois.set(k, j);
+    if (!vu || j < vu.date) {
+      premiereFois.set(k, { date: j, ofrTM: p.ofrTM || "", projet: p.projet || "Sans nom", id: p.id });
+    }
   });
 
   projets.forEach((p) => {
@@ -213,11 +225,23 @@ export function chiffreAffaires(
 
     const client = clientFacture(p).nom;
     const kClient = cleClient(client);
-    if (kClient) clientsPeriode.add(kClient);
+    if (kClient) {
+      const cur = clientsPeriode.get(kClient) || { nom: client, projets: 0, total: 0 };
+      cur.projets += 1;
+      cur.total += montant;
+      clientsPeriode.set(kClient, cur);
+    }
     /* « À facturer » : le travail est fait, la facture n'est pas partie. Le
        statut « En attente de rapport » compte aussi — le chantier est clos,
        c'est notre propre retard qui bloque la facturation. */
-    if (p.facturations !== "Facturé") { aFacturer += montant; aFacturerChantiers += 1; }
+    if (p.facturations !== "Facturé") {
+      aFacturer += montant;
+      aFacturerChantiers += 1;
+      detailAFacturer.push({
+        id: p.id, ofrTM: p.ofrTM || "", projet: p.projet || "Sans nom",
+        montant: Math.round(montant), statut: p.facturations || "—", date: jour,
+      });
+    }
 
     const type = prestation(p);
     const cab = Number(p.nbCabinesInstallees) || Number(p.nbCabines) || 0;
@@ -302,15 +326,29 @@ export function chiffreAffaires(
         };
       })
       .sort((x, y) => x.mois.localeCompare(y.mois)),
-    indicateurs: {
-      clientsActifs: clientsPeriode.size,
-      nouveauxClients: [...clientsPeriode].filter((k) => {
-        const j = premiereFois.get(k);
+    indicateurs: (() => {
+      const estNouveau = (k: string) => {
+        const j = premiereFois.get(k)?.date;
         return !!j && (!de || j >= de) && (!a || j <= a);
-      }).length,
-      aFacturer: Math.round(aFacturer),
-      aFacturerChantiers,
-    },
+      };
+      const detailClients = [...clientsPeriode.entries()]
+        .map(([k, v]) => ({ nom: v.nom, projets: v.projets, total: Math.round(v.total), nouveau: estNouveau(k) }))
+        .sort((x, y) => y.total - x.total);
+      [...clientsPeriode.entries()].forEach(([k, v]) => {
+        const pr = premiereFois.get(k);
+        if (pr && estNouveau(k)) detailNouveaux.push({ nom: v.nom, ...pr });
+      });
+      detailNouveaux.sort((x, y) => x.date.localeCompare(y.date));
+      return {
+        clientsActifs: clientsPeriode.size,
+        nouveauxClients: detailNouveaux.length,
+        aFacturer: Math.round(aFacturer),
+        aFacturerChantiers,
+        detailClients,
+        detailNouveaux,
+        detailAFacturer: detailAFacturer.sort((x, y) => y.montant - x.montant),
+      };
+    })(),
     parClient: conclure(parClient),
     parFournisseur: conclure(parFournisseur),
     parRegion: conclure(parRegion),

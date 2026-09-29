@@ -19,7 +19,7 @@ import Link from "next/link";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
 import {
   ArrowLeft, Loader2, Save, CheckCircle2, TrendingUp, Wallet, Timer,
-  PiggyBank, Users, Percent, Info, ReceiptText, Sparkles,
+  PiggyBank, Users, Percent, Info, ReceiptText, Sparkles, X,
 } from "lucide-react";
 
 /* ── Champs à saisir ──────────────────────────────────────────────────────
@@ -131,7 +131,12 @@ export default function FinancesPage() {
   const [deduits, setDeduits] = useState<{
     clientsActifs: number; nouveauxClients: number;
     aFacturer: number; aFacturerChantiers: number;
+    detailClients: { nom: string; projets: number; total: number; nouveau: boolean }[];
+    detailNouveaux: { nom: string; date: string; ofrTM: string; projet: string; id: string }[];
+    detailAFacturer: { id: string; ofrTM: string; projet: string; montant: number; statut: string; date: string }[];
   } | null>(null);
+  /** Détail ouvert : un compteur qu'on ne peut pas ouvrir ne se vérifie pas. */
+  const [detail, setDetail] = useState<{ titre: string; sous: string; corps: React.ReactNode } | null>(null);
   const [caParAnnee, setCaParAnnee] = useState<Record<string, number>>({});
   const [annee, setAnnee] = useState<string>(String(new Date().getFullYear()));
 
@@ -410,6 +415,82 @@ export default function FinancesPage() {
     );
   }
 
+  /**
+   * Ce que recouvre un compteur.
+   *
+   * Trois listes, trois lectures différentes : qui sont mes clients, lesquels
+   * sont nouveaux, et quels chantiers attendent leur facture. Seule la
+   * dernière mène à des fiches projet — les deux autres décrivent des
+   * clients, qui n'ont pas de page à eux.
+   */
+  const ouvrirDetail = (id: string) => {
+    if (!deduits) return;
+    const lignes = (t: React.ReactNode[]) => <div className="divide-y divide-gray-100 dark:divide-gray-700/50">{t}</div>;
+
+    if (id === "vmc") {
+      setDetail({
+        titre: `Clients actifs ${annee}`,
+        sous: `${deduits.clientsActifs} clients distincts, du plus gros au plus petit`,
+        corps: lignes(deduits.detailClients.map((c) => (
+          <div key={c.nom} className="flex items-center gap-3 py-2 text-sm">
+            <span className="flex-1 min-w-0">
+              <span className="font-medium text-gray-800 dark:text-gray-100">{c.nom}</span>
+              {c.nouveau && (
+                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  nouveau
+                </span>
+              )}
+            </span>
+            <span className="text-xs text-gray-400 tabular-nums shrink-0">{c.projets} proj.</span>
+            <span className="font-semibold tabular-nums shrink-0">{fmtCHF(c.total)}</span>
+          </div>
+        ))),
+      });
+      return;
+    }
+
+    if (id === "cac") {
+      setDetail({
+        titre: `Nouveaux clients ${annee}`,
+        sous: `${deduits.nouveauxClients} clients dont c'est le premier chantier, tous exercices confondus`,
+        corps: lignes(deduits.detailNouveaux.map((c) => (
+          <Link key={c.id} href={`/projet/${c.id}?mode=dashboard`}
+            className="flex items-center gap-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-lg px-2 -mx-2">
+            <span className="text-xs font-mono text-gray-400 shrink-0 w-24">{c.ofrTM || "—"}</span>
+            <span className="flex-1 min-w-0">
+              <span className="block font-medium text-gray-800 dark:text-gray-100">{c.nom}</span>
+              <span className="block text-xs text-gray-400 truncate">{c.projet}</span>
+            </span>
+            <span className="text-xs text-gray-400 shrink-0">
+              {new Date(c.date).toLocaleDateString("fr-CH")}
+            </span>
+          </Link>
+        ))),
+      });
+      return;
+    }
+
+    if (id === "a-facturer") {
+      setDetail({
+        titre: "Chantiers à facturer",
+        sous: `${deduits.aFacturerChantiers} chantiers terminés, ${fmtCHF(deduits.aFacturer)} en attente`,
+        corps: lignes(deduits.detailAFacturer.map((x) => (
+          <Link key={x.id} href={`/projet/${x.id}?mode=dashboard`}
+            className="flex items-center gap-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-lg px-2 -mx-2">
+            <span className="text-xs font-mono text-gray-400 shrink-0 w-24">{x.ofrTM || "—"}</span>
+            <span className="flex-1 min-w-0">
+              <span className="block font-medium text-gray-800 dark:text-gray-100 truncate">{x.projet}</span>
+              <span className="block text-xs text-gray-400">
+                Monté le {new Date(x.date).toLocaleDateString("fr-CH")} · {x.statut}
+              </span>
+            </span>
+            <span className="font-semibold tabular-nums shrink-0">{fmtCHF(x.montant)}</span>
+          </Link>
+        ))),
+      });
+    }
+  };
+
   return (
     <div className="px-3 sm:px-4 py-4 w-full max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
@@ -487,10 +568,12 @@ export default function FinancesPage() {
                     distinguer d'une valeur saisie, sinon on ne sait plus ce
                     qu'on regarde. */}
                 {"deduit" in k && k.deduit && (
-                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-2 flex items-start gap-1.5">
+                  <button type="button"
+                    onClick={() => ouvrirDetail(k.id)}
+                    className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-2 flex items-start gap-1.5 text-left hover:underline underline-offset-2">
                     <Sparkles className="w-3.5 h-3.5 shrink-0 mt-px" />
-                    Calculé&nbsp;: {k.deduit}
-                  </p>
+                    <span>Calculé&nbsp;: {k.deduit}</span>
+                  </button>
                 )}
                 {k.manque.length > 0 && (
                   <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2 flex items-start gap-1.5">
@@ -630,6 +713,26 @@ export default function FinancesPage() {
               </>
             )}
           </div>
+
+          {detail && (
+            <>
+              <div className="fixed inset-0 z-[70] bg-black/30" onClick={() => setDetail(null)} aria-hidden="true" />
+              <div className="fixed top-0 right-0 bottom-0 z-[71] w-[min(560px,94vw)] bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-gray-700 shadow-2xl flex flex-col"
+                role="dialog" aria-label={detail.titre}>
+                <div className="flex items-start gap-3 px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{detail.titre}</h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{detail.sous}</p>
+                  </div>
+                  <button type="button" onClick={() => setDetail(null)} aria-label="Fermer"
+                    className="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-400 hover:text-gray-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto px-5 py-3">{detail.corps}</div>
+              </div>
+            </>
+          )}
 
           <div className="flex items-center gap-3 pb-10">
             <button
