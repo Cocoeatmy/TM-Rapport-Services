@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { Search, Mail, Phone, Building, User, Calendar, Loader2, AlertCircle, Tag, Pencil, Trash2, Plus, Check, X, Globe, MapPin, Hash, Camera, BarChart3, TrendingUp, Package, Layers, Filter, ChevronDown } from "lucide-react";
+import { createPortal } from "react-dom";
 import { thumbnailUrl } from "@/lib/image-url";
+import { joursOuvresEntre } from "@/lib/jours-ouvres";
 
 interface CRMEntry {
   id: string;
@@ -135,7 +137,10 @@ function projectMatchesFilter(p: any, f: StatsFilter): boolean {
   return true;
 }
 
-function computeEntityStats(projects: any[], entityName: string, entityType: string, filter?: StatsFilter): EntityStats {
+function computeEntityStats(
+  projects: any[], entityName: string, entityType: string,
+  filter?: StatsFilter, exclus: Set<string> = new Set(),
+): EntityStats {
   const nameField = ENTITY_NAMEFIELD[entityType];
   if (!nameField) return {
     totalProjects: 0, totalCabines: 0, mesuresCount: 0, savTM: 0, savTMCabines: 0,
@@ -266,13 +271,14 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
    */
   const mesurerDelai = (source: any[], depart: (x: any) => string, arrivee: (x: any) => string): Delai => {
     const lignes = source
+      .filter((x: any) => !exclus.has(x.id))
       .map((x: any) => {
         const d = String(depart(x) || "").slice(0, 10);
         const f = String(arrivee(x) || "").slice(0, 10);
-        const a = Date.parse(d), b = Date.parse(f);
-        if (Number.isNaN(a) || Number.isNaN(b)) return null;
-        const jours = Math.round((b - a) / 86400000);
-        if (jours < 0 || jours > 730) return null;
+        /* Jours OUVRÉS : compter les week-ends et les fériés vaudois
+           reprocherait à l'entreprise du temps où personne ne travaille. */
+        const jours = joursOuvresEntre(d, f);
+        if (jours === null) return null;
         return { id: x.id, ofrTM: x.ofrTM || "", projet: x.projet || "Sans nom", jours, de: d, a: f };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null)
@@ -290,9 +296,28 @@ function computeEntityStats(projects: any[], entityName: string, entityType: str
   /* Sur allRelated et non sur les seuls projets terminés : une mesure relevée
      compte dès qu'elle est faite, même si le chantier n'a pas encore eu lieu.
      Attendre la fin du montage retarderait l'indicateur de plusieurs mois. */
-  const delaiMesure = mesurerDelai(allRelated, (x) => x.dateMesuresRecue, (x) => x.dateMesures);
+  /**
+   * Les délais ne parlent que des chantiers que CETTE entité nous a confiés.
+   *
+   * Presque tous les projets portent un fournisseur — c'est lui qui fabrique
+   * la cabine. Mais un chantier Nelo mené en direct pour un particulier n'est
+   * pas un travail que Nelo nous a demandé : y mesurer notre réactivité
+   * envers Nelo n'a aucun sens. On exige donc que « Type de client »
+   * corresponde à la famille de la fiche ouverte.
+   */
+  const familleAttendue = entityType === "fournisseurs" ? "fournisseur"
+    : entityType === "grossistes" ? "grossiste"
+    : entityType === "entreprises" ? "sanitaire" : "";
+  const estSonClient = (x: any) => {
+    if (!familleAttendue) return true;
+    const t = String(x.typeClient || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    return t.startsWith(familleAttendue);
+  };
+  const pourDelais = allRelated.filter(estSonClient);
+
+  const delaiMesure = mesurerDelai(pourDelais, (x) => x.dateMesuresRecue, (x) => x.dateMesures);
   const delaiMontage = mesurerDelai(
-    allRelated,
+    pourDelais,
     (x) => x.arrivageTM || x.arrivageGrossiste,
     (x) => x.dateMontage,
   );
@@ -402,6 +427,38 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
   const [showRange,   setShowRange]   = useState(false);
   /** Délai ouvert : un chiffre qu'on ne peut pas ouvrir ne se vérifie pas. */
   const [delaiOuvert, setDelaiOuvert] = useState<{ titre: string; aide: string; delai: Delai } | null>(null);
+  /**
+   * Chantiers écartés des délais — attente non imputable à TM.
+   *
+   * Rien dans les données ne distingue « le client a reporté » d'un retard de
+   * notre part : la cause est extérieure. C'est donc une décision humaine,
+   * consignée avec son motif.
+   */
+  const [exclus, setExclus] = useState<Map<string, string>>(new Map());
+  const chargerExclus = useCallback(() => {
+    fetch("/api/delais-exclus")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((l: { projectId: string; motif: string }[]) =>
+        setExclus(new Map((Array.isArray(l) ? l : []).map((x) => [x.projectId, x.motif]))))
+      .catch(() => {});
+  }, []);
+  useEffect(() => { chargerExclus(); }, [chargerExclus]);
+
+  const basculerExclusion = async (projectId: string, ofrTM: string) => {
+    const dejaExclu = exclus.has(projectId);
+    const motif = dejaExclu ? "" : (window.prompt(
+      `Pourquoi écarter ${ofrTM || "ce chantier"} des statistiques de délai ?\n` +
+      "Exemple : chantier pas prêt, report du client, accès impossible.",
+    ) || "").trim();
+    if (!dejaExclu && !motif) return; // on n'exclut rien sans dire pourquoi
+    await fetch("/api/delais-exclus", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId, ofrTM, motif }),
+    }).catch(() => {});
+    chargerExclus();
+    setDelaiOuvert(null);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -431,8 +488,8 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
 
   const stats = useMemo(() => {
     if (!allProjects) return null;
-    return computeEntityStats(allProjects, entityName, entityType, hasFilter ? filter : undefined);
-  }, [allProjects, entityName, entityType, filterYear, filterMonth, filterFrom, filterTo]);
+    return computeEntityStats(allProjects, entityName, entityType, hasFilter ? filter : undefined, new Set(exclus.keys()));
+  }, [allProjects, entityName, entityType, filterYear, filterMonth, filterFrom, filterTo, exclus]);
 
   const resetFilter = () => { setFilterYear(null); setFilterMonth(null); setFilterFrom(""); setFilterTo(""); setShowRange(false); };
 
@@ -577,9 +634,9 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
               l'autre : un délai qu'on ne peut pas ouvrir ne se vérifie pas. */}
           {([
             { cle: "mesure" as const, d: stats.delaiMesure, titre: "Demande → mesure",
-              aide: "De la demande de mesure reçue au relevé sur place." },
+              aide: "De la demande de mesure reçue au relevé sur place, en jours ouvrés." },
             { cle: "montage" as const, d: stats.delaiMontage, titre: "Arrivage → montage",
-              aide: "De l'arrivée de la marchandise à la pose. Compter depuis la commande mêlerait le retard du fournisseur au nôtre." },
+              aide: "De l'arrivée de la marchandise à la pose, en jours ouvrés. Compter depuis la commande mêlerait le retard du fournisseur au nôtre." },
           ]).map(({ cle, d, titre, aide }) => (
             <button key={cle} type="button" title={aide} className="text-left"
               onClick={() => d.cas > 0 && setDelaiOuvert({ titre, aide, delai: d })}>
@@ -637,10 +694,14 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
 
       {/* Les projets derrière un délai, du plus long au plus court : c'est
           l'exceptionnel qu'on veut inspecter, pas la moyenne. */}
-      {delaiOuvert && (
+      {/* Porté dans <body> : la carte qui contient ce panneau porte un
+          `backdrop-filter`, et un tel ancêtre devient le repère des éléments
+          `fixed` — le tiroir se retrouvait piégé dedans, sa croix hors
+          d'atteinte. Même cause que pour les menus à cocher. */}
+      {delaiOuvert && typeof document !== "undefined" && createPortal(
         <>
-          <div className="fixed inset-0 z-[70] bg-black/30" onClick={() => setDelaiOuvert(null)} aria-hidden="true" />
-          <div className="fixed top-0 right-0 bottom-0 z-[71] w-[min(560px,94vw)] bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-gray-700 shadow-2xl flex flex-col"
+          <div className="fixed inset-0 z-[90] bg-black/30" onClick={() => setDelaiOuvert(null)} aria-hidden="true" />
+          <div className="fixed top-0 right-0 bottom-0 z-[91] w-[min(560px,94vw)] bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-gray-700 shadow-2xl flex flex-col"
             role="dialog" aria-label={delaiOuvert.titre}>
             <div className="flex items-start gap-3 px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex-1 min-w-0">
@@ -654,35 +715,61 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
                 <p className="text-[11px] text-gray-400 mt-1">{delaiOuvert.aide}</p>
               </div>
               <button type="button" onClick={() => setDelaiOuvert(null)} aria-label="Fermer"
-                className="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-400 hover:text-gray-600">
+                className="w-8 h-8 shrink-0 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-3 divide-y divide-gray-100 dark:divide-gray-700/50">
               {delaiOuvert.delai.projets.map((x) => (
-                <a key={x.id} href={`/projet/${x.id}?mode=dashboard`}
-                  className="flex items-center gap-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-lg px-2 -mx-2">
-                  <span className="text-xs font-mono text-gray-400 shrink-0 w-24">{x.ofrTM || "—"}</span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block font-medium text-gray-800 dark:text-gray-100 truncate">{x.projet}</span>
-                    <span className="block text-[11px] text-gray-400">
-                      {new Date(x.de).toLocaleDateString("fr-CH")} → {new Date(x.a).toLocaleDateString("fr-CH")}
+                <div key={x.id} className="flex items-center gap-3 py-2 text-sm">
+                  <a href={`/projet/${x.id}?mode=dashboard`}
+                    className="flex items-center gap-3 flex-1 min-w-0 hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-lg px-2 -mx-2 py-1">
+                    <span className="text-xs font-mono text-gray-400 shrink-0 w-24">{x.ofrTM || "—"}</span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-medium text-gray-800 dark:text-gray-100 truncate">{x.projet}</span>
+                      <span className="block text-[11px] text-gray-400">
+                        {new Date(x.de).toLocaleDateString("fr-CH")} → {new Date(x.a).toLocaleDateString("fr-CH")}
+                      </span>
                     </span>
-                  </span>
-                  <span className={`font-semibold tabular-nums shrink-0 ${x.jours > (delaiOuvert.delai.median ?? 0) * 2 ? "text-amber-600" : "text-gray-700 dark:text-gray-200"}`}>
-                    {x.jours} j
-                  </span>
-                </a>
+                    <span className={`font-semibold tabular-nums shrink-0 ${x.jours > (delaiOuvert.delai.median ?? 0) * 2 ? "text-amber-600" : "text-gray-700 dark:text-gray-200"}`}>
+                      {x.jours} j
+                    </span>
+                  </a>
+                  {/* Écarter une attente qui ne nous est pas imputable. Le
+                      motif est obligatoire : une correction sans trace serait
+                      invérifiable. */}
+                  <button type="button" onClick={() => basculerExclusion(x.id, x.ofrTM)}
+                    title="Écarter ce chantier des statistiques de délai"
+                    className="shrink-0 text-[10px] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-400 hover:text-amber-700 hover:border-amber-300">
+                    écarter
+                  </button>
+                </div>
               ))}
             </div>
+            {exclus.size > 0 && (
+              <div className="px-5 py-2 border-t border-gray-100 dark:border-gray-700 max-h-32 overflow-y-auto">
+                <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+                  Écartés des statistiques ({exclus.size})
+                </p>
+                {[...exclus.entries()].map(([id, motif]) => (
+                  <div key={id} className="flex items-center gap-2 text-[11px] text-gray-500 py-0.5">
+                    <span className="flex-1 min-w-0 truncate">{motif}</span>
+                    <button type="button" onClick={() => basculerExclusion(id, "")}
+                      className="text-blue-600 hover:underline shrink-0">réintégrer</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <p className="px-5 py-3 text-[11px] text-gray-400 border-t border-gray-100 dark:border-gray-700">
-              La <b>médiane</b> mène l&apos;affichage : une moyenne serait écrasée par un
-              chantier reporté d&apos;un an. Les deux figurent ci-dessus. Les écarts négatifs
-              et ceux de plus de deux ans sont écartés — saisie incohérente ou dossier repris
-              longtemps après, ni l&apos;un ni l&apos;autre ne disant rien du rythme habituel.
+              Délais en <b>jours ouvrés</b> : week-ends et jours fériés vaudois sont retirés,
+              puisque personne n&apos;y travaille. La <b>médiane</b> mène l&apos;affichage — une
+              moyenne serait écrasée par un chantier reporté d&apos;un an — mais les deux
+              figurent ci-dessus. Seuls les chantiers dont ce client est le <b>donneur
+              d&apos;ordre</b> sont comptés.
             </p>
           </div>
-        </>
+        </>,
+        document.body,
       )}
 
       {/* ── Fournisseurs de cabines ── */}

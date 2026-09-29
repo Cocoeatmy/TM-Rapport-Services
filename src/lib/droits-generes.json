@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-09-29T07:28:10.018Z",
+  "genereLe": "2026-09-29T18:22:27.593Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -363,6 +363,17 @@
         "POST",
         "DELETE",
         "PATCH"
+      ]
+    },
+    {
+      "url": "/api/delais-exclus",
+      "type": "api",
+      "fichier": "src/app/api/delais-exclus/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
       ]
     },
     {
