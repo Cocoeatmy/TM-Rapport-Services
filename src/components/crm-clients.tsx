@@ -101,6 +101,33 @@ interface EntityStats {
   topClients: { name: string; projects: number; cabines: number }[];
 }
 
+/**
+ * Ce projet a-t-il été commandé PAR cette entité ?
+ *
+ * Presque tous les chantiers portent un fournisseur — c'est lui qui fabrique
+ * la cabine — et souvent un grossiste et un sanitaire par-dessus. Apparaître
+ * sur un projet ne fait donc pas de vous son donneur d'ordre : un chantier
+ * Nelo mené en direct pour un particulier n'est pas un travail que Nelo nous
+ * a confié, et le compter dans ses statistiques lui attribuerait une activité
+ * qui n'est pas la sienne.
+ *
+ * Seul « Type de client » tranche, puisqu'il désigne celui à qui l'on facture.
+ * Les entreprises forment le reste : tout ce qui n'est ni fournisseur ni
+ * grossiste — un sanitaire, une régie, un architecte, un client final. Les
+ * énumérer serait se condamner à courir après chaque valeur ajoutée dans
+ * Notion ; les définir en creux les couvre toutes, y compris les futures.
+ */
+function estDonneurDOrdre(projet: any, entityType: string): boolean {
+  const t = String(projet?.typeClient || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const fournisseur = t.startsWith("fournisseur");
+  const grossiste = t.startsWith("grossiste");
+  if (entityType === "fournisseurs") return fournisseur;
+  if (entityType === "grossistes") return grossiste;
+  if (entityType === "entreprises") return !fournisseur && !grossiste;
+  return true;
+}
+
 // Champ de filtre selon le type d'entité CRM
 const ENTITY_NAMEFIELD: Record<string, string> = {
   entreprises: "sanitaireNames",
@@ -158,6 +185,7 @@ function computeEntityStats(
   const related = projects.filter((p) =>
     p.etatCMD === "Terminé" &&
     Array.isArray(p[nameField]) && p[nameField].some((n: string) => n.toLowerCase() === lc) &&
+    estDonneurDOrdre(p, entityType) &&
     (noFilter || projectMatchesFilter(p, filter!))
   );
 
@@ -173,6 +201,7 @@ function computeEntityStats(
      « Tout », 2026 et 2025, ce qui n'a aucun sens. */
   const allRelated = projects.filter((p) =>
     Array.isArray(p[nameField]) && p[nameField].some((n: string) => n.toLowerCase() === lc) &&
+    estDonneurDOrdre(p, entityType) &&
     (noFilter || projectMatchesFilter(p, filter!))
   );
   const mesuresCount = allRelated.filter((p) => !!p.dateMesures).length;
@@ -296,28 +325,11 @@ function computeEntityStats(
   /* Sur allRelated et non sur les seuls projets terminés : une mesure relevée
      compte dès qu'elle est faite, même si le chantier n'a pas encore eu lieu.
      Attendre la fin du montage retarderait l'indicateur de plusieurs mois. */
-  /**
-   * Les délais ne parlent que des chantiers que CETTE entité nous a confiés.
-   *
-   * Presque tous les projets portent un fournisseur — c'est lui qui fabrique
-   * la cabine. Mais un chantier Nelo mené en direct pour un particulier n'est
-   * pas un travail que Nelo nous a demandé : y mesurer notre réactivité
-   * envers Nelo n'a aucun sens. On exige donc que « Type de client »
-   * corresponde à la famille de la fiche ouverte.
-   */
-  const familleAttendue = entityType === "fournisseurs" ? "fournisseur"
-    : entityType === "grossistes" ? "grossiste"
-    : entityType === "entreprises" ? "sanitaire" : "";
-  const estSonClient = (x: any) => {
-    if (!familleAttendue) return true;
-    const t = String(x.typeClient || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    return t.startsWith(familleAttendue);
-  };
-  const pourDelais = allRelated.filter(estSonClient);
-
-  const delaiMesure = mesurerDelai(pourDelais, (x) => x.dateMesuresRecue, (x) => x.dateMesures);
+  /* La condition de donneur d'ordre s'applique déjà à `allRelated` : les
+     délais n'ont plus rien à écarter de leur côté. */
+  const delaiMesure = mesurerDelai(allRelated, (x) => x.dateMesuresRecue, (x) => x.dateMesures);
   const delaiMontage = mesurerDelai(
-    pourDelais,
+    allRelated,
     (x) => x.arrivageTM || x.arrivageGrossiste,
     (x) => x.dateMontage,
   );
@@ -477,6 +489,9 @@ function StatsPanel({ entityName, entityType }: { entityName: string; entityType
     allProjects.forEach((p) => {
       if (p.etatCMD !== "Terminé") return;
       if (!Array.isArray(p[nf]) || !p[nf].some((n: string) => n.toLowerCase() === lc)) return;
+      /* Même règle que les statistiques : une année proposée dans le filtre
+         doit contenir des chantiers, sinon on offre un onglet vide. */
+      if (!estDonneurDOrdre(p, entityType)) return;
       const d = projectRefDate(p);
       if (d) years.add(parseInt(d.slice(0, 4)));
     });
