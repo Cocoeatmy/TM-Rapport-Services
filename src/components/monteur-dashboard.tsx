@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
@@ -496,6 +497,94 @@ function LogoImg({ src }: { src: string }) {
 }
 
 // Get all working days (Mon-Fri) between start and end dates
+/**
+ * Menu à cocher qui échappe au cadre qui le contient.
+ *
+ * Posé en absolu dans le panneau, il était rogné : `.sg-panel` masque ce qui
+ * dépasse, pour ses coins arrondis. Au-delà de trois entrées, les suivantes
+ * disparaissaient sous le bord — visibles nulle part, et sans rien pour le
+ * signaler. On le porte donc dans `<body>`, positionné sous son bouton.
+ */
+function MenuCocher({ titre, options, masquees, onBasculer }: {
+  titre: string;
+  options: string[];
+  masquees: Set<string>;
+  onBasculer: (valeur: string) => void;
+}) {
+  const [ouvert, setOuvert] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btn = useRef<HTMLButtonElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
+
+  /* Recalculé à l'ouverture et au défilement : le panneau défile sous le
+     menu, qui doit rester collé à son bouton. */
+  useEffect(() => {
+    if (!ouvert) return;
+    const placer = () => {
+      const r = btn.current?.getBoundingClientRect();
+      if (!r) return;
+      // Jamais hors de l'écran à droite, ni sous le bas de la fenêtre.
+      const largeur = 240;
+      setPos({
+        top: Math.min(r.bottom + 6, window.innerHeight - 120),
+        left: Math.max(8, Math.min(r.left, window.innerWidth - largeur - 8)),
+      });
+    };
+    placer();
+    window.addEventListener("resize", placer);
+    window.addEventListener("scroll", placer, true);
+    return () => {
+      window.removeEventListener("resize", placer);
+      window.removeEventListener("scroll", placer, true);
+    };
+  }, [ouvert]);
+
+  useEffect(() => {
+    if (!ouvert) return;
+    const dehors = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (btn.current?.contains(t) || pop.current?.contains(t)) return;
+      setOuvert(false);
+    };
+    const echap = (e: KeyboardEvent) => { if (e.key === "Escape") setOuvert(false); };
+    document.addEventListener("pointerdown", dehors);
+    document.addEventListener("keydown", echap);
+    return () => {
+      document.removeEventListener("pointerdown", dehors);
+      document.removeEventListener("keydown", echap);
+    };
+  }, [ouvert]);
+
+  const actifs = options.length - masquees.size;
+  return (
+    <>
+      <button ref={btn} type="button"
+        className={`sg-filtre-btn${ouvert ? " is-on" : ""}`}
+        aria-expanded={ouvert}
+        onClick={(e) => { e.stopPropagation(); setOuvert((o) => !o); }}>
+        {titre}
+        {masquees.size > 0 && <b>{actifs}/{options.length}</b>}
+      </button>
+      {ouvert && typeof document !== "undefined" && createPortal(
+        <div ref={pop} className="sg-cocher" style={{ top: pos.top, left: pos.left }}
+          role="group" aria-label={titre}>
+          {options.map((o) => {
+            const off = masquees.has(o);
+            return (
+              <label key={o} className={`sg-coche${off ? " is-off" : ""}`}>
+                <input type="checkbox" checked={!off}
+                  onChange={(e) => { e.stopPropagation(); onBasculer(o); }} />
+                {o}
+              </label>
+            );
+          })}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 function formatLocalDate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -6069,50 +6158,20 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     pose. Un seul niveau de repli : ces deux rangées peuvent
                     faire vingt lignes sur un panneau bien fourni. */}
                 {rdvTypeOptions.length > 1 && (
-                  <details className="sg-filtre" open={hiddenTypeOf(showSummaryPanel).size > 0}>
-                    <summary>
-                      Type de client
-                      {hiddenTypeOf(showSummaryPanel).size > 0 && (
-                        <b>{rdvTypeOptions.length - hiddenTypeOf(showSummaryPanel).size}/{rdvTypeOptions.length}</b>
-                      )}
-                    </summary>
-                    <div className="sg-cocher">
-                      {rdvTypeOptions.map((t) => {
-                        const off = hiddenTypeOf(showSummaryPanel).has(t);
-                        return (
-                          <label key={t} className={`sg-coche${off ? " is-off" : ""}`}>
-                            <input type="checkbox" checked={!off}
-                              onChange={(e) => { e.stopPropagation(); toggleRdvType(showSummaryPanel as string, t); }} />
-                            {t}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </details>
+                  <MenuCocher
+                    titre="Type de client"
+                    options={rdvTypeOptions}
+                    masquees={hiddenTypeOf(showSummaryPanel)}
+                    onBasculer={(t) => toggleRdvType(showSummaryPanel as string, t)}
+                  />
                 )}
-
-                {/* Fournisseur — « quels chantiers Duka me reste-t-il ? ». */}
                 {rdvFournOptions.length > 1 && (
-                  <details className="sg-filtre" open={hiddenFournOf(showSummaryPanel).size > 0}>
-                    <summary>
-                      Fournisseur
-                      {hiddenFournOf(showSummaryPanel).size > 0 && (
-                        <b>{rdvFournOptions.length - hiddenFournOf(showSummaryPanel).size}/{rdvFournOptions.length}</b>
-                      )}
-                    </summary>
-                    <div className="sg-cocher">
-                      {rdvFournOptions.map((f) => {
-                        const off = hiddenFournOf(showSummaryPanel).has(f);
-                        return (
-                          <label key={f} className={`sg-coche${off ? " is-off" : ""}`}>
-                            <input type="checkbox" checked={!off}
-                              onChange={(e) => { e.stopPropagation(); toggleRdvFourn(showSummaryPanel as string, f); }} />
-                            {f}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </details>
+                  <MenuCocher
+                    titre="Fournisseur"
+                    options={rdvFournOptions}
+                    masquees={hiddenFournOf(showSummaryPanel)}
+                    onBasculer={(f) => toggleRdvFourn(showSummaryPanel as string, f)}
+                  />
                 )}
 
                 {/* Tout décocher un à un est vite fastidieux : un seul geste
