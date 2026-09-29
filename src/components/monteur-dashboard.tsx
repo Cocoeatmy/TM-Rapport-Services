@@ -6053,6 +6053,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
              arrivage encore à venir (« Cabines à recevoir ») tombait donc sur
              un « — » muet. On distingue désormais trois cas : jours écoulés
              (J+x), arrivage attendu (J−x, en bleu) et absence de date. */
+          /**
+           * Ce qu'on sait d'un chantier dont les cabines ne sont pas arrivées.
+           *
+           * Ni arrivage, ni rendez-vous : la colonne affichait un tiret, comme
+           * s'il n'y avait rien à en dire. « Prévision livraison » existe
+           * pourtant dans Notion, et c'est la seule date utile à ce stade —
+           * celle qui dit quand on pourra enfin planifier.
+           *
+           * On montre la DATE et non un « J−n » : le compte à rebours sert
+           * déjà à l'arrivage attendu, et les confondre ferait passer une
+           * annonce du fournisseur pour une livraison confirmée.
+           */
+          const sgPrevision = (raw: string) => {
+            const d = new Date(`${String(raw).split("T")[0]}T12:00:00`);
+            if (isNaN(d.getTime())) return null;
+            const texte = d.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" });
+            return {
+              text: texte,
+              cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+              title: `Livraison annoncée le ${d.toLocaleDateString("fr-CH")} — cabines pas encore reçues`,
+            };
+          };
           const sgDelay = (raw: string | null | undefined) => {
             const info = getDaysInfoFromDate(raw);
             if (info) return { text: `J+${info.days}`, cls: `${info.bgClass} ${info.colorClass}`, title: `Arrivé il y a ${info.days} jour${info.days > 1 ? "s" : ""}` };
@@ -6264,7 +6286,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           </span>
                         </div>
                         {rows.map((p) => {
-                          const j = sgDelay(dateGetter ? dateGetter(p) : null);
+                          const dateRef = dateGetter ? dateGetter(p) : null;
+                          /* Sans arrivage ni rendez-vous, la prévision de
+                             livraison prend le relais : elle vaut mieux qu'un
+                             tiret, qui laissait croire qu'on ne savait rien. */
+                          const j = (!dateRef && p.previsionLivraison
+                            ? sgPrevision(p.previsionLivraison) : null)
+                            || sgDelay(dateRef);
                           const etat = rdvStatusFieldFn(p) || "—";
                           const cls = STATUS_CMD_COLORS[etat] || STATUS_MESURES_COLORS[etat] || "bg-gray-100 text-gray-700";
                           const tm = parseTMNumbers(p.ofrTM || "");

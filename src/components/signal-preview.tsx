@@ -118,7 +118,11 @@ export function SignalPreviewCard({
           { k: "N° FOURN.", v: p.servCmdFournisseurs || p.cmdFournisseurs || p.servMesuresFournisseurs || "—" },
           { k: "NB. CABINES", v: String(total) },
           { k: "EMPLACEMENT", v: p.emplacementCabine || "—" },
-          { k: "ARRIVAGE", v: (p.arrivageTM || p.arrivageGrossiste || "").split("T")[0] || "—" },
+          /* Tant que rien n'est arrivé, la prévision est la seule date connue :
+             la taire laisserait croire qu'on ignore quand la marchandise vient. */
+          ...((p.arrivageTM || p.arrivageGrossiste)
+            ? [{ k: "ARRIVAGE", v: (p.arrivageTM || p.arrivageGrossiste || "").split("T")[0] }]
+            : [{ k: "LIVRAISON PRÉVUE", v: (p.previsionLivraison || "").split("T")[0] || "—" }]),
           { k: "COLLABORATEUR", v: p.collaborateurs || "—" },
           /* Plusieurs séries s'empilent au lieu de se suivre : côte à côte,
              la seconde était coupée par la largeur de la case, et l'on ne

@@ -277,6 +277,14 @@ export interface Project {
   photosDefautsSignale: FileItem[];
   arrivageTM: string | null;
   arrivageGrossiste: string | null;
+  /**
+   * « Prévision livraison » — quand les cabines sont annoncées.
+   *
+   * Seule date disponible tant que la marchandise n'est pas là : un chantier
+   * « Cabines à recevoir » n'a ni arrivage ni rendez-vous, et se rangeait donc
+   * sous « Date non définie », comme s'il n'y avait rien à en dire.
+   */
+  previsionLivraison: string | null;
   nbCartons: number | null;
   /**
    * Montant de l'offre, en francs — « Montant OFR ».
@@ -610,6 +618,7 @@ export function mapPageToProject(page: any): Project {
     journalEchanges: extractText(p["Journal des échanges"]),
     photosPiecesManquantes: extractFiles(p["Photos - Pièces manquante"]),
     photosDefautsSignale: extractFiles(p["Photos - Défauts signalé"]),
+    previsionLivraison: extractDate(p["Prévision livraison"]),
     arrivageTM: extractDate(p["Arrivage TM"]),
     arrivageGrossiste: extractDate(p["Arrivage Grossiste"]),
     nbCartons: extractNumber(p["Nb. de cartons"]),
