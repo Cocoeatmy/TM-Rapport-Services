@@ -505,8 +505,10 @@ function LogoImg({ src }: { src: string }) {
  * disparaissaient sous le bord — visibles nulle part, et sans rien pour le
  * signaler. On le porte donc dans `<body>`, positionné sous son bouton.
  */
-function MenuCocher({ titre, options, masquees, onBasculer }: {
+function MenuCocher({ titre, aide, options, masquees, onBasculer }: {
   titre: string;
+  /** Ce que le filtre recouvre vraiment — l'intitulé seul peut tromper. */
+  aide?: string;
   options: string[];
   masquees: Set<string>;
   onBasculer: (valeur: string) => void;
@@ -560,6 +562,7 @@ function MenuCocher({ titre, options, masquees, onBasculer }: {
     <>
       <button ref={btn} type="button"
         className={`sg-filtre-btn${ouvert ? " is-on" : ""}`}
+        title={aide}
         aria-expanded={ouvert}
         onClick={(e) => { e.stopPropagation(); setOuvert((o) => !o); }}>
         {titre}
@@ -568,6 +571,7 @@ function MenuCocher({ titre, options, masquees, onBasculer }: {
       {ouvert && typeof document !== "undefined" && createPortal(
         <div ref={pop} className="sg-cocher" style={{ top: pos.top, left: pos.left }}
           role="group" aria-label={titre}>
+          {aide && <p className="sg-cocher-aide">{aide}</p>}
           {options.map((o) => {
             const off = masquees.has(o);
             return (
@@ -5976,7 +5980,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         let rdvFournOptions: string[] = [];
         if (rdvStatusFieldFn) {
           const typeDe = (p: Project) => (clientFacture(p).type || "").trim() || "Non renseigné";
-          const fournDe = (p: Project) => (p.fournisseurs || []).filter(Boolean);
+          /**
+           * Le fournisseur ne compte que s'il est LE CLIENT.
+           *
+           * Presque tous les chantiers portent un fournisseur : c'est lui qui
+           * fabrique la cabine. Mais un chantier Duka.ch facturé à Gétaz est
+           * un chantier Gétaz — décocher « Duka.ch » ne doit pas le faire
+           * disparaître. Le filtre ne s'applique donc qu'aux projets dont
+           * « Type de client » vaut Fournisseur ; les autres le traversent,
+           * comme le font déjà les projets sans fournisseur.
+           */
+          const fournDe = (p: Project) =>
+            clientFacture(p).type === "Fournisseur" ? (p.fournisseurs || []).filter(Boolean) : [];
 
           const hType = hiddenTypeOf(showSummaryPanel);
           rdvTypeOptions = [...new Set([...panelProjects.map(typeDe), ...hType])]
@@ -6160,6 +6175,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {rdvTypeOptions.length > 1 && (
                   <MenuCocher
                     titre="Type de client"
+                    aide="À qui l'on facture, d'après « Type de client » — et non l'entreprise chez qui l'on pose."
                     options={rdvTypeOptions}
                     masquees={hiddenTypeOf(showSummaryPanel)}
                     onBasculer={(t) => toggleRdvType(showSummaryPanel as string, t)}
@@ -6168,6 +6184,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {rdvFournOptions.length > 1 && (
                   <MenuCocher
                     titre="Fournisseur"
+                    aide="Ne concerne que les chantiers dont le client facturé EST le fournisseur. Un chantier Duka posé pour un grossiste n'est pas touché."
                     options={rdvFournOptions}
                     masquees={hiddenFournOf(showSummaryPanel)}
                     onBasculer={(f) => toggleRdvFourn(showSummaryPanel as string, f)}

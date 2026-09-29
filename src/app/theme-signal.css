@@ -4250,3 +4250,10 @@ html[data-ui="signal"] .sg-coche {
 html[data-ui="signal"] .sg-coche:hover { background: var(--sg-paper-2); }
 html[data-ui="signal"] .sg-coche.is-off { color: var(--sg-text-3); }
 html[data-ui="signal"] .sg-coche input { accent-color: var(--sg-signal); flex-shrink: 0; }
+/* Ce que le filtre recouvre, écrit dans le menu : « Fournisseur » seul
+   laisserait croire qu'il porte sur la provenance de la marchandise. */
+html[data-ui="signal"] .sg-cocher-aide {
+  margin: 0 0 6px 0; padding: 0 7px 6px 7px;
+  border-bottom: 1px solid var(--sg-line);
+  font-size: 10.5px; line-height: 1.4; color: var(--sg-text-3);
+}
