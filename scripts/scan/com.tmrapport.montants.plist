@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.tmrapport.montants</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/ferreiramicael/Desktop/iA/Projets APP/TM Rapport/scripts/scan/run-scan.sh</string>
+	</array>
+
+	<!-- Une fois par jour, à 6 h. Avant le rapport du matin, pour que les
+	     montants de la veille y soient. -->
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key><integer>6</integer>
+		<key>Minute</key><integer>0</integer>
+	</dict>
+
+	<!-- Le Mac est en veille à 6 h : launchd lance alors le passage manqué dès
+	     le réveil, plutôt que d'attendre le lendemain. -->
+	<key>RunAtLoad</key>
+	<false/>
+
+	<!-- Priorité basse : ce travail cède le pas à l'usage interactif. -->
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>LowPriorityIO</key>
+	<true/>
+	<key>Nice</key>
+	<integer>5</integer>
+
+	<key>StandardOutPath</key>
+	<string>/tmp/tm-montants.log</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/tm-montants.err</string>
+</dict>
+</plist>
