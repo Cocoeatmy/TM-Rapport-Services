@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-09-29T07:16:13.302Z",
+  "genereLe": "2026-09-29T07:28:10.018Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -26,6 +26,7 @@
     ],
     "exacts": [
       "/login",
+      "/api/stats/ca/factures",
       "/manifest.json",
       "/favicon.ico",
       "/sw.js"

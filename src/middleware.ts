@@ -13,6 +13,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/cron/") ||
     pathname.startsWith("/api/client/") ||
     pathname.startsWith("/api/share-link") || // protégé par sa propre clé (SHARE_LINK_KEY)
+    // Dépôt des factures par l'agent du Mac : il n'a pas de session, et
+    // présente la même clé partagée. La route vérifie elle-même la clé en
+    // écriture, et l'adresse du propriétaire en lecture.
+    pathname === "/api/stats/ca/factures" ||
     pathname.startsWith("/api/doc") || // liens documents des emails (protégé par signature HMAC)
     pathname.startsWith("/api/fiche") || // PDF Fiche de travail (protégé par signature HMAC ou cookie admin)
     pathname.startsWith("/api/sav") || // PDF Rapport SAV (protégé par signature HMAC ou cookie admin)
