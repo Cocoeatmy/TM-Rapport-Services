@@ -2595,7 +2595,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const dossiersEnCoursCabines = dossiersEnCoursProjects.reduce((sum, p) => sum + (p.nbCabines || 0), 0);
 
   // ── RDV à fixer (4 catégories) ────────────────────────────────────────────
-  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel", "Livraison partielle", "Cabines à recevoir"];
+  /* « Cabines en CMD » y figure aussi : la commande est passée, le rendez-vous
+     reste à fixer. L'écarter revenait à ne voir ces chantiers qu'une fois la
+     marchandise annoncée — trop tard pour caler une date avec le client. */
+  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel", "Livraison partielle", "Cabines à recevoir", "Cabines en CMD"];
   const rdvMesuresAFixerProjects = projects
     .filter(aMesurerAFixer)
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
@@ -6278,7 +6281,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                        aucune ligne déjà réceptionnée ne s'y trouve, sinon il
                        promettrait une date qui n'a pas lieu d'exister. */
                     const attenteLivraison = key === "—" && rows.length > 0
-                      && rows.every((p) => ["Cabines à recevoir", "Livraison partielle"].includes(p.etatCMD || ""));
+                      && rows.every((p) => ["Cabines à recevoir", "Livraison partielle", "Cabines en CMD"].includes(p.etatCMD || ""));
                     const label = sgRegion
                       ? (key === "no-code" ? "Sans code postal" : sgNpaVille(rows[0]?.adresseChantier || rows[0]?.projet || ""))
                       : key === "—" ? (attenteLivraison ? "Prévision livraison" : "Date non définie")
@@ -6862,7 +6865,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                    pas une date d'arrivage — et le préfixe « Date d'arrivage »
                    n'aurait alors aucun sens. */
                 const attenteLivraison = dateKey === "no-date" && dayMap[dateKey].length > 0
-                  && dayMap[dateKey].every((p: any) => ["Cabines à recevoir", "Livraison partielle"].includes(p.etatCMD || ""));
+                  && dayMap[dateKey].every((p: any) => ["Cabines à recevoir", "Livraison partielle", "Cabines en CMD"].includes(p.etatCMD || ""));
                 const label = d ? d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" })
                   : attenteLivraison ? "Prévision livraison" : "Date non définie";
                 const capLabel = label.charAt(0).toUpperCase() + label.slice(1);
@@ -7491,7 +7494,10 @@ function CollaborateurDashboard({ userName, projects, onNavigate }: { userName: 
   const emplacementAutres = emplacementAll.filter((p) => p.emplacementCabine !== "Dépôt TM").reduce((s, p) => s + (p.nbCabines || 0), 0);
 
   // ── RDV à fixer (GLOBAUX, comme l'admin — pas filtrés par monteur) ─────────
-  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel", "Livraison partielle", "Cabines à recevoir"];
+  /* « Cabines en CMD » y figure aussi : la commande est passée, le rendez-vous
+     reste à fixer. L'écarter revenait à ne voir ces chantiers qu'une fois la
+     marchandise annoncée — trop tard pour caler une date avec le client. */
+  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel", "Livraison partielle", "Cabines à recevoir", "Cabines en CMD"];
   const isServiceProject = (p: Project) => (p.typeServices || []).some((t) => t === "Services" || t.includes("Services"));
   const byProjet = (a: Project, b: Project) => (a.projet || "").localeCompare(b.projet || "");
   const rdvMesuresAFixer = projects.filter(aMesurerAFixer).sort(byProjet);
