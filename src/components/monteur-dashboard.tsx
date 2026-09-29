@@ -11,6 +11,7 @@ import { TourneeAssistant } from "@/components/tournee-assistant";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
+import { clientFacture } from "@/lib/analyses";
 import { PersonalStats } from "@/components/personal-stats";
 
 // ─── Citations motivantes quotidiennes (365) ────────────────────────────────
@@ -1584,6 +1585,57 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       return next;
     });
   };
+  /**
+   * Deux filtres de plus sur les panneaux « RDV … à fixer », même mécanique
+   * que celui des états : on mémorise ce qui est DÉCOCHÉ, par panneau.
+   *
+   * Garder les exclusions plutôt que les inclusions a une conséquence utile :
+   * un fournisseur ou un type de client qui apparaît pour la première fois
+   * est visible d'emblée. L'inverse l'aurait caché en silence jusqu'à ce
+   * qu'on pense à le cocher.
+   */
+  const [rdvHiddenTypeByPanel, setRdvHiddenTypeByPanel] = useState<Record<string, string[]>>(() => {
+    if (typeof window !== "undefined") {
+      try { const s = localStorage.getItem("tm-rdv-hidden-type"); if (s) return JSON.parse(s); } catch {}
+    }
+    return {};
+  });
+  const [rdvHiddenFournByPanel, setRdvHiddenFournByPanel] = useState<Record<string, string[]>>(() => {
+    if (typeof window !== "undefined") {
+      try { const s = localStorage.getItem("tm-rdv-hidden-fourn"); if (s) return JSON.parse(s); } catch {}
+    }
+    return {};
+  });
+  const hiddenTypeOf = (panel: string | null) => new Set(panel ? (rdvHiddenTypeByPanel[panel] || []) : []);
+  const hiddenFournOf = (panel: string | null) => new Set(panel ? (rdvHiddenFournByPanel[panel] || []) : []);
+  const basculer = (
+    set: React.Dispatch<React.SetStateAction<Record<string, string[]>>>,
+    cle: string,
+  ) => (panel: string, valeur: string) => {
+    set((prev) => {
+      const cur = new Set(prev[panel] || []);
+      if (cur.has(valeur)) cur.delete(valeur); else cur.add(valeur);
+      const next = { ...prev, [panel]: [...cur] };
+      try { localStorage.setItem(cle, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+  const toggleRdvType = basculer(setRdvHiddenTypeByPanel, "tm-rdv-hidden-type");
+  const toggleRdvFourn = basculer(setRdvHiddenFournByPanel, "tm-rdv-hidden-fourn");
+  /** Tout réafficher d'un geste : décocher un à un est vite fastidieux. */
+  const toutAfficher = (panel: string) => {
+    setRdvHiddenTypeByPanel((prev) => {
+      const next = { ...prev, [panel]: [] };
+      try { localStorage.setItem("tm-rdv-hidden-type", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setRdvHiddenFournByPanel((prev) => {
+      const next = { ...prev, [panel]: [] };
+      try { localStorage.setItem("tm-rdv-hidden-fourn", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
   const [calendarMonth, setCalendarMonth] = useState<{ year: number; month: number }>(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [calendarSelectedDay, setCalendarSelectedDay] = useState<string | null>(null);
   /* Légende du calendrier Signal : libellé de collaborateur/binôme épinglé.
@@ -5820,6 +5872,43 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           });
           if (hidden.size > 0) panelProjects = panelProjects.filter((p) => !hidden.has(rdvStatusFieldFn(p)));
         }
+
+        /* ── Type de client, et fournisseur ────────────────────────────────
+           Deux questions différentes. « Quels chantiers Duka me reste-t-il à
+           planifier ? » se pose au fournisseur ; « combien de chantiers en
+           direct chez un sanitaire ? » se pose au type de client — celui que
+           désigne « Type de client », donc celui à qui l'on facture, et non
+           l'entreprise chez qui l'on pose.
+
+           Comme pour les états, les options listent le PRÉSENT ∪ le MASQUÉ :
+           un fournisseur entièrement décoché doit rester recochable, même
+           s'il ne reste plus aucune ligne visible. */
+        let rdvTypeOptions: string[] = [];
+        let rdvFournOptions: string[] = [];
+        if (rdvStatusFieldFn) {
+          const typeDe = (p: Project) => (clientFacture(p).type || "").trim() || "Non renseigné";
+          const fournDe = (p: Project) => (p.fournisseurs || []).filter(Boolean);
+
+          const hType = hiddenTypeOf(showSummaryPanel);
+          rdvTypeOptions = [...new Set([...panelProjects.map(typeDe), ...hType])]
+            .sort((a, b) => a.localeCompare(b, "fr"));
+          if (hType.size > 0) panelProjects = panelProjects.filter((p) => !hType.has(typeDe(p)));
+
+          const hFourn = hiddenFournOf(showSummaryPanel);
+          rdvFournOptions = [...new Set([...panelProjects.flatMap(fournDe), ...hFourn])]
+            .sort((a, b) => a.localeCompare(b, "fr"));
+          /* Un projet à deux fournisseurs reste visible tant qu'il en garde
+             un coché : le masquer entièrement ferait disparaître un chantier
+             qu'on cherche encore. Un projet sans fournisseur n'est jamais
+             masqué par ce filtre — il n'a rien à opposer. */
+          if (hFourn.size > 0) {
+            panelProjects = panelProjects.filter((p) => {
+              const f = fournDe(p);
+              return f.length === 0 || f.some((x) => !hFourn.has(x));
+            });
+          }
+          rdvHiddenCount += hType.size + hFourn.size;
+        }
         // Recherche LOCALE au panneau (uniquement panneaux "RDV … à fixer") :
         // multi-mots (ET) + insensible aux accents/casse, sur les champs texte du
         // projet. Ne filtre QUE parmi les projets déjà présents dans le panneau.
@@ -5976,6 +6065,65 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     );
                   })}
                 </div>
+                {/* Type de client — à qui l'on facture, et non chez qui l'on
+                    pose. Un seul niveau de repli : ces deux rangées peuvent
+                    faire vingt lignes sur un panneau bien fourni. */}
+                {rdvTypeOptions.length > 1 && (
+                  <details className="sg-filtre" open={hiddenTypeOf(showSummaryPanel).size > 0}>
+                    <summary>
+                      Type de client
+                      {hiddenTypeOf(showSummaryPanel).size > 0 && (
+                        <b>{rdvTypeOptions.length - hiddenTypeOf(showSummaryPanel).size}/{rdvTypeOptions.length}</b>
+                      )}
+                    </summary>
+                    <div className="sg-cocher">
+                      {rdvTypeOptions.map((t) => {
+                        const off = hiddenTypeOf(showSummaryPanel).has(t);
+                        return (
+                          <label key={t} className={`sg-coche${off ? " is-off" : ""}`}>
+                            <input type="checkbox" checked={!off}
+                              onChange={(e) => { e.stopPropagation(); toggleRdvType(showSummaryPanel as string, t); }} />
+                            {t}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </details>
+                )}
+
+                {/* Fournisseur — « quels chantiers Duka me reste-t-il ? ». */}
+                {rdvFournOptions.length > 1 && (
+                  <details className="sg-filtre" open={hiddenFournOf(showSummaryPanel).size > 0}>
+                    <summary>
+                      Fournisseur
+                      {hiddenFournOf(showSummaryPanel).size > 0 && (
+                        <b>{rdvFournOptions.length - hiddenFournOf(showSummaryPanel).size}/{rdvFournOptions.length}</b>
+                      )}
+                    </summary>
+                    <div className="sg-cocher">
+                      {rdvFournOptions.map((f) => {
+                        const off = hiddenFournOf(showSummaryPanel).has(f);
+                        return (
+                          <label key={f} className={`sg-coche${off ? " is-off" : ""}`}>
+                            <input type="checkbox" checked={!off}
+                              onChange={(e) => { e.stopPropagation(); toggleRdvFourn(showSummaryPanel as string, f); }} />
+                            {f}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </details>
+                )}
+
+                {/* Tout décocher un à un est vite fastidieux : un seul geste
+                    pour revenir à la liste complète. */}
+                {(hiddenTypeOf(showSummaryPanel).size > 0 || hiddenFournOf(showSummaryPanel).size > 0) && (
+                  <button type="button" className="sg-chip"
+                    onClick={(e) => { e.stopPropagation(); toutAfficher(showSummaryPanel as string); }}>
+                    Tout afficher
+                  </button>
+                )}
+
                 {/* Assistant de tournée — uniquement là où il a du sens :
                     des montages à planifier, donc des déplacements à grouper. */}
                 {showSummaryPanel === "rdv-montage-a-fixer" && (
