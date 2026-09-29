@@ -41,6 +41,8 @@ describe("inventaire des droits", () => {
     const niveaux = new Set([
       "ouvert", "signe", "signe-ou-connecte", "cle-secrete", "cron",
       "connecte", "connecte-middleware", "admin", "admin-ecran",
+      // Plus strict qu'« admin » : verrouillé sur une adresse précise.
+      "proprietaire",
     ]);
     const inconnus = inventaire.entrees.filter((e) => !niveaux.has(e.niveau));
     expect(inconnus.map((e) => `${e.url} → ${e.niveau}`)).toEqual([]);
