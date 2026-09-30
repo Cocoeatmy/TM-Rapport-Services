@@ -22,6 +22,7 @@ const BUCKET_DL_LABEL: Record<PhotoBucketKey, string> = {
   QR_CODE:             "QR Code",
   GARANTIE:            "Photo garantie",
   SAV_DEMANDE:         "Document SAV demande",
+  SAV_PIECES:          "Carton SAV recu",
   SAV_RETOUCHE:        "Photo SAV Retouche",
 };
 

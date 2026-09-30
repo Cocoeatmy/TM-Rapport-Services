@@ -12,6 +12,7 @@ import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
 import { signSav } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
+import { BUCKET_PREFIX } from "@/lib/photo-buckets";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
   Document, Page, Text, View, Image, Link, Svg, Path, StyleSheet,
@@ -45,6 +46,16 @@ function photosForCab(files: { name?: string; url: string }[] | undefined, cab: 
     const m = (f.name || "").match(/\.Cab(\d+)\./);
     return m ? parseInt(m[1], 10) === cab : false;
   });
+}
+/**
+ * Les cartons de pièces de rechange partagent la colonne « Documents SAV »
+ * avec les photos de la réclamation. Ce sont des pièces internes — la preuve
+ * que la commande est arrivée — et le rapport remis au client n'en porte rien,
+ * comme les dates de commande et de réception.
+ */
+function sansCartons(files: { name?: string; url: string }[]) {
+  const prefixe = BUCKET_PREFIX.SAV_PIECES;
+  return files.filter((f) => !(f.name || "").startsWith(prefixe + "."));
 }
 function isVideoUrl(u: string) { return u.includes("/video/upload/") || /\.(mp4|mov|webm|m4v|avi)(\?|$)/i.test(u); }
 function isPdfUrl(u: string) { return /\.pdf(\?|$)/i.test(u); }
@@ -206,7 +217,7 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
 
   const cabHasSav = (n: number) =>
     !!(reclam[n] || cause[n] || dateRdv[n] || collab[n] || fait[n]
-      || photosForCab(project.documentsSavDemande, n).length || photosForCab(project.photosSavRetouches, n).length);
+      || sansCartons(photosForCab(project.documentsSavDemande, n)).length || photosForCab(project.photosSavRetouches, n).length);
 
   // Filtre par monteur / sous-traitant : ne garde que les lots dont il s'occupe.
   const norm = (x: string) => nfc(x || "").toLowerCase().trim();
@@ -256,7 +267,7 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
           // Date de montage : par cabine (multi) sinon date du projet (mono).
           const montage = montageDates[n] || (project.dateMontage || "").slice(0, 10);
           const closedDate = (cloture[n] || "").slice(0, 10);
-          const demandePhotos = photosForCab(project.documentsSavDemande, n);
+          const demandePhotos = sansCartons(photosForCab(project.documentsSavDemande, n));
           const reglePhotos = photosForCab(project.photosSavRetouches, n);
           return (
             // Pas de wrap={false} sur tout le bloc : sinon un long SAV (texte +

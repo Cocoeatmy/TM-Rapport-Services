@@ -24,6 +24,7 @@ export type PhotoBucketKey =
   | "QR_CODE"
   | "GARANTIE"
   | "SAV_DEMANDE"
+  | "SAV_PIECES"
   | "SAV_RETOUCHE";
 
 export const BUCKET_PREFIX: Record<PhotoBucketKey, string> = {
@@ -37,6 +38,7 @@ export const BUCKET_PREFIX: Record<PhotoBucketKey, string> = {
   QR_CODE: "QR Code",
   GARANTIE: "Garantie",
   SAV_DEMANDE: "SAV demande",
+  SAV_PIECES: "SAV pieces",
   SAV_RETOUCHE: "SAV",
 };
 
@@ -51,6 +53,7 @@ export const BUCKET_LABEL: Record<PhotoBucketKey, string> = {
   QR_CODE: "Photos QR Code",
   GARANTIE: "Photos Garantie",
   SAV_DEMANDE: "Documents SAV (photos/vidéos de la demande)",
+  SAV_PIECES: "Photos des cartons SAV reçus",
   SAV_RETOUCHE: "Photos SAV / Retouches (une fois réglé)",
 };
 
@@ -75,6 +78,10 @@ export const BUCKET_NOTION_FIELD: Record<
   APRES_INTERVENTION: "photosMontage",
   QR_CODE: "photosQRCode",
   GARANTIE: "photosGaranties",
+  /* Les cartons partagent la colonne « Documents SAV » : c'est le préfixe
+     du nom de fichier qui les distingue, comme pour tous les autres
+     sous-buckets. Le rapport SAV les écarte explicitement. */
+  SAV_PIECES: "documentsSavDemande",
   SAV_DEMANDE: "documentsSavDemande",
   SAV_RETOUCHE: "photosSavRetouches",
 };
@@ -91,6 +98,7 @@ export const BUCKET_ORDER: PhotoBucketKey[] = [
   "QR_CODE",
   "GARANTIE",
   "SAV_DEMANDE",
+  "SAV_PIECES",
   "SAV_RETOUCHE",
 ];
 

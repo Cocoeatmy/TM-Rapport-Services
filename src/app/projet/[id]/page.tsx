@@ -4525,6 +4525,19 @@ function ProjectPageContent({ id }: { id: string }) {
             />
           </div>
         </div>
+        {/* Cartons reçus : la preuve que la pièce est bien là. Interne aussi —
+            ces photos ne partent pas avec le rapport SAV. */}
+        <div className="mt-3">
+          <BucketPhotoUpload
+            bucket="SAV_PIECES"
+            cabineIdx={idx + 1}
+            projectId={id}
+            project={project}
+            setProject={setProject}
+            onLog={logAction}
+            accept="image/*,video/*,application/pdf"
+          />
+        </div>
       </div>
     );
   };
