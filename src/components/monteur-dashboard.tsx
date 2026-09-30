@@ -2706,7 +2706,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const rdvFixeProjects = projects.filter(
     (p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé" || p.etatSAV === "RDV fixé",
   );
-  const rdvFixeCabines = rdvFixeProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+  /* Ce qu'il reste à poser, pas ce qui a été commandé : sur un chantier
+     étalé, les cabines déjà installées gonflaient le total d'un travail
+     pourtant fait. Même calcul que la tuile « RDV Montage ». */
+  const cabinesRestantes = (p: Project) =>
+    Math.max((p.nbCabines || 0) - Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0);
+  const rdvFixeCabines = rdvFixeProjects.reduce((s, p) => s + cabinesRestantes(p), 0);
 
   // ── renderCard : rendu d'un bouton dashboard par son ID ───────────────────
   // Défini avant le return, partagé par toute la grille.
@@ -3023,14 +3028,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </div>
             <div className="sg-plan is-cinq">
               {([
-                { label: "RDV Montage", count: rdvMontageAFixerCount, meta: `${rdvMontageAFixerProjects.reduce((s, p) => s + Math.max((p.nbCabines || 0) - Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0), 0)} cabines à poser`, bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-a-fixer", Icon: Wrench, lead: true },
+                { label: "RDV Montage", count: rdvMontageAFixerCount, meta: `${rdvMontageAFixerProjects.reduce((s, p) => s + cabinesRestantes(p), 0)} cabines à poser`, bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-a-fixer", Icon: Wrench, lead: true },
                 { label: "RDV Mesures", count: rdvMesuresAFixerCount, meta: "à contacter", bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-a-fixer", Icon: Ruler, lead: false },
                 { label: "RDV Services", count: rdvServicesAFixerCount, meta: "à planifier", bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-a-fixer", Icon: Settings, lead: false },
                 { label: "RDV SAV", count: rdvSavAFixerCount, meta: `${rdvSavAFixerProjects.reduce((s, p) => s + savOpenCabCount(p), 0)} cabines ouvertes`, bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-a-fixer", Icon: AlertCircle, lead: false },
                 /* Les quatre premières tuiles comptent ce qui reste à caler ;
                    celle-ci, ce qui l'est déjà — montages, mesures, services et
                    SAV réunis, seul endroit où la date fixée se voit d'un bloc. */
-                { label: "RDV fixés", count: rdvFixeProjects.length, meta: `${rdvFixeCabines} cabines`, bg: "#e3f6ea", fg: "#15803d", panel: "rdv-fixe", Icon: CalendarCheck, lead: false },
+                { label: "RDV fixés", count: rdvFixeProjects.length, meta: `${rdvFixeCabines} cabines à poser`, bg: "#e3f6ea", fg: "#15803d", panel: "rdv-fixe", Icon: CalendarCheck, lead: false },
               ]).map((t) => (
                 <button key={t.label} type="button" onClick={(e) => openPanel(t.panel as any, e)} className={`sg-tile${t.lead ? " is-lead" : ""}`}>
                   <span className="sg-tile-top">
