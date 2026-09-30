@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
-import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
@@ -2700,6 +2700,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
   const rdvSavAFixerCount = rdvSavAFixerProjects.length;
 
+  /* RDV déjà fixés, toutes natures confondues. L'état SAV vit dans sa propre
+     colonne : s'en tenir à « État - CMD » laissait les SAV datés hors du
+     compte, alors qu'ils occupent une journée comme les autres. */
+  const rdvFixeProjects = projects.filter(
+    (p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé" || p.etatSAV === "RDV fixé",
+  );
+  const rdvFixeCabines = rdvFixeProjects.reduce((s, p) => s + (p.nbCabines || 0), 0);
+
   // ── renderCard : rendu d'un bouton dashboard par son ID ───────────────────
   // Défini avant le return, partagé par toute la grille.
   const renderCard = (id: string): React.ReactNode => {
@@ -3013,12 +3021,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               <button type="button" onClick={(e) => openPanel("rdv-a-fixer", e)} className="sg-link">Vue groupée</button>
               <button type="button" onClick={(e) => openPanel("rdv-fixe", e)} className="sg-link">RDV fixé</button>
             </div>
-            <div className="sg-plan">
+            <div className="sg-plan is-cinq">
               {([
                 { label: "RDV Montage", count: rdvMontageAFixerCount, meta: `${rdvMontageAFixerProjects.reduce((s, p) => s + Math.max((p.nbCabines || 0) - Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0), 0)} cabines à poser`, bg: "#e8f0ff", fg: "#1b4ed8", panel: "rdv-montage-a-fixer", Icon: Wrench, lead: true },
                 { label: "RDV Mesures", count: rdvMesuresAFixerCount, meta: "à contacter", bg: "#e1f3f6", fg: "#0e7490", panel: "rdv-mesures-a-fixer", Icon: Ruler, lead: false },
                 { label: "RDV Services", count: rdvServicesAFixerCount, meta: "à planifier", bg: "#f1ecfe", fg: "#6d28d9", panel: "rdv-services-a-fixer", Icon: Settings, lead: false },
                 { label: "RDV SAV", count: rdvSavAFixerCount, meta: `${rdvSavAFixerProjects.reduce((s, p) => s + savOpenCabCount(p), 0)} cabines ouvertes`, bg: "#fdf0dc", fg: "#b45309", panel: "rdv-sav-a-fixer", Icon: AlertCircle, lead: false },
+                /* Les quatre premières tuiles comptent ce qui reste à caler ;
+                   celle-ci, ce qui l'est déjà — montages, mesures, services et
+                   SAV réunis, seul endroit où la date fixée se voit d'un bloc. */
+                { label: "RDV fixés", count: rdvFixeProjects.length, meta: `${rdvFixeCabines} cabines`, bg: "#e3f6ea", fg: "#15803d", panel: "rdv-fixe", Icon: CalendarCheck, lead: false },
               ]).map((t) => (
                 <button key={t.label} type="button" onClick={(e) => openPanel(t.panel as any, e)} className={`sg-tile${t.lead ? " is-lead" : ""}`}>
                   <span className="sg-tile-top">
@@ -5281,8 +5293,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           );
         } else if (showSummaryPanel === "rdv-fixe") {
           panelTitle = "RDV fixé";
-          panelProjects = projects
-            .filter((p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé")
+          panelProjects = [...rdvFixeProjects]
             .sort((a, b) => ((a.dateMontage || a.dateMesures || "z").split("T")[0]).localeCompare((b.dateMontage || b.dateMesures || "z").split("T")[0]));
         } else if (showSummaryPanel === "mesures-sans-commande") {
           /* ── MESURES — vue double (à commander / annulées) ──────── */

@@ -1026,6 +1026,11 @@ html[data-ui="signal"] .sg-signal-arrow {
   html[data-ui="signal"] .sg-plan {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+  /* Cinquième tuile (« RDV fixés ») : à quatre colonnes elle tombait seule
+     sur une deuxième ligne, à cinq elle reste dans la rangée. */
+  html[data-ui="signal"] .sg-plan.is-cinq {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
   html[data-ui="signal"] .sg-h1 {
     font-size: 30px;
   }
