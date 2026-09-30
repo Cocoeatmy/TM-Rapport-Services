@@ -216,6 +216,8 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
   const fait = parseCabMulti(project.savRetouchesCabines);
   const dateRecu = parseCabMulti(project.dateSAVRecu); // par cabine (texte)
   const passages = parseCabMulti(project.interventionsSavCabines);
+  const heureArr = parseCabMulti(project.heureArriveeSav);
+  const heureDep = parseCabMulti(project.heureDepartSav);
 
   const cabHasSav = (n: number) =>
     !!(reclam[n] || cause[n] || dateRdv[n] || collab[n] || fait[n] || passages[n]
@@ -318,13 +320,17 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
               {/* Un SAV se règle rarement en une fois. Chaque passage a sa
                   ligne : n'en montrer qu'un laisserait croire à une seule
                   visite, et le client compte les déplacements. */}
-              {interventionsDuLot(passages[n], dateRdv[n], collab[n]).map((it, k, tout) => (
+              {interventionsDuLot(passages[n], dateRdv[n], collab[n], heureArr[n], heureDep[n]).map((it, k, tout) => (
                 <View key={k} style={styles.row}>
                   <Text style={styles.label}>
                     {tout.length > 1 ? `Intervention ${k + 1}` : "Date intervention"}
                   </Text>
                   <Text style={styles.value}>
-                    {[fmtDate(it.date) || it.date, nfc(it.collaborateurs)].filter(Boolean).join(" — ")}
+                    {[
+                      fmtDate(it.date) || it.date,
+                      it.arrivee && it.depart ? `${it.arrivee} – ${it.depart}` : it.arrivee || it.depart,
+                      nfc(it.collaborateurs),
+                    ].filter(Boolean).join(" — ")}
                   </Text>
                 </View>
               ))}

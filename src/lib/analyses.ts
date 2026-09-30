@@ -20,6 +20,7 @@
 import type { Project } from "@/lib/notion";
 import { minutesPointees, trajet, lieuDepot, type Position } from "@/lib/tournee";
 import { regionLabel, cantonOf } from "@/lib/swiss-cantons";
+import { parseInterventions, minutesInterventions } from "@/lib/sav-interventions";
 
 const MORTS = new Set(["Annulé"]);
 
@@ -305,8 +306,22 @@ export interface LigneSav {
   erreursTM: number;
 }
 
-/** Durée d'un SAV, cabines multiples comprises — même encodage que le montage. */
+/**
+ * Durée d'un SAV, cabines multiples comprises.
+ *
+ * Quand les passages sont détaillés, on les additionne : revenir une seconde
+ * fois coûte une seconde fois, et les colonnes d'heures ne gardent que le
+ * dernier passage. Sinon, on retombe sur l'encodage du montage.
+ */
 function minutesSav(p: Project): number {
+  const parLot = String(p.interventionsSavCabines || "");
+  if (parLot.trim()) {
+    let total = 0;
+    const re = /Cab(\d+)\s*:([^|]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(parLot))) total += minutesInterventions(parseInterventions(m[2]));
+    if (total > 0) return total;
+  }
   return minutesPointees({
     id: p.id,
     heureArrivee: p.heureArriveeSav,

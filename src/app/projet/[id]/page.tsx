@@ -4490,17 +4490,24 @@ function ProjectPageContent({ id }: { id: string }) {
       parseCabineTextMulti(project?.interventionsSavCabines || "")[idx + 1],
       parseCabineTextMulti(project?.datesRdvSavCabines || "")[idx + 1],
       parseCabineTextMulti(project?.collaborateursSavCabines || "")[idx + 1],
+      parseCabineTextMulti(project?.heureArriveeSav || "")[idx + 1],
+      parseCabineTextMulti(project?.heureDepartSav || "")[idx + 1],
     );
     const enregistrer = (suivante: InterventionSav[]) => {
-      const dernier = dernierPassage(suivante);
+      const dernier = dernierPassage(suivante) || suivante[suivante.length - 1] || null;
+      /* Les quatre colonnes historiques gardent le DERNIER passage : tout ce
+         qui les lisait déjà — rapport, rendez-vous à fixer, heures — continue
+         de fonctionner sans rien savoir de la liste. */
       saveCabineTexts(idx, {
         interventionsSavCabines: encodeInterventions(suivante),
         datesRdvSavCabines: dernier?.date || "",
         collaborateursSavCabines: dernier?.collaborateurs || "",
+        heureArriveeSav: dernier?.arrivee || "",
+        heureDepartSav: dernier?.depart || "",
       });
       if (!project?.sav) saveProjectField({ sav: true });
     };
-    const modifier = (i: number, champ: "date" | "collaborateurs", valeur: string) =>
+    const modifier = (i: number, champ: keyof InterventionSav, valeur: string) =>
       enregistrer(liste.map((x, k) => (k === i ? { ...x, [champ]: valeur } : x)));
 
     return (
@@ -4514,24 +4521,54 @@ function ProjectPageContent({ id }: { id: string }) {
             const choisis = it.collaborateurs.split(/\s*&\s*/).map((x) => x.trim()).filter(Boolean);
             return (
               <div key={i} className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    value={it.date}
-                    onChange={(e) => modifier(i, "date", e.target.value)}
-                    className="h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
-                  />
+                <div className="flex items-center justify-between gap-2 mb-1.5">
                   <span className="text-[11px] text-gray-400">
-                    {liste.length > 1 ? `Passage ${i + 1}` : ""}
+                    {liste.length > 1 ? `Passage ${i + 1}` : "Passage"}
                   </span>
                   <button
                     type="button"
                     title="Retirer cette intervention"
                     onClick={() => enregistrer(liste.filter((_, k) => k !== i))}
-                    className="ml-auto w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
                     <X className="w-4 h-4" />
                   </button>
+                </div>
+                {/* Date, puis heures : les heures appartiennent au passage,
+                    pas au lot — deux visites, deux horaires. */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">Date</span>
+                    <input
+                      type="date"
+                      value={it.date}
+                      onChange={(e) => modifier(i, "date", e.target.value)}
+                      className="mt-0.5 block w-full h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">Heure d&apos;arrivée</span>
+                    <input
+                      type="time"
+                      value={it.arrivee}
+                      onChange={(e) => modifier(i, "arrivee", e.target.value)}
+                      className="mt-0.5 block w-full h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">Heure de départ</span>
+                    <input
+                      type="time"
+                      value={it.depart}
+                      min={it.arrivee || undefined}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v && it.arrivee && v < it.arrivee) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
+                        modifier(i, "depart", v);
+                      }}
+                      className="mt-0.5 block w-full h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                    />
+                  </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {COLLABORATEURS_LIST.map((name) => {
@@ -4559,7 +4596,7 @@ function ProjectPageContent({ id }: { id: string }) {
         </div>
         <button
           type="button"
-          onClick={() => enregistrer([...liste, { date: today, collaborateurs: "" }])}
+          onClick={() => enregistrer([...liste, { date: today, collaborateurs: "", arrivee: "", depart: "" }])}
           className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -10330,41 +10367,6 @@ function ProjectPageContent({ id }: { id: string }) {
                                   </datalist>
                                 </div>
                                 {renderInterventionsSav(idx)}
-                                {(() => {
-                                  const arr = parseCabineTextMulti(project?.heureArriveeSav || "")[idx + 1] || "";
-                                  const dep = parseCabineTextMulti(project?.heureDepartSav || "")[idx + 1] || "";
-                                  /* Les heures ne datent plus l'intervention : la liste ci-dessus
-                                     s'en charge, et écrire « aujourd'hui » à la place d'une date
-                                     absente faisait croire à un passage qui n'avait pas eu lieu. */
-                                  const ensureSavDate = () => {};
-                                  return (
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div>
-                                        <Label>Heure d&apos;arrivée</Label>
-                                        <input
-                                          type="time"
-                                          value={arr}
-                                          onChange={(e) => { saveCabineText("heureArriveeSav", idx, e.target.value); ensureSavDate(); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-                                          className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
-                                        />
-                                      </div>
-                                      <div>
-                                        <Label>Heure de départ</Label>
-                                        <input
-                                          type="time"
-                                          value={dep}
-                                          min={arr || undefined}
-                                          onChange={(e) => {
-                                            const v = e.target.value;
-                                            if (v && arr && v < arr) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
-                                            saveCabineText("heureDepartSav", idx, v); ensureSavDate(); if (v && !project?.sav) saveProjectField({ sav: true });
-                                          }}
-                                          className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
-                                        />
-                                      </div>
-                                    </div>
-                                  );
-                                })()}
                                 {renderPiecesSav(idx)}
                               </div>
 
