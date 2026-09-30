@@ -317,6 +317,10 @@ export interface Project {
   /* Pièces de rechange d'un SAV, par cabine (« CabN:AAAA-MM-JJ »). Un SAV
      qui attend une pièce ne se planifie pas ; sans ces deux dates, la
      commande ne vivait que dans une note libre et se perdait. */
+  /* Passages datés d'un SAV, avec leur collaborateur (voir sav-interventions).
+     « Dates RDV SAV cabines » et « Collaborateurs SAV cabines » restent le
+     reflet du DERNIER passage, pour tout ce qui les lisait déjà. */
+  interventionsSavCabines: string;
   datesCmdPiecesSavCabines: string;
   datesReceptionPiecesSavCabines: string;
   photosSavRetouches: FileItem[];
@@ -491,6 +495,7 @@ export function mapPageToProject(page: any): Project {
     heureDepartSav: extractText(p["Heure départ SAV"]),
     collaborateursSavCabines: extractText(p["Collaborateurs SAV cabines"]),
     datesSavClotureCabines: extractText(p["Dates SAV clôturé cabines"]),
+    interventionsSavCabines: extractText(p["Interventions SAV cabines"]),
     datesCmdPiecesSavCabines: extractText(p["Dates CMD pièces SAV cabines"]),
     datesReceptionPiecesSavCabines: extractText(p["Dates réception pièces SAV cabines"]),
     photosSavRetouches: extractFiles(p["Photos SAV / Retouches cabines"]),
@@ -1217,6 +1222,7 @@ export async function updateProject(
     heureDepartSav?: string;
     collaborateursSavCabines?: string;
     datesSavClotureCabines?: string;
+    interventionsSavCabines?: string;
     datesCmdPiecesSavCabines?: string;
     datesReceptionPiecesSavCabines?: string;
     savCloture?: boolean;
@@ -1308,6 +1314,9 @@ export async function updateProject(
   }
   if (data.collaborateursSavCabines !== undefined) {
     properties["Collaborateurs SAV cabines"] = { rich_text: toRichText(data.collaborateursSavCabines) };
+  }
+  if (data.interventionsSavCabines !== undefined) {
+    properties["Interventions SAV cabines"] = { rich_text: toRichText(data.interventionsSavCabines) };
   }
   if (data.datesCmdPiecesSavCabines !== undefined) {
     properties["Dates CMD pièces SAV cabines"] = { rich_text: toRichText(data.datesCmdPiecesSavCabines) };

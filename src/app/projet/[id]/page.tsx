@@ -122,6 +122,7 @@ import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { isMultiDayHours, parsePointages, encodePointages } from "@/lib/pointages";
+import { interventionsDuLot, encodeInterventions, dernierPassage, type InterventionSav } from "@/lib/sav-interventions";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
 import { fetchWithRetry, invalidateApiCache } from "@/lib/api-helpers";
@@ -4473,6 +4474,102 @@ function ProjectPageContent({ id }: { id: string }) {
   // Wrapper SAV : mono = date (Dates RDV SAV cabines) + heures (Heure arrivée/départ SAV).
   // Multi-jours = interventions datées encodées dans « Heure arrivée SAV » / « Heure départ SAV ».
   /**
+   * Interventions SAV d'un lot : autant de passages datés que nécessaire,
+   * chacun avec son collaborateur.
+   *
+   * Un SAV se règle rarement en une fois — on vient, il manque la pièce, on
+   * revient. Le champ unique d'avant écrasait la date précédente : on ne
+   * savait plus quand l'équipe était passée.
+   *
+   * La liste vit dans « Interventions SAV cabines » ; les deux colonnes
+   * historiques gardent le DERNIER passage, pour tout ce qui les lit déjà
+   * (rapport SAV, rendez-vous à fixer, statistiques).
+   */
+  const renderInterventionsSav = (idx: number) => {
+    const liste = interventionsDuLot(
+      parseCabineTextMulti(project?.interventionsSavCabines || "")[idx + 1],
+      parseCabineTextMulti(project?.datesRdvSavCabines || "")[idx + 1],
+      parseCabineTextMulti(project?.collaborateursSavCabines || "")[idx + 1],
+    );
+    const enregistrer = (suivante: InterventionSav[]) => {
+      const dernier = dernierPassage(suivante);
+      saveCabineTexts(idx, {
+        interventionsSavCabines: encodeInterventions(suivante),
+        datesRdvSavCabines: dernier?.date || "",
+        collaborateursSavCabines: dernier?.collaborateurs || "",
+      });
+      if (!project?.sav) saveProjectField({ sav: true });
+    };
+    const modifier = (i: number, champ: "date" | "collaborateurs", valeur: string) =>
+      enregistrer(liste.map((x, k) => (k === i ? { ...x, [champ]: valeur } : x)));
+
+    return (
+      <div>
+        <Label>Interventions SAV</Label>
+        <p className="text-[11px] text-gray-400 mt-0.5 mb-1.5">
+          Une ligne par passage — la date et qui s&apos;en est chargé.
+        </p>
+        <div className="space-y-2">
+          {liste.map((it, i) => {
+            const choisis = it.collaborateurs.split(/\s*&\s*/).map((x) => x.trim()).filter(Boolean);
+            return (
+              <div key={i} className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={it.date}
+                    onChange={(e) => modifier(i, "date", e.target.value)}
+                    className="h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                  />
+                  <span className="text-[11px] text-gray-400">
+                    {liste.length > 1 ? `Passage ${i + 1}` : ""}
+                  </span>
+                  <button
+                    type="button"
+                    title="Retirer cette intervention"
+                    onClick={() => enregistrer(liste.filter((_, k) => k !== i))}
+                    className="ml-auto w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {COLLABORATEURS_LIST.map((name) => {
+                    const actif = choisis.includes(name);
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => modifier(i, "collaborateurs",
+                          (actif ? choisis.filter((n) => n !== name) : [...choisis, name]).join(" & "))}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border-2 transition-colors ${
+                          actif
+                            ? "border-blue-600 bg-blue-600 text-white"
+                            : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
+                        }`}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => enregistrer([...liste, { date: today, collaborateurs: "" }])}
+          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          {liste.length === 0 ? "Dater l'intervention" : "Ajouter un passage"}
+        </button>
+      </div>
+    );
+  };
+
+  /**
    * Pièces de rechange d'un SAV, par lot.
    *
    * Un joint cassé se recommande, et l'intervention attend la pièce. Sans ces
@@ -4597,7 +4694,10 @@ function ProjectPageContent({ id }: { id: string }) {
           return next;
         });
       },
-      date: savDate || today,
+      /* Vide tant que rien n'est saisi : afficher la date du jour laissait
+         croire à une intervention qui n'avait pas eu lieu, et masquait le
+         fait qu'aucun passage n'était encore daté. */
+      date: savDate,
       onDateChange: (v) => { saveCabineText("datesRdvSavCabines", 0, v); if (v && !project?.sav) saveProjectField({ sav: true }); },
       arrivee: project?.heureArriveeSav || "",
       onArriveeChange: (v) => { persistSavHours(v, project?.heureDepartSav || ""); if (!savDate) saveCabineText("datesRdvSavCabines", 0, today); },
@@ -5498,6 +5598,38 @@ function ProjectPageContent({ id }: { id: string }) {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: `Cab${cabineIdx + 1}:${clean}` }),
+    }).catch(() => {});
+  };
+
+  /**
+   * Plusieurs champs par cabine en UNE écriture.
+   *
+   * Les interventions SAV touchent trois colonnes à la fois — la liste et les
+   * deux colonnes historiques qu'elle tient à jour. Trois `saveCabineText`
+   * feraient trois requêtes, et une seule qui échoue laisserait la liste et
+   * son reflet en désaccord.
+   */
+  const saveCabineTexts = (cabineIdx: number, valeurs: Record<string, string>) => {
+    const patch: Record<string, string> = {};
+    setProject((prev) => {
+      if (!prev) return prev;
+      const suivant: Record<string, unknown> = { ...prev };
+      for (const [field, brut] of Object.entries(valeurs)) {
+        const clean = brut.replace(/\|/g, " / ").trim();
+        const map = parseCabineTextMulti((prev as unknown as Record<string, string>)[field] || "");
+        if (clean) map[cabineIdx + 1] = clean; else delete map[cabineIdx + 1];
+        suivant[field] = encodeSousTraitance(map);
+      }
+      return suivant as unknown as typeof prev;
+    });
+    for (const [field, brut] of Object.entries(valeurs)) {
+      patch[field] = `Cab${cabineIdx + 1}:${brut.replace(/\|/g, " / ").trim()}`;
+      window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field } }));
+    }
+    offlineFetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
     }).catch(() => {});
   };
 
@@ -6473,7 +6605,7 @@ function ProjectPageContent({ id }: { id: string }) {
   //  - "closed" : tous les SAV clôturés → clé verte
   const savStatus: "none" | "open" | "closed" = (() => {
     const cabs = new Set<number>();
-    for (const field of ["commentairesSav", "causeSavCabines", "datesRdvSavCabines", "collaborateursSavCabines", "savRetouchesCabines", "datesCmdPiecesSavCabines", "datesReceptionPiecesSavCabines"] as const) {
+    for (const field of ["commentairesSav", "causeSavCabines", "datesRdvSavCabines", "collaborateursSavCabines", "savRetouchesCabines", "interventionsSavCabines", "datesCmdPiecesSavCabines", "datesReceptionPiecesSavCabines"] as const) {
       const m = parseCabineTextMulti(project?.[field] || "");
       Object.keys(m).forEach((k) => cabs.add(parseInt(k, 10)));
     }
@@ -10197,23 +10329,16 @@ function ProjectPageContent({ id }: { id: string }) {
                                     {causeSavOptions.map((o) => <option key={o} value={o} />)}
                                   </datalist>
                                 </div>
+                                {renderInterventionsSav(idx)}
                                 {(() => {
-                                  const savToday = new Date().toISOString().slice(0, 10);
-                                  const savDate = (parseCabineTextMulti(project?.datesRdvSavCabines || "")[idx + 1] || "").slice(0, 10);
                                   const arr = parseCabineTextMulti(project?.heureArriveeSav || "")[idx + 1] || "";
                                   const dep = parseCabineTextMulti(project?.heureDepartSav || "")[idx + 1] || "";
-                                  const ensureSavDate = () => { if (!savDate) saveCabineText("datesRdvSavCabines", idx, savToday); };
+                                  /* Les heures ne datent plus l'intervention : la liste ci-dessus
+                                     s'en charge, et écrire « aujourd'hui » à la place d'une date
+                                     absente faisait croire à un passage qui n'avait pas eu lieu. */
+                                  const ensureSavDate = () => {};
                                   return (
-                                    <div className="grid grid-cols-3 gap-2">
-                                      <div>
-                                        <Label>Date d&apos;intervention SAV</Label>
-                                        <input
-                                          type="date"
-                                          value={savDate || savToday}
-                                          onChange={(e) => { saveCabineText("datesRdvSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-                                          className="mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
-                                        />
-                                      </div>
+                                    <div className="grid grid-cols-2 gap-2">
                                       <div>
                                         <Label>Heure d&apos;arrivée</Label>
                                         <input
@@ -10241,33 +10366,6 @@ function ProjectPageContent({ id }: { id: string }) {
                                   );
                                 })()}
                                 {renderPiecesSav(idx)}
-                                <div>
-                                  <Label>Collaborateur(s) SAV</Label>
-                                  <div className="mt-1 flex flex-wrap gap-1.5">
-                                    {COLLABORATEURS_LIST.map((name) => {
-                                      const sel = (parseCabineTextMulti(project?.collaborateursSavCabines || "")[idx + 1] || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
-                                      const active = sel.includes(name);
-                                      return (
-                                        <button
-                                          key={name}
-                                          type="button"
-                                          onClick={() => {
-                                            const next = active ? sel.filter((n) => n !== name) : [...sel, name];
-                                            saveCabineText("collaborateursSavCabines", idx, next.join(" & "));
-                                            if (!project?.sav) saveProjectField({ sav: true });
-                                          }}
-                                          className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
-                                            active
-                                              ? "border-blue-600 bg-blue-600 text-white"
-                                              : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
-                                          }`}
-                                        >
-                                          {name}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
                               </div>
 
                               {/* Documents de la DEMANDE (photos/vidéos reçus pour déclencher le SAV). */}

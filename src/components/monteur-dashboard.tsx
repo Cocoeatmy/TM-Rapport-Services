@@ -2631,7 +2631,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   };
   const cabineSavCabs = (p: Project): Set<number> => {
     const cabs = new Set<number>();
-    for (const raw of [p.commentairesSav, p.causeSavCabines, p.datesRdvSavCabines, p.collaborateursSavCabines, p.savRetouchesCabines, p.datesCmdPiecesSavCabines, p.datesReceptionPiecesSavCabines]) {
+    for (const raw of [p.commentairesSav, p.causeSavCabines, p.datesRdvSavCabines, p.collaborateursSavCabines, p.savRetouchesCabines, p.interventionsSavCabines, p.datesCmdPiecesSavCabines, p.datesReceptionPiecesSavCabines]) {
       Object.keys(parseCabMap(raw)).forEach((k) => cabs.add(parseInt(k, 10)));
     }
     for (const f of [...(p.documentsSavDemande || []), ...(p.photosSavRetouches || [])]) {

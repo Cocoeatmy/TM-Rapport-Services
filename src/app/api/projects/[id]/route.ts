@@ -319,6 +319,7 @@ export async function PATCH(
       body.heureDepartSav !== undefined ||
       body.collaborateursSavCabines !== undefined ||
       body.datesSavClotureCabines !== undefined ||
+      body.interventionsSavCabines !== undefined ||
       body.datesCmdPiecesSavCabines !== undefined ||
       body.datesReceptionPiecesSavCabines !== undefined ||
       body.dateSAVRecu !== undefined ||
@@ -403,6 +404,9 @@ export async function PATCH(
         }
         if (body.datesSavClotureCabines !== undefined && String(body.datesSavClotureCabines).includes("Cab")) {
           body.datesSavClotureCabines = mergeCabineSousTraitance(existing.datesSavClotureCabines || "", body.datesSavClotureCabines);
+        }
+        if (body.interventionsSavCabines !== undefined && String(body.interventionsSavCabines).includes("Cab")) {
+          body.interventionsSavCabines = mergeCabineSousTraitance(existing.interventionsSavCabines || "", body.interventionsSavCabines);
         }
         if (body.datesCmdPiecesSavCabines !== undefined && String(body.datesCmdPiecesSavCabines).includes("Cab")) {
           body.datesCmdPiecesSavCabines = mergeCabineSousTraitance(existing.datesCmdPiecesSavCabines || "", body.datesCmdPiecesSavCabines);

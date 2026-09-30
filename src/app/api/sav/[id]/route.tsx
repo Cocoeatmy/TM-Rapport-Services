@@ -13,6 +13,7 @@ import { verifyToken } from "@/lib/auth";
 import { signSav } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { BUCKET_PREFIX } from "@/lib/photo-buckets";
+import { interventionsDuLot } from "@/lib/sav-interventions";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
   Document, Page, Text, View, Image, Link, Svg, Path, StyleSheet,
@@ -214,9 +215,10 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
   const cloture = parseCabMulti(project.datesSavClotureCabines);
   const fait = parseCabMulti(project.savRetouchesCabines);
   const dateRecu = parseCabMulti(project.dateSAVRecu); // par cabine (texte)
+  const passages = parseCabMulti(project.interventionsSavCabines);
 
   const cabHasSav = (n: number) =>
-    !!(reclam[n] || cause[n] || dateRdv[n] || collab[n] || fait[n]
+    !!(reclam[n] || cause[n] || dateRdv[n] || collab[n] || fait[n] || passages[n]
       || sansCartons(photosForCab(project.documentsSavDemande, n)).length || photosForCab(project.photosSavRetouches, n).length);
 
   // Filtre par monteur / sous-traitant : ne garde que les lots dont il s'occupe.
@@ -313,12 +315,19 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
               {cause[n] ? (
                 <View style={styles.row}><Text style={styles.label}>Cause</Text><Text style={styles.value}>{nfc(cause[n])}</Text></View>
               ) : null}
-              {dateRdv[n] ? (
-                <View style={styles.row}><Text style={styles.label}>Date intervention</Text><Text style={styles.value}>{fmtDate(dateRdv[n].slice(0, 10)) || dateRdv[n]}</Text></View>
-              ) : null}
-              {collab[n] ? (
-                <View style={styles.row}><Text style={styles.label}>Collaborateur(s)</Text><Text style={styles.value}>{nfc(collab[n])}</Text></View>
-              ) : null}
+              {/* Un SAV se règle rarement en une fois. Chaque passage a sa
+                  ligne : n'en montrer qu'un laisserait croire à une seule
+                  visite, et le client compte les déplacements. */}
+              {interventionsDuLot(passages[n], dateRdv[n], collab[n]).map((it, k, tout) => (
+                <View key={k} style={styles.row}>
+                  <Text style={styles.label}>
+                    {tout.length > 1 ? `Intervention ${k + 1}` : "Date intervention"}
+                  </Text>
+                  <Text style={styles.value}>
+                    {[fmtDate(it.date) || it.date, nfc(it.collaborateurs)].filter(Boolean).join(" — ")}
+                  </Text>
+                </View>
+              ))}
               {fait[n] ? (
                 <View style={styles.row}><Text style={styles.label}>Ce qui a été fait</Text><Text style={styles.value}>{nfc(fait[n])}</Text></View>
               ) : null}
