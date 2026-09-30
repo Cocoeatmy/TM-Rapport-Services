@@ -314,6 +314,11 @@ export interface Project {
   heureDepartSav: string;
   collaborateursSavCabines: string;
   datesSavClotureCabines: string;
+  /* Pièces de rechange d'un SAV, par cabine (« CabN:AAAA-MM-JJ »). Un SAV
+     qui attend une pièce ne se planifie pas ; sans ces deux dates, la
+     commande ne vivait que dans une note libre et se perdait. */
+  datesCmdPiecesSavCabines: string;
+  datesReceptionPiecesSavCabines: string;
   photosSavRetouches: FileItem[];
   documentsSavDemande: FileItem[];
   savCloture: boolean;
@@ -486,6 +491,8 @@ export function mapPageToProject(page: any): Project {
     heureDepartSav: extractText(p["Heure départ SAV"]),
     collaborateursSavCabines: extractText(p["Collaborateurs SAV cabines"]),
     datesSavClotureCabines: extractText(p["Dates SAV clôturé cabines"]),
+    datesCmdPiecesSavCabines: extractText(p["Dates CMD pièces SAV cabines"]),
+    datesReceptionPiecesSavCabines: extractText(p["Dates réception pièces SAV cabines"]),
     photosSavRetouches: extractFiles(p["Photos SAV / Retouches cabines"]),
     documentsSavDemande: extractFiles(p["Documents SAV"]),
     savCloture: p["SAV Clôturé"]?.checkbox || false,
@@ -1210,6 +1217,8 @@ export async function updateProject(
     heureDepartSav?: string;
     collaborateursSavCabines?: string;
     datesSavClotureCabines?: string;
+    datesCmdPiecesSavCabines?: string;
+    datesReceptionPiecesSavCabines?: string;
     savCloture?: boolean;
     sav?: boolean;
     causeSAV?: string;
@@ -1299,6 +1308,12 @@ export async function updateProject(
   }
   if (data.collaborateursSavCabines !== undefined) {
     properties["Collaborateurs SAV cabines"] = { rich_text: toRichText(data.collaborateursSavCabines) };
+  }
+  if (data.datesCmdPiecesSavCabines !== undefined) {
+    properties["Dates CMD pièces SAV cabines"] = { rich_text: toRichText(data.datesCmdPiecesSavCabines) };
+  }
+  if (data.datesReceptionPiecesSavCabines !== undefined) {
+    properties["Dates réception pièces SAV cabines"] = { rich_text: toRichText(data.datesReceptionPiecesSavCabines) };
   }
   if (data.datesSavClotureCabines !== undefined) {
     properties["Dates SAV clôturé cabines"] = { rich_text: toRichText(data.datesSavClotureCabines) };

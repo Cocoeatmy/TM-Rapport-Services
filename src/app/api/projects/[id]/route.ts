@@ -319,6 +319,8 @@ export async function PATCH(
       body.heureDepartSav !== undefined ||
       body.collaborateursSavCabines !== undefined ||
       body.datesSavClotureCabines !== undefined ||
+      body.datesCmdPiecesSavCabines !== undefined ||
+      body.datesReceptionPiecesSavCabines !== undefined ||
       body.dateSAVRecu !== undefined ||
       hasClear;
 
@@ -401,6 +403,12 @@ export async function PATCH(
         }
         if (body.datesSavClotureCabines !== undefined && String(body.datesSavClotureCabines).includes("Cab")) {
           body.datesSavClotureCabines = mergeCabineSousTraitance(existing.datesSavClotureCabines || "", body.datesSavClotureCabines);
+        }
+        if (body.datesCmdPiecesSavCabines !== undefined && String(body.datesCmdPiecesSavCabines).includes("Cab")) {
+          body.datesCmdPiecesSavCabines = mergeCabineSousTraitance(existing.datesCmdPiecesSavCabines || "", body.datesCmdPiecesSavCabines);
+        }
+        if (body.datesReceptionPiecesSavCabines !== undefined && String(body.datesReceptionPiecesSavCabines).includes("Cab")) {
+          body.datesReceptionPiecesSavCabines = mergeCabineSousTraitance(existing.datesReceptionPiecesSavCabines || "", body.datesReceptionPiecesSavCabines);
         }
         // Suppression EXPLICITE de monteurs (action « réinitialiser la cabine »).
         // Appliquée APRÈS le merge, sur l'attribution déjà fusionnée (ou l'existant).

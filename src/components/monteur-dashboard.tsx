@@ -2631,7 +2631,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   };
   const cabineSavCabs = (p: Project): Set<number> => {
     const cabs = new Set<number>();
-    for (const raw of [p.commentairesSav, p.causeSavCabines, p.datesRdvSavCabines, p.collaborateursSavCabines, p.savRetouchesCabines]) {
+    for (const raw of [p.commentairesSav, p.causeSavCabines, p.datesRdvSavCabines, p.collaborateursSavCabines, p.savRetouchesCabines, p.datesCmdPiecesSavCabines, p.datesReceptionPiecesSavCabines]) {
       Object.keys(parseCabMap(raw)).forEach((k) => cabs.add(parseInt(k, 10)));
     }
     for (const f of [...(p.documentsSavDemande || []), ...(p.photosSavRetouches || [])]) {
@@ -2639,13 +2639,37 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     }
     return cabs;
   };
-  // Au moins un lot SAV ouvert (ni clôturé, ni date d'intervention fixée).
+  /**
+   * Au moins un lot SAV qu'il reste à planifier.
+   *
+   * Un lot est « à fixer » s'il n'est pas clôturé et qu'aucune intervention
+   * n'est datée. Deux nuances viennent des pièces de rechange :
+   *
+   *   • pièces commandées, pas encore reçues → le lot SORT de la liste. Fixer
+   *     un rendez-vous ferait revenir l'équipe sans la pièce. Rien n'est perdu
+   *     pour autant : le SAV reste dans « SAV (tous) ».
+   *   • pièces reçues après le dernier passage → le lot REVIENT, bien qu'une
+   *     intervention soit déjà datée. C'est ce second passage qu'il faut caler,
+   *     et sans cette règle il n'apparaissait nulle part.
+   */
   const hasCabineSavAFixer = (p: Project): boolean => {
     const cabs = cabineSavCabs(p);
     if (cabs.size === 0) return false;
     const rdv = parseCabMap(p.datesRdvSavCabines);
     const cloture = parseCabMap(p.datesSavClotureCabines);
-    for (const n of cabs) if (!(cloture[n] || "").trim() && !(rdv[n] || "").trim()) return true;
+    const piecesCmd = parseCabMap(p.datesCmdPiecesSavCabines);
+    const piecesRecues = parseCabMap(p.datesReceptionPiecesSavCabines);
+    for (const n of cabs) {
+      if ((cloture[n] || "").trim()) continue;
+      const cmd = (piecesCmd[n] || "").slice(0, 10);
+      const recu = (piecesRecues[n] || "").slice(0, 10);
+      if (cmd && !recu) continue; // en attente de pièce : injoignable pour un RDV
+      const date = (rdv[n] || "").slice(0, 10);
+      if (!date) return true;
+      // Le jour même compte comme « après » : mieux vaut un rendez-vous de trop
+      // à écarter qu'un SAV oublié.
+      if (recu && recu >= date) return true;
+    }
     return false;
   };
   // Nombre de cabines dont le SAV est OUVERT (non clôturé) — pour la page

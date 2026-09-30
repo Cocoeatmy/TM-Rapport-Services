@@ -4472,6 +4472,63 @@ function ProjectPageContent({ id }: { id: string }) {
 
   // Wrapper SAV : mono = date (Dates RDV SAV cabines) + heures (Heure arrivée/départ SAV).
   // Multi-jours = interventions datées encodées dans « Heure arrivée SAV » / « Heure départ SAV ».
+  /**
+   * Pièces de rechange d'un SAV, par lot.
+   *
+   * Un joint cassé se recommande, et l'intervention attend la pièce. Sans ces
+   * deux dates, la commande ne vivait que dans une note libre : on ne savait
+   * plus ni quand elle était partie, ni si elle était arrivée, et le SAV
+   * restait dans les rendez-vous à fixer sans qu'on puisse le fixer.
+   *
+   * Ces dates sont internes : le rapport SAV remis au client n'en porte rien.
+   */
+  const renderPiecesSav = (idx: number) => {
+    const cmd = (parseCabineTextMulti(project?.datesCmdPiecesSavCabines || "")[idx + 1] || "").slice(0, 10);
+    const recu = (parseCabineTextMulti(project?.datesReceptionPiecesSavCabines || "")[idx + 1] || "").slice(0, 10);
+    const champ = "mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto";
+    return (
+      <div>
+        <div className="flex items-center gap-2">
+          <Label>Pièces de rechange</Label>
+          {cmd && !recu && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+              En attente
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
+          Interne — n&apos;apparaît pas sur le rapport SAV.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">Commandées le</span>
+            <input
+              type="date"
+              value={cmd}
+              onChange={(e) => { saveCabineText("datesCmdPiecesSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
+              className={champ}
+            />
+          </div>
+          <div>
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">Reçues le</span>
+            <input
+              type="date"
+              value={recu}
+              min={cmd || undefined}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v && cmd && v < cmd) { toast.error("La réception ne peut pas précéder la commande."); return; }
+                saveCabineText("datesReceptionPiecesSavCabines", idx, v);
+                if (v && !project?.sav) saveProjectField({ sav: true });
+              }}
+              className={champ}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderSavHoursEditor = () => {
     const savDate = (parseCabineTextMulti(project?.datesRdvSavCabines || "")[1] || "").slice(0, 10);
     const persistSavHours = (arr: string, dep: string) => {
@@ -6403,7 +6460,7 @@ function ProjectPageContent({ id }: { id: string }) {
   //  - "closed" : tous les SAV clôturés → clé verte
   const savStatus: "none" | "open" | "closed" = (() => {
     const cabs = new Set<number>();
-    for (const field of ["commentairesSav", "causeSavCabines", "datesRdvSavCabines", "collaborateursSavCabines", "savRetouchesCabines"] as const) {
+    for (const field of ["commentairesSav", "causeSavCabines", "datesRdvSavCabines", "collaborateursSavCabines", "savRetouchesCabines", "datesCmdPiecesSavCabines", "datesReceptionPiecesSavCabines"] as const) {
       const m = parseCabineTextMulti(project?.[field] || "");
       Object.keys(m).forEach((k) => cabs.add(parseInt(k, 10)));
     }
@@ -8999,6 +9056,7 @@ function ProjectPageContent({ id }: { id: string }) {
                             </datalist>
                           </div>
                           {renderSavHoursEditor()}
+                          {renderPiecesSav(0)}
                           <div>
                             <Label>Collaborateur(s) SAV</Label>
                             <div className="mt-1 flex flex-wrap gap-1.5">
@@ -10169,6 +10227,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                     </div>
                                   );
                                 })()}
+                                {renderPiecesSav(idx)}
                                 <div>
                                   <Label>Collaborateur(s) SAV</Label>
                                   <div className="mt-1 flex flex-wrap gap-1.5">
