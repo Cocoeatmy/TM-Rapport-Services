@@ -5,6 +5,7 @@ import { Search, X, ArrowRight, SlidersHorizontal, AlertCircle, ChevronDown, Che
 import { useRouter } from "next/navigation";
 import type { Project } from "@/lib/notion";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
+import { savEnCours } from "@/lib/sav-etat";
 
 // Source 1 : window.__TM_PROJECTS__ (mis à jour par page.tsx en temps réel)
 // Source 2 : localStorage tm-projects-cache (fallback si page.tsx pas encore chargé)
@@ -484,11 +485,21 @@ function ResultRow({ project: p, onSelect }: { project: Project; onSelect: (p: P
           )}
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
-          {p.etatCMD && (
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cmdColor}`}>
-              {p.etatCMD}
-            </span>
-          )}
+          <div className="flex items-center gap-1.5">
+            {/* Un montage « Terminé » dont la réclamation traîne encore n'est
+                pas un dossier clos : sans ce rappel, la recherche le donnait
+                pour réglé. */}
+            {savEnCours(p) && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 whitespace-nowrap">
+                SAV en cours
+              </span>
+            )}
+            {p.etatCMD && (
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cmdColor}`}>
+                {p.etatCMD}
+              </span>
+            )}
+          </div>
           <ArrowRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-500 transition-colors" />
         </div>
       </button>
