@@ -23,6 +23,7 @@ import { X, Phone, FileText, MessageSquare, Package, AlertTriangle } from "lucid
 import { supplierLogo } from "@/lib/supplier-logos";
 import type { Project } from "@/lib/notion";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
+import { offlineFetch } from "@/lib/offline";
 
 /* ── Mini-store module : les lignes publient, l'hôte s'abonne ────────────── */
 
@@ -367,36 +368,65 @@ function SignalementsOuverts({ projectId }: { projectId: string }) {
   );
 }
 
+/**
+ * Ce qu'on vient d'écrire, par projet.
+ *
+ * La liste du tableau de bord se rafraîchit toutes les quelques secondes et
+ * peut servir une copie antérieure à notre écriture — le cache serveur n'a
+ * pas encore vu passer le PATCH. Sans cette mémoire, la note disparaissait à
+ * l'écran puis revenait dix secondes plus tard, ce qui donne toutes les
+ * raisons de croire qu'elle est perdue.
+ */
+const journalEcrit = new Map<string, string>();
+
 /** Journal des échanges, modifiable depuis l'aperçu. Écrit dans le MÊME champ
  *  Notion que la page projet ; la fiche affichée est mise à jour sur place. */
 function JournalEditable({ project }: { project: Project }) {
-  const initial = String((project as any).journalEchanges || "");
+  const distant = String((project as any).journalEchanges || "");
+  const ecrit = journalEcrit.get(project.id);
+  /* Notre écriture l'emporte tant que le serveur ne l'a pas rattrapée : une
+     valeur plus ancienne qui repasse par la liste ne doit pas la recouvrir. */
+  const affiche = ecrit !== undefined ? ecrit : distant;
+
   const [edition, setEdition] = useState(false);
-  const [texte, setTexte] = useState(initial);
-  const [enreg, setEnreg] = useState(false);
-  const [erreur, setErreur] = useState(false);
+  const [brouillon, setBrouillon] = useState(affiche);
+  const [echec, setEchec] = useState(false);
 
-  useEffect(() => { setTexte(initial); setEdition(false); setErreur(false); }, [project.id, initial]);
+  useEffect(() => {
+    if (ecrit !== undefined && ecrit === distant) journalEcrit.delete(project.id);
+  }, [project.id, ecrit, distant]);
 
-  const enregistrer = async () => {
-    setEnreg(true);
-    setErreur(false);
-    try {
-      const res = await fetch(`/api/projects/${project.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ journalEchanges: texte }),
+  /* On ne referme QUE sur changement de projet. Refermer parce que la fiche
+     s'est rafraîchie effaçait la saisie en cours — c'est ce qui avait fait
+     perdre une note entière. */
+  useEffect(() => { setEdition(false); setEchec(false); }, [project.id]);
+
+  const ouvrir = () => { setBrouillon(affiche); setEchec(false); setEdition(true); };
+
+  /**
+   * Enregistrement immédiat : la note s'affiche dès le clic, l'écriture part
+   * derrière. Attendre Notion pour refermer faisait patienter plusieurs
+   * secondes sur un geste qui n'a aucune raison de bloquer quoi que ce soit.
+   */
+  const enregistrer = () => {
+    const valeur = brouillon;
+    journalEcrit.set(project.id, valeur);
+    (project as any).journalEchanges = valeur;
+    setEdition(false);
+    setEchec(false);
+    emit();
+    offlineFetch(`/api/projects/${project.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ journalEchanges: valeur }),
+    })
+      .then((res) => { if (!res.ok) throw new Error(String(res.status)); })
+      .catch(() => {
+        /* Le texte reste à l'écran et dans le brouillon : on signale l'échec,
+           on ne reprend jamais ce qui a été écrit. */
+        setBrouillon(valeur);
+        setEchec(true);
       });
-      if (!res.ok) throw new Error("PATCH");
-      // La fiche vit dans le store : on la met à jour pour refléter la saisie.
-      (project as any).journalEchanges = texte;
-      emit();
-      setEdition(false);
-    } catch {
-      setErreur(true);
-    } finally {
-      setEnreg(false);
-    }
   };
 
   return (
@@ -404,8 +434,8 @@ function JournalEditable({ project }: { project: Project }) {
       <span className="sg-pv-titre">
         <MessageSquare className="w-3.5 h-3.5" /> Journal des échanges
         {!edition && (
-          <button type="button" className="sg-pv-edit" onClick={() => setEdition(true)}>
-            {initial.trim() ? "Modifier" : "Ajouter"}
+          <button type="button" className="sg-pv-edit" onClick={ouvrir}>
+            {affiche.trim() ? "Modifier" : "Ajouter"}
           </button>
         )}
       </span>
@@ -413,27 +443,32 @@ function JournalEditable({ project }: { project: Project }) {
         <>
           <textarea
             className="sg-pv-textarea"
-            value={texte}
+            value={brouillon}
             autoFocus
             rows={5}
             placeholder="25.09.26 - 16h31 : appel sans réponse…"
-            onChange={(e) => setTexte(e.target.value)}
+            onChange={(e) => setBrouillon(e.target.value)}
           />
           <div className="sg-pv-actions">
-            <button type="button" className="sg-pv-btn" disabled={enreg}
-              onClick={() => { setTexte(initial); setEdition(false); setErreur(false); }}>
+            <button type="button" className="sg-pv-btn"
+              onClick={() => { setBrouillon(affiche); setEdition(false); setEchec(false); }}>
               Annuler
             </button>
-            <button type="button" className="sg-pv-btn is-primary" disabled={enreg} onClick={enregistrer}>
-              {enreg ? "Enregistrement…" : "Enregistrer"}
+            <button type="button" className="sg-pv-btn is-primary" onClick={enregistrer}>
+              Enregistrer
             </button>
           </div>
-          {erreur && <span className="sg-pv-erreur">Enregistrement impossible — réessayez.</span>}
         </>
-      ) : initial.trim() ? (
-        <p className="sg-pv-journal">{initial}</p>
+      ) : affiche.trim() ? (
+        <p className="sg-pv-journal">{affiche}</p>
       ) : (
         <p className="sg-pv-vide">Aucun échange noté.</p>
+      )}
+      {echec && (
+        <span className="sg-pv-erreur">
+          Pas encore envoyé — la note est gardée et repartira toute seule.{" "}
+          <button type="button" className="sg-pv-edit" onClick={enregistrer}>Réessayer</button>
+        </span>
       )}
     </div>
   );
