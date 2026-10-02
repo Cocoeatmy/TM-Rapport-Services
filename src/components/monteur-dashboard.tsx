@@ -3238,23 +3238,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                  sur deux jours figure dans les deux barres mais ne doit
                  apparaître qu'une fois dans la liste, d'où la clé par id. */
               const legend = (() => {
-                const m = new Map<string, { cab: number; projets: Map<string, Project> }>();
+                const m = new Map<string, Map<string, Project>>();
                 bars.forEach((b) => {
-                  b.segs.forEach((s) => {
-                    const cur = m.get(s.label) || { cab: 0, projets: new Map<string, Project>() };
-                    cur.cab += s.cab;
-                    b.projets.forEach((p) => {
-                      const label = (p.collaborateurs || "").trim() || "Non attribué";
-                      if (label === s.label) cur.projets.set(p.id, p);
-                    });
-                    m.set(s.label, cur);
+                  b.projets.forEach((p) => {
+                    const label = (p.collaborateurs || "").trim() || "Non attribué";
+                    const cur = m.get(label) || new Map<string, Project>();
+                    cur.set(p.id, p);
+                    m.set(label, cur);
                   });
                 });
-                return [...m.entries()].sort((a, b) => b[1].cab - a[1].cab)
-                  .map(([label, v]) => ({
-                    label, cab: v.cab, color: groupColor(label),
-                    projets: [...v.projets.values()],
-                  }));
+                /* Les deux chiffres se comptent sur les CHANTIERS de la
+                   semaine, pas sur les barres : un montage à cheval sur deux
+                   jours figure dans les deux et comptait double. */
+                return [...m.entries()]
+                  .map(([label, projets]) => {
+                    const liste = [...projets.values()];
+                    return {
+                      label, color: groupColor(label), projets: liste,
+                      cab: liste.reduce((s2, p) => s2 + (p.nbCabines || 0), 0),
+                      restantes: liste.reduce((s2, p) => s2 + cabinesRestantes(p), 0),
+                    };
+                  })
+                  .sort((a, b) => b.cab - a.cab);
               })();
               const attenteSemaine = (() => {
                 const m = new Map<string, Project>();
@@ -3405,15 +3410,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <div className="sg-bars-legend">
                       {legend.map((l) => (
                         <button key={l.label} type="button" className="sg-bars-leg is-btn"
-                          title={`Voir les ${l.projets.length} projet${l.projets.length > 1 ? "s" : ""} de ${l.label}`}
+                          title={`${l.label} — ${l.restantes} cabine${l.restantes > 1 ? "s" : ""} à poser sur ${l.cab} dans la semaine · ${l.projets.length} projet${l.projets.length > 1 ? "s" : ""}`}
                           onClick={() => setChargePick({
                             titre: l.label,
-                            sous: `semaine ${weekNo} · ${l.cab} cabine${l.cab > 1 ? "s" : ""}`,
+                            sous: `semaine ${weekNo} · ${l.restantes} à poser sur ${l.cab} cabine${l.cab > 1 ? "s" : ""}`,
                             projets: l.projets,
                           })}>
                           <i style={{ background: l.color }} />
                           {l.label}
-                          <b>{l.cab}</b>
+                          {/* Ce qu'il reste à poser, sur le total de la semaine :
+                              un seul chiffre ne disait pas si la charge était
+                              lourde ou simplement déjà faite. */}
+                          <b>{l.restantes}<small>/{l.cab}</small></b>
                         </button>
                       ))}
                       {/* La trame ne s'explique pas d'elle-même : on ne la

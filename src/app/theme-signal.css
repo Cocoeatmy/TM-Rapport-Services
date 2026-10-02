@@ -931,6 +931,10 @@ html[data-ui="signal"] .sg-bars-leg {
   background: var(--sg-paper-2); border: 1px solid var(--sg-line);
 }
 html[data-ui="signal"] .sg-bars-leg i { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+/* « reste / total » : le reste porte le poids, le total reste une référence. */
+html[data-ui="signal"] .sg-bars-leg b small {
+  font-size: 0.85em; font-weight: 500; color: var(--sg-text-3);
+}
 html[data-ui="signal"] .sg-bars-leg i.is-attente {
   background-color: var(--sg-paper);
   background-image: repeating-linear-gradient(-45deg, var(--sg-text-2) 0 2px, transparent 2px 4px);
