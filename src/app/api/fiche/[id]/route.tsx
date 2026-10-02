@@ -833,16 +833,14 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
                 un chantier facturé au grossiste, le fournisseur n'est qu'un
                 fabricant et n'a rien à faire dans les contacts du chantier.
 
-                Son contact est celui de la colonne « Contact Grossiste », la
-                seule colonne de contact générique de la base — mais on ne le
-                lui attribue que si aucun grossiste n'est renseigné : là où il y
-                en a un, rien ne dit auquel des deux ce contact appartient, et
-                une fiche de travail ne doit pas trancher à notre place. */}
+                Son contact ne vient pas du projet mais de la FICHE du
+                fournisseur, qui tient la relation « Contacts » vers ses
+                interlocuteurs — chez Nelo GmbH, Stéphan Brem et son numéro. */}
             {estClientFournisseur ? (
               <ContactCell
                 label="FOURNISSEUR"
                 company={joinVal(project.fournisseursNames)}
-                contacts={(project.grossistesNames || []).length === 0 ? project.contactsGrossisteDetails : undefined}
+                contacts={project.fournisseursContacts}
                 width="33.33%"
               />
             ) : null}

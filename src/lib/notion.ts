@@ -271,6 +271,9 @@ export interface Project {
   contactsClientsFinauxDetails?: ContactDetail[];
   contactsLocatairesDetails?: ContactDetail[];
   contactsAutresDetails?: ContactDetail[];
+  /** Contacts portés par la FICHE du fournisseur (relation « Contacts »
+   *  de la base Clients), et non par le projet. Rempli dans getProject. */
+  fournisseursContacts?: ContactDetail[];
   infoPiecesManquantes: string;
   infoDefautsSignale: string;
   diversInfosChantier: string;
@@ -1134,6 +1137,50 @@ export async function getProjectsCmdTermine(): Promise<Project[]> {
   );
 }
 
+/**
+ * Contacts rattachés à une SOCIÉTÉ (fournisseur, grossiste…).
+ *
+ * Le projet ne les porte pas : c'est la fiche de l'entreprise qui tient la
+ * relation « Contacts » vers les personnes — chez Nelo GmbH, Stéphan Brem et
+ * son numéro. Il faut donc deux sauts, de la société vers ses contacts.
+ *
+ * Mémorisé par société : un fournisseur revient sur des centaines de
+ * chantiers, et sa fiche ne change pas d'un projet à l'autre.
+ */
+const contactsSocieteCache: Record<string, ContactDetail[]> = {};
+
+async function resolveContactsDeSocietes(ids: string[]): Promise<ContactDetail[]> {
+  const uniq = [...new Set(ids)].filter(Boolean);
+  if (uniq.length === 0) return [];
+  const listes = await Promise.all(uniq.map(async (id) => {
+    const vu = contactsSocieteCache[id];
+    if (vu) return vu;
+    try {
+      const page = await notionRetrieveWithRetry(id);
+      const props: Record<string, any> = page.properties || {};
+      /* La colonne s'appelle « Contacts » ou « Contacts dans l'entreprise »
+         selon les bases : on prend toute relation dont le nom le dit, plutôt
+         que d'en figer un qui se périmerait au premier renommage. */
+      const contactIds = new Set<string>();
+      for (const [nom, pr] of Object.entries(props)) {
+        if ((pr as any)?.type !== "relation" || !/contact/i.test(nom)) continue;
+        for (const r of (pr as any).relation || []) contactIds.add(r.id);
+      }
+      const details = contactIds.size > 0
+        ? Object.values(await resolveContactDetails([...contactIds]))
+        : [];
+      contactsSocieteCache[id] = details;
+      return details;
+    } catch {
+      /* Fiche société illisible : le nom de la maison suffit, la fiche de
+         travail ne doit pas échouer pour un contact manquant. */
+      return [];
+    }
+  }));
+  const vus = new Set<string>();
+  return listes.flat().filter((c) => c && !vus.has(c.id) && vus.add(c.id));
+}
+
 export async function getProject(pageId: string): Promise<Project> {
   const page = await notionRetrieveWithRetry(pageId);
   const project = mapPageToProject(page);
@@ -1152,9 +1199,10 @@ export async function getProject(pageId: string): Promise<Project> {
     ...project.contactsArchitecteRelation, ...project.contactsClientsFinauxRelation, ...project.contactsLocatairesRelation,
     ...project.contactsAutresRelation,
   ])];
-  const [names, contacts] = await Promise.all([
+  const [names, contacts, contactsFournisseurs] = await Promise.all([
     allRelIds.length > 0 ? resolveRelationNames(allRelIds) : Promise.resolve({} as Record<string, string>),
     allContactIds.length > 0 ? resolveContactDetails(allContactIds) : Promise.resolve({} as Record<string, ContactDetail>),
+    resolveContactsDeSocietes(project.fournisseursRelation),
     (async () => {
       try {
         const { mergeOverflowIntoProject } = await import("@/lib/photo-overflow");
@@ -1178,6 +1226,7 @@ export async function getProject(pageId: string): Promise<Project> {
   project.contactsClientsFinauxDetails = toDetails(project.contactsClientsFinauxRelation);
   project.contactsLocatairesDetails = toDetails(project.contactsLocatairesRelation);
   project.contactsAutresDetails = toDetails(project.contactsAutresRelation);
+  project.fournisseursContacts = contactsFournisseurs;
   return project;
 }
 
