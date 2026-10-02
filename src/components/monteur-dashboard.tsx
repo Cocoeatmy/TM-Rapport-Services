@@ -3178,14 +3178,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 const dt = new Date(monday);
                 dt.setDate(monday.getDate() + i);
                 const key = formatLocalDate(dt);
-                /* La charge, c'est ce qui RESTE à poser. Un chantier étalé sur
-                   plusieurs passages revenait ici avec toutes ses cabines, y
-                   compris celles déjà installées : la journée paraissait
-                   écrasée de travail déjà fait. Un lot entièrement posé ne
-                   pèse plus rien, et sort donc de la barre. */
-                const dayProjects = weekSource.filter(
-                  (p) => daysOfProject(p).includes(key) && cabinesRestantes(p) > 0,
-                );
+                /* Tous les chantiers du jour, posés ou non. Les écarter une
+                   fois terminés vidait les journées passées : la semaine
+                   écoulée n'avait plus l'air d'avoir eu lieu. Ce qui reste à
+                   faire se lit sur la pastille de chaque case et sur le total
+                   en tête, pas en faisant disparaître le travail fait. */
+                const dayProjects = weekSource.filter((p) => daysOfProject(p).includes(key));
                 /* Chaque groupe se scinde en deux : ce qui est en dépôt et ce
                    qui ne l'est pas encore. La couleur du monteur reste la
                    même, seule la trame change — on veut voir QUI pose, et
@@ -3195,7 +3193,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 dayProjects.forEach((p) => {
                   const label = (p.collaborateurs || "").trim() || "Non attribué";
                   const cur: Groupe = byGroup.get(label) || { recu: 0, attente: 0, projetsRecu: [], projetsAttente: [] };
-                  const n = cabinesRestantes(p);
+                  /* Hauteur = cabines du chantier. Ne mesurer que le reste
+                     faisait fondre une journée déjà faite jusqu'à rien. */
+                  const n = p.nbCabines || 0;
                   if (marchandiseEnAttente(p)) { cur.attente += n; cur.projetsAttente.push(p); }
                   else { cur.recu += n; cur.projetsRecu.push(p); }
                   byGroup.set(label, cur);
@@ -3245,8 +3245,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               /* Totaux de la semaine. Les projets se comptent par id : un
                  montage à cheval sur deux jours figure dans les deux barres
                  mais ne reste qu'un seul chantier. */
-              const semaineCab = bars.reduce((s, b) => s + b.cab, 0);
               const semaineProjets = new Set(bars.flatMap((b) => b.projets.map((p) => p.id))).size;
+              /* Posé et restant se comptent par chantier, pas par barre : un
+                 montage à cheval sur deux jours ne doit pas compter deux fois. */
+              const chantiersSemaine = [...new Map(bars.flatMap((b) => b.projets.map((p) => [p.id, p] as const))).values()];
+              const semainePosees = chantiersSemaine.reduce((s, p) => s + cabinesPosees(p), 0);
+              const semaineRestantes = chantiersSemaine.reduce((s, p) => s + cabinesRestantes(p), 0);
               return (
                 <div className="sg-card sg-chart">
                   <div className="sg-card-head">
@@ -3255,7 +3259,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       <p className="sg-card-meta">
                         {/* Les totaux de la semaine valent mieux que « cabines /
                             jour », que les barres disent déjà. */}
-                        semaine {weekNo} · {semaineCab} cabine{semaineCab > 1 ? "s" : ""} à poser
+                        semaine {weekNo} · {semaineRestantes} cabine{semaineRestantes > 1 ? "s" : ""} à poser
+                        {semainePosees > 0 && ` · ${semainePosees} posée${semainePosees > 1 ? "s" : ""}`}
                         {" · "}{semaineProjets} projet{semaineProjets > 1 ? "s" : ""}
                         {sgWeek !== 0 && ` · ${sgWeek > 0 ? "+" : ""}${sgWeek} sem.`}
                       </p>
@@ -3299,7 +3304,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           + b.segs.map((s) => `${s.label} : ${s.cab}${s.attente > 0 ? ` (dont ${s.attente} non réceptionnée${s.attente > 1 ? "s" : ""})` : ""}`).join("\n")
                           + (b.enAttente.length > 0
                             ? `\n\nMarchandise pas encore réceptionnée :\n`
-                              + b.enAttente.map((p) => `• ${p.ofrTM || p.projet} — ${cabinesRestantes(p)} cab.`).join("\n")
+                              + b.enAttente.map((p) => `• ${p.ofrTM || p.projet} — ${p.nbCabines || 0} cab.`).join("\n")
                             : "")}
                         onClick={(e) => {
                           if (b.cab === 0) return;
@@ -3341,8 +3346,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 key={`${s.label}-${p.id}`}
                                 className={`sg-bar-seg${attente ? " is-attente" : ""}`}
                                 style={attente
-                                  ? ({ flexGrow: cabinesRestantes(p), ["--raie" as string]: s.color } as React.CSSProperties)
-                                  : { flexGrow: cabinesRestantes(p), background: s.color }}
+                                  ? ({ flexGrow: p.nbCabines || 0, ["--raie" as string]: s.color } as React.CSSProperties)
+                                  : { flexGrow: p.nbCabines || 0, background: s.color }}
                               >
                                 {numeroDeProjet(p)}
                                 {(() => {
