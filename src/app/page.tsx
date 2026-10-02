@@ -22,7 +22,7 @@ import { getFavorites } from "@/lib/favorites";
 import { fetchWithRetry, prefetchProject } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import { toast as sonnerToast } from "sonner";
-import { numerosServices } from "@/lib/numeros-services";
+import { numerosServices, prefixeManquant } from "@/lib/numeros-services";
 import { StatsDateFilter, filterByStatsDate, getRolling12Range, describeStatsRange, type StatsDateMode } from "@/components/stats-date-filter";
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { SignalStats } from "@/components/signal-stats";
@@ -2970,7 +2970,10 @@ function HomePage() {
                        MÊME colonne. Montrer les deux ferait pointer une ligne
                        qui n'est pas sur la facture qu'on a sous les yeux. */
                     const numeros = prestation === "mesures"
-                      ? numerosServices(project.servMesuresFournisseurs, ["AS"])
+                      /* La colonne des mesures ne porte que des AS : un numéro
+                         saisi sans son préfixe peut y être qualifié sans
+                         risque, et c'est le cas de beaucoup de fiches. */
+                      ? numerosServices(project.servMesuresFournisseurs, ["AS"], "AS")
                       : numerosServices(project.servCmdFournisseurs,
                           prestation === "montage" ? ["MS"]
                           : prestation === "services" ? ["KS"]
@@ -3004,9 +3007,21 @@ function HomePage() {
                             pointer la ligne sur la facture reçue. */}
                         {numeros.length > 0 && (
                           <span className="shrink-0 flex flex-col items-end gap-0.5">
-                            {numeros.map((n) => (
-                              <span key={n} className="font-mono text-[11px] font-semibold text-[#1e3a5f] dark:text-blue-300 whitespace-nowrap">{n}</span>
-                            ))}
+                            {numeros.map((n) => {
+                              /* Numéro saisi sans son préfixe dans la colonne
+                                 partagée : rien ne dit s'il s'agit d'un MS ou
+                                 d'un KS. On le montre grisé plutôt que de
+                                 trancher — inventer un préfixe ferait pointer
+                                 la mauvaise facture. */
+                              const nu = prefixeManquant(n);
+                              return (
+                                <span key={n}
+                                  title={nu ? "Préfixe (MS / KS) absent dans Notion" : undefined}
+                                  className={`font-mono text-[11px] font-semibold whitespace-nowrap ${nu ? "text-gray-400 dark:text-gray-500 italic" : "text-[#1e3a5f] dark:text-blue-300"}`}>
+                                  {n}
+                                </span>
+                              );
+                            })}
                           </span>
                         )}
                         {etat && (

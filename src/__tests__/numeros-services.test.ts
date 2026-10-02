@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { numerosServices } from "@/lib/numeros-services";
+import { numerosServices, prefixeManquant } from "@/lib/numeros-services";
 
 describe("numerosServices", () => {
   it("ne rend que le préfixe demandé — un MS n'est pas sur la facture des services", () => {
@@ -20,9 +20,26 @@ describe("numerosServices", () => {
       .toEqual(["KS 2026/1", "MS 2026/2"]);
   });
 
-  it("ne rend rien quand le champ ne porte aucun numéro de ce genre", () => {
-    expect(numerosServices("601/3184", ["MS", "KS"])).toEqual([]);
+  it("ne rend rien quand le champ est vide ou sans numéro", () => {
     expect(numerosServices("", ["AS"])).toEqual([]);
     expect(numerosServices(null, ["AS"])).toEqual([]);
+    expect(numerosServices("à commander", ["MS", "KS"])).toEqual([]);
+  });
+});
+
+describe("numéros sans préfixe dans Notion", () => {
+  it("qualifie un numéro nu quand la colonne garantit le préfixe", () => {
+    expect(numerosServices("2026/1939", ["AS"], "AS")).toEqual(["AS 2026/1939"]);
+  });
+
+  it("rend le numéro nu tel quel dans la colonne partagée — rien ne dit MS ou KS", () => {
+    expect(numerosServices("2026/1939", ["MS"])).toEqual(["2026/1939"]);
+    expect(prefixeManquant("2026/1939")).toBe(true);
+    expect(prefixeManquant("MS 2026/1939")).toBe(false);
+  });
+
+  it("le préfixe écrit fait foi : un numéro nu à côté d'un MS n'est pas repris", () => {
+    expect(numerosServices("MS 2026/1692\n601/3778", ["MS"])).toEqual(["MS 2026/1692"]);
+    expect(numerosServices("MS 2026/1692\n601/3778", ["KS"])).toEqual([]);
   });
 });
