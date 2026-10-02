@@ -147,6 +147,45 @@ import { ColoredSelect } from "@/components/colored-select";
 import { thumbnailUrl } from "@/lib/image-url";
 
 /** Photo upload tied to a logical bucket (sub-section dans une colonne Notion). */
+/**
+ * Un passage daté d'un jour écoulé se fige.
+ *
+ * Revenus finir un chantier, des monteurs retouchaient les heures du premier
+ * passage au lieu d'en ajouter un second : le suivi des interventions
+ * disparaissait, et avec lui la trace de ce qu'avait coûté chaque retour. Les
+ * heures restent donc modifiables le jour même — et ce jour-là seulement.
+ *
+ * Un passage daté d'aujourd'hui ou de plus tard reste ouvert : on n'entrave
+ * pas la journée en cours ni une visite encore à venir. L'administrateur,
+ * lui, corrige ce qu'il veut : c'est à lui qu'on s'adresse quand une erreur
+ * doit être réparée.
+ */
+const MESSAGE_PASSAGE_FIGE =
+  "Ce passage est daté d'un jour écoulé : ses heures ne se modifient plus. Ajoutez un passage pour l'intervention du jour.";
+
+function passageFige(date: string | null | undefined, aujourdhui: string, isAdmin: boolean): boolean {
+  if (isAdmin) return false;
+  const d = String(date || "").slice(0, 10);
+  return !!d && d < aujourdhui;
+}
+
+/**
+ * Enveloppe un passage figé : il reste lisible, cesse de répondre, et dit
+ * pourquoi au premier clic plutôt que de laisser l'utilisateur insister.
+ */
+function BlocFige({ fige, children }: { fige: boolean; children: React.ReactNode }) {
+  if (!fige) return <>{children}</>;
+  return (
+    <div className="cursor-not-allowed" onClick={() => toast.error(MESSAGE_PASSAGE_FIGE)}>
+      <div className="pointer-events-none select-none opacity-60">{children}</div>
+      <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-gray-400">
+        <Lock className="w-3 h-3 shrink-0" />
+        Passage verrouillé — ajoutez un passage pour l&apos;intervention du jour.
+      </p>
+    </div>
+  );
+}
+
 /** Monteurs proposés partout où l'on coche qui s'est chargé d'un passage. */
 const COLLABORATEURS_LIST = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"];
 
@@ -166,11 +205,13 @@ function InterventionsSavLot({
   encode,
   heritage,
   aujourdhui,
+  isAdmin,
   onEnregistrer,
 }: {
   encode: string;
   heritage: { date: string; collaborateurs: string; arrivee: string; depart: string };
   aujourdhui: string;
+  isAdmin: boolean;
   onEnregistrer: (liste: InterventionSav[]) => void;
 }) {
   const depuisLaFiche = () =>
@@ -190,8 +231,17 @@ function InterventionsSavLot({
     ecritRef.current = encodeInterventions(suivante);
     onEnregistrer(suivante);
   };
-  const modifier = (i: number, champ: keyof InterventionSav, valeur: string) =>
+  /* Un passage d'un jour écoulé ne bouge plus : le refus se fait ici, pour
+     qu'aucun chemin — clavier, sélecteur de date — ne le contourne. */
+  const refuse = (i: number) => {
+    if (!passageFige(liste[i]?.date, aujourdhui, isAdmin)) return false;
+    toast.error(MESSAGE_PASSAGE_FIGE);
+    return true;
+  };
+  const modifier = (i: number, champ: keyof InterventionSav, valeur: string) => {
+    if (refuse(i)) return;
     appliquer(liste.map((x, k) => (k === i ? { ...x, [champ]: valeur } : x)));
+  };
 
   return (
     <div>
@@ -203,7 +253,8 @@ function InterventionsSavLot({
         {liste.map((it, i) => {
           const choisis = it.collaborateurs.split(/\s*&\s*/).map((x) => x.trim()).filter(Boolean);
           return (
-            <div key={i} className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5">
+            <BlocFige key={i} fige={passageFige(it.date, aujourdhui, isAdmin)}>
+            <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5">
               <div className="flex items-center justify-between gap-2 mb-1.5">
                 <span className="text-[11px] text-gray-400">
                   {liste.length > 1 ? `Passage ${i + 1}` : "Passage"}
@@ -211,7 +262,7 @@ function InterventionsSavLot({
                 <button
                   type="button"
                   title="Retirer cette intervention"
-                  onClick={() => appliquer(liste.filter((_, k) => k !== i))}
+                  onClick={() => { if (refuse(i)) return; appliquer(liste.filter((_, k) => k !== i)); }}
                   className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                 >
                   <X className="w-4 h-4" />
@@ -274,6 +325,7 @@ function InterventionsSavLot({
                 })}
               </div>
             </div>
+            </BlocFige>
           );
         })}
       </div>
@@ -4463,17 +4515,26 @@ function ProjectPageContent({ id }: { id: string }) {
     /* Première retouche : on bascule la fiche en liste avant d'appliquer,
        les mises à jour d'état étant mises en file dans l'ordre. */
     const avantRetouche = () => { if (!ctx.isMultiDay) ctx.onEnable(); };
+    /* Un passage d'un jour écoulé ne bouge plus : le refus se fait ici, pour
+       qu'aucun chemin — clavier, sélecteur de date — ne le contourne. */
+    const refuse = (idx: number) => {
+      if (!passageFige(liste[idx]?.date, today, isAdmin)) return false;
+      toast.error(MESSAGE_PASSAGE_FIGE);
+      return true;
+    };
     const onUpdate = (idx: number, champ: keyof PointageEntry, valeur: string) => {
+      if (refuse(idx)) return;
       avantRetouche();
       ctx.onUpdate(idx, champ, valeur);
     };
-    const onRemove = (idx: number) => { avantRetouche(); ctx.onRemove(idx); };
+    const onRemove = (idx: number) => { if (refuse(idx)) return; avantRetouche(); ctx.onRemove(idx); };
     const onAdd = () => { avantRetouche(); ctx.onAdd(); };
     return (
       <div className="space-y-3">
         <Label>Interventions</Label>
         {liste.map((entry, idx) => (
-          <div key={idx} className="p-3 bg-gray-50 dark:bg-slate-800 rounded-xl space-y-2">
+          <BlocFige key={idx} fige={passageFige(entry.date, today, isAdmin)}>
+          <div className="p-3 bg-gray-50 dark:bg-slate-800 rounded-xl space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-500">Intervention {idx + 1}</span>
               <button type="button" onClick={() => onRemove(idx)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500">
@@ -4527,6 +4588,7 @@ function ProjectPageContent({ id }: { id: string }) {
               </div>
             </div>
           </div>
+          </BlocFige>
         ))}
         <button type="button" onClick={onAdd} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-blue-50 transition-colors">
           <Plus className="w-4 h-4" />
@@ -4626,6 +4688,7 @@ function ProjectPageContent({ id }: { id: string }) {
         depart: parseCabineTextMulti(project?.heureDepartSav || "")[idx + 1] || "",
       }}
       aujourdhui={today}
+      isAdmin={isAdmin}
       onEnregistrer={(suivante) => {
         const dernier = dernierPassage(suivante) || suivante[suivante.length - 1] || null;
         /* Les quatre colonnes historiques gardent le DERNIER passage : tout ce
@@ -8356,7 +8419,7 @@ function ProjectPageContent({ id }: { id: string }) {
               {showHeuresCard && <CardContent className="space-y-4">
                 {/* Mode simple (1 cabine) */}
                 {!isMultiDay && (
-                  <>
+                  <BlocFige fige={passageFige(project?.dateMontage, today, isAdmin)}>
                   <SiteTimer
                     projectId={project.id}
                     heureArrivee={heureArrivee}
@@ -8395,7 +8458,11 @@ function ProjectPageContent({ id }: { id: string }) {
                     }
                     return null;
                   })()}
-                  {/* Passer en plusieurs interventions datées (déplacements multiples) */}
+                  </BlocFige>
+                )}
+                {/* Ajouter un passage reste toujours possible : c'est la sortie
+                    qu'on propose à celui dont les heures sont verrouillées. */}
+                {!isMultiDay && (
                   <button
                     type="button"
                     onClick={enableMultiInterventions}
@@ -8404,7 +8471,6 @@ function ProjectPageContent({ id }: { id: string }) {
                     <Plus className="w-4 h-4" />
                     Plusieurs interventions (jours / collaborateurs)
                   </button>
-                  </>
                 )}
 
                 {/* Mode tableau multi-jours (mono-cabine uniquement) */}
@@ -8420,13 +8486,19 @@ function ProjectPageContent({ id }: { id: string }) {
                         Revenir au mode simple
                       </button>
                     </div>
-                    {pointages.map((entry, idx) => (
-                      <div key={idx} className="p-3 bg-gray-50 rounded-xl space-y-2">
+                    {pointages.map((entry, idx) => {
+                      const fige = passageFige(entry.date, today, isAdmin);
+                      /* Même règle que partout : un passage daté d'un jour
+                         écoulé se lit, ne se retouche plus. */
+                      const refuse = () => { if (!fige) return false; toast.error(MESSAGE_PASSAGE_FIGE); return true; };
+                      return (
+                      <BlocFige key={idx} fige={fige}>
+                      <div className="p-3 bg-gray-50 rounded-xl space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-gray-500">Intervention {idx + 1}</span>
                           <button
                             type="button"
-                            onClick={() => removePointage(idx)}
+                            onClick={() => { if (refuse()) return; removePointage(idx); }}
                             className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-50 text-gray-400 hover:text-red-500"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -8438,7 +8510,7 @@ function ProjectPageContent({ id }: { id: string }) {
                             <Input
                               type="date"
                               value={entry.date}
-                              onChange={(e) => updatePointage(idx, "date", e.target.value)}
+                              onChange={(e) => { if (refuse()) return; updatePointage(idx, "date", e.target.value); }}
                               className="mt-0.5 h-10 text-sm max-w-[200px] bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100"
                             />
                           </div>
@@ -8457,6 +8529,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                       const newVal = selected
                                         ? current.filter((n) => n !== c).join(" & ")
                                         : [...current, c].join(" & ");
+                                      if (refuse()) return;
                                       updatePointage(idx, "collaborateur", newVal);
                                     }}
                                     className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full transition-all ${
@@ -8478,7 +8551,7 @@ function ProjectPageContent({ id }: { id: string }) {
                             <Input
                               type="time"
                               value={entry.arrivee}
-                              onChange={(e) => updatePointage(idx, "arrivee", e.target.value)}
+                              onChange={(e) => { if (refuse()) return; updatePointage(idx, "arrivee", e.target.value); }}
                               className="mt-0.5 h-10 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100"
                             />
                           </div>
@@ -8490,6 +8563,7 @@ function ProjectPageContent({ id }: { id: string }) {
                               min={entry.arrivee || undefined}
                               onChange={(e) => {
                                 const v = e.target.value;
+                                if (refuse()) return;
                                 if (v && entry.arrivee && v < entry.arrivee) {
                                   toast.error("L'heure de départ ne peut pas être avant l'arrivée.");
                                   return;
@@ -8501,7 +8575,9 @@ function ProjectPageContent({ id }: { id: string }) {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      </BlocFige>
+                      );
+                    })}
                     <button
                       type="button"
                       onClick={addPointage}
