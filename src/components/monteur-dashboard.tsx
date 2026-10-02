@@ -1657,8 +1657,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     const services = day.filter(isServices);
     const garanties = day.filter(isGarantie);
     const sav = projects.filter((p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === dateStr);
+    /* Cabines déjà posées parmi celles du jour : l'avancement réel des
+       équipes, et non ce qui était prévu. Bornée au total du chantier — une
+       saisie trop haute ferait un compteur qui dépasse son propre maximum. */
+    const posees = montages.reduce(
+      (s, p) => s + Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0,
+    );
     return {
-      montages: montages.length, montagesCab: cab(montages),
+      montages: montages.length, montagesCab: cab(montages), montagesPosees: posees,
       mesures: mesures.length, mesuresCab: cab(mesures),
       services: services.length, servicesCab: cab(services),
       sav: sav.length, savCab: cab(sav),
@@ -2988,7 +2994,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               },
             ]).map((col) => {
               const lignes = [
-                { label: "Montages", count: col.d.montages, cab: col.d.montagesCab, color: "#1b63ff" },
+                { label: "Montages", count: col.d.montages, cab: col.d.montagesCab, color: "#1b63ff", posees: col.d.montagesPosees },
                 { label: "Mesures", count: col.d.mesures, cab: col.d.mesuresCab, color: "#0e7490" },
                 { label: "Services", count: col.d.services, cab: col.d.servicesCab, color: "#6d28d9" },
                 { label: "SAV", count: col.d.sav, cab: col.d.savCab, color: "#b45309" },
@@ -3043,7 +3049,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     className={`sg-row${r.count === 0 ? " sg-row-static" : ""}`}
                   >
                     <span className="sg-row-bar" style={{ background: r.count > 0 ? r.color : "var(--sg-line-strong)" }} />
-                    <span className="sg-row-label">{r.label}</span>
+                    <span className="sg-row-label">
+                      {r.label}
+                      {/* Avancement du jour, et du jour seulement : demain,
+                          rien n'est encore posé — un « 0 / 8 » y ressemblerait
+                          à du retard. */}
+                      {col.title === "Aujourd'hui" && r.posees !== undefined && r.cab > 0 && (
+                        <span className={`sg-row-pose${r.posees >= r.cab ? " is-done" : r.posees > 0 ? " is-wip" : ""}`}
+                              title={`${r.posees} cabine${r.posees > 1 ? "s" : ""} posée${r.posees > 1 ? "s" : ""} sur ${r.cab}`}>
+                          <b>{r.posees}</b>/{r.cab} posées
+                        </span>
+                      )}
+                    </span>
                     <span className="sg-row-count" style={{ color: r.count > 0 ? "var(--sg-text)" : "var(--sg-text-3)" }}>{r.count}</span>
                     <span className="sg-row-unit">{r.count > 0 ? `${r.cab} cab.` : "—"}</span>
                   </button>

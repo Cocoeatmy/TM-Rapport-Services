@@ -599,8 +599,36 @@ html[data-ui="signal"] .sg-row-bar {
 }
 html[data-ui="signal"] .sg-row-label {
   flex-grow: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   color: var(--sg-text-2);
+}
+/* Avancement du jour, collé au libellé : combien de cabines sont déjà posées
+   sur celles prévues. Gris tant que rien n'a commencé, bleu pendant la pose,
+   vert quand la journée est faite — le chiffre se lit d'un coup d'œil sans
+   avoir à comparer deux colonnes. */
+html[data-ui="signal"] .sg-row-pose {
+  display: inline-flex; align-items: baseline; gap: 1px;
+  padding: 1px 7px; border-radius: 999px;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 10px; letter-spacing: -0.01em; white-space: nowrap;
+  background: var(--sg-paper-2); color: var(--sg-text-3);
+  border: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-row-pose b { font-size: 12px; font-weight: 700; }
+html[data-ui="signal"] .sg-row-pose.is-wip {
+  background: #e8f0ff; border-color: #c7dbff; color: #1b4ed8;
+}
+html[data-ui="signal"] .sg-row-pose.is-done {
+  background: #e3f6ea; border-color: #bfe8cd; color: #15803d;
+}
+html[data-ui="signal"].dark .sg-row-pose.is-wip {
+  background: rgba(27, 99, 255, 0.16); border-color: rgba(27, 99, 255, 0.35); color: #93b4ff;
+}
+html[data-ui="signal"].dark .sg-row-pose.is-done {
+  background: rgba(21, 128, 61, 0.18); border-color: rgba(21, 128, 61, 0.38); color: #7ddba2;
 }
 html[data-ui="signal"] .sg-row-count {
   font-family: var(--font-mono);
