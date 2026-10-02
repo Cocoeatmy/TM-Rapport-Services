@@ -780,7 +780,11 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
             const savWho = (firstCab && collab[firstCab]) || project.collaborateursSAV
               || (pts.length ? [...new Set(pts.flatMap((p) => (p.collaborateur || "").split(" & ").filter(Boolean)))].join(" & ") : "");
             const value = dateAndWho(savDatePart, savWho);
-            // Pas de SAV → ligne simple, SANS flèche de téléchargement.
+            /* Aucun SAV, et rien à en dire : la ligne disparaît. Un tiret en
+               face de « SAV » laissait croire qu'on attendait une information
+               qui n'est simplement pas de ce chantier. */
+            if (totalSav <= 0 && value === "—") return null;
+            // Pas de SAV par cabine → ligne simple, SANS flèche de téléchargement.
             if (totalSav <= 0) return <LineRow label="SAV" value={value} />;
             const clos = savCabs.filter((n) => cloture[n]).length;
             const pct = Math.round((clos / totalSav) * 100);
@@ -807,8 +811,15 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
               </React.Fragment>
             );
           })()}
-          <LineRow label="Garantie" value={dateAndWho(fmtDate(project.dateRDVGarantie), project.collaborateurGarantie)} />
-          <LineRow label="Services" value="à venir" />
+          {/* Garantie et Services ne concernent pas tous les chantiers : on ne
+              les porte que lorsque Notion a de quoi les remplir. */}
+          {(() => {
+            const garantie = dateAndWho(fmtDate(project.dateRDVGarantie), project.collaborateurGarantie);
+            return garantie === "—" ? null : <LineRow label="Garantie" value={garantie} />;
+          })()}
+          {(project.typeServices || []).filter(Boolean).length > 0 ? (
+            <LineRow label="Services" value={joinVal(project.typeServices)} />
+          ) : null}
         </View>
 
         {/* Mesures par lot — téléchargement de la mesure de chaque cabine
