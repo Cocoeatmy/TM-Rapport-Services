@@ -657,7 +657,10 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
           {/* Démontage : seulement quand une dépose est prévue. La ligne vide
               aurait laissé croire qu'on en attend une sur chaque chantier. */}
           {project.dateDemontage ? (
-            <LineRow label="Démontage" value={fmtDate(project.dateDemontage)} />
+            <LineRow
+              label="Démontage"
+              value={dateAndWho(fmtDate(project.dateDemontage), project.collaborateursDemontage)}
+            />
           ) : null}
           {/* Montage : progression cabines installées / total. Comme l'app, on
               compte les cabines ayant au moins une photo « montage » (nom de
