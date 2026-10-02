@@ -694,6 +694,22 @@ function parseTMNumbers(raw: string): string[] {
 }
 
 /**
+ * Place qu'un chantier prend dans la barre de charge.
+ *
+ * C'est ce qui RESTE à poser : un chantier de dix-neuf cabines dont dix-huit
+ * sont montées ne pèse plus qu'une sur la journée — sans quoi la barre
+ * annonce du travail déjà fait.
+ *
+ * Un chantier terminé garde une bande d'une unité. À zéro il sortait de la
+ * barre, et les journées écoulées se vidaient de tout ce qu'on y avait fait ;
+ * la bande le montre, sa coche dit qu'il est fini, et le total au-dessus
+ * continue de ne compter que les cabines à poser.
+ */
+function poidsDeLot(p: Project): number {
+  return Math.max(cabinesRestantes(p), 1);
+}
+
+/**
  * État d'un chantier, posé à droite de sa case dans la barre de charge.
  *
  * Le numéro dit QUEL chantier ; il ne disait pas où il en est. Une pastille
@@ -3188,31 +3204,33 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                    qui ne l'est pas encore. La couleur du monteur reste la
                    même, seule la trame change — on veut voir QUI pose, et
                    séparément CE QUI manque. */
-                type Groupe = { recu: number; attente: number; projetsRecu: Project[]; projetsAttente: Project[] };
+                type Groupe = { poids: number; attente: number; projetsRecu: Project[]; projetsAttente: Project[] };
                 const byGroup = new Map<string, Groupe>();
                 dayProjects.forEach((p) => {
                   const label = (p.collaborateurs || "").trim() || "Non attribué";
-                  const cur: Groupe = byGroup.get(label) || { recu: 0, attente: 0, projetsRecu: [], projetsAttente: [] };
-                  /* Hauteur = cabines du chantier. Ne mesurer que le reste
-                     faisait fondre une journée déjà faite jusqu'à rien. */
-                  const n = p.nbCabines || 0;
-                  if (marchandiseEnAttente(p)) { cur.attente += n; cur.projetsAttente.push(p); }
-                  else { cur.recu += n; cur.projetsRecu.push(p); }
+                  const cur: Groupe = byGroup.get(label) || { poids: 0, attente: 0, projetsRecu: [], projetsAttente: [] };
+                  cur.poids += poidsDeLot(p);
+                  if (marchandiseEnAttente(p)) { cur.attente += cabinesRestantes(p); cur.projetsAttente.push(p); }
+                  else cur.projetsRecu.push(p);
                   byGroup.set(label, cur);
                 });
                 const segs = [...byGroup.entries()]
                   .map(([label, v]) => ({
-                    label, recu: v.recu, attente: v.attente,
+                    label, attente: v.attente, poids: v.poids,
                     projetsRecu: v.projetsRecu, projetsAttente: v.projetsAttente,
-                    cab: v.recu + v.attente, color: groupColor(label),
+                    cab: [...v.projetsRecu, ...v.projetsAttente].reduce((s2, x) => s2 + cabinesRestantes(x), 0),
+                    color: groupColor(label),
                   }))
-                  .sort((a, b) => b.cab - a.cab);
-                const cab = segs.reduce((s, x) => s + x.cab, 0);
-                const attente = segs.reduce((s, x) => s + x.attente, 0);
+                  .sort((a, b) => b.poids - a.poids);
+                /* Le chiffre annoncé reste un nombre de cabines à poser : la
+                   bande minimale sert à voir le chantier fini, pas à le compter. */
+                const cab = dayProjects.reduce((s2, p) => s2 + cabinesRestantes(p), 0);
+                const poidsJour = segs.reduce((s2, x) => s2 + x.poids, 0);
+                const attente = segs.reduce((s2, x) => s2 + x.attente, 0);
                 const enAttente = dayProjects.filter(marchandiseEnAttente);
-                return { d, key, cab, attente, enAttente, segs, projets: dayProjects, nb: dayProjects.length, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
+                return { d, key, cab, poidsJour, attente, enAttente, segs, projets: dayProjects, nb: dayProjects.length, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
               });
-              const max = Math.max(1, ...bars.map((b) => b.cab));
+              const max = Math.max(1, ...bars.map((b) => b.poidsJour));
               /* Légende : groupes présents sur la semaine, du plus chargé au
                  moins. Chaque pastille porte SES projets — un montage à cheval
                  sur deux jours figure dans les deux barres mais ne doit
@@ -3288,18 +3306,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       <div
                         key={b.d}
                         role="button"
-                        tabIndex={b.cab === 0 ? -1 : 0}
-                        aria-disabled={b.cab === 0}
-                        className={`sg-bar-col${b.cab === 0 ? " is-void" : ""}${b.isToday ? " is-today" : ""}`}
+                        tabIndex={b.nb === 0 ? -1 : 0}
+                        aria-disabled={b.nb === 0}
+                        className={`sg-bar-col${b.nb === 0 ? " is-void" : ""}${b.isToday ? " is-today" : ""}`}
                         onKeyDown={(e) => {
-                          if (b.cab === 0) return;
+                          if (b.nb === 0) return;
                           if (e.key !== "Enter" && e.key !== " ") return;
                           e.preventDefault();
                           openPanel("calendrier", e as unknown as React.MouseEvent<HTMLButtonElement>);
                           setCalendarMonth({ year: b.dt.getFullYear(), month: b.dt.getMonth() });
                           setCalendarSelectedDay(b.key);
                         }}
-                        title={b.cab === 0 ? `${b.d} — aucun montage` :
+                        title={b.nb === 0 ? `${b.d} — aucun montage` :
                           `${b.d} — ${b.nb} projet${b.nb > 1 ? "s" : ""} · ${b.cab} cab.\n`
                           + b.segs.map((s) => `${s.label} : ${s.cab}${s.attente > 0 ? ` (dont ${s.attente} non réceptionnée${s.attente > 1 ? "s" : ""})` : ""}`).join("\n")
                           + (b.enAttente.length > 0
@@ -3307,7 +3325,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               + b.enAttente.map((p) => `• ${p.ofrTM || p.projet} — ${p.nbCabines || 0} cab.`).join("\n")
                             : "")}
                         onClick={(e) => {
-                          if (b.cab === 0) return;
+                          if (b.nb === 0) return;
                           openPanel("calendrier", e as unknown as React.MouseEvent<HTMLButtonElement>);
                           setCalendarMonth({ year: b.dt.getFullYear(), month: b.dt.getMonth() });
                           setCalendarSelectedDay(b.key);
@@ -3320,8 +3338,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             zone pour lui laisser sa place sans déborder. */}
                         <span className="sg-bar-zone">
                           <span className="sg-bar-val"
-                                style={{ bottom: `${Math.round((b.cab / max) * 86)}%` }}>
-                            {b.cab === 0 ? "0" : (
+                                style={{ bottom: `${Math.round((b.poidsJour / max) * 86)}%` }}>
+                            {b.nb === 0 ? "0" : (
                               <>
                                 <b>{b.cab} cabine{b.cab > 1 ? "s" : ""}</b>
                                 <i>{b.nb} projet{b.nb > 1 ? "s" : ""}</i>
@@ -3329,7 +3347,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             )}
                           </span>
                           <span className={`sg-bar-stack${b.isToday ? " is-today" : ""}`}
-                                style={{ height: `${Math.round((b.cab / max) * 86)}%` }}>
+                                style={{ height: `${Math.round((b.poidsJour / max) * 86)}%` }}>
                             {b.segs.length === 0 && <i className="sg-bar-seg is-empty" style={{ flexGrow: 1 }} />}
                             {/* Une case PAR PROJET, à sa hauteur de cabines, et
                                 non un bloc par monteur : trois montages pour
@@ -3346,8 +3364,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 key={`${s.label}-${p.id}`}
                                 className={`sg-bar-seg${attente ? " is-attente" : ""}`}
                                 style={attente
-                                  ? ({ flexGrow: p.nbCabines || 0, ["--raie" as string]: s.color } as React.CSSProperties)
-                                  : { flexGrow: p.nbCabines || 0, background: s.color }}
+                                  ? ({ flexGrow: poidsDeLot(p), ["--raie" as string]: s.color } as React.CSSProperties)
+                                  : { flexGrow: poidsDeLot(p), background: s.color }}
                               >
                                 {numeroDeProjet(p)}
                                 {(() => {
