@@ -3001,12 +3001,10 @@ function HomePage() {
                               <Calendar className="w-3 h-3 shrink-0" />{fTypeLbl} : {fTypeD ? formatDateFR(fTypeD) : "—"}
                             </span>
                             {!!project.nbCabines && <span>{project.nbCabines} cab.</span>}
-                          </div>
-                        </div>
-                        {/* N° de service du fournisseur : ce qui permet de
-                            pointer la ligne sur la facture reçue. */}
-                        {numeros.length > 0 && (
-                          <span className="shrink-0 flex flex-col items-end gap-0.5">
+                            {/* N° de service du fournisseur : ce qui permet de
+                                pointer la ligne sur la facture reçue. Il se lit
+                                avec le reste de l'identité du chantier, pas à
+                                l'autre bout de la ligne. */}
                             {numeros.map((n) => {
                               /* Numéro saisi sans son préfixe dans la colonne
                                  partagée : rien ne dit s'il s'agit d'un MS ou
@@ -3016,14 +3014,16 @@ function HomePage() {
                               const nu = prefixeManquant(n);
                               return (
                                 <span key={n}
-                                  title={nu ? "Préfixe (MS / KS) absent dans Notion" : undefined}
-                                  className={`font-mono text-[11px] font-semibold whitespace-nowrap ${nu ? "text-gray-400 dark:text-gray-500 italic" : "text-[#1e3a5f] dark:text-blue-300"}`}>
+                                  title={nu ? "Préfixe (MS / KS) absent dans Notion" : "N° de service fournisseur"}
+                                  className={`font-mono font-semibold whitespace-nowrap px-1.5 py-px rounded ${nu
+                                    ? "text-gray-400 dark:text-gray-500 italic bg-gray-100 dark:bg-slate-700/50"
+                                    : "text-[#1e3a5f] dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30"}`}>
                                   {n}
                                 </span>
                               );
                             })}
-                          </span>
-                        )}
+                          </div>
+                        </div>
                         {etat && (
                           <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${etatCls}`}>{etat}</span>
                         )}
