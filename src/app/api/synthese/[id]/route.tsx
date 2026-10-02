@@ -192,6 +192,12 @@ function SubRow({ paths, iconColor, textColor = "#333", bold = false, children }
 }
 
 function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project; pieces?: Piece[]; defauts?: Defaut[] }) {
+  /* Même règle que la fiche de travail : le fournisseur ne figure dans les
+     contacts que lorsque c'est LUI le client. Sur un chantier facturé au
+     grossiste, il n'est qu'un fabricant. */
+  const estClientFournisseur = String(project.typeClient || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+    .startsWith("fournisseur");
   const total = project.nbCabines || 0;
   const names = parseCabMulti(project.nomsCabines);
   const attribution = parseCabMulti(project.attributionCabines);
@@ -402,6 +408,16 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Contact</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {/* Contact pris sur la FICHE du fournisseur, qui tient la relation
+                « Contacts » vers ses interlocuteurs — le projet, lui, n'en
+                porte aucun. */}
+            {estClientFournisseur ? (
+              <ContactCell
+                label="FOURNISSEUR"
+                company={joinNames(project.fournisseursNames)}
+                contacts={project.fournisseursContacts}
+              />
+            ) : null}
             <ContactCell label="GROSSISTE" company={joinNames(project.grossistesNames)} contacts={project.contactsGrossisteDetails} />
             <ContactCell label="INSTALLATEUR" company={joinNames(project.sanitaireNames)} contacts={project.contactsSanitaireDetails} />
             <ContactCell label="ARCHITECTE" company={joinNames(project.architecteNames)} contacts={project.contactsArchitecteDetails} />
