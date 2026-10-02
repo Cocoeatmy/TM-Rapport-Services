@@ -750,7 +750,9 @@ html[data-ui="signal"] .sg-duo > .sg-card { height: 100%; }
 html[data-ui="signal"] .sg-chart { display: flex; flex-direction: column; }
 html[data-ui="signal"] .sg-bars {
   flex-grow: 1;
-  min-height: 190px;
+  /* Plus haut qu'avant : les segments portent maintenant leur numéro de
+     projet, et à 190 px la plupart étaient trop minces pour une ligne. */
+  min-height: 280px;
   display: flex;
   align-items: flex-end;
   gap: 14px;
@@ -783,7 +785,7 @@ html[data-ui="signal"] .sg-bar-zone {
   position: relative;
   flex: 1;
   width: 100%;
-  min-height: 120px;
+  min-height: 210px;
   display: flex;
   align-items: flex-end;
 }
@@ -800,7 +802,28 @@ html[data-ui="signal"] .sg-bar-stack {
   transform-origin: bottom;
 }
 html[data-ui="signal"] .sg-bar-stack.is-today { outline: 2px solid var(--sg-signal); outline-offset: 2px; }
-html[data-ui="signal"] .sg-bar-seg { display: block; min-height: 3px; }
+html[data-ui="signal"] .sg-bar-seg {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 3px; overflow: hidden;
+}
+/* Numéros de projet posés sur le segment. Le débordement est rogné : un
+   segment d'une cabine ne doit pas s'agrandir pour loger son texte, sans quoi
+   la barre ne montrerait plus la proportion qu'elle prétend montrer. */
+html[data-ui="signal"] .sg-seg-tms {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  gap: 1px 7px; padding: 0 4px; max-width: 100%;
+}
+html[data-ui="signal"] .sg-seg-tm {
+  border: none; background: none; padding: 0;
+  font-family: var(--font-mono); font-size: 9.5px; line-height: 1.15;
+  letter-spacing: -0.01em; white-space: nowrap; cursor: pointer;
+  color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+html[data-ui="signal"] .sg-seg-tm:hover { text-decoration: underline; }
+/* Segment rayé : le fond est clair, le blanc y serait illisible. */
+html[data-ui="signal"] .sg-bar-seg.is-attente .sg-seg-tm {
+  color: var(--sg-text); text-shadow: 0 0 3px var(--sg-paper);
+}
 html[data-ui="signal"] .sg-bar-seg.is-empty { background: var(--sg-line-strong); }
 /* Cabine attribuée mais dont la marchandise n'est pas encore en dépôt : même
    couleur de monteur, rayée sur fond clair. Le liseré intérieur détache le

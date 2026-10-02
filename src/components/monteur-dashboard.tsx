@@ -693,6 +693,43 @@ function parseTMNumbers(raw: string): string[] {
 }
 
 /**
+ * Numéros de projet posés DANS un segment de la barre de charge.
+ *
+ * Une couleur dit qui pose, pas ce qu'il pose. Il fallait ouvrir le calendrier
+ * pour savoir à quel chantier correspondait un bloc ; le numéro est désormais
+ * écrit dessus, et il ouvre l'aperçu du projet.
+ *
+ * Les segments étroits — une cabine sur une journée chargée — n'ont pas la
+ * place d'une ligne : le texte y est simplement rogné, plutôt que de grossir
+ * le segment et de fausser la proportion que la barre est censée montrer.
+ */
+function numerosDeSegment(projets: Project[]) {
+  const etiquettes = projets.flatMap((p) =>
+    parseTMNumbers(p.ofrTM || "").map((num) => ({ num, projet: p })),
+  );
+  if (etiquettes.length === 0) return null;
+  return (
+    <span className="sg-seg-tms">
+      {etiquettes.map(({ num, projet }) => (
+        <button
+          key={`${projet.id}-${num}`}
+          type="button"
+          className="sg-seg-tm"
+          title={`${num} — ${projet.projet}`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openSignalPreview(projet, "dashboard");
+          }}
+        >
+          {num}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/**
  * Nature d'une intervention pour l'affichage : Mesures, Services ou Montage.
  *
  * « Type de services » valant EXACTEMENT « Services » désigne une prestation
@@ -3094,22 +3131,32 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 const dt = new Date(monday);
                 dt.setDate(monday.getDate() + i);
                 const key = formatLocalDate(dt);
-                const dayProjects = weekSource.filter((p) => daysOfProject(p).includes(key));
+                /* La charge, c'est ce qui RESTE à poser. Un chantier étalé sur
+                   plusieurs passages revenait ici avec toutes ses cabines, y
+                   compris celles déjà installées : la journée paraissait
+                   écrasée de travail déjà fait. Un lot entièrement posé ne
+                   pèse plus rien, et sort donc de la barre. */
+                const dayProjects = weekSource.filter(
+                  (p) => daysOfProject(p).includes(key) && cabinesRestantes(p) > 0,
+                );
                 /* Chaque groupe se scinde en deux : ce qui est en dépôt et ce
                    qui ne l'est pas encore. La couleur du monteur reste la
                    même, seule la trame change — on veut voir QUI pose, et
                    séparément CE QUI manque. */
-                const byGroup = new Map<string, { recu: number; attente: number }>();
+                type Groupe = { recu: number; attente: number; projetsRecu: Project[]; projetsAttente: Project[] };
+                const byGroup = new Map<string, Groupe>();
                 dayProjects.forEach((p) => {
                   const label = (p.collaborateurs || "").trim() || "Non attribué";
-                  const cur = byGroup.get(label) || { recu: 0, attente: 0 };
-                  const n = p.nbCabines || 0;
-                  if (marchandiseEnAttente(p)) cur.attente += n; else cur.recu += n;
+                  const cur: Groupe = byGroup.get(label) || { recu: 0, attente: 0, projetsRecu: [], projetsAttente: [] };
+                  const n = cabinesRestantes(p);
+                  if (marchandiseEnAttente(p)) { cur.attente += n; cur.projetsAttente.push(p); }
+                  else { cur.recu += n; cur.projetsRecu.push(p); }
                   byGroup.set(label, cur);
                 });
                 const segs = [...byGroup.entries()]
                   .map(([label, v]) => ({
                     label, recu: v.recu, attente: v.attente,
+                    projetsRecu: v.projetsRecu, projetsAttente: v.projetsAttente,
                     cab: v.recu + v.attente, color: groupColor(label),
                   }))
                   .sort((a, b) => b.cab - a.cab);
@@ -3175,20 +3222,33 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   </div>
                   <div className="sg-bars">
                     {bars.map((b) => (
-                      <button
+                      /* Colonne en div, pas en bouton : elle porte désormais
+                         les n° de projet, eux-mêmes cliquables, et un bouton
+                         dans un bouton n'est pas du HTML valide. */
+                      <div
                         key={b.d}
-                        type="button"
+                        role="button"
+                        tabIndex={b.cab === 0 ? -1 : 0}
+                        aria-disabled={b.cab === 0}
                         className={`sg-bar-col${b.cab === 0 ? " is-void" : ""}${b.isToday ? " is-today" : ""}`}
-                        disabled={b.cab === 0}
+                        onKeyDown={(e) => {
+                          if (b.cab === 0) return;
+                          if (e.key !== "Enter" && e.key !== " ") return;
+                          e.preventDefault();
+                          openPanel("calendrier", e as unknown as React.MouseEvent<HTMLButtonElement>);
+                          setCalendarMonth({ year: b.dt.getFullYear(), month: b.dt.getMonth() });
+                          setCalendarSelectedDay(b.key);
+                        }}
                         title={b.cab === 0 ? `${b.d} — aucun montage` :
                           `${b.d} — ${b.nb} projet${b.nb > 1 ? "s" : ""} · ${b.cab} cab.\n`
                           + b.segs.map((s) => `${s.label} : ${s.cab}${s.attente > 0 ? ` (dont ${s.attente} non réceptionnée${s.attente > 1 ? "s" : ""})` : ""}`).join("\n")
                           + (b.enAttente.length > 0
                             ? `\n\nMarchandise pas encore réceptionnée :\n`
-                              + b.enAttente.map((p) => `• ${p.ofrTM || p.projet} — ${p.nbCabines || 0} cab.`).join("\n")
+                              + b.enAttente.map((p) => `• ${p.ofrTM || p.projet} — ${cabinesRestantes(p)} cab.`).join("\n")
                             : "")}
                         onClick={(e) => {
-                          openPanel("calendrier", e);
+                          if (b.cab === 0) return;
+                          openPanel("calendrier", e as unknown as React.MouseEvent<HTMLButtonElement>);
                           setCalendarMonth({ year: b.dt.getFullYear(), month: b.dt.getMonth() });
                           setCalendarSelectedDay(b.key);
                         }}
@@ -3214,15 +3274,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             {b.segs.map((s) => (
                               <Fragment key={s.label}>
                                 {s.recu > 0 && (
-                                  <i className="sg-bar-seg"
-                                     style={{ flexGrow: s.recu, background: s.color }} />
+                                  <span className="sg-bar-seg"
+                                        style={{ flexGrow: s.recu, background: s.color }}>
+                                    {numerosDeSegment(s.projetsRecu)}
+                                  </span>
                                 )}
                                 {/* Rayé dans la couleur du monteur : la cabine
                                     lui est bien attribuée, mais elle n'est pas
                                     encore réceptionnée. */}
                                 {s.attente > 0 && (
-                                  <i className="sg-bar-seg is-attente"
-                                     style={{ flexGrow: s.attente, ["--raie" as string]: s.color } as React.CSSProperties} />
+                                  <span className="sg-bar-seg is-attente"
+                                        style={{ flexGrow: s.attente, ["--raie" as string]: s.color } as React.CSSProperties}>
+                                    {numerosDeSegment(s.projetsAttente)}
+                                  </span>
                                 )}
                               </Fragment>
                             ))}
@@ -3234,7 +3298,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         <span className="sg-bar-date">
                           {b.dt.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "2-digit" })}
                         </span>
-                      </button>
+                      </div>
                     ))}
                   </div>
                   {legend.length > 0 && (
