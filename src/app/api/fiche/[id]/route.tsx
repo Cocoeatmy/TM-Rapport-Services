@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getProject, fournisseursForDisplay, type Project, type ContactDetail } from "@/lib/notion";
+import { cabinesPosees } from "@/lib/cabines-posees";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
 import { signFiche, signPhotosZip, signSav, signSynthese, signSignalements, signMesure } from "@/lib/doc-link";
@@ -690,26 +691,9 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
               fichier encodant .Cab{N}.), pas le champ Notion (souvent vide). */}
           {(() => {
             const total = project.nbCabines || 0;
-            const montagePhotos = project.photosMontage || [];
-            const installedIdx = new Set(
-              montagePhotos
-                .map((f: { name?: string }) => {
-                  const m = (f.name || "").match(/\.Cab(\d+)\./);
-                  return m ? parseInt(m[1], 10) : null;
-                })
-                .filter((n): n is number => n !== null),
-            );
-            let installed = installedIdx.size;
-            // Repli : les projets mono-cabine (et anciens) stockent les photos
-            // montage SANS préfixe .CabN. → le comptage par index donne 0.
-            // On se rabat sur le compteur Notion, sinon sur « mono avec photos ».
-            if (installed === 0) {
-              if (project.nbCabinesInstallees && project.nbCabinesInstallees > 0) {
-                installed = Math.min(project.nbCabinesInstallees, total || project.nbCabinesInstallees);
-              } else if (total === 1 && montagePhotos.length > 0) {
-                installed = 1;
-              }
-            }
+            /* Même règle que le tableau de bord : photos par cabine, repli sur
+               le compteur Notion, puis « mono-cabine avec photos ». */
+            const installed = cabinesPosees(project);
             const pct = total > 0 ? Math.round((installed / total) * 100) : 0;
             // Jours de montage RÉELS reconstitués depuis les horaires par cabine.
             const days = montageDays(project.heureArrivee, project.heureDepart, project.attributionCabines);

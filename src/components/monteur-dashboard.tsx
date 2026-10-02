@@ -8,6 +8,7 @@ import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, Chevro
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
+import { cabinesPosees, cabinesRestantes } from "@/lib/cabines-posees";
 import { TourneeAssistant } from "@/components/tournee-assistant";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
@@ -616,7 +617,7 @@ function formatLocalDate(d: Date): string {
 function marchandiseEnAttente(p: Project): boolean {
   if (String(p.emplacementCabine || "").trim()) return false;
   const total = p.nbCabines || 0;
-  const posees = p.nbCabinesInstallees || 0;
+  const posees = cabinesPosees(p);
   if (total > 0 && posees >= total) return false;
   return (p.etatCMD || "").trim() !== "Terminé";
 }
@@ -702,7 +703,7 @@ function parseTMNumbers(raw: string): string[] {
  */
 function etatDuLot(projet: Project, signale: boolean) {
   const total = projet.nbCabines || 0;
-  const posees = Math.min(projet.nbCabinesInstallees || 0, total);
+  const posees = cabinesPosees(projet);
   if (projet.etatCMD === "Soucis montage" || projet.soucisMontage === true) {
     return { cls: "is-souci", titre: "Soucis de montage", Icon: AlertTriangle };
   }
@@ -1686,9 +1687,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     /* Cabines déjà posées parmi celles du jour : l'avancement réel des
        équipes, et non ce qui était prévu. Bornée au total du chantier — une
        saisie trop haute ferait un compteur qui dépasse son propre maximum. */
-    const posees = montages.reduce(
-      (s, p) => s + Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0,
-    );
+    const posees = montages.reduce((s, p) => s + cabinesPosees(p), 0);
     return {
       montages: montages.length, montagesCab: cab(montages), montagesPosees: posees,
       mesures: mesures.length, mesuresCab: cab(mesures),
@@ -2785,11 +2784,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const rdvFixeProjects = projects.filter(
     (p) => p.etatCMD === "RDV - fixé" || p.etatMesures === "RDV - Fixé" || p.etatSAV === "RDV fixé",
   );
-  /* Ce qu'il reste à poser, pas ce qui a été commandé : sur un chantier
-     étalé, les cabines déjà installées gonflaient le total d'un travail
-     pourtant fait. Même calcul que la tuile « RDV Montage ». */
-  const cabinesRestantes = (p: Project) =>
-    Math.max((p.nbCabines || 0) - Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0);
   const rdvFixeCabines = rdvFixeProjects.reduce((s, p) => s + cabinesRestantes(p), 0);
 
   // ── renderCard : rendu d'un bouton dashboard par son ID ───────────────────
@@ -3356,7 +3350,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   if (!e) return null;
                                   return (
                                     <span className={`sg-seg-etat ${e.cls}`} title={e.titre}>
-                                      <e.Icon className="w-3 h-3" />
+                                      <e.Icon className="w-3 h-3" strokeWidth={3} />
                                     </span>
                                   );
                                 })()}
@@ -6328,7 +6322,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </span>
                 {showSummaryPanel === "rdv-montage-a-fixer" && (
                   <span className="sg-panel-kpi">
-                    {panelProjects.reduce((s, p) => s + Math.max((p.nbCabines || 0) - Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0), 0)} cabines à poser
+                    {panelProjects.reduce((s, p) => s + cabinesRestantes(p), 0)} cabines à poser
                   </span>
                 )}
                 {showSummaryPanel === "rdv-sav-a-fixer" && (
@@ -6559,7 +6553,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 {showSummaryPanel === "rdv-montage-a-fixer" && (() => {
                   // Cabines RESTANT à poser = total − déjà installées (jamais négatif).
                   const cabAPoser = panelProjects.reduce(
-                    (s, p) => s + Math.max((p.nbCabines || 0) - Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0),
+                    (s, p) => s + cabinesRestantes(p),
                     0,
                   );
                   return <span className="ml-2 normal-case text-blue-600 dark:text-blue-400">· {cabAPoser} cabine{cabAPoser > 1 ? "s" : ""} à poser</span>;
@@ -7087,7 +7081,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           return `${group.projects.length} projet${group.projects.length > 1 ? "s" : ""} · ${savCab} cab.`;
                         }
                         const totalCab = group.projects.reduce((s, p) => s + (p.nbCabines || 0), 0);
-                        const installedCab = group.projects.reduce((s, p) => s + Math.min(p.nbCabinesInstallees || 0, p.nbCabines || 0), 0);
+                        const installedCab = group.projects.reduce((s, p) => s + cabinesPosees(p), 0);
                         const cabTxt = ((showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-fixe") && installedCab > 0)
                           ? `${installedCab}/${totalCab} cab.`
                           : `${totalCab} cab.`;
@@ -7121,7 +7115,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     // Progression du montage (panneaux « RDV Montage à fixer » et « RDV fixé »).
                     const isMontagePanel = showSummaryPanel === "rdv-montage-a-fixer";
                     const cabTotal = p.nbCabines || 0;
-                    const cabInstalled = Math.min(p.nbCabinesInstallees || 0, cabTotal);
+                    const cabInstalled = cabinesPosees(p);
                     const cabRemaining = Math.max(cabTotal - cabInstalled, 0);
                     // Affichage « posées/total » + « reste à poser » : Montage à fixer,
                     // et RDV fixé (uniquement les montages, pas les mesures).
