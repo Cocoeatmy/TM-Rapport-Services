@@ -861,6 +861,26 @@ html[data-ui="signal"] .sg-seg-tm {
   transition: background 140ms ease;
 }
 html[data-ui="signal"] .sg-seg-tm:hover { background: rgba(15, 23, 42, 0.62); }
+
+/* État du chantier, calé à droite DANS sa case — la même plaque que le numéro,
+   pour que les deux se lisent comme une seule étiquette. Posé en absolu : le
+   numéro doit rester centré sur la case, quoi qu'il arrive à côté. */
+html[data-ui="signal"] .sg-bar-seg { position: relative; }
+html[data-ui="signal"] .sg-seg-etat {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; border-radius: 5px;
+  background: rgba(15, 23, 42, 0.38);
+  color: #fff;
+}
+html[data-ui="signal"] .sg-seg-etat.is-pose { color: #4ade80; }
+html[data-ui="signal"] .sg-seg-etat.is-encours { color: #fcd34d; }
+html[data-ui="signal"] .sg-seg-etat.is-signale { color: #5eead4; }
+html[data-ui="signal"] .sg-seg-etat.is-souci { color: #fca5a5; }
+/* Case rayée : fond presque blanc, la plaque s'appuie davantage. */
+html[data-ui="signal"] .sg-bar-seg.is-attente .sg-seg-etat {
+  background: rgba(15, 23, 42, 0.62);
+}
 /* Case rayée : le fond est presque blanc, la plaque doit s'y appuyer un peu
    plus pour que le blanc du texte tienne. */
 html[data-ui="signal"] .sg-bar-seg.is-attente .sg-seg-tm {

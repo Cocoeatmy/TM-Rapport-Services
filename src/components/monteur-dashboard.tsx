@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
-import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
@@ -690,6 +690,32 @@ function parseTMNumbers(raw: string): string[] {
     const numB = parseInt(b.replace(/\D/g, ""), 10) || 0;
     return numA - numB;
   });
+}
+
+/**
+ * État d'un chantier, posé à droite de sa case dans la barre de charge.
+ *
+ * Le numéro dit QUEL chantier ; il ne disait pas où il en est. Une pastille
+ * le résume : un souci l'emporte sur tout le reste — c'est ce qui demande une
+ * décision — puis vient la pose, terminée ou en cours. Un chantier pas encore
+ * commencé n'affiche rien : l'absence de marque est déjà l'information.
+ */
+function etatDuLot(projet: Project, signale: boolean) {
+  const total = projet.nbCabines || 0;
+  const posees = Math.min(projet.nbCabinesInstallees || 0, total);
+  if (projet.etatCMD === "Soucis montage" || projet.soucisMontage === true) {
+    return { cls: "is-souci", titre: "Soucis de montage", Icon: AlertTriangle };
+  }
+  if (signale) {
+    return { cls: "is-signale", titre: "Pièce manquante ou défaut signalé", Icon: Box };
+  }
+  if (total > 0 && posees >= total) {
+    return { cls: "is-pose", titre: `${total} cabine${total > 1 ? "s" : ""} posée${total > 1 ? "s" : ""}`, Icon: Check };
+  }
+  if (posees > 0) {
+    return { cls: "is-encours", titre: `${posees} cabine${posees > 1 ? "s" : ""} posée${posees > 1 ? "s" : ""} sur ${total}`, Icon: Clock };
+  }
+  return null;
 }
 
 /**
@@ -2534,6 +2560,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   /* Pièces manquantes et défauts encore ouverts : ils vivent hors Notion,
      dans le stockage de l'app, et se comptent donc à part. */
   const [signalementsOuverts, setSignalementsOuverts] = useState<number | null>(null);
+  /* Quels PROJETS portent un signalement encore ouvert. La même lecture sert
+     au compteur des signaux et à la pastille de la charge de la semaine : une
+     pièce manquante se voit alors sur le chantier concerné, pas seulement
+     dans un total. */
+  const [projetsSignales, setProjetsSignales] = useState<Set<string>>(new Set());
   useEffect(() => {
     let vivant = true;
     Promise.all([
@@ -2541,11 +2572,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       fetch("/api/defauts").then((r) => (r.ok ? r.json() : [])).catch(() => []),
     ]).then(([pieces, defauts]) => {
       if (!vivant) return;
-      const ouvertes = (Array.isArray(pieces) ? pieces : [])
-        .filter((x: any) => !(x.status === "recu" || x.resolved === true)).length;
-      const ouverts = (Array.isArray(defauts) ? defauts : [])
-        .filter((x: any) => !(x.status === "resolu" || x.resolved === true)).length;
-      setSignalementsOuverts(ouvertes + ouverts);
+      const piecesOuvertes = (Array.isArray(pieces) ? pieces : [])
+        .filter((x: any) => !(x.status === "recu" || x.resolved === true));
+      const defautsOuverts = (Array.isArray(defauts) ? defauts : [])
+        .filter((x: any) => !(x.status === "resolu" || x.resolved === true));
+      setSignalementsOuverts(piecesOuvertes.length + defautsOuverts.length);
+      setProjetsSignales(new Set(
+        [...piecesOuvertes, ...defautsOuverts]
+          .map((x: any) => String(x.projectId || "")).filter(Boolean),
+      ));
     });
     return () => { vivant = false; };
   }, []);
@@ -3316,6 +3351,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   : { flexGrow: cabinesRestantes(p), background: s.color }}
                               >
                                 {numeroDeProjet(p)}
+                                {(() => {
+                                  const e = etatDuLot(p, projetsSignales.has(p.id));
+                                  if (!e) return null;
+                                  return (
+                                    <span className={`sg-seg-etat ${e.cls}`} title={e.titre}>
+                                      <e.Icon className="w-3 h-3" />
+                                    </span>
+                                  );
+                                })()}
                               </span>
                             ))}
                           </span>
