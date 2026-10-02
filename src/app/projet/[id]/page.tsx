@@ -186,6 +186,94 @@ function BlocFige({ fige, children }: { fige: boolean; children: React.ReactNode
   );
 }
 
+/**
+ * Pièces de rechange d'un SAV — repliées tant qu'il n'y en a pas.
+ *
+ * La plupart des SAV se règlent sans rien recommander : deux dates et un
+ * dépôt de photos s'affichaient alors pour rien, au milieu de ce qui compte.
+ * Une case les appelle, et elle se coche d'elle-même dès qu'une date ou une
+ * photo existe — rien de renseigné ne peut donc se retrouver caché.
+ *
+ * On ne la décoche que sur un bloc vide : sinon il faudrait effacer des dates
+ * et des photos sans le dire, et un simple clic effacerait un suivi.
+ */
+function PiecesRechangeSav({
+  cmd,
+  recu,
+  nbCartons,
+  onCmd,
+  onRecu,
+  children,
+}: {
+  cmd: string;
+  recu: string;
+  nbCartons: number;
+  onCmd: (v: string) => void;
+  onRecu: (v: string) => void;
+  children: React.ReactNode;
+}) {
+  const renseigne = !!cmd || !!recu || nbCartons > 0;
+  const [ouvert, setOuvert] = useState(renseigne);
+  useEffect(() => { if (renseigne) setOuvert(true); }, [renseigne]);
+
+  const champ = "mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto";
+
+  return (
+    <div>
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={ouvert}
+          onChange={(e) => {
+            if (!e.target.checked && renseigne) {
+              toast.error("Effacez d'abord les dates et les photos des cartons.");
+              return;
+            }
+            setOuvert(e.target.checked);
+          }}
+          className="w-4 h-4 accent-amber-600"
+        />
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+          Pièces de rechange à commander
+        </span>
+        {cmd && !recu && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+            En attente
+          </span>
+        )}
+      </label>
+      {ouvert && (
+        <div className="mt-2">
+          <p className="text-[11px] text-gray-400 mb-1">
+            Interne — n&apos;apparaît pas sur le rapport SAV.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="text-[11px] text-gray-500 dark:text-gray-400">Commandées le</span>
+              <input type="date" value={cmd} onChange={(e) => onCmd(e.target.value)} className={champ} />
+            </div>
+            <div>
+              <span className="text-[11px] text-gray-500 dark:text-gray-400">Reçues le</span>
+              <input
+                type="date"
+                value={recu}
+                min={cmd || undefined}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v && cmd && v < cmd) { toast.error("La réception ne peut pas précéder la commande."); return; }
+                  onRecu(v);
+                }}
+                className={champ}
+              />
+            </div>
+          </div>
+          <div className="mt-3">{children}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Monteurs proposés partout où l'on coche qui s'est chargé d'un passage. */
 const COLLABORATEURS_LIST = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"];
 
@@ -4716,65 +4804,27 @@ function ProjectPageContent({ id }: { id: string }) {
    *
    * Ces dates sont internes : le rapport SAV remis au client n'en porte rien.
    */
-  const renderPiecesSav = (idx: number) => {
-    const cmd = (parseCabineTextMulti(project?.datesCmdPiecesSavCabines || "")[idx + 1] || "").slice(0, 10);
-    const recu = (parseCabineTextMulti(project?.datesReceptionPiecesSavCabines || "")[idx + 1] || "").slice(0, 10);
-    const champ = "mt-1 block w-full h-10 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0 [&::-webkit-calendar-picker-indicator]:ml-auto";
-    return (
-      <div>
-        <div className="flex items-center gap-2">
-          <Label>Pièces de rechange</Label>
-          {cmd && !recu && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
-              En attente
-            </span>
-          )}
-        </div>
-        <p className="text-[11px] text-gray-400 mt-0.5 mb-1">
-          Interne — n&apos;apparaît pas sur le rapport SAV.
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">Commandées le</span>
-            <input
-              type="date"
-              value={cmd}
-              onChange={(e) => { saveCabineText("datesCmdPiecesSavCabines", idx, e.target.value); if (e.target.value && !project?.sav) saveProjectField({ sav: true }); }}
-              className={champ}
-            />
-          </div>
-          <div>
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">Reçues le</span>
-            <input
-              type="date"
-              value={recu}
-              min={cmd || undefined}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v && cmd && v < cmd) { toast.error("La réception ne peut pas précéder la commande."); return; }
-                saveCabineText("datesReceptionPiecesSavCabines", idx, v);
-                if (v && !project?.sav) saveProjectField({ sav: true });
-              }}
-              className={champ}
-            />
-          </div>
-        </div>
-        {/* Cartons reçus : la preuve que la pièce est bien là. Interne aussi —
-            ces photos ne partent pas avec le rapport SAV. */}
-        <div className="mt-3">
-          <BucketPhotoUpload
-            bucket="SAV_PIECES"
-            cabineIdx={idx + 1}
-            projectId={id}
-            project={project}
-            setProject={setProject}
-            onLog={logAction}
-            accept="image/*,video/*,application/pdf"
-          />
-        </div>
-      </div>
-    );
-  };
+  const renderPiecesSav = (idx: number) => (
+    <PiecesRechangeSav
+      cmd={(parseCabineTextMulti(project?.datesCmdPiecesSavCabines || "")[idx + 1] || "").slice(0, 10)}
+      recu={(parseCabineTextMulti(project?.datesReceptionPiecesSavCabines || "")[idx + 1] || "").slice(0, 10)}
+      nbCartons={filterByBucket(project?.documentsSavDemande, "SAV_PIECES", idx + 1).length}
+      onCmd={(v) => { saveCabineText("datesCmdPiecesSavCabines", idx, v); if (v && !project?.sav) saveProjectField({ sav: true }); }}
+      onRecu={(v) => { saveCabineText("datesReceptionPiecesSavCabines", idx, v); if (v && !project?.sav) saveProjectField({ sav: true }); }}
+    >
+      {/* Cartons reçus : la preuve que la pièce est bien là. Interne aussi —
+          ces photos ne partent pas avec le rapport SAV. */}
+      <BucketPhotoUpload
+        bucket="SAV_PIECES"
+        cabineIdx={idx + 1}
+        projectId={id}
+        project={project}
+        setProject={setProject}
+        onLog={logAction}
+        accept="image/*,video/*,application/pdf"
+      />
+    </PiecesRechangeSav>
+  );
 
   const renderSavHoursEditor = () => {
     const savDate = (parseCabineTextMulti(project?.datesRdvSavCabines || "")[1] || "").slice(0, 10);
