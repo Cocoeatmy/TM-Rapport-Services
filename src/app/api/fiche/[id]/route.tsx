@@ -477,6 +477,11 @@ function AddressRow({ address }: { address: string }) {
 
 function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, cartonsRecusUrl, savReportUrl, reportUrl, syntheseUrl, signalementsUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0, done: 0 }, mesures = [] }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; cartonsRecusUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; signalementsUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number; done?: number }; mesures?: { cab: number; nom: string; serie: string; url: string }[] }) {
   const genDate = new Date().toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich" });
+  /* Le fournisseur est-il LE client de ce chantier ? « Type de client » le
+     dit, et c'est la seule raison de le faire figurer dans les contacts. */
+  const estClientFournisseur = String(project.typeClient || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+    .startsWith("fournisseur");
   const sigTotal = (sig?.pieces || 0) + (sig?.defauts || 0) + (sig?.avant || 0);
   const sigDone = sig?.done || 0;
   // Le projet a-t-il au moins un SAV (par cabine) ? → affiche le bouton SAV.
@@ -649,6 +654,11 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
               docUrl={mesuresDocUrl}
             />
           )}
+          {/* Démontage : seulement quand une dépose est prévue. La ligne vide
+              aurait laissé croire qu'on en attend une sur chaque chantier. */}
+          {project.dateDemontage ? (
+            <LineRow label="Démontage" value={fmtDate(project.dateDemontage)} />
+          ) : null}
           {/* Montage : progression cabines installées / total. Comme l'app, on
               compte les cabines ayant au moins une photo « montage » (nom de
               fichier encodant .Cab{N}.), pas le champ Notion (souvent vide). */}
@@ -819,6 +829,23 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Contact</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {/* Fournisseur en tête, et seulement quand c'est LUI le client : sur
+                un chantier facturé au grossiste, le fournisseur n'est qu'un
+                fabricant et n'a rien à faire dans les contacts du chantier.
+
+                Son contact est celui de la colonne « Contact Grossiste », la
+                seule colonne de contact générique de la base — mais on ne le
+                lui attribue que si aucun grossiste n'est renseigné : là où il y
+                en a un, rien ne dit auquel des deux ce contact appartient, et
+                une fiche de travail ne doit pas trancher à notre place. */}
+            {estClientFournisseur ? (
+              <ContactCell
+                label="FOURNISSEUR"
+                company={joinVal(project.fournisseursNames)}
+                contacts={(project.grossistesNames || []).length === 0 ? project.contactsGrossisteDetails : undefined}
+                width="33.33%"
+              />
+            ) : null}
             <ContactCell label="GROSSISTE" company={joinVal(project.grossistesNames)} contacts={project.contactsGrossisteDetails} width="33.33%" />
             <ContactCell label="INSTALLATEUR" company={joinVal(project.sanitaireNames)} contacts={project.contactsSanitaireDetails} width="33.33%" />
             <ContactCell label="ARCHITECTE" company={joinVal(project.architecteNames)} contacts={project.contactsArchitecteDetails} width="33.33%" />

@@ -229,6 +229,8 @@ export interface Project {
   causeSAV: string;
   etatSAV: string;
   dateRDVSAV: string | null;
+  /** « Date Démontage » — une dépose d'ancienne cabine, quand il y en a une. */
+  dateDemontage: string | null;
   collaborateursSAV: string;
   dateRDVGarantie: string | null;
   collaborateurGarantie: string;
@@ -549,6 +551,7 @@ export function mapPageToProject(page: any): Project {
     causeSAV: extractSelect(p["Cause SAV"]),
     etatSAV: extractStatus(p["État - SAV"]),
     dateRDVSAV: extractText(p["Date - RDV SAV"]),
+    dateDemontage: extractDate(p["Date Démontage"]),
     // Collaborateurs SAV / Garantie : type Notion incertain (multi_select le plus
     // probable, comme « Collaborateurs montages ») → on tente multi_select, puis
     // select, puis texte, pour être robuste quel que soit le type choisi.
