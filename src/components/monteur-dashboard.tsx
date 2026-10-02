@@ -4231,6 +4231,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
              liste dense cliquable. */
           if (isSignal) {
             const cabOfDay = (list: Project[]) => list.reduce((s, p) => s + (p.nbCabines || 0), 0);
+            /* Cabines déjà posées ce jour-là : le calendrier annonçait une
+               charge sans jamais dire ce qui en était fait. */
+            const poseesOfDay = (list: Project[]) => list.reduce((s, p) => s + cabinesPosees(p), 0);
             const labelOf = (p: Project) => (p.collaborateurs || "").trim() || "Non attribué";
             /* Légende cliquable : le mois se restreint au collaborateur/binôme
                épinglé. La légende elle-même reste calculée sur le mois complet
@@ -4333,7 +4336,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           title={list.length ? `${list.length} intervention${list.length > 1 ? "s" : ""} · ${cab} cab.` : undefined}
                         >
                           <span className="sgc-daynum">{d}</span>
-                          {cab > 0 && <span className="sgc-cab">{cab}</span>}
+                          {cab > 0 && (() => {
+                            const posees = poseesOfDay(list);
+                            const fini = posees >= cab;
+                            return (
+                              <span className={`sgc-cab${fini ? " is-done" : posees > 0 ? " is-wip" : ""}`}
+                                    title={`${posees} cabine${posees > 1 ? "s" : ""} posée${posees > 1 ? "s" : ""} sur ${cab}`}>
+                                {fini ? <Check className="w-3 h-3" strokeWidth={3} /> : posees > 0 ? `${posees}/${cab}` : cab}
+                              </span>
+                            );
+                          })()}
                           {segs.length > 0 && (
                             <span className="sgc-segs">
                               {segs.map((s) => (
@@ -4405,7 +4417,27 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             })()}
                           </span>
                           <span className={`sgc-row-type ${typeInt === "Mesures" ? "is-mes" : typeInt === "Services" ? "is-srv" : "is-mon"}`}>{typeInt}</span>
-                          <span className="sgc-row-name">{p.projet}</span>
+                          {/* Avancement DANS la case du nom : la ligne est une
+                              grille à colonnes fixes, une septième case en
+                              décalerait toutes les autres. Rien tant que rien
+                              n'est posé — l'absence de marque est déjà
+                              l'information. */}
+                          <span className="sgc-row-name">
+                            <span className="sgc-row-nom">{p.projet}</span>
+                            {(() => {
+                              const totalCab = p.nbCabines || 0;
+                              const posees = cabinesPosees(p);
+                              if (totalCab === 0 || posees === 0) return null;
+                              const fini = posees >= totalCab;
+                              return (
+                                <span className={`sg-row-pose ${fini ? "is-done" : "is-wip"}`}
+                                      title={`${posees} cabine${posees > 1 ? "s" : ""} posée${posees > 1 ? "s" : ""} sur ${totalCab}`}>
+                                  {fini && <Check className="w-3 h-3" strokeWidth={3} />}
+                                  <b>{posees}</b>/{totalCab} posées
+                                </span>
+                              );
+                            })()}
+                          </span>
                           <span className="sg-mono sgc-row-cab">{p.nbCabines || 0} cab.</span>
                           <ChevronRight className="w-4 h-4 sg-plist-chev" />
                         </Link>
@@ -4422,6 +4454,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       </span>
                       <span className="sgc-day-meta">
                         {selList.length} intervention{selList.length > 1 ? "s" : ""} · {cabOfDay(selList)} cab.
+                        {poseesOfDay(selList) > 0 && ` · ${poseesOfDay(selList)} posée${poseesOfDay(selList) > 1 ? "s" : ""}`}
                       </span>
                       {/* Charge du jour par ÉQUIPE réellement affectée : un
                           monteur seul et le même monteur en binôme sont deux
@@ -4490,7 +4523,27 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             })()}
                           </span>
                           <span className={`sgc-row-type ${typeInt === "Mesures" ? "is-mes" : typeInt === "Services" ? "is-srv" : "is-mon"}`}>{typeInt}</span>
-                          <span className="sgc-row-name">{p.projet}</span>
+                          {/* Avancement DANS la case du nom : la ligne est une
+                              grille à colonnes fixes, une septième case en
+                              décalerait toutes les autres. Rien tant que rien
+                              n'est posé — l'absence de marque est déjà
+                              l'information. */}
+                          <span className="sgc-row-name">
+                            <span className="sgc-row-nom">{p.projet}</span>
+                            {(() => {
+                              const totalCab = p.nbCabines || 0;
+                              const posees = cabinesPosees(p);
+                              if (totalCab === 0 || posees === 0) return null;
+                              const fini = posees >= totalCab;
+                              return (
+                                <span className={`sg-row-pose ${fini ? "is-done" : "is-wip"}`}
+                                      title={`${posees} cabine${posees > 1 ? "s" : ""} posée${posees > 1 ? "s" : ""} sur ${totalCab}`}>
+                                  {fini && <Check className="w-3 h-3" strokeWidth={3} />}
+                                  <b>{posees}</b>/{totalCab} posées
+                                </span>
+                              );
+                            })()}
+                          </span>
                           <span className="sg-mono sgc-row-cab">{p.nbCabines || 0} cab.</span>
                           <ChevronRight className="w-4 h-4 sg-plist-chev" />
                         </Link>

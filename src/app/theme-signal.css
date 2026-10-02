@@ -2790,6 +2790,26 @@ html[data-ui="signal"] .sgc-cab {
   background: var(--sg-paper-2); color: var(--sg-text-2);
   border: 1px solid var(--sg-line);
 }
+/* Avancement du jour : le compteur passe du total à « posées / prévues »,
+   puis à une coche quand la journée est faite. Mêmes couleurs que la pastille
+   du tableau de bord, pour qu'un même état se reconnaisse partout. */
+html[data-ui="signal"] .sgc-cab.is-wip {
+  background: #e8f0ff; border-color: #c7dbff; color: #1b4ed8;
+}
+html[data-ui="signal"] .sgc-cab.is-done {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 2px; background: #e3f6ea; border-color: #bfe8cd; color: #15803d;
+}
+html[data-ui="signal"].dark .sgc-cab.is-wip {
+  background: rgba(27, 99, 255, 0.16); border-color: rgba(27, 99, 255, 0.35); color: #93b4ff;
+}
+html[data-ui="signal"].dark .sgc-cab.is-done {
+  background: rgba(21, 128, 61, 0.18); border-color: rgba(21, 128, 61, 0.38); color: #7ddba2;
+}
+/* Dans une ligne de projet, la pastille d'avancement ne doit ni s'étirer ni
+   se laisser écraser par le nom du chantier. */
+html[data-ui="signal"] .sgc-row .sg-row-pose { flex-shrink: 0; gap: 3px; }
+
 html[data-ui="signal"] .sgc-segs {
   margin-top: auto; width: 100%; display: flex; gap: 2px; height: 7px;
 }
@@ -2872,6 +2892,17 @@ html[data-ui="signal"].dark .sgc-row-type.is-mes { background: #0b2b33; color: #
 html[data-ui="signal"].dark .sgc-row-type.is-srv { background: #241241; color: #c4b5fd; }
 html[data-ui="signal"] .sgc-row-name {
   font-size: 13px; font-weight: 500; color: var(--sg-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Seules les lignes qui portent une pastille d'avancement deviennent des
+   rangées : ailleurs, le nom garde son comportement d'origine — le tiroir de
+   charge, lui, le laisse passer à la ligne. */
+html[data-ui="signal"] .sgc-row-name:has(.sgc-row-nom) {
+  display: flex; align-items: center; gap: 8px; min-width: 0; overflow: visible;
+}
+/* Le nom cède la place à la pastille d'avancement plutôt que de la pousser
+   hors de la ligne : c'est lui qui se tronque. */
+html[data-ui="signal"] .sgc-row-nom {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 html[data-ui="signal"] .sgc-row-cab {
