@@ -3196,13 +3196,21 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 return [...m.values()];
               })();
               const attenteCab = bars.reduce((s, b) => s + b.attente, 0);
+              /* Totaux de la semaine. Les projets se comptent par id : un
+                 montage à cheval sur deux jours figure dans les deux barres
+                 mais ne reste qu'un seul chantier. */
+              const semaineCab = bars.reduce((s, b) => s + b.cab, 0);
+              const semaineProjets = new Set(bars.flatMap((b) => b.projets.map((p) => p.id))).size;
               return (
                 <div className="sg-card sg-chart">
                   <div className="sg-card-head">
                     <div>
                       <span className="sg-card-title">Charge de la semaine</span>
                       <p className="sg-card-meta">
-                        semaine {weekNo} · cabines / jour
+                        {/* Les totaux de la semaine valent mieux que « cabines /
+                            jour », que les barres disent déjà. */}
+                        semaine {weekNo} · {semaineCab} cabine{semaineCab > 1 ? "s" : ""} à poser
+                        {" · "}{semaineProjets} projet{semaineProjets > 1 ? "s" : ""}
                         {sgWeek !== 0 && ` · ${sgWeek > 0 ? "+" : ""}${sgWeek} sem.`}
                       </p>
                     </div>
