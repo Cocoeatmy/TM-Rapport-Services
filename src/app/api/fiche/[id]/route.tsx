@@ -651,7 +651,10 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
             <LineRow
               label="Mesures"
               value={dateAndWho(joinVal(etatMesuresLisible(project.etatMesures, !!mesuresDocUrl)), project.mesuresTraiteePar)}
-              docUrl={mesuresDocUrl}
+              /* Mesures relevées par quelqu'un d'autre : la flèche proposait de
+                 télécharger un relevé qui n'est pas le nôtre. Les documents de
+                 montage restent accessibles par leur propre section. */
+              docUrl={/projet sans de? mesures/i.test(project.etatMesures || "") ? undefined : mesuresDocUrl}
             />
           )}
           {/* Démontage : seulement quand une dépose est prévue. La ligne vide
@@ -811,15 +814,14 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
               </React.Fragment>
             );
           })()}
-          {/* Garantie et Services ne concernent pas tous les chantiers : on ne
-              les porte que lorsque Notion a de quoi les remplir. */}
+          {/* La garantie ne concerne pas tous les chantiers : on ne la porte que
+              lorsque Notion a de quoi la remplir. */}
           {(() => {
             const garantie = dateAndWho(fmtDate(project.dateRDVGarantie), project.collaborateurGarantie);
             return garantie === "—" ? null : <LineRow label="Garantie" value={garantie} />;
           })()}
-          {(project.typeServices || []).filter(Boolean).length > 0 ? (
-            <LineRow label="Services" value={joinVal(project.typeServices)} />
-          ) : null}
+          {/* Ligne « Services » retirée : aucune colonne Notion ne la nourrit
+              encore. Elle reviendra quand l'onglet existera. */}
         </View>
 
         {/* Mesures par lot — téléchargement de la mesure de chaque cabine
