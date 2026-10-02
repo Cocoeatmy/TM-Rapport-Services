@@ -4265,9 +4265,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
              liste dense cliquable. */
           if (isSignal) {
             const cabOfDay = (list: Project[]) => list.reduce((s, p) => s + (p.nbCabines || 0), 0);
-            /* Cabines déjà posées ce jour-là : le calendrier annonçait une
-               charge sans jamais dire ce qui en était fait. */
-            const poseesOfDay = (list: Project[]) => list.reduce((s, p) => s + cabinesPosees(p), 0);
+            /* Chantiers entièrement posés parmi ceux du jour.
+               On compte des CHANTIERS, pas des cabines : un montage étalé sur
+               plusieurs jours apporte toutes ses cabines à chacun d'eux, si
+               bien qu'un « 28/29 » le 1er octobre parlait d'un travail fait
+               sur trois semaines, pas de la journée. */
+            const finisOfDay = (list: Project[]) =>
+              list.filter((p) => (p.nbCabines || 0) > 0 && cabinesPosees(p) >= (p.nbCabines || 0)).length;
             const labelOf = (p: Project) => (p.collaborateurs || "").trim() || "Non attribué";
             /* Légende cliquable : le mois se restreint au collaborateur/binôme
                épinglé. La légende elle-même reste calculée sur le mois complet
@@ -4371,12 +4375,20 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         >
                           <span className="sgc-daynum">{d}</span>
                           {cab > 0 && (() => {
-                            const posees = poseesOfDay(list);
-                            const fini = posees >= cab;
+                            /* Le compteur reste la CHARGE du jour. L'avancement
+                               se dit par la couleur et la coche : tous les
+                               chantiers posés, ou une partie d'entre eux. */
+                            const finis = finisOfDay(list);
+                            const tout = finis === list.length;
                             return (
-                              <span className={`sgc-cab${fini ? " is-done" : posees > 0 ? " is-wip" : ""}`}
-                                    title={`${posees} cabine${posees > 1 ? "s" : ""} posée${posees > 1 ? "s" : ""} sur ${cab}`}>
-                                {fini ? <Check className="w-3 h-3" strokeWidth={3} /> : posees > 0 ? `${posees}/${cab}` : cab}
+                              <span className={`sgc-cab${tout ? " is-done" : finis > 0 ? " is-wip" : ""}`}
+                                    title={tout
+                                      ? `${cab} cab. — tous les chantiers posés`
+                                      : finis > 0
+                                        ? `${cab} cab. — ${finis} chantier${finis > 1 ? "s" : ""} posé${finis > 1 ? "s" : ""} sur ${list.length}`
+                                        : `${cab} cab.`}>
+                                {cab}
+                                {tout && <Check className="w-3 h-3" strokeWidth={3} />}
                               </span>
                             );
                           })()}
@@ -4488,7 +4500,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       </span>
                       <span className="sgc-day-meta">
                         {selList.length} intervention{selList.length > 1 ? "s" : ""} · {cabOfDay(selList)} cab.
-                        {poseesOfDay(selList) > 0 && ` · ${poseesOfDay(selList)} posée${poseesOfDay(selList) > 1 ? "s" : ""}`}
+                        {finisOfDay(selList) > 0 && ` · ${finisOfDay(selList)} chantier${finisOfDay(selList) > 1 ? "s" : ""} posé${finisOfDay(selList) > 1 ? "s" : ""}`}
                       </span>
                       {/* Charge du jour par ÉQUIPE réellement affectée : un
                           monteur seul et le même monteur en binôme sont deux

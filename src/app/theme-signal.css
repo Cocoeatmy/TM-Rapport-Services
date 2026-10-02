@@ -2803,8 +2803,8 @@ html[data-ui="signal"] .sgc-cab.is-wip {
   background: #e8f0ff; border-color: #c7dbff; color: #1b4ed8;
 }
 html[data-ui="signal"] .sgc-cab.is-done {
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 2px; background: #e3f6ea; border-color: #bfe8cd; color: #15803d;
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 1px 4px 1px 6px; background: #e3f6ea; border-color: #bfe8cd; color: #15803d;
 }
 html[data-ui="signal"].dark .sgc-cab.is-wip {
   background: rgba(27, 99, 255, 0.16); border-color: rgba(27, 99, 255, 0.35); color: #93b4ff;
