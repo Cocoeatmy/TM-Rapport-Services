@@ -281,8 +281,21 @@ function montageHoursStr(ha?: string | null, hd?: string | null): string {
   return arr || dep || "";
 }
 
-// Cellule « libellé au-dessus, valeur en gras » (grilles Général & Contact).
+/** Vrai quand `joinVal` n'a rien eu à mettre — le champ Notion est vide. */
+function vide(valeur: string): boolean {
+  return !valeur || valeur.trim() === "" || valeur.trim() === "—";
+}
+
+/**
+ * Cellule « libellé au-dessus, valeur en gras » (grilles Général & Contact).
+ *
+ * Une case dont le champ Notion est vide disparaît : un tiret en face d'un
+ * libellé fait croire qu'on attend une information, alors qu'elle n'a pas
+ * lieu d'être sur ce chantier. Une case qui porte un lien reste, même sans
+ * valeur : c'est le lien qui est l'information.
+ */
 function Cell({ label, value, width, docUrl }: { label: string; value: string; width: string; docUrl?: string }) {
+  if (vide(value) && !docUrl) return null;
   return (
     <View style={{ width, paddingRight: 10, marginBottom: 6 }}>
       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
@@ -615,17 +628,24 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
               <Cell label="N° CMD TM" value={joinVal(project.cmdTM)} width="100%" />
               <Cell label="N° CMD TM - Usine" value={joinVal(project.cmdTMUsine)} width="100%" />
             </View>
-            <View style={{ width: "33.33%", paddingRight: 12 }}>
-              <Text style={styles.colHeader}>Grossiste</Text>
-              <Cell label="N° OFR Grossiste" value={joinVal(project.ofrGrossiste)} width="100%" />
-              <Cell label="N° CMD Grossiste" value={joinVal(project.cmdGrossiste)} width="100%" />
-            </View>
-            <View style={{ width: "33.34%" }}>
-              <Text style={styles.colHeader}>Fournisseur</Text>
-              <Cell label="N° CMD Fournisseur" value={joinVal(project.cmdFournisseurs)} width="100%" />
-              <Cell label="N° Mesures Fournisseurs" value={joinVal(project.servMesuresFournisseurs)} width="100%" />
-              <Cell label="N° Montage Fournisseurs" value={joinVal(project.servCmdFournisseurs)} width="100%" />
-            </View>
+            {/* Un en-tête de colonne seul, au-dessus de deux tirets, annonce
+                une commande qui n'existe pas : la colonne entière disparaît
+                tant qu'aucun de ses numéros n'est renseigné. */}
+            {[joinVal(project.ofrGrossiste), joinVal(project.cmdGrossiste)].some((v) => !vide(v)) ? (
+              <View style={{ width: "33.33%", paddingRight: 12 }}>
+                <Text style={styles.colHeader}>Grossiste</Text>
+                <Cell label="N° OFR Grossiste" value={joinVal(project.ofrGrossiste)} width="100%" />
+                <Cell label="N° CMD Grossiste" value={joinVal(project.cmdGrossiste)} width="100%" />
+              </View>
+            ) : null}
+            {[joinVal(project.cmdFournisseurs), joinVal(project.servMesuresFournisseurs), joinVal(project.servCmdFournisseurs)].some((v) => !vide(v)) ? (
+              <View style={{ width: "33.34%" }}>
+                <Text style={styles.colHeader}>Fournisseur</Text>
+                <Cell label="N° CMD Fournisseur" value={joinVal(project.cmdFournisseurs)} width="100%" />
+                <Cell label="N° Mesures Fournisseurs" value={joinVal(project.servMesuresFournisseurs)} width="100%" />
+                <Cell label="N° Montage Fournisseurs" value={joinVal(project.servCmdFournisseurs)} width="100%" />
+              </View>
+            ) : null}
           </View>
         </View>
 
