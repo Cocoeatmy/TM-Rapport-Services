@@ -715,25 +715,29 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
             <Text style={styles.label}>N° OFR TM</Text>
             <Text style={styles.value}>{project.ofrTM || "---"}</Text>
           </View>
-          {/* Référence commande selon le type de client :
-              - Grossistes : N° CMD Grossiste (ou N° OFR Grossiste si CMD vide)
-              - Fournisseurs : N° CMD Services (servCmdFournisseurs) */}
-          {(project.typeClient === "Grossistes" || project.typeClient === "Grossiste") && (
-            <View style={styles.row}>
-              <Text style={styles.label}>
-                {project.cmdGrossiste ? "N° CMD Grossiste" : "N° OFR Grossiste"}
-              </Text>
-              <Text style={styles.value}>
-                {project.cmdGrossiste || project.ofrGrossiste || "---"}
-              </Text>
-            </View>
-          )}
-          {(project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur") && (
-            <View style={styles.row}>
-              <Text style={styles.label}>N° CMD Services</Text>
-              <Text style={styles.value}>{project.servCmdFournisseurs || "---"}</Text>
-            </View>
-          )}
+          {/* Références de commande, selon le type de client. Chaque ligne
+              n'apparaît que si Notion la renseigne : un « --- » en face d'un
+              numéro laisse croire qu'on attend une référence qui n'existe pas,
+              alors qu'un numéro présent doit se lire sur le rapport. */}
+          {(() => {
+            const rempli = (v?: string | null) => !!String(v || "").trim();
+            const lignes: { label: string; value: string }[] = [];
+            if (project.typeClient === "Grossistes" || project.typeClient === "Grossiste") {
+              if (rempli(project.cmdGrossiste)) lignes.push({ label: "N° CMD Grossiste", value: project.cmdGrossiste });
+              else if (rempli(project.ofrGrossiste)) lignes.push({ label: "N° OFR Grossiste", value: project.ofrGrossiste });
+            }
+            if (project.typeClient === "Fournisseurs" || project.typeClient === "Fournisseur") {
+              if (rempli(project.cmdFournisseurs)) lignes.push({ label: "N° CMD Fournisseur", value: project.cmdFournisseurs });
+              if (rempli(project.servMesuresFournisseurs)) lignes.push({ label: "N° Serv. Mesures", value: project.servMesuresFournisseurs });
+              if (rempli(project.servCmdFournisseurs)) lignes.push({ label: "N° CMD Services", value: project.servCmdFournisseurs });
+            }
+            return lignes.map((l) => (
+              <View key={l.label} style={styles.row}>
+                <Text style={styles.label}>{l.label}</Text>
+                <Text style={styles.value}>{l.value}</Text>
+              </View>
+            ));
+          })()}
           <View style={styles.row}>
             <Text style={styles.label}>Chantier</Text>
             <Text style={styles.value}>{project.nomChantier || "---"}</Text>
