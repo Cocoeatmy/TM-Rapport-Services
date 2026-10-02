@@ -147,6 +147,148 @@ import { ColoredSelect } from "@/components/colored-select";
 import { thumbnailUrl } from "@/lib/image-url";
 
 /** Photo upload tied to a logical bucket (sub-section dans une colonne Notion). */
+/** Monteurs proposés partout où l'on coche qui s'est chargé d'un passage. */
+const COLLABORATEURS_LIST = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"];
+
+/**
+ * Interventions SAV d'un lot — composant à état.
+ *
+ * La liste ne peut pas se déduire à chaque rendu de ce qui est enregistré :
+ * un champ `date` que l'on vide le temps d'en saisir une autre rend le
+ * passage entièrement vide, l'encodage le supprime, et la ligne disparaît
+ * sous les doigts. C'est ce qui empêchait d'aller au bout d'une saisie.
+ *
+ * La liste affichée est donc tenue ici, et une valeur venue du serveur ne
+ * reprend la main que si elle diffère de notre dernière écriture — un
+ * rafraîchissement ne défait jamais ce qu'on est en train de remplir.
+ */
+function InterventionsSavLot({
+  encode,
+  heritage,
+  aujourdhui,
+  onEnregistrer,
+}: {
+  encode: string;
+  heritage: { date: string; collaborateurs: string; arrivee: string; depart: string };
+  aujourdhui: string;
+  onEnregistrer: (liste: InterventionSav[]) => void;
+}) {
+  const depuisLaFiche = () =>
+    interventionsDuLot(encode, heritage.date, heritage.collaborateurs, heritage.arrivee, heritage.depart);
+  const [liste, setListe] = useState<InterventionSav[]>(depuisLaFiche);
+  const ecritRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (ecritRef.current !== null && encode === ecritRef.current) return;
+    ecritRef.current = null;
+    setListe(depuisLaFiche());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [encode, heritage.date, heritage.collaborateurs, heritage.arrivee, heritage.depart]);
+
+  const appliquer = (suivante: InterventionSav[]) => {
+    setListe(suivante);
+    ecritRef.current = encodeInterventions(suivante);
+    onEnregistrer(suivante);
+  };
+  const modifier = (i: number, champ: keyof InterventionSav, valeur: string) =>
+    appliquer(liste.map((x, k) => (k === i ? { ...x, [champ]: valeur } : x)));
+
+  return (
+    <div>
+      <Label>Interventions SAV</Label>
+      <p className="text-[11px] text-gray-400 mt-0.5 mb-1.5">
+        Une ligne par passage — la date et qui s&apos;en est chargé.
+      </p>
+      <div className="space-y-2">
+        {liste.map((it, i) => {
+          const choisis = it.collaborateurs.split(/\s*&\s*/).map((x) => x.trim()).filter(Boolean);
+          return (
+            <div key={i} className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[11px] text-gray-400">
+                  {liste.length > 1 ? `Passage ${i + 1}` : "Passage"}
+                </span>
+                <button
+                  type="button"
+                  title="Retirer cette intervention"
+                  onClick={() => appliquer(liste.filter((_, k) => k !== i))}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {/* Date, puis heures : les heures appartiennent au passage,
+                  pas au lot — deux visites, deux horaires. */}
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400">Date</span>
+                  <input
+                    type="date"
+                    value={it.date}
+                    onChange={(e) => modifier(i, "date", e.target.value)}
+                    className="mt-0.5 block w-full h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                  />
+                </div>
+                <div>
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400">Heure d&apos;arrivée</span>
+                  <input
+                    type="time"
+                    value={it.arrivee}
+                    onChange={(e) => modifier(i, "arrivee", e.target.value)}
+                    className="mt-0.5 block w-full h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                  />
+                </div>
+                <div>
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400">Heure de départ</span>
+                  <input
+                    type="time"
+                    value={it.depart}
+                    min={it.arrivee || undefined}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v && it.arrivee && v < it.arrivee) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
+                      modifier(i, "depart", v);
+                    }}
+                    className="mt-0.5 block w-full h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
+                  />
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {COLLABORATEURS_LIST.map((name) => {
+                  const actif = choisis.includes(name);
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => modifier(i, "collaborateurs",
+                        (actif ? choisis.filter((n) => n !== name) : [...choisis, name]).join(" & "))}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium border-2 transition-colors ${
+                        actif
+                          ? "border-blue-600 bg-blue-600 text-white"
+                          : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={() => appliquer([...liste, { date: aujourdhui, collaborateurs: "", arrivee: "", depart: "" }])}
+        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        {liste.length === 0 ? "Dater l'intervention" : "Ajouter un passage"}
+      </button>
+    </div>
+  );
+}
+
 function BucketPhotoUpload({
   bucket,
   cabineIdx,
@@ -4109,7 +4251,6 @@ function ProjectPageContent({ id }: { id: string }) {
     arrivee: string;
     depart: string;
   }
-  const COLLABORATEURS_LIST = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"];
   const today = new Date().toISOString().split("T")[0];
   const [pointages, setPointages] = useState<PointageEntry[]>([]);
   const [isMultiDay, setIsMultiDay] = useState(false);
@@ -4467,126 +4608,40 @@ function ProjectPageContent({ id }: { id: string }) {
    * historiques gardent le DERNIER passage, pour tout ce qui les lit déjà
    * (rapport SAV, rendez-vous à fixer, statistiques).
    */
-  const renderInterventionsSav = (idx: number) => {
-    const liste = interventionsDuLot(
-      parseCabineTextMulti(project?.interventionsSavCabines || "")[idx + 1],
-      parseCabineTextMulti(project?.datesRdvSavCabines || "")[idx + 1],
-      parseCabineTextMulti(project?.collaborateursSavCabines || "")[idx + 1],
-      parseCabineTextMulti(project?.heureArriveeSav || "")[idx + 1],
-      parseCabineTextMulti(project?.heureDepartSav || "")[idx + 1],
-    );
-    const enregistrer = (suivante: InterventionSav[]) => {
-      const dernier = dernierPassage(suivante) || suivante[suivante.length - 1] || null;
-      /* Les quatre colonnes historiques gardent le DERNIER passage : tout ce
-         qui les lisait déjà — rapport, rendez-vous à fixer, heures — continue
-         de fonctionner sans rien savoir de la liste. */
-      saveCabineTexts(idx, {
-        interventionsSavCabines: encodeInterventions(suivante),
-        datesRdvSavCabines: dernier?.date || "",
-        collaborateursSavCabines: dernier?.collaborateurs || "",
-        heureArriveeSav: dernier?.arrivee || "",
-        heureDepartSav: dernier?.depart || "",
-      });
-      if (!project?.sav) saveProjectField({ sav: true });
-    };
-    const modifier = (i: number, champ: keyof InterventionSav, valeur: string) =>
-      enregistrer(liste.map((x, k) => (k === i ? { ...x, [champ]: valeur } : x)));
-
-    return (
-      <div>
-        <Label>Interventions SAV</Label>
-        <p className="text-[11px] text-gray-400 mt-0.5 mb-1.5">
-          Une ligne par passage — la date et qui s&apos;en est chargé.
-        </p>
-        <div className="space-y-2">
-          {liste.map((it, i) => {
-            const choisis = it.collaborateurs.split(/\s*&\s*/).map((x) => x.trim()).filter(Boolean);
-            return (
-              <div key={i} className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5">
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <span className="text-[11px] text-gray-400">
-                    {liste.length > 1 ? `Passage ${i + 1}` : "Passage"}
-                  </span>
-                  <button
-                    type="button"
-                    title="Retirer cette intervention"
-                    onClick={() => enregistrer(liste.filter((_, k) => k !== i))}
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                {/* Date, puis heures : les heures appartiennent au passage,
-                    pas au lot — deux visites, deux horaires. */}
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400">Date</span>
-                    <input
-                      type="date"
-                      value={it.date}
-                      onChange={(e) => modifier(i, "date", e.target.value)}
-                      className="mt-0.5 block w-full h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400">Heure d&apos;arrivée</span>
-                    <input
-                      type="time"
-                      value={it.arrivee}
-                      onChange={(e) => modifier(i, "arrivee", e.target.value)}
-                      className="mt-0.5 block w-full h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-gray-500 dark:text-gray-400">Heure de départ</span>
-                    <input
-                      type="time"
-                      value={it.depart}
-                      min={it.arrivee || undefined}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v && it.arrivee && v < it.arrivee) { toast.error("L'heure de départ ne peut pas être avant l'arrivée."); return; }
-                        modifier(i, "depart", v);
-                      }}
-                      className="mt-0.5 block w-full h-9 px-2.5 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 appearance-none text-gray-900 dark:text-gray-100 [&::-webkit-date-and-time-value]:text-left"
-                    />
-                  </div>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {COLLABORATEURS_LIST.map((name) => {
-                    const actif = choisis.includes(name);
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => modifier(i, "collaborateurs",
-                          (actif ? choisis.filter((n) => n !== name) : [...choisis, name]).join(" & "))}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium border-2 transition-colors ${
-                          actif
-                            ? "border-blue-600 bg-blue-600 text-white"
-                            : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
-                        }`}
-                      >
-                        {name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <button
-          type="button"
-          onClick={() => enregistrer([...liste, { date: today, collaborateurs: "", arrivee: "", depart: "" }])}
-          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          {liste.length === 0 ? "Dater l'intervention" : "Ajouter un passage"}
-        </button>
-      </div>
-    );
-  };
+  /**
+   * Interventions SAV d'un lot : autant de passages datés que nécessaire,
+   * chacun avec son collaborateur et ses heures.
+   *
+   * La liste vit dans « Interventions SAV cabines » ; les colonnes historiques
+   * gardent le DERNIER passage, pour tout ce qui les lit déjà (rapport SAV,
+   * rendez-vous à fixer, statistiques).
+   */
+  const renderInterventionsSav = (idx: number) => (
+    <InterventionsSavLot
+      encode={parseCabineTextMulti(project?.interventionsSavCabines || "")[idx + 1] || ""}
+      heritage={{
+        date: parseCabineTextMulti(project?.datesRdvSavCabines || "")[idx + 1] || "",
+        collaborateurs: parseCabineTextMulti(project?.collaborateursSavCabines || "")[idx + 1] || "",
+        arrivee: parseCabineTextMulti(project?.heureArriveeSav || "")[idx + 1] || "",
+        depart: parseCabineTextMulti(project?.heureDepartSav || "")[idx + 1] || "",
+      }}
+      aujourdhui={today}
+      onEnregistrer={(suivante) => {
+        const dernier = dernierPassage(suivante) || suivante[suivante.length - 1] || null;
+        /* Les quatre colonnes historiques gardent le DERNIER passage : tout ce
+           qui les lisait déjà — rapport, rendez-vous à fixer, heures —
+           continue de fonctionner sans rien savoir de la liste. */
+        saveCabineTexts(idx, {
+          interventionsSavCabines: encodeInterventions(suivante),
+          datesRdvSavCabines: dernier?.date || "",
+          collaborateursSavCabines: dernier?.collaborateurs || "",
+          heureArriveeSav: dernier?.arrivee || "",
+          heureDepartSav: dernier?.depart || "",
+        });
+        if (!project?.sav) saveProjectField({ sav: true });
+      }}
+    />
+  );
 
   /**
    * Pièces de rechange d'un SAV, par lot.
