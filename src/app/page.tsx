@@ -22,6 +22,7 @@ import { getFavorites } from "@/lib/favorites";
 import { fetchWithRetry, prefetchProject } from "@/lib/api-helpers";
 import { showRetryToast } from "@/components/error-toast";
 import { toast as sonnerToast } from "sonner";
+import { numerosServices } from "@/lib/numeros-services";
 import { StatsDateFilter, filterByStatsDate, getRolling12Range, describeStatsRange, type StatsDateMode } from "@/components/stats-date-filter";
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { SignalStats } from "@/components/signal-stats";
@@ -1103,6 +1104,46 @@ function HomePage() {
   // Filtre TYPE d'activité de la vue Fournisseurs (suivi mensuel).
   const [fournisseurType, setFournisseurType] = useState<"tous" | "mesures" | "montage" | "services" | "sav">("tous");
   const [genFournRapport, setGenFournRapport] = useState(false);
+  /* Lignes de facture fournisseur déjà réglées. La coche porte sur un couple
+     projet + prestation : un même chantier donne une ligne de mesures et une
+     ligne de montage, facturées séparément et souvent à des mois d'écart. */
+  const [lignesPayees, setLignesPayees] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let vivant = true;
+    fetch("/api/paiements-fournisseurs")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => {
+        if (!vivant || !Array.isArray(d)) return;
+        setLignesPayees(new Set(d.map((x: { cle: string }) => x.cle)));
+      })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, []);
+  /* Coche optimiste : pointer une facture se fait ligne après ligne, et
+     attendre le serveur à chaque clic rendrait l'exercice pénible. En cas
+     d'échec, la coche revient à son état réel. */
+  const basculerPaiement = (cle: string) => {
+    const paye = !lignesPayees.has(cle);
+    setLignesPayees((prev) => {
+      const suivant = new Set(prev);
+      if (paye) suivant.add(cle); else suivant.delete(cle);
+      return suivant;
+    });
+    fetch("/api/paiements-fournisseurs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cle, paye }),
+    })
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); })
+      .catch(() => {
+        setLignesPayees((prev) => {
+          const suivant = new Set(prev);
+          if (paye) suivant.delete(cle); else suivant.add(cle);
+          return suivant;
+        });
+        try { sonnerToast.error("Pointage non enregistré — réessayez."); } catch {}
+      });
+  };
   const [statsDateMode, setStatsDateMode] = useState<StatsDateMode>("all");
   const [statsDateFrom, setStatsDateFrom] = useState("");
   const [statsDateTo, setStatsDateTo] = useState("");
@@ -2917,9 +2958,38 @@ function HomePage() {
                     const etat = fTypeEtat(project);
                     const etatCls = (fournisseurType === "mesures" ? STATUS_MESURES_COLORS[etat] : STATUS_CMD_COLORS[etat]) || "bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300";
                     const rowBg = idx % 2 === 0 ? "bg-white/70 dark:bg-slate-800/50" : "bg-blue-50/40 dark:bg-blue-950/15";
+                    /* Prestation de la ligne : elle décide à la fois du numéro
+                       de service à montrer et de ce que la coche engage. En
+                       mode « Tous », c'est le type retenu pour la période. */
+                    const prestation = statusFilter === "Soucis montage" ? "soucis"
+                      : fournisseurType !== "tous" ? fournisseurType
+                      : fPick?.label === "Mesures" ? "mesures"
+                      : fPick?.label === "Services" ? "services"
+                      : fPick?.label === "SAV" ? "sav" : "montage";
+                    /* Duka range les MS (montages) et les KS (services) dans la
+                       MÊME colonne. Montrer les deux ferait pointer une ligne
+                       qui n'est pas sur la facture qu'on a sous les yeux. */
+                    const numeros = prestation === "mesures"
+                      ? numerosServices(project.servMesuresFournisseurs, ["AS"])
+                      : numerosServices(project.servCmdFournisseurs,
+                          prestation === "montage" ? ["MS"]
+                          : prestation === "services" ? ["KS"]
+                          : ["MS", "KS"]);
+                    const clePaiement = `${project.id}:${prestation}`;
+                    const paye = lignesPayees.has(clePaiement);
                     return (
-                      <Link key={project.id} href={`/projet/${project.id}?mode=${fTypeCardMode}`} prefetch={!isFloatingWindow}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100/60 dark:hover:bg-blue-900/30 transition-colors sgv-row ${rowBg}`}>
+                      <div key={project.id}
+                        className={`flex items-center gap-2 pl-2 pr-1 rounded-lg transition-colors sgv-row ${rowBg}${paye ? " ring-1 ring-emerald-300 dark:ring-emerald-800" : ""}`}>
+                        {/* Pointage de facture : réglé ou non. Hors du lien,
+                            sinon cocher ouvrirait le projet. */}
+                        <label className="shrink-0 flex items-center p-1.5 cursor-pointer"
+                               title={paye ? "Payé — décocher pour annuler" : "Marquer comme payé"}
+                               onClick={(e) => e.stopPropagation()}>
+                          <input type="checkbox" checked={paye} onChange={() => basculerPaiement(clePaiement)}
+                                 className="w-4 h-4 accent-emerald-600 cursor-pointer" />
+                        </label>
+                      <Link href={`/projet/${project.id}?mode=${fTypeCardMode}`} prefetch={!isFloatingWindow}
+                        className="flex-1 min-w-0 flex items-center gap-2 px-1 py-2 rounded-lg hover:bg-blue-100/60 dark:hover:bg-blue-900/30 transition-colors">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-snug line-clamp-2">{project.projet}</p>
                           <div className="mt-0.5 flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
@@ -2930,11 +3000,21 @@ function HomePage() {
                             {!!project.nbCabines && <span>{project.nbCabines} cab.</span>}
                           </div>
                         </div>
+                        {/* N° de service du fournisseur : ce qui permet de
+                            pointer la ligne sur la facture reçue. */}
+                        {numeros.length > 0 && (
+                          <span className="shrink-0 flex flex-col items-end gap-0.5">
+                            {numeros.map((n) => (
+                              <span key={n} className="font-mono text-[11px] font-semibold text-[#1e3a5f] dark:text-blue-300 whitespace-nowrap">{n}</span>
+                            ))}
+                          </span>
+                        )}
                         {etat && (
                           <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${etatCls}`}>{etat}</span>
                         )}
                         <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
                       </Link>
+                      </div>
                     );
                   })}
                   {fournisseursFiltered.length === 0 && !loading && (
