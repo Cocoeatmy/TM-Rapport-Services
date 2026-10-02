@@ -694,22 +694,6 @@ function parseTMNumbers(raw: string): string[] {
 }
 
 /**
- * Place qu'un chantier prend dans la barre de charge.
- *
- * C'est la charge RÉELLE de la journée : toutes les cabines du chantier, y
- * compris celles déjà montées. Déduire le posé donnait une barre qui ne
- * correspondait plus à ce qui avait été planifié ce jour-là, et un chantier
- * terminé finissait par disparaître. Ce qui reste à faire se lit sous le
- * total et sur la pastille de chaque case.
- *
- * Une unité au minimum : un chantier sans cabine renseignée doit rester
- * visible, sans quoi son numéro ne s'afficherait nulle part.
- */
-function poidsDeLot(p: Project): number {
-  return Math.max(p.nbCabines || 0, 1);
-}
-
-/**
  * État d'un chantier, posé à droite de sa case dans la barre de charge.
  *
  * Le numéro dit QUEL chantier ; il ne disait pas où il en est. Une pastille
@@ -3184,11 +3168,47 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               const weekSource = [...projects, ...terminatedProjects]
                 .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
                 .filter((p) => p.dateMontage);
-              const daysOfProject = (p: Project): string[] => {
+              /* Jours PLANIFIÉS d'un montage : la fenêtre portée par la fiche. */
+              const joursPlanifies = (p: Project): string[] => {
                 const start = (p.dateMontage || "").split("T")[0];
                 if (!start) return [];
                 const end = (p.dateMontageEnd || "").split("T")[0];
                 return end && end > start ? getWorkingDays(start, end) : [start];
+              };
+              /* Jour de pose RELEVÉ pour chaque cabine, dans « Heure arrivée »
+                 au format « Cab3:2026-08-11:14:04 ». C'est la trace du travail
+                 réellement fait, et elle seule sait quelle cabine a été posée
+                 quel jour. */
+              const joursDesCabines = (p: Project): string[] =>
+                [...String(p.heureArrivee || "").matchAll(/Cab\d+\s*:\s*(\d{4}-\d{2}-\d{2})/g)].map((m) => m[1]);
+              /* Un montage pèse sur les jours où il était prévu ET sur ceux où
+                 l'on a effectivement posé : une cabine montée en août doit
+                 compter en août, pas sur la date de montage restée au 1er
+                 octobre. */
+              const daysOfProject = (p: Project): string[] =>
+                [...new Set([...joursPlanifies(p), ...joursDesCabines(p)])];
+              /**
+               * Cabines d'un chantier qui pèsent sur CE jour.
+               *
+               * Les cabines pointées ce jour-là, plus la part des cabines
+               * encore sans relevé, répartie sur les jours planifiés. Sans
+               * cette répartition, un chantier de dix-neuf cabines étalé sur
+               * trois semaines ramenait ses dix-neuf cabines sur chacun de ses
+               * jours : la journée du 1er octobre en annonçait vingt-neuf
+               * quand il n'y avait plus rien à y poser.
+               */
+              const cabinesDuJour = (p: Project, key: string): number => {
+                const total = p.nbCabines || 0;
+                const releves = joursDesCabines(p);
+                const ceJour = releves.filter((d) => d === key).length;
+                const sansReleve = Math.max(total - releves.length, 0);
+                if (sansReleve === 0) return ceJour;
+                const planifies = joursPlanifies(p);
+                const i = planifies.indexOf(key);
+                if (i < 0) return ceJour;
+                const base = Math.floor(sansReleve / planifies.length);
+                const reste = sansReleve % planifies.length;
+                return ceJour + base + (i < reste ? 1 : 0);
               };
               const bars = ["Lun", "Mar", "Mer", "Jeu", "Ven"].map((d, i) => {
                 const dt = new Date(monday);
@@ -3209,8 +3229,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 dayProjects.forEach((p) => {
                   const label = (p.collaborateurs || "").trim() || "Non attribué";
                   const cur: Groupe = byGroup.get(label) || { poids: 0, attente: 0, projetsRecu: [], projetsAttente: [] };
-                  cur.poids += poidsDeLot(p);
-                  if (marchandiseEnAttente(p)) { cur.attente += cabinesRestantes(p); cur.projetsAttente.push(p); }
+                  cur.poids += Math.max(cabinesDuJour(p, key), 1);
+                  if (marchandiseEnAttente(p)) { cur.attente += cabinesDuJour(p, key); cur.projetsAttente.push(p); }
                   else cur.projetsRecu.push(p);
                   byGroup.set(label, cur);
                 });
@@ -3218,15 +3238,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   .map(([label, v]) => ({
                     label, attente: v.attente, poids: v.poids,
                     projetsRecu: v.projetsRecu, projetsAttente: v.projetsAttente,
-                    cab: [...v.projetsRecu, ...v.projetsAttente].reduce((s2, x) => s2 + cabinesRestantes(x), 0),
+                    cab: [...v.projetsRecu, ...v.projetsAttente].reduce((s2, x) => s2 + cabinesDuJour(x, key), 0),
                     color: groupColor(label),
                   }))
                   .sort((a, b) => b.poids - a.poids);
                 /* Deux chiffres, et pas un seul : la charge du jour telle
                    qu'elle a été planifiée, et ce qu'il en reste. Le premier
                    dit ce que vaut la journée, le second où elle en est. */
-                const cab = dayProjects.reduce((s2, p) => s2 + (p.nbCabines || 0), 0);
-                const restant = dayProjects.reduce((s2, p) => s2 + cabinesRestantes(p), 0);
+                const cab = dayProjects.reduce((s2, p) => s2 + cabinesDuJour(p, key), 0);
+                /* Non posées DU JOUR : on ne peut pas en annoncer plus que ce
+                   que la journée porte. */
+                const restant = dayProjects.reduce(
+                  (s2, p) => s2 + Math.min(cabinesRestantes(p), cabinesDuJour(p, key)), 0,
+                );
                 const poidsJour = segs.reduce((s2, x) => s2 + x.poids, 0);
                 const attente = segs.reduce((s2, x) => s2 + x.attente, 0);
                 const enAttente = dayProjects.filter(marchandiseEnAttente);
@@ -3237,28 +3261,29 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                  moins. Chaque pastille porte SES projets — un montage à cheval
                  sur deux jours figure dans les deux barres mais ne doit
                  apparaître qu'une fois dans la liste, d'où la clé par id. */
+              /* Légende : ce que chaque monteur porte sur la semaine. Les
+                 cabines se comptent JOUR PAR JOUR, comme les barres — un
+                 chantier étalé ne doit pas ramener tout son lot sur chacun de
+                 ses jours. Les projets, eux, se dédoublonnent par id. */
               const legend = (() => {
-                const m = new Map<string, Map<string, Project>>();
+                type Ligne = { cab: number; restantes: number; projets: Map<string, Project> };
+                const m = new Map<string, Ligne>();
                 bars.forEach((b) => {
                   b.projets.forEach((p) => {
                     const label = (p.collaborateurs || "").trim() || "Non attribué";
-                    const cur = m.get(label) || new Map<string, Project>();
-                    cur.set(p.id, p);
+                    const cur: Ligne = m.get(label) || { cab: 0, restantes: 0, projets: new Map<string, Project>() };
+                    const duJour = cabinesDuJour(p, b.key);
+                    cur.cab += duJour;
+                    cur.restantes += Math.min(cabinesRestantes(p), duJour);
+                    cur.projets.set(p.id, p);
                     m.set(label, cur);
                   });
                 });
-                /* Les deux chiffres se comptent sur les CHANTIERS de la
-                   semaine, pas sur les barres : un montage à cheval sur deux
-                   jours figure dans les deux et comptait double. */
                 return [...m.entries()]
-                  .map(([label, projets]) => {
-                    const liste = [...projets.values()];
-                    return {
-                      label, color: groupColor(label), projets: liste,
-                      cab: liste.reduce((s2, p) => s2 + (p.nbCabines || 0), 0),
-                      restantes: liste.reduce((s2, p) => s2 + cabinesRestantes(p), 0),
-                    };
-                  })
+                  .map(([label, v]) => ({
+                    label, color: groupColor(label), projets: [...v.projets.values()],
+                    cab: v.cab, restantes: v.restantes,
+                  }))
                   .sort((a, b) => b.cab - a.cab);
               })();
               const attenteSemaine = (() => {
@@ -3271,11 +3296,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                  montage à cheval sur deux jours figure dans les deux barres
                  mais ne reste qu'un seul chantier. */
               const semaineProjets = new Set(bars.flatMap((b) => b.projets.map((p) => p.id))).size;
-              /* Posé et restant se comptent par chantier, pas par barre : un
-                 montage à cheval sur deux jours ne doit pas compter deux fois. */
-              const chantiersSemaine = [...new Map(bars.flatMap((b) => b.projets.map((p) => [p.id, p] as const))).values()];
-              const semaineCabines = chantiersSemaine.reduce((s, p) => s + (p.nbCabines || 0), 0);
-              const semaineRestantes = chantiersSemaine.reduce((s, p) => s + cabinesRestantes(p), 0);
+              /* La semaine est la somme de ce que les barres annoncent : tout
+                 autre calcul donnerait un total qui ne se retrouve pas en
+                 additionnant les jours. */
+              const semaineCabines = bars.reduce((s, b) => s + b.cab, 0);
+              const semaineRestantes = bars.reduce((s, b) => s + b.restant, 0);
               return (
                 <div className="sg-card sg-chart">
                   <div className="sg-card-head">
@@ -3380,8 +3405,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 key={`${s.label}-${p.id}`}
                                 className={`sg-bar-seg${attente ? " is-attente" : ""}`}
                                 style={attente
-                                  ? ({ flexGrow: poidsDeLot(p), ["--raie" as string]: s.color } as React.CSSProperties)
-                                  : { flexGrow: poidsDeLot(p), background: s.color }}
+                                  ? ({ flexGrow: Math.max(cabinesDuJour(p, b.key), 1), ["--raie" as string]: s.color } as React.CSSProperties)
+                                  : { flexGrow: Math.max(cabinesDuJour(p, b.key), 1), background: s.color }}
                               >
                                 {numeroDeProjet(p)}
                                 {(() => {
