@@ -720,6 +720,23 @@ function etatDuLot(projet: Project, signale: boolean) {
 }
 
 /**
+ * Le même état, en pastille claire pour une liste sur fond blanc.
+ *
+ * Les cases de la barre portent l'icône sur une plaque sombre ; une liste n'a
+ * pas ce fond. L'icône et les couleurs restent les mêmes, pour qu'un état se
+ * reconnaisse d'un écran à l'autre sans réapprendre un code.
+ */
+function pastilleEtat(projet: Project, signale: boolean) {
+  const e = etatDuLot(projet, signale);
+  if (!e) return null;
+  return (
+    <span className={`sgc-etat ${e.cls}`} title={e.titre}>
+      <e.Icon className="w-3 h-3" strokeWidth={3} />
+    </span>
+  );
+}
+
+/**
  * Numéro du projet posé sur SA case de la barre de charge.
  *
  * Une couleur dit qui pose, pas ce qu'il pose. Il fallait ouvrir le calendrier
@@ -3561,7 +3578,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`} className="sgc-row"
                       onClick={() => setChargePick(null)}>
                       <span className="sg-mono sgc-row-tm">{p.ofrTM || "—"}</span>
-                      <span className="sgc-row-name">{p.nomChantier || p.projet}</span>
+                      <span className="sgc-row-name">
+                        {p.nomChantier || p.projet}{" "}
+                        {pastilleEtat(p, projetsSignales.has(p.id))}
+                      </span>
                       <span className="sg-place">
                         <MapPin className="w-3 h-3" /><span>{p.adresseChantier || "—"}</span>
                       </span>

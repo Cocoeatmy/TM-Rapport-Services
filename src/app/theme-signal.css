@@ -2915,6 +2915,24 @@ html[data-ui="signal"] .sgc-row-name:has(.sgc-row-nom) {
 html[data-ui="signal"] .sgc-row-nom {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* État d'un chantier dans une liste claire : mêmes icônes et mêmes couleurs
+   que sur les cases de la barre de charge, posées cette fois sur un fond
+   doux — une plaque sombre jurerait sur du blanc. */
+html[data-ui="signal"] .sgc-etat {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; border-radius: 5px;
+  vertical-align: -3px;
+  background: var(--sg-paper-2); color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sgc-etat.is-pose { background: #e3f6ea; color: #15803d; }
+html[data-ui="signal"] .sgc-etat.is-encours { background: #fdf3d8; color: #b45309; }
+html[data-ui="signal"] .sgc-etat.is-signale { background: #e0f2f1; color: #00695c; }
+html[data-ui="signal"] .sgc-etat.is-souci { background: #fde8e8; color: #b91c1c; }
+html[data-ui="signal"].dark .sgc-etat.is-pose { background: rgba(21, 128, 61, 0.2); color: #7ddba2; }
+html[data-ui="signal"].dark .sgc-etat.is-encours { background: rgba(180, 83, 9, 0.22); color: #f3c570; }
+html[data-ui="signal"].dark .sgc-etat.is-signale { background: rgba(0, 105, 92, 0.25); color: #5eead4; }
+html[data-ui="signal"].dark .sgc-etat.is-souci { background: rgba(185, 28, 28, 0.22); color: #fca5a5; }
+
 html[data-ui="signal"] .sgc-row-cab {
   text-align: right; font-size: 12px; font-weight: 600; color: var(--sg-text);
 }
