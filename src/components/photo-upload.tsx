@@ -302,7 +302,12 @@ export function PhotoUpload({
       {hint && (
         <p className="text-xs text-gray-400 mb-2 mt-0.5">({hint})</p>
       )}
-      <div className="grid grid-cols-2 gap-2">
+      {/* Deux colonnes quelle que soit la largeur donnaient, sur un grand
+          écran, des vignettes de près d'un mètre : une photo de carton
+          occupait tout l'écran. La grille se remplit maintenant de colonnes
+          d'environ 170 px — deux sur un téléphone, comme avant, et autant que
+          la place le permet au-delà. */}
+      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))" }}>
         {allImages.map((img, i) => (
           <div
             key={`${img.isPreview ? "p" : "e"}-${i}-${img.src}`}
