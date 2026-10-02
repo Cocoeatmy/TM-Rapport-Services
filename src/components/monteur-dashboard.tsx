@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
@@ -693,26 +693,27 @@ function parseTMNumbers(raw: string): string[] {
 }
 
 /**
- * Numéros de projet posés DANS un segment de la barre de charge.
+ * Numéro du projet posé sur SA case de la barre de charge.
  *
  * Une couleur dit qui pose, pas ce qu'il pose. Il fallait ouvrir le calendrier
  * pour savoir à quel chantier correspondait un bloc ; le numéro est désormais
  * écrit dessus, et il ouvre l'aperçu du projet.
  *
- * Les segments étroits — une cabine sur une journée chargée — n'ont pas la
- * place d'une ligne : le texte y est simplement rogné, plutôt que de grossir
- * le segment et de fausser la proportion que la barre est censée montrer.
+ * Pastille blanche sur texte noir : écrit à même la couleur du monteur, le
+ * numéro se lisait mal — le vert et le jaune ne supportent pas le blanc.
+ *
+ * Les cases étroites — une cabine sur une journée chargée — n'ont pas la
+ * place d'une ligne : le texte y est rogné, plutôt que de grossir la case et
+ * de fausser la proportion que la barre est censée montrer.
  */
-function numerosDeSegment(projets: Project[]) {
-  const etiquettes = projets.flatMap((p) =>
-    parseTMNumbers(p.ofrTM || "").map((num) => ({ num, projet: p })),
-  );
-  if (etiquettes.length === 0) return null;
+function numeroDeProjet(projet: Project) {
+  const numeros = parseTMNumbers(projet.ofrTM || "");
+  if (numeros.length === 0) return null;
   return (
     <span className="sg-seg-tms">
-      {etiquettes.map(({ num, projet }) => (
+      {numeros.map((num) => (
         <button
-          key={`${projet.id}-${num}`}
+          key={num}
           type="button"
           className="sg-seg-tm"
           title={`${num} — ${projet.projet}`}
@@ -3271,24 +3272,26 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           <span className={`sg-bar-stack${b.isToday ? " is-today" : ""}`}
                                 style={{ height: `${Math.round((b.cab / max) * 86)}%` }}>
                             {b.segs.length === 0 && <i className="sg-bar-seg is-empty" style={{ flexGrow: 1 }} />}
-                            {b.segs.map((s) => (
-                              <Fragment key={s.label}>
-                                {s.recu > 0 && (
-                                  <span className="sg-bar-seg"
-                                        style={{ flexGrow: s.recu, background: s.color }}>
-                                    {numerosDeSegment(s.projetsRecu)}
-                                  </span>
-                                )}
-                                {/* Rayé dans la couleur du monteur : la cabine
-                                    lui est bien attribuée, mais elle n'est pas
-                                    encore réceptionnée. */}
-                                {s.attente > 0 && (
-                                  <span className="sg-bar-seg is-attente"
-                                        style={{ flexGrow: s.attente, ["--raie" as string]: s.color } as React.CSSProperties}>
-                                    {numerosDeSegment(s.projetsAttente)}
-                                  </span>
-                                )}
-                              </Fragment>
+                            {/* Une case PAR PROJET, à sa hauteur de cabines, et
+                                non un bloc par monteur : trois montages pour
+                                Jacobo font trois cases vertes séparées d'un
+                                tiret blanc, chacune portant son numéro. */}
+                            {b.segs.flatMap((s) => [
+                              ...s.projetsRecu.map((p) => ({ s, p, attente: false })),
+                              /* Rayé dans la couleur du monteur : la cabine lui
+                                 est bien attribuée, mais elle n'est pas encore
+                                 réceptionnée. */
+                              ...s.projetsAttente.map((p) => ({ s, p, attente: true })),
+                            ]).map(({ s, p, attente }) => (
+                              <span
+                                key={`${s.label}-${p.id}`}
+                                className={`sg-bar-seg${attente ? " is-attente" : ""}`}
+                                style={attente
+                                  ? ({ flexGrow: cabinesRestantes(p), ["--raie" as string]: s.color } as React.CSSProperties)
+                                  : { flexGrow: cabinesRestantes(p), background: s.color }}
+                              >
+                                {numeroDeProjet(p)}
+                              </span>
                             ))}
                           </span>
                         </span>
