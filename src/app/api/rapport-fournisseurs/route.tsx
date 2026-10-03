@@ -40,6 +40,8 @@ type Row = {
   date?: string;       // déjà formatée (JJ.MM.AAAA) ou ""
   nbCabines?: number;
   etat?: string;
+  /** Ligne pointée comme réglée dans l'app. */
+  paye?: boolean;
   collaborateurs?: string;
 };
 type Payload = {
@@ -71,9 +73,12 @@ const styles = StyleSheet.create({
   cDate: { width: 52, paddingRight: 4 },
   cCab: { width: 24, textAlign: "right", paddingRight: 4 },
   cEtat: { width: 84 },
+  cPaye: { width: 34 },
   refLine: { fontSize: 8, color: "#222" },
   refPrefix: { color: "#8a94a3", fontFamily: "Helvetica-Bold" },
   chip: { fontSize: 7, fontFamily: "Helvetica-Bold", color: "#1e3a5f", backgroundColor: "#eef2f7", borderRadius: 3, paddingVertical: 1.5, paddingHorizontal: 4, alignSelf: "flex-start" },
+  /* Payé : vert, comme la coche de l'app — on reconnaît l'état sans le lire. */
+  chipPaye: { fontSize: 7, fontFamily: "Helvetica-Bold", color: "#15803d", backgroundColor: "#e3f6ea", borderRadius: 3, paddingVertical: 1.5, paddingHorizontal: 4, alignSelf: "flex-start" },
   totalRow: { flexDirection: "row", marginTop: 8, paddingTop: 6, borderTopWidth: 1.5, borderTopColor: "#1e3a5f" },
   totalTxt: { fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1e3a5f" },
   footer: { position: "absolute", bottom: 22, left: 32, right: 32, textAlign: "center", fontSize: 7, color: "#999", borderTopWidth: 0.5, borderTopColor: "#ddd", paddingTop: 5 },
@@ -120,6 +125,7 @@ function RapportFournisseursPDF({ data }: { data: Payload }) {
           <Text style={[styles.th, styles.cDate]}>Date</Text>
           <Text style={[styles.th, styles.cCab]}>Cab.</Text>
           <Text style={[styles.th, styles.cEtat]}>État</Text>
+          <Text style={[styles.th, styles.cPaye]}>Payé</Text>
         </View>
 
         {rows.map((r, i) => (
@@ -135,6 +141,9 @@ function RapportFournisseursPDF({ data }: { data: Payload }) {
             <Text style={[styles.td, styles.cDate]}>{nfc(r.date || "—")}</Text>
             <Text style={[styles.td, styles.cCab]}>{r.nbCabines ? String(r.nbCabines) : ""}</Text>
             <View style={styles.cEtat}>{r.etat ? <Text style={styles.chip}>{nfc(r.etat)}</Text> : null}</View>
+            {/* Rien quand ce n'est pas payé : une case vide se repère mieux
+                qu'un « non » qu'il faudrait lire ligne après ligne. */}
+            <View style={styles.cPaye}>{r.paye ? <Text style={styles.chipPaye}>Payé</Text> : null}</View>
           </View>
         ))}
 
@@ -143,12 +152,18 @@ function RapportFournisseursPDF({ data }: { data: Payload }) {
         ) : (
           <View style={styles.totalRow}>
             <Text style={[styles.totalTxt, styles.cNum]}> </Text>
-            <Text style={[styles.totalTxt, styles.cProjet]}>Total : {rows.length} projet{rows.length !== 1 ? "s" : ""}</Text>
+            {/* Le compte des lignes réglées se lit avec le total, pas dans une
+                colonne de 34 points où il ne tiendrait pas. */}
+            <Text style={[styles.totalTxt, styles.cProjet]}>
+              Total : {rows.length} projet{rows.length !== 1 ? "s" : ""}
+              {rows.some((r) => r.paye) ? ` · ${rows.filter((r) => r.paye).length} payé${rows.filter((r) => r.paye).length > 1 ? "s" : ""}` : ""}
+            </Text>
             <Text style={[styles.totalTxt, styles.cOfr]}> </Text>
             <Text style={[styles.totalTxt, styles.cRef]}> </Text>
             <Text style={[styles.totalTxt, styles.cDate]}> </Text>
             <Text style={[styles.totalTxt, styles.cCab]}>{totalCab || ""}</Text>
             <Text style={[styles.totalTxt, styles.cEtat]}> cab.</Text>
+            <Text style={[styles.totalTxt, styles.cPaye]}> </Text>
           </View>
         )}
 

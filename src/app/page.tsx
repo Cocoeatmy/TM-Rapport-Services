@@ -1108,6 +1108,8 @@ function HomePage() {
      projet + prestation : un même chantier donne une ligne de mesures et une
      ligne de montage, facturées séparément et souvent à des mois d'écart. */
   const [lignesPayees, setLignesPayees] = useState<Set<string>>(new Set());
+  /** Vue Fournisseurs : ne montrer que ce qui reste à encaisser. */
+  const [fNonPayesSeuls, setFNonPayesSeuls] = useState(false);
   useEffect(() => {
     let vivant = true;
     fetch("/api/paiements-fournisseurs")
@@ -2772,10 +2774,25 @@ function HomePage() {
         const fUnion = [...fDedup.values()];
         const fournisseursBase = fUnion.filter(fTypeHas);
 
+        /* Prestation d'une ligne : elle décide du numéro de service montré et
+           de ce que la coche « payé » engage. En mode « Tous », c'est le type
+           retenu pour la période. Définie ici, elle sert au tableau comme au
+           rapport PDF — deux endroits qui doivent dire la même chose. */
+        const fPrestation = (p: any): string => {
+          if (statusFilter === "Soucis montage") return "soucis";
+          if (fournisseurType !== "tous") return fournisseurType;
+          const label = fTousPick(p).label;
+          return label === "Mesures" ? "mesures"
+            : label === "Services" ? "services"
+            : label === "SAV" ? "sav" : "montage";
+        };
+        const fEstPaye = (p: any): boolean => lignesPayees.has(`${p.id}:${fPrestation(p)}`);
         const fournisseursFiltered = fournisseursBase.filter((p) => {
           if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
           if (statusFilter && fTypeEtat(p) !== statusFilter) return false;
           if (!fInPeriod(p)) return false;
+          /* « Reste à payer » : ce que le fournisseur n'a pas encore réglé. */
+          if (fNonPayesSeuls && fEstPaye(p)) return false;
           return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
         }).sort((a, b) => {
           const da = (fRowDate(a) || ""); const db = (fRowDate(b) || "");
@@ -2835,6 +2852,7 @@ function HomePage() {
                 date: (() => { const d = fRowDate(p); return d ? formatDateFR(d) : ""; })(),
                 nbCabines: p.nbCabines || 0,
                 etat: fTypeEtat(p) || "",
+                paye: fEstPaye(p),
                 collaborateurs: p.collaborateurs || "",
               })),
             };
@@ -2927,6 +2945,15 @@ function HomePage() {
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-300 ${statusFilter === "Soucis montage" ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
                     Soucis montage : {fRecap.soucis}
                   </button>
+                  {/* Reste à encaisser : les lignes que la coche « payé » n'a
+                      pas encore marquées. Le compte se fait sur la sélection
+                      en cours, pas sur toute la base — c'est la facture qu'on
+                      a sous les yeux qu'on pointe. */}
+                  <button onClick={() => setFNonPayesSeuls((v) => !v)}
+                    title="N'afficher que les lignes qui ne sont pas encore payées"
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300 ${fNonPayesSeuls ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
+                    Reste à payer
+                  </button>
                 </div>
                 {/* Puces de statut (état du type sélectionné, dans la période) */}
                 <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide sgv-chips">
@@ -2961,11 +2988,7 @@ function HomePage() {
                     /* Prestation de la ligne : elle décide à la fois du numéro
                        de service à montrer et de ce que la coche engage. En
                        mode « Tous », c'est le type retenu pour la période. */
-                    const prestation = statusFilter === "Soucis montage" ? "soucis"
-                      : fournisseurType !== "tous" ? fournisseurType
-                      : fPick?.label === "Mesures" ? "mesures"
-                      : fPick?.label === "Services" ? "services"
-                      : fPick?.label === "SAV" ? "sav" : "montage";
+                    const prestation = fPrestation(project);
                     /* Duka range les MS (montages) et les KS (services) dans la
                        MÊME colonne. Montrer les deux ferait pointer une ligne
                        qui n'est pas sur la facture qu'on a sous les yeux. */
