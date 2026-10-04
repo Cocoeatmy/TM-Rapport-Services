@@ -791,6 +791,19 @@ function typeIntervention(p: Project, jourIso: string): "Mesures" | "Services" |
   return "Montage";
 }
 
+/**
+ * Qui s'occupe de ce rendez-vous, ce jour-là.
+ *
+ * Une prise de mesures n'est pas faite par l'équipe de montage : elle a sa
+ * propre colonne Notion, « Mesures traitée par ». La lire sur « Collaborateurs
+ * montages » laissait les lignes de mesures sans personne, alors que
+ * l'information existait.
+ */
+function collaborateursDuRdv(p: Project, jourIso: string): string {
+  if (typeIntervention(p, jourIso) === "Mesures") return (p.mesuresTraiteePar || "").trim();
+  return (p.collaborateurs || "").trim();
+}
+
 /** Découpe une liste de références (commandes fournisseur, etc.) en préservant
  *  l'ordre saisi — contrairement à parseTMNumbers qui trie numériquement. */
 function splitRefs(raw: string): string[] {
@@ -4325,21 +4338,21 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                sur trois semaines, pas de la journée. */
             const finisOfDay = (list: Project[]) =>
               list.filter((p) => (p.nbCabines || 0) > 0 && cabinesPosees(p) >= (p.nbCabines || 0)).length;
-            const labelOf = (p: Project) => (p.collaborateurs || "").trim() || "Non attribué";
+            const labelOf = (p: Project, jour: string) => collaborateursDuRdv(p, jour) || "Non attribué";
             /* Légende cliquable : le mois se restreint au collaborateur/binôme
                épinglé. La légende elle-même reste calculée sur le mois complet
                pour que les autres pastilles restent accessibles. */
             const dayMapF: Record<string, Project[]> = calLegend
               ? Object.entries(dayMap).reduce((acc, [k, v]) => {
-                  const kept = v.filter((p) => labelOf(p) === calLegend);
+                  const kept = v.filter((p) => labelOf(p, k) === calLegend);
                   if (kept.length) acc[k] = kept;
                   return acc;
                 }, {} as Record<string, Project[]>)
               : dayMap;
-            const segsOfDay = (list: Project[]) => {
+            const segsOfDay = (list: Project[], jour: string) => {
               const m = new Map<string, number>();
               list.forEach((p) => {
-                const label = (p.collaborateurs || "").trim() || "Non attribué";
+                const label = labelOf(p, jour);
                 m.set(label, (m.get(label) || 0) + (p.nbCabines || 0));
               });
               return [...m.entries()].map(([label, cab]) => ({
@@ -4354,10 +4367,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             const monthProjects = new Set(Object.values(dayMapF).flat().map((p) => p.id)).size;
             const legend = (() => {
               const m = new Map<string, number>();
-              Object.values(dayMap).flat().forEach((p) => {
-                const label = (p.collaborateurs || "").trim() || "Non attribué";
+              Object.entries(dayMap).forEach(([jour, liste]) => liste.forEach((p) => {
+                const label = labelOf(p, jour);
                 m.set(label, (m.get(label) || 0) + (p.nbCabines || 0));
-              });
+              }));
               return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([label, cab]) => ({
                 label, cab,
                 color: label === "Non attribué" ? "#cbd5e1"
@@ -4413,7 +4426,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
                       const list = dayMapF[key] || [];
                       const cab = cabOfDay(list);
-                      const segs = segsOfDay(list);
+                      const segs = segsOfDay(list, key);
                       const isToday = key === todayStr2;
                       const isSel = calendarSelectedDay === key;
                       const dow = (i % 7);
@@ -4604,7 +4617,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     {selList.length === 0 && <p className="sg-empty">Aucune intervention ce jour.</p>}
                     {selList.map((p) => {
                       const typeInt = typeIntervention(p, calendarSelectedDay);
-                      const names = (p.collaborateurs || "").split("&").map((n) => n.trim()).filter(Boolean);
+                      const names = collaborateursDuRdv(p, calendarSelectedDay).split("&").map((n) => n.trim()).filter(Boolean);
                       return (
                         <Link key={p.id} href={`/projet/${p.id}?mode=dashboard`} className="sgc-row">
                           <span className="sgc-row-av">
