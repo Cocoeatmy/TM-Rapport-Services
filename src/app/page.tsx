@@ -441,9 +441,9 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
           /* L'assistant rejoint le rail : flottant en bas à droite, il
              recouvrait le contenu et détonnait par sa taille. Il garde sa
              pastille flottante sur les écrans sans rail. */
-          { id: "assistant", label: "Assistant IA", Icon: Sparkles, active: false,
+          { id: "assistant", label: "Assistant IA", Icon: Sparkles, active: false, cls: "is-assistant",
             act: () => { setOpen(null); window.dispatchEvent(new Event("tm-ouvrir-assistant")); } },
-        ].map((it) => (
+        ].map((it: { id: string; label: string; Icon: typeof Sparkles; active: boolean; cls?: string; act: () => void }) => (
           <button
             key={it.id}
             type="button"
@@ -451,7 +451,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
             title={it.label}
             aria-label={it.label}
             aria-current={it.active ? "page" : undefined}
-            className={`signal-rail-item${it.active ? " is-active" : ""}`}
+            className={`signal-rail-item${it.active ? " is-active" : ""}${it.cls ? ` ${it.cls}` : ""}`}
           >
             <it.Icon className="w-5 h-5" />
           </button>

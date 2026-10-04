@@ -474,6 +474,25 @@ html[data-ui="signal"] .signal-rail-item.is-active {
   background: #18293f;
   color: #ffffff;
 }
+/* L'assistant garde la couleur qu'il avait en pastille flottante : le dégradé
+   violet-bleu le distingue des destinations, qui sont des vues de l'app alors
+   que lui est un outil. Disque de 40 px, un peu plus petit que les 48 × 44 des
+   autres entrées, pour qu'il n'écrase pas le rail. */
+html[data-ui="signal"] .signal-rail-item.is-assistant {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: filter 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html[data-ui="signal"] .signal-rail-item.is-assistant:hover {
+  background: linear-gradient(135deg, #a855f7 0%, #3b82f6 100%);
+  color: #fff;
+  filter: brightness(1.1);
+}
+
 html[data-ui="signal"] .signal-rail-item.is-active::before {
   content: "";
   position: absolute;
