@@ -1115,6 +1115,8 @@ function HomePage() {
   const [lignesPayees, setLignesPayees] = useState<Set<string>>(new Set());
   /** Vue Fournisseurs : tout, ce qui est réglé, ou ce qui reste à encaisser. */
   const [fPaiement, setFPaiement] = useState<"tous" | "payes" | "non-payes">("tous");
+  /** Statistique dépliée : son titre et les chantiers qu'elle compte. */
+  const [fStatsPick, setFStatsPick] = useState<{ titre: string; projets: any[] } | null>(null);
   useEffect(() => {
     let vivant = true;
     fetch("/api/paiements-fournisseurs")
@@ -3133,27 +3135,75 @@ function HomePage() {
                   )}
                 </div>
               </>
+            ) : fStatsPick ? (
+              /* Une statistique dépliée : un chiffre qu'on ne peut pas ouvrir
+                 ne se vérifie pas, et c'est pourtant là qu'on va chercher quoi
+                 faire. La liste remplace la page, le retour est immédiat. */
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-base text-gray-800 dark:text-gray-100">{fStatsPick.titre}</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {fStatsPick.projets.length} projet{fStatsPick.projets.length !== 1 ? "s" : ""}
+                      {" · "}
+                      {fStatsPick.projets.reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0)} cabine
+                      {fStatsPick.projets.reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0) !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <button onClick={() => setFStatsPick(null)}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200">
+                    <ArrowLeft className="w-3.5 h-3.5" /> Stats
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {fStatsPick.projets.length === 0 && (
+                    <p className="text-sm text-gray-400 py-6 text-center">Aucun projet.</p>
+                  )}
+                  {fStatsPick.projets.map((project: any, idx: number) => {
+                    const etat = fTypeEtat(project);
+                    const etatCls = STATUS_CMD_COLORS[etat] || STATUS_MESURES_COLORS[etat] || "bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300";
+                    const d = fRowDate(project);
+                    return (
+                      <Link key={project.id} href={`/projet/${project.id}?mode=${fTypeCardMode}`} prefetch={!isFloatingWindow}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100/60 dark:hover:bg-blue-900/30 transition-colors sgv-row ${idx % 2 === 0 ? "bg-white/70 dark:bg-slate-800/50" : "bg-blue-50/40 dark:bg-blue-950/15"}`}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-snug line-clamp-2">{project.projet}</p>
+                          <div className="mt-0.5 flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                            {project.ofrTM && <span className="font-mono">OFR {project.ofrTM}</span>}
+                            {d && <span>{formatDateFR(d)}</span>}
+                            {!!project.nbCabines && <span>{project.nbCabines} cab.</span>}
+                            {project.collaborateurs && <span>{project.collaborateurs}</span>}
+                          </div>
+                        </div>
+                        {etat && (
+                          <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${etatCls}`}>{etat}</span>
+                        )}
+                        <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             ) : (
               <div className="space-y-4">
                 <StatsDateFilter mode={statsDateMode} from={statsDateFrom} to={statsDateTo} month={statsMonth} year={statsYear}
                   onModeChange={setStatsDateMode} onFromChange={setStatsDateFrom} onToChange={setStatsDateTo} onMonthChange={setStatsMonth} onYearChange={setStatsYear} />
+                {/* Chaque chiffre ouvre sa liste : un total qu'on ne peut pas
+                    déplier ne se vérifie pas. */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-[#1e3a5f] dark:text-blue-300">{fStatsFiltered.length}</p>
-                    <p className="text-xs text-gray-500 mt-1">Projets en cours</p>
-                  </div>
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-green-600">{fTotalCab}</p>
-                    <p className="text-xs text-gray-500 mt-1">Cabines (toutes)</p>
-                  </div>
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-blue-600">{fRdvFixe.length}</p>
-                    <p className="text-xs text-gray-500 mt-1">RDV fixés</p>
-                  </div>
-                  <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
-                    <p className="text-2xl font-bold text-purple-600">{fTermineCount}</p>
-                    <p className="text-xs text-gray-500 mt-1">Terminés</p>
-                  </div>
+                  {([
+                    { val: fStatsFiltered.length, lbl: "Projets en cours", cls: "text-[#1e3a5f] dark:text-blue-300", liste: fStatsFiltered },
+                    { val: fTotalCab, lbl: "Cabines (toutes)", cls: "text-green-600", liste: fTousFiltered },
+                    { val: fRdvFixe.length, lbl: "RDV fixés", cls: "text-blue-600", liste: fRdvFixe },
+                    { val: fTermineCount, lbl: "Terminés", cls: "text-purple-600", liste: fTerminesFiltered },
+                  ]).map((k) => (
+                    <button key={k.lbl} type="button"
+                      onClick={() => setFStatsPick({ titre: k.lbl, projets: k.liste })}
+                      className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center hover:border-[#1e3a5f] transition-colors">
+                      <p className={`text-2xl font-bold ${k.cls}`}>{k.val}</p>
+                      <p className="text-xs text-gray-500 mt-1">{k.lbl}</p>
+                    </button>
+                  ))}
                 </div>
                 <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
                   <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Répartition par statut</h3>
@@ -3162,7 +3212,8 @@ function HomePage() {
                       const sc: Record<string, number> = {};
                       fTousFiltered.forEach((p: any) => { if (p.etatCMD) sc[p.etatCMD] = (sc[p.etatCMD] || 0) + 1; });
                       return Object.entries(sc).sort(([,a],[,b]) => b - a).map(([status, count]) => (
-                        <div key={status} className="flex items-center gap-2">
+                        <button key={status} type="button" className="w-full flex items-center gap-2 text-left hover:opacity-80"
+                          onClick={() => setFStatsPick({ titre: status, projets: fTousFiltered.filter((p: any) => p.etatCMD === status) })}>
                           <div className="w-32 sm:w-40 text-xs text-gray-600 dark:text-gray-400 truncate">{status}</div>
                           <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden">
                             <div className="h-full bg-[#1e3a5f] rounded-full flex items-center justify-end pr-1.5"
@@ -3170,7 +3221,7 @@ function HomePage() {
                               <span className="text-[10px] text-white font-medium">{count}</span>
                             </div>
                           </div>
-                        </div>
+                        </button>
                       ));
                     })()}
                   </div>
@@ -3188,11 +3239,17 @@ function HomePage() {
                           collabCount[n].cabines += (p.nbCabines || 0);
                         });
                       });
+                      const deQui = (p: any, n: string) => {
+                        const noms = p.collaborateurs ? p.collaborateurs.split("&").map((x: string) => x.trim()).filter(Boolean) : ["Non assigné"];
+                        return noms.includes(n);
+                      };
                       return Object.entries(collabCount).sort(([,a],[,b]) => b.cabines - a.cabines).map(([name, data]) => (
-                        <div key={name} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                        <button key={name} type="button"
+                          onClick={() => setFStatsPick({ titre: name, projets: fTousFiltered.filter((p: any) => deQui(p, name)) })}
+                          className="w-full flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0 text-left hover:opacity-80">
                           <span className="text-sm text-gray-700 dark:text-gray-300">{name}</span>
                           <span className="text-xs text-gray-500">{data.projets} proj. · {data.cabines} cab.</span>
-                        </div>
+                        </button>
                       ));
                     })()}
                   </div>
@@ -3242,16 +3299,18 @@ function HomePage() {
                             <div key={s.label} className="rounded-lg border border-gray-100 dark:border-gray-700 p-3">
                               <p className={`text-xs font-semibold uppercase tracking-wider ${s.color}`}>{s.label}</p>
                               <div className="grid grid-cols-2 gap-2 mt-2">
-                                <div>
+                                <button type="button" className="text-left hover:opacity-80"
+                                  onClick={() => setFStatsPick({ titre: `${s.label} — en cours`, projets: fStatsFiltered.filter(s.pred) })}>
                                   <p className="text-[10px] text-gray-400 dark:text-gray-500">En cours</p>
                                   <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{enCours}</p>
                                   {enCoursCab > 0 && <p className="text-[10px] text-gray-400">{enCoursCab} cab.</p>}
-                                </div>
-                                <div>
+                                </button>
+                                <button type="button" className="text-left hover:opacity-80"
+                                  onClick={() => setFStatsPick({ titre: `${s.label} — terminés`, projets: fTerminesFiltered.filter(s.pred) })}>
                                   <p className="text-[10px] text-gray-400 dark:text-gray-500">Terminés</p>
                                   <p className="text-xl font-bold text-gray-700 dark:text-gray-300">{termine}</p>
                                   {termineCab > 0 && <p className="text-[10px] text-gray-400">{termineCab} cab.</p>}
-                                </div>
+                                </button>
                               </div>
                             </div>
                           );
@@ -3295,8 +3354,10 @@ function HomePage() {
                         {sorted.map(({ s, ec, t, total }) => {
                           const ecPct = (ec / max) * 100;
                           const tPct = (t / max) * 100;
+                          const deLaSerie = (liste: any[]) => liste.filter((p: any) => (p.seriesCabines || []).includes(s));
                           return (
-                            <div key={s}>
+                            <button key={s} type="button" className="w-full text-left hover:opacity-80"
+                              onClick={() => setFStatsPick({ titre: `Série ${s}`, projets: deLaSerie(fTousFiltered) })}>
                               <div className="flex items-center justify-between text-xs mb-1">
                                 <span className="text-gray-700 dark:text-gray-200 truncate">{s}</span>
                                 <span className="font-mono text-gray-500 dark:text-gray-400">
@@ -3310,7 +3371,7 @@ function HomePage() {
                                 {ec > 0 && <div className="bg-blue-500" style={{ width: `${ecPct}%` }} />}
                                 {t > 0 && <div className="bg-emerald-500" style={{ width: `${tPct}%` }} />}
                               </div>
-                            </div>
+                            </button>
                           );
                         })}
                       </div>
@@ -3355,6 +3416,11 @@ function HomePage() {
                           const t = termine[tKey] as number;
                           const ecPct = pct(ec, enCours.total);
                           const tPct = pct(t, termine.total);
+                          /* Même prédicat que le comptage : la liste montre
+                             exactement ce que la barre mesure. */
+                          const porte = (p: any) => ecKey === "soucis" ? p.soucisMontage === true
+                            : ecKey === "pieces" ? (p.infoPiecesManquantes || "").trim().length > 0
+                            : (p.infoDefautsSignale || "").trim().length > 0;
                           return (
                             <div key={label}>
                               <div className="flex items-center justify-between text-xs mb-1">
@@ -3364,7 +3430,8 @@ function HomePage() {
                                 </span>
                               </div>
                               <div className="grid grid-cols-2 gap-2">
-                                <div>
+                                <button type="button" className="text-left hover:opacity-80"
+                                  onClick={() => setFStatsPick({ titre: `${label} — en cours`, projets: fStatsFiltered.filter(porte) })}>
                                   <div className="flex items-center gap-1.5">
                                     <div className="flex-1 h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                       <div className={color} style={{ width: `${ecPct}%`, height: "100%" }} />
@@ -3372,8 +3439,9 @@ function HomePage() {
                                     <span className="text-[10px] font-mono text-gray-500 w-9 text-right">{ecPct}%</span>
                                   </div>
                                   <p className="text-[9px] text-gray-400 mt-0.5">en cours</p>
-                                </div>
-                                <div>
+                                </button>
+                                <button type="button" className="text-left hover:opacity-80"
+                                  onClick={() => setFStatsPick({ titre: `${label} — déjà exécutés`, projets: fTerminesFiltered.filter(porte) })}>
                                   <div className="flex items-center gap-1.5">
                                     <div className="flex-1 h-2 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                       <div className={color} style={{ width: `${tPct}%`, height: "100%", opacity: 0.6 }} />
@@ -3381,7 +3449,7 @@ function HomePage() {
                                     <span className="text-[10px] font-mono text-gray-500 w-9 text-right">{tPct}%</span>
                                   </div>
                                   <p className="text-[9px] text-gray-400 mt-0.5">déjà exécutés</p>
-                                </div>
+                                </button>
                               </div>
                             </div>
                           );
@@ -3396,10 +3464,11 @@ function HomePage() {
                     <h3 className="font-semibold text-sm mb-3 text-gray-700 dark:text-gray-200">Prochains RDV fixés</h3>
                     <div className="space-y-2">
                       {fRdvFixe.sort((a,b) => (a.dateMontage||"").localeCompare(b.dateMontage||"")).slice(0, 8).map(p => (
-                        <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0">
+                        <Link key={p.id} href={`/projet/${p.id}?mode=cmd`} prefetch={!isFloatingWindow}
+                          className="flex items-center justify-between py-1 border-b border-gray-50 dark:border-gray-700 last:border-0 hover:opacity-80">
                           <span className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 sm:line-clamp-1 max-w-[60%]">{p.projet}</span>
                           <span className="text-xs text-gray-500">{p.dateMontage ? new Date(p.dateMontage).toLocaleDateString("fr-CH", {day:"numeric",month:"short"}) : "—"}</span>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   </div>
