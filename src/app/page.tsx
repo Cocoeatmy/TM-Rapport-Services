@@ -2734,11 +2734,17 @@ function HomePage() {
           if (p.etatCMD === "Annulé" || p.etatCMD === "Terminé") return false;
           return memberOk(p);
         });
-        // Archives (inclut les TERMINÉS ; annulés exclus).
+        /* « Archives » est la base ENTIÈRE, pas seulement ce qui est fini :
+           elle sert ici de source complète, en cours compris. Compter ses
+           lignes comme des chantiers terminés donnait 197 là où la
+           répartition par statut en montrait 153 — les 44 en cours s'y
+           étaient glissés. */
         const fArchivesAll = (projectsData["archives"] || []).filter((p: any) => {
           if (p.etatCMD === "Annulé") return false;
           return memberOk(p);
         });
+        /** Les chantiers réellement terminés — ceux-là, et eux seuls. */
+        const fTerminesAll = fArchivesAll.filter((p: any) => p.etatCMD === "Terminé");
 
         // ── Filtre par TYPE d'activité (Mesures / Montage / Services / SAV) ──
         // Chaque type a sa DATE et son ÉTAT de référence.
@@ -2878,7 +2884,8 @@ function HomePage() {
         })();
         const fTotalCab = fTousFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
         const fRdvFixe = fStatsFiltered.filter((p: any) => p.etatCMD === "RDV - fixé");
-        const fTermineCount = fArchivesFiltered.length;
+        const fTerminesFiltered = filterByStatsDate(fTerminesAll, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
+        const fTermineCount = fTerminesFiltered.length;
 
         // ── Génération du rapport PDF des projets filtrés (pointage facture) ──
         const fTypeLabelFull = fournisseurType === "mesures" ? "Mesures"
@@ -3194,7 +3201,7 @@ function HomePage() {
                     Décomposition "en cours" vs "déjà exécuté" pour chacun.
                     Sources :
                       - en cours  → fStatsFiltered (CMD non terminé du fournisseur)
-                      - terminé   → fArchivesFiltered (archives du fournisseur)
+                      - terminé   → fTerminesFiltered (État - CMD = Terminé)
                     Heuristiques : typeServices contient le mot-clé,
                     ou p.sav === true pour le bloc SAV. */}
                 {(() => {
@@ -3229,8 +3236,8 @@ function HomePage() {
                         {stats.map((s) => {
                           const enCours = fStatsFiltered.filter(s.pred).length;
                           const enCoursCab = fStatsFiltered.filter(s.pred).reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0);
-                          const termine = fArchivesFiltered.filter(s.pred).length;
-                          const termineCab = fArchivesFiltered.filter(s.pred).reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0);
+                          const termine = fTerminesFiltered.filter(s.pred).length;
+                          const termineCab = fTerminesFiltered.filter(s.pred).reduce((sum: number, p: any) => sum + (p.nbCabines || 0), 0);
                           return (
                             <div key={s.label} className="rounded-lg border border-gray-100 dark:border-gray-700 p-3">
                               <p className={`text-xs font-semibold uppercase tracking-wider ${s.color}`}>{s.label}</p>
@@ -3268,7 +3275,7 @@ function HomePage() {
                     return m;
                   };
                   const enCours = aggBySerie(fStatsFiltered);
-                  const termine = aggBySerie(fArchivesFiltered);
+                  const termine = aggBySerie(fTerminesFiltered);
                   const allSeries = Array.from(new Set([...Object.keys(enCours), ...Object.keys(termine)]));
                   if (allSeries.length === 0) return null;
                   const totalEnCours = Object.values(enCours).reduce((a, b) => a + b, 0);
@@ -3327,7 +3334,7 @@ function HomePage() {
                     total: list.length,
                   });
                   const enCours = compute(fStatsFiltered);
-                  const termine = compute(fArchivesFiltered);
+                  const termine = compute(fTerminesFiltered);
                   if (enCours.total === 0 && termine.total === 0) return null;
                   const pct = (n: number, d: number) => d === 0 ? 0 : Math.round((n / d) * 100);
                   const rows: { label: string; ecKey: keyof Bucket; tKey: keyof Bucket; color: string }[] = [
