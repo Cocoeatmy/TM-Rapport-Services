@@ -1113,8 +1113,8 @@ function HomePage() {
      projet + prestation : un même chantier donne une ligne de mesures et une
      ligne de montage, facturées séparément et souvent à des mois d'écart. */
   const [lignesPayees, setLignesPayees] = useState<Set<string>>(new Set());
-  /** Vue Fournisseurs : ne montrer que ce qui reste à encaisser. */
-  const [fNonPayesSeuls, setFNonPayesSeuls] = useState(false);
+  /** Vue Fournisseurs : tout, ce qui est réglé, ou ce qui reste à encaisser. */
+  const [fPaiement, setFPaiement] = useState<"tous" | "payes" | "non-payes">("tous");
   useEffect(() => {
     let vivant = true;
     fetch("/api/paiements-fournisseurs")
@@ -2833,8 +2833,10 @@ function HomePage() {
           if (collabFilter && !p.collaborateurs.toLowerCase().includes(collabFilter.toLowerCase())) return false;
           if (statusFilter && fTypeEtat(p) !== statusFilter) return false;
           if (!fInPeriod(p)) return false;
-          /* « Reste à payer » : ce que le fournisseur n'a pas encore réglé. */
-          if (fNonPayesSeuls && fEstPaye(p)) return false;
+          /* Pointage de facture : on isole ce qui est réglé ou ce qui reste
+             dû, selon le côté du relevé qu'on est en train de vérifier. */
+          if (fPaiement === "non-payes" && fEstPaye(p)) return false;
+          if (fPaiement === "payes" && !fEstPaye(p)) return false;
           return matchesSearch(p, deferredSearch.toLowerCase(), searchIndex.get(p.id));
         }).sort((a, b) => {
           const da = (fRowDate(a) || ""); const db = (fRowDate(b) || "");
@@ -2987,13 +2989,18 @@ function HomePage() {
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-300 ${statusFilter === "Soucis montage" ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
                     Soucis montage : {fRecap.soucis}
                   </button>
-                  {/* Reste à encaisser : les lignes que la coche « payé » n'a
-                      pas encore marquées. Le compte se fait sur la sélection
-                      en cours, pas sur toute la base — c'est la facture qu'on
-                      a sous les yeux qu'on pointe. */}
-                  <button onClick={() => setFNonPayesSeuls((v) => !v)}
+                  {/* Pointage de facture : les deux côtés du relevé. Le compte
+                      se fait sur la sélection en cours, pas sur toute la base —
+                      c'est la facture qu'on a sous les yeux qu'on pointe. Un
+                      second clic sur le même bouton rend toute la liste. */}
+                  <button onClick={() => setFPaiement((v) => (v === "payes" ? "tous" : "payes"))}
+                    title="N'afficher que les lignes déjà pointées comme payées"
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300 ${fPaiement === "payes" ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
+                    Payés
+                  </button>
+                  <button onClick={() => setFPaiement((v) => (v === "non-payes" ? "tous" : "non-payes"))}
                     title="N'afficher que les lignes qui ne sont pas encore payées"
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300 ${fNonPayesSeuls ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-300 ${fPaiement === "non-payes" ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
                     Reste à payer
                   </button>
                   {/* Un pointage en vol se voit : on sait qu'il part, et l'on
