@@ -39,6 +39,10 @@ export interface Carnet {
   parRegion: LigneCarnet[];
   /** Cabines dont la pose est déjà planifiée, incluses dans le total. */
   planifiees: number;
+  /** Les chantiers derrière les deux chiffres — un total sans sa liste ne se
+   *  vérifie pas, et c'est pourtant là qu'on va chercher quoi faire. */
+  projetsPlanifies: FicheCarnet[];
+  projetsSansRdv: FicheCarnet[];
   rythme: {
     /** Cabines posées par semaine, moyenne des semaines de référence. */
     cabinesParSemaine: number;
@@ -52,6 +56,21 @@ export interface Carnet {
   dormantes: { cabines: number; projets: number; seuilJours: number };
   saison: LigneSaison[];
   semainesAVenir: LigneSemaine[];
+}
+
+/** Ce qu'il faut d'un chantier pour le reconnaître et l'ouvrir. */
+export interface FicheCarnet {
+  id: string;
+  ofrTM: string;
+  projet: string;
+  adresse: string;
+  cabines: number;
+  etat: string;
+  dateMontage: string | null;
+  /** Dernier arrivage connu — ce qui fait vieillir un chantier sans rendez-vous. */
+  arrivage: string | null;
+  collaborateurs: string;
+  fournisseur: string;
 }
 
 export interface LigneSemaine {
@@ -297,6 +316,25 @@ export function construireCarnet(projets: Project[], maintenant: Date = new Date
     return t !== null && (finFenetre - t) / 86400000 >= SEUIL_DORMANT;
   });
 
+  const fiche = (p: Project): FicheCarnet => ({
+    id: p.id,
+    ofrTM: p.ofrTM || "",
+    projet: p.projet || "",
+    adresse: p.adresseChantier || "",
+    cabines: restantes(p),
+    etat: p.etatCMD || "",
+    dateMontage: (p.dateMontage || "").slice(0, 10) || null,
+    arrivage: (arrivage(p) || "").slice(0, 10) || null,
+    collaborateurs: p.collaborateurs || "",
+    fournisseur: (p.fournisseurs || [])[0] || "",
+  });
+  /* Planifiés par date de pose, les plus proches d'abord ; sans rendez-vous
+     par arrivage, les plus anciens d'abord — ce sont eux qui pressent. */
+  const projetsPlanifies = enAttente.filter((p) => p.dateMontage).map(fiche)
+    .sort((a, b) => (a.dateMontage || "").localeCompare(b.dateMontage || ""));
+  const projetsSansRdv = enAttente.filter((p) => !p.dateMontage).map(fiche)
+    .sort((a, b) => (a.arrivage || "9999").localeCompare(b.arrivage || "9999"));
+
   return {
     cabines,
     projets: enAttente.length,
@@ -306,6 +344,8 @@ export function construireCarnet(projets: Project[], maintenant: Date = new Date
     parFournisseur: trier(parFournisseur),
     parRegion: trier(parRegion),
     planifiees,
+    projetsPlanifies,
+    projetsSansRdv,
     rythme: {
       cabinesParSemaine: Math.round(cabinesParSemaine * 10) / 10,
       semainesObservees: SEMAINES_REFERENCE,

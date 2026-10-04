@@ -16,10 +16,17 @@ import {
 } from "lucide-react";
 
 interface Ligne { cle: string; cabines: number; minutes: number; projets: number }
+interface Fiche {
+  id: string; ofrTM: string; projet: string; adresse: string; cabines: number;
+  etat: string; dateMontage: string | null; arrivage: string | null;
+  collaborateurs: string; fournisseur: string;
+}
 interface Carnet {
   cabines: number; projets: number; minutes: number; jours: number;
   parEtape: Ligne[]; parFournisseur: Ligne[]; parRegion: Ligne[];
   planifiees: number;
+  projetsPlanifies: Fiche[];
+  projetsSansRdv: Fiche[];
   rythme: {
     cabinesParSemaine: number; semainesObservees: number;
     semaines: number | null; dateAbsorption: string | null;
@@ -30,6 +37,13 @@ interface Carnet {
 }
 
 const MOIS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+
+function dateCourte(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
 
 function dateLongue(iso: string | null): string {
   if (!iso) return "—";
@@ -61,6 +75,8 @@ function Table({ titre, lignes, total }: { titre: string; lignes: Ligne[]; total
 
 export default function CarnetPage() {
   const [c, setC] = useState<Carnet | null>(null);
+  /** Liste ouverte : elle remplace la page, et la croix y ramène. */
+  const [liste, setListe] = useState<"planifiees" | "sans-rdv" | null>(null);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -102,7 +118,58 @@ export default function CarnetPage() {
         <p className="sgch-vide-msg"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Calcul du carnet…</p>
       )}
 
-      {c && (
+      {/* Vue liste : elle prend toute la page, comme un écran à part entière.
+          Le carnet reste chargé derrière, le retour est immédiat. */}
+      {c && liste && (() => {
+        const fiches = liste === "planifiees" ? c.projetsPlanifies : c.projetsSansRdv;
+        const titre = liste === "planifiees" ? "Cabines déjà planifiées" : "Cabines sans rendez-vous";
+        const total = fiches.reduce((s2, f) => s2 + f.cabines, 0);
+        return (
+          <>
+            <div className="sgch-entete mb-4 flex items-start gap-3">
+              <div className="flex-1">
+                <h2 className="flex items-center gap-2">
+                  {liste === "planifiees" ? <CalendarClock className="w-5 h-5" /> : <Package className="w-5 h-5" />}
+                  {titre}
+                </h2>
+                <p>
+                  {total} cabine{total > 1 ? "s" : ""} sur {fiches.length} chantier{fiches.length > 1 ? "s" : ""}
+                  {liste === "planifiees"
+                    ? " — triés par date de pose, les plus proches d'abord."
+                    : " — triés par arrivage, les plus anciens d'abord : ce sont eux qui pressent."}
+                </p>
+              </div>
+              <button type="button" className="sgch-retour" onClick={() => setListe(null)}>
+                <ArrowLeft className="w-3.5 h-3.5" /> Carnet
+              </button>
+            </div>
+            <div className="sgn-bloc">
+              <div className="sgn-liste">
+                {fiches.length === 0 && <p className="sgch-vide-msg">Aucun chantier.</p>}
+                {fiches.map((f) => (
+                  <Link key={f.id} href={`/projet/${f.id}?mode=dashboard`} className="sgn-fiche">
+                    <span className="sgn-fiche-tm">{f.ofrTM || "—"}</span>
+                    <span className="sgn-fiche-nom">
+                      {f.projet}
+                      {f.adresse && <em>{f.adresse}</em>}
+                    </span>
+                    <span className="sgn-fiche-meta">
+                      {f.etat && <i>{f.etat}</i>}
+                      {liste === "planifiees"
+                        ? <b>{dateCourte(f.dateMontage)}</b>
+                        : <b>{f.arrivage ? `arrivé ${dateCourte(f.arrivage)}` : "pas encore arrivé"}</b>}
+                      {f.collaborateurs && <i>{f.collaborateurs}</i>}
+                    </span>
+                    <span className="sgn-fiche-cab">{f.cabines} <em>cab.</em></span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {c && !liste && (
         <>
           <div className="sgn-kpis">
             <div className="is-fort">
@@ -120,10 +187,16 @@ export default function CarnetPage() {
               <span>carnet absorbé</span>
               <em>si le rythme se maintient</em>
             </div>
+            {/* Les deux chiffres ouvrent leur liste : un total qu'on ne peut
+                pas déplier ne dit pas quoi faire. */}
             <div>
-              <b>{c.planifiees}</b>
-              <span>cabines déjà planifiées</span>
-              <em>{c.cabines - c.planifiees} sans rendez-vous</em>
+              <button type="button" className="sgn-lien" onClick={() => setListe("planifiees")}>
+                <b>{c.planifiees}</b>
+                <span>cabines déjà planifiées</span>
+              </button>
+              <button type="button" className="sgn-lien is-sous" onClick={() => setListe("sans-rdv")}>
+                <em>{c.cabines - c.planifiees} sans rendez-vous</em>
+              </button>
             </div>
           </div>
 
