@@ -1126,9 +1126,49 @@ function HomePage() {
       .catch(() => {});
     return () => { vivant = false; };
   }, []);
-  /* Coche optimiste : pointer une facture se fait ligne après ligne, et
-     attendre le serveur à chaque clic rendrait l'exercice pénible. En cas
-     d'échec, la coche revient à son état réel. */
+  /* Pointage de facture : des dizaines de coches à la suite, et aucune qui
+     ait le droit de se perdre.
+     
+     Trois précautions, nées d'un pointage qui redemandait de tout vérifier :
+     les coches rapprochées sont REGROUPÉES en un seul envoi — deux requêtes
+     simultanées se relisaient l'une l'autre et l'une écrasait l'autre ; les
+     envois sont SÉRIALISÉS — jamais deux en vol ; et un échec est RÉESSAYÉ
+     plutôt que défait sous les doigts. */
+  const enAttenteRef = useRef<Map<string, boolean>>(new Map());
+  const envoiRef = useRef<Promise<void>>(Promise.resolve());
+  const minuterieRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [pointageEnCours, setPointageEnCours] = useState(false);
+
+  const envoyerPaiements = useCallback(() => {
+    const paquet = [...enAttenteRef.current.entries()].map(([cle, paye]) => ({ cle, paye }));
+    if (paquet.length === 0) return;
+    enAttenteRef.current.clear();
+    setPointageEnCours(true);
+    envoiRef.current = envoiRef.current.then(async () => {
+      for (let essai = 0; essai < 4; essai++) {
+        try {
+          const r = await fetch("/api/paiements-fournisseurs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ deltas: paquet }),
+          });
+          if (r.ok) return;
+          if (r.status === 403 || r.status === 400) throw new Error(String(r.status));
+        } catch {
+          /* réseau coupé ou serveur occupé : on repasse par l'attente */
+        }
+        await new Promise((res) => setTimeout(res, 600 * (essai + 1)));
+      }
+      /* Toujours rien après quatre essais : on remet le paquet dans la file,
+         il repartira au prochain clic ou en quittant la page. L'affichage, lui,
+         garde les coches — elles reflètent ce que l'utilisateur a décidé. */
+      paquet.forEach((d) => { if (!enAttenteRef.current.has(d.cle)) enAttenteRef.current.set(d.cle, d.paye); });
+      try { sonnerToast.error("Enregistrement du pointage retardé — il repartira tout seul."); } catch {}
+    }).finally(() => {
+      if (enAttenteRef.current.size === 0) setPointageEnCours(false);
+    });
+  }, []);
+
   const basculerPaiement = (cle: string) => {
     const paye = !lignesPayees.has(cle);
     setLignesPayees((prev) => {
@@ -1136,21 +1176,18 @@ function HomePage() {
       if (paye) suivant.add(cle); else suivant.delete(cle);
       return suivant;
     });
-    fetch("/api/paiements-fournisseurs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cle, paye }),
-    })
-      .then((r) => { if (!r.ok) throw new Error(String(r.status)); })
-      .catch(() => {
-        setLignesPayees((prev) => {
-          const suivant = new Set(prev);
-          if (paye) suivant.delete(cle); else suivant.add(cle);
-          return suivant;
-        });
-        try { sonnerToast.error("Pointage non enregistré — réessayez."); } catch {}
-      });
+    enAttenteRef.current.set(cle, paye);
+    if (minuterieRef.current) clearTimeout(minuterieRef.current);
+    minuterieRef.current = setTimeout(envoyerPaiements, 500);
   };
+
+  /* Quitter l'onglet ne doit pas emporter un pointage en attente. */
+  useEffect(() => {
+    const vider = () => { if (enAttenteRef.current.size > 0) envoyerPaiements(); };
+    window.addEventListener("pagehide", vider);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) vider(); });
+    return () => window.removeEventListener("pagehide", vider);
+  }, [envoyerPaiements]);
   const [statsDateMode, setStatsDateMode] = useState<StatsDateMode>("all");
   const [statsDateFrom, setStatsDateFrom] = useState("");
   const [statsDateTo, setStatsDateTo] = useState("");
@@ -2959,6 +2996,13 @@ function HomePage() {
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300 ${fNonPayesSeuls ? "ring-2 ring-[#1e3a5f]" : "opacity-90 hover:opacity-100"}`}>
                     Reste à payer
                   </button>
+                  {/* Un pointage en vol se voit : on sait qu'il part, et l'on
+                      n'a pas à se demander si la coche a bien été prise. */}
+                  {pointageEnCours && (
+                    <span className="px-3 py-1.5 rounded-xl text-xs font-medium text-gray-500 dark:text-gray-400 inline-flex items-center gap-1.5">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Enregistrement…
+                    </span>
+                  )}
                 </div>
                 {/* Puces de statut (état du type sélectionné, dans la période) */}
                 <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2 scrollbar-hide sgv-chips">

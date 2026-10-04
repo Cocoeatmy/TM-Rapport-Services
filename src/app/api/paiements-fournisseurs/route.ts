@@ -13,7 +13,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { getData, setData } from "@/lib/kv-store";
+import { getData, getDataFresh, setData } from "@/lib/kv-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -45,24 +45,68 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/** Une coche, ou son retrait. */
+interface Delta { cle: string; paye: boolean }
+
+/**
+ * Applique un paquet de coches.
+ *
+ * La lecture se fait TOUJOURS fraîche, jamais sur le cache mémoire : une
+ * instance qui vient de démarrer a un cache vide, et réécrire la liste à
+ * partir de là effaçait tout ce qui avait été pointé auparavant. `getDataFresh`
+ * lève plutôt que de rendre une liste vide, et l'on préfère un échec visible à
+ * une perte silencieuse.
+ *
+ * Deux tentatives : l'écriture passe par Notion, qui refuse au-delà de trois
+ * requêtes par seconde. Pointer une facture, c'est cocher vite plusieurs
+ * lignes de suite.
+ */
+async function appliquer(deltas: Delta[], par: string): Promise<number> {
+  let derniere: unknown;
+  for (let essai = 0; essai < 3; essai++) {
+    try {
+      const liste = await getDataFresh<LignePayee>(CLE);
+      const parCle = new Map(liste.map((x) => [x.cle, x]));
+      for (const d of deltas) {
+        if (d.paye) parCle.set(d.cle, { cle: d.cle, par, quand: Date.now() });
+        else parCle.delete(d.cle);
+      }
+      const suivante = [...parCle.values()];
+      await setData(CLE, suivante);
+      return suivante.length;
+    } catch (e) {
+      derniere = e;
+      await new Promise((r) => setTimeout(r, 400 * (essai + 1)));
+    }
+  }
+  throw derniere;
+}
+
 export async function POST(req: NextRequest) {
   const user = await utilisateur(req);
   if (!user || (user as { role?: string }).role !== "admin") {
     return NextResponse.json({ error: "Admin requis" }, { status: 403 });
   }
   try {
-    const { cle, paye } = await req.json();
-    const id = String(cle || "").trim();
-    if (!id) return NextResponse.json({ error: "cle requise" }, { status: 400 });
+    const body = await req.json();
+    /* Un clic isolé ou un paquet : le client regroupe les coches rapprochées
+       en un seul envoi, pour qu'elles ne se marchent pas dessus. */
+    const bruts: Delta[] = Array.isArray(body?.deltas)
+      ? body.deltas
+      : [{ cle: body?.cle, paye: !!body?.paye }];
+    const deltas = bruts
+      .map((d) => ({ cle: String(d?.cle || "").trim(), paye: !!d?.paye }))
+      .filter((d) => d.cle);
+    if (deltas.length === 0) return NextResponse.json({ error: "cle requise" }, { status: 400 });
 
-    const liste = await getData<LignePayee>(CLE);
-    const sans = liste.filter((x) => x.cle !== id);
-    if (paye) {
-      sans.push({ cle: id, par: String((user as { name?: string }).name || ""), quand: Date.now() });
-    }
-    await setData(CLE, sans);
-    return NextResponse.json({ ok: true, paye: !!paye });
+    const total = await appliquer(deltas, String((user as { name?: string }).name || ""));
+    return NextResponse.json({ ok: true, total });
   } catch (e) {
-    return NextResponse.json({ error: String((e as Error)?.message || e) }, { status: 500 });
+    /* 503 et non 500 : l'écriture n'a pas abouti mais rien n'est corrompu, et
+       le client peut réessayer sans risque. */
+    return NextResponse.json(
+      { error: String((e as Error)?.message || e) },
+      { status: 503, headers: { "Retry-After": "3" } },
+    );
   }
 }
