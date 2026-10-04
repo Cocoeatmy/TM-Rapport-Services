@@ -660,7 +660,8 @@ html[data-ui="signal"] .sg-row-count {
   font-weight: 600;
 }
 html[data-ui="signal"] .sg-row-unit {
-  width: 52px;
+  /* « 12 projets » ne tenait pas dans les 52 px prévus pour « 10 cab. ». */
+  width: 68px;
   text-align: right;
   font-size: 11px;
   color: var(--sg-text-3);

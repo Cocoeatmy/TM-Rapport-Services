@@ -3120,8 +3120,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         </span>
                       )}
                     </span>
-                    <span className="sg-row-count" style={{ color: r.count > 0 ? "var(--sg-text)" : "var(--sg-text-3)" }}>{r.count}</span>
-                    <span className="sg-row-unit">{r.count > 0 ? `${r.cab} cab.` : "—"}</span>
+                    {/* Le grand chiffre est celui des CABINES : c'est la charge
+                        de la journée. Deux chantiers de dix cabines ne pèsent
+                        pas comme dix chantiers d'une, et c'est pourtant le
+                        nombre de projets qui sautait aux yeux. */}
+                    <span className="sg-row-count" style={{ color: r.count > 0 ? "var(--sg-text)" : "var(--sg-text-3)" }}>{r.count > 0 ? r.cab : 0}</span>
+                    <span className="sg-row-unit">{r.count > 0 ? `${r.count} projet${r.count > 1 ? "s" : ""}` : "—"}</span>
                   </button>
                 ))}
               </div>
