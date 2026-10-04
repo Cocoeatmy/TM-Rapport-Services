@@ -153,3 +153,25 @@ describe("saisonnalité", () => {
     expect(construireCarnet([p({})], MAINTENANT).saison).toEqual([]);
   });
 });
+
+describe("états de mesures hors carnet", () => {
+  it("écarte les offres sans mesures, les projets sans mesures et les annulées", () => {
+    const c = construireCarnet([
+      p({ id: "a", etatMesures: "Terminé" }),
+      p({ id: "b", etatMesures: "OFR envoyée sans mesures" }),
+      p({ id: "c", etatMesures: "Projet sans de mesures" }),
+      p({ id: "d", etatMesures: "Annulé" }),
+      ...histo(4),
+    ], MAINTENANT);
+    expect(c.projets).toBe(1);
+    expect(c.cabines).toBe(1);
+  });
+
+  it("garde les mesures terminées — c'est le cœur du carnet", () => {
+    const c = construireCarnet([
+      p({ id: "a", etatMesures: "Terminé", nbCabines: 3 }),
+      ...histo(4),
+    ], MAINTENANT);
+    expect(c.cabines).toBe(3);
+  });
+});

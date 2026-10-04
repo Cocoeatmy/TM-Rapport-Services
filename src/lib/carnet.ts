@@ -96,6 +96,23 @@ export interface LigneSaison {
 }
 
 const MORTS = new Set(["Annulé"]);
+/**
+ * États de MESURES qui tiennent un chantier hors du carnet.
+ *
+ * Le carnet dit ce qui est vendu et reste à poser. Un chantier dont l'offre
+ * est partie sans mesures n'est pas vendu, un chantier annulé ne l'est plus,
+ * et un chantier sans mesures n'entre pas dans notre charge. Les compter
+ * gonflait le carnet de cinquante-cinq chantiers que personne n'allait poser.
+ *
+ * « Terminé » n'y figure PAS, et ne doit pas y figurer : sur ce champ il
+ * signifie que les mesures sont faites — c'est le cœur du carnet, cent
+ * trente-quatre chantiers mesurés en attente de commande ou de pose.
+ */
+const MESURES_HORS_CARNET = new Set([
+  "OFR envoyée sans mesures",
+  "Annulé",
+  "Projet sans de mesures",
+]);
 /** Semaines de référence pour le rythme : assez pour lisser, assez récent. */
 const SEMAINES_REFERENCE = 8;
 /** Au-delà, une cabine livrée sans rendez-vous n'avance plus toute seule. */
@@ -272,6 +289,7 @@ export function construireCarnet(projets: Project[], maintenant: Date = new Date
      écartés — ils n'ont pas de cabine à poser — comme les projets annulés. */
   const enAttente = projets.filter((p) =>
     !MORTS.has(p.etatCMD) && p.etatCMD !== "Terminé"
+    && !MESURES_HORS_CARNET.has(p.etatMesures)
     && !estServicePur(p) && restantes(p) > 0);
 
   const parEtape = new Map<string, LigneCarnet>();
