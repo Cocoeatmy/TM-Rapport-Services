@@ -4,6 +4,9 @@ import { getAllProjectsRaw } from "@/lib/notion";
 import { getCached, setCache, cachedOrFetch } from "@/lib/server-cache";
 import { getStats } from "@/lib/stats-data";
 import { computeMonteurCabStats } from "@/lib/monteur-stats";
+import { parseInterventions, minutesInterventions, type InterventionSav } from "@/lib/sav-interventions";
+import { lotsAvecSav, lotsSavOuverts } from "@/lib/sav-etat";
+import { minutesPointees } from "@/lib/tournee";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // 1er appel froid : projets (snapshot Redis) + Gemini — marge pour éviter le 504
@@ -48,7 +51,9 @@ async function queryGemini(systemPrompt: string, userMessage: string, opts?: { s
     generationConfig: {
       // Recherche web : un peu plus de liberté ; sinon factuel strict.
       temperature: opts?.search ? 0.3 : 0.1,
-      maxOutputTokens: 2048,
+      /* Une liste complète de chantiers tient rarement en 2048 jetons : la
+         réponse se coupait au milieu d'une énumération. */
+      maxOutputTokens: 4096,
       // Réflexion désactivée : économise le quota gratuit et évite que le
       // budget de sortie soit consommé avant d'écrire la réponse.
       thinkingConfig: { thinkingBudget: 0 },
@@ -152,6 +157,36 @@ const STOPWORDS = new Set([
   "du", "de", "au", "aux", "ce", "cette", "ces", "par", "pas", "plus", "fait", "faire",
 ]);
 
+/** « 3h15 » — une durée se lit mieux qu'un nombre de minutes. */
+function duree(minutes: number): string {
+  if (minutes <= 0) return "";
+  return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Passages SAV d'un projet, tous lots confondus.
+ *
+ * Les interventions sont encodées par lot (« Cab2:date~collab~arrivée~départ »)
+ * depuis qu'un SAV peut demander plusieurs visites. Les fiches antérieures
+ * n'ont que les colonnes d'heures : on les lit en repli, pour ne pas perdre
+ * l'historique.
+ */
+function passagesSav(p: { interventionsSavCabines?: string; heureArriveeSav?: string; heureDepartSav?: string; id?: string }): InterventionSav[] {
+  const out: InterventionSav[] = [];
+  const re = /Cab(\d+)\s*:([^|]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(String(p.interventionsSavCabines || "")))) out.push(...parseInterventions(m[2]));
+  return out;
+}
+
+/** Minutes de SAV d'un projet : les passages détaillés, sinon l'ancien encodage. */
+function minutesSavDe(p: any): number {
+  const passages = passagesSav(p);
+  const detail = minutesInterventions(passages);
+  if (detail > 0) return detail;
+  return minutesPointees({ id: p.id, heureArrivee: p.heureArriveeSav, heureDepart: p.heureDepartSav }) ?? 0;
+}
+
 interface MiniProject {
   ofrTM: string;
   projet: string;
@@ -165,6 +200,12 @@ interface MiniProject {
   etatCMD: string;
   dateMontage: string | null;
   attributionCabines: string; // "Cab1:Micael | Cab2:Claudio & Jacobo" (stats par monteur)
+  /** Résumé SAV prêt à lire, vide quand le chantier n'en a pas. */
+  sav: string;
+  /** Minutes de SAV, pour les totaux. */
+  savMinutes: number;
+  /** Passages datés, pour répartir les heures par année et par collaborateur. */
+  savPassages: InterventionSav[];
   hay: string; // texte normalisé pour la recherche (mêmes champs que la recherche de l'app)
 }
 
@@ -238,6 +279,22 @@ Règles :
           ...(p.sanitaireNames || []),
         ].filter(Boolean);
         const client = [p.contacts, names.join(", ")].filter(Boolean).join(" / ");
+        /* SAV : lots concernés, passages et heures. Résumé vide pour les
+           chantiers sans SAV — c'est le cas de la quasi-totalité, et une
+           mention « aucun SAV » sur mille cinq cents lignes ne dirait rien. */
+        const passages = passagesSav(p);
+        const savMinutes = minutesSavDe(p);
+        const lots = lotsAvecSav(p).size;
+        const ouverts = lotsSavOuverts(p).length;
+        const bouts: string[] = [];
+        if (lots > 0) bouts.push(`${lots} lot${lots > 1 ? "s" : ""}${ouverts > 0 ? `, ${ouverts} ouvert${ouverts > 1 ? "s" : ""}` : ", clos"}`);
+        if (passages.length > 0) {
+          bouts.push(`${passages.length} passage${passages.length > 1 ? "s" : ""}`);
+          const dernier = [...passages].filter((x) => x.date).sort((a, b) => a.date.localeCompare(b.date)).pop();
+          if (dernier) bouts.push(`dernier ${dernier.date}${dernier.collaborateurs ? ` (${dernier.collaborateurs})` : ""}`);
+        }
+        if (savMinutes > 0) bouts.push(duree(savMinutes));
+        const sav = bouts.length > 0 ? ` | SAV: ${bouts.join(", ")}` : "";
         return {
           ofrTM: p.ofrTM,
           projet: p.projet,
@@ -251,6 +308,9 @@ Règles :
           etatCMD: p.etatCMD,
           dateMontage: p.dateMontage || null,
           attributionCabines: p.attributionCabines || "",
+          sav,
+          savMinutes,
+          savPassages: passages,
           // EXACTEMENT les mêmes champs que l'index de la recherche de l'app
           // (sinon « MMT », souvent dans les contacts/grossistes/cmd, restait
           // introuvable alors que la recherche le trouve).
@@ -289,26 +349,28 @@ Règles :
       .filter((p) => p.dateMontage && p.dateMontage.slice(0, 10) >= todayIso)
       .sort((a, b) => ((a.dateMontage as string) < (b.dateMontage as string) ? -1 : 1));
 
-    // Assemble : correspondances (max 70) + montages à venir (max 40), dédupliqués,
-    // puis on complète avec d'autres projets si besoin. Plafond global 120.
+    /* TOUS les projets, sans plafond.
+     *
+     * Le découpage à cent vingt venait d'un modèle qui refusait les gros
+     * contextes ; Gemini en accepte un million de jetons, et la base entière en
+     * pèse soixante mille. Tronquer faisait manquer des chantiers sur une
+     * question large — « tous les projets d'un client » en rendait une partie.
+     *
+     * L'ordre reste celui de la pertinence : ce que la question désigne, puis
+     * les montages à venir, puis le reste. Un modèle lit mieux le début. */
     const selected: MiniProject[] = [];
     const seen = new Set<string>();
-    const push = (arr: MiniProject[], max: number) => {
-      let n = 0;
+    const push = (arr: MiniProject[]) => {
       for (const p of arr) {
-        if (n >= max || selected.length >= 120) break;
         const key = p.ofrTM || p.projet;
         if (seen.has(key)) continue;
         seen.add(key);
         selected.push(p);
-        n++;
       }
     };
-    push(matched, 60);
-    push(upcoming, matched.length ? 15 : 35);
-    // Ne complète avec des projets non pertinents QUE si le contexte est maigre
-    // (question générique). Évite d'envoyer trop de projets sans rapport (→ 413).
-    if (selected.length < 30) push(mini, 50);
+    push(matched);
+    push(upcoming);
+    push(mini);
 
     const fmtDate = (iso: string | null): string => {
       if (!iso) return "non fixé";
@@ -321,9 +383,49 @@ Règles :
     // Les lignes longues faisaient dépasser la limite de taille de Groq (413).
     const projectsContext = selected
       .map((p) =>
-        `- ${p.ofrTM} | ${p.projet} | Statut: ${p.etatCMD} | Collab: ${p.collaborateurs || "—"} | Montage: ${fmtDate(p.dateMontage)}`
+        `- ${p.ofrTM} | ${p.projet} | Statut: ${p.etatCMD} | Collab: ${p.collaborateurs || "—"} | Montage: ${fmtDate(p.dateMontage)}${p.sav}`
       )
       .join("\n");
+
+    /* Heures de SAV : par année et par collaborateur, comptées sur les passages
+       datés. Un projet dont les heures ne sont pas ventilées par passage est
+       rattaché à l'année de son dernier rendez-vous SAV connu. */
+    const savSummary = (() => {
+      const parAnnee = new Map<string, { minutes: number; passages: number; chantiers: Set<string> }>();
+      const parCollab = new Map<string, number>();
+      let total = 0;
+      for (const p of mini) {
+        if (p.savMinutes <= 0 && p.savPassages.length === 0) continue;
+        total += p.savMinutes;
+        const datees = p.savPassages.filter((x) => x.date);
+        const annees = datees.length > 0
+          ? [...new Set(datees.map((x) => x.date.slice(0, 4)))]
+          : [(p.dateMontage || "").slice(0, 4) || "sans date"];
+        for (const a of annees) {
+          const cur = parAnnee.get(a) || { minutes: 0, passages: 0, chantiers: new Set<string>() };
+          cur.minutes += datees.length > 0
+            ? minutesInterventions(datees.filter((x) => x.date.startsWith(a)))
+            : p.savMinutes;
+          cur.passages += datees.filter((x) => x.date.startsWith(a)).length || (datees.length ? 0 : 1);
+          cur.chantiers.add(p.ofrTM || p.projet);
+          parAnnee.set(a, cur);
+        }
+        for (const x of p.savPassages) {
+          const m = minutesInterventions([x]);
+          if (m <= 0) continue;
+          for (const nom of (x.collaborateurs || "—").split(/\s*&\s*/).map((v) => v.trim()).filter(Boolean)) {
+            parCollab.set(nom, (parCollab.get(nom) || 0) + m);
+          }
+        }
+      }
+      if (total <= 0 && parAnnee.size === 0) return "";
+      const lignes = [...parAnnee.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+        .map(([a, v]) => `  - ${a} : ${duree(v.minutes) || "0h00"} sur ${v.passages} passage${v.passages > 1 ? "s" : ""}, ${v.chantiers.size} chantier${v.chantiers.size > 1 ? "s" : ""}`);
+      const collabs = [...parCollab.entries()].sort((a, b) => b[1] - a[1])
+        .map(([n, m]) => `${n} ${duree(m)}`).join(" · ");
+      return `STATISTIQUES SAV — heures d'intervention (relevés par passage, total ${duree(total) || "0h00"}) :\n${lignes.join("\n")}`
+        + (collabs ? `\nPar collaborateur : ${collabs}` : "");
+    })();
 
     const systemPrompt = `Tu es l'assistant IA de TM Douche Montage Sàrl, entreprise d'installation de cabines de douche en Suisse.
 
@@ -334,7 +436,7 @@ ${refCalendar}
 
 UTILISATEUR CONNECTÉ : ${user.name} (${user.email})
 
-${statsSummary ? statsSummary + "\n\n" : ""}${monteurSummary ? monteurSummary + "\n\n" : ""}PROJETS PERTINENTS (sélectionnés selon ta question ; chaque date de montage est suivie de son jour de la semaine) :
+${statsSummary ? statsSummary + "\n\n" : ""}${monteurSummary ? monteurSummary + "\n\n" : ""}${savSummary ? savSummary + "\n\n" : ""}TOUS LES PROJETS (base entière, les plus pertinents d'abord ; chaque date de montage est suivie de son jour de la semaine ; « SAV: » n'apparaît que sur les chantiers qui en ont un) :
 ${projectsContext}
 
 RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
@@ -342,9 +444,10 @@ RÈGLES STRICTES — À RESPECTER ABSOLUMENT :
 2. Pour une question de date (« lundi prochain », « demain », « cette semaine »…), convertis-la d'abord en date exacte (AAAA-MM-JJ) à l'aide du calendrier de référence, puis liste UNIQUEMENT les projets dont la « Date montage » correspond EXACTEMENT à cette date.
 3. Pour une question sur un client / une entreprise (ex. « MMT », « Duka »…), liste TOUS les projets de la liste ci-dessus dont le nom, le chantier, les contacts ou le fournisseur contient ce terme, avec leur statut. Un projet est « ouvert » / « en cours » sauf si son statut est « Terminé » ou « Annulé ». Si on demande les projets ouverts, exclus les « Terminé » et « Annulé ».
 4. Si aucun projet ne correspond, dis-le clairement. Ne comble pas le vide en inventant.
-5. La liste de projets fournie est un sous-ensemble pertinent (pas toute la base). Pour LISTER des projets, base-toi dessus et, si pertinent, invite à utiliser la recherche de l'app.
+5. La liste contient TOUS les projets de la base. Quand on te demande une liste, elle doit être complète : ne t'arrête pas aux premières lignes. Si le résultat dépasse une vingtaine de projets, donne le compte exact puis les plus pertinents, et propose de préciser la question.
 5bis. Pour toute question de TOTAL/COMPTAGE de cabines installées (par année ou par mois — ex. « combien de cabines en 2026 », « combien en juin »), réponds EXCLUSIVEMENT avec les chiffres du bloc « STATISTIQUES OFFICIELLES » ci-dessus. Ne compte JAMAIS les projets toi-même pour ça. Si le bloc statistiques est absent, dis que tu ne peux pas donner le total et renvoie vers la page Stats.
 5ter. Pour toute question sur les cabines installées PAR UN MONTEUR (combien X a installé, seul ou en équipe, classement des monteurs…), réponds EXCLUSIVEMENT avec le bloc « STATISTIQUES MONTEURS » ci-dessus (chiffres « depuis toujours »). « Seul » = ce monteur était le seul sur la cabine ; « en équipe » = plusieurs monteurs sur la cabine (chaque participant est crédité de la cabine). Ne recompte jamais toi-même.
+5quater. Pour les HEURES DE SAV (combien d'heures de service après-vente, par année, par collaborateur, ou sur un chantier précis), sers-toi du bloc « STATISTIQUES SAV » pour les totaux et de la mention « SAV: » de chaque projet pour le détail. Ne recompte jamais toi-même à partir des dates.
 6. Réponds toujours en français, de façon concise et pratique (monteurs sur le terrain).
 7. Pour les conseils techniques (séries Duka, Koralle, Duscholux, Nelo, Ronal…), donne des conseils généraux mais précise que le manuel officiel du fournisseur fait référence.
 8. MISE EN FORME (Markdown) : commence par une courte phrase de réponse, puis liste chaque projet sur sa propre puce « - ». Mets en **gras** les infos clés (numéro OFR, statut, dates importantes). Garde chaque puce concise. N'utilise pas de tableaux.`;
