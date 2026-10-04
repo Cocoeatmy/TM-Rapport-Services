@@ -6654,7 +6654,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   e.preventDefault();
                                   e.stopPropagation();
                                   setSgSelected(p.id);
-                                  openSignalPreview(p, "dashboard");
+                                  openSignalPreview(p, sgApercuMode);
                                 }}
                               >
                                 {/* Plusieurs commandes = une ligne par numéro :
@@ -6689,7 +6689,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                      sur le n° TM : une seule source, donc pas de version
                      appauvrie qui prendrait du retard sur l'autre. */
                   <aside className="sg-detail">
-                    <SignalPreviewCard project={sel} mode="dashboard" />
+                    <SignalPreviewCard project={sel} mode={sgApercuMode} />
                   </aside>
                 )}
               </div>
