@@ -8,7 +8,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, Compass, Receipt, AlertTriangle, CheckCircle2, Clock, Truck, Building2 } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, Compass, Receipt, AlertTriangle, CheckCircle2, Clock, Truck, Building2, Sparkles } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -438,6 +438,11 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
              rarement, il occupait une place entre des vues ouvertes plusieurs
              fois par jour. */
           ...(isAdmin ? [{ id: "stats", label: "Stats", Icon: BarChart2, active: mode === "stats", act: () => { handleSelect("stats"); setOpen(null); } }] : []),
+          /* L'assistant rejoint le rail : flottant en bas à droite, il
+             recouvrait le contenu et détonnait par sa taille. Il garde sa
+             pastille flottante sur les écrans sans rail. */
+          { id: "assistant", label: "Assistant IA", Icon: Sparkles, active: false,
+            act: () => { setOpen(null); window.dispatchEvent(new Event("tm-ouvrir-assistant")); } },
         ].map((it) => (
           <button
             key={it.id}

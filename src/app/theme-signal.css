@@ -505,6 +505,10 @@ html[data-ui="signal"] .signal-rail-item.is-active::before {
   html[data-ui="signal"] main {
     padding-left: 76px;
   }
+  /* L'assistant vit dans le rail dès que celui-ci est là : sa pastille
+     flottante recouvrait le contenu en bas à droite et détonnait par sa
+     taille. Elle reste la seule entrée sur les écrans sans rail. */
+  html[data-ui="signal"] .tm-ai-fab { display: none; }
   /* La barre d'onglets n'a plus rien à afficher sur grand écran : le rail
      remplace les onglets et la recherche est passée dans l'en-tête. On annule
      ses marges pour que la page remonte — elle reprend sa hauteur d'elle-même

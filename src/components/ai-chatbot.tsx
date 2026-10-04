@@ -84,6 +84,14 @@ function FormattedMessage({ content }: { content: string }) {
 
 export function AIChatbot() {
   const [open, setOpen] = useState(false);
+  /* Le rail de navigation ouvre l'assistant par un évènement : il vit dans
+     une autre branche de l'arbre, et faire remonter cet état jusqu'au layout
+     pour le redescendre n'apporterait rien. */
+  useEffect(() => {
+    const ouvrir = () => setOpen(true);
+    window.addEventListener("tm-ouvrir-assistant", ouvrir);
+    return () => window.removeEventListener("tm-ouvrir-assistant", ouvrir);
+  }, []);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -133,7 +141,10 @@ export function AIChatbot() {
         onClick={() => setOpen(true)}
         aria-label="Assistant IA"
         title="Assistant IA"
-        className="fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-white flex items-center justify-center shadow-xl hover:scale-105 transition-transform active:scale-95 border border-white/20"
+        /* `tm-ai-fab` : repère pour le thème Signal, qui masque ce bouton
+           flottant sur grand écran — l'assistant y vit dans le rail, avec les
+           autres destinations, et deux entrées pour la même chose se gênent. */
+        className="tm-ai-fab fixed bottom-5 right-5 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-white flex items-center justify-center shadow-xl hover:scale-105 transition-transform active:scale-95 border border-white/20"
       >
         <Sparkles className="w-6 h-6" />
       </button>
