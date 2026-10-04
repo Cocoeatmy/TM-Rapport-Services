@@ -12,7 +12,10 @@ const LOGOS: { prefix: string; logo: string; scale?: number; whiteOnTransparent?
   { prefix: "bms",        logo: "/logos/fournisseurs/BMS-Logo.png" },
   { prefix: "duka",       logo: "/logos/fournisseurs/duka.ch-logo.png",    scale: 1.3 },
   { prefix: "duscholux",  logo: "/logos/fournisseurs/Duscholux-logo.png",  scale: 1.3 },
-  { prefix: "ronal",      logo: "/logos/fournisseurs/ronal-logo-v2.png",   scale: 1.5 },
+  /* La version « v2 » est blanche sur fond transparent : invisible sur les
+     cartes claires de l'app, où elle laissait une case vide à côté du nom.
+     On reprend le fichier sombre, celui qu'affiche déjà l'onglet fournisseur. */
+  { prefix: "ronal",      logo: "/logos/fournisseurs/ronal-logo.png",      scale: 1.5 },
   { prefix: "nelo",       logo: "/logos/fournisseurs/Nelo-logo.jpg",       scale: 1.5 },
   { prefix: "novellini",  logo: "/logos/fournisseurs/Novellini-logo.png",  scale: 1.2, whiteOnTransparent: true },
   { prefix: "samo",       logo: "/logos/fournisseurs/Samo-logo.jpg",       scale: 1.5 },
