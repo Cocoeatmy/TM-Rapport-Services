@@ -2866,7 +2866,17 @@ function HomePage() {
         // ── Stats (inchangé) ──
         const fStatsFiltered = filterByStatsDate(fournisseursProjects, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
         const fArchivesFiltered = filterByStatsDate(fArchivesAll, statsDateMode, statsDateFrom, statsDateTo, statsMonth, statsYear);
-        const fTotalCab = fStatsFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
+        /* Tout ce que ce fournisseur représente sur la période : en cours ET
+           terminé. Les statistiques d'une maison avec qui l'on travaille
+           depuis deux ans ne peuvent pas ignorer ce qui est posé — c'est
+           même l'essentiel de la relation. Dédoublonné par id : un projet
+           peut figurer dans les deux listes le temps d'un rafraîchissement. */
+        const fTousFiltered = (() => {
+          const vus = new Map<string, any>();
+          [...fStatsFiltered, ...fArchivesFiltered].forEach((p: any) => { if (!vus.has(p.id)) vus.set(p.id, p); });
+          return [...vus.values()];
+        })();
+        const fTotalCab = fTousFiltered.reduce((s: number, p: any) => s + (p.nbCabines || 0), 0);
         const fRdvFixe = fStatsFiltered.filter((p: any) => p.etatCMD === "RDV - fixé");
         const fTermineCount = fArchivesFiltered.length;
 
@@ -3127,7 +3137,7 @@ function HomePage() {
                   </div>
                   <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
                     <p className="text-2xl font-bold text-green-600">{fTotalCab}</p>
-                    <p className="text-xs text-gray-500 mt-1">Cabines</p>
+                    <p className="text-xs text-gray-500 mt-1">Cabines (toutes)</p>
                   </div>
                   <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700 text-center">
                     <p className="text-2xl font-bold text-blue-600">{fRdvFixe.length}</p>
@@ -3143,13 +3153,13 @@ function HomePage() {
                   <div className="space-y-2">
                     {(() => {
                       const sc: Record<string, number> = {};
-                      fStatsFiltered.forEach((p: any) => { if (p.etatCMD) sc[p.etatCMD] = (sc[p.etatCMD] || 0) + 1; });
+                      fTousFiltered.forEach((p: any) => { if (p.etatCMD) sc[p.etatCMD] = (sc[p.etatCMD] || 0) + 1; });
                       return Object.entries(sc).sort(([,a],[,b]) => b - a).map(([status, count]) => (
                         <div key={status} className="flex items-center gap-2">
                           <div className="w-32 sm:w-40 text-xs text-gray-600 dark:text-gray-400 truncate">{status}</div>
                           <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-5 overflow-hidden">
                             <div className="h-full bg-[#1e3a5f] rounded-full flex items-center justify-end pr-1.5"
-                              style={{width:`${Math.max((count / fStatsFiltered.length) * 100, 8)}%`}}>
+                              style={{width:`${Math.max((count / Math.max(fTousFiltered.length, 1)) * 100, 8)}%`}}>
                               <span className="text-[10px] text-white font-medium">{count}</span>
                             </div>
                           </div>
@@ -3163,7 +3173,7 @@ function HomePage() {
                   <div className="space-y-2">
                     {(() => {
                       const collabCount: Record<string, {projets: number, cabines: number}> = {};
-                      fStatsFiltered.forEach((p: any) => {
+                      fTousFiltered.forEach((p: any) => {
                         const names = p.collaborateurs ? p.collaborateurs.split("&").map((n: string) => n.trim()).filter(Boolean) : ["Non assigné"];
                         names.forEach((n: string) => {
                           if (!collabCount[n]) collabCount[n] = {projets:0, cabines:0};
