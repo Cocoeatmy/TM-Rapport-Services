@@ -653,6 +653,37 @@ html[data-ui="signal"].dark .sg-row-pose.is-wip {
 html[data-ui="signal"].dark .sg-row-pose.is-done {
   background: rgba(21, 128, 61, 0.18); border-color: rgba(21, 128, 61, 0.38); color: #7ddba2;
 }
+/* Pastilles des collaborateurs dans la ligne du jour : qui s'en occupe, et
+   combien de cabines il porte. Le compteur se pose en bas à droite de la
+   pastille, comme un badge de notification — on le lit sans le chercher. */
+html[data-ui="signal"] .sg-row-av {
+  display: flex; align-items: center; gap: 10px;
+  margin-right: 4px; flex-shrink: 0;
+}
+html[data-ui="signal"] .sg-row-pers { position: relative; display: inline-flex; }
+html[data-ui="signal"] .sg-row-pers i {
+  width: 21px; height: 21px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 8.5px; font-weight: 700; font-style: normal;
+  letter-spacing: -0.02em;
+  border: 1.5px solid var(--sg-paper);
+}
+/* Binôme : les deux initiales se chevauchent, comme dans le calendrier. */
+html[data-ui="signal"] .sg-row-pers i + i { margin-left: -7px; }
+html[data-ui="signal"] .sg-row-pers.is-reste i {
+  background: var(--sg-paper-2); color: var(--sg-text-3);
+  border-color: var(--sg-line);
+}
+html[data-ui="signal"] .sg-row-pers b {
+  position: absolute; right: -5px; bottom: -4px;
+  min-width: 14px; height: 14px; padding: 0 3px;
+  border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--sg-ink); color: #fff;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  border: 1.5px solid var(--sg-paper);
+}
+
 html[data-ui="signal"] .sg-row-count {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;

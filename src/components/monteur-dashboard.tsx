@@ -1719,11 +1719,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
        saisie trop haute ferait un compteur qui dépasse son propre maximum. */
     const posees = montages.reduce((s, p) => s + cabinesPosees(p), 0);
     return {
-      montages: montages.length, montagesCab: cab(montages), montagesPosees: posees,
-      mesures: mesures.length, mesuresCab: cab(mesures),
-      services: services.length, servicesCab: cab(services),
-      sav: sav.length, savCab: cab(sav),
-      garanties: garanties.length, garantiesCab: cab(garanties),
+      montages: montages.length, montagesCab: cab(montages), montagesPosees: posees, montagesList: montages,
+      mesures: mesures.length, mesuresCab: cab(mesures), mesuresList: mesures,
+      services: services.length, servicesCab: cab(services), servicesList: services,
+      sav: sav.length, savCab: cab(sav), savList: sav,
+      garanties: garanties.length, garantiesCab: cab(garanties), garantiesList: garanties,
     };
   };
   const sgShift = (n: number) => {
@@ -3053,11 +3053,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               },
             ]).map((col) => {
               const lignes = [
-                { label: "Montages", count: col.d.montages, cab: col.d.montagesCab, color: "#1b63ff", posees: col.d.montagesPosees },
-                { label: "Mesures", count: col.d.mesures, cab: col.d.mesuresCab, color: "#0e7490" },
-                { label: "Services", count: col.d.services, cab: col.d.servicesCab, color: "#6d28d9" },
-                { label: "SAV", count: col.d.sav, cab: col.d.savCab, color: "#b45309" },
-                { label: "Garanties", count: col.d.garanties, cab: col.d.garantiesCab, color: "#15803d" },
+                { label: "Montages", count: col.d.montages, cab: col.d.montagesCab, color: "#1b63ff", posees: col.d.montagesPosees, projets: col.d.montagesList },
+                { label: "Mesures", count: col.d.mesures, cab: col.d.mesuresCab, color: "#0e7490", projets: col.d.mesuresList },
+                { label: "Services", count: col.d.services, cab: col.d.servicesCab, color: "#6d28d9", projets: col.d.servicesList },
+                { label: "SAV", count: col.d.sav, cab: col.d.savCab, color: "#b45309", projets: col.d.savList },
+                { label: "Garanties", count: col.d.garanties, cab: col.d.garantiesCab, color: "#15803d", projets: col.d.garantiesList },
               ];
               const total = lignes.reduce((s2, r) => s2 + r.count, 0);
               const ouvert = !isIOS || sgDaysOpen.has(col.title);
@@ -3120,6 +3120,50 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         </span>
                       )}
                     </span>
+                    {/* Qui s'en occupe, et combien de cabines chacun porte ce
+                        jour-là. L'espace entre le libellé et les chiffres était
+                        vide, et il fallait ouvrir le calendrier pour savoir si
+                        la journée était la sienne. */}
+                    {r.projets.length > 0 && (() => {
+                      const equipes = new Map<string, number>();
+                      r.projets.forEach((p) => {
+                        const qui = collaborateursDuRdv(p, col.date) || "Non attribué";
+                        equipes.set(qui, (equipes.get(qui) || 0) + (p.nbCabines || 0));
+                      });
+                      /* Au-delà de trois équipes, la ligne déborderait sur un
+                         téléphone : on garde les plus chargées et l'on compte
+                         les autres. */
+                      const classees = [...equipes.entries()].sort((a, b) => b[1] - a[1]);
+                      const visibles = classees.slice(0, 3);
+                      const reste = classees.slice(3);
+                      return (
+                        <span className="sg-row-av">
+                          {visibles.map(([equipe, nb]) => {
+                            const noms = equipe.split(/\s*&\s*/).map((n) => n.trim()).filter(Boolean);
+                            return (
+                              <span key={equipe} className="sg-row-pers"
+                                    title={`${equipe} — ${nb} cabine${nb > 1 ? "s" : ""}`}>
+                                {(noms.length ? noms : ["Non attribué"]).slice(0, 2).map((n) => {
+                                  const c = getCollaboratorColor(n);
+                                  return (
+                                    <i key={n} style={{ backgroundColor: c.bg, color: c.text }}>
+                                      {getCollaboratorInitials(n)}
+                                    </i>
+                                  );
+                                })}
+                                {nb > 0 && <b>{nb}</b>}
+                              </span>
+                            );
+                          })}
+                          {reste.length > 0 && (
+                            <span className="sg-row-pers is-reste"
+                                  title={reste.map(([e, n]) => `${e} — ${n} cab.`).join("\n")}>
+                              <i>+{reste.length}</i>
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
                     {/* Le grand chiffre est celui des CABINES : c'est la charge
                         de la journée. Deux chantiers de dix cabines ne pèsent
                         pas comme dix chantiers d'une, et c'est pourtant le
