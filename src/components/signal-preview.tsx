@@ -172,6 +172,29 @@ export function SignalPreviewCard({
       <ContactsProjet project={p} />
 
 
+      {/* Mesures : ce que le client a dit et ce qu'il a envoyé. Réservé aux
+          rendez-vous de mesures — sur un montage, ces deux champs parlent
+          d'une étape déjà passée et n'aident plus personne. */}
+      {mode.startsWith("mesures") && String(p.commentairesMesures || "").trim() && (
+        <div className="sg-pv-bloc">
+          <span className="sg-pv-titre"><MessageSquare className="w-3.5 h-3.5" /> Commentaires mesures</span>
+          <p className="sg-pv-journal">{linkifyTel(String(p.commentairesMesures))}</p>
+        </div>
+      )}
+      {mode.startsWith("mesures") && (p.documentsMesures || []).length > 0 && (
+        <div className="sg-pv-bloc">
+          <span className="sg-pv-titre"><FileText className="w-3.5 h-3.5" /> Documents pour prise de mesures</span>
+          <div className="sg-pv-docs">
+            {(p.documentsMesures || []).map((d, i) => (
+              <a key={`${d.url}-${i}`} href={d.url} target="_blank" rel="noopener noreferrer"
+                className="sg-pv-doc" title={d.name}>
+                {d.name || `Document ${i + 1}`}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Documents pour Montage */}
       {((p as any).documentsMontagee || []).length > 0 && (
         <div className="sg-pv-bloc">
