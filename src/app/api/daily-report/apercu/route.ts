@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
        concerne tout le monde, un binôme concerne les deux. Un montage peut
        donc apparaître dans plusieurs colonnes, comme dans les e-mails. */
     const parCollaborateur = estAdmin
-      ? getAllUsers()
+      ? (await getAllUsers())
         .map((u) => ({
           nom: u.name,
           email: u.email || "",

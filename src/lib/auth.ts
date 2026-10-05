@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import crypto from "crypto";
+import { getData, getDataFresh, setData } from "./kv-store";
 
 export interface User {
   email: string;
@@ -56,62 +57,165 @@ const USERS: Record<string, UserRecord> = {
   "ferreira.micael@gmail.com": { name: "Micael Ferreira", password: "014ff6f9808dfb4c850085fd6be3a679:9fb23213d90227ca51a12c7b4a09ad18a3f4584f165b648621569ee48c718ace9c5bf68c66552563295f6a88319a4539336197f8157b3585238f81f1f7c41cfd", role: "admin" },
 };
 
+/* ───────────────────────────────────────────────────────────────────────────
+   Les comptes vivent dans le magasin de données, pas en mémoire.
+
+   Jusqu'ici, la liste ci-dessus était la seule qui existait, et changer un mot
+   de passe, un rôle, ajouter ou supprimer quelqu'un ne modifiait qu'une copie
+   en mémoire du serveur. Au redémarrage suivant — plusieurs fois par jour —
+   tout revenait en arrière, et deux serveurs n'étaient jamais d'accord. L'écran
+   annonçait pourtant que c'était fait.
+
+   La liste écrite dans le code reste la graine : au tout premier démarrage,
+   ou si le magasin devient illisible, c'est elle qui sert. Dès qu'une
+   modification est enregistrée, c'est le magasin qui fait foi.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+const CLE_COMPTES = "app-users";
+/** Un compte tel qu'il est rangé dans le magasin. */
+interface CompteRange extends UserRecord { email: string }
+
+let comptesMemoire: Record<string, UserRecord> | null = null;
+let comptesExpirent = 0;
+const DUREE_MEMOIRE_MS = 60_000;
+
+function versTableau(comptes: Record<string, UserRecord>): CompteRange[] {
+  return Object.entries(comptes).map(([email, u]) => ({ email, ...u }));
+}
+
+function versObjet(lignes: CompteRange[]): Record<string, UserRecord> {
+  const out: Record<string, UserRecord> = {};
+  for (const l of lignes) {
+    if (!l?.email || !l?.password) continue;
+    out[l.email.toLowerCase()] = { name: l.name, password: l.password, role: l.role };
+  }
+  return out;
+}
+
+/** Les comptes, depuis le magasin (ou la graine s'il est vide). */
+async function chargerComptes(frais = false): Promise<Record<string, UserRecord>> {
+  if (!frais && comptesMemoire && Date.now() < comptesExpirent) return comptesMemoire;
+  try {
+    const lignes = frais
+      ? await getDataFresh<CompteRange>(CLE_COMPTES)
+      : await getData<CompteRange>(CLE_COMPTES);
+    const comptes = versObjet(lignes);
+    /* Magasin vide = première fois. On ne sème pas tout de suite : la graine
+       suffit à travailler, et on évite d'écrire au milieu d'une connexion. */
+    comptesMemoire = Object.keys(comptes).length > 0 ? comptes : { ...USERS };
+  } catch {
+    /* Magasin injoignable : on NE bloque PERSONNE. La graine permet de se
+       connecter, quitte à ignorer un changement récent. */
+    comptesMemoire = { ...USERS };
+    comptesExpirent = Date.now() + 5_000; // on retente vite
+    return comptesMemoire;
+  }
+  comptesExpirent = Date.now() + DUREE_MEMOIRE_MS;
+  return comptesMemoire;
+}
+
+/**
+ * Applique une modification aux comptes, de façon sûre.
+ *
+ * On relit le magasin SANS passer par le cache (deux administrateurs peuvent
+ * agir en même temps depuis deux serveurs différents), on applique, on écrit.
+ * Si l'écriture échoue, on le dit — l'appelant doit pouvoir prévenir, plutôt
+ * que d'annoncer un succès qui n'existe pas.
+ */
+async function modifierComptes(
+  action: (comptes: Record<string, UserRecord>) => boolean,
+): Promise<boolean> {
+  let comptes: Record<string, UserRecord>;
+  try {
+    const lignes = await getDataFresh<CompteRange>(CLE_COMPTES);
+    const lus = versObjet(lignes);
+    comptes = Object.keys(lus).length > 0 ? lus : { ...USERS };
+  } catch {
+    return false; // lecture impossible → surtout ne pas écraser le magasin
+  }
+  if (!action(comptes)) return false;
+  try {
+    await setData(CLE_COMPTES, versTableau(comptes));
+  } catch {
+    return false;
+  }
+  comptesMemoire = comptes;
+  comptesExpirent = Date.now() + DUREE_MEMOIRE_MS;
+  return true;
+}
+
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || "fallback-secret");
 
-export function authenticate(email: string, password: string): User | null {
+export async function authenticate(email: string, password: string): Promise<User | null> {
   const key = email.toLowerCase().trim();
-  const user = USERS[key];
+  const comptes = await chargerComptes();
+  const user = comptes[key];
   if (!user) return null;
   if (!verifyPassword(password, user.password)) return null;
   return { email: key, name: user.name, role: user.role };
 }
 
-export function getAllUsers(): { email: string; name: string; role: string }[] {
-  return Object.entries(USERS).map(([email, u]) => ({
+export async function getAllUsers(): Promise<{ email: string; name: string; role: string }[]> {
+  const comptes = await chargerComptes();
+  return Object.entries(comptes).map(([email, u]) => ({
     email, name: u.name, role: u.role,
   }));
 }
 
-export function updateUserPassword(email: string, newPassword: string): boolean {
-  if (!USERS[email]) return false;
-  USERS[email].password = hashPassword(newPassword);
-  return true;
+export async function updateUserPassword(email: string, newPassword: string): Promise<boolean> {
+  const cle = email.toLowerCase();
+  return modifierComptes((c) => {
+    if (!c[cle]) return false;
+    c[cle].password = hashPassword(newPassword);
+    return true;
+  });
 }
 
-export function updateUserRole(email: string, role: "admin" | "monteur"): boolean {
-  if (!USERS[email]) return false;
-  USERS[email].role = role;
-  return true;
+export async function updateUserRole(email: string, role: "admin" | "monteur"): Promise<boolean> {
+  const cle = email.toLowerCase();
+  return modifierComptes((c) => {
+    if (!c[cle]) return false;
+    c[cle].role = role;
+    return true;
+  });
 }
 
-export function addUser(email: string, name: string, password: string, role: "admin" | "monteur"): boolean {
-  if (USERS[email.toLowerCase()]) return false;
-  USERS[email.toLowerCase()] = { name, password: hashPassword(password), role };
-  return true;
+export async function addUser(email: string, name: string, password: string, role: "admin" | "monteur"): Promise<boolean> {
+  const cle = email.toLowerCase();
+  return modifierComptes((c) => {
+    if (c[cle]) return false;
+    c[cle] = { name, password: hashPassword(password), role };
+    return true;
+  });
 }
 
-export function deleteUser(email: string): boolean {
-  if (!USERS[email] || USERS[email].role === "admin") return false;
-  delete USERS[email];
-  return true;
+export async function deleteUser(email: string): Promise<boolean> {
+  const cle = email.toLowerCase();
+  return modifierComptes((c) => {
+    if (!c[cle] || c[cle].role === "admin") return false;
+    delete c[cle];
+    return true;
+  });
 }
 
 /** Met à jour le nom et/ou l'adresse email d'un utilisateur.
  *  Si newEmail est fourni et différent de currentEmail, la clé du store change.
  *  Retourne false si l'utilisateur n'existe pas ou si newEmail est déjà pris. */
-export function updateUserInfo(currentEmail: string, newName?: string, newEmail?: string): boolean {
+export async function updateUserInfo(currentEmail: string, newName?: string, newEmail?: string): Promise<boolean> {
   const key = currentEmail.toLowerCase();
-  if (!USERS[key]) return false;
-  if (newName) USERS[key].name = newName;
-  if (newEmail) {
-    const newKey = newEmail.toLowerCase();
-    if (newKey !== key) {
-      if (USERS[newKey]) return false; // email déjà utilisé
-      USERS[newKey] = { ...USERS[key] };
-      delete USERS[key];
+  return modifierComptes((c) => {
+    if (!c[key]) return false;
+    if (newName) c[key].name = newName;
+    if (newEmail) {
+      const newKey = newEmail.toLowerCase();
+      if (newKey !== key) {
+        if (c[newKey]) return false; // email déjà utilisé
+        c[newKey] = { ...c[key] };
+        delete c[key];
+      }
     }
-  }
-  return true;
+    return true;
+  });
 }
 
 export async function createToken(user: User): Promise<string> {

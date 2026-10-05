@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
     /* Les monteurs viennent des comptes, pas des chaînes saisies : c'est leur
        nom complet qui doit s'afficher, et la même règle d'appartenance que
        l'envoi du matin qui décide s'ils sont concernés. */
-    const monteurs = getAllUsers()
+    const monteurs = (await getAllUsers())
       .filter((u) => montages.some((p) => collaboratorOnProject(p, u.name)))
       .map((u) => u.name)
       .sort((a, b) => a.localeCompare(b, "fr"));

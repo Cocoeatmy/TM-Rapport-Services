@@ -30,7 +30,7 @@ export async function sendDailyReportsToAll(
   const all = await getAllActiveProjects();
   const montages = all.filter((p) => isMontageOnDay(p, dayIso));
 
-  const users = getAllUsers();
+  const users = (await getAllUsers());
   const results: DailyReportResult[] = [];
 
   /* Compteurs de contrôle, calculés UNE fois et seulement si un administrateur

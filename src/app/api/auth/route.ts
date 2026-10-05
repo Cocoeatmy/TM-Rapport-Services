@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     const { email, password } = await request.json();
     console.log("Auth attempt:", email);
-    const user = authenticate(email, password);
+    const user = await authenticate(email, password);
     console.log("Auth result:", user ? "success" : "failed");
     if (!user) {
       return NextResponse.json({ error: "Email ou mot de passe incorrect" }, { status: 401 });

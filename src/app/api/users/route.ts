@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   if (!(await checkAdmin(request))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
-  const users = getAllUsers();
+  const users = await getAllUsers();
   // Fusionne téléphones + statut d'inscription Telegram (chat_id présent).
   let phones: Record<string, string> = {};
   let chatIds: Record<string, string> = {};
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   if (!email || !name || !password) {
     return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 });
   }
-  const success = addUser(email, name, password, role || "monteur");
+  const success = await addUser(email, name, password, role || "monteur");
   if (!success) {
     return NextResponse.json({ error: "Cet email existe déjà" }, { status: 400 });
   }
@@ -53,7 +53,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Email requis" }, { status: 400 });
   }
   if (name || newEmail) {
-    const success = updateUserInfo(email, name, newEmail);
+    const success = await updateUserInfo(email, name, newEmail);
     if (!success) return NextResponse.json({ error: "Email déjà utilisé ou utilisateur introuvable" }, { status: 400 });
     // Si l'e-mail change, on migre le téléphone associé.
     if (newEmail && newEmail !== email) {
@@ -69,12 +69,12 @@ export async function PATCH(request: NextRequest) {
   if (password) {
     // Si l'email a changé, on utilise le nouvel email pour la mise à jour du mot de passe
     const targetEmail = newEmail || email;
-    const success = updateUserPassword(targetEmail, password);
+    const success = await updateUserPassword(targetEmail, password);
     if (!success) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
   }
   if (role) {
     const targetEmail = newEmail || email;
-    const success = updateUserRole(targetEmail, role);
+    const success = await updateUserRole(targetEmail, role);
     if (!success) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
   }
   return NextResponse.json({ success: true });
@@ -85,7 +85,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
   const { email } = await request.json();
-  const success = deleteUser(email);
+  const success = await deleteUser(email);
   if (!success) {
     return NextResponse.json({ error: "Impossible de supprimer cet utilisateur" }, { status: 400 });
   }

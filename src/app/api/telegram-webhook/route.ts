@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       const email = await findEmailByPhone(phone);
       if (email) {
         await setUserChatId(email, chatId);
-        const prenom = (getAllUsers().find((u) => u.email.toLowerCase() === email)?.name || "").split(" ")[0];
+        const prenom = ((await getAllUsers()).find((u) => u.email.toLowerCase() === email)?.name || "").split(" ")[0];
         await sendTelegramText(
           chatId,
           `✅ <b>Inscription réussie${prenom ? `, ${prenom}` : ""} !</b>\nTu recevras ici le rapport quotidien de tes montages. 🚿`,
