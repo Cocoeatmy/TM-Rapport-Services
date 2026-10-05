@@ -18,6 +18,7 @@
  */
 
 import type { Project } from "@/lib/notion";
+import { rapportTermine } from "./rapport-etat";
 
 export type Gravite = "bloquant" | "important" | "mineur";
 
@@ -396,8 +397,7 @@ export const REGLES_RELANCES: Regle[] = [
       const j = joursDepuis(p.dateMontage, maintenant);
       if (j === null || j < 7) return null;
       if (MORTS.has(p.etatCMD)) return null;
-      const r = (p.rapportDeMontage || "").toLowerCase();
-      if (r.includes("clôt") || r.includes("clot") || r === "rapport traité") return null;
+      if (rapportTermine(p.rapportDeMontage)) return null;
       return `Monté le ${formatJour(p.dateMontage)}, ${depuis(j)}`;
     },
   },

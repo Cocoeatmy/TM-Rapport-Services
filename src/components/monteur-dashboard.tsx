@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
 import { cabinesPosees, cabinesRestantes } from "@/lib/cabines-posees";
+import { rapportTermine, rapportEnAttente } from "@/lib/rapport-etat";
 import { TourneeAssistant } from "@/components/tournee-assistant";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
@@ -1079,10 +1080,7 @@ function getTodayStr() {
 function getReportDot(project: Project, projectDateStr: string): "green" | "orange" | "red" | null {
   const todayStr = getTodayStr();
   if (!projectDateStr || projectDateStr > todayStr) return null;
-  const cloture =
-    (project.rapportDeMontage || "").toLowerCase().includes("clôt") ||
-    (project.rapportDeMontage || "").toLowerCase().includes("clot");
-  if (cloture) return "green";
+  if (rapportTermine(project.rapportDeMontage)) return "green";
   if (projectDateStr === todayStr) {
     const started = !!(project.rapportMonteur || project.heureArrivee);
     return started ? "orange" : "red";
@@ -2606,16 +2604,22 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     .filter((p) => p.emplacementCabine !== "Dépôt TM")
     .reduce((s, p) => s + (p.nbCabines || 0), 0);
 
-  // Rapports en attente : projets montage dont la date est passée ou aujourd'hui
-  // et dont le rapport n'est pas clôturé
+  /* Rapports en attente : le montage a eu lieu, le rapport n'est pas traité.
+     La règle vit dans `rapportEnAttente` — la même que celle des relances, pour
+     que les deux écrans ne puissent plus diverger.
+
+     Le veto des chantiers terminés n'est pas un doublon de cette règle : la
+     liste travaille sur les copies que le poste a en mémoire, et une copie
+     vieille de plusieurs mois porte encore l'état qu'avait le chantier à
+     l'époque (« RDV - fixé », rapport vide). La liste des terminés, elle,
+     vient du serveur : si le chantier y figure, la copie ment, et il n'y a
+     plus de rapport à réclamer. */
+  const idsTermines = new Set(terminatedProjects.map((p) => p.id));
   const rapportsAttenteProjects = projects.filter((p) => {
     const src = (p as any)._source;
     if (src === "mesures" || src === "sav") return false;
-    const dateStr = (p.dateMontage || "").split("T")[0];
-    if (!dateStr || dateStr > todayStr) return false;
-    const cloture = (p.rapportDeMontage || "").toLowerCase().includes("clôt") ||
-                    (p.rapportDeMontage || "").toLowerCase().includes("clot");
-    return !cloture;
+    if (idsTermines.has(p.id)) return false;
+    return rapportEnAttente(p, todayStr);
   }).sort((a, b) => ((b.dateMontage || "").split("T")[0]).localeCompare((a.dateMontage || "").split("T")[0]));
   const rapportsAttenteCount = rapportsAttenteProjects.length;
 

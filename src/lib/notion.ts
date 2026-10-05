@@ -486,7 +486,7 @@ export function mapPageToProject(page: any): Project {
     dateMesuresRecue: extractDate(p["Date Mesures reçue le"]),
     dateOffre: extractDate(p["Date Offre"]),
     dateCMDRecue: extractDate(p["CMD reçue le"]),
-    dateCMDUsine: extractDate(p["Date CMD – Usine"]),
+    dateCMDUsine: extractDate(p["Date CMD - Usine"]),
     collaborateurs: extractMultiSelect(p["Collaborateurs montages"]).join(" & "),
     documentsMontagee: extractFiles(p["Documents pour Montage"]),
     documentsMesures: extractFiles(p["Documents pour prise de mesures"]),
@@ -528,7 +528,7 @@ export function mapPageToProject(page: any): Project {
       ...extractFiles(p["Photos des cartons réceptionnés"]),
     ],
     commentaireLivraison: extractText(p["Commentaires Livraisons"]) || extractText(p["Commentaires Livraison"]) || extractText(p["Commentaire Livraison"]),
-    rapportDeMontage: extractSelect(p["Rapport de montage"]),
+    rapportDeMontage: extractStatus(p["Rapport de montage"]),
     facturations: extractStatus(p["Facturations"]),
     etatCMD: extractStatus(p["État - CMD"]),
     priorite: extractSelect(p["Priorité"]),
@@ -569,13 +569,13 @@ export function mapPageToProject(page: any): Project {
       extractMultiSelect(p["Collaborateurs SAV"]).join(" & ") ||
       extractSelect(p["Collaborateurs SAV"]) ||
       extractText(p["Collaborateurs SAV"]),
-    dateRDVGarantie: extractDate(p["Date RDV Garantie"]),
+    dateRDVGarantie: extractDate(p["Date RDV - Garantie"]),
     collaborateurGarantie:
       extractMultiSelect(p["Collaborateur Garantie"]).join(" & ") ||
       extractSelect(p["Collaborateur Garantie"]) ||
       extractText(p["Collaborateur Garantie"]),
     dateSAVRecu: extractText(p["Date - SAV reçu le"]),
-    dateSavClotureLe: extractDate(p["Date - SAV clôturé le"]),
+    dateSavClotureLe: extractDate(p["Date - SAV clôturé le"]) || extractText(p["Date - SAV clôturé le"]) || null,
     sav: p["SAV"]?.checkbox || false,
     photosBonLivraison: extractFiles(p["Bon de livraison"]),
     bonLivraison: (() => {
