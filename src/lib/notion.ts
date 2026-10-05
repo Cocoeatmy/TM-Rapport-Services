@@ -328,6 +328,9 @@ export interface Project {
      « Dates RDV SAV cabines » et « Collaborateurs SAV cabines » restent le
      reflet du DERNIER passage, pour tout ce qui les lisait déjà. */
   interventionsSavCabines: string;
+  /** Passages de MONTAGE par lot — un chantier qui ne se fait pas en un
+   *  jour a plusieurs interventions (même encodage que le SAV). */
+  interventionsMontageCabines: string;
   datesCmdPiecesSavCabines: string;
   datesReceptionPiecesSavCabines: string;
   photosSavRetouches: FileItem[];
@@ -503,6 +506,7 @@ export function mapPageToProject(page: any): Project {
     collaborateursSavCabines: extractText(p["Collaborateurs SAV cabines"]),
     datesSavClotureCabines: extractText(p["Dates SAV clôturé cabines"]),
     interventionsSavCabines: extractText(p["Interventions SAV cabines"]),
+    interventionsMontageCabines: extractText(p["Interventions montage cabines"]),
     datesCmdPiecesSavCabines: extractText(p["Dates CMD pièces SAV cabines"]),
     datesReceptionPiecesSavCabines: extractText(p["Dates réception pièces SAV cabines"]),
     photosSavRetouches: extractFiles(p["Photos SAV / Retouches cabines"]),
@@ -1278,6 +1282,7 @@ export async function updateProject(
     collaborateursSavCabines?: string;
     datesSavClotureCabines?: string;
     interventionsSavCabines?: string;
+    interventionsMontageCabines?: string;
     datesCmdPiecesSavCabines?: string;
     datesReceptionPiecesSavCabines?: string;
     savCloture?: boolean;
@@ -1372,6 +1377,9 @@ export async function updateProject(
   }
   if (data.interventionsSavCabines !== undefined) {
     properties["Interventions SAV cabines"] = { rich_text: toRichText(data.interventionsSavCabines) };
+  }
+  if (data.interventionsMontageCabines !== undefined) {
+    properties["Interventions montage cabines"] = { rich_text: toRichText(data.interventionsMontageCabines) };
   }
   if (data.datesCmdPiecesSavCabines !== undefined) {
     properties["Dates CMD pièces SAV cabines"] = { rich_text: toRichText(data.datesCmdPiecesSavCabines) };

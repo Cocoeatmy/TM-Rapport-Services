@@ -278,7 +278,9 @@ function PiecesRechangeSav({
 const COLLABORATEURS_LIST = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"];
 
 /**
- * Interventions SAV d'un lot — composant à état.
+ * Passages datés d'un lot — composant à état, partagé par le SAV et le
+ * montage. Un chantier qui ne se fait pas en un jour a plusieurs
+ * interventions, exactement comme un SAV qui demande un second passage.
  *
  * La liste ne peut pas se déduire à chaque rendu de ce qui est enregistré :
  * un champ `date` que l'on vide le temps d'en saisir une autre rend le
@@ -289,13 +291,17 @@ const COLLABORATEURS_LIST = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel
  * reprend la main que si elle diffère de notre dernière écriture — un
  * rafraîchissement ne défait jamais ce qu'on est en train de remplir.
  */
-function InterventionsSavLot({
+function InterventionsLot({
+  titre,
+  aide,
   encode,
   heritage,
   aujourdhui,
   isAdmin,
   onEnregistrer,
 }: {
+  titre: string;
+  aide: string;
   encode: string;
   heritage: { date: string; collaborateurs: string; arrivee: string; depart: string };
   aujourdhui: string;
@@ -333,10 +339,8 @@ function InterventionsSavLot({
 
   return (
     <div>
-      <Label>Interventions SAV</Label>
-      <p className="text-[11px] text-gray-400 mt-0.5 mb-1.5">
-        Une ligne par passage — la date et qui s&apos;en est chargé.
-      </p>
+      <Label>{titre}</Label>
+      <p className="text-[11px] text-gray-400 mt-0.5 mb-1.5">{aide}</p>
       <div className="space-y-2">
         {liste.map((it, i) => {
           const choisis = it.collaborateurs.split(/\s*&\s*/).map((x) => x.trim()).filter(Boolean);
@@ -4767,7 +4771,9 @@ function ProjectPageContent({ id }: { id: string }) {
    * rendez-vous à fixer, statistiques).
    */
   const renderInterventionsSav = (idx: number) => (
-    <InterventionsSavLot
+    <InterventionsLot
+      titre="Interventions SAV"
+      aide="Une ligne par passage — la date et qui s'en est chargé."
       encode={parseCabineTextMulti(project?.interventionsSavCabines || "")[idx + 1] || ""}
       heritage={{
         date: parseCabineTextMulti(project?.datesRdvSavCabines || "")[idx + 1] || "",
@@ -4804,6 +4810,48 @@ function ProjectPageContent({ id }: { id: string }) {
    *
    * Ces dates sont internes : le rapport SAV remis au client n'en porte rien.
    */
+  /**
+   * Passages de montage d'un lot.
+   *
+   * Un montage ne tient pas toujours en une journée : on revient, parfois avec
+   * quelqu'un d'autre. Le champ unique d'avant écrasait la première venue, et
+   * l'on perdait aussi bien les heures que la trace du retour.
+   *
+   * La liste vit dans « Interventions montage cabines ». Les colonnes
+   * historiques — « Heure arrivée » et « Heure départ », au format
+   * « CabN:date:HH:MM » — gardent le DERNIER passage, pour que les rapports,
+   * les statistiques d'heures et la charge de la semaine continuent de les
+   * lire sans rien savoir de la liste.
+   */
+  const renderInterventionsMontage = (idx: number) => (
+    <InterventionsLot
+      titre="Interventions"
+      aide="Une ligne par passage — la date, les heures et qui s'en est chargé."
+      encode={parseCabineTextMulti(project?.interventionsMontageCabines || "")[idx + 1] || ""}
+      heritage={{
+        date: cabines[idx]?.date || "",
+        collaborateurs: parseCabineTextMulti(project?.attributionCabines || "")[idx + 1] || "",
+        arrivee: cabines[idx]?.arrivee || "",
+        depart: cabines[idx]?.depart || "",
+      }}
+      aujourdhui={today}
+      isAdmin={isAdmin}
+      onEnregistrer={(suivante) => {
+        const dernier = dernierPassage(suivante) || suivante[suivante.length - 1] || null;
+        /* L'état local des cabines sert au rapport et au bouton Enregistrer :
+           il reste le reflet du dernier passage, comme les colonnes Notion. */
+        setCabines((prev) => prev.map((c, i) => (i === idx
+          ? { ...c, date: dernier?.date || "", arrivee: dernier?.arrivee || "", depart: dernier?.depart || "" }
+          : c)));
+        saveCabineTexts(idx, {
+          interventionsMontageCabines: encodeInterventions(suivante),
+          heureArrivee: dernier?.arrivee ? `${dernier.date}:${dernier.arrivee}` : "",
+          heureDepart: dernier?.depart ? `${dernier.date}:${dernier.depart}` : "",
+        });
+      }}
+    />
+  );
+
   const renderPiecesSav = (idx: number) => (
     <PiecesRechangeSav
       cmd={(parseCabineTextMulti(project?.datesCmdPiecesSavCabines || "")[idx + 1] || "").slice(0, 10)}
@@ -10122,10 +10170,12 @@ function ProjectPageContent({ id }: { id: string }) {
                                 </div>
                               )}
 
-                              {/* Jour de montage + case « Montage partiel » */}
+                              {/* État du lot. La date a rejoint les passages
+                                  juste en dessous : « Jour de montage » n'avait
+                                  plus de sens au singulier. */}
                               <div>
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                                  <Label className="text-xs text-gray-600 dark:text-gray-300">Jour de montage</Label>
+                                  <Label className="text-xs text-gray-600 dark:text-gray-300">Avancement du lot</Label>
                                   {/* État du montage (3 états). Change la couleur du numéro
                                       de lot : terminé=vert, partiel=violet, pas possible=rouge. */}
                                   <select
@@ -10150,59 +10200,10 @@ function ProjectPageContent({ id }: { id: string }) {
                                     ))}
                                   </select>
                                 </div>
-                                <Input
-                                  type="date"
-                                  value={cabine.date}
-                                  onChange={(e) => {
-                                    const v = e.target.value;
-                                    setCabines((prev) =>
-                                      prev.map((c, i) => (i === idx ? { ...c, date: v } : c))
-                                    );
-                                    scheduleAutoSave();
-                                  }}
-                                  className="mt-1 h-11 glass-input"
-                                />
                               </div>
 
-                              {/* Heures arrivée / départ */}
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <Label className="text-xs text-gray-600 dark:text-gray-300">Heure d&apos;arrivée</Label>
-                                  <Input
-                                    type="time"
-                                    value={cabine.arrivee}
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      setCabines((prev) =>
-                                        prev.map((c, i) => (i === idx ? { ...c, arrivee: v } : c))
-                                      );
-                                      scheduleAutoSave();
-                                    }}
-                                    className="mt-1 h-11 glass-input"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-xs text-gray-600 dark:text-gray-300">Heure de départ</Label>
-                                  <Input
-                                    type="time"
-                                    value={cabine.depart}
-                                    min={cabine.arrivee || undefined}
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      // Le départ ne peut pas précéder l'arrivée.
-                                      if (v && cabine.arrivee && v < cabine.arrivee) {
-                                        toast.error("L'heure de départ ne peut pas être avant l'arrivée.");
-                                        return;
-                                      }
-                                      setCabines((prev) =>
-                                        prev.map((c, i) => (i === idx ? { ...c, depart: v } : c))
-                                      );
-                                      scheduleAutoSave();
-                                    }}
-                                    className="mt-1 h-11 glass-input"
-                                  />
-                                </div>
-                              </div>
+                              {/* Passages de montage : autant que nécessaire. */}
+                              {renderInterventionsMontage(idx)}
 
                               {/* Bouton Enregistrer par cabine */}
                               <button
