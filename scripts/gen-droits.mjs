@@ -27,16 +27,29 @@ function fichiers(dossier, resultat = []) {
   return resultat;
 }
 
-/** Préfixes déclarés publics dans le middleware. */
+/** Préfixes déclarés publics dans le middleware.
+ *
+ *  Une ligne peut poser DEUX conditions à la fois — « commence par /api/photos/
+ *  ET se termine par /download ». En ne lisant que la première, l'inventaire
+ *  annonçait publiques deux routes qui ne le sont pas, et rien ne permettait
+ *  de s'en apercevoir : une liste de droits qui se trompe est pire que pas de
+ *  liste. Ces lignes-là sont donc mises à part, et leurs routes retombent sur
+ *  leurs propres contrôles. */
 function prefixesPublics() {
   const src = readFileSync(join(RACINE, "src", "middleware.ts"), "utf8");
   const bloc = src.slice(0, src.indexOf("const token"));
-  const prefixes = [...bloc.matchAll(/startsWith\("([^"]+)"\)/g)].map((m) => m[1]);
+  const prefixes = [];
+  const conditionnels = [];
+  for (const ligne of bloc.split("\n")) {
+    const m = /startsWith\("([^"]+)"\)/.exec(ligne);
+    if (!m) continue;
+    (ligne.includes("&&") ? conditionnels : prefixes).push(m[1]);
+  }
   const exacts = [...bloc.matchAll(/pathname === "([^"]+)"/g)].map((m) => m[1]);
-  return { prefixes, exacts };
+  return { prefixes, exacts, conditionnels };
 }
 
-const { prefixes, exacts } = prefixesPublics();
+const { prefixes, exacts, conditionnels } = prefixesPublics();
 const estPublicMiddleware = (url) =>
   exacts.includes(url) || prefixes.some((p) => url.startsWith(p));
 
@@ -92,7 +105,7 @@ const entrees = fichiers(APP)
 mkdirSync(join(RACINE, "src", "lib"), { recursive: true });
 writeFileSync(SORTIE, JSON.stringify({
   genereLe: new Date().toISOString(),
-  publicMiddleware: { prefixes, exacts },
+  publicMiddleware: { prefixes, exacts, conditionnels },
   entrees,
 }, null, 2) + "\n", "utf8");
 

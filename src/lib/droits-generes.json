@@ -1,19 +1,16 @@
 {
-  "genereLe": "2026-10-05T18:30:16.181Z",
+  "genereLe": "2026-10-05T20:28:55.679Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
       "/api/cron/",
       "/api/client/",
       "/api/share-link",
-      "/api/doc",
       "/api/fiche",
       "/api/sav",
       "/api/synthese",
       "/api/pdf",
       "/api/rapport-signalements",
-      "/api/photos/",
-      "/api/reminders",
       "/api/notion-webhook",
       "/client/",
       "/f/",
@@ -27,9 +24,13 @@
     "exacts": [
       "/login",
       "/api/stats/ca/factures",
+      "/api/doc",
       "/manifest.json",
       "/favicon.ico",
       "/sw.js"
+    ],
+    "conditionnels": [
+      "/api/photos/"
     ]
   },
   "entrees": [
@@ -443,7 +444,7 @@
       "url": "/api/doc-proxy",
       "type": "api",
       "fichier": "src/app/api/doc-proxy/route.ts",
-      "niveau": "ouvert",
+      "niveau": "connecte-middleware",
       "gardePage": false,
       "methodes": [
         "GET"
@@ -641,7 +642,7 @@
       "url": "/api/photos/attach",
       "type": "api",
       "fichier": "src/app/api/photos/attach/route.ts",
-      "niveau": "ouvert",
+      "niveau": "connecte-middleware",
       "gardePage": false,
       "methodes": [
         "POST"
@@ -651,7 +652,7 @@
       "url": "/api/photos/sign",
       "type": "api",
       "fichier": "src/app/api/photos/sign/route.ts",
-      "niveau": "ouvert",
+      "niveau": "connecte-middleware",
       "gardePage": false,
       "methodes": [
         "POST"
@@ -971,10 +972,20 @@
       "url": "/api/reminders",
       "type": "api",
       "fichier": "src/app/api/reminders/route.ts",
-      "niveau": "ouvert",
+      "niveau": "cron",
       "gardePage": false,
       "methodes": [
         "POST"
+      ]
+    },
+    {
+      "url": "/api/sante",
+      "type": "api",
+      "fichier": "src/app/api/sante/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "GET"
       ]
     },
     {

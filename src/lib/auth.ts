@@ -144,7 +144,14 @@ async function modifierComptes(
   return true;
 }
 
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || "fallback-secret");
+/* Pas de valeur de repli : un secret connu permettrait de fabriquer une
+   session d'administrateur. Lu à l'usage (et non au chargement du module) pour
+   ne pas faire échouer la compilation. */
+function cleDeSignature(): Uint8Array {
+  const cle = process.env.JWT_SECRET;
+  if (!cle) throw new Error("JWT_SECRET manquant : signature de session impossible");
+  return new TextEncoder().encode(cle);
+}
 
 export async function authenticate(email: string, password: string): Promise<User | null> {
   const key = email.toLowerCase().trim();
@@ -223,12 +230,12 @@ export async function createToken(user: User): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("365d") // 1 an — session persistante sur mobile
-    .sign(secret);
+    .sign(cleDeSignature());
 }
 
 export async function verifyToken(token: string): Promise<User | null> {
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, cleDeSignature());
     return {
       email: payload.email as string,
       name: payload.name as string,
@@ -247,7 +254,7 @@ export async function verifyTokenWithExpiry(
   token: string
 ): Promise<{ user: User | null; exp?: number }> {
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, cleDeSignature());
     return {
       user: {
         email: payload.email as string,

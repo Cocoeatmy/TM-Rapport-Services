@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyToken } from "@/lib/auth";
 import { notion, databaseId, mapPageToProject } from "@/lib/notion";
 import { createNotification } from "@/app/api/notifications/route";
 import { Resend } from "resend";
@@ -22,6 +23,20 @@ function getTomorrowDateString(): string {
 }
 
 export async function POST(_request: NextRequest) {
+  /* Cette route envoie des e-mails aux collaborateurs. Elle était ouverte à
+     tout internet : n'importe qui pouvait déclencher l'envoi, autant de fois
+     qu'il voulait. Réservée à un administrateur connecté, ou à la tâche
+     planifiée qui présente le secret des crons. */
+  const secretCron = process.env.CRON_SECRET;
+  const enTete = _request.headers.get("authorization");
+  const parCron = !!secretCron && enTete === `Bearer ${secretCron}`;
+  if (!parCron) {
+    const token = _request.cookies.get("auth-token")?.value;
+    const user = token ? await verifyToken(token) : null;
+    if (!user || user.role !== "admin") {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  }
   try {
     const tomorrowStr = getTomorrowDateString();
 
