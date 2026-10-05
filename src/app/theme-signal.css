@@ -588,6 +588,26 @@ html[data-ui="signal"] .sg-card-title {
 }
 
 /* Agenda */
+/* Barre de navigation des trois jours : repère de semaine à gauche, pas de
+   trois jours et saut libre à droite. */
+html[data-ui="signal"] .sg-agenda-nav {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 10px; flex-wrap: wrap;
+}
+html[data-ui="signal"] .sg-agenda-nav-t {
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.04em; color: var(--sg-text-3); white-space: nowrap;
+}
+html[data-ui="signal"] .sgw-nav button.is-now {
+  padding: 0 10px; font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+html[data-ui="signal"] .sg-agenda-date {
+  height: 28px; padding: 0 8px; border-radius: 999px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-2); font-family: var(--font-mono); font-size: 11px;
+}
+html[data-ui="signal"] .sg-agenda-date:hover { border-color: var(--sg-signal); }
+
 html[data-ui="signal"] .sg-agenda {
   display: grid;
   grid-template-columns: 1fr;

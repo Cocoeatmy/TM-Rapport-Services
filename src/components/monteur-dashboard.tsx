@@ -1726,10 +1726,23 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       garanties: garanties.length, garantiesCab: cab(garanties), garantiesList: garanties,
     };
   };
+  /* Les trois cartes du haut montraient aujourd'hui et les deux jours
+     suivants, et rien d'autre. Comparer deux semaines ou retrouver ce qui a
+     été fait demandait d'ouvrir le calendrier. Un décalage, en jours, les
+     déplace toutes les trois ensemble. */
+  const [sgDecalage, setSgDecalage] = useState(0);
   const sgShift = (n: number) => {
     const d = new Date(getTodayStr() + "T12:00:00");
-    d.setDate(d.getDate() + n);
+    d.setDate(d.getDate() + n + sgDecalage);
     return formatLocalDate(d);
+  };
+  /** Numéro de semaine ISO — le repère par lequel on parle d'une semaine. */
+  const numeroSemaine = (iso: string): number => {
+    const d = new Date(iso + "T12:00:00Z");
+    const jeudi = new Date(d);
+    jeudi.setUTCDate(d.getUTCDate() + 3 - ((d.getUTCDay() + 6) % 7));
+    const jan4 = new Date(Date.UTC(jeudi.getUTCFullYear(), 0, 4));
+    return 1 + Math.round(((jeudi.getTime() - jan4.getTime()) / 86400000 - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7);
   };
   // Changer de panneau remet l'aperçu à zéro : il appartient à la liste
   // depuis laquelle il a été ouvert.
@@ -3061,20 +3074,59 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               collaborateur assigné y apparaissait à 0. Ici on compte sur TOUS
               les projets — mêmes prédicats de type, périmètre corrigé. */}
           {(() => { return null; })()}
+          {/* Navigation des trois jours : pas de trois jours, saut libre par le
+              sélecteur de date, et retour à aujourd'hui. */}
+          <div className="sg-agenda-nav">
+            <span className="sg-agenda-nav-t">
+              semaine {numeroSemaine(sgShift(0))} · {new Date(sgShift(0) + "T12:00:00").toLocaleDateString("fr-CH", { year: "numeric" })}
+            </span>
+            <i className="sg-rule" />
+            <div className="sgw-nav">
+              <button type="button" aria-label="Trois jours plus tôt" title="Trois jours plus tôt"
+                onClick={() => setSgDecalage((v) => v - 3)}>
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button type="button" className="is-now" disabled={sgDecalage === 0}
+                onClick={() => setSgDecalage(0)}>
+                {sgDecalage === 0 ? "Aujourd'hui" : "Revenir à aujourd'hui"}
+              </button>
+              <button type="button" aria-label="Trois jours plus tard" title="Trois jours plus tard"
+                onClick={() => setSgDecalage((v) => v + 3)}>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <input
+              type="date"
+              className="sg-agenda-date"
+              value={sgShift(0)}
+              title="Aller à une date"
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                const cible = new Date(v + "T12:00:00").getTime();
+                const auj = new Date(getTodayStr() + "T12:00:00").getTime();
+                setSgDecalage(Math.round((cible - auj) / 86400000));
+              }}
+            />
+          </div>
           <div className="sg-agenda">
             {([
-              {
-                title: "Aujourd'hui", accent: "#15803d", date: sgShift(0),
-                d: sgDay(sgShift(0)),
-              },
-              {
-                title: "Demain", accent: "var(--sg-text)", date: sgShift(1),
-                d: sgDay(sgShift(1)),
-              },
-              {
-                title: "Après-demain", accent: "var(--sg-text)", date: sgShift(2),
-                d: sgDay(sgShift(2)),
-              },
+              /* Les titres suivent le décalage : « Aujourd'hui » au-dessus
+                 d'un jour d'octobre dernier serait un mensonge. Dès qu'on
+                 s'éloigne, chaque carte porte son jour de semaine. */
+              ...[0, 1, 2].map((n) => {
+                const date = sgShift(n);
+                const jour = new Date(date + "T12:00:00");
+                const titre = sgDecalage === 0
+                  ? (n === 0 ? "Aujourd'hui" : n === 1 ? "Demain" : "Après-demain")
+                  : jour.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" });
+                return {
+                  title: titre.charAt(0).toUpperCase() + titre.slice(1),
+                  accent: sgDecalage === 0 && n === 0 ? "#15803d" : "var(--sg-text)",
+                  date,
+                  d: sgDay(date),
+                };
+              }),
             ]).map((col) => {
               const lignes = [
                 { label: "Montages", count: col.d.montages, cab: col.d.montagesCab, color: "#1b63ff", posees: col.d.montagesPosees, projets: col.d.montagesList },
