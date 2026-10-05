@@ -1,6 +1,6 @@
 import { gunzipSync, gzipSync } from "node:zlib";
 import { notion, databaseId } from "./notion";
-import { redisEnabled, redisHGetAll, redisHSet } from "./redis-cache";
+import { redisEnabled, redisHGetAll, redisHSet, redisLockAcquire, redisLockRelease } from "./redis-cache";
 
 // ---------------------------------------------------------------------------
 // In-memory cache  (survives across requests in the same serverless process)
@@ -168,14 +168,31 @@ async function getOrCreateBackupPageId(key: string): Promise<string> {
       return trouvee;
     }
 
-    // 4) Vraiment inexistante → on la crée, puis on mémorise son ID dans Redis
-    //    pour que TOUTES les instances la réutilisent (plus jamais de doublon).
-    const page = await notion.pages.create({
-      parent: { page_id: STORAGE_PAGE_ID },
-      properties: { title: { title: [{ text: { content: title } }] } },
-    });
-    rememberPageId(key, page.id);
-    return page.id;
+    /* 4) Vraiment inexistante → on la crée. Mais deux serveurs peuvent arriver
+          ici en même temps pour la même clé neuve : chacun ne voit rien et
+          chacun crée sa page. C'est ce qui donnait trois ou quatre pages pour
+          une seule conversation. On prend donc un verrou le temps de la
+          création, et une fois pris, on revérifie : si l'autre est passé
+          devant, on prend la sienne. */
+    const verrou = redisEnabled ? await redisLockAcquire(`lock:kvpage:${key}`, 10_000) : null;
+    try {
+      if (verrou) {
+        const apres = await redisHGetAll("kvpages").catch(() => ({} as Record<string, string>));
+        if (apres[key]) {
+          pageIdCache[key] = apres[key];
+          if (kvPagesRedis) kvPagesRedis[key] = apres[key];
+          return apres[key];
+        }
+      }
+      const page = await notion.pages.create({
+        parent: { page_id: STORAGE_PAGE_ID },
+        properties: { title: { title: [{ text: { content: title } }] } },
+      });
+      rememberPageId(key, page.id);
+      return page.id;
+    } finally {
+      if (verrou) await redisLockRelease(`lock:kvpage:${key}`, verrou).catch(() => {});
+    }
   } catch (err) {
     console.error(`[kv-store] Failed to get/create page for "${key}":`, err);
     throw err;

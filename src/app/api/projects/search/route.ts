@@ -13,6 +13,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { notion, databaseId, mapPageToProject } from "@/lib/notion";
 import { errorResponse } from "@/lib/edge-cache";
 
+/* Reconstruire cette liste depuis Notion demande une trentaine de
+   secondes. Sans durée déclarée, la requête est coupée bien avant, et
+   l'écran reste vide sur un serveur qui vient de démarrer. */
+export const maxDuration = 60;
+
 export const dynamic = "force-dynamic";
 
 // Champs Notion à inclure dans le filtre OR.

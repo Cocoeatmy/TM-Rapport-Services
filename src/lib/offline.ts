@@ -169,6 +169,56 @@ export function clearQueue() {
   localStorage.setItem(QUEUE_KEY, "[]");
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   Les modifications abandonnées laissent une trace.
+
+   La file jette un envoi dans trois cas : trop vieux, refusé définitivement
+   par le serveur, ou huit essais ratés. Jusqu'ici ça se terminait par une
+   ligne dans la console du navigateur, que personne ne lit : le collaborateur
+   croyait avoir enregistré. On garde donc la liste de ce qui a été abandonné,
+   pour pouvoir le DIRE.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+const ABANDONS_KEY = "tm-offline-abandons";
+const ABANDONS_MAX = 50;
+
+export interface Abandon {
+  id: string;
+  url: string;
+  method: string;
+  raison: "trop-ancien" | "refus-serveur" | "trop-d-essais";
+  statut?: number;
+  /** Date de la saisie d'origine, pas de l'abandon : c'est elle qui parle. */
+  saisiLe: number;
+  abandonneLe: number;
+}
+
+export function getAbandons(): Abandon[] {
+  try {
+    const raw = localStorage.getItem(ABANDONS_KEY);
+    const l = raw ? JSON.parse(raw) : [];
+    return Array.isArray(l) ? l : [];
+  } catch {
+    return [];
+  }
+}
+
+export function clearAbandons(): void {
+  try { localStorage.removeItem(ABANDONS_KEY); } catch {}
+}
+
+function noterAbandon(item: QueueItem, raison: Abandon["raison"], statut?: number): void {
+  try {
+    const liste = getAbandons();
+    liste.unshift({
+      id: item.id, url: item.url, method: item.method, raison, statut,
+      saisiLe: item.timestamp, abandonneLe: Date.now(),
+    });
+    localStorage.setItem(ABANDONS_KEY, JSON.stringify(liste.slice(0, ABANDONS_MAX)));
+    window.dispatchEvent(new CustomEvent("tm-abandon", { detail: { url: item.url, raison } }));
+  } catch {}
+}
+
 /** Met à jour un item dans la queue (ex. après un retry raté). */
 function updateQueueItem(updated: QueueItem) {
   const queue = getQueue().map((q) => (q.id === updated.id ? updated : q));
@@ -196,6 +246,7 @@ export async function processQueue(): Promise<{ success: number; failed: number;
     // abandonné, quel que soit son compteur de retries.
     if (item.timestamp && now - item.timestamp > MAX_QUEUE_AGE_MS) {
       console.warn("[offline] Item abandonné (trop ancien)", item.url, item.method);
+      noterAbandon(item, "trop-ancien");
       removeFromQueue(item.id);
       failed++;
       continue;
@@ -219,11 +270,13 @@ export async function processQueue(): Promise<{ success: number; failed: number;
         // Erreur 4xx (sauf 408/429) = irrécupérable, on retire.
         if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
           console.warn("[offline] Item retiré (erreur permanente)", item.url, res.status);
+          noterAbandon(item, "refus-serveur", res.status);
           removeFromQueue(item.id);
         } else {
           const retries = (item.retryCount || 0) + 1;
           if (retries >= MAX_RETRIES) {
             console.error("[offline] Item retiré après MAX_RETRIES", item.url);
+            noterAbandon(item, "trop-d-essais");
             removeFromQueue(item.id);
           } else {
             const delayMs = Math.min(60_000 * 2 ** (retries - 1), 30 * 60_000);
@@ -238,6 +291,7 @@ export async function processQueue(): Promise<{ success: number; failed: number;
       const retries = (item.retryCount || 0) + 1;
       if (retries >= MAX_RETRIES) {
         console.error("[offline] Item retiré après MAX_RETRIES (réseau)", item.url);
+        noterAbandon(item, "trop-d-essais");
         removeFromQueue(item.id);
       } else {
         const delayMs = Math.min(60_000 * 2 ** (retries - 1), 30 * 60_000);

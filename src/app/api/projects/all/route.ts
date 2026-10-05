@@ -3,6 +3,10 @@ import { cachedOrFetch } from "@/lib/server-cache";
 import { cachedJson, errorResponse } from "@/lib/edge-cache";
 
 export const revalidate = 30;
+/* Reconstruire cette liste depuis Notion demande une trentaine de
+   secondes. Sans durée déclarée, la requête est coupée bien avant, et
+   l'écran reste vide sur un serveur qui vient de démarrer. */
+export const maxDuration = 60;
 
 export async function GET() {
   try {

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { WifiOff, CloudUpload, RefreshCw, AlertTriangle, ChevronDown, X } from "lucide-react";
-import { isOnline, getQueue, removeFromQueue, warmOfflineCache, getLastCacheWarmTs } from "@/lib/offline";
+import { isOnline, getQueue, removeFromQueue, warmOfflineCache, getLastCacheWarmTs, getAbandons, clearAbandons } from "@/lib/offline";
+import type { Abandon } from "@/lib/offline";
 import type { QueueItem } from "@/lib/offline";
 import {
   countPendingUploads,
@@ -82,6 +83,7 @@ export function OfflineBanner() {
   const [failedReason, setFailedReason]   = useState("");
   const [retrying, setRetrying]           = useState(false);
   const [showDetails, setShowDetails]     = useState(false);
+  const [abandons, setAbandons]           = useState<Abandon[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,6 +99,7 @@ export function OfflineBanner() {
       setPendingUps(uploads);
       setLastWarm(getLastCacheWarmTs());
       setFailedCount(failCount);
+      setAbandons(getAbandons());
       // Récupère le motif d'échec le plus récent pour diagnostic visible.
       if (failCount > 0) {
         try {
@@ -132,6 +135,7 @@ export function OfflineBanner() {
     window.addEventListener("tm-pending-upload-removed",     refresh);
     window.addEventListener("tm-cache-warmed",               handleWarmed);
     window.addEventListener("tm-upload-permanently-failed",  refresh);
+    window.addEventListener("tm-abandon",                    refresh);
 
     // Poll de sécurité (l'essentiel passe par les events online/offline/upload
     // ci-dessus) : 20 s au lieu de 5 s, et rien quand l'app est en arrière-plan
@@ -150,6 +154,7 @@ export function OfflineBanner() {
       window.removeEventListener("tm-pending-upload-removed",     refresh);
       window.removeEventListener("tm-cache-warmed",               handleWarmed);
       window.removeEventListener("tm-upload-permanently-failed",  refresh);
+      window.removeEventListener("tm-abandon",                    refresh);
       clearInterval(interval);
     };
   }, []);
@@ -185,6 +190,38 @@ export function OfflineBanner() {
       setWarming(false);
     }
   };
+
+  /* Saisies abandonnées par la file d'attente. Elles l'étaient en silence :
+     le collaborateur croyait avoir enregistré, et seule la console du
+     navigateur en gardait trace. Tant qu'il n'a pas acquitté, on le dit. */
+  if (abandons.length > 0) {
+    const plusAncien = abandons[abandons.length - 1];
+    const motifs: Record<Abandon["raison"], string> = {
+      "trop-ancien": "en attente depuis plus de 24 h",
+      "refus-serveur": "refusée par le serveur",
+      "trop-d-essais": "huit tentatives sans succès",
+    };
+    return (
+      <div role="alert" aria-live="assertive"
+      className="w-full px-3 py-2 text-xs flex items-center justify-center gap-2 shadow-md bg-red-700 text-white">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden />
+        <span className="text-center leading-tight">
+          {abandons.length} modification{abandons.length > 1 ? "s" : ""} n&apos;{abandons.length > 1 ? "ont" : "a"} pas pu être enregistrée{abandons.length > 1 ? "s" : ""} — à ressaisir
+          <span className="block text-[10px] font-normal opacity-90">
+            {describeQueueItem({ ...plusAncien, type: "update", timestamp: plusAncien.saisiLe } as unknown as QueueItem)}
+            {" · "}{motifs[plusAncien.raison]}
+            {" · saisie le "}{new Date(plusAncien.saisiLe).toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+          </span>
+        </span>
+        <button
+          onClick={() => { clearAbandons(); setAbandons([]); }}
+          className="ml-2 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors font-semibold whitespace-nowrap"
+        >
+          J&apos;ai compris
+        </button>
+      </div>
+    );
+  }
 
   // Alerte critique : photos bloquées en échec permanent — affiché en priorité absolue.
   if (failedCount > 0) {
