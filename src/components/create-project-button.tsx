@@ -127,7 +127,6 @@ export function CreateProjectButton() {
       if (form.mesuresTraiteePar) body.mesuresTraiteePar = form.mesuresTraiteePar;
       if (form.etatCMD) body.etatCMD = form.etatCMD;
       if (form.etatMesures) body.etatMesures = form.etatMesures;
-      if (form.contacts.trim()) body.contacts = form.contacts.trim();
       if (form.contactsRDV.trim()) body.contactsRDV = form.contactsRDV.trim();
       if (form.typeClient) body.typeClient = form.typeClient;
 
@@ -279,14 +278,6 @@ export function CreateProjectButton() {
                       value={form.contactsRDV}
                       onChange={(e) => set("contactsRDV", e.target.value)}
                       placeholder="Nom + téléphone"
-                    />
-                  </Field>
-                  <Field label="Contacts projet (notes)">
-                    <textarea
-                      rows={2}
-                      className={inputCls}
-                      value={form.contacts}
-                      onChange={(e) => set("contacts", e.target.value)}
                     />
                   </Field>
                 </div>

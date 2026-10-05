@@ -1,15 +1,15 @@
-import { NextResponse } from "next/server";
+import { getProjectsMesuresTermine } from "@/lib/notion";
+import { cachedOrFetch } from "@/lib/server-cache";
+import { cachedJson, errorResponse } from "@/lib/edge-cache";
 
 export const revalidate = 30;
+export const maxDuration = 60;
 
 export async function GET() {
   try {
-    // TODO: connecter aux filtres Notion
-    return NextResponse.json([]);
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Erreur" },
-      { status: 500 }
-    );
+    const projects = await cachedOrFetch("projects-mesures-termine", getProjectsMesuresTermine);
+    return cachedJson(projects);
+  } catch (error) {
+    return errorResponse(error);
   }
 }

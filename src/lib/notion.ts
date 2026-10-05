@@ -1137,6 +1137,50 @@ export async function getProjectsMontageJour(jour: string): Promise<Project[]> {
 }
 
 // Projets dont l'état CMD est "Terminé" (archivage CMD).
+/**
+ * Mesures terminées.
+ *
+ * L'adresse qui alimentait cet écran renvoyait une liste vide, avec un « à
+ * faire » laissé dans le code : les trois écrans « terminés » (mesures,
+ * services, SAV) étaient donc toujours déserts, sans que rien ne l'indique.
+ */
+export async function getProjectsMesuresTermine(): Promise<Project[]> {
+  return queryAll(
+    { property: "État - Mesures", status: { equals: "Terminé" } },
+    [{ property: "Mesures traitée le", direction: "descending" }],
+  );
+}
+
+/** Chantiers de type Services dont la commande est terminée. */
+export async function getProjectsServicesTermine(): Promise<Project[]> {
+  return queryAll(
+    {
+      and: [
+        { property: "Type de services", multi_select: { contains: "Services" } },
+        { property: "État - CMD", status: { equals: "Terminé" } },
+      ],
+    },
+    [{ property: "Date Montage", direction: "descending" }],
+  );
+}
+
+/**
+ * SAV réglés : l'état dit « Terminé », ou la case « SAV Clôturé » est cochée.
+ * Les deux existent dans la base et ne sont pas toujours d'accord — on prend
+ * l'un OU l'autre, comme le fait déjà l'affichage des SAV en cours.
+ */
+export async function getProjectsSavTermine(): Promise<Project[]> {
+  return queryAll(
+    {
+      or: [
+        { property: "État - SAV", status: { equals: "Terminé" } },
+        { property: "SAV Clôturé", checkbox: { equals: true } },
+      ],
+    },
+    [{ property: "Date Montage", direction: "descending" }],
+  );
+}
+
 export async function getProjectsCmdTermine(): Promise<Project[]> {
   return queryAll(
     { property: "État - CMD", status: { equals: "Terminé" } },
@@ -1446,7 +1490,9 @@ export async function updateProject(
     };
   }
   if (data.dateCMDUsine !== undefined) {
-    properties["Date CMD – Usine"] = {
+    // Trait d'union, PAS tiret cadratin : Notion refuse une propriété inconnue
+    // et rejette alors TOUTE la sauvegarde, pas seulement ce champ.
+    properties["Date CMD - Usine"] = {
       date: data.dateCMDUsine ? { start: data.dateCMDUsine } : null,
     };
   }
@@ -1522,18 +1568,12 @@ export async function updateProject(
     // Champ passé en TEXTE (dates par cabine "Cab1:… | Cab2:…").
     properties["Date - SAV reçu le"] = { rich_text: toRichText(data.dateSAVRecu || "") };
   }
-  if (data.contacts !== undefined) {
-    // Vérifier que le champ existe bien en tant que rich_text.
-    // "Contact Projet" est souvent une relation dans Notion, pas du texte.
-    // On évite de crasher tout le PATCH si le champ est absent ou mal typé.
-    const contactsType = await getPropertyType("Contacts projet");
-    if (contactsType === "rich_text" || contactsType === "text") {
-      properties["Contacts projet"] = {
-        rich_text: toRichText(data.contacts),
-      };
-    }
-    // Champ absent ou relation → skip silencieux
-  }
+  /* « Contacts projet » : colonne supprimée de la base Notion. Le champ a donc
+     disparu des écrans de saisie — il n'enregistrait plus rien depuis
+     longtemps, en silence. On n'écrit rien ici : détourner la saisie vers une
+     autre colonne reviendrait à mélanger deux informations différentes dans un
+     champ qui sert déjà. Pour le faire revivre, il faut recréer la colonne
+     dans Notion ; le reste du code est prêt (lecture incluse). */
   if (data.contactsRDV !== undefined) {
     properties["Contacts pour RDV"] = {
       rich_text: toRichText(data.contactsRDV),
@@ -1839,11 +1879,9 @@ export async function createProject(data: {
       status: { name: data.etatMesures },
     };
   }
-  if (data.contacts) {
-    properties["Contacts projet"] = {
-      rich_text: toRichText(data.contacts),
-    };
-  }
+  /* « Contacts projet » : colonne supprimée de la base. Elle était écrite ici
+     sans garde-fou — Notion refusant une propriété inconnue, créer un chantier
+     en remplissant ce champ échouait entièrement. */
   if (data.commentairesMesures) {
     properties["Commentaires Mesures"] = {
       rich_text: toRichText(data.commentairesMesures),

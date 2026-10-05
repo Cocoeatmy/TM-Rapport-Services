@@ -120,12 +120,10 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
           servMesuresFournisseurs: form.servMesuresFournisseurs,
           servCmdFournisseurs: form.servCmdFournisseurs,
           nomChantier: form.nomChantier,
-          adresseChantier: form.adresseChantier,
           nbCabines: form.nbCabines ?? undefined,
           typeClient: form.typeClient,
           emplacementCabine: form.emplacementCabine,
           contactsRDV: form.contactsRDV,
-          contacts: form.contacts,
           etatCMD: form.etatCMD,
           etatMesures: form.etatMesures,
           collaborateurs: form.collaborateurs,
@@ -231,13 +229,20 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
               <Field label="Nom du chantier">
                 <input className={inputCls} value={form.nomChantier || ""} onChange={(e) => set("nomChantier", e.target.value)} />
               </Field>
+              {/* « Adresse chantier » est une colonne de type Lieu dans Notion, et
+                  l'API de Notion ne sait pas y écrire. Le champ se laissait
+                  pourtant modifier, et la saisie était abandonnée en silence :
+                  on l'affiche désormais en lecture, en disant où la changer. */}
               <Field label="Adresse chantier">
                 <input
-                  className={inputCls}
+                  className={`${inputCls} opacity-70 cursor-not-allowed`}
                   value={form.adresseChantier || ""}
-                  onChange={(e) => set("adresseChantier", e.target.value)}
-                  placeholder="Rue, Numéro, NPA Localité"
+                  readOnly
+                  title="Modifiable uniquement dans Notion (colonne de type Lieu)"
                 />
+                <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                  À modifier dans Notion : cette colonne est de type « Lieu ».
+                </p>
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Nb. Cabines">
@@ -298,14 +303,6 @@ export function AdminEditModal({ project, isOpen, onClose, onSave }: Props) {
                   value={form.contactsRDV || ""}
                   onChange={(e) => set("contactsRDV", e.target.value)}
                   placeholder="Nom + téléphone"
-                />
-              </Field>
-              <Field label="Contacts projet (notes)">
-                <textarea
-                  rows={2}
-                  className={inputCls}
-                  value={form.contacts || ""}
-                  onChange={(e) => set("contacts", e.target.value)}
                 />
               </Field>
             </div>
