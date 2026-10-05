@@ -10,6 +10,7 @@ import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/l
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
 import { cabinesPosees, cabinesRestantes } from "@/lib/cabines-posees";
 import { rapportTermine, rapportEnAttente } from "@/lib/rapport-etat";
+import { rdvMontageAFixer as estRdvMontageAFixer, rdvServicesAFixer as estRdvServicesAFixer } from "@/lib/rdv-a-fixer";
 import { TourneeAssistant } from "@/components/tournee-assistant";
 import { useNotionColors, statusClasses } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
@@ -2747,26 +2748,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   /* « Cabines en CMD » y figure aussi : la commande est passée, le rendez-vous
      reste à fixer. L'écarter revenait à ne voir ces chantiers qu'une fois la
      marchandise annoncée — trop tard pour caler une date avec le client. */
-  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel", "Livraison partielle", "Cabines à recevoir", "Cabines en CMD"];
   const rdvMesuresAFixerProjects = projects
     .filter(aMesurerAFixer)
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
   const rdvMesuresAFixerCount = rdvMesuresAFixerProjects.length;
-  // RDV Montage à fixer : État - CMD dans RDV_MONTAGE_CMD, EXCLUT les services
+  // RDV Montage à fixer — règle partagée, voir src/lib/rdv-a-fixer.ts.
   // (les projets de type Services ont leur propre carte "RDV Services à fixer").
   const rdvMontageAFixerProjects = projects
-    .filter((p) =>
-      RDV_MONTAGE_CMD.includes(p.etatCMD || "") &&
-      !(p.typeServices || []).some((t) => t === "Services" || t.includes("Services"))
-    )
+    .filter(estRdvMontageAFixer)
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
   const rdvMontageAFixerCount = rdvMontageAFixerProjects.length;
-  // RDV Services à fixer : Type de services = Services ET État - CMD dans RDV_MONTAGE_CMD
+  // RDV Services à fixer — même règle, versant Services.
   const rdvServicesAFixerProjects = projects
-    .filter((p) =>
-      (p.typeServices || []).some((t) => t === "Services" || t.includes("Services")) &&
-      RDV_MONTAGE_CMD.includes(p.etatCMD || "")
-    )
+    .filter(estRdvServicesAFixer)
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
   const rdvServicesAFixerCount = rdvServicesAFixerProjects.length;
   // ── SAV par cabine (nouveau système, onglet SAV des projets de montage) ──────
@@ -7973,12 +7967,15 @@ function CollaborateurDashboard({ userName, projects, onNavigate }: { userName: 
   /* « Cabines en CMD » y figure aussi : la commande est passée, le rendez-vous
      reste à fixer. L'écarter revenait à ne voir ces chantiers qu'une fois la
      marchandise annoncée — trop tard pour caler une date avec le client. */
-  const RDV_MONTAGE_CMD = ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel", "Livraison partielle", "Cabines à recevoir", "Cabines en CMD"];
+
   const isServiceProject = (p: Project) => (p.typeServices || []).some((t) => t === "Services" || t.includes("Services"));
   const byProjet = (a: Project, b: Project) => (a.projet || "").localeCompare(b.projet || "");
   const rdvMesuresAFixer = projects.filter(aMesurerAFixer).sort(byProjet);
-  const rdvMontageAFixer = projects.filter((p) => RDV_MONTAGE_CMD.includes(p.etatCMD || "") && !isServiceProject(p)).sort(byProjet);
-  const rdvServicesAFixer = projects.filter((p) => isServiceProject(p) && RDV_MONTAGE_CMD.includes(p.etatCMD || "")).sort(byProjet);
+  /* Même règle que le tableau de bord de l'administrateur, au même endroit :
+     elle était recopiée ici, et les deux écrans finissaient par ne plus dire
+     la même chose. */
+  const rdvMontageAFixer = projects.filter(estRdvMontageAFixer).sort(byProjet);
+  const rdvServicesAFixer = projects.filter(estRdvServicesAFixer).sort(byProjet);
   const rdvSavAFixer = projects.filter((p) => ["A contacter", "Contact sans réponse", "Attente news"].includes(p.etatSAV || "")).sort(byProjet);
 
   // ── Arrivage (GLOBAL) ──────────────────────────────────────────────────────
