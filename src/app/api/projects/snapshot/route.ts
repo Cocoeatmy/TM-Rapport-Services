@@ -12,7 +12,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getData } from "@/lib/kv-store";
+import { getBlob, getData } from "@/lib/kv-store";
 import { setCacheLong } from "@/lib/server-cache";
 
 export const dynamic = "force-dynamic";
@@ -59,9 +59,15 @@ export async function GET() {
 
     await Promise.all(
       cacheKeys.map(async (cacheKey) => {
-        const kvKey = `snapshot-${cacheKey}`;
+        // La méta dit où la liste a été rangée. Les anciennes exécutions
+        // écrivaient sous « snapshot-… » en clair ; la tâche écrit désormais
+        // sous « snap-… », compressé — d'où la lecture par `getBlob`, qui sait
+        // relire les deux.
+        const kvKey = keys[cacheKey]?.key || `snapshot-${cacheKey}`;
         try {
-          const data = await getData<any>(kvKey);
+          const data = kvKey.startsWith("snap-")
+            ? await getBlob<any>(kvKey)
+            : await getData<any>(kvKey);
           if (data.length > 0) {
             datasets[cacheKey] = data;
             // Réchauffe aussi le cache serveur pour les prochaines requêtes API

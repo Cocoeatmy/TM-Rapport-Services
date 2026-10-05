@@ -30,7 +30,7 @@ import {
   flushRelationCacheToKV,
 } from "@/lib/notion";
 import { setCacheLong } from "@/lib/server-cache";
-import { setData } from "@/lib/kv-store";
+import { setBlob, setData } from "@/lib/kv-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — Vercel Pro
@@ -64,7 +64,14 @@ export async function GET(request: NextRequest) {
     { name: "all-raw",               cacheKey: "projects-all-raw",              fn: getAllProjectsRaw },
   ];
 
-  // Snapshot : accumuler tous les datasets pour les persister dans KV
+  /* Snapshot : seules les listes dont le tableau de bord a besoin au réveil.
+     « all-raw » (14 Mo) et « cmd-termine » (11 Mo) y figuraient aussi : à eux
+     deux ils pesaient 85 % du volume, pour des écrans qui se chargent très
+     bien à la demande. Ils restent préchargés dans le cache serveur, ils ne
+     sont simplement plus recopiés dans Notion. */
+  const CLES_SNAPSHOT = new Set([
+    "projects", "projects-mesures", "projects-services", "projects-sav", "projects-all-active",
+  ]);
   const snapshot: Record<string, any[]> = {};
 
   // Fetch en parallèle (par lots de 3 pour éviter le rate-limit Notion)
@@ -77,7 +84,7 @@ export async function GET(request: NextRequest) {
         try {
           const data = await task.fn();
           setCacheLong(task.cacheKey, data);   // Cache serveur 2h
-          snapshot[task.cacheKey] = data;
+          if (CLES_SNAPSHOT.has(task.cacheKey)) snapshot[task.cacheKey] = data;
           results[task.name] = { count: data.length, ms: Date.now() - t };
         } catch (err: any) {
           results[task.name] = { count: -1, ms: Date.now() - t };
@@ -97,16 +104,29 @@ export async function GET(request: NextRequest) {
   // Persister le snapshot complet dans KV Notion
   // Chaque dataset est stocké séparément pour éviter les blocs trop grands.
   const snapshotMeta: Record<string, { count: number; key: string }> = {};
-  const kvWrites = Object.entries(snapshot).map(async ([cacheKey, data]) => {
-    const kvKey = `snapshot-${cacheKey}`;
+  /* Écriture SÉQUENTIELLE et compressée. Séquentielle parce que Notion ne
+     tolère que ~3 requêtes/s : lancer les cinq de front ne va pas plus vite et
+     déclenche des 429. Compressée (setBlob) parce que l'ancienne écriture bloc
+     par bloc demandait plus d'une heure et ne finissait jamais. Nouvelle clé
+     « snap-… » : la page est vierge, donc rien à supprimer au premier passage,
+     alors que les anciennes pages « snapshot-… » traînent des milliers de
+     blocs hérités des exécutions interrompues. */
+  for (const [cacheKey, data] of Object.entries(snapshot)) {
+    const kvKey = `snap-${cacheKey}`;
     try {
-      await setData(kvKey, data);
+      await setBlob(kvKey, data);
       snapshotMeta[cacheKey] = { count: data.length, key: kvKey };
     } catch (err: any) {
       console.error(`[warm-all] KV write failed for ${kvKey}:`, err.message);
     }
-  });
-  await Promise.all(kvWrites);
+  }
+
+  // L'horodatage ne vaut que si au moins une liste a été écrite : sans ça, un
+  // snapshot vide se ferait passer pour frais et le client s'en contenterait.
+  if (Object.keys(snapshotMeta).length === 0) {
+    console.error("[warm-all] aucune liste écrite — horodatage non mis à jour");
+    return NextResponse.json({ ok: false, reason: "no-dataset-written", results }, { status: 500 });
+  }
 
   // Méta-entrée avec l'horodatage — le client vérifie ça en premier
   const timestamp = new Date().toISOString();
