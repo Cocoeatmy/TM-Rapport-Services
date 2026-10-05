@@ -93,6 +93,11 @@ export function SignalPreviewCard({
   mode = "dashboard",
   onClose,
 }: { project: Project; mode?: string; onClose?: () => void }) {
+  /* Les listes ne transportent plus les pièces jointes (voir useFicheComplete).
+     L'aperçu va les chercher ; tant qu'elles n'arrivent pas, il affiche ce que
+     la liste lui a donné. */
+  const complete = useFicheComplete(p.id);
+  const avecPieces: any = complete || p;
   const etat = (mode.startsWith("mesures") ? p.etatMesures : p.etatCMD) || "—";
   const cls = STATUS_CMD_COLORS[etat] || STATUS_MESURES_COLORS[etat] || "bg-gray-100 text-gray-700";
   const j = daysInfo(mode.startsWith("mesures") ? p.dateMesures : p.dateMontage);
@@ -181,11 +186,11 @@ export function SignalPreviewCard({
           <p className="sg-pv-journal">{linkifyTel(String(p.commentairesMesures))}</p>
         </div>
       )}
-      {mode.startsWith("mesures") && (p.documentsMesures || []).length > 0 && (
+      {mode.startsWith("mesures") && (avecPieces.documentsMesures || []).length > 0 && (
         <div className="sg-pv-bloc">
           <span className="sg-pv-titre"><FileText className="w-3.5 h-3.5" /> Documents pour prise de mesures</span>
           <div className="sg-pv-docs">
-            {(p.documentsMesures || []).map((d, i) => (
+            {(avecPieces.documentsMesures || []).map((d: { name: string; url: string }, i: number) => (
               <a key={`${d.url}-${i}`} href={d.url} target="_blank" rel="noopener noreferrer"
                 className="sg-pv-doc" title={d.name}>
                 {d.name || `Document ${i + 1}`}
@@ -196,11 +201,11 @@ export function SignalPreviewCard({
       )}
 
       {/* Documents pour Montage */}
-      {((p as any).documentsMontagee || []).length > 0 && (
+      {(avecPieces.documentsMontagee || []).length > 0 && (
         <div className="sg-pv-bloc">
           <span className="sg-pv-titre"><FileText className="w-3.5 h-3.5" /> Documents pour Montage</span>
           <div className="sg-pv-docs">
-            {((p as any).documentsMontagee as { name: string; url: string }[]).map((d, i) => (
+            {(avecPieces.documentsMontagee as { name: string; url: string }[]).map((d, i) => (
               <a key={`${d.url}-${i}`} href={d.url} target="_blank" rel="noopener noreferrer"
                 className="sg-pv-doc" title={d.name}>
                 {d.name || `Document ${i + 1}`}
@@ -277,30 +282,43 @@ function personnes(details: any[] | undefined, noms: string[] | undefined): Pers
     .map((nom) => ({ nom, tel: "", mail: "" }));
 }
 
-function ContactsProjet({ project }: { project: Project }) {
-  const [fiche, setFiche] = useState<Project | null>(() => ficheLue.get(project.id) || null);
+/**
+ * La fiche complète d'un chantier, lue une fois et partagée.
+ *
+ * Les listes ne transportent plus les pièces jointes : à elles seules, elles
+ * pesaient douze mégaoctets sur « tous les projets », pour un écran qui
+ * n'affiche que des noms et des dates. L'aperçu, lui, en a besoin — il va donc
+ * les chercher à l'ouverture, comme il le faisait déjà pour les contacts.
+ */
+function useFicheComplete(projectId: string): Project | null {
+  const [fiche, setFiche] = useState<Project | null>(() => ficheLue.get(projectId) || null);
 
   useEffect(() => {
-    const deja = ficheLue.get(project.id);
+    const deja = ficheLue.get(projectId);
     setFiche(deja || null);
     if (deja) return;
     let vivant = true;
     /* L'aperçu suit le survol : sans ce délai, traverser la liste à la
        souris déclencherait une lecture par ligne franchie. */
     const t = setTimeout(() => {
-      fetch(`/api/projects/${project.id}`)
+      fetch(`/api/projects/${projectId}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (!d || !d.id) return;
-          ficheLue.set(project.id, d);
+          ficheLue.set(projectId, d);
           if (vivant) setFiche(d);
         })
         .catch(() => {});
     }, 300);
     return () => { vivant = false; clearTimeout(t); };
-  }, [project.id]);
+  }, [projectId]);
 
-  const p: any = fiche && fiche.id === project.id ? fiche : project;
+  return fiche && fiche.id === projectId ? fiche : null;
+}
+
+function ContactsProjet({ project }: { project: Project }) {
+  const fiche = useFicheComplete(project.id);
+  const p: any = fiche || project;
 
   const familles = [
     { titre: "Grossiste", societes: p.grossistesNames, gens: personnes(p.contactsGrossisteDetails, p.contactsProjetNames) },
@@ -318,7 +336,6 @@ function ContactsProjet({ project }: { project: Project }) {
      remplacer : on les garde tant qu'ils servent. */
   const libres = [
     { t: "Pour RDV", v: String(p.contactsRDV || "").trim() },
-    { t: "Projet", v: String(p.contacts || "").trim() },
   ].filter((c) => c.v);
 
   if (familles.length === 0 && libres.length === 0) return null;

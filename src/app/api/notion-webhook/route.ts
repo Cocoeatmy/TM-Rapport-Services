@@ -122,6 +122,19 @@ export async function POST(req: NextRequest) {
       "page.content_updated",
     ];
 
+    /* L'abonnement couvre tout l'espace de travail, pas seulement la base des
+       chantiers. Or l'app range aussi ses propres données dans des pages
+       Notion : une seule opération d'entretien peut produire des milliers
+       d'événements, et vider le cache à chaque fois reviendrait à relancer
+       l'app sans arrêt. On ne réagit donc qu'à ce qui touche la base des
+       chantiers, reconnue à son identifiant où qu'il apparaisse dans le
+       message. */
+    const idBase = (process.env.NOTION_DATABASE_ID || "").replace(/-/g, "");
+    const concerneLesChantiers = !!idBase && rawBody.replace(/-/g, "").includes(idBase);
+    if (!concerneLesChantiers) {
+      return NextResponse.json({ ok: true, skipped: "hors base chantiers" });
+    }
+
     if (relevantEvents.some((e) => eventType.includes(e)) || relevantEvents.includes(eventType)) {
       // a) Cache mémoire serveur (instance courante)
       invalidateCache();
