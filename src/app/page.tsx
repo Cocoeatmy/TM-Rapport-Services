@@ -1385,6 +1385,9 @@ function HomePage() {
   // dans l'ancien panneau (montage↔services qui clignotent). On garde, par id, la
   // copie au last_edited_time le plus récent et on ne régresse jamais.
   const dashTaggedRef = useRef<Map<string, any>>(new Map());
+  /** Depuis quand un projet n'apparaît plus dans aucune liste — voir la
+   *  rétention du tableau de bord : un creux de cache n'est pas une clôture. */
+  const dashAbsencesRef = useRef<Map<string, number>>(new Map());
   const [cabineAttributions, setCabineAttributions] = useState<Record<string, string[]>>({});
 
   // Pré-chargement silencieux des stats au montage de la page.
@@ -2337,13 +2340,24 @@ function HomePage() {
             // par une plus ancienne. À last_edited_time égal, l'ordre (montage,
             // mesures, services, sav) tranche → priorité montage, comme avant.
             //
-            // Rétention : on garde la version la plus récente d'un projet TANT
-            // QU'IL est présent dans AU MOINS une liste courante. Dès qu'il
-            // disparaît de TOUTES les listes (projet clôturé/terminé → sorti des
-            // listes actives), on le retire IMMÉDIATEMENT (pas de délai de grâce),
-            // pour ne jamais afficher un montage déjà clôturé.
+            /* Rétention : on garde la version la plus récente d'un projet tant
+               qu'il est présent dans au moins une liste courante.
+             
+               Un projet absent de TOUTES les listes n'était pas forcément
+               clôturé : chaque instance Vercel a son propre cache, et deux
+               rafraîchissements successifs peuvent tomber sur des instances
+               différentes. Une liste momentanément périmée faisait disparaître
+               un montage, le suivant le ramenait — d'où les montages du jour
+               qui clignotaient sur un poste et pas sur l'autre.
+             
+               On attend donc de ne plus l'avoir vu pendant une MINUTE avant de
+               l'oublier. Un chantier réellement clôturé s'efface une minute plus
+               tard, ce qui ne gêne personne ; un creux de cache, lui, ne se voit
+               plus du tout. */
             const map = dashTaggedRef.current;
+            const absences = dashAbsencesRef.current;
             const editTs = (p: any) => Date.parse(p?.lastEditedTime || "") || 0;
+            const maintenant = Date.now();
             const seen = new Set<string>();
             const consider = (list: Project[] | undefined, source: "montage" | "mesures" | "services" | "sav") => {
               for (const p of list || []) {
@@ -2356,8 +2370,12 @@ function HomePage() {
             consider(projectsData["mesures"], "mesures");
             consider(projectsData["services"], "services");
             consider(projectsData["sav"], "sav");
+            const GRACE_MS = 60_000;
             for (const id of map.keys()) {
-              if (!seen.has(id)) map.delete(id);
+              if (seen.has(id)) { absences.delete(id); continue; }
+              const depuis = absences.get(id);
+              if (depuis === undefined) absences.set(id, maintenant);
+              else if (maintenant - depuis >= GRACE_MS) { map.delete(id); absences.delete(id); }
             }
             const tagged = [...map.values()];
             return (

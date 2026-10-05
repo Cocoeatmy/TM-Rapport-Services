@@ -1921,6 +1921,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [workFrom, setWorkFrom] = useState("");
   const [workTo, setWorkTo] = useState("");
   const [terminatedProjects, setTerminatedProjects] = useState<Project[]>(() => terminatedProjectsInit);
+  /** Chantiers déjà vus dans la charge de la semaine — ils n'en sortent plus. */
+  const chargeMemoireRef = useRef<Map<string, Project>>(new Map());
   const [terminatedLoading, setTerminatedLoading] = useState(false);
   const [archivesCount, setArchivesCount] = useState<number | null>(null);
 
@@ -3243,9 +3245,26 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                  paraissait vide alors que les cabines avaient bien été posées.
                  Un montage sur plusieurs jours compte sur chacun de ses jours
                  ouvrés, comme dans le calendrier. */
-              const weekSource = [...projects, ...terminatedProjects]
-                .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
-                .filter((p) => p.dateMontage);
+              /* Mémoire de la charge : un chantier vu une fois y reste.
+               
+                 Une semaine doit pouvoir se relire telle qu'elle a été vécue.
+                 Or un montage clôturé quitte les listes actives et n'entre dans
+                 les terminés qu'au rafraîchissement suivant : entre les deux, il
+                 disparaissait de la barre. Les creux de cache faisaient le même
+                 effet, en pire — un va-et-vient de quelques minutes.
+               
+                 On garde donc la dernière version connue de chaque chantier
+                 daté, et on ne l'oublie qu'au rechargement de la page. Les
+                 annulés sortent : eux n'ont jamais eu lieu. */
+              const vus = chargeMemoireRef.current;
+              [...projects, ...terminatedProjects].forEach((p) => {
+                if (!p.dateMontage && !String(p.heureArrivee || "").match(/\d{4}-\d{2}-\d{2}/)) return;
+                if ((p.etatCMD || "") === "Annulé") { vus.delete(p.id); return; }
+                const connu = vus.get(p.id);
+                const ts = (x: Project) => Date.parse((x as any).lastEditedTime || "") || 0;
+                if (!connu || ts(p) >= ts(connu)) vus.set(p.id, p);
+              });
+              const weekSource = [...vus.values()].filter((p) => p.dateMontage);
               /* Jours PLANIFIÉS d'un montage : la fenêtre portée par la fiche. */
               const joursPlanifies = (p: Project): string[] => {
                 const start = (p.dateMontage || "").split("T")[0];
