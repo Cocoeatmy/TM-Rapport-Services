@@ -387,16 +387,36 @@ function CommentIcon() {
   );
 }
 // Valeur d'une ligne RDV + (facultatif) le commentaire Notion en dessous.
-function RowValue({ value, comment }: { value: string; comment?: string }) {
+function RowValue({ value, comment, sousValeur }: { value: string; comment?: string; sousValeur?: string }) {
   const c = (comment || "").trim();
+  const sv = (sousValeur || "").trim();
   return (
     <View style={{ flex: 1 }}>
       <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: "#1a1a1a" }}>{value}</Text>
+      {/* Heure du rendez-vous, dans la même discrétion que la jauge d'en face. */}
+      {sv ? <Text style={{ fontSize: 7, color: "#666", marginTop: 2 }}>{sv}</Text> : null}
       {c ? <Text style={{ fontSize: 8, color: "#555", marginTop: 2, lineHeight: 1.3 }}>{c}</Text> : null}
     </View>
   );
 }
-function LineRow({ label, value, docUrl, comment }: { label: string; value: string; docUrl?: string; comment?: string }) {
+
+/**
+ * Heure du rendez-vous telle que Notion la porte.
+ *
+ * Une date sans heure s'écrit « 2026-10-06 » ; avec heure, « 2026-10-06T08:00 »
+ * suivi du décalage. On rend l'heure LOCALE suisse, celle qui a été saisie —
+ * la lire en UTC l'aurait décalée de deux heures en été.
+ */
+function heureRdv(iso?: string | null): string {
+  const v = String(iso || "");
+  if (!v.includes("T")) return "";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("fr-CH", {
+    hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich",
+  }).format(d);
+}
+function LineRow({ label, value, docUrl, comment, sousValeur }: { label: string; value: string; docUrl?: string; comment?: string; sousValeur?: string }) {
   const hasComment = !!(comment || "").trim();
   return (
     <View style={styles.row}>
@@ -409,13 +429,13 @@ function LineRow({ label, value, docUrl, comment }: { label: string; value: stri
         ) : null}
         {hasComment ? <CommentIcon /> : null}
       </View>
-      <RowValue value={value} comment={comment} />
+      <RowValue value={value} comment={comment} sousValeur={sousValeur} />
     </View>
   );
 }
 // Ligne avec barre de progression entre le libellé et la valeur.
-function ProgressRow({ label, pct, caption, color, value, docUrl, comment }: {
-  label: string; pct: number; caption: string; color: string; value: string; docUrl?: string; comment?: string;
+function ProgressRow({ label, pct, caption, color, value, docUrl, comment, sousValeur }: {
+  label: string; pct: number; caption: string; color: string; value: string; docUrl?: string; comment?: string; sousValeur?: string;
 }) {
   const w = Math.max(0, Math.min(100, pct));
   const hasComment = !!(comment || "").trim();
@@ -436,7 +456,7 @@ function ProgressRow({ label, pct, caption, color, value, docUrl, comment }: {
         </View>
         <Text style={{ fontSize: 7, color: "#666", marginTop: 2 }}>{caption}</Text>
       </View>
-      <RowValue value={value} comment={comment} />
+      <RowValue value={value} comment={comment} sousValeur={sousValeur} />
     </View>
   );
 }
@@ -718,8 +738,12 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
               datePart = `${days.length} jours${durStr(totalMin) ? `  ·  ${durStr(totalMin)}` : ""}`;
             }
             const value = dateAndWho(datePart, montageWho);
+            /* L'heure fixée avec le client, telle que Notion la porte. Elle ne
+               se déduit pas des pointages : un monteur arrivé en retard ne
+               change pas l'heure du rendez-vous. */
+            const heureDuRdv = heureRdv(project.dateMontage);
             const montageRow = total <= 0
-              ? <LineRow label="Montage" value={value} docUrl={montagePhotosUrl} />
+              ? <LineRow label="Montage" value={value} docUrl={montagePhotosUrl} sousValeur={heureDuRdv} />
               : (
                 <ProgressRow
                   label="Montage"
@@ -728,6 +752,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
                   color={pct >= 100 ? "#15803d" : "#2563eb"}
                   value={value}
                   docUrl={montagePhotosUrl}
+                  sousValeur={heureDuRdv}
                 />
               );
             return (
