@@ -1707,13 +1707,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const sgDay = (dateStr: string) => {
     const isServices = (p: Project) => (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"));
     const isGarantie = (p: Project) => (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"));
-    const day = projects.filter((p) => projectSpansDate(p, dateStr));
+    const day = projetsConnus.filter((p) => projectSpansDate(p, dateStr));
     const cab = (arr: Project[]) => arr.reduce((s, p) => s + (p.nbCabines || 0), 0);
     const montages = day.filter((p) => getProjectSource(p) !== "mesures" && !isServices(p));
     const mesures = day.filter((p) => getProjectSource(p) === "mesures");
     const services = day.filter(isServices);
     const garanties = day.filter(isGarantie);
-    const sav = projects.filter((p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === dateStr);
+    const sav = projetsConnus.filter((p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === dateStr);
     /* Cabines déjà posées parmi celles du jour : l'avancement réel des
        équipes, et non ce qui était prévu. Bornée au total du chantier — une
        saisie trop haute ferait un compteur qui dépasse son propre maximum. */
@@ -1921,8 +1921,30 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [workFrom, setWorkFrom] = useState("");
   const [workTo, setWorkTo] = useState("");
   const [terminatedProjects, setTerminatedProjects] = useState<Project[]>(() => terminatedProjectsInit);
-  /** Chantiers déjà vus dans la charge de la semaine — ils n'en sortent plus. */
-  const chargeMemoireRef = useRef<Map<string, Project>>(new Map());
+  /**
+   * Tous les chantiers vus depuis l'ouverture de la page.
+   *
+   * Un montage clôturé quitte les listes actives et n'entre dans les terminés
+   * qu'au rafraîchissement suivant ; entre les deux, il disparaissait des
+   * journées et de la charge. Or une journée écoulée doit se relire telle
+   * qu'elle a été vécue — c'est même tout l'intérêt d'y revenir.
+   *
+   * On garde donc la dernière version connue de chaque chantier, et on ne
+   * l'oublie qu'au rechargement de la page. Les annulés sortent : eux n'ont
+   * jamais eu lieu.
+   */
+  const memoireProjetsRef = useRef<Map<string, Project>>(new Map());
+  const projetsConnus = (() => {
+    const vus = memoireProjetsRef.current;
+    const ts = (x: Project) => Date.parse((x as any).lastEditedTime || "") || 0;
+    [...projects, ...terminatedProjects].forEach((p) => {
+      if (!p?.id) return;
+      if ((p.etatCMD || "") === "Annulé") { vus.delete(p.id); return; }
+      const connu = vus.get(p.id);
+      if (!connu || ts(p) >= ts(connu)) vus.set(p.id, p);
+    });
+    return [...vus.values()];
+  })();
   const [terminatedLoading, setTerminatedLoading] = useState(false);
   const [archivesCount, setArchivesCount] = useState<number | null>(null);
 
@@ -3256,15 +3278,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                  On garde donc la dernière version connue de chaque chantier
                  daté, et on ne l'oublie qu'au rechargement de la page. Les
                  annulés sortent : eux n'ont jamais eu lieu. */
-              const vus = chargeMemoireRef.current;
-              [...projects, ...terminatedProjects].forEach((p) => {
-                if (!p.dateMontage && !String(p.heureArrivee || "").match(/\d{4}-\d{2}-\d{2}/)) return;
-                if ((p.etatCMD || "") === "Annulé") { vus.delete(p.id); return; }
-                const connu = vus.get(p.id);
-                const ts = (x: Project) => Date.parse((x as any).lastEditedTime || "") || 0;
-                if (!connu || ts(p) >= ts(connu)) vus.set(p.id, p);
-              });
-              const weekSource = [...vus.values()].filter((p) => p.dateMontage);
+              const weekSource = projetsConnus.filter((p) => p.dateMontage);
               /* Jours PLANIFIÉS d'un montage : la fenêtre portée par la fiche. */
               const joursPlanifies = (p: Project): string[] => {
                 const start = (p.dateMontage || "").split("T")[0];
