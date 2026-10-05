@@ -24,6 +24,7 @@ import { getData, getDataFresh, setData } from "@/lib/kv-store";
 import { emailEnabled } from "@/lib/email-prefs";
 import { formatSwissDate, formatSwissDateTime } from "@/lib/time-utils";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
+import { parseInterventions, minutesInterventions, type InterventionSav } from "@/lib/sav-interventions";
 import {
   type PhotoBucketKey,
   BUCKET_LABEL,
@@ -835,6 +836,20 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
               while ((m = re.exec(raw))) { const v = m[2].trim(); if (v) map[parseInt(m[1], 10) - 1] = v; }
               return map;
             };
+            /* Passages par lot : un montage qui demande deux venues doit les
+               montrer toutes. Les colonnes d'heures ne gardent que la dernière
+               — s'y fier faisait disparaître la première journée du rapport. */
+            const passagesParLot = (() => {
+              const m: Record<number, InterventionSav[]> = {};
+              const re = /Cab(\d+)\s*:([^|]*)/g;
+              let x: RegExpExecArray | null;
+              while ((x = re.exec(String(project.interventionsMontageCabines || "")))) {
+                m[parseInt(x[1], 10) - 1] = parseInterventions(x[2]);
+              }
+              return m;
+            })();
+            const dureeTexte = (min: number) =>
+              min > 0 ? `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}` : "";
             const sousTraitMap = parseSousTrait(project.monteursSousTraitance || "");
             const arriveeMap = parseCab(project.heureArrivee || "");
             const departMap = parseCab(project.heureDepart || "");
@@ -850,6 +865,46 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                     const customNom = cabineAttribution?.noms?.[i];
                     const cabLabel = (customNom && customNom !== `Cabine ${i + 1}`) ? customNom : `Cabine ${i + 1}`;
                     const monteurNom = cabineAttribution?.attribution?.[i] || sousTraitMap[i] || null;
+                    const passages = (passagesParLot[i] || []).filter((x) => x.date || x.arrivee || x.depart);
+                    /* Plusieurs venues : une ligne chacune, et le total en
+                       dessous — c'est ce total qui se facture et se compare. */
+                    if (passages.length > 0 && !sousTraitMap[i]) {
+                      const minutes = minutesInterventions(passages);
+                      return (
+                        <View key={i} wrap={false} style={{ marginBottom: 8 }}>
+                          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                            <View style={{ width: 80, alignSelf: "center" }}>
+                              <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1e3a5f" }}>{cabLabel}</Text>
+                              {monteurNom ? <Text style={{ fontSize: 7, color: "#888", marginTop: 1 }}>{monteurNom}</Text> : null}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              {passages.map((pa, k) => (
+                                <View key={k} style={{ flexDirection: "row", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                                  <View style={{ ...styles.timeBox, flex: 1.5, marginRight: 4 }}>
+                                    <Text style={styles.timeLabel}>Date</Text>
+                                    <Text style={styles.timeValue}>{fmtDate(pa.date) || "--"}</Text>
+                                  </View>
+                                  <View style={{ ...styles.timeBox, flex: 1, marginRight: 4 }}>
+                                    <Text style={styles.timeLabel}>Arrivée</Text>
+                                    <Text style={styles.timeValue}>{pa.arrivee || "--:--"}</Text>
+                                  </View>
+                                  <View style={{ ...styles.timeBox, flex: 1 }}>
+                                    <Text style={styles.timeLabel}>Départ</Text>
+                                    <Text style={styles.timeValue}>{pa.depart || "--:--"}</Text>
+                                  </View>
+                                </View>
+                              ))}
+                              {(passages.length > 1 || minutes > 0) && (
+                                <Text style={{ fontSize: 7, color: "#888", marginTop: 1 }}>
+                                  {passages.length} passage{passages.length > 1 ? "s" : ""}
+                                  {dureeTexte(minutes) ? ` · ${dureeTexte(minutes)} sur place` : ""}
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    }
                     return (
                     <View key={i} wrap={false} style={{ flexDirection: "row", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                       <View style={{ width: 80, alignSelf: "center" }}>
