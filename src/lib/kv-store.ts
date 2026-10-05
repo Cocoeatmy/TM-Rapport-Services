@@ -363,21 +363,33 @@ async function readFromNotionSafe<T>(key: string): Promise<T[]> {
  * 2. Otherwise fetch from Notion (the primary store).
  * 3. Populate the in-memory cache for the next fast read.
  */
+/* Lectures déjà en vol, par clé. Le chargement d'un chantier interroge les sept
+   champs photo en parallèle, et tous tombaient sur le même cache vide : sept
+   lectures simultanées de la MÊME page Notion, à chaque ouverture de fiche.
+   On attend la première au lieu d'en lancer sept. */
+const lecturesEnVol = new Map<string, Promise<unknown[]>>();
+
 export async function getData<T>(key: string): Promise<T[]> {
   // 1. In-memory cache (fast, survives within the same process)
   const cached = getCached<T>(key);
   if (cached !== null) return cached;
 
+  const enVol = lecturesEnVol.get(key);
+  if (enVol) return (await enVol) as T[];
+
   // 2. Primary store: Notion (mode safe → erreur réseau → [] sans throw)
   console.log(`[kv-store] Cache miss for "${key}", fetching from Notion...`);
-  const data = await readFromNotionSafe<T>(key);
-
-  // 3. Populate cache
-  if (data.length > 0) {
-    setCache(key, data);
+  const lecture = readFromNotionSafe<T>(key).then((data) => {
+    // 3. Populate cache
+    if (data.length > 0) setCache(key, data);
+    return data;
+  }) as Promise<unknown[]>;
+  lecturesEnVol.set(key, lecture);
+  try {
+    return (await lecture) as T[];
+  } finally {
+    lecturesEnVol.delete(key);
   }
-
-  return data;
 }
 
 /**
