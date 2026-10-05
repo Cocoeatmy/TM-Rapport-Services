@@ -16,6 +16,7 @@ import { OfflineBanner } from "@/components/offline-banner";
 import { GlobalSearch } from "@/components/global-search";
 import { BackButton } from "@/components/back-button";
 import { HomeButton } from "@/components/home-button";
+import { MajAuto } from "@/components/maj-auto";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -33,6 +34,11 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
+
+/** Version du code embarqué dans cette page — comparée à /api/build par
+ *  `MajAuto` pour détecter une app restée sur un ancien bundle (cas iPhone). */
+const BUILD =
+  process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || "dev";
 
 export const metadata: Metadata = {
   title: "TM Rapport Services",
@@ -61,6 +67,7 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <head>
+        <meta name="tm-build" content={BUILD} />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -153,6 +160,7 @@ export default function RootLayout({
         </main>
         {/* Assistant IA : bouton flottant fixe (bas à droite), masqué sur la
             page projet. Rendu au niveau page (positionnement fixed). */}
+        <MajAuto />
         <AIChatbot />
         <Toaster position="top-center" richColors />
         <script

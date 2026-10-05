@@ -7,7 +7,7 @@
 //   v11 : pré-cache explicite des pages /client/ et /projet/ + leurs données API
 //         via message PRECACHE_URLS — permet consultation hors-ligne garantie.
 
-const VERSION = "v33";
+const VERSION = "v34";
 const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;
@@ -61,13 +61,25 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== STATIC_CACHE && key !== API_CACHE && key !== CACHE_NAME && key !== PRECACHE_CACHE)
-          .map((key) => caches.delete(key))
-      )
-    )
+    caches.keys().then(async (keys) => {
+      const perimes = keys.filter(
+        (key) => key !== STATIC_CACHE && key !== API_CACHE && key !== CACHE_NAME && key !== PRECACHE_CACHE,
+      );
+      await Promise.all(perimes.map((key) => caches.delete(key)));
+
+      // MISE À JOUR (et non première installation) : les pages ouvertes
+      // exécutent encore l'ANCIEN bundle, chargé depuis les caches qu'on vient
+      // d'effacer. Elles ne le savent pas et peuvent le garder des jours — c'est
+      // ce qui faisait afficher à l'iPhone d'autres chiffres qu'au Mac. On les
+      // renavigue une fois, pour qu'elles repartent sur le code à jour.
+      if (perimes.length === 0) return;
+      const fenetres = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const fenetre of fenetres) {
+        if ("navigate" in fenetre) {
+          try { await fenetre.navigate(fenetre.url); } catch { /* onglet occupé : il repartira au prochain lancement */ }
+        }
+      }
+    }),
   );
   self.clients.claim();
 });
@@ -191,6 +203,11 @@ self.addEventListener("fetch", (event) => {
 
   // Idem pour le Rapport SAV (PDF) : jamais depuis le cache SW.
   if (url.pathname.startsWith("/api/sav/")) return;
+
+  // === Signature du build : JAMAIS de cache SW ===
+  // C'est elle qui dit au client si son code est périmé. Servie depuis le cache,
+  // elle mentirait, et le client se rechargerait en boucle ou pas du tout.
+  if (url.pathname === "/api/build") return;
 
   // === API : network-first avec timeout 400 ms ===
   if (url.pathname.startsWith("/api/")) {
@@ -339,6 +356,22 @@ self.addEventListener("notificationclick", function (event) {
 
 // === Message handler ===
 self.addEventListener("message", (event) => {
+  // Purge de la coquille HTML et des fichiers du build, sur demande du client
+  // (voir `MajAuto`) : l'app tourne sur un ancien bundle et va se recharger.
+  // Le cache des données (API_CACHE) est conservé — il reste consultable hors
+  // ligne, et il n'est pas en cause.
+  if (event.data?.type === "PURGE_APP_SHELL") {
+    event.waitUntil(
+      Promise.all([
+        caches.delete(CACHE_NAME),
+        caches.delete(STATIC_CACHE),
+        caches.delete(PRECACHE_CACHE),
+      ]).then(() => {
+        event.source?.postMessage({ type: "APP_SHELL_PURGED" });
+      }),
+    );
+  }
+
   // Purge du cache API sur demande (ex: sync manuelle)
   if (event.data?.type === "INVALIDATE_API_CACHE") {
     event.waitUntil(

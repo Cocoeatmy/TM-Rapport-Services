@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-02T07:24:37.888Z",
+  "genereLe": "2026-10-05T18:30:16.181Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -153,6 +153,16 @@
       "gardePage": false,
       "methodes": [
         "POST",
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/build",
+      "type": "api",
+      "fichier": "src/app/api/build/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
         "GET"
       ]
     },
