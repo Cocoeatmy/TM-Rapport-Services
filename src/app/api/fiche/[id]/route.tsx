@@ -672,10 +672,12 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
             <LineRow
               label="Mesures"
               value={dateAndWho(joinVal(etatMesuresLisible(project.etatMesures, !!mesuresDocUrl)), project.mesuresTraiteePar)}
-              /* Mesures relevées par quelqu'un d'autre : la flèche proposait de
-                 télécharger un relevé qui n'est pas le nôtre. Les documents de
-                 montage restent accessibles par leur propre section. */
-              docUrl={/projet sans de? mesures/i.test(project.etatMesures || "") ? undefined : mesuresDocUrl}
+              /* La flèche suit les DOCUMENTS, pas l'auteur du relevé : un
+                 chantier peut avoir des mesures prises par quelqu'un d'autre,
+                 et le monteur en a tout autant besoin sur place. Elle
+                 n'apparaît que si « Documents pour Montage » contient
+                 quelque chose. */
+              docUrl={mesuresDocUrl}
             />
           )}
           {/* Démontage : seulement quand une dépose est prévue. La ligne vide
