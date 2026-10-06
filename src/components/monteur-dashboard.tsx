@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
 import { cabinesPosees, cabinesRestantes } from "@/lib/cabines-posees";
+import { cabinesMesurees } from "@/lib/cabines-mesurees";
 import { rapportTermine, rapportEnAttente } from "@/lib/rapport-etat";
 import { rdvMontageAFixer as estRdvMontageAFixer, rdvServicesAFixer as estRdvServicesAFixer } from "@/lib/rdv-a-fixer";
 import { TourneeAssistant } from "@/components/tournee-assistant";
@@ -1706,20 +1707,36 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const sgDay = (dateStr: string) => {
     const isServices = (p: Project) => (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"));
     const isGarantie = (p: Project) => (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"));
-    const day = projetsConnus.filter((p) => projectSpansDate(p, dateStr));
+    /* Chaque ligne se décide sur SA date, et non sur la liste d'où le chantier
+       vient. Un relevé de mesures prévu aujourd'hui sur un chantier déjà
+       commandé était compté comme un montage : ses cabines gonflaient le
+       « 12 / 17 posées » alors que personne n'allait les poser ce jour-là.
+       Un chantier mesuré aujourd'hui et monté la semaine suivante manquait
+       même complètement — sa date de montage l'emportait sur celle du relevé. */
+    const jourDeMontage = (p: Project) => {
+      const debut = (p.dateMontage || "").split("T")[0];
+      if (!debut) return false;
+      const fin = (p.dateMontageEnd || "").split("T")[0];
+      return fin ? getWorkingDays(debut, fin).includes(dateStr) : debut === dateStr;
+    };
+    const jourDeMesure = (p: Project) => (p.dateMesures || "").split("T")[0] === dateStr;
+    const day = projetsConnus.filter((p) => projectSpansDate(p, dateStr) || jourDeMesure(p));
     const cab = (arr: Project[]) => arr.reduce((s, p) => s + (p.nbCabines || 0), 0);
-    const montages = day.filter((p) => getProjectSource(p) !== "mesures" && !isServices(p));
-    const mesures = day.filter((p) => getProjectSource(p) === "mesures");
-    const services = day.filter(isServices);
-    const garanties = day.filter(isGarantie);
+    const montages = day.filter((p) => jourDeMontage(p) && !isServices(p));
+    const mesures = day.filter(jourDeMesure);
+    const services = day.filter((p) => jourDeMontage(p) && isServices(p));
+    const garanties = day.filter((p) => jourDeMontage(p) && isGarantie(p));
     const sav = projetsConnus.filter((p) => p.etatSAV === "RDV fixé" && (p.dateRDVSAV || "").split("T")[0] === dateStr);
     /* Cabines déjà posées parmi celles du jour : l'avancement réel des
        équipes, et non ce qui était prévu. Bornée au total du chantier — une
        saisie trop haute ferait un compteur qui dépasse son propre maximum. */
     const posees = montages.reduce((s, p) => s + cabinesPosees(p), 0);
+    /* Même lecture pour les relevés : ce qui est mesuré, et non ce qui était
+       prévu de l'être. */
+    const mesurees = mesures.reduce((s, p) => s + cabinesMesurees(p), 0);
     return {
       montages: montages.length, montagesCab: cab(montages), montagesPosees: posees, montagesList: montages,
-      mesures: mesures.length, mesuresCab: cab(mesures), mesuresList: mesures,
+      mesures: mesures.length, mesuresCab: cab(mesures), mesuresMesurees: mesurees, mesuresList: mesures,
       services: services.length, servicesCab: cab(services), servicesList: services,
       sav: sav.length, savCab: cab(sav), savList: sav,
       garanties: garanties.length, garantiesCab: cab(garanties), garantiesList: garanties,
@@ -3127,8 +3144,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               }),
             ]).map((col) => {
               const lignes = [
-                { label: "Montages", count: col.d.montages, cab: col.d.montagesCab, color: "#1b63ff", posees: col.d.montagesPosees, projets: col.d.montagesList },
-                { label: "Mesures", count: col.d.mesures, cab: col.d.mesuresCab, color: "#0e7490", projets: col.d.mesuresList },
+                { label: "Montages", count: col.d.montages, cab: col.d.montagesCab, color: "#1b63ff", faites: col.d.montagesPosees, verbe: "posées", projets: col.d.montagesList },
+                { label: "Mesures", count: col.d.mesures, cab: col.d.mesuresCab, color: "#0e7490", faites: col.d.mesuresMesurees, verbe: "mesurées", projets: col.d.mesuresList },
                 { label: "Services", count: col.d.services, cab: col.d.servicesCab, color: "#6d28d9", projets: col.d.servicesList },
                 { label: "SAV", count: col.d.sav, cab: col.d.savCab, color: "#b45309", projets: col.d.savList },
                 { label: "Garanties", count: col.d.garanties, cab: col.d.garantiesCab, color: "#15803d", projets: col.d.garantiesList },
@@ -3187,10 +3204,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       {/* Avancement du jour, et du jour seulement : demain,
                           rien n'est encore posé — un « 0 / 8 » y ressemblerait
                           à du retard. */}
-                      {col.title === "Aujourd'hui" && r.posees !== undefined && r.cab > 0 && (
-                        <span className={`sg-row-pose${r.posees >= r.cab ? " is-done" : r.posees > 0 ? " is-wip" : ""}`}
-                              title={`${r.posees} cabine${r.posees > 1 ? "s" : ""} posée${r.posees > 1 ? "s" : ""} sur ${r.cab}`}>
-                          <b>{r.posees}</b>/{r.cab} posées
+                      {col.title === "Aujourd'hui" && r.faites !== undefined && r.cab > 0 && (
+                        <span className={`sg-row-pose${r.faites >= r.cab ? " is-done" : r.faites > 0 ? " is-wip" : ""}`}
+                              title={`${r.faites} cabine${r.faites > 1 ? "s" : ""} ${r.verbe === "posées" ? "posée" : "mesurée"}${r.faites > 1 ? "s" : ""} sur ${r.cab}`}>
+                          <b>{r.faites}</b>/{r.cab} {r.verbe}
                         </span>
                       )}
                     </span>
