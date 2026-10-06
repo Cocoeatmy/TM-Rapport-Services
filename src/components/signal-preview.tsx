@@ -531,8 +531,16 @@ export function SignalPreviewHost() {
 
   if (!mounted || !state) return null;
   return (
-    <aside className="sg-detail is-open" role="complementary" aria-label="Aperçu du projet">
-      <SignalPreviewCard project={state.project} mode={state.mode} onClose={closeSignalPreview} />
-    </aside>
+    <>
+      {/* Fond assombri — téléphone seulement (masqué en CSS au-delà). Sur
+          grand écran, la fiche est une colonne à côté de la liste ; sur
+          téléphone elle couvre l'écran, et il faut pouvoir en sortir en
+          touchant à côté, comme partout ailleurs dans l'app. */}
+      <button type="button" className="sg-detail-fond" aria-label="Fermer l'aperçu"
+        onClick={closeSignalPreview} />
+      <aside className="sg-detail is-open" role="complementary" aria-label="Aperçu du projet">
+        <SignalPreviewCard project={state.project} mode={state.mode} onClose={closeSignalPreview} />
+      </aside>
+    </>
   );
 }

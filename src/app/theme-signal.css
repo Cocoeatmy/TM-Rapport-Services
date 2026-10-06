@@ -1496,6 +1496,64 @@ html[data-ui="signal"] .sg-detail.is-open .sg-detail-in {
   box-shadow: var(--sg-shadow-hi);
 }
 @keyframes sgDrawer { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Le bouton de fermeture reste atteignable.
+   Il vivait dans la zone qui défile : dès qu'on faisait défiler la fiche —
+   inévitable sur un téléphone, où elle est plus haute que l'écran — la croix
+   partait vers le haut et il n'y avait plus aucun moyen visible de refermer. */
+html[data-ui="signal"] .sg-detail.is-open .sg-detail-in > .sg-detail-top {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: -16px -16px 0;
+  padding: 14px 16px 10px;
+  background: var(--sg-paper);
+  border-bottom: 1px solid var(--sg-line);
+}
+
+/* Fond assombri : affiché seulement quand la fiche couvre l'écran. */
+html[data-ui="signal"] .sg-detail-fond { display: none; }
+
+@media (max-width: 767px) {
+  /* Sur téléphone, la fiche n'est plus un panneau collé à droite — pensé pour
+     un écran large, il débordait de la page et laissait une bande de liste
+     inutilisable sur le côté. Elle devient une feuille posée sur l'écran,
+     avec ses marges, et qui ne dépasse jamais. */
+  html[data-ui="signal"] .sg-detail.is-open {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    z-index: 60;
+  }
+  html[data-ui="signal"] .sg-detail.is-open .sg-detail-in {
+    position: fixed;
+    /* Une bande reste visible en haut : elle montre qu'on est au-dessus de
+       la liste, et donne de quoi toucher à côté pour refermer. */
+    top: calc(64px + env(safe-area-inset-top));
+    right: calc(10px + env(safe-area-inset-right));
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: calc(10px + env(safe-area-inset-left));
+    max-height: none;
+    border-radius: 16px;
+    overscroll-behavior: contain;
+  }
+  html[data-ui="signal"] .sg-detail-fond {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    border: 0;
+    padding: 0;
+    background: rgba(15, 23, 42, 0.45);
+    animation: sgFond 180ms ease-out;
+  }
+  /* La croix, seule sortie visible, mérite d'être atteignable au pouce. */
+  html[data-ui="signal"] .sg-detail.is-open .sg-unpin {
+    width: 34px;
+    height: 34px;
+  }
+}
+@keyframes sgFond { from { opacity: 0; } to { opacity: 1; } }
 html[data-ui="signal"] .sg-detail-top { display: flex; align-items: center; gap: 8px; }
 html[data-ui="signal"] .sg-detail-title {
   margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3;
