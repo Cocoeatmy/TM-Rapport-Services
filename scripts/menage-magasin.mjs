@@ -18,6 +18,7 @@
  * Usage : node --env-file=.env.local scripts/menage-magasin.mjs [--pour-de-vrai] [--max=N]
  */
 import { Client } from "@notionhq/client";
+import { appendFileSync } from "node:fs";
 
 const STORAGE_PAGE_ID = "3431895b9179804eb9bfc51868936cf2";
 const POUR_DE_VRAI = process.argv.includes("--pour-de-vrai");
@@ -28,6 +29,7 @@ const MAX = Number((process.argv.find((a) => a.startsWith("--max=")) || "").spli
 const ENTRE_APPELS_MS = 500;
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const JOURNAL = "scripts/.menage-journal.txt";
 
 async function appel(fn) {
   for (let essai = 0; ; essai++) {
@@ -103,6 +105,14 @@ for (const [i, p] of candidates.entries()) {
     await appel(() => notion.pages.update({ page_id: p.id, archived: true }));
     archivees++;
   } catch { erreurs++; }
-  if (i % 25 === 0) process.stdout.write(`\r  ${i + 1}/${candidates.length} — archivées ${archivees}, gardées ${gardees}, erreurs ${erreurs}`);
+  if (i % 25 === 0) {
+    const ligne = `${new Date().toISOString().slice(11, 19)}  ${i + 1}/${candidates.length} — archivées ${archivees}, gardées ${gardees}, erreurs ${erreurs}`;
+    process.stdout.write("\r  " + ligne);
+    /* Journal sur disque : la sortie standard est tamponnée, et une tranche
+       arrêtée en cours de route emportait tout le compte rendu avec elle. */
+    try { appendFileSync(JOURNAL, ligne + "\n"); } catch {}
+  }
 }
-console.log(`\n\nTerminé : ${archivees} archivées, ${gardees} gardées (non vides), ${erreurs} erreurs.`);
+const bilan = `TERMINÉ ${new Date().toISOString().slice(0, 19)} : ${archivees} archivées, ${gardees} gardées (non vides), ${erreurs} erreurs.`;
+console.log("\n\n" + bilan);
+try { appendFileSync(JOURNAL, bilan + "\n"); } catch {}
