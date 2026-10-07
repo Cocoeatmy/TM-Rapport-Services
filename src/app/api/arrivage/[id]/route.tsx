@@ -8,6 +8,7 @@
  * reçus, état des cartons (dégâts), commentaire livraison.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { referencesFournisseur } from "@/lib/references-fournisseur";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
@@ -196,6 +197,18 @@ function ArrivagePDF({ project, cartonsRecus, cartonsEtat, bonLivraison }: {
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
           {project.adresseChantier ? <Text style={styles.subtitle}>{joinVal(project.adresseChantier)}</Text> : null}
         </View>
+
+        {/* Commande du fournisseur — ses propres références, celles qui lui
+            permettent de rapprocher la livraison de son dossier. Le bloc
+            n'existe que pour un client fournisseur. */}
+        {referencesFournisseur(project).length > 0 ? (
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle}>Commande fournisseur</Text>
+            {referencesFournisseur(project).map((r) => (
+              <Ligne key={r.label} libelle={r.label} valeur={r.valeur} />
+            ))}
+          </View>
+        ) : null}
 
         {/* Livraison */}
         <View style={styles.section} wrap={false}>

@@ -8,6 +8,7 @@
  * le rapport par lot et l'état du SAV (réglé / en attente).
  */
 import { NextRequest, NextResponse } from "next/server";
+import { referencesFournisseur } from "@/lib/references-fournisseur";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { getData, getDataFresh } from "@/lib/kv-store";
 import { LOGO_BASE64 } from "@/lib/logo";
@@ -289,6 +290,15 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
               <Text style={styles.infoLabel}>Dates de montage</Text>
               <Text style={styles.infoValue}>{montageRange}</Text>
             </View>
+            {/* Chantier commandé par un fournisseur : ses références à lui,
+                sans lesquelles il ne peut pas rapprocher ce suivi de son
+                dossier. */}
+            {referencesFournisseur(project).map((r) => (
+              <View key={r.label} style={styles.infoCell}>
+                <Text style={styles.infoLabel}>{r.label}</Text>
+                <Text style={styles.infoValue}>{nfc(r.valeur)}</Text>
+              </View>
+            ))}
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 2 }}>
             <View style={styles.infoCell}>

@@ -7,6 +7,7 @@
  * téléchargement (Cloudinary fl_attachment).
  */
 import { NextRequest, NextResponse } from "next/server";
+import { referencesFournisseur } from "@/lib/references-fournisseur";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
 import { verifyToken } from "@/lib/auth";
@@ -258,6 +259,11 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
           <Text style={{ ...styles.title, color: titleColor }}>Rapport SAV{allClosed ? " — clôturé" : ""}</Text>
           <Text style={styles.tm}>{project.ofrTM || "TM-—"}</Text>
           {project.projet ? <Text style={styles.subtitle}>{nfc(project.projet)}</Text> : null}
+          {/* Chantier commandé par un fournisseur : ses références à lui, sous
+              le nom du chantier, là où il les cherchera. */}
+          {referencesFournisseur(project).map((r) => (
+            <Text key={r.label} style={styles.subtitle}>{r.label} : {nfc(r.valeur)}</Text>
+          ))}
           {collabFilter ? <Text style={{ ...styles.subtitle, fontFamily: "Helvetica-Bold", color: "#b45309" }}>SAV de {nfc(collabFilter)}</Text> : null}
           {!cabineFilter ? <Text style={styles.subtitle}>{savCabs.length} SAV{collabFilter ? "" : ` / ${total} cabine${total > 1 ? "s" : ""}`}</Text> : null}
         </View>
