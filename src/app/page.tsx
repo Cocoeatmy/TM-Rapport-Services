@@ -45,7 +45,20 @@ function saveProjectsCache(data: unknown) {
     try {
       localStorage.setItem("tm-projects-cache", JSON.stringify(_pendingCache));
       localStorage.setItem("tm-projects-cache-ts", String(Date.now()));
-    } catch {}
+    } catch {
+      /* Stockage sature. L'echec etait avale sans un mot, et le cache restait
+         donc fige sur une version parfois vieille de plusieurs semaines : au
+         reveil, l'app ressortait des chantiers clotures depuis longtemps. Le
+         cache hors-ligne est le gros consommateur, et il se reconstruit tout
+         seul : on lui prend la place et on retente une fois. */
+      try {
+        localStorage.removeItem("tm-rapport-cache");
+        localStorage.setItem("tm-projects-cache", JSON.stringify(_pendingCache));
+        localStorage.setItem("tm-projects-cache-ts", String(Date.now()));
+      } catch {
+        console.error("[cache] stockage local sature — listes non enregistrees");
+      }
+    }
     _pendingCache = null;
   }, 8_000);
 }

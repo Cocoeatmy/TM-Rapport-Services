@@ -108,12 +108,66 @@ export interface QueueItem {
 }
 
 // Sauvegarder les données en cache
+/* Le cache hors-ligne tient dans un budget, et il n'est pas seul au monde.
+ *
+ * Il avait atteint 34 Mo sur un poste — il garde des listes entieres, photos
+ * et documents compris. Le navigateur refusait alors TOUTE nouvelle ecriture
+ * dans son stockage, et pas seulement les siennes : le cache des listes du
+ * tableau de bord, bien plus petit, echouait en silence et restait fige sur
+ * une version vieille de plusieurs semaines. Au reveil, l'app ressortait donc
+ * des chantiers cloture depuis longtemps.
+ *
+ * On se donne donc un plafond, et quand il est atteint on sacrifie les plus
+ * grosses entrees — ce sont les listes les plus lourdes, aussi les moins
+ * utiles hors ligne, et elles se reconstruisent au premier rechargement. */
+const BUDGET_CACHE = 4_000_000; // ~4 Mo de caracteres
+
+function ecrireCache(cache: Record<string, any>): boolean {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Les cles du cache, de la plus lourde a la plus legere. */
+function clesParPoids(cache: Record<string, any>): string[] {
+  return Object.keys(cache)
+    .filter((k) => k !== "_timestamp")
+    .map((k) => ({ k, poids: JSON.stringify(cache[k] ?? null).length }))
+    .sort((a, b) => b.poids - a.poids)
+    .map((x) => x.k);
+}
+
 export function saveToCache(key: string, data: any) {
   try {
     const cache = getCache();
     cache[key] = data;
     cache._timestamp = Date.now();
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+
+    // 1) Respect du budget : on allege AVANT d'ecrire.
+    let cles = clesParPoids(cache);
+    while (JSON.stringify(cache).length > BUDGET_CACHE && cles.length > 1) {
+      const lourde = cles.find((k) => k !== key) || cles[0];
+      delete cache[lourde];
+      cles = clesParPoids(cache);
+    }
+
+    // 2) Le navigateur peut refuser malgre tout (quota partage, mode prive) :
+    //    on sacrifie la plus grosse entree et on retente, plutot que
+    //    d'abandonner en silence comme avant.
+    for (let essai = 0; essai < 4; essai++) {
+      if (ecrireCache(cache)) return;
+      const restantes = clesParPoids(cache);
+      const aJeter = restantes.find((k) => k !== key) || restantes[0];
+      if (!aJeter) break;
+      delete cache[aJeter];
+    }
+    // Dernier recours : on repart d'un cache ne contenant que cette entree.
+    if (!ecrireCache({ [key]: data, _timestamp: Date.now() })) {
+      console.error("[offline] stockage local sature — cache non enregistre");
+    }
   } catch (e) {
     console.error("Cache save error:", e);
   }
