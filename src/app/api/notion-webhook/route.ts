@@ -199,16 +199,24 @@ export async function POST(req: NextRequest) {
 
 // GET — health check + affichage du jeton de vérification si disponible
 export async function GET() {
-  const token = await getVerificationToken();
+  /* Cette adresse est publique — Notion doit pouvoir l'atteindre sans session.
+     Elle affichait le jeton de vérification en clair, ce qui était commode
+     pendant l'installation et inacceptable après : ce jeton est la clé qui
+     signe les messages de Notion, et qui la connaît peut en fabriquer de faux.
+     Une fois le secret installé, l'adresse ne dit plus que l'essentiel. */
+  const installe = !!process.env.NOTION_WEBHOOK_SECRET;
+  const token = installe ? null : await getVerificationToken();
 
   const payload: Record<string, unknown> = {
     status: "ok",
     endpoint: "/api/notion-webhook",
-    secured: !!process.env.NOTION_WEBHOOK_SECRET,
-    verification_token: token,
-    instruction: token
-      ? "Copiez ce jeton dans le champ 'Jeton de vérification' sur Notion"
-      : "Aucun jeton reçu pour l'instant — relancez la vérification depuis Notion",
+    secured: installe,
+    ...(installe ? {} : { verification_token: token }),
+    instruction: installe
+      ? "Webhook sécurisé — le jeton est installé côté serveur."
+      : token
+        ? "Copiez ce jeton dans le champ 'Jeton de vérification' sur Notion"
+        : "Aucun jeton reçu pour l'instant — relancez la vérification depuis Notion",
   };
 
   return NextResponse.json(payload, {
