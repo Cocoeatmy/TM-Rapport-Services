@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, Package, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins } from "lucide-react";
+import { LogOut, Shield, User, Users, Moon, Sun, HelpCircle, Sparkles, Palette, Image as ImageIcon, Mail, Loader2, Check, Radio, FileSpreadsheet, Package, TrendingUp, ClipboardCheck, ShieldCheck, BadgeCheck, Coins, RefreshCcw } from "lucide-react";
+import { viderCachesDeLecture, viderCacheServiceWorker } from "@/lib/vider-caches";
+import { getQueue } from "@/lib/offline";
+import { countPendingUploads } from "@/lib/idb-uploads";
 import { getCollaboratorInitials } from "@/lib/collaborators";
 import { isSaveToGalleryEnabled, setSaveToGalleryEnabled } from "@/lib/save-to-gallery";
 import { toast } from "sonner";
@@ -28,6 +31,37 @@ const PROPRIETAIRE = "ferreira.micael@gmail.com";
 
 export function UserMenu() {
   const router = useRouter();
+  const [vidage, setVidage] = useState(false);
+
+  /**
+   * Repart des données du serveur.
+   *
+   * N'efface que des COPIES — listes, statistiques, cache hors-ligne — jamais
+   * la file d'envoi ni les saisies faites sur le chantier. Et refuse d'agir
+   * tant qu'il reste quelque chose à envoyer : vider pendant qu'un rapport
+   * attend le réseau reviendrait à le perdre.
+   */
+  const handleViderCache = async () => {
+    setVidage(true);
+    try {
+      const enFile = getQueue().length;
+      const photos = await countPendingUploads().catch(() => 0);
+      if (enFile + photos > 0) {
+        toast.error(
+          `${enFile + photos} élément${enFile + photos > 1 ? "s" : ""} en attente d'envoi — synchronisez d'abord, sinon ces saisies seraient perdues.`,
+        );
+        setVidage(false);
+        return;
+      }
+      const n = viderCachesDeLecture();
+      await viderCacheServiceWorker();
+      toast.success(`Cache vidé (${n} élément${n > 1 ? "s" : ""}) — rechargement…`);
+      setTimeout(() => window.location.reload(), 700);
+    } catch {
+      toast.error("Le cache n'a pas pu être vidé.");
+      setVidage(false);
+    }
+  };
   const [user, setUser] = useState<UserData | null>(null);
   const [open, setOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
@@ -412,6 +446,18 @@ export function UserMenu() {
                   ON
                 </span>
               )}
+            </button>
+            <div className="h-px bg-gray-100 dark:bg-gray-700 my-1" />
+            {/* Repartir des données du serveur quand un écran semble en
+                retard. N'emporte que des copies — jamais ce qui attend d'être
+                envoyé. */}
+            <button
+              onClick={handleViderCache}
+              disabled={vidage}
+              className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-300 disabled:opacity-50"
+            >
+              {vidage ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
+              Vider le cache
             </button>
             <div className="h-px bg-gray-100 dark:bg-gray-700 my-1" />
             <button
