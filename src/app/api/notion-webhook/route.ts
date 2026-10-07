@@ -111,8 +111,13 @@ function rafraichirListesActives(): number {
  */
 function verifySignature(body: string, signature: string, secret: string): boolean {
   try {
-    // Notion envoie "v0=<hex>" ; on extrait juste le hex
-    const signatureHex = signature.startsWith("v0=") ? signature.slice(3) : signature;
+    /* Notion envoie « sha256=<hex> » (documentation officielle). Le code
+       n'enlevait qu'un préfixe « v0= », qui ne correspond à rien ici : le
+       « sha256= » restait collé devant, la comparaison échouait, et CHAQUE
+       événement aurait été rejeté comme signature invalide — sans un mot
+       ailleurs que dans les journaux. On enlève donc ce qui précède le
+       premier « = », quel que soit le nom du préfixe. */
+    const signatureHex = signature.includes("=") ? signature.slice(signature.indexOf("=") + 1) : signature;
     const expected = createHmac("sha256", secret).update(body, "utf8").digest("hex");
     const a = Buffer.from(signatureHex, "hex");
     const b = Buffer.from(expected, "hex");
