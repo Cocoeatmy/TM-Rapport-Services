@@ -3359,6 +3359,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                  daté, et on ne l'oublie qu'au rechargement de la page. Les
                  annulés sortent : eux n'ont jamais eu lieu. */
               const weekSource = projetsConnus.filter((p) => p.dateMontage);
+              /* Les relevés de mesures font partie de la semaine d'une équipe
+                 au même titre que les poses : une journée sans montage mais
+                 avec trois relevés n'est pas une journée vide. Ils se comptent
+                 à part — on ne pose pas une cabine qu'on vient mesurer — mais
+                 ils entrent dans le nombre de chantiers concernés. */
+              const mesuresSource = projetsConnus.filter((p) => p.dateMesures);
               /* Jours PLANIFIÉS d'un montage : la fenêtre portée par la fiche. */
               /* La règle qui dit combien de cabines pèsent sur un jour vit
                  dans src/lib/cabines-du-jour.ts — la même que celle des cartes
@@ -3375,6 +3381,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                    faire se lit sur la pastille de chaque case et sur le total
                    en tête, pas en faisant disparaître le travail fait. */
                 const dayProjects = weekSource.filter((p) => daysOfProject(p).includes(key));
+                const dayMesures = mesuresSource.filter((p) => (p.dateMesures || "").split("T")[0] === key);
+                const mes = dayMesures.reduce((s2, p) => s2 + (p.nbCabines || 0), 0);
                 /* Chaque groupe se scinde en deux : ce qui est en dépôt et ce
                    qui ne l'est pas encore. La couleur du monteur reste la
                    même, seule la trame change — on veut voir QUI pose, et
@@ -3409,7 +3417,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 const poidsJour = segs.reduce((s2, x) => s2 + x.poids, 0);
                 const attente = segs.reduce((s2, x) => s2 + x.attente, 0);
                 const enAttente = dayProjects.filter(marchandiseEnAttente);
-                return { d, key, cab, restant, poidsJour, attente, enAttente, segs, projets: dayProjects, nb: dayProjects.length, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
+                /* Un chantier mesuré ET monté le même jour ne compte qu'une
+                   fois dans le nombre de chantiers de la journée. */
+                const nb = new Set([...dayProjects, ...dayMesures].map((p) => p.id)).size;
+                return { d, key, cab, mes, restant, poidsJour, attente, enAttente, segs, projets: dayProjects, mesuresProjets: dayMesures, nb, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
               });
               const max = Math.max(1, ...bars.map((b) => b.poidsJour));
               /* Légende : groupes présents sur la semaine, du plus chargé au
@@ -3450,12 +3461,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               /* Totaux de la semaine. Les projets se comptent par id : un
                  montage à cheval sur deux jours figure dans les deux barres
                  mais ne reste qu'un seul chantier. */
-              const semaineProjets = new Set(bars.flatMap((b) => b.projets.map((p) => p.id))).size;
+              const semaineProjets = new Set(
+                bars.flatMap((b) => [...b.projets, ...b.mesuresProjets].map((p) => p.id)),
+              ).size;
               /* La semaine est la somme de ce que les barres annoncent : tout
                  autre calcul donnerait un total qui ne se retrouve pas en
                  additionnant les jours. */
               const semaineCabines = bars.reduce((s, b) => s + b.cab, 0);
               const semaineRestantes = bars.reduce((s, b) => s + b.restant, 0);
+              const semaineMesures = bars.reduce((s, b) => s + b.mes, 0);
               return (
                 <div className="sg-card sg-chart">
                   <div className="sg-card-head">
@@ -3466,6 +3480,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             jour », que les barres disent déjà. */}
                         semaine {weekNo} · {semaineCabines} cabine{semaineCabines > 1 ? "s" : ""}
                         {semaineRestantes < semaineCabines && ` · ${semaineRestantes} non posée${semaineRestantes > 1 ? "s" : ""}`}
+                        {semaineMesures > 0 && ` · ${semaineMesures} mesure${semaineMesures > 1 ? "s" : ""}`}
                         {" · "}{semaineProjets} projet{semaineProjets > 1 ? "s" : ""}
                         {sgWeek !== 0 && ` · ${sgWeek > 0 ? "+" : ""}${sgWeek} sem.`}
                       </p>
@@ -3504,8 +3519,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           setCalendarMonth({ year: b.dt.getFullYear(), month: b.dt.getMonth() });
                           setCalendarSelectedDay(b.key);
                         }}
-                        title={b.nb === 0 ? `${b.d} — aucun montage` :
-                          `${b.d} — ${b.nb} projet${b.nb > 1 ? "s" : ""} · ${b.cab} cab.\n`
+                        title={b.nb === 0 ? `${b.d} — aucune intervention` :
+                          `${b.d} — ${b.nb} projet${b.nb > 1 ? "s" : ""} · ${b.cab} cab.${b.mes > 0 ? ` · ${b.mes} mesure${b.mes > 1 ? "s" : ""}` : ""}\n`
                           + b.segs.map((s) => `${s.label} : ${s.cab}${s.attente > 0 ? ` (dont ${s.attente} non réceptionnée${s.attente > 1 ? "s" : ""})` : ""}`).join("\n")
                           + (b.enAttente.length > 0
                             ? `\n\nMarchandise pas encore réceptionnée :\n`
@@ -3529,6 +3544,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             {b.nb === 0 ? "0" : (
                               <>
                                 <b>{b.cab} cabine{b.cab > 1 ? "s" : ""}</b>
+                                {/* Les releves du jour, juste sous les poses :
+                                    une journee de mesures est du travail, et elle
+                                    n'apparaissait nulle part dans cette charge. */}
+                                {b.mes > 0 && <i className="is-mesures">{b.mes} mesure{b.mes > 1 ? "s" : ""}</i>}
                                 <i>{b.nb} projet{b.nb > 1 ? "s" : ""}</i>
                                 {/* Rien tant que rien n'est posé : répéter le
                                     total en dessous n'apprendrait rien. */}
