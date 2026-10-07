@@ -78,6 +78,24 @@ function joinVal(v: unknown): string {
   return nfc(String(v));
 }
 
+/**
+ * Une ligne du rapport, qui disparaît quand le champ est vide.
+ *
+ * Les lignes s'affichaient toujours, avec un tiret à la place de la valeur.
+ * Sur un arrivage livré directement au dépôt, « Date d'arrivage Grossiste — »
+ * occupait une ligne pour dire qu'il n'y avait rien à dire : le lecteur doit
+ * chercher l'information utile au milieu de cases vides.
+ */
+function Ligne({ libelle, valeur }: { libelle: string; valeur: string }) {
+  if (!valeur || valeur === "—") return null;
+  return (
+    <View style={styles.row}>
+      <Text style={styles.label}>{libelle}</Text>
+      <Text style={styles.value}>{valeur}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   page: { padding: 40, paddingBottom: 50, fontFamily: "Helvetica", fontSize: 10, color: "#1a1a1a" },
   header: { marginBottom: 16, paddingBottom: 6, borderBottomWidth: 2, borderBottomColor: ACCENT },
@@ -182,10 +200,10 @@ function ArrivagePDF({ project, cartonsRecus, cartonsEtat, bonLivraison }: {
         {/* Livraison */}
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Livraison</Text>
-          <View style={styles.row}><Text style={styles.label}>Date d&apos;arrivage Dépôt TM</Text><Text style={styles.value}>{fmtDate(project.arrivageTM) || "—"}</Text></View>
-          <View style={styles.row}><Text style={styles.label}>Date d&apos;arrivage Grossiste</Text><Text style={styles.value}>{fmtDate(project.arrivageGrossiste) || "—"}</Text></View>
-          <View style={styles.row}><Text style={styles.label}>Nb. de cartons</Text><Text style={styles.value}>{joinVal(project.nbCartons)}</Text></View>
-          <View style={styles.row}><Text style={styles.label}>Nb. cabines</Text><Text style={styles.value}>{joinVal(project.nbCabines)}</Text></View>
+          <Ligne libelle="Date d'arrivage Dépôt TM" valeur={fmtDate(project.arrivageTM)} />
+          <Ligne libelle="Date d'arrivage Grossiste" valeur={fmtDate(project.arrivageGrossiste)} />
+          <Ligne libelle="Nb. de cartons" valeur={joinVal(project.nbCartons)} />
+          <Ligne libelle="Nb. cabines" valeur={joinVal(project.nbCabines)} />
           {commentaire ? (
             <View style={{ paddingVertical: 4 }}>
               <Text style={{ color: "#666", fontSize: 9, marginBottom: 2 }}>Commentaire livraison</Text>
