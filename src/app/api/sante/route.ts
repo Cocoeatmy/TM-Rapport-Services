@@ -54,8 +54,29 @@ export async function GET(request: NextRequest) {
     snapshot = { erreur: String((err as Error)?.message || err).slice(0, 200) };
   }
 
+  /* Dernier message reçu de Notion : la seule façon simple de savoir si le
+     webhook fonctionne vraiment, les journaux ne gardant que quelques minutes. */
+  let webhook: Record<string, unknown> = { secret: !!process.env.NOTION_WEBHOOK_SECRET };
+  if (redisEnabled) {
+    try {
+      const dernier = await redisGetJSON<{ type: string; retenu: boolean; le: string }>("webhook:dernier");
+      if (dernier?.le) {
+        webhook = {
+          ...webhook,
+          dernierEvenement: dernier.type,
+          retenu: dernier.retenu,
+          le: dernier.le,
+          ilYAMinutes: Number(((Date.now() - Date.parse(dernier.le)) / 60000).toFixed(1)),
+        };
+      } else {
+        webhook = { ...webhook, dernierEvenement: null };
+      }
+    } catch { /* sans conséquence */ }
+  }
+
   return NextResponse.json({
     redis,
+    webhook,
     snapshot,
     secrets: {
       jwt: !!process.env.JWT_SECRET,

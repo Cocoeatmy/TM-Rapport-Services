@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { revalidateInBackground } from "@/lib/server-cache";
+import { redisSetJSON } from "@/lib/redis-cache";
 import {
   getProjects, getProjectsMesures, getProjectsServices, getProjectsSAV, getAllActiveProjects,
 } from "@/lib/notion";
@@ -97,6 +98,14 @@ const PAGE_MAGASIN = "3431895b9179804eb9bfc51868936cf2";
 const PAUSE_MS = 15_000;
 let dernierRafraichissement = 0;
 
+/** Trace du dernier message reçu de Notion, partagée entre les serveurs.
+ *  Sans elle, savoir si le webhook fonctionne demandait de fouiller les
+ *  journaux — qui ne gardent que quelques minutes. */
+function noterEvenement(type: string, retenu: boolean): void {
+  redisSetJSON("webhook:dernier", { type, retenu, le: new Date().toISOString() }, 7 * 24 * 3600)
+    .catch(() => {});
+}
+
 function rafraichirListesActives(): number {
   const maintenant = Date.now();
   if (maintenant - dernierRafraichissement < PAUSE_MS) return 0;
@@ -168,9 +177,11 @@ export async function POST(req: NextRequest) {
        exclusion, et non par inclusion : un message dont la forme nous échappe
        déclenche quand même un rafraîchissement, ce qui est sans danger. */
     if (rawBody.replace(/-/g, "").includes(PAGE_MAGASIN)) {
+      noterEvenement(eventType, false);
       return NextResponse.json({ ok: true, skipped: "données internes de l'app" });
     }
 
+    noterEvenement(eventType, EVENEMENTS_SUIVIS.includes(eventType));
     if (EVENEMENTS_SUIVIS.includes(eventType)) {
       const listes = rafraichirListesActives();
       console.log(listes > 0
