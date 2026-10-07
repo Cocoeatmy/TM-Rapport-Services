@@ -3536,11 +3536,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         {/* Le libellé est POSÉ SUR la barre, à sa hauteur exacte :
                             calé en haut de colonne, il flottait loin des barres
                             courtes et on ne savait plus à laquelle il se
-                            rapportait. Les barres sont ramenées à 86 % de la
+                            rapportait. Les barres sont ramenées à 78 % de la
                             zone pour lui laisser sa place sans déborder. */}
                         <span className="sg-bar-zone">
                           <span className="sg-bar-val"
-                                style={{ bottom: `${Math.round((b.poidsJour / max) * 86)}%` }}>
+                                style={{ bottom: `${Math.round((b.poidsJour / max) * 78)}%` }}>
                             {b.nb === 0 ? "0" : (
                               <>
                                 <b>{b.cab} cabine{b.cab > 1 ? "s" : ""}</b>
@@ -3562,7 +3562,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             )}
                           </span>
                           <span className={`sg-bar-stack${b.isToday ? " is-today" : ""}`}
-                                style={{ height: `${Math.round((b.poidsJour / max) * 86)}%` }}>
+                                style={{ height: `${Math.round((b.poidsJour / max) * 78)}%` }}>
                             {b.segs.length === 0 && <i className="sg-bar-seg is-empty" style={{ flexGrow: 1 }} />}
                             {/* Une case PAR PROJET, à sa hauteur de cabines, et
                                 non un bloc par monteur : trois montages pour
