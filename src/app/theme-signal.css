@@ -1632,9 +1632,14 @@ html[data-ui="signal"] .sg-btn-primary:hover { background: var(--sg-ink-2); colo
   html[data-ui="signal"] .sg-split {
     position: relative;
     padding-right: 340px;
-    /* De quoi afficher une fiche lisible même devant une liste de deux
-       lignes — sans cette réserve, la colonne serait écrasée. */
-    min-height: 460px;
+    /* Hauteur d'un écran, quelle que soit la longueur de la liste.
+       Deux raisons, et la seconde a été apprise à la dure : la fiche
+       d'aperçu peut être plus haute que la liste — un chantier avec ses
+       contacts, ses documents et son journal — et le cadre du panneau
+       découpe ce qui dépasse. En réservant une hauteur fixe, la fiche a
+       toute la place de se déplier ET la zone des projets ne bouge plus
+       d'un projet à l'autre, ce qui était la demande initiale. */
+    min-height: calc(100vh - 92px);
   }
   html[data-ui="signal"] .sg-detail:not(.is-open) {
     display: flex; flex-direction: column; gap: 14px;
@@ -1656,10 +1661,10 @@ html[data-ui="signal"] .sg-btn-primary:hover { background: var(--sg-ink-2); colo
     position: sticky;
     /* 72px = hauteur de l'en-tête collant + une respiration. */
     top: 72px;
-    /* Jamais plus haute que l'écran, ni que la liste qu'elle accompagne : au
-       delà, elle déborderait du cadre maintenant que la rangée ne s'étire
-       plus pour elle. Le contenu en trop se fait défiler. */
-    max-height: min(calc(100vh - 92px), 100%);
+    /* Jamais plus haute que l'écran ; au-delà, son contenu se fait défiler.
+       Elle n'est PAS bornée à la hauteur de la liste : une liste de trois
+       lignes tronquerait alors une fiche bien remplie. */
+    max-height: calc(100vh - 92px);
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
