@@ -1388,6 +1388,10 @@ function HomePage() {
   /** Depuis quand un projet n'apparaît plus dans aucune liste — voir la
    *  rétention du tableau de bord : un creux de cache n'est pas une clôture. */
   const dashAbsencesRef = useRef<Map<string, number>>(new Map());
+  /** Listes déjà relues auprès du serveur depuis l'ouverture de la page.
+   *  Tant qu'une liste n'y figure pas, ce qu'on affiche d'elle vient du cache
+   *  local — et ne mérite pas qu'on le défende. */
+  const listesFraichesRef = useRef<Set<string>>(new Set());
   const [cabineAttributions, setCabineAttributions] = useState<Record<string, string[]>>({});
 
   // Pré-chargement silencieux des stats au montage de la page.
@@ -1660,6 +1664,7 @@ function HomePage() {
     // Ignore un tableau vide (le SW renvoie [] en fallback hors-ligne).
     const applyData = (url: string, data: unknown) => {
       if (!Array.isArray(data) || data.length === 0) return;
+      listesFraichesRef.current.add(url);
       const modesForUrl = allModes.filter(([, u]) => u === url);
       setProjectsData((prev) => {
         const updated = { ...prev };
@@ -2359,20 +2364,34 @@ function HomePage() {
             const editTs = (p: any) => Date.parse(p?.lastEditedTime || "") || 0;
             const maintenant = Date.now();
             const seen = new Set<string>();
-            const consider = (list: Project[] | undefined, source: "montage" | "mesures" | "services" | "sav") => {
+            const consider = (
+              list: Project[] | undefined,
+              source: "montage" | "mesures" | "services" | "sav",
+              url: string,
+            ) => {
+              const frais = listesFraichesRef.current.has(url);
               for (const p of list || []) {
                 seen.add(p.id);
                 const cur = map.get(p.id);
-                if (!cur || editTs(p) > editTs(cur)) map.set(p.id, { ...p, _source: source });
+                if (!cur || editTs(p) > editTs(cur)) map.set(p.id, { ...p, _source: source, _frais: frais || !!cur?._frais });
+                else if (frais) cur._frais = true;
               }
             };
-            consider(projectsData["cmd"], "montage");
-            consider(projectsData["mesures"], "mesures");
-            consider(projectsData["services"], "services");
-            consider(projectsData["sav"], "sav");
+            consider(projectsData["cmd"], "montage", "/api/projects");
+            consider(projectsData["mesures"], "mesures", "/api/projects/mesures");
+            consider(projectsData["services"], "services", "/api/projects/services");
+            consider(projectsData["sav"], "sav", "/api/projects/sav");
             const GRACE_MS = 60_000;
-            for (const id of map.keys()) {
+            for (const [id, p] of map) {
               if (seen.has(id)) { absences.delete(id); continue; }
+              /* Le sursis d'une minute protège d'un creux de cache serveur —
+                 un chantier bien réel qu'une instance en retard a oublié. Il
+                 n'a aucune raison de protéger un chantier que SEUL le cache du
+                 navigateur connaît : au réveil, « RDV Montage à fixer » en
+                 affichait soixante-dix-sept quand le serveur en annonçait
+                 trente-sept, et la liste mettait une minute à redescendre.
+                 Le temps de croire qu'il reste tout à faire. */
+              if (!p._frais) { map.delete(id); absences.delete(id); continue; }
               const depuis = absences.get(id);
               if (depuis === undefined) absences.set(id, maintenant);
               else if (maintenant - depuis >= GRACE_MS) { map.delete(id); absences.delete(id); }
