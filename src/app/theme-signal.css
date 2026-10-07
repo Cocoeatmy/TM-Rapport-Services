@@ -1620,9 +1620,25 @@ html[data-ui="signal"] .sg-btn-primary:hover { background: var(--sg-ink-2); colo
 
 @media (min-width: 1280px) {
   /* Place disponible : la colonne de survol s'affiche à côté de la liste
-     dense. La fiche ouverte au clic garde, elle, son ancrage absolu. */
+     dense. La fiche ouverte au clic garde, elle, son ancrage absolu.
+
+     La colonne est posée EN ABSOLU, et non côte à côte dans la rangée. Côte à
+     côte, c'est le plus haut des deux qui donnait sa hauteur à l'ensemble :
+     survoler un chantier bien renseigné faisait grandir la zone des projets,
+     et passer au suivant la faisait rétrécir. La liste respirait au rythme du
+     survol. Désormais la colonne s'étire sur la hauteur de la liste sans
+     jamais la pousser ; la place qu'elle occupe est reservée par le
+     `padding-right` de la rangée. */
+  html[data-ui="signal"] .sg-split {
+    position: relative;
+    padding-right: 340px;
+    /* De quoi afficher une fiche lisible même devant une liste de deux
+       lignes — sans cette réserve, la colonne serait écrasée. */
+    min-height: 460px;
+  }
   html[data-ui="signal"] .sg-detail:not(.is-open) {
     display: flex; flex-direction: column; gap: 14px;
+    position: absolute; top: 0; right: 0; bottom: 0;
     width: 340px; flex-shrink: 0;
     padding: 16px;
     border-left: 1px solid var(--sg-line);
@@ -1640,7 +1656,10 @@ html[data-ui="signal"] .sg-btn-primary:hover { background: var(--sg-ink-2); colo
     position: sticky;
     /* 72px = hauteur de l'en-tête collant + une respiration. */
     top: 72px;
-    max-height: calc(100vh - 92px);
+    /* Jamais plus haute que l'écran, ni que la liste qu'elle accompagne : au
+       delà, elle déborderait du cadre maintenant que la rangée ne s'étire
+       plus pour elle. Le contenu en trop se fait défiler. */
+    max-height: min(calc(100vh - 92px), 100%);
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
