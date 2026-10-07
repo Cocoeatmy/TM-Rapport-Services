@@ -35,16 +35,33 @@ function clearShared(key?: string): void {
   }
 }
 
-/** Instance FROIDE : tente de servir la liste depuis Redis (compressé, rapide).
- *  Met en cache mémoire (politique longue via setCache pour les SNAPSHOT_KEYS →
- *  revalidation throttlée à 10 min, faible charge Notion). Renvoie {data} sinon null. */
+/**
+ * Instance FROIDE : sert la liste depuis le cache partagé (rapide) au lieu
+ * d'attendre Notion (~10-35 s).
+ *
+ * ⚠️ La donnée ainsi servie peut dater : c'est une copie, pas la source. La
+ * durée pendant laquelle on la considère comme fraîche décide donc du retard
+ * maximum entre Notion et l'app.
+ *
+ * Elle était de DIX MINUTES pour toutes les clés. Un chantier annulé dans
+ * Notion restait donc affiché jusqu'à dix minutes — et chaque serveur qui
+ * démarrait repartait pour dix minutes avec la même copie. Les listes du
+ * tableau de bord gardent désormais leur propre règle (vingt secondes) : la
+ * copie partagée débloque l'affichage tout de suite, puis la première requête
+ * suivante va rechercher la vérité auprès de Notion, en arrière-plan.
+ *
+ * Les listes lourdes et peu changeantes — tous les projets, les terminés, les
+ * statistiques — gardent la règle longue : les rafraîchir sans cesse saturait
+ * Notion (voir l'incident de rate-limit du 23 juin).
+ */
 async function serveFromRedis<T>(key: string): Promise<{ data: T } | null> {
   if (!redisEnabled || !REDIS_KEYS.has(key)) return null;
   if (process.env.NEXT_PHASE === "phase-production-build") return null;
   try {
     const r = await redisGetJSON<T>(`sc:${key}`);
     if (Array.isArray(r) && (r as unknown[]).length > 0) {
-      setCacheLong(key, r); // politique longue (stats + listes peu volatiles)
+      if (VOLATILE_KEYS.has(key)) setCache(key, r);
+      else setCacheLong(key, r);
       return { data: r };
     }
   } catch { /* Redis indisponible → on continue vers Notion */ }
