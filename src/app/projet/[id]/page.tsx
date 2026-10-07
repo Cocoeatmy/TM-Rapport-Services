@@ -4514,22 +4514,29 @@ function ProjectPageContent({ id }: { id: string }) {
         }).catch(console.error);
       }
     } else {
-      // Mode simple (1 cabine)
-      if (bucket === "AVANT_INTERVENTION" && !heureArrivee) {
-        setHeureArrivee(captureTime);
-        offlineFetch(`/api/projects/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ heureArrivee: captureTime }),
-        }).catch(console.error);
-      }
-      if (isMontageOrAfter(bucket) && !heureDepart) {
-        setHeureDepart(captureTime);
-        offlineFetch(`/api/projects/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ heureDepart: captureTime }),
-        }).catch(console.error);
+      /* Mode simple (1 cabine) — on enregistre le JOUR avec l'heure.
+       *
+       * Une heure seule n'appartient à aucune date : le passage prenait alors
+       * celle du chantier, « Date Montage ». Reprogrammer une seconde visite
+       * dans Notion réécrivait donc la date de la première, et la trace du
+       * travail déjà fait partait avec. Les chantiers multi-cabines datent
+       * leur intervention depuis toujours ; celui-ci ne le faisait pas.
+       *
+       * Dès la première heure relevée sur une photo, l'intervention devient
+       * donc un passage daté, figé à ce jour-là. « Date Montage » redevient ce
+       * qu'elle doit être — la date prévue — et le retour sur site se note
+       * dans un second passage. */
+      const premiereHeure = (bucket === "AVANT_INTERVENTION" && !heureArrivee)
+        || (isMontageOrAfter(bucket) && !heureDepart);
+      if (premiereHeure) {
+        const jour = (project?.dateMontage || "").slice(0, 10) || todayStr;
+        const arrivee = bucket === "AVANT_INTERVENTION" && !heureArrivee ? captureTime : (heureArrivee || "");
+        const depart = isMontageOrAfter(bucket) && !heureDepart ? captureTime : (heureDepart || "");
+        setHeureArrivee(arrivee);
+        setHeureDepart(depart);
+        setPointages([{ date: jour, collaborateur: userCollab || project?.collaborateurs || "", arrivee, depart }]);
+        setIsMultiDay(true);
+        scheduleAutoSave();
       }
       // Collaborateur (field "collaborateurs" in Notion)
       if (userCollab && !project?.collaborateurs) {
@@ -4541,7 +4548,7 @@ function ProjectPageContent({ id }: { id: string }) {
         }).catch(console.error);
       }
     }
-  }, [isCabineMode, cabines, autoCollab, isMultiDay, heureArrivee, heureDepart, project?.collaborateurs, id, scheduleAutoSave]);
+  }, [isCabineMode, cabines, autoCollab, isMultiDay, heureArrivee, heureDepart, project?.collaborateurs, project?.dateMontage, project?.monteursSousTraitance, id, scheduleAutoSave]);
 
   // Persiste IMMÉDIATEMENT la liste des interventions (pas de debounce) : le
   // serveur a toujours le format daté à jour, donc un rechargement re-parse les
