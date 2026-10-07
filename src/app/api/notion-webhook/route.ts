@@ -14,9 +14,11 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
 import { createHmac, timingSafeEqual } from "crypto";
-import { invalidateCache } from "@/lib/server-cache";
+import { revalidateInBackground } from "@/lib/server-cache";
+import {
+  getProjects, getProjectsMesures, getProjectsServices, getProjectsSAV, getAllActiveProjects,
+} from "@/lib/notion";
 import { getData, setData } from "@/lib/kv-store";
 
 // Forcer le rendu dynamique — indispensable pour recevoir des webhooks
@@ -48,21 +50,60 @@ async function getVerificationToken(): Promise<string | null> {
   return cachedVerifyToken;
 }
 
-// Toutes les routes API projets à invalider lors d'un changement Notion
-const PROJECT_PATHS = [
-  "/api/projects",
-  "/api/projects/mesures",
-  "/api/projects/services",
-  "/api/projects/sav",
-  "/api/projects/cmd-termine",
-  "/api/projects/services-termine",
-  "/api/projects/sav-termine",
-  "/api/projects/mesures-termine",
-  "/api/projects/mesures-sans-commande",
-  "/api/projects/mesures-annulees",
-  "/api/projects/all-active",
-  "/api/projects/all",
+/**
+ * Les cinq listes qui font vivre le tableau de bord. Elles seules sont
+ * rafraîchies sur un événement Notion.
+ *
+ * L'ancien code vidait TOUT le cache, partagé compris. Chaque serveur devait
+ * alors tout redemander à Notion depuis zéro — dix à trente-cinq secondes par
+ * liste, et autant d'écrans figés. C'est précisément ce qui avait saturé
+ * Notion en juin. On ne vide donc plus rien : on va chercher la nouvelle
+ * version en arrière-plan, et on la pose à la place de l'ancienne.
+ */
+const LISTES_ACTIVES: { cle: string; lire: () => Promise<unknown[]> }[] = [
+  { cle: "projects", lire: getProjects },
+  { cle: "projects-mesures", lire: getProjectsMesures },
+  { cle: "projects-services", lire: getProjectsServices },
+  { cle: "projects-sav", lire: getProjectsSAV },
+  { cle: "projects-all-active", lire: getAllActiveProjects },
 ];
+
+/**
+ * Événements qui méritent un rafraîchissement, aux noms EXACTS de la
+ * documentation Notion.
+ *
+ * L'ancienne liste guettait « page.property_values.updated » — un nom qui
+ * n'existe pas. Changer l'état d'un chantier, une annulation par exemple,
+ * n'aurait donc jamais rien déclenché, même le webhook correctement branché.
+ */
+const EVENEMENTS_SUIVIS = [
+  "page.properties_updated",
+  "page.created",
+  "page.deleted",
+  "page.undeleted",
+  "page.moved",
+  "page.content_updated",
+  "data_source.content_updated",
+  "database.content_updated",
+];
+
+/** Page où l'app range ses propres données : ses événements ne concernent
+ *  aucun chantier, et une opération d'entretien en produit des milliers. */
+const PAGE_MAGASIN = "3431895b9179804eb9bfc51868936cf2";
+
+/* Un rafraîchissement au plus toutes les quinze secondes. Modifier une fiche
+   dans Notion produit plusieurs événements d'affilée ; sans ce frein, chacun
+   relancerait cinq requêtes. */
+const PAUSE_MS = 15_000;
+let dernierRafraichissement = 0;
+
+function rafraichirListesActives(): number {
+  const maintenant = Date.now();
+  if (maintenant - dernierRafraichissement < PAUSE_MS) return 0;
+  dernierRafraichissement = maintenant;
+  for (const { cle, lire } of LISTES_ACTIVES) revalidateInBackground(cle, lire);
+  return LISTES_ACTIVES.length;
+}
 
 /**
  * Vérifie la signature HMAC-SHA256 envoyée par Notion.
@@ -116,40 +157,21 @@ export async function POST(req: NextRequest) {
     console.log(`[notion-webhook] Événement reçu : ${eventType}`);
 
     // Invalider uniquement sur les événements qui modifient des données projet
-    const relevantEvents = [
-      "page.property_values.updated",
-      "page.created",
-      "page.content_updated",
-    ];
-
-    /* L'abonnement couvre tout l'espace de travail, pas seulement la base des
-       chantiers. Or l'app range aussi ses propres données dans des pages
-       Notion : une seule opération d'entretien peut produire des milliers
-       d'événements, et vider le cache à chaque fois reviendrait à relancer
-       l'app sans arrêt. On ne réagit donc qu'à ce qui touche la base des
-       chantiers, reconnue à son identifiant où qu'il apparaisse dans le
-       message. */
-    const idBase = (process.env.NOTION_DATABASE_ID || "").replace(/-/g, "");
-    const concerneLesChantiers = !!idBase && rawBody.replace(/-/g, "").includes(idBase);
-    if (!concerneLesChantiers) {
-      return NextResponse.json({ ok: true, skipped: "hors base chantiers" });
+    /* L'abonnement couvre tout l'espace de travail. On écarte ce qui vient de
+       la page où l'app range ses propres données — un ménage y produit des
+       milliers d'événements qui ne concernent aucun chantier. On écarte par
+       exclusion, et non par inclusion : un message dont la forme nous échappe
+       déclenche quand même un rafraîchissement, ce qui est sans danger. */
+    if (rawBody.replace(/-/g, "").includes(PAGE_MAGASIN)) {
+      return NextResponse.json({ ok: true, skipped: "données internes de l'app" });
     }
 
-    if (relevantEvents.some((e) => eventType.includes(e)) || relevantEvents.includes(eventType)) {
-      // a) Cache mémoire serveur (instance courante)
-      invalidateCache();
-
-      // b) Cache ISR Next.js (infrastructure Vercel — cross-instances)
-      for (const path of PROJECT_PATHS) {
-        try {
-          revalidatePath(path);
-        } catch {
-          // revalidatePath peut ne pas fonctionner hors contexte Next.js
-        }
-      }
-
-      console.log(`[notion-webhook] Cache invalidé pour ${PROJECT_PATHS.length} routes ✓`);
-      return NextResponse.json({ ok: true, invalidated: PROJECT_PATHS.length });
+    if (EVENEMENTS_SUIVIS.includes(eventType)) {
+      const listes = rafraichirListesActives();
+      console.log(listes > 0
+        ? `[notion-webhook] ${eventType} → ${listes} listes en cours de rafraîchissement`
+        : `[notion-webhook] ${eventType} → ignoré (rafraîchissement déjà lancé)`);
+      return NextResponse.json({ ok: true, listes });
     }
 
     // Événement ignoré (structure, commentaire, etc.)
