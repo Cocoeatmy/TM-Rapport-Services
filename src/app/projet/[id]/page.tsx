@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState, use, useCallback, type Dispatch, type SetStateAction } from "react";
+import { fileDEnvoi } from "@/lib/envoi-en-serie";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -3937,6 +3938,10 @@ function ProjectPageContent({ id }: { id: string }) {
   const cabineLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cabineTouchSrcRef = useRef<number | null>(null);
   const nomKvDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Dernier nom de lot saisi, pas encore parti vers Notion. */
+  const nomsEnAttenteRef = useRef<string | null>(null);
+  /** Un envoi à la fois par champ — voir src/lib/envoi-en-serie.ts. */
+  const envoyerEnSerie = useRef(fileDEnvoi()).current;
   // Nom du lot au moment où l'utilisateur commence à l'éditer (focus), pour
   // pouvoir réattacher les signalements existants lors d'un renommage.
   const renameOldNomRef = useRef<string>("");
@@ -5845,6 +5850,39 @@ function ProjectPageContent({ id }: { id: string }) {
    * feraient trois requêtes, et une seule qui échoue laisserait la liste et
    * son reflet en désaccord.
    */
+  /** Envoie le nom des lots en attente, s'il y en a un. */
+  const envoyerNomsCabines = useCallback(() => {
+    if (nomKvDebounceRef.current) { clearTimeout(nomKvDebounceRef.current); nomKvDebounceRef.current = null; }
+    const nomsEnc = nomsEnAttenteRef.current;
+    if (nomsEnc === null) return;
+    nomsEnAttenteRef.current = null;
+    /* N'envoie PAS attributionCabines : le monteur n'a pas changé. Envoyer
+       l'attribution complète avec des monteurs locaux potentiellement périmés
+       déclencherait des suppressions involontaires côté serveur. */
+    envoyerEnSerie("nomsCabines", () =>
+      offlineFetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nomsCabines: nomsEnc }),
+      }).catch(console.error),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  /* Filet : fermer l'onglet, verrouiller le téléphone ou passer à une autre
+     app ne doit pas emporter la frappe en cours. */
+  useEffect(() => {
+    const partir = () => envoyerNomsCabines();
+    const auMasquage = () => { if (document.visibilityState === "hidden") envoyerNomsCabines(); };
+    window.addEventListener("pagehide", partir);
+    document.addEventListener("visibilitychange", auMasquage);
+    return () => {
+      window.removeEventListener("pagehide", partir);
+      document.removeEventListener("visibilitychange", auMasquage);
+      envoyerNomsCabines();
+    };
+  }, [envoyerNomsCabines]);
+
   const saveCabineTexts = (cabineIdx: number, valeurs: Record<string, string>) => {
     const patch: Record<string, string> = {};
     setProject((prev) => {
@@ -5862,11 +5900,15 @@ function ProjectPageContent({ id }: { id: string }) {
       patch[field] = `Cab${cabineIdx + 1}:${brut.replace(/\|/g, " / ").trim()}`;
       window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field } }));
     }
-    offlineFetch(`/api/projects/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    }).catch(() => {});
+    /* Même file d'attente que les noms de lots : deux saisies rapprochées sur
+       le même champ ne doivent pas se doubler en vol. */
+    envoyerEnSerie(`cab:${Object.keys(valeurs).sort().join(",")}`, () =>
+      offlineFetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      }).catch(() => {}),
+    );
   };
 
   // Sauvegarde générique de champ(s) PROJET (SAV : cause, date, collaborateurs,
@@ -10043,7 +10085,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <Input
                                   value={cabine.nom}
                                   onFocus={() => { renameOldNomRef.current = cabine.nom || ""; }}
-                                  onBlur={(e) => { syncSignalementsRename(renameOldNomRef.current, e.target.value); }}
+                                  onBlur={(e) => { envoyerNomsCabines(); syncSignalementsRename(renameOldNomRef.current, e.target.value); }}
                                   onChange={(e) => {
                                     const newNom = e.target.value;
                                     setCabines((prev) => {
@@ -10057,19 +10099,16 @@ function ProjectPageContent({ id }: { id: string }) {
                                       } catch {}
                                       // ── Marquer la cabine comme "dirty" pour protéger du revert CDN ─
                                       dirtyNomRef.current.set(idx, Date.now());
-                                      // ── Sauvegarde Notion (debounce court pour grouper la frappe) ──
+                                      /* Sauvegarde Notion : on laisse la frappe se poser (500 ms),
+                                         puis un seul envoi part, à la suite des précédents. Le délai
+                                         de 150 ms d'avant découpait un mot de trois lettres en trois
+                                         enregistrements concurrents. Rien n'est perdu pour autant :
+                                         quitter le champ ou la page envoie tout de suite. */
+                                      nomsEnAttenteRef.current = next
+                                        .map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`)
+                                        .join(" | ");
                                       if (nomKvDebounceRef.current) clearTimeout(nomKvDebounceRef.current);
-                                      nomKvDebounceRef.current = setTimeout(() => {
-                                        const nomsEnc = next.map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`).join(" | ");
-                                        // N'envoie PAS attributionCabines : le monteur n'a pas changé.
-                                        // Envoyer l'attrEnc complet avec des monteurs locaux potentiellement
-                                        // périmés déclencherait des suppressions involontaires dans mergeCabineAttribution.
-                                        offlineFetch(`/api/projects/${id}`, {
-                                          method: "PATCH",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({ nomsCabines: nomsEnc }),
-                                        }).catch(console.error);
-                                      }, 150); // 150 ms — assez court pour survivre à une fermeture d'onglet rapide
+                                      nomKvDebounceRef.current = setTimeout(envoyerNomsCabines, 500);
                                       return next;
                                     });
                                   }}
