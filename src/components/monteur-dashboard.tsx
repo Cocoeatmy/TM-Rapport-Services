@@ -1519,7 +1519,11 @@ const PANEL_DATE_FIELD: Record<string, (p: Project) => string | null | undefined
   "rdv-montage-a-fixer":  (p) => p.arrivageTM || p.arrivageGrossiste,
   "rdv-mesures-a-fixer":  (p) => p.dateMesuresRecue,
   "rdv-sav-a-fixer":      (p) => earliestSavRecuDate(p),
-  "rdv-services-a-fixer": (p) => p.dateDemandeProjet,
+  /* Un service se planifie quand la marchandise est là, pas quand la demande
+     est arrivée : c'est l'arrivage qui commande, comme pour les montages. La
+     date de demande donnait des regroupements et des « J+x » sans rapport avec
+     le travail à faire — jusqu'à J+139 sur un chantier qui n'attendait rien. */
+  "rdv-services-a-fixer": (p) => p.arrivageTM || p.arrivageGrossiste,
   // Soucis en cours : date du JOUR OÙ LE SOUCI A EU LIEU = jour du montage
   // (dateMontage). On garde « Date - Soucis montage » en repli si le montage
   // n'a pas de date. Sert au regroupement + au badge J+x par ligne.
@@ -5473,7 +5477,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             montageStatuses.includes(p.etatCMD) &&
             p.typeServices &&
             p.typeServices.some((t) => t.toLowerCase().startsWith("service"))
-          ).sort((a, b) => ((a.dateDemandeProjet || a.dateMontage || "z").split("T")[0]).localeCompare((b.dateDemandeProjet || b.dateMontage || "z").split("T")[0]));
+          ).sort((a, b) => ((a.arrivageTM || a.arrivageGrossiste || "z").split("T")[0]).localeCompare((b.arrivageTM || b.arrivageGrossiste || "z").split("T")[0]));
 
           // SAV à contacter
           const savAFixerStatuses2 = ["A contacter", "Contact sans réponse", "Attente news", "En cours de traitement"];
@@ -5734,7 +5738,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">RDV à fixer ({totalCount})</p>
               {renderCategory("Mesures à relever", "text-cyan-700 dark:text-cyan-300", "bg-cyan-50 dark:bg-cyan-900/20", mesuresProjects, "Reçue le", "dateMesuresRecue", true)}
               {renderCategory("Montages à planifier", "text-orange-700 dark:text-orange-300", "bg-orange-50 dark:bg-orange-900/20", pureMontageProjets, "Arrivage", "arrivageTM")}
-              {renderCategory("Services à planifier", "text-emerald-700 dark:text-emerald-300", "bg-emerald-50 dark:bg-emerald-900/20", servicesProjects, "Reçue le", "dateDemandeProjet")}
+              {renderCategory("Services à planifier", "text-emerald-700 dark:text-emerald-300", "bg-emerald-50 dark:bg-emerald-900/20", servicesProjects, "Arrivage", "arrivageTM")}
               {renderCategory("SAV à contacter", "text-red-700 dark:text-red-300", "bg-red-50 dark:bg-red-900/20", savAFixerProjects, "SAV reçu le", "dateSAVRecu", true)}
               {totalCount === 0 && <p className="text-sm text-gray-400 py-2">Aucun projet</p>}
             </div>
