@@ -10,6 +10,7 @@ import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/l
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
 import { cabinesPosees, cabinesRestantes } from "@/lib/cabines-posees";
 import { cabinesMesurees } from "@/lib/cabines-mesurees";
+import { cabinesDuJour, joursDuChantier } from "@/lib/cabines-du-jour";
 import { rapportTermine, rapportEnAttente } from "@/lib/rapport-etat";
 import { rdvMontageAFixer as estRdvMontageAFixer, rdvServicesAFixer as estRdvServicesAFixer } from "@/lib/rdv-a-fixer";
 import { TourneeAssistant } from "@/components/tournee-assistant";
@@ -1727,6 +1728,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     const day = projetsConnus.filter((p) => projectSpansDate(p, dateStr) || jourDeMesure(p));
     const cab = (arr: Project[]) => arr.reduce((s, p) => s + (p.nbCabines || 0), 0);
     const montages = day.filter((p) => jourDeMontage(p) && !isServices(p));
+    /* Charge du jour, et non taille du chantier. Un montage de sept cabines
+       étalé sur trois semaines n'en occupe pas sept chaque jour : la carte
+       annonçait douze cabines pour un vendredi où il en restait cinq, pendant
+       que la charge de la semaine, juste en dessous, en affichait cinq. Même
+       règle désormais pour les deux. */
+    const cabMontages = montages.reduce((s, p) => s + cabinesDuJour(p, dateStr), 0);
     const mesures = day.filter(jourDeMesure);
     const services = day.filter((p) => jourDeMontage(p) && isServices(p));
     const garanties = day.filter((p) => jourDeMontage(p) && isGarantie(p));
@@ -1734,12 +1741,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     /* Cabines déjà posées parmi celles du jour : l'avancement réel des
        équipes, et non ce qui était prévu. Bornée au total du chantier — une
        saisie trop haute ferait un compteur qui dépasse son propre maximum. */
-    const posees = montages.reduce((s, p) => s + cabinesPosees(p), 0);
+    const posees = montages.reduce(
+      (s, p) => s + Math.min(cabinesPosees(p), cabinesDuJour(p, dateStr)), 0,
+    );
     /* Même lecture pour les relevés : ce qui est mesuré, et non ce qui était
        prévu de l'être. */
     const mesurees = mesures.reduce((s, p) => s + cabinesMesurees(p), 0);
     return {
-      montages: montages.length, montagesCab: cab(montages), montagesPosees: posees, montagesList: montages,
+      montages: montages.length, montagesCab: cabMontages, montagesPosees: posees, montagesList: montages,
       mesures: mesures.length, mesuresCab: cab(mesures), mesuresMesurees: mesurees, mesuresList: mesures,
       services: services.length, servicesCab: cab(services), servicesList: services,
       sav: sav.length, savCab: cab(sav), savList: sav,
@@ -3351,47 +3360,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                  annulés sortent : eux n'ont jamais eu lieu. */
               const weekSource = projetsConnus.filter((p) => p.dateMontage);
               /* Jours PLANIFIÉS d'un montage : la fenêtre portée par la fiche. */
-              const joursPlanifies = (p: Project): string[] => {
-                const start = (p.dateMontage || "").split("T")[0];
-                if (!start) return [];
-                const end = (p.dateMontageEnd || "").split("T")[0];
-                return end && end > start ? getWorkingDays(start, end) : [start];
-              };
-              /* Jour de pose RELEVÉ pour chaque cabine, dans « Heure arrivée »
-                 au format « Cab3:2026-08-11:14:04 ». C'est la trace du travail
-                 réellement fait, et elle seule sait quelle cabine a été posée
-                 quel jour. */
-              const joursDesCabines = (p: Project): string[] =>
-                [...String(p.heureArrivee || "").matchAll(/Cab\d+\s*:\s*(\d{4}-\d{2}-\d{2})/g)].map((m) => m[1]);
-              /* Un montage pèse sur les jours où il était prévu ET sur ceux où
-                 l'on a effectivement posé : une cabine montée en août doit
-                 compter en août, pas sur la date de montage restée au 1er
-                 octobre. */
-              const daysOfProject = (p: Project): string[] =>
-                [...new Set([...joursPlanifies(p), ...joursDesCabines(p)])];
-              /**
-               * Cabines d'un chantier qui pèsent sur CE jour.
-               *
-               * Les cabines pointées ce jour-là, plus la part des cabines
-               * encore sans relevé, répartie sur les jours planifiés. Sans
-               * cette répartition, un chantier de dix-neuf cabines étalé sur
-               * trois semaines ramenait ses dix-neuf cabines sur chacun de ses
-               * jours : la journée du 1er octobre en annonçait vingt-neuf
-               * quand il n'y avait plus rien à y poser.
-               */
-              const cabinesDuJour = (p: Project, key: string): number => {
-                const total = p.nbCabines || 0;
-                const releves = joursDesCabines(p);
-                const ceJour = releves.filter((d) => d === key).length;
-                const sansReleve = Math.max(total - releves.length, 0);
-                if (sansReleve === 0) return ceJour;
-                const planifies = joursPlanifies(p);
-                const i = planifies.indexOf(key);
-                if (i < 0) return ceJour;
-                const base = Math.floor(sansReleve / planifies.length);
-                const reste = sansReleve % planifies.length;
-                return ceJour + base + (i < reste ? 1 : 0);
-              };
+              /* La règle qui dit combien de cabines pèsent sur un jour vit
+                 dans src/lib/cabines-du-jour.ts — la même que celle des cartes
+                 du jour, pour que les deux ne racontent plus deux histoires. */
+              const daysOfProject = joursDuChantier;
+
               const bars = ["Lun", "Mar", "Mer", "Jeu", "Ven"].map((d, i) => {
                 const dt = new Date(monday);
                 dt.setDate(monday.getDate() + i);
