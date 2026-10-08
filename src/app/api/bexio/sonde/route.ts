@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { bexioFetch } from "@/lib/bexio";
+import { bexioFetch, peutVoirBexio } from "@/lib/bexio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -28,7 +28,7 @@ const OBJETS: Record<string, string> = {
 export async function GET(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
   const user = token ? await verifyToken(token) : null;
-  if (!user || user.role !== "admin") {
+  if (!user || user.role !== "admin" || !(await peutVoirBexio(user))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

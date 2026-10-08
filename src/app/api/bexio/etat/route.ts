@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { bexioConfigure, lireJeton, jetonAcces, bexioFetch, SCOPES, oublierJeton } from "@/lib/bexio";
+import { bexioConfigure, lireJeton, jetonAcces, bexioFetch, SCOPES, oublierJeton, peutVoirBexio } from "@/lib/bexio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -48,5 +48,6 @@ export async function DELETE(request: NextRequest) {
 async function admin(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
   const user = token ? await verifyToken(token) : null;
-  return user && user.role === "admin" ? user : null;
+  if (!user || user.role !== "admin") return null;
+  return (await peutVoirBexio(user)) ? user : null;
 }

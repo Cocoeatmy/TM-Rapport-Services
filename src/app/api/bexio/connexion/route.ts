@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { bexioConfigure, urlAutorisation } from "@/lib/bexio";
+import { bexioConfigure, urlAutorisation, peutVoirBexio } from "@/lib/bexio";
 import { randomBytes } from "node:crypto";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value;
   const user = token ? await verifyToken(token) : null;
-  if (!user || user.role !== "admin") {
+  if (!user || user.role !== "admin" || !(await peutVoirBexio(user))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
   if (!bexioConfigure()) {

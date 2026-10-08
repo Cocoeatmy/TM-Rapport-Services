@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-08T20:17:20.053Z",
+  "genereLe": "2026-10-08T20:29:30.730Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -181,7 +181,7 @@
       "url": "/api/bexio/etat",
       "type": "api",
       "fichier": "src/app/api/bexio/etat/route.ts",
-      "niveau": "admin",
+      "niveau": "connecte",
       "gardePage": false,
       "methodes": [
         "GET",

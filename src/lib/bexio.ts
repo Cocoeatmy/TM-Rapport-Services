@@ -60,6 +60,30 @@ export interface JetonBexio {
   le?: string;
 }
 
+/**
+ * Qui a le droit de voir les données bexio — et personne d'autre.
+ *
+ * Être administrateur de l'app ne suffit pas : la comptabilité, les prix et
+ * le chiffre d'affaires ne regardent que le patron. Le rôle « admin » peut
+ * être accordé un jour à quelqu'un d'autre pour de tout autres raisons ; ce
+ * jour-là, les comptes de l'entreprise ne doivent pas s'ouvrir avec.
+ *
+ * Par défaut, la liste se réduit à la personne qui a autorisé la connexion
+ * bexio : celle qui détient les accès est celle qui les voit. `BEXIO_ACCES`
+ * (adresses séparées par des virgules) permet d'en décider autrement.
+ */
+export async function peutVoirBexio(user: { email?: string; role?: string } | null): Promise<boolean> {
+  if (!user?.email) return false;
+  const email = user.email.toLowerCase().trim();
+  const liste = (process.env.BEXIO_ACCES || "")
+    .split(",").map((e) => e.toLowerCase().trim()).filter(Boolean);
+  if (liste.length > 0) return liste.includes(email);
+  const j = await lireJeton();
+  if (j?.par) return j.par.toLowerCase().trim() === email;
+  // Personne n'a encore connecté bexio : seul un administrateur peut le faire.
+  return user.role === "admin";
+}
+
 export function bexioConfigure(): boolean {
   return !!(process.env.BEXIO_CLIENT_ID && process.env.BEXIO_CLIENT_SECRET);
 }
