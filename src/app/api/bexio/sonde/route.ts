@@ -32,6 +32,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
+  /* Chemin libre : bexio déplace ses objets d'une version d'API à l'autre
+     (les factures fournisseurs ne sont pas où la documentation les dit), et
+     chaque essai ne peut pas coûter un déploiement. Reste une LECTURE —
+     `bexioFetch` refuse tout verbe d'écriture — et reste réservé au
+     propriétaire des accès. */
+  const libre = request.nextUrl.searchParams.get("chemin") || "";
+  if (libre) {
+    if (!/^\/[A-Za-z0-9_\-./?=&%]*$/.test(libre) || libre.includes("..")) {
+      return NextResponse.json({ error: "Chemin invalide" }, { status: 400 });
+    }
+    try {
+      return NextResponse.json({ chemin: libre, data: await bexioFetch<unknown>(libre) });
+    } catch (e) {
+      return NextResponse.json({ chemin: libre, erreur: (e as Error).message }, { status: 502 });
+    }
+  }
+
   const objet = request.nextUrl.searchParams.get("objet") || "societe";
   const base = OBJETS[objet];
   if (!base) {
