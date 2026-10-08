@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-08T20:29:30.730Z",
+  "genereLe": "2026-10-08T20:45:20.455Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -189,6 +189,16 @@
       ]
     },
     {
+      "url": "/api/bexio/facturation",
+      "type": "api",
+      "fichier": "src/app/api/bexio/facturation/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
       "url": "/api/bexio/sonde",
       "type": "api",
       "fichier": "src/app/api/bexio/sonde/route.ts",
@@ -318,6 +328,16 @@
       "url": "/api/cron/backup",
       "type": "api",
       "fichier": "src/app/api/cron/backup/route.ts",
+      "niveau": "cron",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/cron/bexio-sync",
+      "type": "api",
+      "fichier": "src/app/api/cron/bexio-sync/route.ts",
       "niveau": "cron",
       "gardePage": false,
       "methodes": [
