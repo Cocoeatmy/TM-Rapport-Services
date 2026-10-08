@@ -1756,6 +1756,41 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [sgCat, setSgCat] = useState<string>("all");
   /** Semaine affichee dans « Charge de la semaine » (0 = semaine en cours). */
   const [sgWeek, setSgWeek] = useState(0);
+  /**
+   * Types d'intervention visibles dans « Charge de la semaine ».
+   *
+   * Tout est affiché par défaut — la vue ne change donc pas d'elle-même. Mais
+   * une semaine de relevés ne se lisait pas : les mesures n'étaient qu'une
+   * mention sous les barres, noyée dans les poses. Pouvoir n'en garder qu'un
+   * type répond à « combien de mesures cette semaine, et pour qui ».
+   */
+  const TYPES_CHARGE = [
+    { id: "montages", label: "Montages" },
+    { id: "mesures", label: "Mesures" },
+    { id: "services", label: "Services" },
+    { id: "garanties", label: "Garanties" },
+  ] as const;
+  type TypeCharge = (typeof TYPES_CHARGE)[number]["id"];
+  const TOUS_TYPES: TypeCharge[] = ["montages", "mesures", "services", "garanties"];
+  const [sgTypes, setSgTypes] = useState<Set<TypeCharge>>(new Set(TOUS_TYPES));
+  // Le choix suit l'utilisateur d'une visite à l'autre.
+  useEffect(() => {
+    try {
+      const brut = localStorage.getItem("tm-charge-types");
+      if (!brut) return;
+      const lus = (JSON.parse(brut) as string[]).filter((t): t is TypeCharge =>
+        (TOUS_TYPES as string[]).includes(t));
+      setSgTypes(new Set(lus));
+    } catch { /* réglage illisible : on garde tout */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const basculerType = (t: TypeCharge) => {
+    setSgTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t); else next.add(t);
+      try { localStorage.setItem("tm-charge-types", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
   /** Pastille de légende ouverte : les projets qu'elle recouvre. Un chiffre de
    *  tableau de bord doit pouvoir être ouvert pour voir ce qu'il compte. */
   const [chargePick, setChargePick] = useState<
@@ -3432,13 +3467,27 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                  On garde donc la dernière version connue de chaque chantier
                  daté, et on ne l'oublie qu'au rechargement de la page. Les
                  annulés sortent : eux n'ont jamais eu lieu. */
-              const weekSource = projetsConnus.filter((p) => p.dateMontage);
+              /* Nature d'une intervention datée, en UN seul type — à la
+                 différence des cartes du jour, où une garantie peut aussi être
+                 comptée en montage. Ici un chantier ne doit occuper qu'une
+                 case, sans quoi la barre le compterait deux fois. */
+              const estServicesCharge = (p: Project) =>
+                (p.typeServices || []).some((t: string) => t === "Services" || t.includes("Services"));
+              const estGarantieCharge = (p: Project) =>
+                (p.typeServices || []).some((t: string) => t.toLowerCase().includes("garantie"));
+              const typeDuChantier = (p: Project): TypeCharge =>
+                estGarantieCharge(p) ? "garanties" : estServicesCharge(p) ? "services" : "montages";
+              const weekSource = projetsConnus.filter(
+                (p) => p.dateMontage && sgTypes.has(typeDuChantier(p)),
+              );
               /* Les relevés de mesures font partie de la semaine d'une équipe
                  au même titre que les poses : une journée sans montage mais
                  avec trois relevés n'est pas une journée vide. Ils se comptent
                  à part — on ne pose pas une cabine qu'on vient mesurer — mais
                  ils entrent dans le nombre de chantiers concernés. */
-              const mesuresSource = projetsConnus.filter((p) => p.dateMesures);
+              const mesuresSource = sgTypes.has("mesures")
+                ? projetsConnus.filter((p) => p.dateMesures)
+                : [];
               /* Jours PLANIFIÉS d'un montage : la fenêtre portée par la fiche. */
               /* La règle qui dit combien de cabines pèsent sur un jour vit
                  dans src/lib/cabines-du-jour.ts — la même que celle des cartes
@@ -3461,21 +3510,36 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                    qui ne l'est pas encore. La couleur du monteur reste la
                    même, seule la trame change — on veut voir QUI pose, et
                    séparément CE QUI manque. */
-                type Groupe = { poids: number; attente: number; projetsRecu: Project[]; projetsAttente: Project[] };
+                type Groupe = { poids: number; attente: number; projetsRecu: Project[]; projetsAttente: Project[]; projetsMesure: Project[] };
+                const vide = (): Groupe => ({ poids: 0, attente: 0, projetsRecu: [], projetsAttente: [], projetsMesure: [] });
                 const byGroup = new Map<string, Groupe>();
                 dayProjects.forEach((p) => {
                   const label = (p.collaborateurs || "").trim() || "Non attribué";
-                  const cur: Groupe = byGroup.get(label) || { poids: 0, attente: 0, projetsRecu: [], projetsAttente: [] };
+                  const cur: Groupe = byGroup.get(label) || vide();
                   cur.poids += Math.max(cabinesDuJour(p, key), 1);
                   if (marchandiseEnAttente(p)) { cur.attente += cabinesDuJour(p, key); cur.projetsAttente.push(p); }
                   else cur.projetsRecu.push(p);
+                  byGroup.set(label, cur);
+                });
+                /* Un relevé occupe une journée comme une pose : il a donc sa
+                   case, à la couleur de qui s'en charge et marquée comme
+                   mesure. Sans elle, ne garder que « Mesures » donnait un
+                   graphique vide — précisément ce qu'on cherchait à voir. */
+                dayMesures.forEach((p) => {
+                  const label = (p.mesuresTraiteePar || "").trim()
+                    || (p.collaborateurs || "").trim() || "Non attribué";
+                  const cur: Groupe = byGroup.get(label) || vide();
+                  cur.poids += Math.max(p.nbCabines || 0, 1);
+                  cur.projetsMesure.push(p);
                   byGroup.set(label, cur);
                 });
                 const segs = [...byGroup.entries()]
                   .map(([label, v]) => ({
                     label, attente: v.attente, poids: v.poids,
                     projetsRecu: v.projetsRecu, projetsAttente: v.projetsAttente,
-                    cab: [...v.projetsRecu, ...v.projetsAttente].reduce((s2, x) => s2 + cabinesDuJour(x, key), 0),
+                    projetsMesure: v.projetsMesure,
+                    cab: [...v.projetsRecu, ...v.projetsAttente].reduce((s2, x) => s2 + cabinesDuJour(x, key), 0)
+                       + v.projetsMesure.reduce((s2, x) => s2 + (x.nbCabines || 0), 0),
                     color: groupColor(label),
                   }))
                   .sort((a, b) => b.poids - a.poids);
@@ -3515,6 +3579,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     const duJour = cabinesDuJour(p, b.key);
                     cur.cab += duJour;
                     cur.restantes += Math.min(cabinesRestantes(p), duJour);
+                    cur.projets.set(p.id, p);
+                    m.set(label, cur);
+                  });
+                  /* Les relevés comptent dans la semaine de celui qui les fait :
+                     « à faire » y est ce qui reste à mesurer. */
+                  b.mesuresProjets.forEach((p) => {
+                    const label = (p.mesuresTraiteePar || "").trim()
+                      || (p.collaborateurs || "").trim() || "Non attribué";
+                    const cur: Ligne = m.get(label) || { cab: 0, restantes: 0, projets: new Map<string, Project>() };
+                    const total = p.nbCabines || 0;
+                    cur.cab += total;
+                    cur.restantes += Math.max(0, total - cabinesMesurees(p));
                     cur.projets.set(p.id, p);
                     m.set(label, cur);
                   });
@@ -3559,7 +3635,22 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         {sgWeek !== 0 && ` · ${sgWeek > 0 ? "+" : ""}${sgWeek} sem.`}
                       </p>
                     </div>
-                    <div className="sgw-nav">
+                    <div className="sg-charge-tete">
+                      {/* Tout est coché au départ : le graphique reste celui
+                          qu'on connaît, et l'on décoche ce qu'on ne veut pas
+                          voir — l'inverse obligerait à choisir avant de lire. */}
+                      <div className="sg-charge-filtres" role="group" aria-label="Types d'intervention affichés">
+                        {TYPES_CHARGE.map((t) => (
+                          <button key={t.id} type="button"
+                            className={`sg-ctype is-${t.id}${sgTypes.has(t.id) ? " is-on" : ""}`}
+                            aria-pressed={sgTypes.has(t.id)}
+                            title={sgTypes.has(t.id) ? `Masquer les ${t.label.toLowerCase()}` : `Afficher les ${t.label.toLowerCase()}`}
+                            onClick={() => basculerType(t.id)}>
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="sgw-nav">
                       <button type="button" aria-label="Semaine precedente"
                         disabled={sgWeek <= -5}
                         onClick={() => setSgWeek((w) => Math.max(-5, w - 1))}>
@@ -3572,8 +3663,14 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         onClick={() => setSgWeek((w) => Math.min(5, w + 1))}>
                         <ChevronRight className="w-4 h-4" />
                       </button>
+                      </div>
                     </div>
                   </div>
+                  {sgTypes.size === 0 && (
+                    <p className="sg-charge-rien">
+                      Aucun type sélectionné — choisissez au moins « Montages » ou « Mesures ».
+                    </p>
+                  )}
                   <div className="sg-bars">
                     {bars.map((b) => (
                       /* Colonne en div, pas en bouton : elle porte désormais
@@ -3643,21 +3740,26 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 Jacobo font trois cases vertes séparées d'un
                                 tiret blanc, chacune portant son numéro. */}
                             {b.segs.flatMap((s) => [
-                              ...s.projetsRecu.map((p) => ({ s, p, attente: false })),
+                              ...s.projetsRecu.map((p) => ({ s, p, attente: false, mesure: false })),
                               /* Rayé dans la couleur du monteur : la cabine lui
                                  est bien attribuée, mais elle n'est pas encore
                                  réceptionnée. */
-                              ...s.projetsAttente.map((p) => ({ s, p, attente: true })),
-                            ]).map(({ s, p, attente }) => (
+                              ...s.projetsAttente.map((p) => ({ s, p, attente: true, mesure: false })),
+                              ...s.projetsMesure.map((p) => ({ s, p, attente: false, mesure: true })),
+                            ]).map(({ s, p, attente, mesure }) => (
                               <span
-                                key={`${s.label}-${p.id}`}
-                                className={`sg-bar-seg${attente ? " is-attente" : ""}`}
+                                key={`${s.label}-${p.id}${mesure ? "-m" : ""}`}
+                                className={`sg-bar-seg${attente ? " is-attente" : ""}${mesure ? " is-mesure" : ""}`}
+                                title={mesure ? `Relevé de mesures — ${p.nbCabines || 0} cabine${(p.nbCabines || 0) > 1 ? "s" : ""}` : undefined}
                                 style={attente
                                   ? ({ flexGrow: Math.max(cabinesDuJour(p, b.key), 1), ["--raie" as string]: s.color } as React.CSSProperties)
-                                  : { flexGrow: Math.max(cabinesDuJour(p, b.key), 1), background: s.color }}
+                                  : { flexGrow: mesure ? Math.max(p.nbCabines || 0, 1) : Math.max(cabinesDuJour(p, b.key), 1), background: s.color }}
                               >
                                 {numeroDeProjet(p)}
                                 {(() => {
+                                  /* L'icône dit où en est la POSE : sur un
+                                     relevé elle n'aurait aucun sens. */
+                                  if (mesure) return null;
                                   const e = etatDuLot(p, projetsSignales.has(p.id), projetsRegles.has(p.id));
                                   if (!e) return null;
                                   return (

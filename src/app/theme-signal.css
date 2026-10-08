@@ -983,6 +983,54 @@ html[data-ui="signal"] .sg-bar-seg.is-attente {
 html[data-ui="signal"] .sg-bar-col:hover:not(.is-void) .sg-bar-stack { filter: brightness(1.08); }
 
 /* Navigation de semaine (−5 … +5) */
+/* Filtres de la charge : quels types d'intervention la semaine montre.
+   Posés à gauche de la navigation de semaine, ils passent sous elle dès que
+   la carte se resserre (téléphone), plutôt que de pousser les flèches hors
+   de l'écran. */
+html[data-ui="signal"] .sg-charge-tete {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+}
+html[data-ui="signal"] .sg-charge-filtres {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 3px; border-radius: 999px;
+  background: var(--sg-paper-2); border: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-ctype {
+  height: 26px; padding: 0 10px; border: none; border-radius: 999px;
+  background: transparent; color: var(--sg-text-3); cursor: pointer;
+  font-family: inherit; font-size: 11px; font-weight: 600; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px;
+  transition: background 140ms ease, color 140ms ease;
+}
+/* Pastille de couleur : la même que celle du type dans les cartes du jour. */
+html[data-ui="signal"] .sg-ctype::before {
+  content: ""; width: 7px; height: 7px; border-radius: 2px;
+  background: currentColor; opacity: 0.45;
+}
+html[data-ui="signal"] .sg-ctype:hover { color: var(--sg-text); }
+html[data-ui="signal"] .sg-ctype.is-on { background: var(--sg-paper); color: var(--sg-text); }
+html[data-ui="signal"] .sg-ctype.is-on::before { opacity: 1; }
+html[data-ui="signal"] .sg-ctype.is-montages.is-on { color: #1b63ff; }
+html[data-ui="signal"] .sg-ctype.is-mesures.is-on { color: #0e7490; }
+html[data-ui="signal"] .sg-ctype.is-services.is-on { color: #6d28d9; }
+html[data-ui="signal"] .sg-ctype.is-garanties.is-on { color: #15803d; }
+/* Décoché : le libellé reste lisible, barré pour dire qu'il est écarté. */
+html[data-ui="signal"] .sg-ctype:not(.is-on) { text-decoration: line-through; opacity: 0.6; }
+html[data-ui="signal"] .sg-charge-rien {
+  margin: 10px 0 0; font-size: 12.5px; color: var(--sg-text-3);
+}
+/* Case de RELEVÉ dans une barre : même couleur d'équipe que les poses — on
+   veut voir qui travaille —, mais un liseré clair l'en distingue d'un coup
+   d'œil, comme la trame distingue la marchandise en attente. */
+html[data-ui="signal"] .sg-bar-seg.is-mesure {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85);
+  opacity: 0.92;
+}
+html[data-ui="signal"].dark .sg-bar-seg.is-mesure {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
 html[data-ui="signal"] .sgw-nav {
   display: flex; align-items: center; gap: 3px; flex-shrink: 0;
   padding: 3px; border-radius: 999px;
