@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-08T21:14:07.555Z",
+  "genereLe": "2026-10-08T21:25:13.168Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -158,6 +158,16 @@
       ]
     },
     {
+      "url": "/api/bexio/ca",
+      "type": "api",
+      "fichier": "src/app/api/bexio/ca/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
       "url": "/api/bexio/callback",
       "type": "api",
       "fichier": "src/app/api/bexio/callback/route.ts",
@@ -197,6 +207,16 @@
       "methodes": [
         "GET",
         "POST"
+      ]
+    },
+    {
+      "url": "/api/bexio/projet",
+      "type": "api",
+      "fichier": "src/app/api/bexio/projet/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET"
       ]
     },
     {

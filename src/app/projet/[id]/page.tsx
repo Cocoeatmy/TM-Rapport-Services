@@ -54,6 +54,7 @@ import {
 import { ProjectChat } from "@/components/project-chat";
 // GPS DÉSACTIVÉ — décommenter pour réactiver le pointage GPS automatique
 import { SiteTimer } from "@/components/site-timer";
+import { BlocFacturation } from "@/components/bloc-facturation";
 // StockUsage supprimée (section retirée)
 import { SAVForm } from "@/components/sav-form";
 import { ContactButtons } from "@/components/contact-buttons";
@@ -8554,6 +8555,10 @@ function ProjectPageContent({ id }: { id: string }) {
 
           return (
             <div className="space-y-1.5">
+              {/* Facturation : ne s'affiche QUE pour le propriétaire des accès
+                  bexio. Pour tout autre compte, la requête est refusée et le
+                  bloc n'existe pas — pas même un emplacement vide. */}
+              <BlocFacturation projectId={id} ofrTM={project?.ofrTM} />
               {/* Barre de progression */}
               <div className="glass-card rounded-2xl p-3">
                 <div className="flex items-center justify-between mb-2">

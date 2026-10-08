@@ -4914,3 +4914,72 @@ html[data-ui="signal"] .sg-fact-non {
   border: 1px solid var(--sg-line); background: transparent; color: var(--sg-text-3);
   font-size: 13px; font-weight: 500;
 }
+
+/* Bloc facturation de la fiche projet — discret, et absent pour les autres. */
+html[data-ui="signal"] .sg-bfact {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 14px; border-radius: 14px;
+  background: var(--sg-paper); border: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-bfact.is-alerte { border-color: #fca5a5; background: #fff5f5; }
+html[data-ui="signal"].dark .sg-bfact.is-alerte { border-color: #7f1d1d; background: rgba(127, 29, 29, 0.16); }
+html[data-ui="signal"] .sg-bfact-t {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-bfact-l { display: flex; flex-wrap: wrap; gap: 18px; }
+html[data-ui="signal"] .sg-bfact-c { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+html[data-ui="signal"] .sg-bfact-c i { font-style: normal; font-size: 10.5px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sg-bfact-c b {
+  font-size: 13px; font-weight: 600; color: var(--sg-text);
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+html[data-ui="signal"] .sg-bfact-c b.is-ok { color: #15803d; }
+html[data-ui="signal"] .sg-bfact-c b.is-attente { color: #b45309; }
+html[data-ui="signal"] .sg-bfact-c b.is-alerte { color: #b91c1c; }
+html[data-ui="signal"].dark .sg-bfact-c b.is-ok { color: #7ddba2; }
+html[data-ui="signal"].dark .sg-bfact-c b.is-attente { color: #fbbf72; }
+html[data-ui="signal"].dark .sg-bfact-c b.is-alerte { color: #fca5a5; }
+
+/* CA-Bexio : barres mensuelles et classements. */
+html[data-ui="signal"] .sg-ca-mois {
+  display: flex; align-items: flex-end; gap: 6px; height: 180px; padding-top: 18px;
+}
+html[data-ui="signal"] .sg-ca-col {
+  flex: 1 1 0; min-width: 0; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px;
+}
+html[data-ui="signal"] .sg-ca-barre {
+  width: 100%; max-width: 46px; border-radius: 6px 6px 2px 2px;
+  background: var(--sg-signal); transition: height 220ms ease;
+}
+html[data-ui="signal"] .sg-ca-val {
+  font-size: 10px; font-variant-numeric: tabular-nums; color: var(--sg-text-2);
+  white-space: nowrap;
+}
+html[data-ui="signal"] .sg-ca-mois-nom { font-size: 10.5px; color: var(--sg-text-3); white-space: nowrap; }
+html[data-ui="signal"] .sg-cab-liste { display: flex; flex-direction: column; gap: 7px; }
+html[data-ui="signal"] .sg-cab-l {
+  display: grid; grid-template-columns: minmax(120px, 1.4fr) minmax(0, 2fr) auto;
+  align-items: center; gap: 10px;
+}
+html[data-ui="signal"] .sg-cab-nom {
+  font-size: 12.5px; color: var(--sg-text); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-ui="signal"] .sg-cab-barre {
+  height: 8px; border-radius: 999px; background: var(--sg-paper-2); overflow: hidden;
+}
+html[data-ui="signal"] .sg-cab-barre i { display: block; height: 100%; border-radius: 999px; background: var(--sg-signal); }
+html[data-ui="signal"] .sg-cab-val {
+  text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 12px; font-weight: 600; color: var(--sg-text); white-space: nowrap;
+  display: flex; flex-direction: column; align-items: flex-end;
+}
+html[data-ui="signal"] .sg-cab-val em {
+  font-style: normal; font-size: 10px; font-weight: 500; color: var(--sg-text-3);
+}
+@media (max-width: 700px) {
+  html[data-ui="signal"] .sg-cab-l { grid-template-columns: minmax(0, 1fr) auto; }
+  html[data-ui="signal"] .sg-cab-barre { display: none; }
+}

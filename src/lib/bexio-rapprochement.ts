@@ -40,6 +40,8 @@ export interface FactureBexio {
   contactId: number | null;
   date: string;
   reference: string | null;
+  /** Nom du client, lu sur la première ligne de l'adresse de facturation. */
+  client?: string;
 }
 
 /** Sur quoi se fonde le rapprochement — du certain au douteux. */

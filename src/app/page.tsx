@@ -8,7 +8,7 @@ import { PullToRefresh } from "@/components/pull-to-refresh";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, Compass, Receipt, AlertTriangle, CheckCircle2, Clock, Truck, Building2, Sparkles } from "lucide-react";
+import { Search, MapPin, Calendar, ChevronRight, AlertCircle, X, FileText, CalendarDays, Users as UsersIcon, ArrowLeft, ChevronLeft, ChevronRight as ChevronRightIcon, Star, Loader2, Building, Printer, ChevronDown, ChevronUp, LayoutGrid, Plus, Trash2, ExternalLink, Columns2, Home, Ruler, Wrench, Settings, ShoppingBag, Package, Droplets, BarChart2, Archive, FolderOpen, Compass, Receipt, Coins, AlertTriangle, CheckCircle2, Clock, Truck, Building2, Sparkles } from "lucide-react";
 import { FloatingWindow } from "@/components/floating-window";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +101,11 @@ const ArrivagePage = dynamic(() => import("@/components/arrivage-page"), {
 /* Facturation : chargée à la demande, et seulement par qui y a droit — le
    code ne part même pas chez les autres. */
 const FacturationView = dynamic(() => import("@/components/facturation-view").then(m => ({ default: m.FacturationView })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
+const CaBexioView = dynamic(() => import("@/components/ca-bexio-view").then(m => ({ default: m.CaBexioView })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
@@ -463,6 +468,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
              fois par jour. */
           ...(isAdmin ? [{ id: "stats", label: "Stats", Icon: BarChart2, active: mode === "stats", act: () => { handleSelect("stats"); setOpen(null); } }] : []),
           ...(bexioOk ? [{ id: "facturation", label: "Facturation", Icon: Receipt, active: mode === "facturation", act: () => { handleSelect("facturation"); setOpen(null); } }] : []),
+          ...(bexioOk ? [{ id: "ca-bexio", label: "CA-Bexio", Icon: Coins, active: mode === "ca-bexio", act: () => { handleSelect("ca-bexio"); setOpen(null); } }] : []),
           /* L'assistant rejoint le rail : flottant en bas à droite, il
              recouvrait le contenu et détonnait par sa taille. Il garde sa
              pastille flottante sur les écrans sans rail. */
@@ -1058,8 +1064,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "facturation" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv" | "arrivage" | "chantiers";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "facturation", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts", "arrivage", "chantiers"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "facturation" | "ca-bexio" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv" | "arrivage" | "chantiers";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "facturation", "ca-bexio", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts", "arrivage", "chantiers"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -1340,6 +1346,7 @@ function HomePage() {
   useEffect(() => {
     if (currentUser && currentUser.role !== "admin" && mode === "stats") setMode("dashboard" as Mode);
     if (currentUser && currentUser.role !== "admin" && mode === "facturation") setMode("dashboard" as Mode);
+    if (currentUser && currentUser.role !== "admin" && mode === "ca-bexio") setMode("dashboard" as Mode);
   }, [currentUser, mode]);
 
   // Pré-cache les projets du jour pour l'accès hors ligne (silencieux, best-effort)
@@ -2343,7 +2350,7 @@ function HomePage() {
               (SignalHeaderBar) : on ne le duplique pas ici. */}
           {floatingWindowButton}
 
-          {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
+          {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
             <button
               onClick={() => setShowNewProject(true)}
               className="w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
@@ -4731,7 +4738,7 @@ function HomePage() {
       })()}
 
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
         <div className="flex gap-3 mb-4 sgv-tiles">
           <button
             onClick={() => setViewMode("calendar")}
@@ -5718,12 +5725,13 @@ function HomePage() {
       {/* ======================================================== */}
       {mode === "chantiers" && <ChantiersView />}
       {mode === "facturation" && bexioOk && <FacturationView />}
+      {mode === "ca-bexio" && bexioOk && <CaBexioView />}
 
       {/* ======================================================== */}
       {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
       {/* ======================================================== */}
       {(() => {
-        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage";
+        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "ca-bexio" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage";
       })() && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {

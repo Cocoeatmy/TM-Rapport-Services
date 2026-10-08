@@ -16,13 +16,19 @@ import { bexioFetch } from "@/lib/bexio";
 import { redisGetJSON, redisSetJSON, siRedis } from "@/lib/redis-cache";
 import type { OffreBexio, FactureBexio } from "@/lib/bexio-rapprochement";
 
-const CLE_OFFRES = "bexio:offres";
-const CLE_FACTURES = "bexio:factures";
+/* Version 2 : les factures portent désormais le nom du client. Changer la
+   clé évite de servir une copie d'hier à laquelle il manquerait. */
+const CLE_OFFRES = "bexio:offres2";
+const CLE_FACTURES = "bexio:factures2";
 const CLE_SYNCHRO = "bexio:synchro";
 /** Un mois : la copie est refaite chaque nuit, ce plafond n'est qu'un filet. */
 const DUREE = 30 * 24 * 3600;
 /** Plafond imposé par bexio sur une page de résultats. */
 const PAR_PAGE = 2000;
+
+/** Première ligne de l'adresse de facturation : c'est le nom du client. */
+const nomClient = (adresse: string | null | undefined): string =>
+  String(adresse || "").split("\n")[0].trim();
 
 const nombre = (v: unknown): number => {
   const n = typeof v === "string" ? parseFloat(v) : typeof v === "number" ? v : 0;
@@ -38,6 +44,7 @@ interface BrutDocument {
   contact_id?: number | null;
   is_valid_from?: string;
   reference?: string | null;
+  contact_address?: string | null;
 }
 
 /** Toutes les pages d'un objet bexio, dans l'ordre où il les rend. */
@@ -77,6 +84,7 @@ export async function synchroniserBexio(): Promise<{ offres: number; factures: n
     contactId: f.contact_id ?? null,
     date: (f.is_valid_from || "").slice(0, 10),
     reference: f.reference || null,
+    client: nomClient(f.contact_address),
   }));
 
   await siRedis(() => redisSetJSON(CLE_OFFRES, offres, DUREE));
@@ -123,7 +131,7 @@ export async function lireCopieBexio(forcer = false): Promise<CopieBexio> {
       id: x.id, nr: (x.document_nr || "").trim(), titre: x.title || "",
       total: nombre(x.total), restant: nombre(x.total_remaining_payments),
       contactId: x.contact_id ?? null, date: (x.is_valid_from || "").slice(0, 10),
-      reference: x.reference || null,
+      reference: x.reference || null, client: nomClient(x.contact_address),
     })),
     le: new Date().toISOString(),
   };
