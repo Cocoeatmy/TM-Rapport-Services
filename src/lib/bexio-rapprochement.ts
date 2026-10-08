@@ -28,6 +28,8 @@ export interface OffreBexio {
   total: number;
   contactId: number | null;
   date: string;
+  /** Nom du client, lu sur la première ligne de l'adresse. */
+  client?: string;
 }
 
 export interface FactureBexio {

@@ -19,7 +19,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { RefreshCw, ChevronRight, ExternalLink } from "lucide-react";
-import { openSignalPreview, survolApercu, annulerSurvol } from "@/components/signal-preview";
+import { openSignalPreview, survolApercu, ouvrirApercuSurvol, fermerApercuSurvol } from "@/components/signal-preview";
 import { prefetchProject } from "@/lib/api-helpers";
 import type { Project } from "@/lib/notion";
 
@@ -226,8 +226,8 @@ export function FacturationView() {
                       {/* Le survol montre la fiche, le clic l'épingle — le reste
                           de la ligne ouvre le chantier. */}
                       <span className="sg-plist-tm sg-tmbtn sg-refs" title="Aperçu du projet"
-                        onMouseEnter={(e) => { e.stopPropagation(); survolApercu(() => openSignalPreview(p, "facturation")); }}
-                        onMouseLeave={annulerSurvol}
+                        onMouseEnter={(e) => { e.stopPropagation(); survolApercu(() => ouvrirApercuSurvol(p, "facturation")); }}
+                        onMouseLeave={() => fermerApercuSurvol()}
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); openSignalPreview(p, "facturation"); }}>
                         {(l.ofrTM || "—").split(/[\n,;]+/).map((n, k) => <i key={`${n}-${k}`}>{n.trim()}</i>)}
                       </span>

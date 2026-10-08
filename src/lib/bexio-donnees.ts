@@ -18,8 +18,8 @@ import type { OffreBexio, FactureBexio } from "@/lib/bexio-rapprochement";
 
 /* Version 2 : les factures portent désormais le nom du client. Changer la
    clé évite de servir une copie d'hier à laquelle il manquerait. */
-const CLE_OFFRES = "bexio:offres2";
-const CLE_FACTURES = "bexio:factures2";
+const CLE_OFFRES = "bexio:offres3";
+const CLE_FACTURES = "bexio:factures3";
 const CLE_SYNCHRO = "bexio:synchro";
 /** Un mois : la copie est refaite chaque nuit, ce plafond n'est qu'un filet. */
 const DUREE = 30 * 24 * 3600;
@@ -74,6 +74,7 @@ export async function synchroniserBexio(): Promise<{ offres: number; factures: n
     total: nombre(o.total),
     contactId: o.contact_id ?? null,
     date: (o.is_valid_from || "").slice(0, 10),
+    client: nomClient(o.contact_address),
   }));
   const factures: FactureBexio[] = brutFactures.map((f) => ({
     id: f.id,
@@ -126,6 +127,7 @@ export async function lireCopieBexio(forcer = false): Promise<CopieBexio> {
     offres: offres.map((x) => ({
       id: x.id, nr: (x.document_nr || "").trim(), titre: x.title || "",
       total: nombre(x.total), contactId: x.contact_id ?? null, date: (x.is_valid_from || "").slice(0, 10),
+      client: nomClient(x.contact_address),
     })),
     factures: factures.map((x) => ({
       id: x.id, nr: (x.document_nr || "").trim(), titre: x.title || "",

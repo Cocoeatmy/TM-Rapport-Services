@@ -27,7 +27,7 @@ import { StatsDateFilter, filterByStatsDate, getRolling12Range, describeStatsRan
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { SignalStats } from "@/components/signal-stats";
 import { useIsSignalTheme } from "@/lib/use-signal-theme";
-import { SignalPreviewHost, openSignalPreview, closeSignalPreview, survolApercu, annulerSurvol } from "@/components/signal-preview";
+import { SignalPreviewHost, openSignalPreview, closeSignalPreview, survolApercu, ouvrirApercuSurvol, fermerApercuSurvol } from "@/components/signal-preview";
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
 
@@ -147,8 +147,8 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch, ex
           <span
             className="sg-plist-tm sg-tmbtn sg-refs"
             title="Aperçu du projet"
-            onMouseEnter={(e) => { e.stopPropagation(); survolApercu(() => openSignalPreview(project, mode)); }}
-            onMouseLeave={annulerSurvol}
+            onMouseEnter={(e) => { e.stopPropagation(); survolApercu(() => ouvrirApercuSurvol(project, mode)); }}
+            onMouseLeave={() => fermerApercuSurvol()}
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); openSignalPreview(project, mode); }}
           >
             {tmList.length ? tmList.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—"}

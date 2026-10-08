@@ -7,7 +7,7 @@ import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
-import { openSignalPreview, openSignalListe, survolApercu, annulerSurvol, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
+import { openSignalPreview, openSignalListe, survolApercu, annulerSurvol, ouvrirApercuSurvol, fermerApercuSurvol, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
 import type { LigneApercu } from "@/components/signal-preview";
 import { cabinesPosees, cabinesRestantes } from "@/lib/cabines-posees";
 import { etatLot, type EtatLot } from "@/lib/etat-lot";
@@ -788,9 +788,9 @@ function numeroDeProjet(projet: Project) {
           title={`${num} — ${projet.projet}`}
           onMouseEnter={() => {
             prefetchProject(projet.id);
-            survolApercu(() => openSignalPreview(projet, "dashboard"));
+            survolApercu(() => ouvrirApercuSurvol(projet, "dashboard"));
           }}
-          onMouseLeave={annulerSurvol}
+          onMouseLeave={() => fermerApercuSurvol()}
           /* Au clavier seulement : sur iPhone, un lien touché prend le
              focus, et l'aperçu aurait clignoté avant la navigation. */
           onFocus={(e) => {
@@ -819,6 +819,7 @@ function numeroDeProjet(projet: Project) {
 function ouvrirApercuAvancement(
   r: { label: string; verbe?: string; faites?: number; cab: number; projets: Project[] },
   jour: string,
+  epingle = true,
 ) {
   const mesure = r.verbe === "mesurées";
   const lignes: LigneApercu[] = r.projets
@@ -3332,9 +3333,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                            chantiers il est fait, sans quitter la page. */
                         <span className={`sg-row-pose${r.faites >= r.cab ? " is-done" : r.faites > 0 ? " is-wip" : ""}`}
                               title={`${r.faites} cabine${r.faites > 1 ? "s" : ""} ${r.verbe === "posées" ? "posée" : "mesurée"}${r.faites > 1 ? "s" : ""} sur ${r.cab} — voir les projets`}
-                              onMouseEnter={() => survolApercu(() => ouvrirApercuAvancement(r, col.date))}
-                              onMouseLeave={annulerSurvol}
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); ouvrirApercuAvancement(r, col.date); }}>
+                              onMouseEnter={() => survolApercu(() => ouvrirApercuAvancement(r, col.date, false))}
+                              onMouseLeave={() => fermerApercuSurvol()}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); ouvrirApercuAvancement(r, col.date, true); }}>
                           <b>{r.faites}</b>/{r.cab} {r.verbe}
                         </span>
                       )}

@@ -32,8 +32,8 @@ import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
 export type LigneApercu = { project: Project; detail?: string; fait?: boolean };
 
 type PreviewState =
-  | { kind: "projet"; project: Project; mode: string }
-  | { kind: "liste"; titre: string; sous?: string; lignes: LigneApercu[] }
+  | { kind: "projet"; project: Project; mode: string; epingle: boolean }
+  | { kind: "liste"; titre: string; sous?: string; lignes: LigneApercu[]; epingle: boolean }
   | null;
 
 let current: PreviewState = null;
@@ -46,8 +46,39 @@ function emit() {
 /** Ouvre l'aperçu sur ce projet (appelé depuis le clic sur le n° TM). */
 export function openSignalPreview(project: Project, mode = "dashboard") {
   annulerSurvol();
-  current = { kind: "projet", project, mode };
+  annulerFermeture();
+  current = { kind: "projet", project, mode, epingle: true };
   emit();
+}
+
+/**
+ * Ouverture au SURVOL : la fiche suit le curseur et disparaît avec lui.
+ *
+ * Ouverte comme un clic, elle restait affichée une fois le curseur parti et
+ * il fallait aller cliquer la croix — pour un simple coup d'œil, deux gestes
+ * de trop. Un clic sur le numéro l'ÉPINGLE : elle ne se referme alors plus
+ * toute seule, et l'on peut y lire ou y faire défiler ce qu'on veut.
+ */
+export function ouvrirApercuSurvol(project: Project, mode = "dashboard") {
+  annulerFermeture();
+  current = { kind: "projet", project, mode, epingle: false };
+  emit();
+}
+
+/* Fermeture différée : en quittant le numéro on passe forcément par le vide
+   avant d'atteindre la fiche. Fermer sur-le-champ la rendrait inatteignable. */
+let fermeture: ReturnType<typeof setTimeout> | null = null;
+
+export function annulerFermeture(): void {
+  if (fermeture) { clearTimeout(fermeture); fermeture = null; }
+}
+
+/** Le curseur quitte le numéro : on referme, sauf si la fiche est épinglée. */
+export function fermerApercuSurvol(delai = 220): void {
+  annulerSurvol();
+  if (!current || current.epingle) return;
+  annulerFermeture();
+  fermeture = setTimeout(() => { fermeture = null; closeSignalPreview(); }, delai);
 }
 
 /**
@@ -55,10 +86,11 @@ export function openSignalPreview(project: Project, mode = "dashboard") {
  * (« 3/5 posées », « 4/10 mesurées ») disent un total sans dire de quoi il est
  * fait ; la liste répond à « lesquels ? » sans quitter la page.
  */
-export function openSignalListe(titre: string, lignes: LigneApercu[], sous?: string) {
+export function openSignalListe(titre: string, lignes: LigneApercu[], sous?: string, epingle = true) {
   annulerSurvol();
+  annulerFermeture();
   if (lignes.length === 0) return;
-  current = { kind: "liste", titre, sous, lignes };
+  current = { kind: "liste", titre, sous, lignes, epingle };
   emit();
 }
 
@@ -79,6 +111,7 @@ export function annulerSurvol() {
 /** Ferme l'aperçu. */
 export function closeSignalPreview() {
   annulerSurvol();
+  annulerFermeture();
   if (!current) return;
   current = null;
   emit();
@@ -626,7 +659,11 @@ export function SignalPreviewHost() {
           touchant à côté, comme partout ailleurs dans l'app. */}
       <button type="button" className="sg-detail-fond" aria-label="Fermer l'aperçu"
         onClick={closeSignalPreview} />
-      <aside className="sg-detail is-open" role="complementary" aria-label="Aperçu du projet">
+      {/* Survoler la fiche elle-même la garde ouverte : on veut pouvoir y
+          lire une adresse ou un numéro de téléphone sans qu'elle s'efface. */}
+      <aside className="sg-detail is-open" role="complementary" aria-label="Aperçu du projet"
+        onMouseEnter={annulerFermeture}
+        onMouseLeave={() => fermerApercuSurvol(120)}>
         {state.kind === "liste" ? (
           <SignalListeCard titre={state.titre} sous={state.sous} lignes={state.lignes}
             onClose={closeSignalPreview} />

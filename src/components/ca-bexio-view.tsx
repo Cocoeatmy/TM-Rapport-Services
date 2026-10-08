@@ -9,29 +9,55 @@
  * vient pas de la comptabilité n'est pas un chiffre d'affaires, et les
  * confondre rendrait les deux suspects.
  *
+ * Trois sources se rejoignent pourtant ici : bexio donne les francs, Notion
+ * les chantiers et leurs marques, l'app le lien entre les deux (le numéro
+ * d'offre). C'est ce croisement qui permet de dire un CA « par fournisseur »
+ * ou « par série », qui n'existe nulle part ailleurs.
+ *
  * Réservée au propriétaire des accès bexio.
  */
 
-import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { RefreshCw, ArrowLeft, ExternalLink } from "lucide-react";
 import { smoothPath } from "@/lib/courbe";
 
 interface Part { nom: string; total: number; nb: number }
 interface Mois { mois: string; total: number; nb: number; encaisse: number; restant: number }
+interface ClientLigne { id: number; nom: string; total: number; nb: number; restant: number }
+interface Impaye {
+  nr: string; titre: string; client: string; total: number; restant: number;
+  date: string; jours: number; chantier: string | null; ofrTM: string;
+}
 
 interface Donnees {
   le: string | null;
-  annee: string;
+  de: string; a: string;
   annees: string[];
-  total: number;
-  restant: number;
-  encaisse: number;
-  factures: number;
+  total: number; restant: number; encaisse: number;
+  factures: number; clientsActifs: number;
+  offres: number; totalOffres: number; transformation: number | null;
   parMois: Mois[];
   parAnnee: Part[];
   parClient: Part[];
+  clients: ClientLigne[];
   parFournisseur: Part[];
+  parSerie: Part[];
+  impayes: { parAge: Part[]; total: number; lignes: Impaye[] };
   nonRattache: { nb: number; total: number };
+}
+
+interface FicheClient {
+  client: { id: number; nom: string };
+  total: number; restant: number; encaisse: number;
+  nbFactures: number; nbOffres: number; nbChantiers: number; cabines: number;
+  parAnnee: Part[];
+  factures: { nr: string; titre: string; total: number; restant: number; date: string }[];
+  chantiers: {
+    id: string; ofrTM: string; projet: string; adresseChantier: string;
+    nbCabines: number; dateMontage: string | null; etatCMD: string;
+    fournisseurs: string[]; series: string[];
+  }[];
 }
 
 const FR = new Intl.NumberFormat("fr-CH", { maximumFractionDigits: 0 });
@@ -40,39 +66,10 @@ const francs = (n: number) => FR.format(Math.round(n || 0));
 const francs2 = (n: number) => FR2.format(n || 0);
 
 const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
-const nomMois = (k: string) => {
-  const m = parseInt(k.slice(5, 7), 10);
-  return MOIS[m - 1] || k;
-};
+const nomMois = (k: string) => MOIS[parseInt(k.slice(5, 7), 10) - 1] || k;
+const jour = (d: string) => (d ? d.split("-").reverse().join(".") : "—");
 
-function Barres({ titre, sous, lignes, unite }: { titre: string; sous?: string; lignes: Part[]; unite?: string }) {
-  const max = Math.max(1, ...lignes.map((l) => l.total));
-  if (lignes.length === 0) return null;
-  return (
-    <div className="sg-card">
-      <div className="sg-card-head">
-        <div>
-          <span className="sg-card-title">{titre}</span>
-          {sous && <p className="sg-card-meta">{sous}</p>}
-        </div>
-      </div>
-      <div className="sg-cab-liste">
-        {lignes.map((l) => (
-          <div key={l.nom} className="sg-cab-l">
-            <span className="sg-cab-nom" title={l.nom}>{l.nom}</span>
-            <span className="sg-cab-barre">
-              <i style={{ width: `${Math.max(2, (l.total / max) * 100)}%` }} />
-            </span>
-            <span className="sg-cab-val">
-              CHF {francs(l.total)}
-              <em>{l.nb} {unite || (l.nb > 1 ? "factures" : "facture")}</em>
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+/* ── Graphique de tendance ─────────────────────────────────────────────── */
 
 type SerieId = "total" | "encaisse" | "restant";
 const SERIES: { id: SerieId; label: string; color: string }[] = [
@@ -82,23 +79,23 @@ const SERIES: { id: SerieId; label: string; color: string }[] = [
 ];
 
 /**
- * Tendance mensuelle — mêmes gestes que la page Statistiques : on bascule
- * entre aires, lignes et barres, on masque une série d'un clic sur sa
- * légende, et le survol donne le détail du mois. Reprendre les mêmes codes
+ * Mêmes gestes que la page Statistiques : aires, lignes ou barres, séries
+ * masquables d'un clic, détail du mois au survol. Reprendre les mêmes codes
  * évite d'avoir à réapprendre un graphique parce qu'il parle d'argent.
  */
-function Tendance({ mois, annee }: { mois: Mois[]; annee: string }) {
+function Tendance({ mois }: { mois: Mois[] }) {
   const [forme, setForme] = useState<"aires" | "lignes" | "barres">("aires");
   const [masquees, setMasquees] = useState<Set<SerieId>>(new Set(["restant"]));
   const [survol, setSurvol] = useState<number | null>(null);
 
-  const W = 1000, H = 320, PL = 60, PR = 16, PT = 18, PB = 34;
+  const W = 1000, H = 320, PL = 64, PR = 16, PT = 18, PB = 34;
   const iw = W - PL - PR, ih = H - PT - PB;
   const visibles = SERIES.filter((s) => !masquees.has(s.id));
   const maxi = Math.max(1, ...mois.flatMap((m) => visibles.map((s) => m[s.id] || 0)));
   const x = (i: number) => (mois.length <= 1 ? PL + iw / 2 : PL + (i / (mois.length - 1)) * iw);
   const y = (v: number) => PT + ih - (v / maxi) * ih;
-  const graduations = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round((maxi * f) / 1000) * 1000);
+  const pas = Math.max(1000, Math.round(maxi / 4 / 1000) * 1000);
+  const graduations = [0, 1, 2, 3, 4].map((k) => k * pas).filter((v) => v <= maxi * 1.05);
 
   const bouger = (e: React.MouseEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -109,15 +106,14 @@ function Tendance({ mois, annee }: { mois: Mois[]; annee: string }) {
   };
 
   if (mois.length === 0) return null;
+  const longue = mois.length > 14;
 
   return (
     <div className="sgs-card">
       <div className="sgs-card-head">
         <div>
           <h2 className="sgs-card-title">Tendance mensuelle</h2>
-          <p className="sgs-card-meta">
-            {mois.length} mois · {annee === "tout" ? "toutes années" : annee} · cliquez une série pour l&apos;afficher ou la masquer
-          </p>
+          <p className="sgs-card-meta">{mois.length} mois · cliquez une série pour l&apos;afficher ou la masquer</p>
         </div>
         <div className="sgs-seg">
           {([["aires", "Aires"], ["lignes", "Lignes"], ["barres", "Barres"]] as const).map(([v, l]) => (
@@ -127,7 +123,8 @@ function Tendance({ mois, annee }: { mois: Mois[]; annee: string }) {
       </div>
 
       <div className="sgs-chart" onMouseLeave={() => setSurvol(null)}>
-        <svg viewBox={`0 0 ${W} ${H}`} className="sgs-svg" onMouseMove={bouger} role="img" aria-label="Chiffre d'affaires par mois">
+        <svg viewBox={`0 0 ${W} ${H}`} className="sgs-svg" onMouseMove={bouger} role="img"
+          aria-label="Chiffre d'affaires par mois">
           <defs>
             {visibles.map((s) => (
               <linearGradient key={s.id} id={`cab-g-${s.id}`} x1="0" y1="0" x2="0" y2="1">
@@ -167,7 +164,7 @@ function Tendance({ mois, annee }: { mois: Mois[]; annee: string }) {
                 )}
                 <path d={d} fill="none" stroke={s.color} strokeWidth="2.5"
                   strokeLinecap="round" strokeLinejoin="round" className="sgs-line" />
-                {pts.map((pt, i) => (
+                {!longue && pts.map((pt, i) => (
                   <circle key={i} cx={pt.x} cy={pt.y} r={survol === i ? 5 : 3}
                     fill="var(--sg-paper)" stroke={s.color} strokeWidth="2.5" className="sgs-dot" />
                 ))}
@@ -180,17 +177,19 @@ function Tendance({ mois, annee }: { mois: Mois[]; annee: string }) {
           )}
 
           {mois.map((m, i) => (
-            <text key={m.mois} x={x(i)} y={H - 10} textAnchor="middle"
-              className={`sgs-axis${survol === i ? " is-on" : ""}`}>
-              {annee === "tout" ? m.mois.slice(2) : nomMois(m.mois)}
-            </text>
+            (!longue || i % Math.ceil(mois.length / 12) === 0) && (
+              <text key={m.mois} x={x(i)} y={H - 10} textAnchor="middle"
+                className={`sgs-axis${survol === i ? " is-on" : ""}`}>
+                {longue ? m.mois.slice(2) : nomMois(m.mois)}
+              </text>
+            )
           ))}
         </svg>
 
         {survol !== null && mois[survol] && (
           <div className="sgs-tip" style={{ left: `${(x(survol) / W) * 100}%` }}>
             <span className="sgs-tip-title">
-              {annee === "tout" ? mois[survol].mois : nomMois(mois[survol].mois)}
+              {nomMois(mois[survol].mois)} {mois[survol].mois.slice(0, 4)}
               {" · "}{mois[survol].nb} facture{mois[survol].nb > 1 ? "s" : ""}
             </span>
             {SERIES.map((s) => (
@@ -227,16 +226,246 @@ function Tendance({ mois, annee }: { mois: Mois[]; annee: string }) {
   );
 }
 
+/* ── Classement en barres ──────────────────────────────────────────────── */
+
+function Barres({ titre, sous, lignes, onPick }: {
+  titre: string; sous?: string; lignes: Part[];
+  onPick?: (nom: string) => void;
+}) {
+  const [tout, setTout] = useState(false);
+  if (lignes.length === 0) return null;
+  const max = Math.max(1, ...lignes.map((l) => l.total));
+  const vues = tout ? lignes : lignes.slice(0, 15);
+  return (
+    <div className="sg-card">
+      <div className="sg-card-head">
+        <div>
+          <span className="sg-card-title">{titre}</span>
+          {sous && <p className="sg-card-meta">{sous}</p>}
+        </div>
+        {lignes.length > 15 && (
+          <button type="button" className="sg-fact-maj" onClick={() => setTout((v) => !v)}>
+            {tout ? "Voir moins" : `Voir les ${lignes.length}`}
+          </button>
+        )}
+      </div>
+      <div className="sg-cab-liste">
+        {vues.map((l) => {
+          const contenu = (
+            <>
+              <span className="sg-cab-nom" title={l.nom}>{l.nom}</span>
+              <span className="sg-cab-barre"><i style={{ width: `${Math.max(2, (l.total / max) * 100)}%` }} /></span>
+              <span className="sg-cab-val">
+                CHF {francs(l.total)}
+                <em>{l.nb} facture{l.nb > 1 ? "s" : ""}</em>
+              </span>
+            </>
+          );
+          return onPick ? (
+            <button key={l.nom} type="button" className="sg-cab-l" onClick={() => onPick(l.nom)}
+              title={`Voir la fiche de ${l.nom}`}>{contenu}</button>
+          ) : (
+            <div key={l.nom} className="sg-cab-l">{contenu}</div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── Fiche d'un client ─────────────────────────────────────────────────── */
+
+function FicheDuClient({ id, onRetour }: { id: number; onRetour: () => void }) {
+  const [d, setD] = useState<FicheClient | null>(null);
+  const [erreur, setErreur] = useState("");
+
+  useEffect(() => {
+    setD(null);
+    fetch(`/api/bexio/ca?client=${id}`, { credentials: "include" })
+      .then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j?.error || "Lecture impossible");
+        return j as FicheClient;
+      })
+      .then(setD)
+      .catch((e) => setErreur((e as Error).message));
+  }, [id]);
+
+  const marques = useMemo(() => {
+    const m = new Map<string, number>();
+    (d?.chantiers || []).forEach((c) => (c.fournisseurs.length ? c.fournisseurs : ["Sans marque"])
+      .forEach((f) => m.set(f, (m.get(f) || 0) + (c.nbCabines || 0))));
+    return [...m.entries()].map(([nom, n]) => ({ nom, n })).sort((a, b) => b.n - a.n);
+  }, [d]);
+
+  return (
+    <div className="sg-fact">
+      <div className="sg-card-head">
+        <div>
+          <button type="button" className="sg-fact-retour" onClick={onRetour}>
+            <ArrowLeft className="w-4 h-4" /> Tous les clients
+          </button>
+          <span className="sg-card-title">{d?.client.nom || "Client"}</span>
+          <p className="sg-card-meta">
+            factures bexio, chantiers de l&apos;app et marques posées — les trois sources réunies
+          </p>
+        </div>
+      </div>
+
+      {erreur && <p className="sg-fact-err">{erreur}</p>}
+      {!d && !erreur && <p className="sg-fact-vide">Lecture…</p>}
+
+      {d && (
+        <>
+          <div className="sg-fact-tete">
+            <div className="sg-fact-kpi">
+              <span className="sg-fact-kpi-l">Facturé, tout l&apos;historique</span>
+              <b>CHF {francs(d.total)}</b>
+              <i>{d.nbFactures} facture{d.nbFactures > 1 ? "s" : ""}</i>
+            </div>
+            <div className={`sg-fact-kpi${d.restant > 0 ? " is-alerte" : ""}`}>
+              <span className="sg-fact-kpi-l">Reste à encaisser</span>
+              <b>CHF {francs(d.restant)}</b>
+              <i>{d.total > 0 ? Math.round((d.encaisse / d.total) * 100) : 0} % déjà encaissé</i>
+            </div>
+            <div className="sg-fact-kpi">
+              <span className="sg-fact-kpi-l">Chantiers</span>
+              <b>{d.nbChantiers}</b>
+              <i>{d.cabines} cabine{d.cabines > 1 ? "s" : ""} · {d.nbOffres} offre{d.nbOffres > 1 ? "s" : ""}</i>
+            </div>
+            <div className="sg-fact-kpi">
+              <span className="sg-fact-kpi-l">Facture moyenne</span>
+              <b>CHF {francs(d.nbFactures ? d.total / d.nbFactures : 0)}</b>
+              <i>sur toute la relation</i>
+            </div>
+          </div>
+
+          {d.parAnnee.length > 0 && (
+            <Barres titre="Par année" sous="toutes les factures de ce client" lignes={d.parAnnee} />
+          )}
+
+          {marques.length > 0 && (
+            <div className="sg-card">
+              <div className="sg-card-head">
+                <div>
+                  <span className="sg-card-title">Marques posées chez lui</span>
+                  <p className="sg-card-meta">en cabines, d&apos;après les chantiers de l&apos;app</p>
+                </div>
+              </div>
+              <div className="sg-cab-liste">
+                {marques.map((m) => (
+                  <div key={m.nom} className="sg-cab-l">
+                    <span className="sg-cab-nom">{m.nom}</span>
+                    <span className="sg-cab-barre">
+                      <i style={{ width: `${Math.max(2, (m.n / Math.max(1, marques[0].n)) * 100)}%` }} />
+                    </span>
+                    <span className="sg-cab-val">{m.n}<em>cabines</em></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="sg-card">
+            <div className="sg-card-head">
+              <div>
+                <span className="sg-card-title">Chantiers</span>
+                <p className="sg-card-meta">du plus récent au plus ancien · cliquez pour ouvrir</p>
+              </div>
+            </div>
+            <div className="sg-plist">
+              {d.chantiers.slice(0, 60).map((c) => (
+                <div key={c.id} className="sg-plist-row group">
+                  <Link href={`/projet/${c.id}?mode=ca-bexio`} className="sg-plist-link">
+                    <span className="sg-plist-tm sg-refs">
+                      {(c.ofrTM || "—").split(/[\n,;]+/).map((n, k) => <i key={k}>{n.trim()}</i>)}
+                    </span>
+                    <span className="sg-plist-main">
+                      <span className="sg-plist-name">{c.projet}</span>
+                      <span className="sg-plist-sub">{c.adresseChantier || "—"}</span>
+                    </span>
+                    <span className="sg-plist-state">{c.etatCMD || "—"}</span>
+                    <span className="sg-plist-date">{(c.dateMontage || "").slice(0, 10) || "—"}</span>
+                    <span className="sg-plist-cab">{c.nbCabines || "—"}</span>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="sg-card">
+            <div className="sg-card-head">
+              <div>
+                <span className="sg-card-title">Factures</span>
+                <p className="sg-card-meta">{d.nbFactures} au total · les soixante dernières</p>
+              </div>
+            </div>
+            <div className="sg-cab-liste">
+              {d.factures.slice(0, 60).map((f) => (
+                <div key={f.nr + f.date} className="sg-cab-l">
+                  <span className="sg-cab-nom" title={f.titre}>
+                    <b className="sg-ca-nr">n° {f.nr}</b> {f.titre}
+                  </span>
+                  <span className="sg-cab-nom sg-ca-date">{jour(f.date)}</span>
+                  <span className="sg-cab-val">
+                    CHF {francs2(f.total)}
+                    {f.restant > 0 && <em className="sg-ca-du">reste {francs2(f.restant)}</em>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── La page ───────────────────────────────────────────────────────────── */
+
+type ModePeriode = "tout" | "annee" | "mois" | "r12" | "periode";
+
 export function CaBexioView() {
+  const maintenant = new Date();
+  const [modeP, setModeP] = useState<ModePeriode>("annee");
+  const [annee, setAnnee] = useState(String(maintenant.getFullYear()));
+  const [mois, setMois] = useState(`${maintenant.getFullYear()}-${String(maintenant.getMonth() + 1).padStart(2, "0")}`);
+  const [de, setDe] = useState("");
+  const [a, setA] = useState("");
   const [d, setD] = useState<Donnees | null>(null);
-  const [annee, setAnnee] = useState(String(new Date().getFullYear()));
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(true);
+  const [clientSel, setClientSel] = useState<number | null>(null);
+
+  /** Bornes de la fenêtre demandée, selon le mode choisi. */
+  const fenetre = useMemo(() => {
+    const p2 = (n: number) => String(n).padStart(2, "0");
+    if (modeP === "tout") return { de: "", a: "" };
+    if (modeP === "annee") return { de: `${annee}-01-01`, a: `${annee}-12-31` };
+    if (modeP === "mois") {
+      const [y, m] = mois.split("-").map(Number);
+      const fin = new Date(y, m, 0).getDate();
+      return { de: `${mois}-01`, a: `${mois}-${p2(fin)}` };
+    }
+    if (modeP === "r12") {
+      const fin = new Date(maintenant);
+      const debut = new Date(maintenant);
+      debut.setMonth(debut.getMonth() - 11);
+      return {
+        de: `${debut.getFullYear()}-${p2(debut.getMonth() + 1)}-01`,
+        a: `${fin.getFullYear()}-${p2(fin.getMonth() + 1)}-${p2(new Date(fin.getFullYear(), fin.getMonth() + 1, 0).getDate())}`,
+      };
+    }
+    return { de, a };
+  }, [modeP, annee, mois, de, a]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setChargement(true);
     setErreur("");
-    fetch(`/api/bexio/ca?annee=${encodeURIComponent(annee)}`, { credentials: "include" })
+    const q = new URLSearchParams();
+    if (fenetre.de) q.set("de", fenetre.de);
+    if (fenetre.a) q.set("a", fenetre.a);
+    fetch(`/api/bexio/ca?${q}`, { credentials: "include" })
       .then(async (r) => {
         if (r.status === 403) throw new Error("Ces informations ne vous sont pas accessibles.");
         const j = await r.json();
@@ -246,9 +475,14 @@ export function CaBexioView() {
       .then(setD)
       .catch((e) => setErreur((e as Error).message))
       .finally(() => setChargement(false));
-  }, [annee]);
+  }, [fenetre.de, fenetre.a]);
 
-  const maxMois = Math.max(1, ...(d?.parMois || []).map((m) => m.total));
+  if (clientSel !== null) {
+    return <FicheDuClient id={clientSel} onRetour={() => setClientSel(null)} />;
+  }
+
+  const parClientCliquable = (d?.clients || []).map((c) => ({ nom: c.nom, total: c.total, nb: c.nb }));
+  const idParNom = new Map((d?.clients || []).map((c) => [c.nom, c.id]));
 
   return (
     <div className="sg-fact">
@@ -260,14 +494,36 @@ export function CaBexioView() {
             {d?.le && ` · relevé du ${new Date(d.le).toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`}
           </p>
         </div>
+        {chargement && <RefreshCw className="w-4 h-4 animate-spin" />}
+      </div>
+
+      {/* Filtre de période — mêmes choix que partout ailleurs dans l'app. */}
+      <div className="sg-ca-filtre">
         <div className="sg-fact-onglets">
-          {["tout", ...(d?.annees || [])].map((a) => (
-            <button key={a} type="button"
-              className={`sg-fact-ong${annee === a ? " is-on" : ""}`}
-              onClick={() => setAnnee(a)}>{a === "tout" ? "Tout" : a}</button>
-          ))}
-          {chargement && <RefreshCw className="w-4 h-4 animate-spin" />}
+          {([["tout", "Tout"], ["mois", "Mois"], ["annee", "Année"], ["r12", "12 mois"], ["periode", "Période"]] as const)
+            .map(([k, l]) => (
+              <button key={k} type="button" className={`sg-fact-ong${modeP === k ? " is-on" : ""}`}
+                onClick={() => setModeP(k)}>{l}</button>
+            ))}
         </div>
+        {modeP === "annee" && (
+          <div className="sg-fact-onglets">
+            {(d?.annees || []).map((an) => (
+              <button key={an} type="button" className={`sg-fact-ong${annee === an ? " is-on" : ""}`}
+                onClick={() => setAnnee(an)}>{an}</button>
+            ))}
+          </div>
+        )}
+        {modeP === "mois" && (
+          <input type="month" className="sg-ca-date" value={mois} onChange={(e) => setMois(e.target.value)} />
+        )}
+        {modeP === "periode" && (
+          <span className="sg-ca-plage">
+            <input type="date" className="sg-ca-date" value={de} onChange={(e) => setDe(e.target.value)} />
+            <em>au</em>
+            <input type="date" className="sg-ca-date" value={a} onChange={(e) => setA(e.target.value)} />
+          </span>
+        )}
       </div>
 
       {erreur && <p className="sg-fact-err">{erreur}</p>}
@@ -288,35 +544,94 @@ export function CaBexioView() {
             <div className={`sg-fact-kpi${d.restant > 0 ? " is-alerte" : ""}`}>
               <span className="sg-fact-kpi-l">Reste à encaisser</span>
               <b>CHF {francs(d.restant)}</b>
-              <i>sur les factures de la période</i>
+              <i>sur la période affichée</i>
             </div>
             <div className="sg-fact-kpi">
               <span className="sg-fact-kpi-l">Facture moyenne</span>
               <b>CHF {francs(d.factures ? d.total / d.factures : 0)}</b>
-              <i>toutes prestations confondues</i>
+              <i>{d.clientsActifs} client{d.clientsActifs > 1 ? "s" : ""} facturé{d.clientsActifs > 1 ? "s" : ""}</i>
             </div>
+            <div className="sg-fact-kpi">
+              <span className="sg-fact-kpi-l">Offres émises</span>
+              <b>CHF {francs(d.totalOffres)}</b>
+              <i>{d.offres} offre{d.offres > 1 ? "s" : ""} sur la période</i>
+            </div>
+            {d.transformation !== null && (
+              <div className="sg-fact-kpi">
+                <span className="sg-fact-kpi-l">Facturé / offert</span>
+                <b>{d.transformation} %</b>
+                <i>au-delà de 100 %, on facture des offres plus anciennes</i>
+              </div>
+            )}
           </div>
 
-          <Tendance mois={d.parMois} annee={annee} />
+          <Tendance mois={d.parMois} />
 
-          <Barres titre="Par client" sous="les quarante premiers, du plus gros au plus petit"
-            lignes={d.parClient} />
+          {/* L'argent qui dort. L'âge compte autant que le montant : une
+              facture de la semaine n'appelle pas la même action qu'une
+              facture ouverte depuis trois mois. */}
+          {d.impayes.lignes.length > 0 && (
+            <div className="sg-card">
+              <div className="sg-card-head">
+                <div>
+                  <span className="sg-card-title">Impayés par ancienneté</span>
+                  <p className="sg-card-meta">
+                    toutes périodes confondues · CHF {francs(d.impayes.total)} ouverts sur {d.impayes.lignes.length} factures
+                  </p>
+                </div>
+              </div>
+              <div className="sg-ca-ages">
+                {d.impayes.parAge.map((t) => (
+                  <div key={t.nom} className={`sg-ca-age${t.nom === "90+" && t.total > 0 ? " is-alerte" : ""}`}>
+                    <span>{t.nom === "90+" ? "plus de 90 j" : `${t.nom} jours`}</span>
+                    <b>CHF {francs(t.total)}</b>
+                    <i>{t.nb} facture{t.nb > 1 ? "s" : ""}</i>
+                  </div>
+                ))}
+              </div>
+              <div className="sg-cab-liste">
+                {d.impayes.lignes.slice(0, 40).map((f) => (
+                  <div key={f.nr + f.date} className={`sg-cab-l${f.jours > 90 ? " is-vieux" : ""}`}>
+                    <span className="sg-cab-nom" title={f.titre}>
+                      <b className="sg-ca-nr">n° {f.nr}</b> {f.client} — {f.titre}
+                    </span>
+                    <span className="sg-cab-nom sg-ca-date">
+                      {jour(f.date)} · <b>{f.jours} j</b>
+                    </span>
+                    <span className="sg-cab-val">
+                      CHF {francs2(f.restant)}
+                      {f.chantier && (
+                        <em>
+                          <Link href={`/projet/${f.chantier}?mode=ca-bexio`} className="sg-ca-lien">
+                            {(f.ofrTM || "chantier").split(/[\n,;]+/)[0]} <ExternalLink className="w-3 h-3" />
+                          </Link>
+                        </em>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Barres titre="Par client" sous="cliquez un client pour ouvrir sa fiche complète"
+            lignes={parClientCliquable}
+            onPick={(nom) => { const id = idParNom.get(nom); if (id !== undefined) setClientSel(id); }} />
 
           <Barres titre="Par fournisseur"
             sous="reconstitué en remontant de la facture à l'offre, puis au chantier et à ses marques"
             lignes={d.parFournisseur} />
 
-          {annee !== "tout" && d.parAnnee.length > 1 && (
-            <Barres titre="Par année" sous="toutes les factures, toutes périodes" lignes={d.parAnnee} />
-          )}
+          <Barres titre="Par série de cabine"
+            sous="même chemin que les marques · les vingt-cinq premières"
+            lignes={d.parSerie} />
 
           {d.nonRattache.nb > 0 && (
             <p className="sg-fact-note">
               <b>{d.nonRattache.nb} facture{d.nonRattache.nb > 1 ? "s" : ""}</b> (CHF {francs(d.nonRattache.total)})
-              ne se rattache à aucun chantier de l&apos;app : facture groupée, prestation hors chantier, ou
-              titre trop éloigné de celui de l&apos;offre. Elle compte dans le total et dans la répartition par
-              client, mais figure en « Non rattaché » du côté fournisseur — mieux vaut un trou visible qu&apos;une
-              répartition inventée.
+              ne se rattache à aucun chantier de l&apos;app : facture groupée, prestation hors chantier, ou titre
+              trop éloigné de celui de l&apos;offre. Elle compte dans le total et par client, mais figure en
+              « Non rattaché » côté fournisseur et série — mieux vaut un trou visible qu&apos;une répartition inventée.
             </p>
           )}
         </>
