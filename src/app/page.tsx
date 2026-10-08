@@ -2343,7 +2343,7 @@ function HomePage() {
               (SignalHeaderBar) : on ne le duplique pas ici. */}
           {floatingWindowButton}
 
-          {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
+          {currentUser?.role === "admin" && mode !== "dashboard" && mode !== "rapport" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "sanitaires" && !mode.startsWith("clients-") && (
             <button
               onClick={() => setShowNewProject(true)}
               className="w-9 h-9 rounded-xl bg-[#1e3a5f] text-white flex items-center justify-center hover:bg-[#2a4f7f] active:scale-95 transition-all shadow-md"
@@ -4731,7 +4731,7 @@ function HomePage() {
       })()}
 
       {/* Boutons Calendrier / Collaborateurs */}
-      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
+      {!loading && mode !== "dashboard" && !mode.endsWith("-termine") && !mode.startsWith("clients-") && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "rapport" && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "sanitaires" && mode !== "a-facturer" && mode !== "collaborateurs" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage" && viewMode === "list" && (
         <div className="flex gap-3 mb-4 sgv-tiles">
           <button
             onClick={() => setViewMode("calendar")}
@@ -5723,7 +5723,7 @@ function HomePage() {
       {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
       {/* ======================================================== */}
       {(() => {
-        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage";
+        return mode !== "dashboard" && mode !== "rapport" && !mode.startsWith("grossistes") && !mode.startsWith("fournisseurs") && mode !== "stats" && mode !== "archives" && mode !== "projets-tous" && mode !== "destockage" && mode !== "chantiers" && mode !== "facturation" && mode !== "sanitaires" && !mode.startsWith("clients-") && mode !== "garanties" && mode !== "emplacement-cabines" && mode !== "calendrier" && mode !== "arrivage";
       })() && (<>
       {/* Favoris */}
       {viewMode === "list" && (() => {

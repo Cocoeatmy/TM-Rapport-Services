@@ -4856,3 +4856,61 @@ html[data-ui="signal"] .sg-fact .sg-plist-link {
   html[data-ui="signal"] .sg-fact .sg-plist-cab,
   html[data-ui="signal"] .sg-fact .sg-plist-chev { display: none; }
 }
+
+/* Régler un cas que l'automatisme ne pouvait pas deviner. */
+html[data-ui="signal"] .sg-fact-etat.is-regle { background: #e2e8f0; color: #475569; }
+html[data-ui="signal"].dark .sg-fact-etat.is-regle { background: rgba(71, 85, 105, 0.3); color: #cbd5e1; }
+html[data-ui="signal"] .sg-fact-act {
+  position: absolute; right: 34px; top: 50%; transform: translateY(-50%);
+  height: 24px; padding: 0 10px; border-radius: 999px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-2); font-size: 11px; font-weight: 600; cursor: pointer;
+  opacity: 0; transition: opacity 120ms ease, border-color 120ms ease;
+}
+html[data-ui="signal"] .sg-plist-row:hover .sg-fact-act,
+html[data-ui="signal"] .sg-fact-act:focus-visible { opacity: 1; }
+html[data-ui="signal"] .sg-fact-act:hover { border-color: var(--sg-signal); color: var(--sg-text); }
+/* Sur écran tactile, il n'y a pas de survol : le bouton reste visible. */
+@media (hover: none) {
+  html[data-ui="signal"] .sg-fact-act { opacity: 1; position: static; transform: none; margin-right: 6px; }
+}
+html[data-ui="signal"] .sg-fact-fond {
+  position: fixed; inset: 0; z-index: 80; display: flex; align-items: center;
+  justify-content: center; padding: 20px; background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px);
+}
+html[data-ui="signal"] .sg-fact-boite {
+  width: 100%; max-width: 440px; border-radius: 16px; padding: 20px;
+  background: var(--sg-paper); border: 1px solid var(--sg-line);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  display: flex; flex-direction: column; gap: 12px;
+}
+html[data-ui="signal"] .sg-fact-boite h3 {
+  margin: 0; font-size: 16px; font-weight: 600; color: var(--sg-text);
+}
+html[data-ui="signal"] .sg-fact-boite-sous { margin: 0; font-size: 12.5px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sg-fact-motifs { display: flex; flex-direction: column; gap: 6px; }
+html[data-ui="signal"] .sg-fact-motif {
+  text-align: left; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper-2);
+  color: var(--sg-text-2); font-size: 13px; font-weight: 500; cursor: pointer;
+}
+html[data-ui="signal"] .sg-fact-motif.is-on {
+  border-color: var(--sg-signal); background: var(--sg-paper); color: var(--sg-text); font-weight: 600;
+}
+html[data-ui="signal"] .sg-fact-detail {
+  height: 38px; padding: 0 12px; border-radius: 10px;
+  border: 1px solid var(--sg-line); background: var(--sg-paper-2);
+  color: var(--sg-text); font-size: 13px; font-family: inherit;
+}
+html[data-ui="signal"] .sg-fact-boite-pied { display: flex; gap: 8px; }
+html[data-ui="signal"] .sg-fact-ok {
+  flex: 1; height: 40px; border-radius: 10px; border: none; cursor: pointer;
+  background: var(--sg-signal); color: #fff; font-size: 14px; font-weight: 600;
+}
+html[data-ui="signal"] .sg-fact-ok:disabled { opacity: 0.5; cursor: default; }
+html[data-ui="signal"] .sg-fact-non {
+  height: 40px; padding: 0 16px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--sg-line); background: transparent; color: var(--sg-text-3);
+  font-size: 13px; font-weight: 500;
+}

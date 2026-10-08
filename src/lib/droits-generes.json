@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-08T20:45:20.455Z",
+  "genereLe": "2026-10-08T21:14:07.555Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -195,7 +195,8 @@
       "niveau": "admin",
       "gardePage": false,
       "methodes": [
-        "GET"
+        "GET",
+        "POST"
       ]
     },
     {

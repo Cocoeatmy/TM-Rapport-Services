@@ -23,7 +23,16 @@ import { openSignalPreview, survolApercu, annulerSurvol } from "@/components/sig
 import { prefetchProject } from "@/lib/api-helpers";
 import type { Project } from "@/lib/notion";
 
-type Etat = "facturee" | "retrouvee" | "probable" | "mensuel" | "sans" | "inconnue";
+type Etat = "facturee" | "retrouvee" | "probable" | "mensuel" | "sans" | "inconnue" | "regle";
+
+/** Les cas que l'automatisme ne peut pas deviner — tous rencontrés en vrai. */
+const MOTIFS: { id: string; label: string; detail?: string }[] = [
+  { id: "client-final", label: "Facturé au client final", detail: "Nom du client final (facultatif)" },
+  { id: "main-propre", label: "Payé en main propre" },
+  { id: "autre-facture", label: "Inclus dans une autre facture", detail: "N° de la facture" },
+  { id: "offert", label: "Offert, pas de facture" },
+  { id: "autre", label: "Autre", detail: "Précisez" },
+];
 
 interface Ligne {
   id: string;
@@ -36,6 +45,7 @@ interface Ligne {
   collaborateurs: string;
   etatCMD: string;
   etat: Etat;
+  reglage: { motif: string; libelle: string; detail: string; par: string; le: string } | null;
   offre: { nr: string; total: number; date: string } | null;
   factures: { nr: string; total: number; restant: number; date: string }[];
   facture: number;
@@ -61,6 +71,7 @@ const HABILLAGE: Record<Etat, { titre: string; aide: string }> = {
   mensuel: { titre: "Forfait mensuel", aide: "Ce client est facturé au mois ; le chantier y est noyé." },
   facturee: { titre: "Facturée", aide: "Une facture porte le même titre que l'offre." },
   inconnue: { titre: "Hors bexio", aide: "Aucune offre bexio ne porte ce numéro." },
+  regle: { titre: "Réglé", aide: "Cas tranché à la main : refacturé, payé autrement, ou offert." },
 };
 
 const ONGLETS: { id: Etat | "tout"; label: string }[] = [
@@ -68,6 +79,7 @@ const ONGLETS: { id: Etat | "tout"; label: string }[] = [
   { id: "probable", label: "À confirmer" },
   { id: "retrouvee", label: "Retrouvées" },
   { id: "mensuel", label: "Forfait mensuel" },
+  { id: "regle", label: "Réglés" },
   { id: "tout", label: "Tout" },
 ];
 
@@ -85,6 +97,11 @@ export function FacturationView() {
   const [erreur, setErreur] = useState("");
   const [onglet, setOnglet] = useState<Etat | "tout">("sans");
   const [chargement, setChargement] = useState(true);
+  /* Boîte « régler » : la ligne visée, le motif choisi, la précision. */
+  const [regler, setRegler] = useState<Ligne | null>(null);
+  const [motif, setMotif] = useState("client-final");
+  const [detail, setDetail] = useState("");
+  const [envoi, setEnvoi] = useState(false);
 
   const charger = (frais = false) => {
     setChargement(true);
@@ -101,6 +118,32 @@ export function FacturationView() {
       .finally(() => setChargement(false));
   };
   useEffect(() => { charger(); }, []);
+
+  const enregistrerReglage = async () => {
+    if (!regler) return;
+    setEnvoi(true);
+    try {
+      const r = await fetch("/api/bexio/facturation", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projetId: regler.id, motif, detail }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Enregistrement refusé");
+      setRegler(null); setDetail(""); setMotif("client-final");
+      charger();
+    } catch (e) {
+      setErreur((e as Error).message);
+    } finally { setEnvoi(false); }
+  };
+
+  const annulerReglage = async (l: Ligne) => {
+    await fetch("/api/bexio/facturation", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projetId: l.id, retirer: true }),
+    }).catch(() => {});
+    charger();
+  };
 
   const lignes = (data?.lignes || []).filter((l) => onglet === "tout" || l.etat === onglet);
 
@@ -191,6 +234,13 @@ export function FacturationView() {
                       <span className="sg-plist-main">
                         <span className="sg-plist-name">{l.projet || "Sans nom"}</span>
                         <span className="sg-plist-sub">{l.adresseChantier || "—"}</span>
+                        {l.reglage && (
+                          <span className="sg-plist-extra">
+                            {l.reglage.libelle}
+                            {l.reglage.detail ? ` — ${l.reglage.detail}` : ""}
+                            {` · noté le ${new Date(l.reglage.le).toLocaleDateString("fr-CH")}`}
+                          </span>
+                        )}
                         {l.factures.length > 0 && (
                           <span className="sg-plist-extra">
                             {l.factures.map((f) => `facture ${f.nr} du ${f.date}`).join(" · ")}
@@ -209,6 +259,19 @@ export function FacturationView() {
                       <span className="sg-plist-cab">{l.nbCabines || "—"}</span>
                       <ChevronRight className="w-4 h-4 sg-plist-chev" />
                     </Link>
+                    {l.etat === "regle" ? (
+                      <button type="button" className="sg-fact-act is-annule"
+                        title={`${l.reglage?.libelle}${l.reglage?.detail ? ` — ${l.reglage.detail}` : ""} · ${l.reglage?.par || ""}`}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); annulerReglage(l); }}>
+                        Rouvrir
+                      </button>
+                    ) : (
+                      <button type="button" className="sg-fact-act"
+                        title="Ce chantier a été réglé autrement — le dire une fois suffit"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRegler(l); setDetail(""); setMotif("client-final"); }}>
+                        Régler
+                      </button>
+                    )}
                     <a href={`/projet/${l.id}?mode=facturation`} target="_blank" rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
                       className="sg-plist-act sg-plist-act-tab" title="Ouvrir dans un nouvel onglet">
@@ -217,6 +280,36 @@ export function FacturationView() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {regler && (
+            <div className="sg-fact-fond" role="dialog" aria-modal="true"
+              onClick={() => setRegler(null)}>
+              <div className="sg-fact-boite" onClick={(e) => e.stopPropagation()}>
+                <h3>Comment ce chantier a-t-il été réglé ?</h3>
+                <p className="sg-fact-boite-sous">
+                  {(regler.ofrTM || "").split(/[\n,;]+/)[0]} — {regler.projet}
+                  {regler.offre ? ` · CHF ${francs(regler.offre.total)}` : ""}
+                </p>
+                <div className="sg-fact-motifs">
+                  {MOTIFS.map((m) => (
+                    <button key={m.id} type="button"
+                      className={`sg-fact-motif${motif === m.id ? " is-on" : ""}`}
+                      onClick={() => setMotif(m.id)}>{m.label}</button>
+                  ))}
+                </div>
+                {MOTIFS.find((m) => m.id === motif)?.detail && (
+                  <input className="sg-fact-detail" value={detail} autoFocus
+                    placeholder={MOTIFS.find((m) => m.id === motif)?.detail}
+                    onChange={(e) => setDetail(e.target.value)} />
+                )}
+                <div className="sg-fact-boite-pied">
+                  <button type="button" className="sg-fact-ok" disabled={envoi}
+                    onClick={enregistrerReglage}>Enregistrer</button>
+                  <button type="button" className="sg-fact-non" onClick={() => setRegler(null)}>Annuler</button>
+                </div>
+              </div>
             </div>
           )}
 
