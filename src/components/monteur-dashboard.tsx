@@ -7,7 +7,8 @@ import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
-import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
+import { openSignalPreview, openSignalListe, survolApercu, annulerSurvol, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
+import type { LigneApercu } from "@/components/signal-preview";
 import { cabinesPosees, cabinesRestantes } from "@/lib/cabines-posees";
 import { etatLot, type EtatLot } from "@/lib/etat-lot";
 import { cabinesMesurees } from "@/lib/cabines-mesurees";
@@ -759,7 +760,12 @@ function pastilleEtat(projet: Project, signale: boolean, signaleRegle = false) {
  *
  * Une couleur dit qui pose, pas ce qu'il pose. Il fallait ouvrir le calendrier
  * pour savoir à quel chantier correspondait un bloc ; le numéro est désormais
- * écrit dessus, et il ouvre l'aperçu du projet.
+ * écrit dessus.
+ *
+ * Le survol ouvre l'aperçu à droite, le clic va DROIT au projet : passer par
+ * le calendrier pour atteindre un chantier qu'on voit déjà écrit était un
+ * détour. Le clic ailleurs dans la case, lui, ouvre toujours le calendrier
+ * (c'est le rôle de la colonne) : d'où le `stopPropagation`.
  *
  * Pastille blanche sur texte noir : écrit à même la couleur du monteur, le
  * numéro se lisait mal — le vert et le jaune ne supportent pas le blanc.
@@ -774,22 +780,55 @@ function numeroDeProjet(projet: Project) {
   return (
     <span className="sg-seg-tms">
       {numeros.map((num) => (
-        <button
+        <Link
           key={num}
-          type="button"
+          href={`/projet/${projet.id}?mode=dashboard`}
           className="sg-seg-tm"
           title={`${num} — ${projet.projet}`}
+          onMouseEnter={() => {
+            prefetchProject(projet.id);
+            survolApercu(() => openSignalPreview(projet, "dashboard"));
+          }}
+          onMouseLeave={annulerSurvol}
+          onFocus={() => openSignalPreview(projet, "dashboard")}
           onClick={(e) => {
-            e.preventDefault();
             e.stopPropagation();
-            openSignalPreview(projet, "dashboard");
+            annulerSurvol();
+            closeSignalPreview();
           }}
         >
           {num}
-        </button>
+        </Link>
       ))}
     </span>
   );
+}
+
+/**
+ * Les projets derrière un compteur « 3/5 posées » ou « 4/10 mesurées ».
+ *
+ * Le chiffre seul ne dit pas où en est chaque chantier : on liste les projets
+ * du jour avec leur propre avancement, les incomplets d'abord — ce sont eux
+ * qu'on cherche quand on regarde ce compteur.
+ */
+function ouvrirApercuAvancement(
+  r: { label: string; verbe?: string; faites?: number; cab: number; projets: Project[] },
+  jour: string,
+) {
+  const mesure = r.verbe === "mesurées";
+  const lignes: LigneApercu[] = r.projets
+    .map((p) => {
+      const total = mesure ? (p.nbCabines || 0) : cabinesDuJour(p, jour);
+      const faites = mesure ? cabinesMesurees(p) : Math.min(cabinesPosees(p), total);
+      return {
+        project: p,
+        detail: total > 0 ? `${faites}/${total}` : undefined,
+        fait: total > 0 && faites >= total,
+      };
+    })
+    .sort((a, b) => (a.fait ? 1 : 0) - (b.fait ? 1 : 0));
+  const jourFr = new Date(jour + "T12:00:00").toLocaleDateString("fr-CH");
+  openSignalListe(`${r.label} — ${r.faites}/${r.cab} ${r.verbe}`, lignes, jourFr);
 }
 
 /**
@@ -3244,8 +3283,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           rien n'est encore posé — un « 0 / 8 » y ressemblerait
                           à du retard. */}
                       {col.title === "Aujourd'hui" && r.faites !== undefined && r.cab > 0 && (
+                        /* Le compteur dit un total ; le survol dit de QUELS
+                           chantiers il est fait, sans quitter la page. */
                         <span className={`sg-row-pose${r.faites >= r.cab ? " is-done" : r.faites > 0 ? " is-wip" : ""}`}
-                              title={`${r.faites} cabine${r.faites > 1 ? "s" : ""} ${r.verbe === "posées" ? "posée" : "mesurée"}${r.faites > 1 ? "s" : ""} sur ${r.cab}`}>
+                              title={`${r.faites} cabine${r.faites > 1 ? "s" : ""} ${r.verbe === "posées" ? "posée" : "mesurée"}${r.faites > 1 ? "s" : ""} sur ${r.cab} — voir les projets`}
+                              onMouseEnter={() => survolApercu(() => ouvrirApercuAvancement(r, col.date))}
+                              onMouseLeave={annulerSurvol}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); ouvrirApercuAvancement(r, col.date); }}>
                           <b>{r.faites}</b>/{r.cab} {r.verbe}
                         </span>
                       )}

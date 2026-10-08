@@ -933,7 +933,7 @@ html[data-ui="signal"] .sg-seg-tm {
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
   font-family: var(--font-mono); font-size: 9.5px; line-height: 1.3;
   letter-spacing: -0.01em; white-space: nowrap; cursor: pointer;
-  transition: background 140ms ease;
+  text-decoration: none; transition: background 140ms ease;
 }
 html[data-ui="signal"] .sg-seg-tm:hover { background: rgba(15, 23, 42, 0.62); }
 
@@ -1569,6 +1569,34 @@ html[data-ui="signal"] .sg-detail-title {
   letter-spacing: -0.02em; color: var(--sg-text);
 }
 html[data-ui="signal"] .sg-detail-addr { margin: 0; font-size: 13px; color: var(--sg-text-3); }
+/* Aperçu en LISTE (compteurs « x/y posées » du tableau de bord) — même cadre
+   que la fiche d'un projet, des lignes cliquables à la place des champs. */
+html[data-ui="signal"] .sg-apl { display: flex; flex-direction: column; gap: 6px; }
+html[data-ui="signal"] .sg-apl-row {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 8px 10px; border-radius: 9px; background: var(--sg-paper-2);
+  text-decoration: none; transition: background 140ms ease;
+}
+html[data-ui="signal"] .sg-apl-row:hover { background: var(--sg-line); }
+html[data-ui="signal"] .sg-apl-haut {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+html[data-ui="signal"] .sg-apl-tm {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: -0.01em;
+  color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-apl-det {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 11px; font-weight: 700; color: #b45309;
+}
+html[data-ui="signal"] .sg-apl-det.is-done { color: #15803d; }
+html[data-ui="signal"] .sg-apl-nom {
+  font-size: 13px; font-weight: 600; color: var(--sg-text); line-height: 1.3;
+}
+html[data-ui="signal"] .sg-apl-adr { font-size: 11.5px; color: var(--sg-text-3); }
+html[data-ui="signal"].dark .sg-apl-row:hover { background: var(--sg-line-strong); }
+html[data-ui="signal"].dark .sg-apl-det { color: #fbbf72; }
+html[data-ui="signal"].dark .sg-apl-det.is-done { color: #7ddba2; }
 html[data-ui="signal"] .sg-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
 html[data-ui="signal"] .sg-field {
   display: flex; flex-direction: column; gap: 2px;

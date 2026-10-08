@@ -27,7 +27,13 @@ import { offlineFetch } from "@/lib/offline";
 
 /* ── Mini-store module : les lignes publient, l'hôte s'abonne ────────────── */
 
-type PreviewState = { project: Project; mode: string } | null;
+/** Une ligne de l'aperçu en liste : le projet, et ce qu'on veut en dire. */
+export type LigneApercu = { project: Project; detail?: string; fait?: boolean };
+
+type PreviewState =
+  | { kind: "projet"; project: Project; mode: string }
+  | { kind: "liste"; titre: string; sous?: string; lignes: LigneApercu[] }
+  | null;
 
 let current: PreviewState = null;
 const listeners = new Set<() => void>();
@@ -38,12 +44,40 @@ function emit() {
 
 /** Ouvre l'aperçu sur ce projet (appelé depuis le clic sur le n° TM). */
 export function openSignalPreview(project: Project, mode = "dashboard") {
-  current = { project, mode };
+  annulerSurvol();
+  current = { kind: "projet", project, mode };
   emit();
+}
+
+/**
+ * Ouvre l'aperçu sur PLUSIEURS projets : les compteurs du tableau de bord
+ * (« 3/5 posées », « 4/10 mesurées ») disent un total sans dire de quoi il est
+ * fait ; la liste répond à « lesquels ? » sans quitter la page.
+ */
+export function openSignalListe(titre: string, lignes: LigneApercu[], sous?: string) {
+  annulerSurvol();
+  if (lignes.length === 0) return;
+  current = { kind: "liste", titre, sous, lignes };
+  emit();
+}
+
+/* Survol : un aperçu qui s'ouvrirait au premier pixel franchi clignoterait
+   quand le curseur ne fait que traverser. On attend un court instant, et l'on
+   abandonne si le curseur est déjà reparti. */
+let minuterie: ReturnType<typeof setTimeout> | null = null;
+
+export function survolApercu(ouvre: () => void, delai = 170) {
+  annulerSurvol();
+  minuterie = setTimeout(() => { minuterie = null; ouvre(); }, delai);
+}
+
+export function annulerSurvol() {
+  if (minuterie) { clearTimeout(minuterie); minuterie = null; }
 }
 
 /** Ferme l'aperçu. */
 export function closeSignalPreview() {
+  annulerSurvol();
   if (!current) return;
   current = null;
   emit();
@@ -514,6 +548,53 @@ function JournalEditable({ project }: { project: Project }) {
   );
 }
 
+/* ── L'aperçu en liste ────────────────────────────────────── */
+
+/**
+ * Même cadre que la fiche d'un projet, mais plusieurs projets à la suite :
+ * chaque ligne mène au projet, le numéro TM en tête pour le reconnaître, et à
+ * droite l'avancement du jour (« 2/3 ») en vert quand il est complet.
+ */
+export function SignalListeCard({
+  titre,
+  sous,
+  lignes,
+  onClose,
+}: { titre: string; sous?: string; lignes: LigneApercu[]; onClose?: () => void }) {
+  return (
+    <div className="sg-detail-in">
+      <div className="sg-detail-top">
+        <span className="sg-state bg-gray-100 text-gray-700">{lignes.length} projet{lignes.length > 1 ? "s" : ""}</span>
+        {onClose && (
+          <button type="button" className="sg-unpin" title="Fermer l'aperçu" aria-label="Fermer l'aperçu"
+            onClick={onClose}>
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+      <h3 className="sg-detail-title">{titre}</h3>
+      {sous && <p className="sg-detail-addr">{sous}</p>}
+      <div className="sg-apl">
+        {lignes.map((l) => (
+          <Link key={l.project.id} href={`/projet/${l.project.id}?mode=dashboard`}
+            className="sg-apl-row" onClick={closeSignalPreview}>
+            <span className="sg-apl-haut">
+              <span className="sg-apl-tm">{l.project.ofrTM || "—"}</span>
+              {l.detail && (
+                <span className={`sg-apl-det${l.fait ? " is-done" : ""}`}>{l.detail}</span>
+              )}
+            </span>
+            <span className="sg-apl-nom">{l.project.projet || "Sans nom"}</span>
+            {l.project.adresseChantier && (
+              <span className="sg-apl-adr">{l.project.adresseChantier}</span>
+            )}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── L'hôte, monté une fois par page ─────────────────────────────────────── */
 
 export function SignalPreviewHost() {
@@ -539,7 +620,12 @@ export function SignalPreviewHost() {
       <button type="button" className="sg-detail-fond" aria-label="Fermer l'aperçu"
         onClick={closeSignalPreview} />
       <aside className="sg-detail is-open" role="complementary" aria-label="Aperçu du projet">
-        <SignalPreviewCard project={state.project} mode={state.mode} onClose={closeSignalPreview} />
+        {state.kind === "liste" ? (
+          <SignalListeCard titre={state.titre} sous={state.sous} lignes={state.lignes}
+            onClose={closeSignalPreview} />
+        ) : (
+          <SignalPreviewCard project={state.project} mode={state.mode} onClose={closeSignalPreview} />
+        )}
       </aside>
     </>
   );
