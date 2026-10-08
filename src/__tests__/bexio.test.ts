@@ -39,8 +39,16 @@ describe("accès bexio", () => {
   });
 
   it("refuse toute écriture, même demandée par erreur dans le code", async () => {
-    await expect(bexioFetch("/2.0/contact", { method: "POST" })).rejects.toThrow(/lecture seule/i);
+    await expect(bexioFetch("/2.0/kb_invoice", { method: "POST" })).rejects.toThrow(/lecture seule/i);
+    await expect(bexioFetch("/2.0/kb_invoice/searchx", { method: "POST" })).rejects.toThrow(/lecture seule/i);
     await expect(bexioFetch("/2.0/contact/1", { method: "DELETE" })).rejects.toThrow(/lecture seule/i);
     await expect(bexioFetch("/2.0/contact/1", { method: "PATCH" })).rejects.toThrow(/lecture seule/i);
+  });
+
+  it("laisse passer la recherche filtrée, qui est un POST mais une lecture", async () => {
+    /* Pas connecté ici : la preuve que le garde-fou a laissé passer, c'est
+       qu'on échoue plus loin, sur l'absence de jeton. */
+    await expect(bexioFetch("/2.0/kb_invoice/search", { method: "POST" }))
+      .rejects.toThrow(/pas connecté/i);
   });
 });

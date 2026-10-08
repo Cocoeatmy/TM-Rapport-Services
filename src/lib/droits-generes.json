@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-08T19:56:12.125Z",
+  "genereLe": "2026-10-08T20:17:20.053Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -186,6 +186,16 @@
       "methodes": [
         "GET",
         "DELETE"
+      ]
+    },
+    {
+      "url": "/api/bexio/sonde",
+      "type": "api",
+      "fichier": "src/app/api/bexio/sonde/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET"
       ]
     },
     {

@@ -213,7 +213,11 @@ export async function jetonAcces(): Promise<string | null> {
  */
 export async function bexioFetch<T>(chemin: string, init?: RequestInit): Promise<T> {
   const methode = (init?.method || "GET").toUpperCase();
-  if (methode !== "GET" && methode !== "HEAD") {
+  /* Chez bexio, la RECHERCHE filtrée se fait en POST sur « …/search ». C'est
+     une lecture malgré le verbe : on l'autorise nommément, et elle seule —
+     sans quoi il faudrait rapatrier toutes les factures pour en trouver une. */
+  const estRecherche = methode === "POST" && /\/search$/.test(chemin.split("?")[0]);
+  if (methode !== "GET" && methode !== "HEAD" && !estRecherche) {
     throw new Error(`Accès bexio en lecture seule : ${methode} refusé`);
   }
   const acces = await jetonAcces();

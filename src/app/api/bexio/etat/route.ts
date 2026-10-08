@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   // Un jeton rangé ne prouve rien : on vérifie qu'il ouvre encore la porte.
   try {
     await jetonAcces();
-    const societe = await bexioFetch<{ company_name?: string; name?: string }>("/2.0/company_profile")
+    const societe = await bexioFetch<{ company_name?: string; name?: string }>("/3.0/company_profile")
       .catch(() => null);
     return NextResponse.json({
       configure: true,
