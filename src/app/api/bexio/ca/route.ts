@@ -226,7 +226,35 @@ export async function GET(request: NextRequest) {
       }
       return m;
     })();
+    /* Toutes les factures reçues ne sont pas des CHARGES.
+     *
+     * Plan comptable suisse PME : la classe 4 est le coût direct (marchandise,
+     * sous-traitance), la 5 le personnel, la 6 les autres charges
+     * d'exploitation. Mais les classes 1 et 2 sont des comptes de BILAN — le
+     * décompte TVA, les comptes courants LPP et SUVA y passent. Les compter
+     * comme des dépenses gonflait les charges de plus de soixante-dix mille
+     * francs et faisait mentir la marge. */
+    const classeDe = (b: typeof achatsPeriode[number]): string => {
+      const no = b.comptes.map((c) => nomCompte.get(c) || "").find((n) => /^\d/.test(n));
+      return no ? no[0] : "?";
+    };
+    const sommeClasse = (...cl: string[]) =>
+      achatsPeriode.filter((b) => cl.includes(classeDe(b))).reduce((t, b) => t + (b.ttc || 0), 0);
+    const coutDirect = sommeClasse("4");
+    const personnel = sommeClasse("5");
+    const autresCharges = sommeClasse("6");
+    const mouvementsBilan = sommeClasse("1", "2", "3");
     const totalAchats = achatsPeriode.reduce((s, b) => s + (b.ttc || 0), 0);
+
+    /* Clients dont la toute PREMIÈRE facture tombe dans la fenêtre : la seule
+       définition d'un « nouveau client » qui ne demande rien à personne. */
+    const premiereFacture = new Map<number, string>();
+    for (const f of copie.factures) {
+      const id = f.contactId ?? -1;
+      const d0 = f.date || "9999";
+      if (!premiereFacture.has(id) || d0 < (premiereFacture.get(id) as string)) premiereFacture.set(id, d0);
+    }
+    const nouveauxClients = [...premiereFacture.entries()].filter(([, d0]) => dans(d0)).length;
     const duFournisseurs = copie.achats.filter((b) => (b.du || 0) > 0.01);
     const achatsEnRetard = duFournisseurs.filter((b) => b.enRetard);
 
@@ -259,8 +287,18 @@ export async function GET(request: NextRequest) {
         /* Marge brute : ce qui reste une fois les fournisseurs payés. Elle ne
            tient pas compte des salaires ni des charges fixes, qui ne passent
            pas tous par une facture fournisseur. */
-        marge: r2(total - totalAchats),
-        margePct: total > 0 ? Math.round(((total - totalAchats) / total) * 100) : null,
+        /* Marge brute = chiffre d'affaires moins le COÛT DIRECT (classe 4) :
+           la marchandise et la sous-traitance des chantiers. */
+        marge: r2(total - coutDirect),
+        margePct: total > 0 ? Math.round(((total - coutDirect) / total) * 100) : null,
+        coutDirect: r2(coutDirect),
+        personnel: r2(personnel),
+        autresCharges: r2(autresCharges),
+        /* Ni charges ni produits : TVA à reverser, comptes courants sociaux. */
+        mouvementsBilan: r2(mouvementsBilan),
+        /* Ce qui reste une fois TOUTES les charges d'exploitation passées —
+           sans les salaires nets, qui ne transitent pas par une facture. */
+        resultat: r2(total - coutDirect - personnel - autresCharges),
         parFournisseur: cumulAchats((b) => [b.fournisseur]),
         parCompte: cumulAchats((b) =>
           b.comptes.length ? b.comptes.map((c) => nomCompte.get(c) || `Compte ${c}`) : ["Sans compte"]),
@@ -298,6 +336,26 @@ export async function GET(request: NextRequest) {
       parSerie: cumul(seriesDe).slice(0, 25),
       impayes: { parAge: impayesParAge, total: r2(ouvertes.reduce((s, f) => s + f.restant, 0)), lignes: ouvertes.slice(0, 200) },
       nonRattache: { nb: nonRattache.length, total: r2(nonRattache.reduce((s, f) => s + f.total, 0)) },
+      /* Prêt à être recopié dans « Indicateurs financiers ». Les montants
+         mensuels sont ramenés sur la durée RÉELLE de la fenêtre, pas sur un
+         douzième arbitraire. */
+      suggestions: (() => {
+        const jourDebut = de || copie.factures.reduce((m, f) => (f.date && f.date < m ? f.date : m), "9999-12-31");
+        const jourFin = a || new Date().toISOString().slice(0, 10);
+        const nbMois = Math.max(1, Math.round(
+          (Date.parse(jourFin) - Date.parse(jourDebut)) / (30.44 * 86400000),
+        ));
+        return {
+          mois: nbMois,
+          salaires: r2(personnel / nbMois),
+          chargesFixes: r2(autresCharges / nbMois),
+          autresCharges: r2(coutDirect / nbMois),
+          creances: r2(ouvertes.reduce((s2, f) => s2 + f.restant, 0)),
+          dettes: r2(duFournisseurs.reduce((s2, b) => s2 + (b.du || 0), 0)),
+          nbClients: clientsActifs,
+          nouveauxClients,
+        };
+      })(),
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });

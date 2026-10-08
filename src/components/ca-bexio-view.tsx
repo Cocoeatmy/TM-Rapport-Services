@@ -46,6 +46,8 @@ interface Donnees {
   impayes: { parAge: Part[]; total: number; lignes: Impaye[] };
   depenses: {
     total: number; nb: number; marge: number; margePct: number | null;
+    coutDirect: number; personnel: number; autresCharges: number;
+    mouvementsBilan: number; resultat: number;
     parFournisseur: Part[]; parCompte: Part[];
     du: number; duNb: number; enRetard: { nb: number; total: number };
     lignes: { no: string; fournisseur: string; titre: string; ttc: number; du: number; date: string; enRetard: boolean; compte: string }[];
@@ -564,14 +566,19 @@ export function CaBexioView() {
               <i>{d.offres} offre{d.offres > 1 ? "s" : ""} sur la période</i>
             </div>
             <div className="sg-fact-kpi">
-              <span className="sg-fact-kpi-l">Dépenses fournisseurs</span>
-              <b>CHF {francs(d.depenses.total)}</b>
-              <i>{d.depenses.nb} facture{d.depenses.nb > 1 ? "s" : ""} reçue{d.depenses.nb > 1 ? "s" : ""}</i>
+              <span className="sg-fact-kpi-l">Coût direct</span>
+              <b>CHF {francs(d.depenses.coutDirect)}</b>
+              <i>marchandise et sous-traitance · {d.depenses.nb} facture{d.depenses.nb > 1 ? "s" : ""} reçue{d.depenses.nb > 1 ? "s" : ""}</i>
             </div>
             <div className="sg-fact-kpi">
               <span className="sg-fact-kpi-l">Marge brute</span>
               <b>CHF {francs(d.depenses.marge)}</b>
-              <i>{d.depenses.margePct !== null ? `${d.depenses.margePct} % du facturé` : "—"} · hors salaires et charges fixes</i>
+              <i>{d.depenses.margePct !== null ? `${d.depenses.margePct} % du facturé` : "—"}</i>
+            </div>
+            <div className="sg-fact-kpi">
+              <span className="sg-fact-kpi-l">Charges d&apos;exploitation</span>
+              <b>CHF {francs(d.depenses.personnel + d.depenses.autresCharges)}</b>
+              <i>personnel {francs(d.depenses.personnel)} · autres {francs(d.depenses.autresCharges)}</i>
             </div>
             <div className={`sg-fact-kpi${d.depenses.enRetard.nb > 0 ? " is-alerte" : ""}`}>
               <span className="sg-fact-kpi-l">Dû aux fournisseurs</span>
@@ -650,6 +657,16 @@ export function CaBexioView() {
           <Barres titre="Par série de cabine"
             sous="même chemin que les marques · les vingt-cinq premières"
             lignes={d.parSerie} />
+
+          {d.depenses.mouvementsBilan > 0 && (
+            <p className="sg-fact-note">
+              Sur les CHF {francs(d.depenses.total)} de factures reçues, <b>CHF {francs(d.depenses.mouvementsBilan)}</b> ne
+              sont pas des charges : décompte TVA et comptes courants sociaux (classes 1 et 2 du plan comptable) sont des
+              mouvements de bilan. Les compter comme des dépenses ferait mentir la marge. Le résultat d&apos;exploitation
+              approché — CHF {francs(d.depenses.resultat)} — ne déduit pas les salaires nets, qui ne transitent par aucune
+              facture fournisseur.
+            </p>
+          )}
 
           <Barres titre="Dépenses par fournisseur"
             sous="factures reçues sur la période · TTC, comme le chiffre d'affaires"

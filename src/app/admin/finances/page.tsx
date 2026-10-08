@@ -143,6 +143,11 @@ export default function FinancesPage() {
   const [bexio, setBexio] = useState<{
     creances: number; dettes: number; ca12: number; achats12: number;
     marge: number; margePct: number | null; clients: number; retard: number;
+    coutDirect: number; personnel: number; autres: number; bilan: number; resultat: number;
+    sug: {
+      mois: number; salaires: number; chargesFixes: number; autresCharges: number;
+      creances: number; dettes: number; nbClients: number; nouveauxClients: number;
+    } | null;
   } | null>(null);
   const [caParAnnee, setCaParAnnee] = useState<Record<string, number>>({});
   const [annee, setAnnee] = useState<string>(String(new Date().getFullYear()));
@@ -179,6 +184,12 @@ export default function FinancesPage() {
           margePct: j.depenses?.margePct ?? null,
           clients: j.clientsActifs || 0,
           retard: j.depenses?.enRetard?.total || 0,
+          coutDirect: j.depenses?.coutDirect || 0,
+          personnel: j.depenses?.personnel || 0,
+          autres: j.depenses?.autresCharges || 0,
+          bilan: j.depenses?.mouvementsBilan || 0,
+          resultat: j.depenses?.resultat || 0,
+          sug: j.suggestions || null,
         });
       })
       .catch(() => {});
@@ -626,16 +637,25 @@ export default function FinancesPage() {
                 <div>
                   <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Lu dans bexio</h2>
                   <p className="text-xs text-gray-400 mb-4">
-                    douze derniers mois · TTC · ces chiffres n&apos;ont pas à être saisis, la comptabilité les connaît
+                    douze derniers mois · TTC · ces chiffres n&apos;ont pas à être saisis, la comptabilité les connaît.
+                    Les salaires NETS ne passent pas par une facture fournisseur : le champ « Salaires » reçoit
+                    les charges sociales, à compléter à la main.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setVals((v) => ({
                     ...v,
-                    creances: String(Math.round(bexio.creances)),
-                    dettes: String(Math.round(bexio.dettes)),
-                    nbClients: String(bexio.clients),
+                    creances: String(Math.round(bexio.sug?.creances ?? bexio.creances)),
+                    dettes: String(Math.round(bexio.sug?.dettes ?? bexio.dettes)),
+                    nbClients: String(bexio.sug?.nbClients ?? bexio.clients),
+                    nouveauxClients: String(bexio.sug?.nouveauxClients ?? ""),
+                    /* Mensualisés sur la durée réelle de la fenêtre. Les
+                       salaires NETS ne passent pas par une facture : le champ
+                       reçoit les charges sociales, à compléter à la main. */
+                    salaires: bexio.sug ? String(Math.round(bexio.sug.salaires)) : (v.salaires || ""),
+                    chargesFixes: bexio.sug ? String(Math.round(bexio.sug.chargesFixes)) : (v.chargesFixes || ""),
+                    autresCharges: bexio.sug ? String(Math.round(bexio.sug.autresCharges)) : (v.autresCharges || ""),
                   }))}
                   className="h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"
                 >
@@ -647,8 +667,12 @@ export default function FinancesPage() {
                   { l: "Créances clients", v: bexio.creances, s: "factures émises, pas encore encaissées" },
                   { l: "Dettes fournisseurs", v: bexio.dettes, s: bexio.retard > 0 ? `dont ${Math.round(bexio.retard).toLocaleString("fr-CH")} en retard` : "aucune en retard" },
                   { l: "Chiffre d'affaires", v: bexio.ca12, s: "facturé sur douze mois" },
-                  { l: "Achats fournisseurs", v: bexio.achats12, s: "factures reçues sur douze mois" },
-                  { l: "Marge brute", v: bexio.marge, s: bexio.margePct !== null ? `${bexio.margePct} % du facturé · hors salaires` : "hors salaires et charges fixes" },
+                  { l: "Coût direct (classe 4)", v: bexio.coutDirect, s: "marchandise et sous-traitance" },
+                  { l: "Marge brute", v: bexio.marge, s: bexio.margePct !== null ? `${bexio.margePct} % du facturé` : "—" },
+                  { l: "Charges de personnel (5)", v: bexio.personnel, s: "charges sociales · salaires nets non inclus" },
+                  { l: "Autres charges (classe 6)", v: bexio.autres, s: "véhicules, assurances, locaux, outillage" },
+                  { l: "Résultat d'exploitation", v: bexio.resultat, s: "hors salaires nets — à lire avec prudence" },
+                  { l: "Mouvements de bilan", v: bexio.bilan, s: "TVA et comptes courants sociaux — pas des charges" },
                 ].map((k) => (
                   <div key={k.l} className="rounded-xl bg-white/60 dark:bg-white/5 p-3">
                     <p className="text-[11px] text-gray-500 dark:text-gray-400">{k.l}</p>
@@ -661,7 +685,9 @@ export default function FinancesPage() {
                 <div className="rounded-xl bg-white/60 dark:bg-white/5 p-3">
                   <p className="text-[11px] text-gray-500 dark:text-gray-400">Clients facturés</p>
                   <p className="text-lg font-bold text-[#1e3a5f] dark:text-blue-200 tabular-nums">{bexio.clients}</p>
-                  <p className="text-[10px] text-gray-400">sur douze mois</p>
+                  <p className="text-[10px] text-gray-400">
+                    sur douze mois{bexio.sug ? ` · ${bexio.sug.nouveauxClients} nouveau${bexio.sug.nouveauxClients > 1 ? "x" : ""}` : ""}
+                  </p>
                 </div>
               </div>
             </div>
