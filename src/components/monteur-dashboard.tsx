@@ -13,6 +13,7 @@ import { cabinesPosees, cabinesRestantes } from "@/lib/cabines-posees";
 import { etatLot, type EtatLot } from "@/lib/etat-lot";
 import { cabinesMesurees } from "@/lib/cabines-mesurees";
 import { cabinesDuJour, joursDuChantier } from "@/lib/cabines-du-jour";
+import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
 import { rapportTermine, rapportEnAttente } from "@/lib/rapport-etat";
 import { rdvMontageAFixer as estRdvMontageAFixer, rdvServicesAFixer as estRdvServicesAFixer } from "@/lib/rdv-a-fixer";
 import { TourneeAssistant } from "@/components/tournee-assistant";
@@ -1756,6 +1757,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [sgCat, setSgCat] = useState<string>("all");
   /** Semaine affichee dans « Charge de la semaine » (0 = semaine en cours). */
   const [sgWeek, setSgWeek] = useState(0);
+  /* Montants des offres bexio. Le serveur les refuse à tout compte autre que
+     le propriétaire des accès : chez les autres, `actif` reste faux et aucun
+     franc ne s'affiche nulle part. */
+  const { actif: ofrActif, montant: montantOFR } = useMontantsOFR();
   /**
    * Types d'intervention visibles dans « Charge de la semaine ».
    *
@@ -3575,8 +3580,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 const enAttente = dayProjects.filter(marchandiseEnAttente);
                 /* Un chantier mesuré ET monté le même jour ne compte qu'une
                    fois dans le nombre de chantiers de la journée. */
-                const nb = new Set([...dayProjects, ...dayMesures, ...daySav].map((p) => p.id)).size;
-                return { d, key, cab, mes, sav: daySav.length, restant, poidsJour, attente, enAttente, segs, projets: dayProjects, mesuresProjets: dayMesures, savProjets: daySav, nb, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
+                const tousDuJour = [...dayProjects, ...dayMesures, ...daySav];
+                const nb = new Set(tousDuJour.map((p) => p.id)).size;
+                /* Ce que la journée représente en francs : la somme des offres
+                   des chantiers qui s'y trouvent, chacune comptée une fois
+                   même si le chantier occupe plusieurs jours. */
+                const vus = new Set<string>();
+                const ofr = tousDuJour.reduce((s2, p) => {
+                  if (vus.has(p.id)) return s2;
+                  vus.add(p.id);
+                  return s2 + (montantOFR(p.ofrTM) || 0);
+                }, 0);
+                return { d, key, cab, mes, sav: daySav.length, ofr, restant, poidsJour, attente, enAttente, segs, projets: dayProjects, mesuresProjets: dayMesures, savProjets: daySav, nb, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
               });
               const max = Math.max(1, ...bars.map((b) => b.poidsJour));
               /* Légende : groupes présents sur la semaine, du plus chargé au
@@ -3651,6 +3666,32 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               const semaineRestantes = bars.reduce((s, b) => s + b.restant, 0);
               const semaineMesures = bars.reduce((s, b) => s + b.mes, 0);
               const semaineSav = bars.reduce((s, b) => s + b.sav, 0);
+              /* Comptes par NATURE, dédoublonnés : un chantier étalé sur
+                 plusieurs jours reste un seul chantier. */
+              const parNature = (() => {
+                const m: Record<TypeCharge, Set<string>> = {
+                  montages: new Set(), mesures: new Set(), services: new Set(),
+                  sav: new Set(), garanties: new Set(),
+                };
+                bars.forEach((b) => {
+                  b.projets.forEach((p) => m[typeDuChantier(p)].add(p.id));
+                  b.mesuresProjets.forEach((p) => m.mesures.add(p.id));
+                  b.savProjets.forEach((p) => m.sav.add(p.id));
+                });
+                return m;
+              })();
+              /* Le montant de la semaine : chaque chantier une seule fois,
+                 quel que soit le nombre de jours qu'il occupe. */
+              const semaineOFR = (() => {
+                const vus = new Set<string>();
+                let t = 0;
+                bars.forEach((b) => [...b.projets, ...b.mesuresProjets, ...b.savProjets].forEach((p) => {
+                  if (vus.has(p.id)) return;
+                  vus.add(p.id);
+                  t += montantOFR(p.ofrTM) || 0;
+                }));
+                return t;
+              })();
               return (
                 <div className="sg-card sg-chart">
                   <div className="sg-card-head">
@@ -3661,9 +3702,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             jour », que les barres disent déjà. */}
                         semaine {weekNo} · {semaineCabines} cabine{semaineCabines > 1 ? "s" : ""}
                         {semaineRestantes < semaineCabines && ` · ${semaineRestantes} non posée${semaineRestantes > 1 ? "s" : ""}`}
-                        {semaineMesures > 0 && ` · ${semaineMesures} mesure${semaineMesures > 1 ? "s" : ""}`}
-                        {semaineSav > 0 && ` · ${semaineSav} SAV`}
                         {" · "}{semaineProjets} projet{semaineProjets > 1 ? "s" : ""}
+                        {/* Le détail par nature, et rien quand il n'y en a pas :
+                            une ligne qui annonce « 0 SAV » toute l'année finit
+                            par ne plus être lue. */}
+                        {parNature.mesures.size > 0 && ` · ${parNature.mesures.size} mesure${parNature.mesures.size > 1 ? "s" : ""}`}
+                        {parNature.services.size > 0 && ` · ${parNature.services.size} service${parNature.services.size > 1 ? "s" : ""}`}
+                        {parNature.sav.size > 0 && ` · ${parNature.sav.size} SAV`}
+                        {parNature.garanties.size > 0 && ` · ${parNature.garanties.size} garantie${parNature.garanties.size > 1 ? "s" : ""}`}
+                        {ofrActif && semaineOFR > 0 && ` · CHF ${francsCourts(semaineOFR)}`}
                         {sgWeek !== 0 && ` · ${sgWeek > 0 ? "+" : ""}${sgWeek} sem.`}
                       </p>
                     </div>
@@ -3746,6 +3793,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 style={{ bottom: `${Math.round((b.poidsJour / max) * 78)}%` }}>
                             {b.nb === 0 ? "0" : (
                               <>
+                                {/* Ce que vaut la journée, au-dessus de ce
+                                    qu'elle contient. */}
+                                {ofrActif && b.ofr > 0 && (
+                                  <i className="is-ofr">CHF {francsCourts(b.ofr)}</i>
+                                )}
                                 <b>{b.cab} cabine{b.cab > 1 ? "s" : ""}</b>
                                 {/* Les releves du jour, juste sous les poses :
                                     une journee de mesures est du travail, et elle

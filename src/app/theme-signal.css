@@ -1144,6 +1144,12 @@ html[data-ui="signal"] .sg-bar-val i.is-reste { color: #1b4ed8; font-weight: 600
    autres annotations, mais une teinte propre — ce n'est pas de la pose. */
 html[data-ui="signal"] .sg-bar-val i.is-mesures { color: #0e7490; }
 html[data-ui="signal"] .sg-bar-val i.is-sav { color: #b45309; }
+/* Montant de la journée : posé au-dessus du nombre de cabines, en tête de
+   l'étiquette, parce que c'est le premier chiffre qu'on cherche. */
+html[data-ui="signal"] .sg-bar-val i.is-ofr {
+  color: #0f766e; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+html[data-ui="signal"].dark .sg-bar-val i.is-ofr { color: #5eead4; }
 html[data-ui="signal"] .sg-bar-val i.is-done { color: #15803d; font-weight: 600; }
 html[data-ui="signal"].dark .sg-bar-val i.is-reste { color: #93b4ff; }
 html[data-ui="signal"].dark .sg-bar-val i.is-done { color: #7ddba2; }

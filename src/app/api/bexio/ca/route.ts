@@ -80,16 +80,24 @@ export async function GET(request: NextRequest) {
     };
 
     const parMois = (() => {
-      const m = new Map<string, { total: number; nb: number }>();
+      const m = new Map<string, { total: number; nb: number; restant: number }>();
       for (const f of retenues) {
         const k = (f.date || "").slice(0, 7);
         if (!k) continue;
-        const cur = m.get(k) || { total: 0, nb: 0 };
-        cur.total += f.total || 0; cur.nb += 1;
+        const cur = m.get(k) || { total: 0, nb: 0, restant: 0 };
+        cur.total += f.total || 0;
+        cur.restant += f.restant || 0;
+        cur.nb += 1;
         m.set(k, cur);
       }
+      const r2 = (n: number) => Math.round(n * 100) / 100;
       return [...m.entries()]
-        .map(([mois, v]) => ({ mois, total: Math.round(v.total * 100) / 100, nb: v.nb }))
+        .map(([mois, v]) => ({
+          mois, nb: v.nb,
+          total: r2(v.total),
+          restant: r2(v.restant),
+          encaisse: r2(v.total - v.restant),
+        }))
         .sort((a, b) => a.mois.localeCompare(b.mois));
     })();
 

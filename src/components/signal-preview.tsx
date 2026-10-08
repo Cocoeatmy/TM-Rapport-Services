@@ -24,6 +24,7 @@ import { supplierLogo } from "@/lib/supplier-logos";
 import type { Project } from "@/lib/notion";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import { offlineFetch } from "@/lib/offline";
+import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
 
 /* ── Mini-store module : les lignes publient, l'hôte s'abonne ────────────── */
 
@@ -131,6 +132,8 @@ export function SignalPreviewCard({
      L'aperçu va les chercher ; tant qu'elles n'arrivent pas, il affiche ce que
      la liste lui a donné. */
   const complete = useFicheComplete(p.id);
+  const { montant } = useMontantsOFR();
+  const montantOFR = montant(p.ofrTM);
   const avecPieces: any = complete || p;
   const etat = (mode.startsWith("mesures") ? p.etatMesures : p.etatCMD) || "—";
   const cls = STATUS_CMD_COLORS[etat] || STATUS_MESURES_COLORS[etat] || "bg-gray-100 text-gray-700";
@@ -170,6 +173,10 @@ export function SignalPreviewCard({
           { k: "SÉRIE", v: (p.seriesCabines || []).filter(Boolean) },
           { k: "CARTONS", v: p.nbCartons != null ? String(p.nbCartons) : "—" },
           { k: "PERS. MONTAGE", v: (p as any).nbCollaborateursMontage ? String((p as any).nbCollaborateursMontage) : "—" },
+          /* Montant de l'offre bexio. La case n'existe que pour le
+             propriétaire des accès : chez les autres, le montant n'est même
+             pas chargé, et la fiche a une case de moins. */
+          ...(montantOFR != null ? [{ k: "MONTANT OFR", v: `CHF ${francsCourts(montantOFR)}` }] : []),
         ] as { k: string; v: string | string[] }[]).map((f) => {
           const liste = Array.isArray(f.v) ? f.v : null;
           return (
