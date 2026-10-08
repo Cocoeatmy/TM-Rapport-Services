@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { notionWrite } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
-import { redisEnabled, redisLockAcquire, redisLockRelease } from "@/lib/redis-cache";
+import { redisEnabled, redisLockEssai, redisLockRelease } from "@/lib/redis-cache";
 
 /**
  * Rattache une ou plusieurs URLs Cloudinary (déjà uploadées) à un champ "Files"
@@ -43,24 +43,35 @@ class LockBusyError extends Error {
  * automatiquement : AUCUNE photo n'est perdue. Repli sur le verrou mémoire seul
  * si Redis n'est pas configuré.
  */
-async function withDistributedFieldLock<T>(projectId: string, notionField: string, fn: () => Promise<T>): Promise<T> {
+async function withDistributedFieldLock<T>(
+  projectId: string,
+  notionField: string,
+  fn: (degrade: boolean) => Promise<T>,
+): Promise<T> {
   const memKey = `${projectId}:${notionField}`;
   if (!redisEnabled) {
-    return withFieldLock(memKey, fn);
+    return withFieldLock(memKey, () => fn(true));
   }
   const lockKey = `lock:attach:${memKey}`;
   const TTL_MS = 20_000;      // expiration auto (anti-deadlock)
   const DEADLINE = Date.now() + 15_000;
   let token: string | null = null;
   while (Date.now() < DEADLINE) {
-    token = await redisLockAcquire(lockKey, TTL_MS);
-    if (token) break;
+    const essai = await redisLockEssai(lockKey, TTL_MS);
+    /* Redis muet (jeton révoqué, base suspendue, quota dépassé) : on ne fait
+       pas payer la panne aux photos. Attendre 15 s puis répondre « occupé »
+       bloquait TOUS les rattachements — plus une seule photo n'arrivait dans
+       Notion, sur tous les projets à la fois. On se rabat sur le verrou
+       mémoire, comme en l'absence de Redis, et l'écriture est relue pour
+       vérification (voir `degrade`). */
+    if (essai === "indisponible") return withFieldLock(memKey, () => fn(true));
+    if (essai !== "occupe") { token = essai.token; break; }
     await new Promise((r) => setTimeout(r, 250 + Math.floor(Math.random() * 200)));
   }
   if (!token) throw new LockBusyError();
   try {
     // 2ᵉ barrière mémoire : ordonne les écritures intra-conteneur.
-    return await withFieldLock(memKey, fn);
+    return await withFieldLock(memKey, () => fn(false));
   } finally {
     await redisLockRelease(lockKey, token);
   }
@@ -76,7 +87,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "projectId, notionField et photos requis" }, { status: 400 });
     }
 
-    await withDistributedFieldLock(projectId, notionField, async () => {
+    await withDistributedFieldLock(projectId, notionField, async (degrade) => {
       const page = await notionWrite.pages.retrieve({ page_id: projectId }) as any;
       const existingFiles = page.properties[notionField]?.files || [];
 
@@ -121,6 +132,39 @@ export async function POST(request: NextRequest) {
           const { setOverflow } = await import("@/lib/photo-overflow");
           await setOverflow(projectId, notionField, overflowSlice);
         } catch {}
+      }
+
+      /* Sans verrou partagé, deux conteneurs peuvent lire-modifier-écrire le
+         même champ en même temps et l'un efface l'autre. On relit donc ce
+         qu'on vient d'écrire ; si une photo manque, on refait la fusion une
+         fois. Une lecture de plus, mais aucune photo perdue. */
+      if (degrade) {
+        const attendues = photos
+          .map((p: { url?: string }) => p?.url)
+          .filter((u: string | undefined): u is string => !!u)
+          .slice(0, LIMIT);
+        const relu = await notionWrite.pages.retrieve({ page_id: projectId }) as any;
+        const presentes = new Set<string>(
+          (relu.properties[notionField]?.files || []).map((f: any) =>
+            f.type === "external" ? f.external?.url : f.file?.url),
+        );
+        const manquantes = attendues.filter((u: string) => !presentes.has(u));
+        if (manquantes.length > 0) {
+          const fusion = [...(relu.properties[notionField]?.files || [])].map((f: any) => ({
+            type: "external" as const,
+            name: f.name || "photo",
+            external: { url: f.type === "external" ? f.external?.url : f.file?.url },
+          })).filter((f) => !!f.external.url);
+          for (const p of photos) {
+            if (manquantes.includes(p.url)) {
+              fusion.push({ type: "external" as const, name: p.name || "photo", external: { url: p.url } });
+            }
+          }
+          await notionWrite.pages.update({
+            page_id: projectId,
+            properties: { [notionField]: { files: fusion.slice(0, LIMIT) } },
+          });
+        }
       }
     });
 

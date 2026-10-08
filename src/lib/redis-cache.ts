@@ -23,21 +23,81 @@ const REST_TOKEN =
 
 export const redisEnabled = !!(REST_URL && REST_TOKEN);
 
+/* Coupe-circuit : quand le service ne répond plus (jeton révoqué, base
+   suspendue, quota dépassé → HTTP 403), CHAQUE appel partait quand même sur le
+   réseau pour échouer. Des dizaines d'allers-retours perdus par requête, et
+   une app qui traîne sans raison visible. Dès le premier refus, on considère
+   Redis muet pendant une minute et les replis (Notion, mémoire) prennent le
+   relais immédiatement. */
+const MUET_MS = 60_000;
+let muetJusqua = 0;
+let dernierMotif = "";
+
+/** Redis répond-il ? (faux pendant la minute qui suit un refus) */
+export function redisMuet(): boolean {
+  return redisEnabled && muetJusqua > Date.now();
+}
+
+/** Dernier motif de refus — pour le diagnostic (/api/sante). */
+export function redisDernierMotif(): string {
+  return dernierMotif;
+}
+
+class RedisIndisponible extends Error {}
+
 async function command(args: (string | number)[]): Promise<unknown> {
   if (!redisEnabled) return null;
-  const res = await fetch(REST_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${REST_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(args),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`redis ${res.status}`);
+  if (muetJusqua > Date.now()) throw new RedisIndisponible(dernierMotif || "redis muet");
+  let res: Response;
+  try {
+    res = await fetch(REST_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${REST_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(args),
+      cache: "no-store",
+    });
+  } catch (e: any) {
+    muetJusqua = Date.now() + MUET_MS;
+    dernierMotif = `réseau : ${e?.message || "injoignable"}`;
+    throw new RedisIndisponible(dernierMotif);
+  }
+  if (!res.ok) {
+    /* Le corps dit POURQUOI (« max daily request limit exceeded », jeton
+       invalide…). Sans lui, « redis 403 » n'aidait personne. */
+    let detail = "";
+    try { detail = (await res.text()).slice(0, 200); } catch {}
+    dernierMotif = `redis ${res.status}${detail ? ` : ${detail}` : ""}`;
+    // 401/403/429/5xx = le service refuse : inutile d'insister pendant un moment.
+    muetJusqua = Date.now() + MUET_MS;
+    throw new RedisIndisponible(dernierMotif);
+  }
+  muetJusqua = 0;
   const json = (await res.json()) as { result?: unknown; error?: string };
   if (json.error) throw new Error(json.error);
   return json.result ?? null;
+}
+
+/** Issue d'une tentative de verrou : pris, déjà tenu, ou service muet. */
+export type EssaiVerrou = { token: string } | "occupe" | "indisponible";
+
+/**
+ * Tente d'acquérir le verrou en distinguant « quelqu'un d'autre l'a » de
+ * « Redis ne répond pas ». La version qui renvoyait `null` dans les deux cas
+ * faisait attendre 15 s puis échouer CHAQUE rattachement de photo quand Redis
+ * était en panne — plus aucune photo ne pouvait être enregistrée.
+ */
+export async function redisLockEssai(key: string, ttlMs = 20000): Promise<EssaiVerrou> {
+  if (!redisEnabled) return "indisponible";
+  const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try {
+    const r = await command(["SET", key, token, "NX", "PX", ttlMs]);
+    return r === "OK" ? { token } : "occupe";
+  } catch {
+    return "indisponible";
+  }
 }
 
 // Compression : les grosses listes (all-active ~2-3 Mo) dépasseraient la limite
