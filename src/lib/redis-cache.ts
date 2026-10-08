@@ -80,6 +80,23 @@ async function command(args: (string | number)[]): Promise<unknown> {
   return json.result ?? null;
 }
 
+/**
+ * Exécute une opération Redis et dit si elle a abouti.
+ *
+ * Redis est un ACCÉLÉRATEUR : une panne ne doit jamais retirer une
+ * fonctionnalité. Les modules qui s'en servent comme magasin (téléphones,
+ * chat_id Telegram, journal) partaient en erreur dès qu'il ne répondait plus,
+ * au lieu de se rabattre sur le magasin Notion.
+ */
+export async function siRedis<T>(fn: () => Promise<T>): Promise<{ valeur: T } | null> {
+  if (!redisEnabled || muetJusqua > Date.now()) return null;
+  try {
+    return { valeur: await fn() };
+  } catch {
+    return null;
+  }
+}
+
 /** Issue d'une tentative de verrou : pris, déjà tenu, ou service muet. */
 export type EssaiVerrou = { token: string } | "occupe" | "indisponible";
 

@@ -9,7 +9,7 @@
 // sans expiration (même robustesse que user-phones). Repli KV Notion en local.
 
 import { getData, setData } from "@/lib/kv-store";
-import { redisEnabled, redisHSet, redisHGetAll, redisHDel } from "@/lib/redis-cache";
+import { redisHSet, redisHGetAll, redisHDel, siRedis } from "@/lib/redis-cache";
 import { getUserPhones } from "@/lib/user-phones";
 
 const KEY = "user-chatids";
@@ -28,39 +28,43 @@ export function normalizePhone(phone: string): string {
 
 /** Map e-mail (minuscule) → chat_id. */
 export async function getUserChatIds(): Promise<Record<string, string>> {
-  if (redisEnabled) {
-    const all = await redisHGetAll(KEY);
-    const map: Record<string, string> = {};
-    for (const [e, c] of Object.entries(all)) map[e.toLowerCase()] = c;
-    return map;
-  }
-  const rows = await getData<ChatRow>(KEY);
+  /* Fusion des deux magasins (Redis prioritaire) : sans chat_id, le bot ne
+     peut écrire à personne — une panne du cache couperait les notifications. */
   const map: Record<string, string> = {};
-  for (const r of rows) if (r?.email) map[r.email.toLowerCase()] = r.chatId || "";
+  try {
+    for (const r of await getData<ChatRow>(KEY)) {
+      if (r?.email) map[r.email.toLowerCase()] = r.chatId || "";
+    }
+  } catch { /* magasin Notion indisponible : Redis suffira */ }
+  const red = await siRedis(() => redisHGetAll(KEY));
+  if (red) for (const [e, c] of Object.entries(red.valeur)) map[e.toLowerCase()] = c;
   return map;
+}
+
+/** Écrit la liste complète dans le magasin Notion (repli durable). */
+async function ecrireKvChats(maj: (rows: ChatRow[]) => ChatRow[]): Promise<void> {
+  try {
+    const rows = await getData<ChatRow>(KEY);
+    await setData(KEY, maj(rows));
+  } catch { /* best-effort */ }
 }
 
 /** Enregistre / met à jour le chat_id d'un collaborateur (atomique, persistant). */
 export async function setUserChatId(email: string, chatId: string): Promise<void> {
   const e = email.toLowerCase();
-  if (redisEnabled) {
-    await redisHSet(KEY, e, chatId);
-    return;
-  }
-  const rows = await getData<ChatRow>(KEY);
-  const idx = rows.findIndex((r) => r.email?.toLowerCase() === e);
-  if (idx >= 0) rows[idx].chatId = chatId;
-  else rows.push({ email: e, chatId });
-  await setData(KEY, rows);
+  await siRedis(() => redisHSet(KEY, e, chatId));
+  await ecrireKvChats((rows) => {
+    const idx = rows.findIndex((r) => r.email?.toLowerCase() === e);
+    if (idx >= 0) rows[idx].chatId = chatId; else rows.push({ email: e, chatId });
+    return rows;
+  });
 }
 
 /** Supprime le chat_id d'un collaborateur. */
 export async function deleteUserChatId(email: string): Promise<void> {
   const e = email.toLowerCase();
-  if (redisEnabled) { await redisHDel(KEY, e); return; }
-  const rows = await getData<ChatRow>(KEY);
-  const filtered = rows.filter((r) => r.email?.toLowerCase() !== e);
-  if (filtered.length !== rows.length) await setData(KEY, filtered);
+  await siRedis(() => redisHDel(KEY, e));
+  await ecrireKvChats((rows) => rows.filter((r) => r.email?.toLowerCase() !== e));
 }
 
 /** Trouve l'e-mail du collaborateur dont le numéro correspond à `phone`. */

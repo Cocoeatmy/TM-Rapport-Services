@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getData, setData } from "@/lib/kv-store";
-import { redisEnabled, redisLPush, redisLTrim, redisLRange } from "@/lib/redis-cache";
+import { redisEnabled, redisLPush, redisLTrim, redisLRange, siRedis } from "@/lib/redis-cache";
 
 export interface LogEntry {
   id: string;
@@ -71,12 +71,14 @@ export async function POST(request: NextRequest) {
     details: body.details || "",
   };
 
-  if (redisEnabled) {
-    // Append efficace + plafond élevé. Aucune réécriture de blob.
+  // Append efficace + plafond élevé. Aucune réécriture de blob.
+  const ecrit = await siRedis(async () => {
     await redisLPush(REDIS_KEY, JSON.stringify(entry));
     await redisLTrim(REDIS_KEY, 0, REDIS_MAX - 1);
-  } else {
-    // Repli KV (dev local sans Redis) : ancien comportement, plafond 500.
+  });
+  if (!ecrit) {
+    // Redis absent OU muet : ancien comportement, plafond 500. Le journal
+    // continue d'enregistrer au lieu de renvoyer une erreur à chaque action.
     const logs = await getData<LogEntry>(KEY);
     logs.unshift(entry);
     await setData(KEY, logs.slice(0, 500));

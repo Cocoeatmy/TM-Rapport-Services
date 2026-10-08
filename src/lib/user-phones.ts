@@ -13,7 +13,7 @@
 // Repli : si Redis n'est pas configuré (dev local), on utilise le KV Notion.
 
 import { getData, setData } from "@/lib/kv-store";
-import { redisEnabled, redisHSet, redisHGetAll, redisHDel } from "@/lib/redis-cache";
+import { redisHSet, redisHGetAll, redisHDel, siRedis } from "@/lib/redis-cache";
 
 const KEY = "user-phones";
 
@@ -24,59 +24,63 @@ interface PhoneRow {
 
 /** Map e-mail (minuscule) → téléphone. */
 export async function getUserPhones(): Promise<Record<string, string>> {
-  if (redisEnabled) {
-    const all = await redisHGetAll(KEY); // {email: phone}
-    const map: Record<string, string> = {};
-    for (const [e, p] of Object.entries(all)) map[e.toLowerCase()] = p;
-    return map;
-  }
-  // Repli KV Notion (dev local)
-  const rows = await getData<PhoneRow>(KEY);
+  /* Les deux magasins sont lus et fusionnés (Redis prioritaire) : une panne de
+     Redis ne doit pas faire disparaître les numéros, et un numéro enregistré
+     PENDANT la panne — donc écrit dans Notion seul — ne doit pas se perdre au
+     retour de Redis. */
   const map: Record<string, string> = {};
-  for (const r of rows) if (r?.email) map[r.email.toLowerCase()] = r.phone || "";
+  try {
+    for (const r of await getData<PhoneRow>(KEY)) {
+      if (r?.email) map[r.email.toLowerCase()] = r.phone || "";
+    }
+  } catch { /* magasin Notion indisponible : Redis suffira */ }
+  const red = await siRedis(() => redisHGetAll(KEY)); // {email: phone}
+  if (red) for (const [e, p] of Object.entries(red.valeur)) map[e.toLowerCase()] = p;
   return map;
+}
+
+/** Écrit la liste complète dans le magasin Notion (repli durable). */
+async function ecrireKvPhones(maj: (rows: PhoneRow[]) => PhoneRow[]): Promise<void> {
+  try {
+    const rows = await getData<PhoneRow>(KEY);
+    await setData(KEY, maj(rows));
+  } catch { /* best-effort */ }
 }
 
 /** Définit / met à jour le téléphone d'un utilisateur (atomique, persistant). */
 export async function setUserPhone(email: string, phone: string): Promise<void> {
   const e = email.toLowerCase();
-  if (redisEnabled) {
-    await redisHSet(KEY, e, phone); // écriture atomique d'un seul champ
-    return;
-  }
-  const rows = await getData<PhoneRow>(KEY);
-  const idx = rows.findIndex((r) => r.email?.toLowerCase() === e);
-  if (idx >= 0) rows[idx].phone = phone;
-  else rows.push({ email: e, phone });
-  await setData(KEY, rows);
+  await siRedis(() => redisHSet(KEY, e, phone)); // écriture atomique d'un seul champ
+  // Toujours doublé dans Notion : le numéro survit à une panne du cache.
+  await ecrireKvPhones((rows) => {
+    const idx = rows.findIndex((r) => r.email?.toLowerCase() === e);
+    if (idx >= 0) rows[idx].phone = phone; else rows.push({ email: e, phone });
+    return rows;
+  });
 }
 
 /** Migre le téléphone quand l'e-mail d'un utilisateur change. */
 export async function renameUserPhone(oldEmail: string, newEmail: string): Promise<void> {
   const oldE = oldEmail.toLowerCase();
   const newE = newEmail.toLowerCase();
-  if (redisEnabled) {
-    const all = await redisHGetAll(KEY);
-    const phone = all[oldE];
+  const red = await siRedis(() => redisHGetAll(KEY));
+  if (red) {
+    const phone = red.valeur[oldE];
     if (phone !== undefined) {
-      await redisHSet(KEY, newE, phone);
-      await redisHDel(KEY, oldE);
+      await siRedis(() => redisHSet(KEY, newE, phone));
+      await siRedis(() => redisHDel(KEY, oldE));
     }
-    return;
   }
-  const rows = await getData<PhoneRow>(KEY);
-  const idx = rows.findIndex((r) => r.email?.toLowerCase() === oldE);
-  if (idx >= 0) { rows[idx].email = newE; await setData(KEY, rows); }
+  await ecrireKvPhones((rows) => {
+    const idx = rows.findIndex((r) => r.email?.toLowerCase() === oldE);
+    if (idx >= 0) rows[idx].email = newE;
+    return rows;
+  });
 }
 
 /** Supprime le téléphone d'un utilisateur supprimé. */
 export async function deleteUserPhone(email: string): Promise<void> {
   const e = email.toLowerCase();
-  if (redisEnabled) {
-    await redisHDel(KEY, e);
-    return;
-  }
-  const rows = await getData<PhoneRow>(KEY);
-  const filtered = rows.filter((r) => r.email?.toLowerCase() !== e);
-  if (filtered.length !== rows.length) await setData(KEY, filtered);
+  await siRedis(() => redisHDel(KEY, e));
+  await ecrireKvPhones((rows) => rows.filter((r) => r.email?.toLowerCase() !== e));
 }
