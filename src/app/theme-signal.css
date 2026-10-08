@@ -952,6 +952,12 @@ html[data-ui="signal"] .sg-seg-etat.is-pose { color: #4ade80; }
 html[data-ui="signal"] .sg-seg-etat.is-encours { color: #fcd34d; }
 html[data-ui="signal"] .sg-seg-etat.is-signale { color: #5eead4; }
 html[data-ui="signal"] .sg-seg-etat.is-souci { color: #fca5a5; }
+/* Un signalement réglé garde son icône et passe au vert : il dit « il y a eu
+   un problème, quelqu'un s'en est occupé ». L'effacer purement et simplement,
+   comme avant, rendait ce chantier indiscernable de celui qui n'a jamais rien
+   eu — et faisait disparaître le travail de celui qui l'a traité. */
+html[data-ui="signal"] .sg-seg-etat.is-souci-regle,
+html[data-ui="signal"] .sg-seg-etat.is-signale-regle { color: #4ade80; }
 /* Case rayée : fond presque blanc, la plaque s'appuie davantage. */
 html[data-ui="signal"] .sg-bar-seg.is-attente .sg-seg-etat {
   background: rgba(15, 23, 42, 0.62);
@@ -3088,7 +3094,11 @@ html[data-ui="signal"] .sgc-etat.is-pose { background: #e3f6ea; color: #15803d; 
 html[data-ui="signal"] .sgc-etat.is-encours { background: #fdf3d8; color: #b45309; }
 html[data-ui="signal"] .sgc-etat.is-signale { background: #e0f2f1; color: #00695c; }
 html[data-ui="signal"] .sgc-etat.is-souci { background: #fde8e8; color: #b91c1c; }
+html[data-ui="signal"] .sgc-etat.is-souci-regle,
+html[data-ui="signal"] .sgc-etat.is-signale-regle { background: #e3f6ea; color: #15803d; }
 html[data-ui="signal"].dark .sgc-etat.is-pose { background: rgba(21, 128, 61, 0.2); color: #7ddba2; }
+html[data-ui="signal"].dark .sgc-etat.is-souci-regle,
+html[data-ui="signal"].dark .sgc-etat.is-signale-regle { background: rgba(21, 128, 61, 0.2); color: #7ddba2; }
 html[data-ui="signal"].dark .sgc-etat.is-encours { background: rgba(180, 83, 9, 0.22); color: #f3c570; }
 html[data-ui="signal"].dark .sgc-etat.is-signale { background: rgba(0, 105, 92, 0.25); color: #5eead4; }
 html[data-ui="signal"].dark .sgc-etat.is-souci { background: rgba(185, 28, 28, 0.22); color: #fca5a5; }

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
 import { cabinesPosees, cabinesRestantes } from "@/lib/cabines-posees";
+import { etatLot, type EtatLot } from "@/lib/etat-lot";
 import { cabinesMesurees } from "@/lib/cabines-mesurees";
 import { cabinesDuJour, joursDuChantier } from "@/lib/cabines-du-jour";
 import { rapportTermine, rapportEnAttente } from "@/lib/rapport-etat";
@@ -705,22 +706,35 @@ function parseTMNumbers(raw: string): string[] {
  * décision — puis vient la pose, terminée ou en cours. Un chantier pas encore
  * commencé n'affiche rien : l'absence de marque est déjà l'information.
  */
-function etatDuLot(projet: Project, signale: boolean) {
+/**
+ * L'icône qui illustre l'état d'un lot.
+ *
+ * La DÉCISION — quel état l'emporte sur quel autre — vit dans
+ * src/lib/etat-lot.ts, avec ses tests. Ici, on ne fait que l'habiller.
+ */
+const HABILLAGE: Record<EtatLot, { titre: string; Icon: typeof AlertTriangle }> = {
+  "souci": { titre: "Soucis de montage", Icon: AlertTriangle },
+  "signale": { titre: "Pièce manquante ou défaut signalé", Icon: Box },
+  "souci-regle": { titre: "Soucis de montage réglé", Icon: AlertTriangle },
+  "signale-regle": { titre: "Pièce ou défaut signalé — réglé", Icon: Box },
+  "pose": { titre: "Toutes les cabines sont posées", Icon: Check },
+  "encours": { titre: "Montage en cours", Icon: Clock },
+};
+
+function etatDuLot(projet: Project, signale: boolean, signaleRegle = false) {
+  const etat = etatLot(projet, signale, signaleRegle);
+  if (!etat) return null;
+  const { titre, Icon } = HABILLAGE[etat];
   const total = projet.nbCabines || 0;
   const posees = cabinesPosees(projet);
-  if (projet.etatCMD === "Soucis montage" || projet.soucisMontage === true) {
-    return { cls: "is-souci", titre: "Soucis de montage", Icon: AlertTriangle };
-  }
-  if (signale) {
-    return { cls: "is-signale", titre: "Pièce manquante ou défaut signalé", Icon: Box };
-  }
-  if (total > 0 && posees >= total) {
-    return { cls: "is-pose", titre: `${total} cabine${total > 1 ? "s" : ""} posée${total > 1 ? "s" : ""}`, Icon: Check };
-  }
-  if (posees > 0) {
-    return { cls: "is-encours", titre: `${posees} cabine${posees > 1 ? "s" : ""} posée${posees > 1 ? "s" : ""} sur ${total}`, Icon: Clock };
-  }
-  return null;
+  /* Les deux états d'avancement disent leur compte : « 3 cabines posées sur
+     7 » apprend davantage que « montage en cours ». */
+  const precis = etat === "pose"
+    ? `${total} cabine${total > 1 ? "s" : ""} posée${total > 1 ? "s" : ""}`
+    : etat === "encours"
+      ? `${posees} cabine${posees > 1 ? "s" : ""} posée${posees > 1 ? "s" : ""} sur ${total}`
+      : titre;
+  return { cls: `is-${etat}`, titre: precis, Icon };
 }
 
 /**
@@ -730,8 +744,8 @@ function etatDuLot(projet: Project, signale: boolean) {
  * pas ce fond. L'icône et les couleurs restent les mêmes, pour qu'un état se
  * reconnaisse d'un écran à l'autre sans réapprendre un code.
  */
-function pastilleEtat(projet: Project, signale: boolean) {
-  const e = etatDuLot(projet, signale);
+function pastilleEtat(projet: Project, signale: boolean, signaleRegle = false) {
+  const e = etatDuLot(projet, signale, signaleRegle);
   if (!e) return null;
   return (
     <span className={`sgc-etat ${e.cls}`} title={e.titre}>
@@ -2666,6 +2680,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
      pièce manquante se voit alors sur le chantier concerné, pas seulement
      dans un total. */
   const [projetsSignales, setProjetsSignales] = useState<Set<string>>(new Set());
+  /** Chantiers dont TOUS les signalements ont ete regles — l'icone reste, en vert. */
+  const [projetsRegles, setProjetsRegles] = useState<Set<string>>(new Set());
   useEffect(() => {
     let vivant = true;
     Promise.all([
@@ -2678,10 +2694,20 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       const defautsOuverts = (Array.isArray(defauts) ? defauts : [])
         .filter((x: any) => !(x.status === "resolu" || x.resolved === true));
       setSignalementsOuverts(piecesOuvertes.length + defautsOuverts.length);
-      setProjetsSignales(new Set(
+      const idsOuverts = new Set(
         [...piecesOuvertes, ...defautsOuverts]
           .map((x: any) => String(x.projectId || "")).filter(Boolean),
-      ));
+      );
+      setProjetsSignales(idsOuverts);
+      /* Regles : le chantier a eu au moins un signalement, et il n'en reste
+         aucun d'ouvert. Un chantier qui en a encore un ouvert reste signale —
+         le vert ne doit pas masquer ce qui attend encore. */
+      const idsRegles = new Set(
+        [...(Array.isArray(pieces) ? pieces : []), ...(Array.isArray(defauts) ? defauts : [])]
+          .map((x: any) => String(x.projectId || "")).filter(Boolean)
+          .filter((id: string) => !idsOuverts.has(id)),
+      );
+      setProjetsRegles(idsRegles);
     });
     return () => { vivant = false; };
   }, []);
@@ -3584,7 +3610,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               >
                                 {numeroDeProjet(p)}
                                 {(() => {
-                                  const e = etatDuLot(p, projetsSignales.has(p.id));
+                                  const e = etatDuLot(p, projetsSignales.has(p.id), projetsRegles.has(p.id));
                                   if (!e) return null;
                                   return (
                                     <span className={`sg-seg-etat ${e.cls}`} title={e.titre}>
@@ -3737,7 +3763,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       <span className="sg-mono sgc-row-tm">{p.ofrTM || "—"}</span>
                       <span className="sgc-row-name">
                         {p.nomChantier || p.projet}{" "}
-                        {pastilleEtat(p, projetsSignales.has(p.id))}
+                        {pastilleEtat(p, projetsSignales.has(p.id), projetsRegles.has(p.id))}
                       </span>
                       <span className="sg-place">
                         <MapPin className="w-3 h-3" /><span>{p.adresseChantier || "—"}</span>
