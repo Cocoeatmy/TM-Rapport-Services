@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
         id: p.id,
         ofrTM: p.ofrTM || "",
         projet: p.projet || "",
+        nomChantier: p.nomChantier || "",
         adresseChantier: p.adresseChantier || "",
         nbCabines: p.nbCabines || 0,
         dateMontage: p.dateMontage || null,

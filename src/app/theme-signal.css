@@ -4770,3 +4770,89 @@ html[data-ui="signal"] .sg-cocher-aide {
   border-bottom: 1px solid var(--sg-line);
   font-size: 10.5px; line-height: 1.4; color: var(--sg-text-3);
 }
+
+/* ── Facturation : chantiers clôturés confrontés aux factures bexio ─────── */
+html[data-ui="signal"] .sg-fact { display: flex; flex-direction: column; gap: 14px; }
+html[data-ui="signal"] .sg-fact-maj {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
+  border-radius: 999px; border: 1px solid var(--sg-line); background: var(--sg-paper-2);
+  color: var(--sg-text-2); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+html[data-ui="signal"] .sg-fact-maj:hover:not(:disabled) { border-color: var(--sg-signal); color: var(--sg-text); }
+html[data-ui="signal"] .sg-fact-maj:disabled { opacity: 0.5; cursor: default; }
+html[data-ui="signal"] .sg-fact-tete {
+  display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+html[data-ui="signal"] .sg-fact-kpi {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 14px; border-radius: 12px;
+  background: var(--sg-paper); border: 1px solid var(--sg-line);
+}
+/* Le seul chiffre qui demande une action porte la seule couleur vive. */
+html[data-ui="signal"] .sg-fact-kpi.is-alerte { border-color: #fca5a5; background: #fff5f5; }
+html[data-ui="signal"].dark .sg-fact-kpi.is-alerte { border-color: #7f1d1d; background: rgba(127, 29, 29, 0.18); }
+html[data-ui="signal"] .sg-fact-kpi-l { font-size: 11px; color: var(--sg-text-3); letter-spacing: 0.01em; }
+html[data-ui="signal"] .sg-fact-kpi b {
+  font-size: 26px; font-weight: 700; line-height: 1.1; color: var(--sg-text);
+  font-variant-numeric: tabular-nums;
+}
+html[data-ui="signal"] .sg-fact-kpi.is-alerte b { color: #b91c1c; }
+html[data-ui="signal"].dark .sg-fact-kpi.is-alerte b { color: #fca5a5; }
+html[data-ui="signal"] .sg-fact-kpi i { font-style: normal; font-size: 11.5px; color: var(--sg-text-3); }
+html[data-ui="signal"] .sg-fact-onglets { display: flex; flex-wrap: wrap; gap: 6px; }
+html[data-ui="signal"] .sg-fact-ong {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
+  border-radius: 999px; border: 1px solid var(--sg-line); background: var(--sg-paper);
+  color: var(--sg-text-2); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+html[data-ui="signal"] .sg-fact-ong b {
+  font-size: 11px; color: var(--sg-text-3); font-variant-numeric: tabular-nums;
+}
+html[data-ui="signal"] .sg-fact-ong.is-on {
+  background: var(--sg-signal); border-color: var(--sg-signal); color: #fff;
+}
+html[data-ui="signal"] .sg-fact-ong.is-on b { color: rgba(255, 255, 255, 0.8); }
+/* Pastille d'état : le ton dit le niveau de certitude, pas la gravité. */
+html[data-ui="signal"] .sg-fact-etat {
+  justify-self: start; padding: 2px 8px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; white-space: nowrap;
+  background: var(--sg-paper-2); color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sg-fact-etat.is-sans { background: #fee2e2; color: #b91c1c; }
+html[data-ui="signal"] .sg-fact-etat.is-probable { background: #fef3c7; color: #b45309; }
+html[data-ui="signal"] .sg-fact-etat.is-retrouvee { background: #e0f2fe; color: #0369a1; }
+html[data-ui="signal"] .sg-fact-etat.is-mensuel { background: #ede9fe; color: #6d28d9; }
+html[data-ui="signal"] .sg-fact-etat.is-facturee { background: #dcfce7; color: #15803d; }
+html[data-ui="signal"].dark .sg-fact-etat.is-sans { background: rgba(185, 28, 28, 0.22); color: #fca5a5; }
+html[data-ui="signal"].dark .sg-fact-etat.is-probable { background: rgba(180, 83, 9, 0.22); color: #fbbf72; }
+html[data-ui="signal"].dark .sg-fact-etat.is-retrouvee { background: rgba(3, 105, 161, 0.22); color: #7dd3fc; }
+html[data-ui="signal"].dark .sg-fact-etat.is-mensuel { background: rgba(109, 40, 217, 0.22); color: #c4b5fd; }
+html[data-ui="signal"].dark .sg-fact-etat.is-facturee { background: rgba(21, 128, 61, 0.22); color: #7ddba2; }
+html[data-ui="signal"] .sg-fact-montant {
+  text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 12.5px; font-weight: 600; color: var(--sg-text); white-space: nowrap;
+  display: flex; flex-direction: column; align-items: flex-end;
+}
+html[data-ui="signal"] .sg-fact-montant i {
+  font-style: normal; font-size: 10.5px; font-weight: 500; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-fact-err {
+  padding: 12px 14px; border-radius: 12px; background: #fee2e2; color: #b91c1c; font-size: 13px;
+}
+html[data-ui="signal"] .sg-fact-vide { padding: 24px 4px; color: var(--sg-text-3); font-size: 13px; }
+html[data-ui="signal"] .sg-fact-note {
+  margin: 4px 0 0; font-size: 11.5px; line-height: 1.55; color: var(--sg-text-3);
+}
+/* La ligne de facturation porte deux colonnes de plus que les listes de
+   projets : on redéfinit sa grille sans toucher aux autres listes. */
+html[data-ui="signal"] .sg-fact .sg-plist-link {
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr) auto auto auto 36px 16px;
+}
+@media (max-width: 900px) {
+  html[data-ui="signal"] .sg-fact .sg-plist-link {
+    grid-template-columns: minmax(80px, auto) minmax(0, 1fr) auto;
+  }
+  html[data-ui="signal"] .sg-fact .sg-plist-date,
+  html[data-ui="signal"] .sg-fact .sg-plist-cab,
+  html[data-ui="signal"] .sg-fact .sg-plist-chev { display: none; }
+}

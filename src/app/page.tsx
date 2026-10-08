@@ -27,7 +27,7 @@ import { StatsDateFilter, filterByStatsDate, getRolling12Range, describeStatsRan
 import { ChartTypeSelector, TimeSeriesChart, ColumnChart, MultiColumnChart, DonutChart, PieChart2, TreemapChart, RadarChart, StackedBarChart, StackedAreaChart, type ChartType } from "@/components/stat-charts";
 import { SignalStats } from "@/components/signal-stats";
 import { useIsSignalTheme } from "@/lib/use-signal-theme";
-import { SignalPreviewHost, openSignalPreview, closeSignalPreview } from "@/components/signal-preview";
+import { SignalPreviewHost, openSignalPreview, closeSignalPreview, survolApercu, annulerSurvol } from "@/components/signal-preview";
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
 
@@ -98,6 +98,13 @@ const ArrivagePage = dynamic(() => import("@/components/arrivage-page"), {
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
 });
 
+/* Facturation : chargée à la demande, et seulement par qui y a droit — le
+   code ne part même pas chez les autres. */
+const FacturationView = dynamic(() => import("@/components/facturation-view").then(m => ({ default: m.FacturationView })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
+});
+
 const ChantiersView = dynamic(() => import("@/components/chantiers-view").then(m => ({ default: m.ChantiersView })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-gray-200 rounded-xl h-32" />,
@@ -130,9 +137,13 @@ function ProjectCard({ project, mode, isAdmin, onDelete, compact, noPrefetch, ex
         >
           {/* Le n° TM ouvre l'APERÇU ; tout le reste de la ligne ouvre le projet.
               Plusieurs commandes → une ligne par numéro (sinon illisible). */}
+          {/* Le survol suffit à voir la fiche ; le clic l'épingle. Il fallait
+              cliquer pour un simple coup d'œil, et cliquer encore pour fermer. */}
           <span
             className="sg-plist-tm sg-tmbtn sg-refs"
             title="Aperçu du projet"
+            onMouseEnter={(e) => { e.stopPropagation(); survolApercu(() => openSignalPreview(project, mode)); }}
+            onMouseLeave={annulerSurvol}
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); openSignalPreview(project, mode); }}
           >
             {tmList.length ? tmList.map((n, k) => <i key={`${n}-${k}`}>{n}</i>) : "—"}
@@ -354,7 +365,7 @@ function SignalHeaderBar({ isAdmin, onNewProject, children }: {
   );
 }
 
-function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProject }:{ mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isSignal?: boolean; onNewProject?: () => void }) {
+function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProject, bexioOk }:{ mode: string; projectsData: Record<string, any[]>; onSwitchMode: (m: any) => void; isAdmin: boolean; isSignal?: boolean; onNewProject?: () => void; bexioOk?: boolean }) {
   const [open, setOpen] = useState<string | null>(
     mode.startsWith("grossistes") ? "grossistes" :
     mode.startsWith("fournisseurs") ? "fournisseurs-menu" :
@@ -451,6 +462,7 @@ function NavBar({ mode, projectsData, onSwitchMode, isAdmin, isSignal, onNewProj
              rarement, il occupait une place entre des vues ouvertes plusieurs
              fois par jour. */
           ...(isAdmin ? [{ id: "stats", label: "Stats", Icon: BarChart2, active: mode === "stats", act: () => { handleSelect("stats"); setOpen(null); } }] : []),
+          ...(bexioOk ? [{ id: "facturation", label: "Facturation", Icon: Receipt, active: mode === "facturation", act: () => { handleSelect("facturation"); setOpen(null); } }] : []),
           /* L'assistant rejoint le rail : flottant en bas à droite, il
              recouvrait le contenu et détonnait par sa taille. Il garde sa
              pastille flottante sur les écrans sans rail. */
@@ -1046,8 +1058,8 @@ function HomePage() {
   const collabParam = searchParams.get("collab");
   const quickParam = searchParams.get("quick");
   const qParam = searchParams.get("q");
-  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv" | "arrivage" | "chantiers";
-  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts", "arrivage", "chantiers"];
+  type Mode = "dashboard" | "mesures" | "mesures-termine" | "cmd" | "cmd-termine" | "services" | "services-termine" | "sav" | "sav-termine" | "garanties" | "rapport" | "collaborateurs" | "emplacement-cabines" | "calendrier" | "clients-contacts" | "clients-entreprises" | "clients-fournisseurs" | "clients-grossistes" | "grossistes" | "grossistes-bms" | "grossistes-dubat" | "grossistes-tema" | "grossistes-matway" | "grossistes-bringhen" | "fournisseurs" | "fournisseurs-duka" | "fournisseurs-duscholux" | "fournisseurs-ronal" | "fournisseurs-nelo" | "fournisseurs-novellini" | "fournisseurs-samo" | "fournisseurs-kermi" | "fournisseurs-vismaravetro" | "fournisseurs-koralle" | "stats" | "facturation" | "archives" | "projets-tous" | "destockage" | "sanitaires" | "a-facturer" | "signalements" | "signalements-pieces" | "signalements-defauts" | "rdv" | "arrivage" | "chantiers";
+  const validModes: Mode[] = ["dashboard", "mesures", "mesures-termine", "cmd", "cmd-termine", "services", "services-termine", "sav", "sav-termine", "garanties", "rdv", "rapport", "collaborateurs", "emplacement-cabines", "calendrier", "clients-contacts", "clients-entreprises", "clients-fournisseurs", "clients-grossistes", "grossistes", "grossistes-bms", "grossistes-dubat", "grossistes-tema", "grossistes-matway", "grossistes-bringhen", "fournisseurs", "fournisseurs-duka", "fournisseurs-duscholux", "fournisseurs-ronal", "fournisseurs-nelo", "fournisseurs-novellini", "fournisseurs-samo", "fournisseurs-kermi", "fournisseurs-vismaravetro", "fournisseurs-koralle", "stats", "facturation", "archives", "projets-tous", "destockage", "sanitaires", "a-facturer", "signalements", "signalements-pieces", "signalements-defauts", "arrivage", "chantiers"];
   const initialMode: Mode = validModes.includes(modeParam as Mode) ? (modeParam as Mode) : "dashboard";
   const [mode, setMode] = useState<Mode>(initialMode);
   const [projectsData, setProjectsData] = useState<Record<string, Project[]>>({});
@@ -1119,6 +1131,10 @@ function HomePage() {
   const [rapportSubFilter, setRapportSubFilter] = useState<"en-cours" | "en-attente" | "cloture" | null>(null);
   const [crmTagFilter, setCrmTagFilter] = useState<string | null>(null);
   const [subView, setSubView] = useState<"projets" | "stats">("projets");
+  /* Accès bexio : le serveur refuse à tout autre compte que le propriétaire
+     des accès. On le lui demande une fois ; s'il dit non, l'entrée de menu
+     n'existe pas — un collaborateur ne doit pas même savoir qu'elle existe. */
+  const [bexioOk, setBexioOk] = useState(false);
   // Filtre TYPE d'activité de la vue Fournisseurs (suivi mensuel).
   const [fournisseurType, setFournisseurType] = useState<"tous" | "mesures" | "montage" | "services" | "sav">("tous");
   const [genFournRapport, setGenFournRapport] = useState(false);
@@ -1308,8 +1324,22 @@ function HomePage() {
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   /* Un collaborateur arrivé sur /?mode=stats est ramené au tableau de bord :
      sans ça il verrait une page vide, sans comprendre pourquoi. */
+  /* Le serveur refuse les données bexio à tout autre compte que le
+     propriétaire des accès. On le lui demande une fois : s'il dit non,
+     l'entrée de menu n'existe pas — un collaborateur ne doit pas même savoir
+     qu'elle existe. */
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== "admin") { setBexioOk(false); return; }
+    let vivant = true;
+    fetch("/api/bexio/etat", { credentials: "include" })
+      .then((r) => { if (vivant) setBexioOk(r.ok); })
+      .catch(() => { if (vivant) setBexioOk(false); });
+    return () => { vivant = false; };
+  }, [currentUser]);
+
   useEffect(() => {
     if (currentUser && currentUser.role !== "admin" && mode === "stats") setMode("dashboard" as Mode);
+    if (currentUser && currentUser.role !== "admin" && mode === "facturation") setMode("dashboard" as Mode);
   }, [currentUser, mode]);
 
   // Pré-cache les projets du jour pour l'accès hors ligne (silencieux, best-effort)
@@ -2291,7 +2321,7 @@ function HomePage() {
       >
       <div className={sgRailOnly ? "" : "flex items-start gap-2"}>
         <div className={sgRailOnly ? "" : "flex-1 min-w-0"}>
-          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} isSignal={isSignal} onNewProject={() => setShowNewProject(true)} onSwitchMode={(m: Mode) => {
+          <NavBar mode={mode} projectsData={projectsData} isAdmin={currentUser?.role === "admin"} bexioOk={bexioOk} isSignal={isSignal} onNewProject={() => setShowNewProject(true)} onSwitchMode={(m: Mode) => {
             setMode(m); setStatusFilter(null); setQuickFilter(null); setCrmTagFilter(null); setViewMode("list"); setSubView("projets");
             if (m === "archives") {
               // Archives = tous les projets Notion (même source que l'onglet "Projets")
@@ -5687,6 +5717,7 @@ function HomePage() {
       {/* VUE CHANTIERS — PPE / locatif, suivi lot par lot          */}
       {/* ======================================================== */}
       {mode === "chantiers" && <ChantiersView />}
+      {mode === "facturation" && bexioOk && <FacturationView />}
 
       {/* ======================================================== */}
       {/* Liste des projets (tous les modes sauf dashboard/rapport  */}
