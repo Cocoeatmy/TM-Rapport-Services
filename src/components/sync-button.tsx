@@ -10,7 +10,7 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { saveToCache, getCacheTimestamp, getQueue, processQueue, isOnline } from "@/lib/offline";
+import { saveToCache, getCacheTimestamp, getQueue, processQueue, isOnline, relancerEchecs } from "@/lib/offline";
 import { processPendingUploads, countPendingUploads, retryAllFailedUploads, resetBackoffForAll, countPermanentlyFailed } from "@/lib/idb-uploads";
 import { acquireWakeLock, releaseWakeLock, reacquireWakeLockIfWanted } from "@/lib/wake-lock";
 import { toast } from "sonner";
@@ -75,6 +75,7 @@ export function SyncButton() {
     // on envoie. Sans ça, des photos coincées avec un vieux backoff lointain
     // attendaient un événement online/visibility pour repartir.
     if (isOnline()) {
+      relancerEchecs();
       resetBackoffForAll()
         .then(() => retryAllFailedUploads())
         .then(() => autoSync())
@@ -83,8 +84,9 @@ export function SyncButton() {
 
     const handleOnline = () => {
       setOnline(true);
-      // Réinitialiser les backoffs ET remettre les "permanently-failed" en jeu
-      // pour qu'ils soient envoyés sans attendre un clic manuel sur "Renvoyer".
+      // Réinitialiser les backoffs ET remettre en jeu tout ce qui a été mis de
+      // côté (photos ET écritures) : rien ne doit attendre un clic manuel.
+      relancerEchecs();
       resetBackoffForAll()
         .then(() => retryAllFailedUploads())
         .then(() => autoSync())
@@ -116,6 +118,7 @@ export function SyncButton() {
         // iOS relâche le verrou d'écran en arrière-plan : on le re-demande
         // s'il reste des photos à envoyer.
         reacquireWakeLockIfWanted();
+        relancerEchecs();
         await resetBackoffForAll();
         // Remettre automatiquement les "permanently-failed" en attente
         // pour les renvoyer dès que le téléphone revient au premier plan.
@@ -124,6 +127,12 @@ export function SyncButton() {
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
+    /* iOS restaure souvent la page depuis son cache arrière/avant sans
+       repasser par `visibilitychange` : sans cet écouteur, une file pleine
+       pouvait rester en l'état jusqu'au prochain geste de l'utilisateur. */
+    const handlePageShow = () => { void handleVisibility(); };
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("focus", handlePageShow);
 
     /* Cette boucle interroge le serveur et lit la file locale : elle n'a
        aucune raison de tourner écran éteint, où iOS la ralentit de toute façon
@@ -166,6 +175,8 @@ export function SyncButton() {
       window.removeEventListener("tm-pending-upload-removed", onPendingRemoved);
       window.removeEventListener("tm-offline-queued", onPendingChange);
       document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("focus", handlePageShow);
       arreter();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

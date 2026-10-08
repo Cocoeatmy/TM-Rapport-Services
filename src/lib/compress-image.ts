@@ -18,8 +18,24 @@
  *   - En dernier recours seulement, renvoie l'original.
  */
 
-/** Taille cible après compression (octets). Largement sous la limite Vercel 4,5 Mo. */
-const TARGET_BYTES = 900 * 1024;
+/**
+ * Taille visée après compression.
+ *
+ * Elle était à 900 Ko, et l'encodeur de Safari est généreux : une photo de
+ * chantier passait le test du premier coup et partait à 800 Ko. Mesuré sur une
+ * vraie photo de l'app (1600 × 2133) : un bon encodeur rend la MÊME image en
+ * 310 Ko sans différence visible — la montée à 800 Ko n'achetait rien, et
+ * c'étaient deux fois plus d'octets à faire passer depuis un sous-sol.
+ *
+ * On vise donc 350 Ko, mais JAMAIS au prix de la netteté : la qualité ne
+ * descend pas sous QUALITE_PLANCHER, et la définition (1600 px) n'est réduite
+ * que si l'image reste énorme même à ce palier.
+ */
+const TARGET_BYTES = 350 * 1024;
+/** En dessous, les aplats (carrelage, joints) commencent à se voir. */
+const QUALITE_PLANCHER = 0.68;
+/** Au-delà, on préfère réduire la définition que d'envoyer un tel poids. */
+const PLAFOND_ACCEPTABLE = 800 * 1024;
 /** Plafond dur : au-delà on refuse de renvoyer (on retente plus petit). */
 const HARD_CAP_BYTES = 1.6 * 1024 * 1024;
 
@@ -79,7 +95,7 @@ export async function compressImage(
   if (!file.type.startsWith("image/")) return file;
   // Déjà petit ET dans un format directement envoyable (jpeg/png/webp) → tel quel.
   const alreadyWeb = /jpe?g|png|webp/i.test(file.type);
-  if (alreadyWeb && file.size < 700 * 1024) return file;
+  if (alreadyWeb && file.size < TARGET_BYTES) return file;
 
   let decoded: Decoded | null = null;
   try {
@@ -93,8 +109,13 @@ export async function compressImage(
       targetW = maxWidth;
     }
 
-    // On tente successivement : qualité décroissante, puis réduction des
-    // dimensions, jusqu'à passer sous TARGET_BYTES (ou au pire HARD_CAP_BYTES).
+    /* Deux temps, et l'ordre compte :
+     *   1. on cherche le poids visé en baissant la QUALITÉ par petits paliers,
+     *      sans jamais toucher à la définition ni descendre sous le plancher ;
+     *   2. seulement si l'image reste vraiment lourde à ce stade, on réduit
+     *      les dimensions.
+     * L'ancienne boucle mélangeait les deux et pouvait tomber à 0,5 de
+     * qualité : c'est là qu'on perdait vraiment l'image. */
     let best: Blob | null = null;
     for (let dimStep = 0; dimStep < 4; dimStep++) {
       const w = Math.max(1, Math.round(targetW * (1 - dimStep * 0.2)));
@@ -104,12 +125,21 @@ export async function compressImage(
       canvas.height = h;
       const ctx = canvas.getContext("2d");
       if (!ctx) break;
+      /* Réduction 4032 → 1600 px : sans interpolation de qualité, le
+         navigateur sous-échantillonne grossièrement et les joints de
+         carrelage se mettent à crénerer. */
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       // Fond blanc : les PNG/HEIC à transparence ne deviennent pas noirs en JPEG.
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, w, h);
       decoded.draw(ctx, w, h);
 
-      for (const q of [quality, 0.7, 0.6, 0.5]) {
+      /* Paliers resserrés : entre 0,82 et 0,68 l'œil ne suit pas, le poids
+         oui. On s'arrête au premier qui tient dans la cible. */
+      const paliers = [quality, 0.78, 0.74, 0.71, QUALITE_PLANCHER]
+        .filter((q, i, t) => q <= (i === 0 ? 1 : t[i - 1]));
+      for (const q of paliers) {
         const blob = await canvasToBlob(canvas, q);
         if (!blob) continue;
         if (!best || blob.size < best.size) best = blob;
@@ -117,7 +147,13 @@ export async function compressImage(
           return toJpegFile(file, blob);
         }
       }
-      // Trop gros même à qualité mini → on réduit les dimensions au tour suivant.
+      /* Au plancher de qualité et toujours au-dessus de la cible : si le poids
+         reste raisonnable, on l'accepte TEL QUEL. Rogner la définition pour
+         gagner quelques dizaines de kilo-octets abîmerait la photo pour rien. */
+      if (dimStep === 0 && best && best.size <= PLAFOND_ACCEPTABLE) {
+        return toJpegFile(file, best);
+      }
+      // Vraiment trop lourd → on réduit les dimensions au tour suivant.
     }
 
     // Aucun palier sous la cible : on garde le plus petit obtenu s'il est

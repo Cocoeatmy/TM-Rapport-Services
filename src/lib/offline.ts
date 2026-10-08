@@ -107,6 +107,10 @@ export interface QueueItem {
   retryCount?: number;
   /** Date du prochain retry à respecter (ms epoch). */
   nextAttemptAt?: number;
+  /** « echec » : mise de côté après trop d'essais — JAMAIS supprimée, relancée
+   *  automatiquement à la prochaine occasion (ouverture de l'app, retour du
+   *  réseau, retour au premier plan). */
+  statut?: "attente" | "echec";
 }
 
 // Sauvegarder les données en cache
@@ -285,10 +289,36 @@ function updateQueueItem(updated: QueueItem) {
 // Backoff exponentiel : 1, 2, 4, 8, 16, 32 min. Au-delà de
 // MAX_RETRIES essais, on log et on retire (sinon une opération
 // fondamentalement cassée bloquerait toute la queue indéfiniment).
-/** Âge maximum d'un item en file : au-delà, il est abandonné (garde-fou anti
- *  « synchro coincée à vie » — une mutation vieille de +24 h est de toute façon
- *  périmée, la donnée a changé depuis). */
-const MAX_QUEUE_AGE_MS = 24 * 60 * 60 * 1000;
+/**
+ * Âge maximum d'un item en file.
+ *
+ * Il était de VINGT-QUATRE HEURES, et l'item était purement et simplement
+ * supprimé. Un chantier du vendredi après-midi sans réseau, une app rouverte
+ * le lundi : les heures et le rapport du monteur avaient disparu, sans que
+ * personne ne l'ait demandé. Deux semaines laissent le temps à n'importe quel
+ * week-end prolongé, et c'est la même durée que la file des photos.
+ */
+const MAX_QUEUE_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** Ce qu'il faut faire d'une écriture qui vient d'échouer. */
+export type SuiteEssai =
+  | { action: "reessayer"; dansMs: number }
+  | { action: "mettre-de-cote"; motif: "refus-serveur" | "trop-d-essais" };
+
+/**
+ * La règle, en un seul endroit et vérifiable : une écriture n'est JAMAIS
+ * supprimée. Au pire elle est mise de côté — gardée, signalée, et relancée
+ * d'elle-même à la prochaine occasion.
+ */
+export function suiteApresEchec(essaisFaits: number, statutHttp?: number): SuiteEssai {
+  const refusDefinitif =
+    statutHttp !== undefined &&
+    statutHttp >= 400 && statutHttp < 500 &&
+    statutHttp !== 408 && statutHttp !== 429;
+  if (refusDefinitif) return { action: "mettre-de-cote", motif: "refus-serveur" };
+  if (essaisFaits >= MAX_RETRIES) return { action: "mettre-de-cote", motif: "trop-d-essais" };
+  return { action: "reessayer", dansMs: Math.min(60_000 * 2 ** (essaisFaits - 1), 30 * 60_000) };
+}
 
 export async function processQueue(): Promise<{ success: number; failed: number; skipped: number }> {
   const queue = getQueue();
@@ -297,7 +327,17 @@ export async function processQueue(): Promise<{ success: number; failed: number;
   let skipped = 0;
   const now = Date.now();
 
+  /* Réseau inutilisable : on ne tente RIEN. Sinon chaque passage consommait un
+     essai — huit tentatives suffisaient à épuiser un item en une après-midi de
+     sous-sol, et il était alors jeté avant même que le réseau ne revienne. */
+  if (!reseauUtilisable()) {
+    return { success: 0, failed: 0, skipped: queue.length };
+  }
+
   for (const item of queue) {
+    // Mis de côté : attend une relance explicite (retour au premier plan,
+    // retour du réseau). Il n'est jamais supprimé pour autant.
+    if (item.statut === "echec") { skipped++; continue; }
     // Garde-fou d'ÂGE : un item trop vieux (poison / projet supprimé) est
     // abandonné, quel que soit son compteur de retries.
     if (item.timestamp && now - item.timestamp > MAX_QUEUE_AGE_MS) {
@@ -324,21 +364,17 @@ export async function processQueue(): Promise<{ success: number; failed: number;
         removeFromQueue(item.id);
         success++;
       } else {
-        // Erreur 4xx (sauf 408/429) = irrécupérable, on retire.
-        if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
-          console.warn("[offline] Item retiré (erreur permanente)", item.url, res.status);
-          noterAbandon(item, "refus-serveur", res.status);
-          removeFromQueue(item.id);
+        /* Réessayer à l'identique un refus du serveur ne servira à rien, mais
+           la saisie du monteur ne nous appartient pas : on la garde et on la
+           signale, au lieu de l'effacer en silence. */
+        const retries = (item.retryCount || 0) + 1;
+        const suite = suiteApresEchec(retries, res.status);
+        if (suite.action === "mettre-de-cote") {
+          console.warn("[offline] Item mis de côté", suite.motif, item.url, res.status);
+          noterAbandon(item, suite.motif, res.status);
+          updateQueueItem({ ...item, retryCount: retries, statut: "echec" });
         } else {
-          const retries = (item.retryCount || 0) + 1;
-          if (retries >= MAX_RETRIES) {
-            console.error("[offline] Item retiré après MAX_RETRIES", item.url);
-            noterAbandon(item, "trop-d-essais");
-            removeFromQueue(item.id);
-          } else {
-            const delayMs = Math.min(60_000 * 2 ** (retries - 1), 30 * 60_000);
-            updateQueueItem({ ...item, retryCount: retries, nextAttemptAt: now + delayMs });
-          }
+          updateQueueItem({ ...item, retryCount: retries, nextAttemptAt: now + suite.dansMs });
         }
         failed++;
       }
@@ -346,19 +382,42 @@ export async function processQueue(): Promise<{ success: number; failed: number;
       // Erreur réseau : on garde l'item, on incrémente le retry
       // pour appliquer un backoff au prochain processQueue.
       const retries = (item.retryCount || 0) + 1;
-      if (retries >= MAX_RETRIES) {
-        console.error("[offline] Item retiré après MAX_RETRIES (réseau)", item.url);
-        noterAbandon(item, "trop-d-essais");
-        removeFromQueue(item.id);
+      const suite = suiteApresEchec(retries);
+      if (suite.action === "mettre-de-cote") {
+        console.error("[offline] Item mis de côté (réseau)", item.url);
+        noterAbandon(item, suite.motif);
+        updateQueueItem({ ...item, retryCount: retries, statut: "echec" });
       } else {
-        const delayMs = Math.min(60_000 * 2 ** (retries - 1), 30 * 60_000);
-        updateQueueItem({ ...item, retryCount: retries, nextAttemptAt: now + delayMs });
+        updateQueueItem({ ...item, retryCount: retries, nextAttemptAt: now + suite.dansMs });
       }
       failed++;
     }
   }
 
   return { success, failed, skipped };
+}
+
+/**
+ * Remet en jeu tout ce qui avait été mis de côté.
+ *
+ * Appelée à chaque occasion où le réseau peut être revenu — ouverture de
+ * l'app, événement `online`, retour au premier plan — exactement comme pour
+ * les photos. Le monteur n'a jamais à appuyer sur quoi que ce soit.
+ */
+export function relancerEchecs(): number {
+  const queue = getQueue();
+  let n = 0;
+  for (const item of queue) {
+    if (item.statut !== "echec") continue;
+    updateQueueItem({ ...item, statut: "attente", retryCount: 0, nextAttemptAt: 0 });
+    n++;
+  }
+  return n;
+}
+
+/** Nombre d'écritures mises de côté (affiché dans le bandeau). */
+export function compterEchecs(): number {
+  return getQueue().filter((i) => i.statut === "echec").length;
 }
 
 // Vérifier si on est online
