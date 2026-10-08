@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProjects, getProjectsMesures, getProjectsServices, getProjectsSAV, getAllActiveProjects, flushRelationCacheToKV } from "@/lib/notion";
-import { setCache } from "@/lib/server-cache";
+import { setCache, publierSnapshot } from "@/lib/server-cache";
 import { setData } from "@/lib/kv-store";
-import { redisSetJSON } from "@/lib/redis-cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -40,7 +39,9 @@ export async function GET(request: NextRequest) {
         setCache(task.cacheKey, data);
         // Cache RAPIDE partagé (Redis, compressé) — garde le cache chaud pour
         // toutes les instances (servi en priorité aux instances froides).
-        try { await redisSetJSON(`sc:${task.cacheKey}`, data); } catch {}
+        // Via publierSnapshot : l'empreinte publiée doit suivre le contenu,
+        // sinon les instances croient avoir déjà la bonne copie.
+        publierSnapshot(task.cacheKey, data);
         results[task.name] = { count: data.length, ms: Date.now() - t0 };
       } catch (err: any) {
         results[task.name] = { count: -1, ms: Date.now() - t0 };

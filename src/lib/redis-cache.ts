@@ -233,14 +233,38 @@ export async function redisLRange(key: string, start: number, stop: number): Pro
 }
 
 /** Écrit une valeur JSON avec TTL (défaut 1 h), compressée si volumineuse. */
+/** Lit plusieurs PETITES valeurs en un seul aller-retour (MGET). */
+export async function redisMGet(...keys: string[]): Promise<(string | null)[]> {
+  if (!redisEnabled || keys.length === 0) return keys.map(() => null);
+  try {
+    const r = await command(["MGET", ...keys]);
+    return Array.isArray(r) ? keys.map((_, i) => (r[i] == null ? null : String(r[i]))) : keys.map(() => null);
+  } catch { return keys.map(() => null); }
+}
+
+/** Écrit une petite valeur texte (empreinte, marqueur) — pas de compression. */
+export async function redisSetTexte(key: string, valeur: string, ttlSec = 3600): Promise<void> {
+  if (!redisEnabled) return;
+  try { await command(["SET", key, valeur, "EX", ttlSec]); } catch { /* best-effort */ }
+}
+
+/** Compresse au-delà du seuil (préfixe « gz: » reconnu à la lecture). */
+function encoderValeur(json: string): string {
+  if (json.length <= GZIP_THRESHOLD) return json;
+  try { return "gz:" + gzipSync(Buffer.from(json, "utf8")).toString("base64"); }
+  catch { return json; }
+}
+
+/** Écrit un JSON DÉJÀ sérialisé (évite de le re-sérialiser pour rien). */
+export async function redisSetTexteJSON(key: string, json: string, ttlSec = 3600): Promise<void> {
+  if (!redisEnabled) return;
+  try { await command(["SET", key, encoderValeur(json), "EX", ttlSec]); } catch { /* best-effort */ }
+}
+
 export async function redisSetJSON(key: string, data: unknown, ttlSec = 3600): Promise<void> {
   if (!redisEnabled) return;
   try {
-    const json = JSON.stringify(data);
-    let payload = json;
-    if (json.length > GZIP_THRESHOLD) {
-      try { payload = "gz:" + gzipSync(Buffer.from(json, "utf8")).toString("base64"); } catch { /* garde le JSON brut */ }
-    }
+    const payload = encoderValeur(JSON.stringify(data));
     await command(["SET", key, payload, "EX", ttlSec]);
   } catch {
     // Silencieux : valeur trop grande malgré compression, réseau, etc. → repli

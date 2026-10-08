@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProject, updateProject } from "@/lib/notion";
-import { cachedOrFetch, invalidateCache } from "@/lib/server-cache";
-import { redisGetJSON, redisSetJSON } from "@/lib/redis-cache";
+import { cachedOrFetch, invalidateCache, publierSnapshot } from "@/lib/server-cache";
+import { redisGetJSON } from "@/lib/redis-cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -32,7 +32,8 @@ async function onStatusChange(id: string, updates: Record<string, unknown>): Pro
       if (!Array.isArray(list)) return;
       let changed = false;
       const next = list.map((p) => (p && p.id === id ? (changed = true, { ...p, ...updates }) : p));
-      if (changed) await redisSetJSON(`sc:${key}`, next);
+      // Passe par publierSnapshot : l'empreinte doit suivre le contenu.
+      if (changed) publierSnapshot(key, next);
     } catch { /* silencieux */ }
   }));
 

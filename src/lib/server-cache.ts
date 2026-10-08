@@ -14,24 +14,81 @@
 // - En cas d'erreur Notion (ex. rate-limit 429), on retourne les dernières
 //   données connues plutôt que de propager une 500 côté client.
 
-import { redisEnabled, redisGetJSON, redisSetJSON, redisDel } from "./redis-cache";
+import { createHash } from "node:crypto";
+import { redisEnabled, redisGetJSON, redisSetTexte, redisSetTexteJSON, redisMGet, redisDel } from "./redis-cache";
 
-/** Écrit une liste dans le cache Redis partagé (fire-and-forget). */
-function persistShared(key: string, data: unknown): void {
-  if (redisEnabled && REDIS_KEYS.has(key)) {
-    redisSetJSON(`sc:${key}`, data).catch(() => {});
-  }
+/* ── Empreintes : ne pas déplacer ce qui n'a pas changé ────────────────────
+ *
+ * Chaque revalidation d'une liste réécrivait le snapshot complet dans Redis
+ * — « projets » pèse 1,8 Mo, « tous les projets » 6,6 Mo — toutes les vingt
+ * secondes, par instance, MÊME quand Notion n'avait rien renvoyé de nouveau.
+ * Et chaque instance froide le retéléchargeait entier pour découvrir qu'elle
+ * avait déjà la même chose. C'est ce va-et-vient qui a mangé les 10 Go de
+ * bande passante du mois, et il ralentissait l'app pour rien.
+ *
+ * On écrit donc à côté du snapshot une EMPREINTE (quelques octets). Avant de
+ * téléverser : si l'empreinte est identique, on ne téléverse pas. Avant de
+ * télécharger : on lit l'empreinte, et si elle correspond à la copie qu'on a
+ * déjà, on la réutilise. Le gros transfert n'a plus lieu que lorsque les
+ * données ont RÉELLEMENT changé.
+ */
+const bloc = (key: string) => `sc:${key}`;
+const empreinteCle = (key: string) => `scm:${key}`;
+const salisseurCle = (key: string) => `scd:${key}`;
+const SALISSEUR_TTL = 10 * 60; // s — au-delà, la revalidation normale a eu lieu
+
+/** Empreinte de la dernière valeur que CETTE instance a publiée. */
+const empreintes = new Map<string, string>();
+/** Clés que cette instance a marquées « à revalider » (pour lever le marqueur). */
+const salies = new Set<string>();
+
+function empreinte(json: string): string {
+  return createHash("sha1").update(json).digest("base64").slice(0, 22);
 }
 
-/** Supprime le snapshot Redis partagé (fire-and-forget). Sans clé → toutes les
- *  clés partagées. Indispensable pour que l'invalidation soit RÉELLE : sinon un
- *  lambda froid re-sert le snapshot périmé et le recharge en mémoire. */
+/**
+ * Écrit une liste dans le cache Redis partagé (fire-and-forget).
+ *
+ * Exporté sous le nom `publierSnapshot` : TOUTE écriture du snapshot doit
+ * passer par ici, sinon l'empreinte publiée ne correspond plus au contenu et
+ * les autres instances croient à tort avoir déjà la bonne copie.
+ */
+function persistShared(key: string, data: unknown): void {
+  if (!redisEnabled || !REDIS_KEYS.has(key)) return;
+  try {
+    const json = JSON.stringify(data);
+    const h = empreinte(json);
+    const identique = empreintes.get(key) === h;
+    if (!identique) {
+      empreintes.set(key, h);
+      redisSetTexteJSON(bloc(key), json).catch(() => {});
+      redisSetTexte(empreinteCle(key), h).catch(() => {});
+    }
+    /* On vient de vérifier auprès de Notion : le snapshot publié est à jour,
+       le marqueur « à revalider » n'a plus lieu d'être. Même quand rien n'a
+       bougé — sinon le marqueur ferait revalider tout le monde pour rien. */
+    if (!identique || salies.has(key)) {
+      salies.delete(key);
+      redisDel(salisseurCle(key)).catch(() => {});
+    }
+  } catch { /* sérialisation impossible : on laisse le snapshot précédent */ }
+}
+
+/**
+ * Marque le snapshot partagé comme À REVALIDER, sans le supprimer.
+ *
+ * Il était effacé : l'instance froide suivante n'avait alors plus rien à
+ * servir et repartait interroger Notion — dix à trente secondes d'attente
+ * pour l'utilisateur, juste après qu'on ait enregistré quelque chose. Le
+ * garder permet d'afficher tout de suite, pendant que la vérité est
+ * rechargée en arrière-plan.
+ */
 function clearShared(key?: string): void {
   if (!redisEnabled) return;
-  if (key) {
-    if (REDIS_KEYS.has(key)) redisDel(`sc:${key}`).catch(() => {});
-  } else {
-    redisDel(...[...REDIS_KEYS].map((k) => `sc:${k}`)).catch(() => {});
+  const cles = key ? (REDIS_KEYS.has(key) ? [key] : []) : [...REDIS_KEYS];
+  for (const k of cles) {
+    salies.add(k);
+    redisSetTexte(salisseurCle(k), String(Date.now()), SALISSEUR_TTL).catch(() => {});
   }
 }
 
@@ -54,15 +111,30 @@ function clearShared(key?: string): void {
  * statistiques — gardent la règle longue : les rafraîchir sans cesse saturait
  * Notion (voir l'incident de rate-limit du 23 juin).
  */
-async function serveFromRedis<T>(key: string): Promise<{ data: T } | null> {
+async function serveFromRedis<T>(key: string): Promise<{ data: T; perime: boolean } | null> {
   if (!redisEnabled || !REDIS_KEYS.has(key)) return null;
   if (process.env.NEXT_PHASE === "phase-production-build") return null;
   try {
-    const r = await redisGetJSON<T>(`sc:${key}`);
+    // Un aller-retour de quelques octets : l'empreinte publiée, et le marqueur
+    // « à revalider » posé par la dernière écriture.
+    const [hDistante, salie] = await redisMGet(empreinteCle(key), salisseurCle(key));
+    const perime = !!salie;
+
+    /* La copie qu'on avait en mémoire (gardée 30 min par fallbackCache) est
+       encore la bonne : on la reprend sans retélécharger un seul octet. */
+    const locale = getFallback<T>(key);
+    if (locale && hDistante && empreintes.get(key) === hDistante) {
+      if (VOLATILE_KEYS.has(key)) setCache(key, locale);
+      else setCacheLong(key, locale);
+      return { data: locale, perime };
+    }
+
+    const r = await redisGetJSON<T>(bloc(key));
     if (Array.isArray(r) && (r as unknown[]).length > 0) {
+      if (hDistante) empreintes.set(key, hDistante);
       if (VOLATILE_KEYS.has(key)) setCache(key, r);
       else setCacheLong(key, r);
-      return { data: r };
+      return { data: r, perime };
     }
   } catch { /* Redis indisponible → on continue vers Notion */ }
   return null;
@@ -301,7 +373,12 @@ export async function cachedOrFetch<T>(
       // compressé) avant d'attaquer Notion (~10-35 s). Servi immédiatement +
       // revalidation en arrière-plan. (Pas pendant le build Next.)
       const fromRedis = await serveFromRedis<T>(key);
-      if (fromRedis) return fromRedis.data;
+      if (fromRedis) {
+        // Snapshot marqué « à revalider » (quelqu'un vient d'enregistrer) : on
+        // affiche tout de suite et on va chercher la vérité derrière.
+        if (fromRedis.perime) revalidateInBackground(key, fetcher);
+        return fromRedis.data;
+      }
 
       const data = await fetcher();
       setCache(key, data);
@@ -361,7 +438,10 @@ export async function cachedOrFetchLong<T>(
       // compressé) avant d'attaquer Notion/KV (lent). setCacheLong (déclenché
       // par le cron ou une lecture live précédente) y a écrit le snapshot.
       const fromRedis = await serveFromRedis<T>(key);
-      if (fromRedis) return fromRedis.data;
+      if (fromRedis) {
+        if (fromRedis.perime) revalidateInBackground(key, fetcher);
+        return fromRedis.data;
+      }
 
       const data = await fetcher();
       setCacheLong(key, data);   // TTL 2h + persistance Redis
@@ -394,3 +474,6 @@ export function invalidateCache(key?: string) {
   // donnée périmée (et la recharge en mémoire) → invalidation sans effet réel.
   clearShared(key);
 }
+
+/** Publie une liste dans le cache partagé (empreinte comprise). */
+export { persistShared as publierSnapshot };
