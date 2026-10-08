@@ -7,7 +7,7 @@
 //   v11 : pré-cache explicite des pages /client/ et /projet/ + leurs données API
 //         via message PRECACHE_URLS — permet consultation hors-ligne garantie.
 
-const VERSION = "v34";
+const VERSION = "v35";
 const CACHE_NAME  = `tm-rapport-${VERSION}`;
 const STATIC_CACHE = `tm-static-${VERSION}`;
 const API_CACHE   = `tm-api-${VERSION}`;
@@ -29,6 +29,13 @@ const STATIC_ASSETS = [
 const API_TIMEOUT_MS  = 400;
 /** Délai avant fallback cache pour la navigation HTML (réseau très lent / hors-ligne). */
 const HTML_TIMEOUT_MS = 6000;
+/** Idem pour les API « toujours fraîches » : on préfère le réseau, mais pas à
+ *  n'importe quel prix. Sans ce plafond, ouvrir un projet avec une barre de
+ *  réseau attendait /api/pieces et /api/defauts jusqu'à l'abandon du navigateur
+ *  — trente secondes d'écran figé, pour des données dont on a une copie. */
+const FRESH_TIMEOUT_MS = 2500;
+/** Requêtes de revalidation (?rv / ?fresh) : tâche de fond, jamais bloquante. */
+const RV_TIMEOUT_MS = 8000;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -135,11 +142,33 @@ async function networkFirstWithTimeout(request, cache, timeoutMs) {
  * Évite le bug "le SW sert une version périmée → photos/défauts disparus".
  */
 async function networkFirstFresh(request, cache) {
-  const response = await fetch(request); // throw si hors-ligne → géré par le caller
-  if (response && response.ok) {
-    cache.put(request, response.clone()).catch(() => {});
+  /* On attend le réseau — mais pas indéfiniment. Passé le plafond, on sert la
+     copie en cache s'il y en a une (le réseau continue derrière et la
+     rafraîchira) ; sans copie, on continue d'attendre, c'est la seule option. */
+  const networkPromise = fetch(request).then((response) => {
+    if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
+    return response;
+  });
+  const timeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), FRESH_TIMEOUT_MS));
+  const gagnant = await Promise.race([networkPromise, timeout]);
+  if (gagnant !== "timeout") return gagnant;
+  const cached = await cache.match(request);
+  if (cached) {
+    networkPromise.catch(() => {}); // évite un rejet non capté
+    return cached;
   }
-  return response;
+  return networkPromise;
+}
+
+/** fetch borné dans le temps : au-delà, on renonce (pas d'attente infinie). */
+function fetchBorne(request, msMax) {
+  return new Promise((resolve, reject) => {
+    const minuteur = setTimeout(() => reject(new Error("timeout")), msMax);
+    fetch(request).then(
+      (r) => { clearTimeout(minuteur); resolve(r); },
+      (e) => { clearTimeout(minuteur); reject(e); },
+    );
+  });
 }
 
 /** Endpoints API dont les données changent et doivent rester fraîches en ligne. */
@@ -218,12 +247,19 @@ self.addEventListener("fetch", (event) => {
     // sa propre copie périmée.
     if (url.searchParams.has("fresh") || url.searchParams.has("rv")) {
       event.respondWith(
-        fetch(request).catch(() =>
-          new Response(JSON.stringify([]), {
+        fetchBorne(request, RV_TIMEOUT_MS).catch(async () => {
+          /* Réseau trop lent pour une revalidation : plutôt que de répondre
+             « rien » — ce que le client interprète comme une liste vide — on
+             rend la dernière copie connue si on en a une. */
+          const cached = await caches.match(new Request(
+            request.url.replace(/([?&])(rv|fresh)=[^&]*/g, "$1").replace(/[?&]$/, ""),
+          ));
+          if (cached) return cached;
+          return new Response(JSON.stringify([]), {
             headers: { "Content-Type": "application/json", "X-SW-Offline": "1" },
             status: 200,
-          })
-        )
+          });
+        })
       );
       return;
     }

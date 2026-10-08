@@ -104,18 +104,28 @@ export async function prefetchTodaysProjects(
   const lastTs = parseInt(localStorage.getItem(LS_LAST_PREFETCH) || "0", 10);
   if (!force && Date.now() - lastTs < ONE_HOUR_MS) return lireEtat().projets;
 
-  const mine = allProjects.filter((p) => {
-    const start = p.dateMontage || "";
-    const end = p.dateMontageEnd || start;
-    if (!start) return false;
-    // Projets des 7 prochains jours (ou en cours)
-    if (start > limitStr || end < todayStr) return false;
-    const collab = (p.collaborateurs || "").toLowerCase();
-    return (
-      collab.includes(userName.toLowerCase()) ||
-      collab.includes("team tm")
-    );
-  });
+  const moi = userName.toLowerCase();
+  const aMoi = (champ: string | null | undefined) => {
+    const c = (champ || "").toLowerCase();
+    return !!c && (c.includes(moi) || c.includes("team tm"));
+  };
+  /** Une intervention des sept prochains jours, qui n'est pas déjà passée. */
+  const dansLaFenetre = (debut: string | null | undefined, fin?: string | null) => {
+    const d = (debut || "").slice(0, 10);
+    if (!d) return false;
+    const f = (fin || debut || "").slice(0, 10);
+    return d <= limitStr && f >= todayStr;
+  };
+
+  /* Un relevé de mesures se fait aussi sans réseau — et dans une salle de bain
+     en sous-sol plus souvent qu'ailleurs. Seuls les MONTAGES étaient préparés :
+     le collaborateur envoyé prendre des mesures arrivait devant une page vide.
+     Les SAV, affectés par leur propre champ, étaient logés à la même enseigne. */
+  const mine = allProjects.filter((p) =>
+    (dansLaFenetre(p.dateMontage, p.dateMontageEnd) && aMoi(p.collaborateurs)) ||
+    (dansLaFenetre(p.dateMesures) && aMoi(p.mesuresTraiteePar)) ||
+    (dansLaFenetre(p.dateMontage, p.dateMontageEnd) && aMoi(p.collaborateursSAV))
+  );
 
   if (mine.length === 0) {
     // Aucun chantier : on note quand même le passage, l'interface doit
@@ -137,8 +147,8 @@ export async function prefetchTodaysProjects(
   demain.setDate(demain.getDate() + 1);
   const demainStr = demain.toISOString().split("T")[0];
   const imminent = (p: Project) => {
-    const d = (p.dateMontage || "").split("T")[0];
-    return d === todayStr || d === demainStr;
+    const jours = [(p.dateMontage || "").split("T")[0], (p.dateMesures || "").split("T")[0]];
+    return jours.some((d) => d === todayStr || d === demainStr);
   };
 
   // Pré-cache en séquence avec pause pour ne pas surcharger le réseau

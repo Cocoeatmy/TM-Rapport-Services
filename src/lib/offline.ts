@@ -14,6 +14,8 @@
 //     `processQueue()` automatiquement quand la connexion revient.
 //     Un poll de 30 s sert de filet de sécurité.
 
+import { reseauUtilisable, fetchAvecDelai } from "./reseau";
+
 const CACHE_KEY = "tm-rapport-cache";
 const QUEUE_KEY = "tm-rapport-queue";
 const MAX_RETRIES = 8;
@@ -316,7 +318,8 @@ export async function processQueue(): Promise<{ success: number; failed: number;
         body: item.body !== undefined ? JSON.stringify(item.body) : undefined,
       };
 
-      const res = await fetch(item.url, options);
+      // Même garde-fou : un rejeu ne doit pas bloquer la file une minute.
+      const res = await fetchAvecDelai(item.url, options, DELAI_MUTATION_MS);
       if (res.ok) {
         removeFromQueue(item.id);
         success++;
@@ -362,6 +365,9 @@ export async function processQueue(): Promise<{ success: number; failed: number;
 export function isOnline(): boolean {
   return typeof navigator !== "undefined" ? navigator.onLine : true;
 }
+
+/** Au-delà, on considère que le réseau ne répondra pas : on met de côté. */
+const DELAI_MUTATION_MS = 8_000;
 
 /**
  * Drop-in pour `fetch()` qui rend les mutations résilientes au réseau.
@@ -418,12 +424,18 @@ export async function offlineFetch(url: string, init?: RequestInit): Promise<Res
     });
   };
 
-  if (!isOnline()) {
+  /* « Utilisable » et pas seulement « en ligne » : sur un chantier le
+     téléphone est presque toujours en ligne, avec un réseau qui ne passe pas.
+     Après deux échecs, on arrête d'attendre et on met directement de côté. */
+  if (!reseauUtilisable()) {
     return queueIt("offline");
   }
 
   try {
-    const res = await fetch(url, init);
+    /* Avec un délai maximum : sans lui, une requête pouvait rester pendue une
+       demi-minute sur une barre de réseau. L'écran semblait figé, le monteur
+       rappuyait, et il ne voyait jamais que sa saisie était bien gardée. */
+    const res = await fetchAvecDelai(url, init, DELAI_MUTATION_MS);
     // 5xx ou 429 (rate-limit Notion) : on met en queue pour retry.
     // Autres 4xx : erreur permanente, on retourne tel quel.
     if (res.status >= 500 || res.status === 429) {
@@ -431,7 +443,7 @@ export async function offlineFetch(url: string, init?: RequestInit): Promise<Res
     }
     return res;
   } catch {
-    // Erreur réseau (offline détecté pendant le fetch, DNS, etc.)
+    // Réseau absent, trop lent, DNS… : la saisie est gardée et repartira seule.
     return queueIt("network-error");
   }
 }

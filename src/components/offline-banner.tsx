@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { reseauDegrade } from "@/lib/reseau";
 import { WifiOff, CloudUpload, RefreshCw, AlertTriangle, ChevronDown, X } from "lucide-react";
 import { isOnline, getQueue, removeFromQueue, warmOfflineCache, getLastCacheWarmTs, getAbandons, clearAbandons } from "@/lib/offline";
 import type { Abandon } from "@/lib/offline";
@@ -84,6 +85,9 @@ export function OfflineBanner() {
   const [retrying, setRetrying]           = useState(false);
   const [showDetails, setShowDetails]     = useState(false);
   const [abandons, setAbandons]           = useState<Abandon[]>([]);
+  /* Réseau présent mais qui ne passe pas : l'état le plus courant sur un
+     chantier, et le seul qui n'était signalé nulle part. */
+  const [faible, setFaible]               = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +98,7 @@ export function OfflineBanner() {
       const items = getQueue();
       if (cancelled) return;
       setOnline(isOnline());
+      setFaible(reseauDegrade());
       setQueueCount(items.length + upCount);
       setQueueItems(items);
       setPendingUps(uploads);
@@ -128,6 +133,7 @@ export function OfflineBanner() {
 
     const handleWarmed = () => { setLastWarm(getLastCacheWarmTs()); };
 
+    window.addEventListener("tm-reseau", refresh);
     window.addEventListener("online",  handleOnline);
     window.addEventListener("offline", refresh);
     window.addEventListener("tm-offline-queued",             refresh);
@@ -147,6 +153,7 @@ export function OfflineBanner() {
 
     return () => {
       cancelled = true;
+      window.removeEventListener("tm-reseau", refresh);
       window.removeEventListener("online",  handleOnline);
       window.removeEventListener("offline", refresh);
       window.removeEventListener("tm-offline-queued",             refresh);
@@ -252,8 +259,8 @@ export function OfflineBanner() {
     );
   }
 
-  // En ligne, queue vide, aucun échec : rien à afficher.
-  if (online && queueCount === 0) {
+  // En ligne, réseau correct, queue vide, aucun échec : rien à afficher.
+  if (online && !faible && queueCount === 0) {
     return null;
   }
 
@@ -261,7 +268,15 @@ export function OfflineBanner() {
   let Icon = WifiOff;
   let label = "";
 
-  if (!online && queueCount > 0) {
+  if (online && faible) {
+    /* Le téléphone se croit connecté, mais rien ne passe. Le dire évite le
+       pire des ressentis : « j'ai enregistré et il ne s'est rien passé ». */
+    cls = "bg-amber-600 text-white";
+    Icon = WifiOff;
+    label = queueCount > 0
+      ? `Réseau trop faible — ${queueCount} opération${queueCount > 1 ? "s" : ""} gardée${queueCount > 1 ? "s" : ""}, elles partiront dès que ça repasse`
+      : "Réseau trop faible — continuez, tout est gardé et partira dès que ça repasse";
+  } else if (!online && queueCount > 0) {
     cls = "bg-orange-500 text-white";
     Icon = WifiOff;
     label = `Hors ligne — ${queueCount} opération${queueCount > 1 ? "s" : ""} en attente, synchro automatique au retour du réseau`;
