@@ -1768,10 +1768,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     { id: "montages", label: "Montages" },
     { id: "mesures", label: "Mesures" },
     { id: "services", label: "Services" },
+    { id: "sav", label: "SAV" },
     { id: "garanties", label: "Garanties" },
   ] as const;
   type TypeCharge = (typeof TYPES_CHARGE)[number]["id"];
-  const TOUS_TYPES: TypeCharge[] = ["montages", "mesures", "services", "garanties"];
+  const TOUS_TYPES: TypeCharge[] = ["montages", "mesures", "services", "sav", "garanties"];
   const [sgTypes, setSgTypes] = useState<Set<TypeCharge>>(new Set(TOUS_TYPES));
   // Le choix suit l'utilisateur d'une visite à l'autre.
   useEffect(() => {
@@ -3488,6 +3489,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               const mesuresSource = sgTypes.has("mesures")
                 ? projetsConnus.filter((p) => p.dateMesures)
                 : [];
+              /* Un SAV a sa propre date de rendez-vous : ni celle du montage,
+                 ni celle du relevé. Même règle que les cartes du jour. */
+              const savSource = sgTypes.has("sav")
+                ? projetsConnus.filter((p) => p.etatSAV === "RDV fixé" && p.dateRDVSAV)
+                : [];
               /* Jours PLANIFIÉS d'un montage : la fenêtre portée par la fiche. */
               /* La règle qui dit combien de cabines pèsent sur un jour vit
                  dans src/lib/cabines-du-jour.ts — la même que celle des cartes
@@ -3506,12 +3512,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 const dayProjects = weekSource.filter((p) => daysOfProject(p).includes(key));
                 const dayMesures = mesuresSource.filter((p) => (p.dateMesures || "").split("T")[0] === key);
                 const mes = dayMesures.reduce((s2, p) => s2 + (p.nbCabines || 0), 0);
+                const daySav = savSource.filter((p) => (p.dateRDVSAV || "").split("T")[0] === key);
                 /* Chaque groupe se scinde en deux : ce qui est en dépôt et ce
                    qui ne l'est pas encore. La couleur du monteur reste la
                    même, seule la trame change — on veut voir QUI pose, et
                    séparément CE QUI manque. */
-                type Groupe = { poids: number; attente: number; projetsRecu: Project[]; projetsAttente: Project[]; projetsMesure: Project[] };
-                const vide = (): Groupe => ({ poids: 0, attente: 0, projetsRecu: [], projetsAttente: [], projetsMesure: [] });
+                type Groupe = { poids: number; attente: number; projetsRecu: Project[]; projetsAttente: Project[]; projetsMesure: Project[]; projetsSav: Project[] };
+                const vide = (): Groupe => ({ poids: 0, attente: 0, projetsRecu: [], projetsAttente: [], projetsMesure: [], projetsSav: [] });
                 const byGroup = new Map<string, Groupe>();
                 dayProjects.forEach((p) => {
                   const label = (p.collaborateurs || "").trim() || "Non attribué";
@@ -3533,13 +3540,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   cur.projetsMesure.push(p);
                   byGroup.set(label, cur);
                 });
+                /* Un retour en SAV occupe la journée de son équipe comme le
+                   reste. Il est daté par son propre rendez-vous, et compté
+                   comme sur les cartes du jour : en cabines du chantier. */
+                daySav.forEach((p) => {
+                  const label = (p.collaborateursSAV || "").trim()
+                    || (p.collaborateurs || "").trim() || "Non attribué";
+                  const cur: Groupe = byGroup.get(label) || vide();
+                  cur.poids += Math.max(p.nbCabines || 0, 1);
+                  cur.projetsSav.push(p);
+                  byGroup.set(label, cur);
+                });
                 const segs = [...byGroup.entries()]
                   .map(([label, v]) => ({
                     label, attente: v.attente, poids: v.poids,
                     projetsRecu: v.projetsRecu, projetsAttente: v.projetsAttente,
-                    projetsMesure: v.projetsMesure,
+                    projetsMesure: v.projetsMesure, projetsSav: v.projetsSav,
                     cab: [...v.projetsRecu, ...v.projetsAttente].reduce((s2, x) => s2 + cabinesDuJour(x, key), 0)
-                       + v.projetsMesure.reduce((s2, x) => s2 + (x.nbCabines || 0), 0),
+                       + [...v.projetsMesure, ...v.projetsSav].reduce((s2, x) => s2 + (x.nbCabines || 0), 0),
                     color: groupColor(label),
                   }))
                   .sort((a, b) => b.poids - a.poids);
@@ -3557,8 +3575,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 const enAttente = dayProjects.filter(marchandiseEnAttente);
                 /* Un chantier mesuré ET monté le même jour ne compte qu'une
                    fois dans le nombre de chantiers de la journée. */
-                const nb = new Set([...dayProjects, ...dayMesures].map((p) => p.id)).size;
-                return { d, key, cab, mes, restant, poidsJour, attente, enAttente, segs, projets: dayProjects, mesuresProjets: dayMesures, nb, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
+                const nb = new Set([...dayProjects, ...dayMesures, ...daySav].map((p) => p.id)).size;
+                return { d, key, cab, mes, sav: daySav.length, restant, poidsJour, attente, enAttente, segs, projets: dayProjects, mesuresProjets: dayMesures, savProjets: daySav, nb, dt, isToday: sgWeek === 0 && key === formatLocalDate(now) };
               });
               const max = Math.max(1, ...bars.map((b) => b.poidsJour));
               /* Légende : groupes présents sur la semaine, du plus chargé au
@@ -3584,6 +3602,18 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   });
                   /* Les relevés comptent dans la semaine de celui qui les fait :
                      « à faire » y est ce qui reste à mesurer. */
+                  /* Un SAV est par définition encore à faire : il compte en
+                     entier dans « à faire » de l'équipe qui s'en charge. */
+                  b.savProjets.forEach((p) => {
+                    const label = (p.collaborateursSAV || "").trim()
+                      || (p.collaborateurs || "").trim() || "Non attribué";
+                    const cur: Ligne = m.get(label) || { cab: 0, restantes: 0, projets: new Map<string, Project>() };
+                    const total = p.nbCabines || 0;
+                    cur.cab += total;
+                    cur.restantes += total;
+                    cur.projets.set(p.id, p);
+                    m.set(label, cur);
+                  });
                   b.mesuresProjets.forEach((p) => {
                     const label = (p.mesuresTraiteePar || "").trim()
                       || (p.collaborateurs || "").trim() || "Non attribué";
@@ -3612,7 +3642,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                  montage à cheval sur deux jours figure dans les deux barres
                  mais ne reste qu'un seul chantier. */
               const semaineProjets = new Set(
-                bars.flatMap((b) => [...b.projets, ...b.mesuresProjets].map((p) => p.id)),
+                bars.flatMap((b) => [...b.projets, ...b.mesuresProjets, ...b.savProjets].map((p) => p.id)),
               ).size;
               /* La semaine est la somme de ce que les barres annoncent : tout
                  autre calcul donnerait un total qui ne se retrouve pas en
@@ -3620,6 +3650,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               const semaineCabines = bars.reduce((s, b) => s + b.cab, 0);
               const semaineRestantes = bars.reduce((s, b) => s + b.restant, 0);
               const semaineMesures = bars.reduce((s, b) => s + b.mes, 0);
+              const semaineSav = bars.reduce((s, b) => s + b.sav, 0);
               return (
                 <div className="sg-card sg-chart">
                   <div className="sg-card-head">
@@ -3631,6 +3662,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         semaine {weekNo} · {semaineCabines} cabine{semaineCabines > 1 ? "s" : ""}
                         {semaineRestantes < semaineCabines && ` · ${semaineRestantes} non posée${semaineRestantes > 1 ? "s" : ""}`}
                         {semaineMesures > 0 && ` · ${semaineMesures} mesure${semaineMesures > 1 ? "s" : ""}`}
+                        {semaineSav > 0 && ` · ${semaineSav} SAV`}
                         {" · "}{semaineProjets} projet{semaineProjets > 1 ? "s" : ""}
                         {sgWeek !== 0 && ` · ${sgWeek > 0 ? "+" : ""}${sgWeek} sem.`}
                       </p>
@@ -3668,7 +3700,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   </div>
                   {sgTypes.size === 0 && (
                     <p className="sg-charge-rien">
-                      Aucun type sélectionné — choisissez au moins « Montages » ou « Mesures ».
+                      Aucun type sélectionné — cochez au moins un type pour voir la semaine.
                     </p>
                   )}
                   <div className="sg-bars">
@@ -3691,7 +3723,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           setCalendarSelectedDay(b.key);
                         }}
                         title={b.nb === 0 ? `${b.d} — aucune intervention` :
-                          `${b.d} — ${b.nb} projet${b.nb > 1 ? "s" : ""} · ${b.cab} cab.${b.mes > 0 ? ` · ${b.mes} mesure${b.mes > 1 ? "s" : ""}` : ""}\n`
+                          `${b.d} — ${b.nb} projet${b.nb > 1 ? "s" : ""} · ${b.cab} cab.${b.mes > 0 ? ` · ${b.mes} mesure${b.mes > 1 ? "s" : ""}` : ""}${b.sav > 0 ? ` · ${b.sav} SAV` : ""}\n`
                           + b.segs.map((s) => `${s.label} : ${s.cab}${s.attente > 0 ? ` (dont ${s.attente} non réceptionnée${s.attente > 1 ? "s" : ""})` : ""}`).join("\n")
                           + (b.enAttente.length > 0
                             ? `\n\nMarchandise pas encore réceptionnée :\n`
@@ -3719,6 +3751,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                     une journee de mesures est du travail, et elle
                                     n'apparaissait nulle part dans cette charge. */}
                                 {b.mes > 0 && <i className="is-mesures">{b.mes} mesure{b.mes > 1 ? "s" : ""}</i>}
+                                {b.sav > 0 && <i className="is-sav">{b.sav} SAV</i>}
                                 <i>{b.nb} projet{b.nb > 1 ? "s" : ""}</i>
                                 {/* Rien tant que rien n'est posé : répéter le
                                     total en dessous n'apprendrait rien. */}
@@ -3740,26 +3773,29 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 Jacobo font trois cases vertes séparées d'un
                                 tiret blanc, chacune portant son numéro. */}
                             {b.segs.flatMap((s) => [
-                              ...s.projetsRecu.map((p) => ({ s, p, attente: false, mesure: false })),
+                              ...s.projetsRecu.map((p) => ({ s, p, attente: false, mesure: false, sav: false })),
                               /* Rayé dans la couleur du monteur : la cabine lui
                                  est bien attribuée, mais elle n'est pas encore
                                  réceptionnée. */
-                              ...s.projetsAttente.map((p) => ({ s, p, attente: true, mesure: false })),
-                              ...s.projetsMesure.map((p) => ({ s, p, attente: false, mesure: true })),
-                            ]).map(({ s, p, attente, mesure }) => (
+                              ...s.projetsAttente.map((p) => ({ s, p, attente: true, mesure: false, sav: false })),
+                              ...s.projetsMesure.map((p) => ({ s, p, attente: false, mesure: true, sav: false })),
+                              ...s.projetsSav.map((p) => ({ s, p, attente: false, mesure: false, sav: true })),
+                            ]).map(({ s, p, attente, mesure, sav }) => (
                               <span
-                                key={`${s.label}-${p.id}${mesure ? "-m" : ""}`}
-                                className={`sg-bar-seg${attente ? " is-attente" : ""}${mesure ? " is-mesure" : ""}`}
-                                title={mesure ? `Relevé de mesures — ${p.nbCabines || 0} cabine${(p.nbCabines || 0) > 1 ? "s" : ""}` : undefined}
+                                key={`${s.label}-${p.id}${mesure ? "-m" : sav ? "-s" : ""}`}
+                                className={`sg-bar-seg${attente ? " is-attente" : ""}${mesure ? " is-mesure" : ""}${sav ? " is-sav" : ""}`}
+                                title={mesure
+                                  ? `Relevé de mesures — ${p.nbCabines || 0} cabine${(p.nbCabines || 0) > 1 ? "s" : ""}`
+                                  : sav ? `SAV — rendez-vous fixé` : undefined}
                                 style={attente
                                   ? ({ flexGrow: Math.max(cabinesDuJour(p, b.key), 1), ["--raie" as string]: s.color } as React.CSSProperties)
-                                  : { flexGrow: mesure ? Math.max(p.nbCabines || 0, 1) : Math.max(cabinesDuJour(p, b.key), 1), background: s.color }}
+                                  : { flexGrow: (mesure || sav) ? Math.max(p.nbCabines || 0, 1) : Math.max(cabinesDuJour(p, b.key), 1), background: s.color }}
                               >
                                 {numeroDeProjet(p)}
                                 {(() => {
                                   /* L'icône dit où en est la POSE : sur un
-                                     relevé elle n'aurait aucun sens. */
-                                  if (mesure) return null;
+                                     relevé ou un SAV elle n'aurait aucun sens. */
+                                  if (mesure || sav) return null;
                                   const e = etatDuLot(p, projetsSignales.has(p.id), projetsRegles.has(p.id));
                                   if (!e) return null;
                                   return (

@@ -1014,6 +1014,7 @@ html[data-ui="signal"] .sg-ctype.is-on::before { opacity: 1; }
 html[data-ui="signal"] .sg-ctype.is-montages.is-on { color: #1b63ff; }
 html[data-ui="signal"] .sg-ctype.is-mesures.is-on { color: #0e7490; }
 html[data-ui="signal"] .sg-ctype.is-services.is-on { color: #6d28d9; }
+html[data-ui="signal"] .sg-ctype.is-sav.is-on { color: #b45309; }
 html[data-ui="signal"] .sg-ctype.is-garanties.is-on { color: #15803d; }
 /* Décoché : le libellé reste lisible, barré pour dire qu'il est écarté. */
 html[data-ui="signal"] .sg-ctype:not(.is-on) { text-decoration: line-through; opacity: 0.6; }
@@ -1029,6 +1030,15 @@ html[data-ui="signal"] .sg-bar-seg.is-mesure {
 }
 html[data-ui="signal"].dark .sg-bar-seg.is-mesure {
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+/* Case de SAV : même idée que le relevé, mais en pointillés — deux liserés
+   pleins ne se seraient pas distingués l'un de l'autre. */
+html[data-ui="signal"] .sg-bar-seg.is-sav {
+  outline: 2px dashed rgba(255, 255, 255, 0.9);
+  outline-offset: -3px;
+}
+html[data-ui="signal"].dark .sg-bar-seg.is-sav {
+  outline-color: rgba(255, 255, 255, 0.55);
 }
 
 html[data-ui="signal"] .sgw-nav {
@@ -1133,6 +1143,7 @@ html[data-ui="signal"] .sg-bar-val i.is-reste { color: #1b4ed8; font-weight: 600
 /* Les relevés de mesures, sous les cabines du jour : même discrétion que les
    autres annotations, mais une teinte propre — ce n'est pas de la pose. */
 html[data-ui="signal"] .sg-bar-val i.is-mesures { color: #0e7490; }
+html[data-ui="signal"] .sg-bar-val i.is-sav { color: #b45309; }
 html[data-ui="signal"] .sg-bar-val i.is-done { color: #15803d; font-weight: 600; }
 html[data-ui="signal"].dark .sg-bar-val i.is-reste { color: #93b4ff; }
 html[data-ui="signal"].dark .sg-bar-val i.is-done { color: #7ddba2; }
