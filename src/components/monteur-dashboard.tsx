@@ -790,7 +790,11 @@ function numeroDeProjet(projet: Project) {
             survolApercu(() => openSignalPreview(projet, "dashboard"));
           }}
           onMouseLeave={annulerSurvol}
-          onFocus={() => openSignalPreview(projet, "dashboard")}
+          /* Au clavier seulement : sur iPhone, un lien touché prend le
+             focus, et l'aperçu aurait clignoté avant la navigation. */
+          onFocus={(e) => {
+            if (e.currentTarget.matches(":focus-visible")) openSignalPreview(projet, "dashboard");
+          }}
           onClick={(e) => {
             e.stopPropagation();
             annulerSurvol();
