@@ -23,7 +23,7 @@ import { RefreshCw, ArrowLeft, ExternalLink } from "lucide-react";
 import { smoothPath } from "@/lib/courbe";
 
 interface Part { nom: string; total: number; nb: number }
-interface Mois { mois: string; total: number; nb: number; encaisse: number; restant: number }
+interface Mois { mois: string; total: number; nb: number; encaisse: number; restant: number; achats: number }
 interface ClientLigne { id: number; nom: string; total: number; nb: number; restant: number }
 interface Impaye {
   nr: string; titre: string; client: string; total: number; restant: number;
@@ -44,6 +44,12 @@ interface Donnees {
   parFournisseur: Part[];
   parSerie: Part[];
   impayes: { parAge: Part[]; total: number; lignes: Impaye[] };
+  depenses: {
+    total: number; nb: number; marge: number; margePct: number | null;
+    parFournisseur: Part[]; parCompte: Part[];
+    du: number; duNb: number; enRetard: { nb: number; total: number };
+    lignes: { no: string; fournisseur: string; titre: string; ttc: number; du: number; date: string; enRetard: boolean; compte: string }[];
+  };
   nonRattache: { nb: number; total: number };
 }
 
@@ -71,9 +77,10 @@ const jour = (d: string) => (d ? d.split("-").reverse().join(".") : "—");
 
 /* ── Graphique de tendance ─────────────────────────────────────────────── */
 
-type SerieId = "total" | "encaisse" | "restant";
+type SerieId = "total" | "encaisse" | "restant" | "achats";
 const SERIES: { id: SerieId; label: string; color: string }[] = [
   { id: "total", label: "Facturé", color: "#1b63ff" },
+  { id: "achats", label: "Dépenses", color: "#dc2626" },
   { id: "encaisse", label: "Encaissé", color: "#15803d" },
   { id: "restant", label: "Reste à encaisser", color: "#b45309" },
 ];
@@ -85,7 +92,7 @@ const SERIES: { id: SerieId; label: string; color: string }[] = [
  */
 function Tendance({ mois }: { mois: Mois[] }) {
   const [forme, setForme] = useState<"aires" | "lignes" | "barres">("aires");
-  const [masquees, setMasquees] = useState<Set<SerieId>>(new Set(["restant"]));
+  const [masquees, setMasquees] = useState<Set<SerieId>>(new Set(["restant", "encaisse"]));
   const [survol, setSurvol] = useState<number | null>(null);
 
   const W = 1000, H = 320, PL = 64, PR = 16, PT = 18, PB = 34;
@@ -556,6 +563,24 @@ export function CaBexioView() {
               <b>CHF {francs(d.totalOffres)}</b>
               <i>{d.offres} offre{d.offres > 1 ? "s" : ""} sur la période</i>
             </div>
+            <div className="sg-fact-kpi">
+              <span className="sg-fact-kpi-l">Dépenses fournisseurs</span>
+              <b>CHF {francs(d.depenses.total)}</b>
+              <i>{d.depenses.nb} facture{d.depenses.nb > 1 ? "s" : ""} reçue{d.depenses.nb > 1 ? "s" : ""}</i>
+            </div>
+            <div className="sg-fact-kpi">
+              <span className="sg-fact-kpi-l">Marge brute</span>
+              <b>CHF {francs(d.depenses.marge)}</b>
+              <i>{d.depenses.margePct !== null ? `${d.depenses.margePct} % du facturé` : "—"} · hors salaires et charges fixes</i>
+            </div>
+            <div className={`sg-fact-kpi${d.depenses.enRetard.nb > 0 ? " is-alerte" : ""}`}>
+              <span className="sg-fact-kpi-l">Dû aux fournisseurs</span>
+              <b>CHF {francs(d.depenses.du)}</b>
+              <i>
+                {d.depenses.duNb} facture{d.depenses.duNb > 1 ? "s" : ""} ouverte{d.depenses.duNb > 1 ? "s" : ""}
+                {d.depenses.enRetard.nb > 0 && ` · ${d.depenses.enRetard.nb} en retard`}
+              </i>
+            </div>
             {d.transformation !== null && (
               <div className="sg-fact-kpi">
                 <span className="sg-fact-kpi-l">Facturé / offert</span>
@@ -625,6 +650,43 @@ export function CaBexioView() {
           <Barres titre="Par série de cabine"
             sous="même chemin que les marques · les vingt-cinq premières"
             lignes={d.parSerie} />
+
+          <Barres titre="Dépenses par fournisseur"
+            sous="factures reçues sur la période · TTC, comme le chiffre d'affaires"
+            lignes={d.depenses.parFournisseur} />
+
+          <Barres titre="Dépenses par poste comptable"
+            sous="d'après le compte imputé dans bexio — c'est là qu'une économie se repère"
+            lignes={d.depenses.parCompte} />
+
+          {d.depenses.lignes.length > 0 && (
+            <div className="sg-card">
+              <div className="sg-card-head">
+                <div>
+                  <span className="sg-card-title">Les plus grosses dépenses</span>
+                  <p className="sg-card-meta">
+                    soixante premières de la période · une dépense se négocie mieux quand on la voit
+                  </p>
+                </div>
+              </div>
+              <div className="sg-cab-liste">
+                {d.depenses.lignes.map((b) => (
+                  <div key={b.no + b.date + b.ttc} className={`sg-cab-l${b.enRetard ? " is-vieux" : ""}`}>
+                    <span className="sg-cab-nom" title={`${b.titre}${b.compte ? ` — ${b.compte}` : ""}`}>
+                      <b className="sg-ca-nr">{b.fournisseur}</b> {b.titre}
+                    </span>
+                    <span className="sg-cab-nom sg-ca-date">
+                      {jour(b.date)}{b.compte ? ` · ${b.compte}` : ""}
+                    </span>
+                    <span className="sg-cab-val">
+                      CHF {francs2(b.ttc)}
+                      {b.du > 0 && <em className="sg-ca-du">dû {francs2(b.du)}</em>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {d.nonRattache.nb > 0 && (
             <p className="sg-fact-note">

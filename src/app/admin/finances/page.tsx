@@ -137,6 +137,13 @@ export default function FinancesPage() {
   } | null>(null);
   /** Détail ouvert : un compteur qu'on ne peut pas ouvrir ne se vérifie pas. */
   const [detail, setDetail] = useState<{ titre: string; sous: string; corps: React.ReactNode } | null>(null);
+  /* Ce que bexio sait déjà. Trois de ces champs étaient demandés à la main
+     alors que la comptabilité les connaît au franc près — et une créance
+     recopiée le mois dernier est fausse ce mois-ci. */
+  const [bexio, setBexio] = useState<{
+    creances: number; dettes: number; ca12: number; achats12: number;
+    marge: number; margePct: number | null; clients: number; retard: number;
+  } | null>(null);
   const [caParAnnee, setCaParAnnee] = useState<Record<string, number>>({});
   const [annee, setAnnee] = useState<string>(String(new Date().getFullYear()));
 
@@ -151,6 +158,32 @@ export default function FinancesPage() {
       .catch(() => {});
     return () => { vivant = false; };
   }, [annee]);
+
+  /* Douze mois glissants : c'est la fenêtre qui a du sens pour des charges
+     et une marge, pas l'année civile tronquée au mois en cours. */
+  useEffect(() => {
+    const fin = new Date();
+    const debut = new Date(); debut.setMonth(debut.getMonth() - 11); debut.setDate(1);
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    let vivant = true;
+    fetch(`/api/bexio/ca?de=${iso(debut)}&a=${iso(fin)}`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!vivant || !j || j.error) return;
+        setBexio({
+          creances: j.impayes?.total || 0,
+          dettes: j.depenses?.du || 0,
+          ca12: j.total || 0,
+          achats12: j.depenses?.total || 0,
+          marge: j.depenses?.marge || 0,
+          margePct: j.depenses?.margePct ?? null,
+          clients: j.clientsActifs || 0,
+          retard: j.depenses?.enRetard?.total || 0,
+        });
+      })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -584,6 +617,55 @@ export default function FinancesPage() {
               </div>
             ))}
           </div>
+
+          {/* Ce que bexio répond tout seul. Affiché à part des champs à
+              saisir : la provenance d'un chiffre fait partie du chiffre. */}
+          {bexio && (
+            <div className="glass-card rounded-2xl p-5 mb-4 border border-emerald-200 dark:border-emerald-900/40">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Lu dans bexio</h2>
+                  <p className="text-xs text-gray-400 mb-4">
+                    douze derniers mois · TTC · ces chiffres n&apos;ont pas à être saisis, la comptabilité les connaît
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setVals((v) => ({
+                    ...v,
+                    creances: String(Math.round(bexio.creances)),
+                    dettes: String(Math.round(bexio.dettes)),
+                    nbClients: String(bexio.clients),
+                  }))}
+                  className="h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"
+                >
+                  Reprendre dans les champs
+                </button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  { l: "Créances clients", v: bexio.creances, s: "factures émises, pas encore encaissées" },
+                  { l: "Dettes fournisseurs", v: bexio.dettes, s: bexio.retard > 0 ? `dont ${Math.round(bexio.retard).toLocaleString("fr-CH")} en retard` : "aucune en retard" },
+                  { l: "Chiffre d'affaires", v: bexio.ca12, s: "facturé sur douze mois" },
+                  { l: "Achats fournisseurs", v: bexio.achats12, s: "factures reçues sur douze mois" },
+                  { l: "Marge brute", v: bexio.marge, s: bexio.margePct !== null ? `${bexio.margePct} % du facturé · hors salaires` : "hors salaires et charges fixes" },
+                ].map((k) => (
+                  <div key={k.l} className="rounded-xl bg-white/60 dark:bg-white/5 p-3">
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">{k.l}</p>
+                    <p className="text-lg font-bold text-[#1e3a5f] dark:text-blue-200 tabular-nums">
+                      CHF {Math.round(k.v).toLocaleString("fr-CH")}
+                    </p>
+                    <p className="text-[10px] text-gray-400">{k.s}</p>
+                  </div>
+                ))}
+                <div className="rounded-xl bg-white/60 dark:bg-white/5 p-3">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">Clients facturés</p>
+                  <p className="text-lg font-bold text-[#1e3a5f] dark:text-blue-200 tabular-nums">{bexio.clients}</p>
+                  <p className="text-[10px] text-gray-400">sur douze mois</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Champs à remplir */}
           {GROUPES.map((g) => (

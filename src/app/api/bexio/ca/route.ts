@@ -195,6 +195,41 @@ export async function GET(request: NextRequest) {
       return { nom: t, total: r2(l.reduce((s, f) => s + f.restant, 0)), nb: l.length };
     });
 
+    /* ── Dépenses ──────────────────────────────────────────────────────
+       Les factures FOURNISSEURS, en regard du chiffre d'affaires. Sans
+       elles, la page disait ce qui rentre sans rien dire de ce qui sort —
+       et c'est l'écart entre les deux qui décide de la santé de
+       l'entreprise. Tout est en TTC des deux côtés : comparer un HT à un
+       TTC fausserait la marge de huit pour cent. */
+    const nomCompte = new Map(copie.comptes.map((c) => [c.id, `${c.no} ${c.nom}`.trim()]));
+    const achatsPeriode = copie.achats.filter((b) => dans(b.date));
+    const cumulAchats = (cle: (b: typeof achatsPeriode[number]) => string[]) => {
+      const m = new Map<string, { total: number; nb: number }>();
+      for (const b of achatsPeriode) {
+        const cles = cle(b);
+        for (const k of cles) {
+          const cur = m.get(k) || { total: 0, nb: 0 };
+          cur.total += (b.ttc || 0) / Math.max(1, cles.length);
+          cur.nb += 1;
+          m.set(k, cur);
+        }
+      }
+      return [...m.entries()]
+        .map(([nom, v]) => ({ nom, total: r2(v.total), nb: v.nb }))
+        .sort((x, y) => y.total - x.total);
+    };
+    const achatsParMois = (() => {
+      const m = new Map<string, number>();
+      for (const b of achatsPeriode) {
+        const k = (b.date || "").slice(0, 7);
+        if (k) m.set(k, (m.get(k) || 0) + (b.ttc || 0));
+      }
+      return m;
+    })();
+    const totalAchats = achatsPeriode.reduce((s, b) => s + (b.ttc || 0), 0);
+    const duFournisseurs = copie.achats.filter((b) => (b.du || 0) > 0.01);
+    const achatsEnRetard = duFournisseurs.filter((b) => b.enRetard);
+
     const total = retenues.reduce((s, f) => s + f.total, 0);
     const restant = retenues.reduce((s, f) => s + f.restant, 0);
     const nonRattache = retenues.filter((f) => !chantierParFacture.has(f.id));
@@ -216,8 +251,34 @@ export async function GET(request: NextRequest) {
          on facture des chantiers offerts plus tôt : c'est normal sur une
          fenêtre courte, et c'est pourquoi le chiffre est donné brut. */
       transformation: totalOffres > 0 ? Math.round((total / totalOffres) * 100) : null,
-      parMois,
+      parMois: parMois.map((m) => ({ ...m, achats: r2(achatsParMois.get(m.mois) || 0) })),
       parAnnee,
+      depenses: {
+        total: r2(totalAchats),
+        nb: achatsPeriode.length,
+        /* Marge brute : ce qui reste une fois les fournisseurs payés. Elle ne
+           tient pas compte des salaires ni des charges fixes, qui ne passent
+           pas tous par une facture fournisseur. */
+        marge: r2(total - totalAchats),
+        margePct: total > 0 ? Math.round(((total - totalAchats) / total) * 100) : null,
+        parFournisseur: cumulAchats((b) => [b.fournisseur]),
+        parCompte: cumulAchats((b) =>
+          b.comptes.length ? b.comptes.map((c) => nomCompte.get(c) || `Compte ${c}`) : ["Sans compte"]),
+        du: r2(duFournisseurs.reduce((s2, b) => s2 + (b.du || 0), 0)),
+        duNb: duFournisseurs.length,
+        enRetard: {
+          nb: achatsEnRetard.length,
+          total: r2(achatsEnRetard.reduce((s2, b) => s2 + (b.du || 0), 0)),
+        },
+        /* Les plus grosses lignes : c'est là qu'une économie se voit. */
+        lignes: achatsPeriode
+          .slice().sort((x, y) => (y.ttc || 0) - (x.ttc || 0)).slice(0, 60)
+          .map((b) => ({
+            no: b.no, fournisseur: b.fournisseur, titre: b.titre,
+            ttc: r2(b.ttc), du: r2(b.du), date: b.date, enRetard: b.enRetard,
+            compte: b.comptes.map((c) => nomCompte.get(c) || "").filter(Boolean).join(" · "),
+          })),
+      },
       parClient: cumul((f) => [f.client?.trim() || "Client inconnu"]),
       /* Les mêmes, par identifiant : c'est lui qui ouvre la fiche client. */
       clients: (() => {

@@ -20,6 +20,8 @@ import type { OffreBexio, FactureBexio } from "@/lib/bexio-rapprochement";
    clé évite de servir une copie d'hier à laquelle il manquerait. */
 const CLE_OFFRES = "bexio:offres3";
 const CLE_FACTURES = "bexio:factures3";
+const CLE_ACHATS = "bexio:achats1";
+const CLE_COMPTES = "bexio:comptes1";
 const CLE_SYNCHRO = "bexio:synchro";
 /** Un mois : la copie est refaite chaque nuit, ce plafond n'est qu'un filet. */
 const DUREE = 30 * 24 * 3600;
@@ -61,10 +63,64 @@ async function toutesLesPages(base: string): Promise<BrutDocument[]> {
   return out;
 }
 
-export async function synchroniserBexio(): Promise<{ offres: number; factures: number }> {
-  const [brutOffres, brutFactures] = await Promise.all([
+/**
+ * Facture fournisseur — ce que l'entreprise DÉPENSE.
+ *
+ * Attention : ces factures-là vivent dans le module « achats » de bexio, à
+ * une autre adresse (`/4.0/purchase/bills`) et avec une autre pagination
+ * (page / page_size) que les factures de vente. La documentation annonce
+ * `/2.0/bill`, qui répond 404 : c'est la sonde qui a trouvé la bonne porte.
+ */
+export interface AchatBexio {
+  id: string;
+  no: string;
+  /** Qui nous facture. */
+  fournisseur: string;
+  titre: string;
+  /** TTC, pour se comparer au chiffre d'affaires qui l'est aussi. */
+  ttc: number;
+  /** Hors taxes. */
+  ht: number;
+  /** Ce qu'il reste à payer. */
+  du: number;
+  date: string;
+  echeance: string;
+  enRetard: boolean;
+  statut: string;
+  /** Comptes comptables imputés : c'est la nature de la dépense. */
+  comptes: number[];
+}
+
+export interface CompteBexio { id: number; no: string; nom: string }
+
+interface BrutAchat {
+  id: string; document_no?: string; vendor?: string; lastname_company?: string;
+  title?: string; gross?: number; net?: number; pending_amount?: number;
+  bill_date?: string; due_date?: string; overdue?: boolean; status?: string;
+  booking_account_ids?: number[];
+}
+
+/** Pagination du module achats : page / page_size, et non limit / offset. */
+async function toutesLesPagesAchats(): Promise<BrutAchat[]> {
+  const out: BrutAchat[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const r = await bexioFetch<{ data?: BrutAchat[]; paging?: { page_count?: number } }>(
+      `/4.0/purchase/bills?page=${page}&page_size=500`,
+    );
+    const lot = Array.isArray(r?.data) ? r.data : [];
+    out.push(...lot);
+    if (lot.length === 0 || page >= (r?.paging?.page_count || 1)) break;
+  }
+  return out;
+}
+
+export async function synchroniserBexio(): Promise<{ offres: number; factures: number; achats: number }> {
+  const [brutOffres, brutFactures, brutAchats, brutComptes] = await Promise.all([
     toutesLesPages("/2.0/kb_offer"),
     toutesLesPages("/2.0/kb_invoice"),
+    toutesLesPagesAchats().catch(() => [] as BrutAchat[]),
+    bexioFetch<{ id: number; account_no?: string; name?: string }[]>("/2.0/accounts")
+      .catch(() => [] as { id: number; account_no?: string; name?: string }[]),
   ]);
 
   const offres: OffreBexio[] = brutOffres.map((o) => ({
@@ -88,15 +144,37 @@ export async function synchroniserBexio(): Promise<{ offres: number; factures: n
     client: nomClient(f.contact_address),
   }));
 
+  const achats: AchatBexio[] = brutAchats.map((b) => ({
+    id: String(b.id),
+    no: b.document_no || "",
+    fournisseur: (b.vendor || b.lastname_company || "").trim() || "Sans fournisseur",
+    titre: b.title || "",
+    ttc: nombre(b.gross),
+    ht: nombre(b.net),
+    du: nombre(b.pending_amount),
+    date: (b.bill_date || "").slice(0, 10),
+    echeance: (b.due_date || "").slice(0, 10),
+    enRetard: !!b.overdue,
+    statut: b.status || "",
+    comptes: Array.isArray(b.booking_account_ids) ? b.booking_account_ids : [],
+  }));
+  const comptes: CompteBexio[] = (Array.isArray(brutComptes) ? brutComptes : []).map((c) => ({
+    id: c.id, no: c.account_no || "", nom: c.name || "",
+  }));
+
   await siRedis(() => redisSetJSON(CLE_OFFRES, offres, DUREE));
   await siRedis(() => redisSetJSON(CLE_FACTURES, factures, DUREE));
-  await siRedis(() => redisSetJSON(CLE_SYNCHRO, { le: new Date().toISOString(), offres: offres.length, factures: factures.length }, DUREE));
-  return { offres: offres.length, factures: factures.length };
+  await siRedis(() => redisSetJSON(CLE_ACHATS, achats, DUREE));
+  await siRedis(() => redisSetJSON(CLE_COMPTES, comptes, DUREE));
+  await siRedis(() => redisSetJSON(CLE_SYNCHRO, { le: new Date().toISOString(), offres: offres.length, factures: factures.length, achats: achats.length }, DUREE));
+  return { offres: offres.length, factures: factures.length, achats: achats.length };
 }
 
 export interface CopieBexio {
   offres: OffreBexio[];
   factures: FactureBexio[];
+  achats: AchatBexio[];
+  comptes: CompteBexio[];
   /** Quand la copie a été faite — l'écran doit pouvoir le dire. */
   le: string | null;
 }
@@ -108,7 +186,13 @@ export async function lireCopieBexio(forcer = false): Promise<CopieBexio> {
     const f = await siRedis(() => redisGetJSON<FactureBexio[]>(CLE_FACTURES));
     if (o?.valeur?.length && f?.valeur?.length) {
       const s = await siRedis(() => redisGetJSON<{ le: string }>(CLE_SYNCHRO));
-      return { offres: o.valeur, factures: f.valeur, le: s?.valeur?.le || null };
+      const ac = await siRedis(() => redisGetJSON<AchatBexio[]>(CLE_ACHATS));
+      const cp = await siRedis(() => redisGetJSON<CompteBexio[]>(CLE_COMPTES));
+      return {
+        offres: o.valeur, factures: f.valeur,
+        achats: ac?.valeur || [], comptes: cp?.valeur || [],
+        le: s?.valeur?.le || null,
+      };
     }
   }
   await synchroniserBexio();
@@ -117,7 +201,13 @@ export async function lireCopieBexio(forcer = false): Promise<CopieBexio> {
   /* Sans cache partagé (panne Redis), on rend ce qu'on vient de lire chez
      bexio plutôt que de renvoyer une page vide. */
   if (o?.valeur && f?.valeur) {
-    return { offres: o.valeur, factures: f.valeur, le: new Date().toISOString() };
+    const ac = await siRedis(() => redisGetJSON<AchatBexio[]>(CLE_ACHATS));
+    const cp = await siRedis(() => redisGetJSON<CompteBexio[]>(CLE_COMPTES));
+    return {
+      offres: o.valeur, factures: f.valeur,
+      achats: ac?.valeur || [], comptes: cp?.valeur || [],
+      le: new Date().toISOString(),
+    };
   }
   const [offres, factures] = await Promise.all([
     toutesLesPages("/2.0/kb_offer"),
@@ -135,6 +225,8 @@ export async function lireCopieBexio(forcer = false): Promise<CopieBexio> {
       contactId: x.contact_id ?? null, date: (x.is_valid_from || "").slice(0, 10),
       reference: x.reference || null, client: nomClient(x.contact_address),
     })),
+    achats: [],
+    comptes: [],
     le: new Date().toISOString(),
   };
 }
