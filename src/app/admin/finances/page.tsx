@@ -17,6 +17,7 @@ import { CaVue } from "@/components/ca-vue";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
+import { coutHoraireDe, coutHoraire, HEURES_MOIS_DEFAUT } from "@/lib/cout-horaire";
 import {
   ArrowLeft, Loader2, Save, CheckCircle2, TrendingUp, Wallet, Timer,
   PiggyBank, Users, Percent, Info, ReceiptText, Sparkles, X,
@@ -70,14 +71,22 @@ const GROUPES: Groupe[] = [
     ],
   },
   {
-    titre: "Coût horaire par monteur",
-    sous: "salaire chargé rapporté à l'heure travaillée · laissez vide pour utiliser le taux par défaut",
-    champs: COLLABORATEURS_LIST.map((nom) => ({
-      id: `taux_${nom}`,
-      label: nom,
-      unite: "CHF / h",
-      aide: "",
-    })),
+    /* On connaît le salaire qu'on verse, pas son coût horaire. La saisie se
+       fait donc au mois ; la conversion en coût de l'heure est faite par
+       l'app, à partir des deux réglages ci-dessous — explicitement, plutôt
+       qu'avec un coefficient deviné en silence. */
+    titre: "Salaire mensuel par monteur (brut)",
+    sous: "l'app en déduit le coût horaire · laissez vide pour utiliser le coût horaire par défaut",
+    champs: [
+      { id: "heuresMois", label: "Heures travaillées par mois", unite: "h / mois", aide: "Base de conversion du salaire en coût horaire. 182 h si laissé vide (42 h par semaine)." },
+      { id: "chargesPatronales", label: "Charges patronales", unite: "% du brut", aide: "AVS, LPP, LAA, allocations. S'ajoutent au salaire brut pour obtenir le coût réel." },
+      ...COLLABORATEURS_LIST.map((nom) => ({
+        id: `taux_${nom}`,
+        label: nom,
+        unite: "CHF / mois",
+        aide: "",
+      })),
+    ],
   },
   {
     titre: "Investissement",
@@ -281,12 +290,12 @@ export default function FinancesPage() {
           .forEach((x) => noms.add(x));
       }
       const taux = [...noms]
-        .map((nom) => n(`taux_${nom}`) ?? tauxDefaut)
+        .map((nom) => coutHoraireDe(nom, vals) ?? tauxDefaut)
         .filter((v): v is number => v !== null);
       if (taux.length === 0) return tauxDefaut;
       return taux.reduce((s2, v) => s2 + v, 0) / taux.length;
     };
-    const taux = tauxDefaut ?? (COLLABORATEURS_LIST.some((nom) => n(`taux_${nom}`) !== null) ? 0 : null);
+    const taux = tauxDefaut ?? (COLLABORATEURS_LIST.some((nom) => coutHoraireDe(nom, vals) !== null) ? 0 : null);
     const dep = n("coutDeplacement") ?? 0;
     const conso = n("consommables") ?? 0;
     const achat = n("achatCabine") ?? 0;
@@ -715,6 +724,25 @@ export default function FinancesPage() {
                       className="flex-1 min-w-[120px] h-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-700 px-3 text-sm"
                     />
                     <span className="text-xs text-gray-400 w-24 shrink-0">{c.unite}</span>
+                    {/* Ce que le salaire saisi donne à l'heure : le chiffre
+                        qui sert vraiment aux calculs doit être visible, pas
+                        caché dans une formule. */}
+                    {c.id.startsWith("taux_") && (() => {
+                      const h = coutHoraire(Number(vals[c.id]), {
+                        heuresMois: Number(vals.heuresMois) || null,
+                        chargesPatronales: Number(vals.chargesPatronales) || null,
+                      });
+                      if (h === null) return null;
+                      return (
+                        <span className="w-full sm:w-auto text-[11px] text-emerald-700 dark:text-emerald-300 tabular-nums">
+                          ≈ {h.toFixed(2)} CHF / h
+                          <span className="text-gray-400">
+                            {" "}sur {Number(vals.heuresMois) || HEURES_MOIS_DEFAUT} h
+                            {Number(vals.chargesPatronales) > 0 ? `, charges +${Number(vals.chargesPatronales)} %` : ", hors charges"}
+                          </span>
+                        </span>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

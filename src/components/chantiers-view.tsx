@@ -10,6 +10,7 @@
  */
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { coutHoraireDe } from "@/lib/cout-horaire";
 import Link from "next/link";
 import {
   Building2, Search, ChevronRight, ArrowLeft, Loader2, Download, Ruler,
@@ -118,13 +119,10 @@ function Rentabilite({ lots }: { lots: Lot[] }) {
      d'un binôme reflète ce que coûte réellement l'heure passée à deux. */
   const tauxDe = (monteur: string): number | null => {
     if (!taux) return null;
-    const general = Number(taux.tauxHoraire);
-    const noms = monteur.split("&").map((x) => x.trim()).filter(Boolean);
-    const valeurs = noms
-      .map((nom) => Number(taux[`taux_${nom}`]))
-      .filter((v) => Number.isFinite(v) && v > 0);
-    if (valeurs.length > 0) return valeurs.reduce((a, b) => a + b, 0) / valeurs.length;
-    return Number.isFinite(general) && general > 0 ? general : null;
+    /* Les salaires sont saisis au MOIS : la conversion en coût horaire vit
+       dans lib/cout-horaire, partagée avec la page des indicateurs pour que
+       les deux écrans ne racontent jamais deux coûts différents. */
+    return coutHoraireDe(monteur, taux as Record<string, unknown>);
   };
 
   const cout = useMemo(() => {
