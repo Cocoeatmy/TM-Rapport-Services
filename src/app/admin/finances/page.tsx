@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
 import { coutHoraireDe, coutHoraire, HEURES_MOIS_DEFAUT } from "@/lib/cout-horaire";
+import { minutesDuChantier } from "@/lib/heures-chantier";
 import {
   ArrowLeft, Loader2, Save, CheckCircle2, TrendingUp, Wallet, Timer,
   PiggyBank, Users, Percent, Info, ReceiptText, Sparkles, X,
@@ -304,14 +305,10 @@ export default function FinancesPage() {
     const cible = n("margeCible");
     if (taux === null) return null; // sans coût horaire, rien n'est calculable
 
-    const minutes = (p: any) => {
-      const lire = (raw?: string) => {
-        const m = String(raw || "").match(/(\d{1,2}):(\d{2})/);
-        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
-      };
-      const a = lire(p.heureArrivee), b = lire(p.heureDepart);
-      return a !== null && b !== null && b > a ? b - a : 0;
-    };
+    /* Lecture partagée des heures : elle sait lire les trois formats et
+       additionne cabines et passages. L'ancienne cherchait la première suite
+       « chiffres:chiffres » et trouvait « 1:20 » dans « Cab1:2026 ». */
+    const minutes = (p: any) => minutesDuChantier(p.heureArrivee, p.heureDepart);
 
     const lignes = chantiers
       .filter((p) => String(p.dateMontage || "").startsWith(annee))
