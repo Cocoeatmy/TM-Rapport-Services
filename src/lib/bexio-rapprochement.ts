@@ -30,6 +30,8 @@ export interface OffreBexio {
   date: string;
   /** Nom du client, lu sur la première ligne de l'adresse. */
   client?: string;
+  /** Hors taxes — la base de toute comparaison avec un coût. */
+  ht?: number;
 }
 
 export interface FactureBexio {
@@ -44,6 +46,8 @@ export interface FactureBexio {
   reference: string | null;
   /** Nom du client, lu sur la première ligne de l'adresse de facturation. */
   client?: string;
+  /** Hors taxes — la base de toute comparaison avec un coût. */
+  ht?: number;
 }
 
 /** Sur quoi se fonde le rapprochement — du certain au douteux. */

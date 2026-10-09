@@ -19,6 +19,7 @@ import Link from "next/link";
 import { COLLABORATEURS_LIST } from "@/lib/constants";
 import { coutHoraireDe, coutHoraire, HEURES_MOIS_DEFAUT } from "@/lib/cout-horaire";
 import { minutesDuChantier } from "@/lib/heures-chantier";
+import { numerosTMClient } from "@/lib/montants-ofr";
 import {
   ArrowLeft, Loader2, Save, CheckCircle2, TrendingUp, Wallet, Timer,
   PiggyBank, Users, Percent, Info, ReceiptText, Sparkles, X,
@@ -267,6 +268,16 @@ export default function FinancesPage() {
      dite comme telle. Sans prix, on compare les coûts entre eux, ce qui
      suffit à repérer les dérives. */
   const [chantiers, setChantiers] = useState<any[]>([]);
+  /* Ce que chaque chantier a RÉELLEMENT rapporté, lu dans bexio. Jusqu'ici
+     la recette était un prix de vente moyen appliqué à toutes les cabines :
+     une estimation qui ne correspondait à aucun chantier en particulier. */
+  const [recettes, setRecettes] = useState<Record<string, { ht: number; estime: boolean }>>({});
+  useEffect(() => {
+    fetch("/api/bexio/montants", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j?.recettes) setRecettes(j.recettes); })
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     fetch("/api/projects/cmd-termine")
       .then((r) => (r.ok ? r.json() : []))
@@ -318,7 +329,14 @@ export default function FinancesPage() {
         const mo = (min / 60) * (tauxDe(p) ?? 0);
         const achats = cab * (achat + acc + conso);
         const cout = mo + achats + dep;
-        const recette = vente !== null ? cab * vente : null;
+        /* La recette vient de bexio quand elle existe : c'est le montant
+           facturé pour CE chantier, hors taxes, à comparer à des coûts qui
+           le sont aussi. Le prix de vente moyen ne sert plus que de repli. */
+        const nrTM = numerosTMClient(p.ofrTM).find((n) => recettes[n]);
+        const reelle = nrTM ? recettes[nrTM] : null;
+        const recette = reelle ? reelle.ht : (vente !== null ? cab * vente : null);
+        const source: "facture" | "offre" | "moyenne" | null =
+          reelle ? (reelle.estime ? "offre" : "facture") : (vente !== null ? "moyenne" : null);
         const marge = recette !== null ? recette - cout : null;
         const margePct = recette !== null && recette > 0 ? (marge! / recette) * 100 : null;
         return {
@@ -332,7 +350,7 @@ export default function FinancesPage() {
           coutMO: mo,
           cout,
           coutParCabine: cab > 0 ? cout / cab : 0,
-          marge, margePct,
+          marge, margePct, recette, source,
         };
       })
       .filter((l) => l.cabines > 0 && l.minutes > 0);
@@ -822,7 +840,23 @@ export default function FinancesPage() {
                         <span className="text-xs text-gray-400 w-24 text-right shrink-0">
                           {l.cabines} cab. · {Math.round(l.minutes / 6) / 10} h
                         </span>
-                        <span className="text-xs text-gray-500 w-24 text-right shrink-0">{fmtCHF(l.cout)}</span>
+                        <span className="text-xs text-gray-500 w-24 text-right shrink-0" title="Coût : main-d'œuvre + achats + déplacement">
+                          {fmtCHF(l.cout)}
+                        </span>
+                        {/* Ce que le chantier a rapporté, et d'où le chiffre
+                            vient : une recette facturée et une moyenne ne se
+                            lisent pas de la même façon. */}
+                        <span className="text-xs w-28 text-right shrink-0 text-gray-600 dark:text-gray-300"
+                          title={l.source === "facture" ? "Montant réellement facturé (HT)"
+                            : l.source === "offre" ? "Pas encore facturé : montant de l'offre (HT)"
+                            : l.source === "moyenne" ? "Prix de vente moyen saisi dans les réglages" : ""}>
+                          {l.recette !== null ? fmtCHF(l.recette) : "—"}
+                          {l.source && (
+                            <em className={`not-italic ml-1 text-[10px] ${l.source === "facture" ? "text-green-600" : "text-gray-400"}`}>
+                              {l.source === "facture" ? "fact." : l.source === "offre" ? "offre" : "moy."}
+                            </em>
+                          )}
+                        </span>
                         {l.margePct !== null ? (
                           <span className={`text-xs font-bold w-20 text-right shrink-0 ${
                             deficitaire ? "text-red-600" : sousEstime ? "text-amber-600" : "text-green-600"}`}>
@@ -839,8 +873,8 @@ export default function FinancesPage() {
                 </div>
                 <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
                   {rentabilite.lignes[0]?.margePct !== null
-                    ? "Marge ESTIMÉE : l'app ne connaît pas le prix de vente réel de chaque chantier, elle applique le prix moyen saisi ci-dessus. Rouge = déficitaire, orange = sous la marge cible."
-                    : "Sans prix de vente moyen, seuls les coûts sont comparés entre eux. Orange = plus de 10 % au-dessus du coût moyen par cabine."}
+                    ? "La recette vient de bexio quand le chantier a été facturé (marqué « fact. », hors taxes) ; sinon du montant de l'offre, et à défaut du prix de vente moyen saisi ci-dessus. Rouge = déficitaire, orange = sous la marge cible."
+                    : "Sans recette connue, seuls les coûts sont comparés entre eux. Orange = plus de 10 % au-dessus du coût moyen par cabine."}
                   {" "}Les heures proviennent du pointage des monteurs ; un chantier sans heures pointées n&apos;apparaît pas.
                 </p>
               </>

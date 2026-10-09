@@ -18,8 +18,8 @@ import type { OffreBexio, FactureBexio } from "@/lib/bexio-rapprochement";
 
 /* Version 2 : les factures portent désormais le nom du client. Changer la
    clé évite de servir une copie d'hier à laquelle il manquerait. */
-const CLE_OFFRES = "bexio:offres3";
-const CLE_FACTURES = "bexio:factures3";
+const CLE_OFFRES = "bexio:offres4";
+const CLE_FACTURES = "bexio:factures4";
 const CLE_ACHATS = "bexio:achats1";
 const CLE_COMPTES = "bexio:comptes1";
 const CLE_SYNCHRO = "bexio:synchro";
@@ -47,6 +47,8 @@ interface BrutDocument {
   is_valid_from?: string;
   reference?: string | null;
   contact_address?: string | null;
+  /** Chez bexio, « gross » veut dire HORS TAXES sur une facture de vente. */
+  total_gross?: string | number;
 }
 
 /** Toutes les pages d'un objet bexio, dans l'ordre où il les rend. */
@@ -131,6 +133,7 @@ export async function synchroniserBexio(): Promise<{ offres: number; factures: n
     contactId: o.contact_id ?? null,
     date: (o.is_valid_from || "").slice(0, 10),
     client: nomClient(o.contact_address),
+    ht: nombre(o.total_gross),
   }));
   const factures: FactureBexio[] = brutFactures.map((f) => ({
     id: f.id,
@@ -142,6 +145,7 @@ export async function synchroniserBexio(): Promise<{ offres: number; factures: n
     date: (f.is_valid_from || "").slice(0, 10),
     reference: f.reference || null,
     client: nomClient(f.contact_address),
+    ht: nombre(f.total_gross),
   }));
 
   const achats: AchatBexio[] = brutAchats.map((b) => ({
