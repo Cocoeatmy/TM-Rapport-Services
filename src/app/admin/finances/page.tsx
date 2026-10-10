@@ -428,9 +428,28 @@ export default function FinancesPage() {
       ? (n("creances") as number) + (n("stock") as number) - (n("dettes") as number)
       : null;
 
-    const runway = n("tresorerie") !== null && chargesMois !== null && chargesMois > 0
-      ? (n("tresorerie") as number) / chargesMois
+    /* Runway — deux lectures, parce qu'elles ne disent pas la même chose.
+     *
+     * La trésorerie seule répond à « combien de temps si plus rien ne
+     * rentre » : c'est le pire des cas, et il est trompeur pour une
+     * entreprise qui a déjà facturé son travail. Les créances ne sont pas du
+     * chiffre d'affaires espéré, c'est du travail fait et facturé qui va
+     * rentrer — moins ce qu'on doit aux fournisseurs.
+     *
+     * On affiche donc ce qui est réellement mobilisable, et la trésorerie
+     * seule juste en dessous : une créance à soixante jours ne paie pas le
+     * salaire de la semaine prochaine. */
+    const tresorerie = n("tresorerie");
+    const runwayCaisse = tresorerie !== null && chargesMois !== null && chargesMois > 0
+      ? tresorerie / chargesMois
       : null;
+    const mobilisable = tresorerie !== null
+      ? tresorerie + (n("creances") ?? 0) - (n("dettes") ?? 0)
+      : null;
+    const runway = mobilisable !== null && chargesMois !== null && chargesMois > 0
+      ? mobilisable / chargesMois
+      : null;
+    const avecCreances = n("creances") !== null;
 
     /* La saisie manuelle prime : on ne remplace jamais un chiffre écrit à la
        main, on comble seulement le vide. */
@@ -465,7 +484,9 @@ export default function FinancesPage() {
       {
         id: "runway", label: "Runway", Icon: Timer, color: "#b45309",
         valeur: runway === null ? null : `${Math.round(runway * 10) / 10} mois`,
-        detail: "Nombre de mois que la trésorerie couvre, à charges constantes et sans nouvelle rentrée.",
+        detail: avecCreances
+          ? `Ce que la trésorerie et les créances clients couvrent, dettes fournisseurs déduites, à charges constantes. Trésorerie seule : ${runwayCaisse === null ? "—" : `${Math.round(runwayCaisse * 10) / 10} mois`} — une créance à soixante jours ne paie pas le salaire de la semaine prochaine.`
+          : "Nombre de mois que la trésorerie couvre, à charges constantes et sans nouvelle rentrée.",
         manque: manque("tresorerie", "salaires", "chargesFixes", "autresCharges"),
       },
       {
