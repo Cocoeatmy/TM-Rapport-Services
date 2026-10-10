@@ -1671,6 +1671,9 @@ html[data-ui="signal"] .sg-field-k { font-size: 10px; letter-spacing: 0.05em; co
 html[data-ui="signal"] .sg-field-v {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   font-size: 13px; font-weight: 500; color: var(--sg-text);
+  /* Un numéro de commande peut tenir sur deux lignes dans Notion — celui du
+     client et celui de TM. Les coller bout à bout en ferait un seul. */
+  white-space: pre-line;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* Champ à plusieurs valeurs — les séries d'un projet multi-cabines. Empilées

@@ -1252,6 +1252,22 @@ function InlineField({
         <p className="text-xs text-gray-500">{label}</p>
         {editing ? (
           <div className="mt-0.5 space-y-1">
+            {/* Dès que la valeur tient sur plusieurs lignes, on édite dans une
+                zone de texte : un champ d'une ligne les aurait aplaties à
+                l'enregistrement. Entrée y ajoute une ligne, le ✓ enregistre. */}
+            {type !== "number" && draft.includes("\n") ? (
+              <textarea
+                value={draft}
+                autoFocus
+                rows={Math.min(5, draft.split("\n").length + 1)}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { setEditing(false); setDraft(String(value ?? "")); }
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSave();
+                }}
+                className="text-xs border rounded px-1.5 py-1 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 w-full resize-y"
+              />
+            ) : (
             <input
               type={type}
               value={draft}
@@ -1263,6 +1279,7 @@ function InlineField({
               }}
               className="text-xs border rounded px-1.5 py-1 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 w-full"
             />
+            )}
             <div className="flex gap-1">
               <button onClick={handleSave} disabled={saving}
                 className="flex-1 text-[10px] bg-green-500 text-white py-0.5 rounded hover:bg-green-600">
@@ -1276,7 +1293,11 @@ function InlineField({
           </div>
         ) : (
           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-all">
+            {/* Un champ Notion peut contenir plusieurs lignes — deux numéros
+                de commande, l'un du client, l'autre de TM. Sans cette règle
+                le navigateur les colle bout à bout et l'on croit à une seule
+                référence. */}
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-all whitespace-pre-line">
               {value != null && value !== "" ? String(value) : (
                 isAdmin ? <span className="text-gray-300 text-xs italic">—</span> : null
               )}
@@ -8215,7 +8236,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         }`}
                       >
                         <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{label}</span>
-                        <span className="text-sm font-medium text-gray-800 dark:text-gray-100 text-right break-words">{value}</span>
+                        <span className="text-sm font-medium text-gray-800 dark:text-gray-100 text-right break-words whitespace-pre-line">{value}</span>
                       </div>
                     ))}
                   </div>
