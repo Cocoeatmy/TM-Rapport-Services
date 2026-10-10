@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-08T21:40:22.118Z",
+  "genereLe": "2026-10-10T12:37:49.996Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -237,6 +237,16 @@
       "gardePage": false,
       "methodes": [
         "GET"
+      ]
+    },
+    {
+      "url": "/api/bexio/synchroniser",
+      "type": "api",
+      "fichier": "src/app/api/bexio/synchroniser/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "POST"
       ]
     },
     {

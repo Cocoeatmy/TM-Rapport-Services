@@ -445,6 +445,11 @@ export function CaBexioView() {
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(true);
   const [clientSel, setClientSel] = useState<number | null>(null);
+  /* Synchronisation à la demande : la copie se refait chaque nuit, mais une
+     facture saisie ce matin n'a pas à attendre demain pour compter. */
+  const [synchro, setSynchro] = useState(false);
+  const [message, setMessage] = useState("");
+  const [rafraichi, setRafraichi] = useState(0);
 
   /** Bornes de la fenêtre demandée, selon le mode choisi. */
   const fenetre = useMemo(() => {
@@ -484,7 +489,26 @@ export function CaBexioView() {
       .then(setD)
       .catch((e) => setErreur((e as Error).message))
       .finally(() => setChargement(false));
-  }, [fenetre.de, fenetre.a]);
+  }, [fenetre.de, fenetre.a, rafraichi]);
+
+  const synchroniser = async () => {
+    setSynchro(true);
+    setMessage("");
+    try {
+      const r = await fetch("/api/bexio/synchroniser", { method: "POST", credentials: "include" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error || "Synchronisation impossible");
+      setMessage(
+        `Relu dans bexio : ${j.offres} offres, ${j.factures} factures de vente, ${j.achats} factures fournisseurs.`
+        + (j.indicateurs ? " Créances, dettes et clients mis à jour dans les indicateurs financiers." : ""),
+      );
+      setRafraichi((n) => n + 1);
+    } catch (e) {
+      setMessage((e as Error).message);
+    } finally {
+      setSynchro(false);
+    }
+  };
 
   if (clientSel !== null) {
     return <FicheDuClient id={clientSel} onRetour={() => setClientSel(null)} />;
@@ -503,8 +527,13 @@ export function CaBexioView() {
             {d?.le && ` · relevé du ${new Date(d.le).toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`}
           </p>
         </div>
-        {chargement && <RefreshCw className="w-4 h-4 animate-spin" />}
+        <button type="button" className="sg-fact-maj" onClick={synchroniser} disabled={synchro || chargement}
+          title="Relire les offres, les factures de vente et les factures fournisseurs chez bexio, puis mettre à jour les indicateurs financiers">
+          <RefreshCw className={`w-4 h-4${synchro || chargement ? " animate-spin" : ""}`} />
+          {synchro ? "Lecture chez bexio…" : "Synchroniser bexio"}
+        </button>
       </div>
+      {message && <p className="sg-fact-note">{message}</p>}
 
       {/* Filtre de période — mêmes choix que partout ailleurs dans l'app. */}
       <div className="sg-ca-filtre">
