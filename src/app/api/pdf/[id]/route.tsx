@@ -865,7 +865,16 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
                     const customNom = cabineAttribution?.noms?.[i];
                     const cabLabel = (customNom && customNom !== `Cabine ${i + 1}`) ? customNom : `Cabine ${i + 1}`;
                     const monteurNom = cabineAttribution?.attribution?.[i] || sousTraitMap[i] || null;
-                    const passages = (passagesParLot[i] || []).filter((x) => x.date || x.arrivee || x.depart);
+                    /* Un passage ouvert avant que l'heure de départ n'arrive
+                       reste incomplet dans la liste, alors que la colonne
+                       « Heure départ » la connaît. On complète ici, sinon le
+                       rapport annonce « --:-- » pour une heure bien
+                       enregistrée. */
+                    const passages = (passagesParLot[i] || [])
+                      .filter((x) => x.date || x.arrivee || x.depart)
+                      .map((x) => (x.date && x.date === dateMap[i]
+                        ? { ...x, arrivee: x.arrivee || arriveeMap[i] || "", depart: x.depart || departMap[i] || "" }
+                        : x));
                     /* Plusieurs venues : une ligne chacune, et le total en
                        dessous — c'est ce total qui se facture et se compare. */
                     if (passages.length > 0 && !sousTraitMap[i]) {

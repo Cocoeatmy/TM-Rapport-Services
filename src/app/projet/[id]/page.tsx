@@ -126,6 +126,7 @@ import { getCollaboratorColor } from "@/lib/collaborators";
 import { isMultiDayHours, parsePointages, encodePointages } from "@/lib/pointages";
 import { heureDesPhotos, arriveeAcceptable, departApresPhoto, departValable, type HeurePhoto } from "@/lib/heure-photo";
 import { interventionsDuLot, encodeInterventions, dernierPassage, type InterventionSav } from "@/lib/sav-interventions";
+import { fusionnerPassage } from "@/lib/passage-lot";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
 import { fetchWithRetry, invalidateApiCache } from "@/lib/api-helpers";
@@ -4491,6 +4492,34 @@ function ProjectPageContent({ id }: { id: string }) {
       const departStr = next
         .map((c, i) => (!c.depart && !c.date ? "" : `Cab${i + 1}:${c.date ? `${c.date}:` : ""}${c.depart}`))
         .filter(Boolean).join(" | ");
+      /* La liste des PASSAGES du lot doit suivre : c'est elle que lit le
+         rapport PDF dès qu'elle existe. Sans ça, un lot dont le passage avait
+         été ouvert avant le départ affichait « Départ --:-- » alors que
+         l'heure était bien enregistrée dans la colonne d'à côté — deux
+         versions de la même vérité qui divergent. */
+      const lot = next[idx0];
+      if (lot.date && (lot.arrivee || lot.depart)) {
+        const avant = parseCabineTextMulti(project?.interventionsMontageCabines || "")[cabineIdx] || "";
+        const apres = fusionnerPassage(avant, {
+          date: lot.date,
+          arrivee: lot.arrivee || undefined,
+          depart: lot.depart || undefined,
+          collaborateurs: lot.monteur || undefined,
+        });
+        if (apres !== avant) {
+          setProject((prev) => {
+            if (!prev) return prev;
+            const map = parseCabineTextMulti(prev.interventionsMontageCabines || "");
+            map[cabineIdx] = apres;
+            return { ...prev, interventionsMontageCabines: encodeSousTraitance(map) };
+          });
+          offlineFetch(`/api/projects/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ interventionsMontageCabines: `Cab${cabineIdx}:${apres}` }),
+          }).catch(console.error);
+        }
+      }
       offlineFetch(`/api/projects/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
