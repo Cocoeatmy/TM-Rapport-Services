@@ -28,7 +28,7 @@ import {
 /* ── Champs à saisir ──────────────────────────────────────────────────────
    Regroupés par thème, chacun avec l'unité et ce à quoi il sert. */
 type Champ = { id: string; label: string; unite: string; aide: string };
-type Groupe = { titre: string; sous: string; champs: Champ[] };
+type Groupe = { titre: string; sous: string; champs: Champ[]; monteurs?: boolean };
 
 const GROUPES: Groupe[] = [
   {
@@ -82,13 +82,11 @@ const GROUPES: Groupe[] = [
     champs: [
       { id: "heuresMois", label: "Heures travaillées par mois", unite: "h / mois", aide: "Base de conversion du salaire en coût horaire. 182 h si laissé vide (42 h par semaine)." },
       { id: "chargesPatronales", label: "Charges patronales", unite: "% du brut", aide: "AVS, LPP, LAA, allocations. S'ajoutent au salaire brut pour obtenir le coût réel." },
-      ...COLLABORATEURS_LIST.map((nom) => ({
-        id: `taux_${nom}`,
-        label: nom,
-        unite: "CHF / mois",
-        aide: "",
-      })),
     ],
+    /* Les monteurs ne sont pas une constante : il en part, il en arrive. La
+       liste se tient donc dans les réglages, et retirer quelqu'un n'efface
+       PAS son salaire — les chantiers qu'il a faits gardent leur coût juste. */
+    monteurs: true,
   },
   {
     titre: "Investissement",
@@ -151,6 +149,8 @@ export default function FinancesPage() {
   /* Ce que bexio sait déjà. Trois de ces champs étaient demandés à la main
      alors que la comptabilité les connaît au franc près — et une créance
      recopiée le mois dernier est fausse ce mois-ci. */
+  /** Saisie du nouveau collaborateur à ajouter à la liste des salaires. */
+  const [nouveauMonteur, setNouveauMonteur] = useState("");
   const [bexio, setBexio] = useState<{
     creances: number; dettes: number; ca12: number; achats12: number;
     marge: number; margePct: number | null; clients: number; retard: number;
@@ -382,6 +382,24 @@ export default function FinancesPage() {
     };
   }, [chantiers, annee, n]);
 
+  /** Monteurs affichés : la liste enregistrée, ou celle de l'app au départ. */
+  const listeMonteurs = useMemo(() => {
+    const brut = String(vals.monteursSalaires ?? "").trim();
+    return brut ? brut.split(",").map((x) => x.trim()).filter(Boolean) : [...COLLABORATEURS_LIST];
+  }, [vals.monteursSalaires]);
+
+  const retirerMonteur = (nom: string) => {
+    /* On retire de la LISTE, pas des valeurs : le salaire enregistré sert
+       encore à calculer le coût des chantiers déjà faits par cette personne. */
+    setVals((v) => ({ ...v, monteursSalaires: listeMonteurs.filter((x) => x !== nom).join(",") }));
+  };
+  const ajouterMonteur = () => {
+    const nom = nouveauMonteur.trim();
+    if (!nom || listeMonteurs.includes(nom)) { setNouveauMonteur(""); return; }
+    setVals((v) => ({ ...v, monteursSalaires: [...listeMonteurs, nom].join(",") }));
+    setNouveauMonteur("");
+  };
+
   /* ── Indicateurs ────────────────────────────────────────────────────────
      Chacun dit ce qui lui manque plutôt que d'afficher un chiffre faux. */
   const indicateurs = useMemo(() => {
@@ -394,7 +412,16 @@ export default function FinancesPage() {
     const chargesMois = chargesCompletes ? chargesMensuelles.reduce((s, x) => s + (x as number), 0) : null;
     const chargesAnnee = chargesMois !== null ? chargesMois * 12 : null;
 
-    const ebitda = chargesAnnee !== null ? ca - chargesAnnee : null;
+    /* Une année en cours n'a pas douze mois de chiffre d'affaires, mais on
+       lui opposait douze mois de charges : en octobre, l'EBITDA paraissait
+       négatif alors que l'exercice était bénéficiaire. On compare donc sur
+       la même durée, et la carte dit laquelle. */
+    const moisEcoules = annee === String(new Date().getFullYear())
+      ? Math.max(1, new Date().getMonth() + 1)
+      : 12;
+    const caCompare = ca;
+    const chargesCompare = chargesMois !== null ? chargesMois * moisEcoules : null;
+    const ebitda = chargesCompare !== null ? caCompare - chargesCompare : null;
 
     const bfrIds = ["creances", "stock", "dettes"];
     const bfr = bfrIds.every((id) => n(id) !== null)
@@ -424,7 +451,9 @@ export default function FinancesPage() {
       {
         id: "ebitda", label: "EBITDA", Icon: TrendingUp, color: "#0f766e",
         valeur: ebitda === null ? null : fmtCHF(ebitda),
-        detail: `Chiffre d'affaires ${annee} moins les charges d'exploitation de l'année.`,
+        detail: moisEcoules < 12
+          ? `Chiffre d'affaires ${annee} moins les charges des ${moisEcoules} mois écoulés — même durée des deux côtés.`
+          : `Chiffre d'affaires ${annee} moins les charges d'exploitation de l'année.`,
         manque: manque("salaires", "chargesFixes", "autresCharges"),
       },
       {
@@ -718,7 +747,14 @@ export default function FinancesPage() {
           )}
 
           {/* Champs à remplir */}
-          {GROUPES.map((g) => (
+          {GROUPES.map((g) => ({
+            ...g,
+            champs: g.monteurs
+              ? [...g.champs, ...listeMonteurs.map((nom) => ({
+                  id: `taux_${nom}`, label: nom, unite: "CHF / mois", aide: "", monteur: nom,
+                }))]
+              : g.champs,
+          })).map((g) => (
             <div key={g.titre} className="glass-card rounded-2xl p-5 mb-4">
               <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{g.titre}</h2>
               <p className="text-xs text-gray-400 mb-4">{g.sous}</p>
@@ -742,6 +778,14 @@ export default function FinancesPage() {
                     {/* Ce que le salaire saisi donne à l'heure : le chiffre
                         qui sert vraiment aux calculs doit être visible, pas
                         caché dans une formule. */}
+                    {(c as { monteur?: string }).monteur && (
+                      <button type="button"
+                        title={`Retirer ${(c as { monteur?: string }).monteur} de la liste · son salaire reste enregistré pour les chantiers déjà faits`}
+                        onClick={() => retirerMonteur((c as { monteur?: string }).monteur as string)}
+                        className="h-8 w-8 shrink-0 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                     {c.id.startsWith("taux_") && (() => {
                       const h = coutHoraire(Number(vals[c.id]), {
                         heuresMois: Number(vals.heuresMois) || null,
@@ -760,6 +804,27 @@ export default function FinancesPage() {
                     })()}
                   </div>
                 ))}
+                {g.monteurs && (
+                  <div className="flex flex-wrap items-center gap-3 pt-3 mt-1 border-t border-gray-100 dark:border-gray-700/50">
+                    <label className="w-full sm:w-64 shrink-0">
+                      <span className="block text-sm text-gray-700 dark:text-gray-200">Ajouter un collaborateur&nbsp;:</span>
+                      <span className="block text-[11px] text-gray-400">
+                        le prénom doit s&apos;écrire comme dans les chantiers, sinon ses heures ne lui seront pas rattachées
+                      </span>
+                    </label>
+                    <input
+                      value={nouveauMonteur}
+                      onChange={(e) => setNouveauMonteur(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); ajouterMonteur(); } }}
+                      placeholder="Prénom"
+                      className="flex-1 min-w-[120px] h-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-700 px-3 text-sm"
+                    />
+                    <button type="button" onClick={ajouterMonteur} disabled={!nouveauMonteur.trim()}
+                      className="h-10 px-4 rounded-lg bg-[#1e3a5f] hover:bg-[#2a4a73] disabled:opacity-40 text-white text-sm font-semibold">
+                      Ajouter
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
