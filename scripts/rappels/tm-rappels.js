@@ -1,8 +1,11 @@
-// Pose les signalements encore ouverts dans une liste de l'app Rappels, via
-// EventKit — la même API que l'agent calendrier, avec l'entité « rappel » au
-// lieu de « événement ».
+// Tient à jour une liste de l'app Rappels à partir de l'app, via EventKit —
+// la même API que l'agent calendrier, avec l'entité « rappel » au lieu de
+// « événement ».
 //
-// Usage : osascript -l JavaScript tm-rappels-signalements.js "<BASE_URL>" "<SHARE_LINK_KEY>" ["<NOM DE LA LISTE>"]
+// Usage : osascript -l JavaScript tm-rappels.js "<BASE_URL>" "<CLE>" "<LISTE>" "<CATEGORIE>"
+//
+// La CATÉGORIE nomme l'endpoint : /api/rappels/<catégorie>. Chaque catégorie
+// a sa liste. Le script ne sait rien du métier — il compare et il écrit.
 //
 // Ce que le script NE fait pas, volontairement :
 //
@@ -31,8 +34,7 @@ function run(argv) {
   const baseURL = String(argv[0]).replace(/\/+$/, '');
   const apiKey = argv[1];
   const listeVoulue = argv[2] || 'Signalements';
-  // Repli : la liste telle qu'elle existe aujourd'hui chez lui.
-  const listeRepli = 'TM Douche Montage';
+  const categorie = argv[3] || 'signalements';
 
   const app = Application.currentApplication();
   app.includeStandardAdditions = true;
@@ -100,7 +102,7 @@ function run(argv) {
   // Passage par un fichier : la réponse fait plusieurs dizaines de kilo-octets,
   // et la faire transiter par la sortie d'un shell est un pari inutile.
   const tmp = '/tmp/tm-rappels-' + $.NSProcessInfo.processInfo.processIdentifier + '.json';
-  const reqURL = baseURL + '/api/rappels/signalements?key=' + apiKey;
+  const reqURL = baseURL + '/api/rappels/' + categorie + '?key=' + apiKey;
   try {
     app.doShellScript("/usr/bin/curl -fsS --max-time 60 -o " + JSON.stringify(tmp)
       + " " + JSON.stringify(reqURL));
@@ -138,7 +140,12 @@ function run(argv) {
   }
   if (trouves === null) return 'LECTURE DES RAPPELS EN TIMEOUT';
 
-  const MARQUEUR = /\[(tm:(?:piece|defaut):[A-Za-z0-9_-]+)\]/;
+  /* Chaque catégorie ne regarde QUE ses propres familles de marqueurs. Sans
+     ce filtre, le passage « signalements » cocherait les rappels de
+     facturation au seul motif qu'ils ne sont pas dans sa liste à lui. */
+  const familles = (Array.isArray(data.familles) && data.familles.length)
+    ? data.familles : ['piece', 'defaut'];
+  const MARQUEUR = new RegExp('\\[(tm:(?:' + familles.join('|') + '):[A-Za-z0-9_-]+)\\]');
   const existants = new Map();
   for (let i = 0; i < trouves.count; i++) {
     const rem = trouves.objectAtIndex(i);
@@ -210,23 +217,26 @@ function run(argv) {
   });
 
   // ── Remonter vers l'app ce qui a été coché ici ──────────────────────────────
+  // L'API dit elle-même si le retour a un sens : facturer, c'est bexio qui
+  // le constate, pas une case cochée.
+  const deuxSens = (data.cloture === 'deux-sens');
   let remontes = 0;
-  if (aCloturer.length > 0) {
+  if (deuxSens && aCloturer.length > 0) {
     const corps = JSON.stringify({ key: apiKey, cloturer: aCloturer });
     const envoi = '/tmp/tm-rappels-post-' + $.NSProcessInfo.processInfo.processIdentifier + '.json';
     try {
       $(corps).writeToFileAtomicallyEncodingError(envoi, true, $.NSUTF8StringEncoding, $());
       const rep = app.doShellScript("/usr/bin/curl -fsS --max-time 60 -X POST"
         + " -H 'Content-Type: application/json' --data-binary @" + JSON.stringify(envoi)
-        + " " + JSON.stringify(baseURL + '/api/rappels/signalements'));
+        + " " + JSON.stringify(baseURL + '/api/rappels/' + categorie));
       const j = JSON.parse(rep);
       remontes = (j && j.ok) ? Number(j.clos || 0) : 0;
     } catch (e) { remontes = -1; }
     try { $.NSFileManager.defaultManager.removeItemAtPathError(envoi, $()); } catch (e) {}
   }
 
-  return 'liste "' + nomListe + '" — ouverts: ' + voulus.size
+  return 'liste "' + nomListe + '" — à traiter: ' + voulus.size
     + ' | créés: ' + crees + ' | déplacés: ' + deplaces + ' | mis à jour: ' + majs
     + ' | cochés car réglés dans l\'app: ' + coches
-    + ' | réglés dans l\'app car cochés ici: ' + (remontes < 0 ? 'ECHEC' : remontes);
+    + (deuxSens ? ' | réglés dans l\'app car cochés ici: ' + (remontes < 0 ? 'ECHEC' : remontes) : '');
 }

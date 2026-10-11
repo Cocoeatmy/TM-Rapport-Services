@@ -63,7 +63,18 @@ export async function GET(req: NextRequest) {
       { origine: req.nextUrl.origin },
     );
 
-    return NextResponse.json({ ok: true, le: new Date().toISOString(), liste });
+    return NextResponse.json({
+      ok: true,
+      le: new Date().toISOString(),
+      /* L'agent lit cette ligne pour savoir s'il doit remonter les cases
+         cochées : ici oui, cocher un rappel règle le signalement. */
+      cloture: "deux-sens",
+      /* Les familles de marqueurs que cette liste gouverne. Sans elles,
+         l'agent cocherait les rappels d'une AUTRE catégorie au seul motif
+         qu'ils ne figurent pas dans sa propre liste. */
+      familles: ["piece", "defaut"],
+      liste,
+    });
   } catch (err: any) {
     return NextResponse.json(
       { ok: false, error: "server_error", message: String(err?.message || err) },

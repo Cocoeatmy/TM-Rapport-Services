@@ -4,10 +4,15 @@
 
 BASE_URL="https://tm-rapport-services.vercel.app"
 SHARE_LINK_KEY="REMPLACER_PAR_VOTRE_CLE"
-# Nom de la LISTE Rappels à remplir — pas une section : l'app Rappels sait
-# découper une liste en sections, mais aucune API d'Apple ne les expose.
-# Si la liste n'existe pas, l'agent la crée.
-LISTE="Signalements"
+
+# Une ligne par catégorie : "<catégorie API>|<nom de la LISTE Rappels>".
+# Une LISTE, pas une section : l'app Rappels sait découper une liste en
+# sections, mais aucune API d'Apple ne les expose. Si la liste n'existe pas,
+# l'agent la crée.
+CATEGORIES=(
+  "signalements|Signalements"
+  "facturation|Facturations"
+)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -19,7 +24,11 @@ if ! mkdir "$LOCKDIR" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] synchro des signalements…"
-# Basse priorité CPU + QoS « background » : l'agent cède le pas à l'usage.
-nice -n 5 /usr/sbin/taskpolicy -b /usr/bin/osascript -l JavaScript \
-  "$SCRIPT_DIR/tm-rappels-signalements.js" "$BASE_URL" "$SHARE_LINK_KEY" "$LISTE"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] synchro Rappels…"
+for entree in "${CATEGORIES[@]}"; do
+  categorie="${entree%%|*}"
+  liste="${entree#*|}"
+  # Basse priorité CPU + QoS « background » : l'agent cède le pas à l'usage.
+  nice -n 5 /usr/sbin/taskpolicy -b /usr/bin/osascript -l JavaScript \
+    "$SCRIPT_DIR/tm-rappels.js" "$BASE_URL" "$SHARE_LINK_KEY" "$liste" "$categorie"
+done

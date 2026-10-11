@@ -22,6 +22,16 @@
  *    L'ancienneté passe par la PRIORITÉ, qui trie sans sonner.
  */
 
+import {
+  type Rappel, type OptionsRappels, type FicheProjet,
+  dateSuisse, ageEnJours, prioriteSelonAge, court, jetonProjet,
+} from "@/lib/rappels";
+
+/* Réexportés : l'agent et les tests parlent de « rappels de signalements »,
+   pas de la boîte à outils qu'il y a dessous. */
+export type { Rappel, FicheProjet, OptionsRappels };
+export { dateSuisse, ageEnJours, prioriteSelonAge, jetonProjet };
+
 export interface CommentaireBrut {
   user?: string;
   message?: string;
@@ -51,23 +61,6 @@ export interface SignalementBrut {
   comments?: CommentaireBrut[];
 }
 
-/** Ce que l'agent a besoin de savoir pour poser un rappel, et rien de plus. */
-export interface Rappel {
-  /** Marqueur stable écrit dans les notes : c'est lui qui relie les deux côtés. */
-  cle: string;
-  titre: string;
-  notes: string;
-  /** Champ URL du rappel : le geste à faire, pas la lecture. */
-  url: string;
-  /** Convention EventKit : 1 = haute, 5 = moyenne, 9 = basse. */
-  priorite: number;
-}
-
-export interface FicheProjet {
-  /** N° OFR TM — c'est ainsi qu'il appelle ses chantiers. */
-  ofrTM?: string;
-  projet?: string;
-}
 
 /** Statuts qui ferment un signalement, des deux familles. */
 const CLOS = new Set(["recu", "resolu"]);
@@ -92,51 +85,6 @@ const STATUTS: Record<string, string> = {
   resolu: "résolu",
 };
 
-/** Date suisse lisible : « 29.05.2026 à 08:41 ». */
-export function dateSuisse(ms: number | undefined): string {
-  if (!ms || !Number.isFinite(ms)) return "";
-  const d = new Date(ms);
-  const p = new Intl.DateTimeFormat("fr-CH", {
-    timeZone: "Europe/Zurich",
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit", hour12: false,
-  }).formatToParts(d);
-  const v = (t: string) => p.find((x) => x.type === t)?.value || "";
-  return `${v("day")}.${v("month")}.${v("year")} à ${v("hour")}:${v("minute")}`;
-}
-
-/** Jours écoulés depuis le signalement. */
-export function ageEnJours(ms: number | undefined, maintenant: number): number {
-  if (!ms || !Number.isFinite(ms)) return 0;
-  return Math.max(0, Math.floor((maintenant - ms) / 86400000));
-}
-
-/**
- * L'urgence se lit sur l'âge.
- *
- * Rien d'autre ne la porte : un défaut n'a pas de niveau de gravité dans
- * l'app, et celui qui le signale n'en met pas. Ce qui distingue vraiment deux
- * signalements, c'est qu'on en ait laissé un traîner quatre mois.
- */
-export function prioriteSelonAge(jours: number): number {
-  if (jours > 60) return 1;
-  if (jours > 21) return 5;
-  return 9;
-}
-
-/** Coupe sans trancher un mot au milieu. */
-function court(texte: string, max: number): string {
-  const t = texte.replace(/\s+/g, " ").trim();
-  if (t.length <= max) return t;
-  const bout = t.slice(0, max);
-  const esp = bout.lastIndexOf(" ");
-  return (esp > max * 0.6 ? bout.slice(0, esp) : bout).replace(/[,;:.\s]+$/, "") + "…";
-}
-
-/** Le jeton public d'un projet — le même que /client/<token> et /sig/<token>. */
-export function jetonProjet(projectId: string): string {
-  return Buffer.from(projectId, "utf8").toString("base64url");
-}
 
 /** Les photos d'un signalement, dédoublonnées, pièces et défauts confondus. */
 export function photosDe(s: SignalementBrut): string[] {
@@ -144,12 +92,6 @@ export function photosDe(s: SignalementBrut): string[] {
   return [...new Set(brut.map((u) => u.trim()).filter(Boolean))];
 }
 
-export interface OptionsRappels {
-  /** Racine publique de l'app, sans barre finale. */
-  origine: string;
-  /** Pour figer l'horloge dans les tests. */
-  maintenant?: number;
-}
 
 /**
  * Met un signalement en fiche de rappel.

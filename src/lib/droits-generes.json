@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-11T21:30:52.650Z",
+  "genereLe": "2026-10-11T22:08:24.416Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -1012,13 +1012,24 @@
       ]
     },
     {
+      "url": "/api/rappels/facturation",
+      "type": "api",
+      "fichier": "src/app/api/rappels/facturation/route.ts",
+      "niveau": "cle-secrete",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
       "url": "/api/rappels/signalements",
       "type": "api",
       "fichier": "src/app/api/rappels/signalements/route.ts",
       "niveau": "cle-secrete",
       "gardePage": false,
       "methodes": [
-        "GET"
+        "GET",
+        "POST"
       ]
     },
     {
