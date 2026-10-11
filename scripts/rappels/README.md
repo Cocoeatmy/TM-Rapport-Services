@@ -48,6 +48,10 @@ Le nom de la liste visée se règle dans `run-rappels.sh` (variable `LISTE`).
   conservée.
 - **Il ne supprime jamais rien.** Un signalement réglé fait cocher son rappel,
   pas disparaître.
+- **Il reconnaît ses rappels où qu'ils soient.** Le marqueur est cherché dans
+  toutes tes listes : un rappel déplacé à la main n'est jamais recréé en
+  double. Tu peux donc migrer vers une liste « Signalements » en y faisant
+  simplement glisser les rappels existants, puis en changeant `LISTE`.
 - **Il n'écrit rien dans l'app ni dans Notion.** Le trajet est à sens unique :
   app → Rappels.
 - **Les constats « avant intervention » sont écartés.** Ce sont des états des

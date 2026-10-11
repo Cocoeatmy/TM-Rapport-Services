@@ -103,9 +103,16 @@ function run(argv) {
   data.liste.forEach(function (r) { if (r && r.cle) voulus.set(r.cle, r); });
 
   // ── Ce qui est déjà posé, cochés compris ────────────────────────────────────
-  // Les cochés comptent : sans eux, un rappel traité à la main renaîtrait au
-  // passage suivant.
-  const pred = store.predicateForRemindersInCalendars($([liste]));
+  //
+  // On regarde TOUTES les listes, pas seulement la cible. Deux raisons :
+  //  • les cochés comptent — sans eux, un rappel traité à la main renaîtrait
+  //    au passage suivant ;
+  //  • un rappel déplacé à la main vers une autre liste reste reconnu. Sans
+  //    cela, le jour où la liste cible change, l'agent recréerait tout en
+  //    double et laisserait l'ancienne série orpheline.
+  // Seuls les rappels portant le marqueur sont retenus : le reste de tes
+  // listes personnelles n'est ni lu ni touché au-delà de ce filtre.
+  const pred = store.predicateForRemindersInCalendars(toutes);
   let trouves = null;
   store.fetchRemindersMatchingPredicateCompletion(pred, function (res) { trouves = res; });
   let tours = 0;
