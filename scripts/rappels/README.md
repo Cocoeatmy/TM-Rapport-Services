@@ -1,9 +1,23 @@
-# Agent signalements ↔ app Rappels
+# Agent app → app Rappels
 
-Pose dans l'app **Rappels** tous les signalements (pièces manquantes, défauts,
-constats d'avant-intervention) encore ouverts, et les tient à jour **dans les
-deux sens** : réglé dans l'app → coché dans Rappels ; coché dans Rappels →
-réglé dans l'app.
+Tient à jour des listes de l'app **Rappels** à partir de l'app TM.
+Une catégorie = un endpoint `/api/rappels/<catégorie>` + une liste Rappels,
+déclarées ensemble dans `CATEGORIES` de `run-rappels.sh`.
+
+| Liste | Contenu | Clôture |
+| --- | --- | --- |
+| **Signalements** | pièces manquantes, défauts et constats d'avant-intervention encore ouverts | **deux sens** |
+| **Facturations** | chantiers terminés qu'aucune facture bexio ne couvre | sens unique (bexio fait foi) |
+
+> La liste **Facturations** est souvent vide, et c'est le but : elle ne se
+> remplit que lorsqu'un montage terminé n'est couvert par aucune facture.
+> Elle ne retient QUE « aucune facture trouvée ». Les rapprochements
+> incertains (« probable », « même montant ») restent sur la page Facturation
+> de l'app : la première analyse annonçait 155 chantiers et 68 000 francs
+> manquants, il en restait six après vérification.
+>
+> Ces données viennent de bexio : elles ne sortent pas de ce Mac et de cet
+> iCloud. Aucun collaborateur n'a ni la clé, ni la liste.
 
 Un rappel porte, dans cet ordre : le **lien du chantier** (première ligne,
 cliquable), le nom du chantier, le **n° OFR TM**, le lot, le type, la référence
