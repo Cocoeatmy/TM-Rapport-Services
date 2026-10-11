@@ -10,16 +10,16 @@
  * Deux règles tirées des données réelles (relevé du 11 octobre 2026, 25
  * pièces et 70 défauts) :
  *
- *  • un défaut de phase « avant-intervention » n'est PAS un problème à
- *    traiter : c'est un constat d'état des lieux, photographié avant de
- *    poser. Dix des quarante-deux défauts ouverts sont dans ce cas. Les
- *    verser dans une liste de tâches, c'est demander de réparer un mur qui
- *    était déjà abîmé à l'arrivée ;
+ *  • TOUS les signalements ouverts y vont, constats d'avant-intervention
+ *    compris — c'est la demande, et elle se tient : un constat est un
+ *    engagement vis-à-vis du client, pas un déchet. Il porte seulement un
+ *    type qui le distingue, « Constat avant intervention », pour qu'on ne
+ *    le confonde pas avec un défaut à réparer ;
  *
- *  • il reste une quarantaine de signalements réellement ouverts, dont la
- *    moitié a plus d'un mois. Aucune échéance n'est posée : quarante rappels
- *    en retard le premier jour, et la liste se fait couper au bout d'une
- *    semaine. L'ancienneté passe par la PRIORITÉ, qui trie sans sonner.
+ *  • il y a une cinquantaine de signalements ouverts, dont la moitié a plus
+ *    d'un mois. Aucune échéance n'est posée : cinquante rappels en retard le
+ *    premier jour, et la liste se fait couper au bout d'une semaine.
+ *    L'ancienneté passe par la PRIORITÉ, qui trie sans sonner.
  */
 
 export interface CommentaireBrut {
@@ -168,7 +168,11 @@ export function enRappel(
   const origine = o.origine.replace(/\/+$/, "");
   const tm = (fiche.ofrTM || "").split(/[\n,;]+/)[0].trim();
   const chantier = fiche.projet || s.projectName || "Chantier inconnu";
-  const genre = famille === "piece" ? "Pièce manquante" : (s.typesLabel || "Défaut");
+  const genre = famille === "piece"
+    ? "Pièce manquante"
+    : estConstat(s)
+      ? `Constat avant intervention${s.typesLabel ? ` — ${s.typesLabel}` : ""}`
+      : (s.typesLabel || "Défaut");
   const description = String(s.description || "").trim();
   const jours = ageEnJours(s.timestamp, maintenant);
 
@@ -176,8 +180,20 @@ export function enRappel(
   const tete = tm || court(chantier, 22);
   const titre = `${tete} · ${genre}${description ? ` — ${court(description, 58)}` : ""}`;
 
+  const cab = s.cabineLabel && s.cabineLabel.trim()
+    ? `?signalement=${encodeURIComponent(s.cabineLabel.trim())}`
+    : "?signalement=1";
+  const url = `${origine}/projet/${s.projectId}${cab}`;
+
   // ── Notes : tout le reste, dans l'ordre où la question se pose. ──
   const l: string[] = [];
+  /* Le lien EN PREMIER, avant tout le reste. Le champ « URL » de l'app
+     Rappels n'est accessible ni à EventKit ni à AppleScript — on l'a cherché.
+     La note, elle, s'affiche sous le titre dans la liste, et Rappels y rend
+     les adresses cliquables : le chantier s'ouvre d'un geste, sans dépiauter
+     la fiche. */
+  l.push(`→ Ouvrir le chantier : ${url}`);
+  l.push("");
   l.push(`Chantier : ${chantier}`);
   if (tm) l.push(`N° OFR : ${tm}`);
   if (s.cabineLabel && s.cabineLabel.trim()) l.push(`Lot : ${s.cabineLabel.trim()}`);
@@ -217,16 +233,7 @@ export function enRappel(
     l.push(`Photos (${photos.length}) :`);
     photos.forEach((u) => l.push(u));
   }
-  const cab = s.cabineLabel && s.cabineLabel.trim()
-    ? `?signalement=${encodeURIComponent(s.cabineLabel.trim())}`
-    : "?signalement=1";
-  const url = `${origine}/projet/${s.projectId}${cab}`;
-
-  /* Le lien est aussi dans le champ URL du rappel, mais on le répète ici :
-     c'est la note qu'on lit, et sur un téléphone le champ URL demande
-     d'ouvrir le détail. */
   l.push("");
-  l.push(`Traiter dans l'app : ${url}`);
   l.push(`Rapport signalements (PDF) : ${origine}/sig/${jetonProjet(s.projectId)}`);
   l.push("");
   const cle = `tm:${famille}:${s.id}`;
@@ -249,7 +256,9 @@ export function listeDesRappels(
 ): Rappel[] {
   const retenus: { s: SignalementBrut; f: "piece" | "defaut" }[] = [
     ...pieces.filter(estOuvert).map((s) => ({ s, f: "piece" as const })),
-    ...defauts.filter((s) => estOuvert(s) && !estConstat(s)).map((s) => ({ s, f: "defaut" as const })),
+    /* Constats d'avant-intervention compris : ils sont demandés, et leur
+       type suffit à les distinguer d'un défaut à réparer. */
+    ...defauts.filter(estOuvert).map((s) => ({ s, f: "defaut" as const })),
   ];
   retenus.sort((a, b) => (a.s.timestamp || 0) - (b.s.timestamp || 0));
   return retenus.map(({ s, f }) => enRappel(s, f, fiches.get(s.projectId) || {}, o));

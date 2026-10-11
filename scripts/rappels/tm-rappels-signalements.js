@@ -13,10 +13,9 @@
 //  • il ne touche QUE les rappels portant son marqueur « [tm:…] ». Un rappel
 //    écrit à la main dans la même liste n'est jamais modifié ni coché ;
 //
-//  • il ne ressuscite pas un rappel coché à la main. Si le signalement est
-//    encore ouvert dans l'app mais que la case a été cochée ici, c'est un
-//    geste délibéré : le lui réimposer toutes les dix minutes serait une
-//    guerre que l'outil ne peut que perdre ;
+//  • cocher ici RÈGLE le signalement dans l'app : la synchro est un
+//    aller-retour. Régler dans l'app coche le rappel, cocher le rappel règle
+//    dans l'app — avec un commentaire qui dit d'où vient la clôture ;
 //
 //  • il n'écrit ni échéance ni drapeau. La moitié des signalements a plus
 //    d'un mois : des échéances les afficheraient tous en retard dès le
@@ -63,20 +62,37 @@ function run(argv) {
   if (status !== FULL) return 'ACCES RAPPELS REFUSE (statut ' + status + ')';
 
   // ── La liste cible ──────────────────────────────────────────────────────────
-  const toutes = store.calendarsForEntityType(REMINDER);
+  //
+  // Une LISTE, et non une « section » : l'app Rappels sait découper une liste
+  // en sections, mais Apple ne les expose NULLE PART — ni `EKReminder.section`
+  // (le sélecteur n'existe pas), ni le dictionnaire AppleScript de Rappels,
+  // qui ne connaît que compte / liste / rappel. Aucun programme ne peut donc
+  // déposer quoi que ce soit dans une section. La liste du même nom est le
+  // seul équivalent atteignable ; rangée dans un groupe, elle donne le même
+  // classement à l'écran.
+  //
+  // Si elle n'existe pas, on la crée : mieux vaut une liste juste que des
+  // rappels au mauvais endroit.
+  let toutes = store.calendarsForEntityType(REMINDER);
   const noms = [];
-  let liste = null, repli = null;
+  let liste = null;
   for (let i = 0; i < toutes.count; i++) {
     const c = toutes.objectAtIndex(i);
     const n = ObjC.unwrap(c.title) || '';
     noms.push(n);
     if (n === listeVoulue) liste = c;
-    if (n === listeRepli) repli = c;
   }
-  if (!liste) liste = repli;
   if (!liste) {
-    return 'LISTE INTROUVABLE : ni "' + listeVoulue + '" ni "' + listeRepli
-      + '". Listes disponibles : ' + noms.join(' | ');
+    const modele = store.defaultCalendarForNewReminders;
+    if (modele.isNil()) return 'AUCUNE LISTE DE RAPPELS (listes vues : ' + noms.join(' | ') + ')';
+    const neuve = $.EKCalendar.calendarForEntityTypeEventStore(REMINDER, store);
+    neuve.title = $(listeVoulue);
+    neuve.source = modele.source;
+    try { store.saveCalendarCommitError(neuve, true, $()); } catch (e) {
+      return 'CREATION DE LA LISTE "' + listeVoulue + '" IMPOSSIBLE : ' + e;
+    }
+    liste = neuve;
+    toutes = store.calendarsForEntityType(REMINDER);
   }
   const nomListe = ObjC.unwrap(liste.title);
 
@@ -131,9 +147,11 @@ function run(argv) {
     if (m) existants.set(m[1], rem);
   }
 
-  let crees = 0, majs = 0, coches = 0, ignores = 0;
+  let crees = 0, majs = 0, deplaces = 0, coches = 0;
+  // Cochés ici alors que l'app les croit ouverts → à régler dans l'app.
+  const aCloturer = [];
 
-  // ── Créer et mettre à jour ──────────────────────────────────────────────────
+  // ── Créer, déplacer, mettre à jour ──────────────────────────────────────────
   voulus.forEach(function (r, cle) {
     const deja = existants.get(cle);
     if (!deja) {
@@ -146,9 +164,20 @@ function run(argv) {
       try { store.saveReminderCommitError(rem, true, $()); crees++; } catch (e) {}
       return;
     }
-    // Coché à la main alors que le signalement reste ouvert : c'est un choix,
-    // on le respecte et on ne réécrit rien.
-    if (deja.completed) { ignores++; return; }
+
+    /* Coché ici alors que le signalement est encore ouvert dans l'app : on le
+       remonte pour le régler là-bas. Au passage suivant, le signalement ne
+       sera plus dans la liste des ouverts et le rappel restera coché, sans
+       qu'on ait à le rouvrir ni à le combattre. */
+    if (deja.completed) { aCloturer.push(cle); return; }
+
+    /* Rappel posé ailleurs — liste renommée, ou déplacé à la main : on le
+       ramène dans la liste cible plutôt que d'en créer un second. */
+    let bouge = false;
+    if (ObjC.unwrap(deja.calendar.calendarIdentifier) !== ObjC.unwrap(liste.calendarIdentifier)) {
+      deja.calendar = liste;
+      bouge = true;
+    }
 
     const titreActuel = ObjC.unwrap(deja.title) || '';
     const notesActuelles = ObjC.unwrap(deja.notes) || '';
@@ -156,13 +185,17 @@ function run(argv) {
     const prioActuelle = Number(deja.priority);
     const change = (titreActuel !== r.titre) || (notesActuelles !== r.notes)
       || (prioActuelle !== r.priorite) || (urlActuelle !== (r.url || ''));
-    if (!change) return;
+    if (!change && !bouge) return;
 
     if (titreActuel !== r.titre) deja.title = $(r.titre);
     if (notesActuelles !== r.notes) deja.notes = $(r.notes);
     if (prioActuelle !== r.priorite) deja.priority = r.priorite;
     if (r.url && urlActuelle !== r.url) deja.URL = $.NSURL.URLWithString($(r.url));
-    try { store.saveReminderCommitError(deja, true, $()); majs++; } catch (e) {}
+    try {
+      store.saveReminderCommitError(deja, true, $());
+      if (bouge) deplaces++;
+      if (change) majs++;
+    } catch (e) {}
   });
 
   // ── Cocher ce qui a été réglé dans l'app ────────────────────────────────────
@@ -176,7 +209,24 @@ function run(argv) {
     try { store.saveReminderCommitError(rem, true, $()); coches++; } catch (e) {}
   });
 
+  // ── Remonter vers l'app ce qui a été coché ici ──────────────────────────────
+  let remontes = 0;
+  if (aCloturer.length > 0) {
+    const corps = JSON.stringify({ key: apiKey, cloturer: aCloturer });
+    const envoi = '/tmp/tm-rappels-post-' + $.NSProcessInfo.processInfo.processIdentifier + '.json';
+    try {
+      $(corps).writeToFileAtomicallyEncodingError(envoi, true, $.NSUTF8StringEncoding, $());
+      const rep = app.doShellScript("/usr/bin/curl -fsS --max-time 60 -X POST"
+        + " -H 'Content-Type: application/json' --data-binary @" + JSON.stringify(envoi)
+        + " " + JSON.stringify(baseURL + '/api/rappels/signalements'));
+      const j = JSON.parse(rep);
+      remontes = (j && j.ok) ? Number(j.clos || 0) : 0;
+    } catch (e) { remontes = -1; }
+    try { $.NSFileManager.defaultManager.removeItemAtPathError(envoi, $()); } catch (e) {}
+  }
+
   return 'liste "' + nomListe + '" — ouverts: ' + voulus.size
-    + ' | créés: ' + crees + ' | mis à jour: ' + majs
-    + ' | cochés (réglés): ' + coches + ' | laissés cochés: ' + ignores;
+    + ' | créés: ' + crees + ' | déplacés: ' + deplaces + ' | mis à jour: ' + majs
+    + ' | cochés car réglés dans l\'app: ' + coches
+    + ' | réglés dans l\'app car cochés ici: ' + (remontes < 0 ? 'ECHEC' : remontes);
 }

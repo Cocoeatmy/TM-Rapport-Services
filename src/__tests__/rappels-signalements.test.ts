@@ -34,16 +34,17 @@ describe("ce qui mérite un rappel", () => {
     expect(estOuvert({ id: "p", projectId: "x", status: "demande" })).toBe(true);
   });
 
-  /* Dix des quarante-deux défauts ouverts sont des états des lieux d'avant
-     pose. Les mettre dans une liste de tâches reviendrait à demander de
-     réparer un mur déjà abîmé à l'arrivée. */
-  it("écarte les constats d'avant-intervention", () => {
+  /* Les constats d'avant-intervention entrent aussi dans la liste : ce sont
+     des engagements pris vis-à-vis du client. Seul leur type les distingue
+     d'un défaut à réparer. */
+  it("garde les constats d'avant-intervention, en les nommant", () => {
     expect(estConstat(defaut({ phase: "avant-intervention" }))).toBe(true);
     expect(estConstat(defaut())).toBe(false);
     const l = listeDesRappels([], [defaut(), defaut({ id: "d2", phase: "avant-intervention" })],
       new Map(), { origine: ORIGINE, maintenant: MAINTENANT });
-    expect(l).toHaveLength(1);
-    expect(l[0].cle).toBe("tm:defaut:d1");
+    expect(l).toHaveLength(2);
+    expect(l.find((r) => r.cle === "tm:defaut:d2")!.titre).toContain("Constat avant intervention");
+    expect(l.find((r) => r.cle === "tm:defaut:d1")!.titre).not.toContain("Constat");
   });
 });
 
@@ -82,6 +83,14 @@ describe("fiche de rappel", () => {
     expect(r.notes).toContain("Photos (2) :");
     expect(r.notes).toContain("https://img/2.jpg");
     expect(r.notes).toContain(`${ORIGINE}/sig/${jetonProjet(defaut().projectId)}`);
+  });
+
+  /* Le champ « URL » de Rappels n'est accessible ni à EventKit ni à
+     AppleScript : le lien doit donc être lisible et cliquable dans la note,
+     et en premier — pas au fond. */
+  it("ouvre la note par le lien du chantier", () => {
+    const r = enRappel(defaut(), "defaut", fiche, { origine: ORIGINE, maintenant: MAINTENANT });
+    expect(r.notes.split("\n")[0]).toBe(`→ Ouvrir le chantier : ${r.url}`);
   });
 
   it("mène au lot concerné, et au projet quand le lot est inconnu", () => {
