@@ -16,6 +16,9 @@ tm-rapport
 # Agent calendrier : ne pas committer la clé secrète
 scripts/calendrier-liens/run-calendar-links.sh
 
+# Agent Rappels : même clé, même précaution
+scripts/rappels/run-rappels.sh
+
 # Extraction comptable locale : montants, clients, charges.
 # Ne doit JAMAIS partir sur GitHub, ni dans le déploiement Vercel.
 /data/

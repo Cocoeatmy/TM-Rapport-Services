@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.tmrapport.rappels</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/ferreiramicael/Desktop/iA/Projets APP/TM Rapport/scripts/rappels/run-rappels.sh</string>
+	</array>
+
+	<!-- Toutes les 10 minutes. Un signalement n'est pas une urgence à la
+	     seconde : plus souvent userait Notion pour rien. -->
+	<key>StartInterval</key>
+	<integer>600</integer>
+
+	<!-- Priorité basse : l'agent cède le pas à l'usage interactif. -->
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>LowPriorityIO</key>
+	<true/>
+	<key>Nice</key>
+	<integer>5</integer>
+
+	<!-- Un passage au chargement (login), pour rattraper l'existant. -->
+	<key>RunAtLoad</key>
+	<true/>
+
+	<key>StandardOutPath</key>
+	<string>/tmp/tm-rappels.log</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/tm-rappels.err</string>
+</dict>
+</plist>

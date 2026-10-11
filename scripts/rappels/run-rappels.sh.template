@@ -1,0 +1,24 @@
+#!/bin/bash
+# MODÈLE — copie ce fichier en "run-rappels.sh" et renseigne la clé.
+# Le vrai fichier (avec la clé) n'est PAS versionné (cf. .gitignore).
+
+BASE_URL="https://tm-rapport-services.vercel.app"
+SHARE_LINK_KEY="REMPLACER_PAR_VOTRE_CLE"
+# Nom de la liste Rappels à remplir. Si elle n'existe pas, l'agent se rabat
+# sur la liste « TM Douche Montage ».
+LISTE="Signalements"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Verrou atomique : un seul passage à la fois.
+LOCKDIR="/tmp/tm-rappels.lock.d"
+if ! mkdir "$LOCKDIR" 2>/dev/null; then
+  echo "[$(date '+%H:%M:%S')] déjà en cours, on saute."
+  exit 0
+fi
+trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] synchro des signalements…"
+# Basse priorité CPU + QoS « background » : l'agent cède le pas à l'usage.
+nice -n 5 /usr/sbin/taskpolicy -b /usr/bin/osascript -l JavaScript \
+  "$SCRIPT_DIR/tm-rappels-signalements.js" "$BASE_URL" "$SHARE_LINK_KEY" "$LISTE"

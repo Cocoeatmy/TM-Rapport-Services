@@ -16,7 +16,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getData } from "@/lib/kv-store";
-import { getAllActiveProjects } from "@/lib/notion";
+import { getAllProjectsRaw, type Project } from "@/lib/notion";
+import { cachedOrFetch } from "@/lib/server-cache";
 import {
   listeDesRappels,
   type SignalementBrut,
@@ -41,10 +42,15 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    /* TOUS les projets, terminés compris — et non les seuls actifs. Un
+       signalement traîne souvent sur un chantier clos depuis des mois :
+       trente-sept des quarante rappels perdaient leur n° TM, qui est
+       justement la première chose qu'on cherche. La clé de cache est celle
+       que « tous les projets » alimente déjà, et qu'un cron réchauffe. */
     const [pieces, defauts, projets] = await Promise.all([
       getData<SignalementBrut>("pieces"),
       getData<SignalementBrut>("defauts"),
-      getAllActiveProjects(),
+      cachedOrFetch<Project[]>("projects-all-raw", getAllProjectsRaw),
     ]);
 
     const fiches = new Map<string, FicheProjet>();
