@@ -97,6 +97,12 @@ export async function GET(req: NextRequest) {
 
     if (["montage", "mesures", "services", "sav"].includes(type)) {
       // ── Champs courts (double **), une ligne chacun. ──
+      /* Qui y va, en tout premier : c'est la première question qu'on se pose
+         en ouvrant un RDV, et le calendrier ne la montre que si l'on a pensé
+         à poser le rendez-vous dans le bon calendrier de couleur. Le champ
+         Notion s'appelle « Collaborateurs montages » ; sur le calendrier on
+         l'intitule « Collaborateur », plus court à lire. */
+      addField("Collaborateur", full.collaborateurs);
       addField("Nb. Cabines", nb);
       addField("Nb. de cartons", cartons);
       addField("Fournisseurs", fournisseurs);
