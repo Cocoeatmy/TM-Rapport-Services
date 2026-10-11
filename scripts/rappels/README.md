@@ -1,65 +1,82 @@
-# Agent signalements → app Rappels
+# Agent signalements ↔ app Rappels
 
-Pose dans l'app **Rappels** d'Apple tous les signalements (pièces manquantes et
-défauts) encore ouverts, et **coche** ceux que tu règles dans l'app.
+Pose dans l'app **Rappels** tous les signalements (pièces manquantes, défauts,
+constats d'avant-intervention) encore ouverts, et les tient à jour **dans les
+deux sens** : réglé dans l'app → coché dans Rappels ; coché dans Rappels →
+réglé dans l'app.
 
-Un rappel porte : le **n° TM**, le lot, le type, le statut, **qui** a signalé et
-**quand** (jour et heure, plus l'ancienneté en jours), la description, le dernier
-échange, les **adresses des photos**, le lien pour **traiter** le signalement et
-le lien du **rapport PDF**.
+Un rappel porte, dans cet ordre : le **lien du chantier** (première ligne,
+cliquable), le nom du chantier, le **n° OFR TM**, le lot, le type, la référence
+(pièces), le statut, **qui** a signalé et **quand** (jour, heure, ancienneté en
+jours), la description, le dernier échange, les **adresses des photos** et le
+**rapport PDF**.
 
-## Sections ou listes : à lire avant d'installer
+## Une LISTE « Signalements », pas une section
 
-Dans Rappels, tu as une **liste** « TM Douche Montage » découpée en **sections**
-(Facturations, Signalements, Devis, Mesures, Montages).
+L'app Rappels sait découper une liste en **sections** — mais Apple ne les expose
+nulle part. Vérifié deux fois sur ce Mac :
 
-**EventKit — l'API d'Apple — n'expose pas les sections.** Vérifié sur ce Mac :
-`EKReminder` n'a ni `section` ni `sectionIdentifier`. Aucun programme ne peut
-donc déposer un rappel dans une section précise ; il atterrirait dans la liste,
-hors section.
+- `EKReminder` ne répond ni à `section` ni à `sectionIdentifier`, et les classes
+  `EKSection` / `EKReminderSection` n'existent pas ;
+- le dictionnaire AppleScript de Rappels ne connaît que `account`, `list` et
+  `reminder`.
 
-Deux façons de faire, au choix :
+**Aucun programme ne peut donc déposer quoi que ce soit dans une section.** Un
+rappel déposé dans une liste sectionnée atterrit hors section, et l'app le range
+sous « Autres ».
 
-**A. Un groupe de listes (recommandé).** Dans Rappels : *Fichier → Nouveau
-groupe*, nomme-le « TM Douche Montage », puis crée dedans une liste
-**« Signalements »** (et plus tard « Facturations », « Devis »…). Visuellement
-c'est le même classement ; techniquement chaque liste est adressable. L'agent
-écrit alors dans la liste « Signalements » et ne touche à rien d'autre.
+L'agent vise donc une **liste** nommée « Signalements » (réglable par la
+variable `LISTE` de `run-rappels.sh`) :
 
-**B. Ne rien changer.** Si la liste « Signalements » n'existe pas, l'agent se
-rabat sur la liste **« TM Douche Montage »** et y dépose les rappels hors
-section. Ça marche, c'est juste moins rangé.
+- si elle n'existe pas, **il la crée** dans le même compte iCloud ;
+- si ses rappels se trouvent ailleurs — liste renommée, déplacement à la main —
+  **il les y ramène** au lieu d'en créer d'autres.
 
-Le nom de la liste visée se règle dans `run-rappels.sh` (variable `LISTE`).
+Pour retrouver le classement visuel : dans Rappels, *Fichier → Nouveau groupe*
+nommé « TM Douche Montage », puis glisser « Signalements » dedans. L'agent suit
+le **nom** de la liste, pas sa position : ranger ne casse rien.
+
+## Pourquoi les photos ne sont pas jointes
+
+Le champ « Ajouter une image… » existe bien dans l'app, mais il n'est pas
+ouvert aux programmes. `EKReminder` accepte `addAttachment:`, puis EventKit
+**plante à l'enregistrement** (`+[EKPersistentAttachment alternateUniverseClass]:
+unrecognized selector`) : le framework n'est pas câblé pour les pièces jointes
+de rappels. Essayé, dans une liste jetable, supprimée depuis.
+
+À la place : les **adresses des photos** dans la note — Rappels les rend
+cliquables, elles s'ouvrent en pleine taille — et le lien du **rapport PDF**,
+qui les rassemble toutes et s'ouvre **sans se connecter**.
+
+## Pourquoi le lien est dans la note et pas dans le champ « URL »
+
+Le champ URL visible dans l'app n'est accessible ni à EventKit (on y écrit,
+l'app ne l'affiche pas) ni à AppleScript (pas de propriété `url`). La note, elle,
+s'affiche sous le titre dans la liste et Rappels y rend les adresses
+cliquables : d'où le lien en **première ligne**. Le champ EventKit est tout de
+même renseigné, au cas où une version d'iOS le ferait remonter.
+
+## Clôture dans les deux sens
+
+- **Réglé dans l'app** → le rappel est **coché** (jamais supprimé : la trace de
+  ce qui a été traité a de la valeur).
+- **Coché dans Rappels** → le signalement est **réglé dans l'app** au passage
+  suivant, avec exactement les écritures du bouton « réglé » (statut, drapeau,
+  horodatage, report Notion « Soucis montages clôturé » quand tous les défauts
+  d'un chantier sont réglés), plus un commentaire
+  « Réglé depuis l'app Rappels » pour savoir d'où vient la clôture.
 
 ## Ce que l'agent ne fait pas, volontairement
 
 - **Il ne touche qu'aux rappels portant son marqueur `[tm:…]`** (en fin de
-  notes). Un rappel que tu écris à la main dans la même liste n'est jamais
-  modifié ni coché.
-- **Il ne ressuscite pas un rappel que tu as coché.** Si tu coches alors que le
-  signalement est encore ouvert dans l'app, c'est un geste délibéré : il est
-  respecté. Pour le faire revenir, décoche-le.
+  notes). Un rappel écrit à la main dans la même liste n'est jamais modifié,
+  déplacé ni coché.
+- **Il ne supprime jamais rien** — ni rappel, ni signalement.
 - **Il ne pose ni échéance ni drapeau.** La moitié des signalements ouverts a
   plus d'un mois : des échéances les afficheraient tous en retard dès le premier
   jour, et tu couperais les notifications de Rappels dans la semaine.
   L'ancienneté passe par la **priorité** — plus de 60 jours : haute, plus de
-  21 jours : moyenne, sinon basse. Une échéance que tu poses à la main est
-  conservée.
-- **Il ne supprime jamais rien.** Un signalement réglé fait cocher son rappel,
-  pas disparaître.
-- **Il reconnaît ses rappels où qu'ils soient.** Le marqueur est cherché dans
-  toutes tes listes : un rappel déplacé à la main n'est jamais recréé en
-  double. Tu peux donc migrer vers une liste « Signalements » en y faisant
-  simplement glisser les rappels existants, puis en changeant `LISTE`.
-- **Il n'écrit rien dans l'app ni dans Notion.** Le trajet est à sens unique :
-  app → Rappels.
-- **Les constats « avant intervention » sont écartés.** Ce sont des états des
-  lieux photographiés avant de poser, pas des problèmes à réparer.
-- **Les photos ne sont pas jointes** : `EKCalendarItem.attachments` est en
-  lecture seule, aucune API publique n'en ajoute. Les notes portent leurs
-  adresses (cliquables), plus le rapport PDF qui les rassemble et s'ouvre sans
-  se connecter.
+  21 jours : moyenne, sinon basse. Une échéance posée à la main est conservée.
 
 ## Installation
 
@@ -80,11 +97,11 @@ de plus.
 ## Déclenchement
 
 Agent **launchd**, toutes les **10 minutes**, plus un passage à l'ouverture de
-session. Un signalement n'est pas une urgence à la seconde, et interroger Notion
-plus souvent ne servirait à rien.
+session.
 
-> ⚠️ L'agent tourne sur **ce Mac**. Mac éteint = liste figée (mais jamais
-> fausse : rien n'est effacé, les rappels posés restent).
+> ⚠️ L'agent tourne sur **ce Mac**. Mac éteint = liste figée (jamais fausse :
+> rien n'est effacé), et une case cochée sur l'iPhone ne remontera dans l'app
+> qu'au réveil du Mac.
 
 ## Vérifier / déboguer
 
@@ -95,7 +112,11 @@ cat /tmp/tm-rappels.err                   # erreurs
 ```
 
 Chaque passage écrit une ligne de bilan :
-`liste "Signalements" — ouverts: 40 | créés: 2 | mis à jour: 1 | cochés (réglés): 3 | laissés cochés: 0`
+
+```
+liste "Signalements" — ouverts: 50 | créés: 10 | déplacés: 40 | mis à jour: 40
+  | cochés car réglés dans l'app: 0 | réglés dans l'app car cochés ici: 0
+```
 
 Tester l'endpoint seul :
 
