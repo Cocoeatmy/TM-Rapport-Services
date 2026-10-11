@@ -1,11 +1,12 @@
 {
-  "genereLe": "2026-10-10T12:37:49.996Z",
+  "genereLe": "2026-10-11T21:30:52.650Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
       "/api/cron/",
       "/api/client/",
       "/api/share-link",
+      "/api/rappels/",
       "/api/fiche",
       "/api/sav",
       "/api/synthese",
@@ -1008,6 +1009,16 @@
       "methodes": [
         "POST",
         "DELETE"
+      ]
+    },
+    {
+      "url": "/api/rappels/signalements",
+      "type": "api",
+      "fichier": "src/app/api/rappels/signalements/route.ts",
+      "niveau": "cle-secrete",
+      "gardePage": false,
+      "methodes": [
+        "GET"
       ]
     },
     {

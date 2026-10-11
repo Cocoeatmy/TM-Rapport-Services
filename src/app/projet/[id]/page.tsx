@@ -4373,6 +4373,31 @@ function ProjectPageContent({ id }: { id: string }) {
     }
   }, [searchParams, isCabineMode, cabines.length]);
 
+  /* Deep-link « traiter le signalement » (depuis l'app Rappels du Mac et du
+     téléphone) : ?signalement=<nom du lot> ouvre l'onglet Signalements du lot
+     concerné, ?signalement=1 celui du premier. Sans lui, le rappel menait en
+     haut d'une fiche de projet où il restait à retrouver le bon lot et le bon
+     onglet — trois gestes pour une chose qu'on voulait traiter en un. */
+  const signalOpenedRef = useRef(false);
+  useEffect(() => {
+    const raw = searchParams.get("signalement");
+    if (!raw || signalOpenedRef.current) return;
+    if (isCabineMode) {
+      if (cabines.length === 0) return;
+      const vise = normCabineLabel(raw);
+      const trouve = vise && vise !== "1"
+        ? cabines.findIndex((c) => normCabineLabel(c.nom) === vise)
+        : -1;
+      const idx = trouve >= 0 ? trouve : 0;
+      signalOpenedRef.current = true;
+      setCabines((prev) => prev.map((c, i) => (i === idx ? { ...c, open: true, activeTab: "signalements" } : c)));
+      setTimeout(() => document.getElementById("cabines-list")?.scrollIntoView({ behavior: "smooth", block: "start" }), 500);
+    } else {
+      signalOpenedRef.current = true;
+      setMonoActiveTab("signalements");
+    }
+  }, [searchParams, isCabineMode, cabines]);
+
   // ── Sync "Nb. Cabines installées" → Notion ──────────────────────────────────
   // Dès qu'une cabine reçoit ses photos de montage, on met à jour le compteur
   // dans Notion afin que la progression soit visible depuis la base de données.

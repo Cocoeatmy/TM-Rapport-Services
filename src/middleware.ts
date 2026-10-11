@@ -18,6 +18,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/cron/") ||
     pathname.startsWith("/api/client/") ||
     pathname.startsWith("/api/share-link") || // protégé par sa propre clé (SHARE_LINK_KEY)
+    pathname.startsWith("/api/rappels/") || // agent Rappels macOS — même clé (SHARE_LINK_KEY)
     // Dépôt des factures par l'agent du Mac : il n'a pas de session, et
     // présente la même clé partagée. La route vérifie elle-même la clé en
     // écriture, et l'adresse du propriétaire en lecture.
