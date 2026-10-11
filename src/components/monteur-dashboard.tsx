@@ -7,7 +7,7 @@ import { prefetchProject } from "@/lib/api-helpers";
 import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
-import { openSignalPreview, openSignalListe, survolApercu, annulerSurvol, ouvrirApercuSurvol, fermerApercuSurvol, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
+import { openSignalPreview, openSignalListe, survolerApercu, quitterApercu, ouvrirApercuSurvol, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
 import type { LigneApercu } from "@/components/signal-preview";
 import { cabinesPosees, cabinesRestantes } from "@/lib/cabines-posees";
 import { etatLot, type EtatLot } from "@/lib/etat-lot";
@@ -763,10 +763,11 @@ function pastilleEtat(projet: Project, signale: boolean, signaleRegle = false) {
  * pour savoir à quel chantier correspondait un bloc ; le numéro est désormais
  * écrit dessus.
  *
- * Le survol ouvre l'aperçu à droite, le clic va DROIT au projet : passer par
- * le calendrier pour atteindre un chantier qu'on voit déjà écrit était un
- * détour. Le clic ailleurs dans la case, lui, ouvre toujours le calendrier
- * (c'est le rôle de la colonne) : d'où le `stopPropagation`.
+ * Le numéro ÉPINGLE l'aperçu à droite ; c'est la case qui ouvre le projet
+ * entier. Les deux gestes faisaient la même chose — ouvrir le chantier — et
+ * il n'y avait aucun moyen de garder la fiche sous les yeux depuis cette
+ * barre. Le clic ailleurs dans la colonne ouvre toujours le calendrier
+ * (c'est son rôle) : d'où les `stopPropagation`.
  *
  * Pastille blanche sur texte noir : écrit à même la couleur du monteur, le
  * numéro se lisait mal — le vert et le jaune ne supportent pas le blanc.
@@ -775,35 +776,35 @@ function pastilleEtat(projet: Project, signale: boolean, signaleRegle = false) {
  * place d'une ligne : le texte y est rogné, plutôt que de grossir la case et
  * de fausser la proportion que la barre est censée montrer.
  */
-function numeroDeProjet(projet: Project) {
+function numeroDeProjet(projet: Project, mode: string) {
   const numeros = parseTMNumbers(projet.ofrTM || "");
   if (numeros.length === 0) return null;
   return (
     <span className="sg-seg-tms">
       {numeros.map((num) => (
-        <Link
+        <span
           key={num}
-          href={`/projet/${projet.id}?mode=dashboard`}
+          role="button"
+          tabIndex={0}
           className="sg-seg-tm"
-          title={`${num} — ${projet.projet}`}
-          onMouseEnter={() => {
-            prefetchProject(projet.id);
-            survolApercu(() => ouvrirApercuSurvol(projet, "dashboard"));
-          }}
-          onMouseLeave={() => fermerApercuSurvol()}
-          /* Au clavier seulement : sur iPhone, un lien touché prend le
-             focus, et l'aperçu aurait clignoté avant la navigation. */
-          onFocus={(e) => {
-            if (e.currentTarget.matches(":focus-visible")) openSignalPreview(projet, "dashboard");
+          title={`${num} — ${projet.projet} · aperçu`}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+            e.stopPropagation();
+            openSignalPreview(projet, mode);
           }}
           onClick={(e) => {
+            /* `preventDefault` : le numéro vit dans le lien de la case, qui
+               mène au projet entier. Sans lui, épingler la fiche aurait
+               aussitôt quitté la page. */
+            e.preventDefault();
             e.stopPropagation();
-            annulerSurvol();
-            closeSignalPreview();
+            openSignalPreview(projet, mode);
           }}
         >
           {num}
-        </Link>
+        </span>
       ))}
     </span>
   );
@@ -3333,8 +3334,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                            chantiers il est fait, sans quitter la page. */
                         <span className={`sg-row-pose${r.faites >= r.cab ? " is-done" : r.faites > 0 ? " is-wip" : ""}`}
                               title={`${r.faites} cabine${r.faites > 1 ? "s" : ""} ${r.verbe === "posées" ? "posée" : "mesurée"}${r.faites > 1 ? "s" : ""} sur ${r.cab} — voir les projets`}
-                              onMouseEnter={() => survolApercu(() => ouvrirApercuAvancement(r, col.date, false))}
-                              onMouseLeave={() => fermerApercuSurvol()}
+                              onMouseEnter={() => survolerApercu(`pose-${col.date}-${r.label}`, () => ouvrirApercuAvancement(r, col.date, false))}
+                              onMouseLeave={() => quitterApercu(`pose-${col.date}-${r.label}`)}
                               onClick={(e) => { e.preventDefault(); e.stopPropagation(); ouvrirApercuAvancement(r, col.date, true); }}>
                           <b>{r.faites}</b>/{r.cab} {r.verbe}
                         </span>
@@ -3833,18 +3834,38 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               ...s.projetsAttente.map((p) => ({ s, p, attente: true, mesure: false, sav: false })),
                               ...s.projetsMesure.map((p) => ({ s, p, attente: false, mesure: true, sav: false })),
                               ...s.projetsSav.map((p) => ({ s, p, attente: false, mesure: false, sav: true })),
-                            ]).map(({ s, p, attente, mesure, sav }) => (
-                              <span
+                            ]).map(({ s, p, attente, mesure, sav }) => {
+                              /* La case entière mène au chantier, et le survol
+                                 de la case — et non du seul numéro — commande
+                                 l'aperçu : les cases se touchent, alors que les
+                                 numéros sont séparés par du vide. Viser une
+                                 pastille de neuf pixels pour voir une fiche
+                                 était un exercice d'adresse. */
+                              const mode = mesure ? "mesures" : "dashboard";
+                              const cle = `seg-${b.key}-${p.id}${mesure ? "-m" : sav ? "-s" : ""}`;
+                              return (
+                              <Link
                                 key={`${s.label}-${p.id}${mesure ? "-m" : sav ? "-s" : ""}`}
+                                href={`/projet/${p.id}?mode=${mode}`}
+                                prefetch={false}
                                 className={`sg-bar-seg${attente ? " is-attente" : ""}${mesure ? " is-mesure" : ""}${sav ? " is-sav" : ""}`}
                                 title={mesure
-                                  ? `Relevé de mesures — ${p.nbCabines || 0} cabine${(p.nbCabines || 0) > 1 ? "s" : ""}`
-                                  : sav ? `SAV — rendez-vous fixé` : undefined}
+                                  ? `Relevé de mesures — ${p.nbCabines || 0} cabine${(p.nbCabines || 0) > 1 ? "s" : ""} · ouvrir le chantier`
+                                  : sav ? `SAV — rendez-vous fixé · ouvrir le chantier` : `${p.projet} · ouvrir le chantier`}
+                                onMouseEnter={() => {
+                                  prefetchProject(p.id);
+                                  survolerApercu(cle, () => ouvrirApercuSurvol(p, mode));
+                                }}
+                                onMouseLeave={() => quitterApercu(cle)}
+                                /* La colonne ouvre le calendrier : sans cela,
+                                   le chantier et le calendrier s'ouvraient
+                                   ensemble. */
+                                onClick={(e) => { e.stopPropagation(); closeSignalPreview(); }}
                                 style={attente
                                   ? ({ flexGrow: Math.max(cabinesDuJour(p, b.key), 1), ["--raie" as string]: s.color } as React.CSSProperties)
                                   : { flexGrow: (mesure || sav) ? Math.max(p.nbCabines || 0, 1) : Math.max(cabinesDuJour(p, b.key), 1), background: s.color }}
                               >
-                                {numeroDeProjet(p)}
+                                {numeroDeProjet(p, mode)}
                                 {(() => {
                                   /* L'icône dit où en est la POSE : sur un
                                      relevé ou un SAV elle n'aurait aucun sens. */
@@ -3857,8 +3878,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                     </span>
                                   );
                                 })()}
-                              </span>
-                            ))}
+                              </Link>
+                              );
+                            })}
                           </span>
                         </span>
                         <span className="sg-bar-day">{b.d}</span>

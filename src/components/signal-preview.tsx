@@ -25,6 +25,7 @@ import type { Project } from "@/lib/notion";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import { offlineFetch } from "@/lib/offline";
 import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
+import { creerArbitreSurvol } from "@/lib/survol-apercu";
 
 /* ── Mini-store module : les lignes publient, l'hôte s'abonne ────────────── */
 
@@ -45,8 +46,7 @@ function emit() {
 
 /** Ouvre l'aperçu sur ce projet (appelé depuis le clic sur le n° TM). */
 export function openSignalPreview(project: Project, mode = "dashboard") {
-  annulerSurvol();
-  annulerFermeture();
+  arbitre.oublier();
   current = { kind: "projet", project, mode, epingle: true };
   emit();
 }
@@ -60,25 +60,38 @@ export function openSignalPreview(project: Project, mode = "dashboard") {
  * toute seule, et l'on peut y lire ou y faire défiler ce qu'on veut.
  */
 export function ouvrirApercuSurvol(project: Project, mode = "dashboard") {
-  annulerFermeture();
   current = { kind: "projet", project, mode, epingle: false };
   emit();
 }
 
-/* Fermeture différée : en quittant le numéro on passe forcément par le vide
-   avant d'atteindre la fiche. Fermer sur-le-champ la rendrait inatteignable. */
-let fermeture: ReturnType<typeof setTimeout> | null = null;
+/* L'arbitrage du survol — qui ouvre, qui ferme, et dans quel ordre — vit
+   dans `survol-apercu` : c'est une mécanique de minuteries qui se teste, et
+   dont le défaut (un numéro sur deux n'ouvrait rien) ne se voyait qu'à la
+   souris. Ici on ne décrit plus que l'effet. */
+const arbitre = creerArbitreSurvol({
+  survolEnCours: () => current !== null && !current.epingle,
+  ferme: () => closeSignalPreview(),
+});
 
-export function annulerFermeture(): void {
-  if (fermeture) { clearTimeout(fermeture); fermeture = null; }
+/**
+ * Le curseur arrive sur une cible (un numéro, une case, la fiche elle-même).
+ *
+ * `cle` identifie la cible : deux numéros ont deux clés différentes, et c'est
+ * ce qui distingue « je quitte celui que je survole » de « je quitte celui
+ * que j'ai déjà quitté ».
+ */
+export function survolerApercu(cle: string, ouvre: () => void): void {
+  arbitre.entrer(cle, ouvre);
 }
 
-/** Le curseur quitte le numéro : on referme, sauf si la fiche est épinglée. */
-export function fermerApercuSurvol(delai = 220): void {
-  annulerSurvol();
-  if (!current || current.epingle) return;
-  annulerFermeture();
-  fermeture = setTimeout(() => { fermeture = null; closeSignalPreview(); }, delai);
+/** Le curseur quitte cette cible. Sans effet si une autre a déjà pris la main. */
+export function quitterApercu(cle: string, delai?: number): void {
+  arbitre.sortir(cle, delai);
+}
+
+/** Le curseur quitte la zone sans clé (un conteneur, une liste). */
+export function fermerApercuSurvol(delai?: number): void {
+  arbitre.sortirSansCle(delai);
 }
 
 /**
@@ -87,31 +100,15 @@ export function fermerApercuSurvol(delai = 220): void {
  * fait ; la liste répond à « lesquels ? » sans quitter la page.
  */
 export function openSignalListe(titre: string, lignes: LigneApercu[], sous?: string, epingle = true) {
-  annulerSurvol();
-  annulerFermeture();
+  if (epingle) arbitre.oublier();
   if (lignes.length === 0) return;
   current = { kind: "liste", titre, sous, lignes, epingle };
   emit();
 }
 
-/* Survol : un aperçu qui s'ouvrirait au premier pixel franchi clignoterait
-   quand le curseur ne fait que traverser. On attend un court instant, et l'on
-   abandonne si le curseur est déjà reparti. */
-let minuterie: ReturnType<typeof setTimeout> | null = null;
-
-export function survolApercu(ouvre: () => void, delai = 170) {
-  annulerSurvol();
-  minuterie = setTimeout(() => { minuterie = null; ouvre(); }, delai);
-}
-
-export function annulerSurvol() {
-  if (minuterie) { clearTimeout(minuterie); minuterie = null; }
-}
-
 /** Ferme l'aperçu. */
 export function closeSignalPreview() {
-  annulerSurvol();
-  annulerFermeture();
+  arbitre.oublier();
   if (!current) return;
   current = null;
   emit();
@@ -675,8 +672,8 @@ export function SignalPreviewHost() {
       {/* Survoler la fiche elle-même la garde ouverte : on veut pouvoir y
           lire une adresse ou un numéro de téléphone sans qu'elle s'efface. */}
       <aside className="sg-detail is-open" role="complementary" aria-label="Aperçu du projet"
-        onMouseEnter={annulerFermeture}
-        onMouseLeave={() => fermerApercuSurvol(120)}>
+        onMouseEnter={() => survolerApercu("fiche", () => {})}
+        onMouseLeave={() => quitterApercu("fiche", 120)}>
         {state.kind === "liste" ? (
           <SignalListeCard titre={state.titre} sous={state.sous} lignes={state.lignes}
             onClose={closeSignalPreview} />
