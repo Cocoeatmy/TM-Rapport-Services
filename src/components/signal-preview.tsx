@@ -19,7 +19,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { X, Phone, FileText, MessageSquare, Package, AlertTriangle } from "lucide-react";
+import { X, Phone, FileText, MessageSquare, Package, AlertTriangle, Info } from "lucide-react";
 import { supplierLogo } from "@/lib/supplier-logos";
 import type { Project } from "@/lib/notion";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
@@ -286,6 +286,19 @@ export function SignalPreviewCard({
               </a>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Divers infos chantier — le champ libre de Notion : code de porte,
+          étage, interlocuteur sur place. Il décide souvent du déroulement de
+          la journée, il doit donc se lire sans ouvrir le projet. Les retours
+          à la ligne sont conservés : on y écrit une liste, pas une phrase. */}
+      {String(avecPieces.diversInfosChantier || p.diversInfosChantier || "").trim() && (
+        <div className="sg-pv-bloc">
+          <span className="sg-pv-titre"><Info className="w-3.5 h-3.5" /> Divers infos chantier</span>
+          <p className="sg-pv-journal">
+            {linkifyTel(String(avecPieces.diversInfosChantier || p.diversInfosChantier).trim())}
+          </p>
         </div>
       )}
 
