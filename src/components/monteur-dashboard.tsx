@@ -1764,6 +1764,22 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [sgCat, setSgCat] = useState<string>("");
   /** Semaine affichee dans « Charge de la semaine » (0 = semaine en cours). */
   const [sgWeek, setSgWeek] = useState(0);
+  /**
+   * Jour affiché sur téléphone (index dans la semaine, 0 = lundi).
+   *
+   * Cinq colonnes de barres ne tiennent pas sur 375 pixels : les libellés se
+   * chevauchent et l'on ne sait plus à quel jour appartient quoi. Le
+   * graphique reste donc le MÊME — c'est celui qu'on connaît — mais il ne
+   * montre qu'une journée à la fois, celle du jour par défaut. Les flèches
+   * avancent d'un jour et franchissent la semaine quand il le faut.
+   *
+   * Sur grand écran, cet index ne sert à rien : les cinq colonnes restent
+   * affichées côte à côte, et la feuille de style ignore tout de lui.
+   */
+  const [sgJour, setSgJour] = useState(() => {
+    const j = new Date().getDay(); // 0 = dimanche
+    return j === 0 || j === 6 ? 0 : j - 1; // week-end → lundi
+  });
   /* Montants des offres bexio. Le serveur les refuse à tout compte autre que
      le propriétaire des accès : chez les autres, `actif` reste faux et aucun
      franc ne s'affiche nulle part. */
@@ -3736,6 +3752,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           </button>
                         ))}
                       </div>
+                      {/* Navigation par SEMAINE — grand écran. */}
                       <div className="sgw-nav">
                       <button type="button" aria-label="Semaine precedente"
                         disabled={sgWeek <= -5}
@@ -3750,6 +3767,44 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         <ChevronRight className="w-4 h-4" />
                       </button>
                       </div>
+
+                      {/* Navigation par JOUR — téléphone. Les flèches passent
+                          d'un jour au suivant et franchissent la semaine quand
+                          elles arrivent au bout : lundi en arrière ramène au
+                          vendredi précédent, vendredi en avant mène au lundi
+                          suivant. Sans cela on serait coincé dans sa semaine. */}
+                      <div className="sgj-nav">
+                      <button type="button" aria-label="Jour precedent"
+                        disabled={sgJour === 0 && sgWeek <= -5}
+                        onClick={() => {
+                          if (sgJour > 0) { setSgJour(sgJour - 1); return; }
+                          setSgWeek((w) => Math.max(-5, w - 1));
+                          setSgJour(bars.length - 1);
+                        }}>
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button type="button" className="sgj-now"
+                        disabled={sgWeek === 0 && !!bars[sgJour]?.isToday}
+                        title="Revenir a aujourd'hui"
+                        onClick={() => {
+                          setSgWeek(0);
+                          const j = new Date().getDay();
+                          setSgJour(j === 0 || j === 6 ? 0 : j - 1);
+                        }}>
+                        {bars[sgJour]
+                          ? `${bars[sgJour].d} ${bars[sgJour].dt.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}`
+                          : "Aujourd'hui"}
+                      </button>
+                      <button type="button" aria-label="Jour suivant"
+                        disabled={sgJour >= bars.length - 1 && sgWeek >= 5}
+                        onClick={() => {
+                          if (sgJour < bars.length - 1) { setSgJour(sgJour + 1); return; }
+                          setSgWeek((w) => Math.min(5, w + 1));
+                          setSgJour(0);
+                        }}>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                      </div>
                     </div>
                   </div>
                   {sgTypes.size === 0 && (
@@ -3758,7 +3813,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     </p>
                   )}
                   <div className="sg-bars">
-                    {bars.map((b) => (
+                    {bars.map((b, iJour) => (
                       /* Colonne en div, pas en bouton : elle porte désormais
                          les n° de projet, eux-mêmes cliquables, et un bouton
                          dans un bouton n'est pas du HTML valide. */
@@ -3767,7 +3822,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         role="button"
                         tabIndex={b.nb === 0 ? -1 : 0}
                         aria-disabled={b.nb === 0}
-                        className={`sg-bar-col${b.nb === 0 ? " is-void" : ""}${b.isToday ? " is-today" : ""}`}
+                        /* `is-jour` désigne la journée montrée sur téléphone.
+                           Sur grand écran la classe ne sert à rien : les cinq
+                           colonnes restent affichées. */
+                        className={`sg-bar-col${b.nb === 0 ? " is-void" : ""}${b.isToday ? " is-today" : ""}${iJour === sgJour ? " is-jour" : ""}`}
                         onKeyDown={(e) => {
                           if (b.nb === 0) return;
                           if (e.key !== "Enter" && e.key !== " ") return;
@@ -3896,86 +3954,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         </span>
                       </div>
                     ))}
-                  </div>
-
-                  {/* ── La même semaine, lue au pouce ────────────────────────
-                      Sur un téléphone, cinq colonnes de barres n'entrent pas :
-                      le titre se coupait mot par mot, les libellés des
-                      journées se chevauchaient, et il fallait deviner à quel
-                      jour appartenait quoi. Les mêmes données deviennent donc
-                      une LISTE — un jour par ligne, du texte au lieu d'une
-                      hauteur. Le DOM porte les deux ; la feuille de style
-                      choisit selon la largeur, et aucune autre version de
-                      l'app n'est concernée. */}
-                  <div className="sg-sem-mob">
-                    {bars.map((b) => {
-                      const lots = b.segs.flatMap((sg) => [
-                        ...sg.projetsRecu.map((p) => ({ sg, p, attente: false, mesure: false, sav: false })),
-                        ...sg.projetsAttente.map((p) => ({ sg, p, attente: true, mesure: false, sav: false })),
-                        ...sg.projetsMesure.map((p) => ({ sg, p, attente: false, mesure: true, sav: false })),
-                        ...sg.projetsSav.map((p) => ({ sg, p, attente: false, mesure: false, sav: true })),
-                      ]);
-                      return (
-                        <div key={b.d} className={`sg-sem-jour${b.nb === 0 ? " is-void" : ""}${b.isToday ? " is-today" : ""}`}>
-                          {/* La date ouvre le calendrier, comme la colonne du
-                              graphique sur grand écran. */}
-                          <button type="button" className="sg-sem-date"
-                            disabled={b.nb === 0}
-                            onClick={(e) => {
-                              if (b.nb === 0) return;
-                              openPanel("calendrier", e as unknown as React.MouseEvent<HTMLButtonElement>);
-                              setCalendarMonth({ year: b.dt.getFullYear(), month: b.dt.getMonth() });
-                              setCalendarSelectedDay(b.key);
-                            }}>
-                            <b>{b.d}</b>
-                            <i>{b.dt.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</i>
-                          </button>
-                          <div className="sg-sem-corps">
-                            <div className="sg-sem-chiffres">
-                              {b.nb === 0
-                                ? <span className="sg-sem-vide">rien de prévu</span>
-                                : (
-                                  <>
-                                    <b>{b.cab} cabine{b.cab > 1 ? "s" : ""}</b>
-                                    <span>{b.nb} projet{b.nb > 1 ? "s" : ""}</span>
-                                    {b.mes > 0 && <span className="is-mesures">{b.mes} mesure{b.mes > 1 ? "s" : ""}</span>}
-                                    {b.sav > 0 && <span className="is-sav">{b.sav} SAV</span>}
-                                    {b.restant > 0 && b.restant < b.cab && (
-                                      <span className="is-reste">{b.restant} à poser</span>
-                                    )}
-                                    {ofrActif && b.ofr > 0 && <em>CHF {francsCourts(b.ofr)}</em>}
-                                  </>
-                                )}
-                            </div>
-                            {lots.length > 0 && (
-                              <div className="sg-sem-lots">
-                                {lots.map(({ sg, p, attente, mesure, sav }) => {
-                                  const mode = mesure ? "mesures" : "dashboard";
-                                  const cle = `semmob-${b.key}-${p.id}${mesure ? "-m" : sav ? "-s" : ""}`;
-                                  return (
-                                    <Link
-                                      key={cle}
-                                      href={`/projet/${p.id}?mode=${mode}`}
-                                      prefetch={false}
-                                      className={`sg-sem-lot${attente ? " is-attente" : ""}`}
-                                      style={attente
-                                        ? ({ ["--raie" as string]: sg.color } as React.CSSProperties)
-                                        : { background: sg.color }}
-                                      title={`${p.projet} — ${sg.label}`}
-                                      onMouseEnter={() => survolerApercu(cle, () => ouvrirApercuSurvol(p, mode))}
-                                      onMouseLeave={() => quitterApercu(cle)}
-                                      onClick={() => closeSignalPreview()}
-                                    >
-                                      {parseTMNumbers(p.ofrTM || "")[0] || p.projet}
-                                    </Link>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
                   </div>
 
                   {legend.length > 0 && (
