@@ -608,9 +608,14 @@ html[data-ui="signal"] .sg-agenda-date {
 }
 html[data-ui="signal"] .sg-agenda-date:hover { border-color: var(--sg-signal); }
 
+/* `minmax(0, …)` et non `1fr` : une colonne `1fr` ne descend jamais sous la
+   largeur minimale de son contenu, et une seule carte un peu large — le
+   graphe de la semaine, une liste de numéros — poussait toute la grille
+   au-delà de l'écran. C'est ce qui faisait glisser la page de côté sur
+   téléphone : le document mesurait 752 px pour un écran de 375. */
 html[data-ui="signal"] .sg-agenda {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 html[data-ui="signal"] .sg-row {
@@ -838,7 +843,7 @@ html[data-ui="signal"] .sg-tile-meta {
 /* Duo « Charge de la semaine » + « Signaux » */
 html[data-ui="signal"] .sg-duo {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 html[data-ui="signal"] .sg-card-meta {
@@ -1898,7 +1903,7 @@ html[data-ui="signal"] .sgs-tab-n {
 html[data-ui="signal"] .sgs-tab.is-on .sgs-tab-n { background: rgba(255, 255, 255, 0.18); color: #ffffff; }
 
 /* Grille des analyses */
-html[data-ui="signal"] .sgs-grid2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+html[data-ui="signal"] .sgs-grid2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 html[data-ui="signal"] .sgs-kpi-foot { font-size: 11px; color: var(--sg-text-3); margin-bottom: 12px; }
 
 /* Barres horizontales */
@@ -2762,7 +2767,7 @@ html[data-ui="signal"] .sgt-champ input:focus {
   outline: none; border-color: var(--sg-signal);
   box-shadow: 0 0 0 3px var(--sg-signal-soft);
 }
-html[data-ui="signal"] .sgt-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+html[data-ui="signal"] .sgt-duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 
 html[data-ui="signal"] .sgt-nombre { display: flex; gap: 6px; }
 html[data-ui="signal"] .sgt-nombre button {
@@ -4101,7 +4106,9 @@ html[data-ui="signal"] .sgr-bloc-tete em {
   font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
 }
 html[data-ui="signal"] .sgr-cartes {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px;
+  /* `auto-fill` avec un minimum de 260 px déborde sous 292 px de large :
+     on plafonne le minimum à la largeur disponible. */
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 8px;
 }
 html[data-ui="signal"] .sgr-carte {
   display: flex; flex-direction: column; gap: 3px; text-decoration: none;
@@ -4674,7 +4681,7 @@ html[data-ui="signal"].dark .sgq-top-raisons i { background: #3a2c14; color: #f0
 
 /* ── La journée type : quatre blocs qui se lisent d'un coup ───────────────── */
 html[data-ui="signal"] .sgs-jbande {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(118px, 100%), 1fr));
   gap: 8px; margin-bottom: 10px;
 }
 html[data-ui="signal"] .sgs-jcase {
@@ -4804,7 +4811,7 @@ html[data-ui="signal"] .sg-fact-maj {
 html[data-ui="signal"] .sg-fact-maj:hover:not(:disabled) { border-color: var(--sg-signal); color: var(--sg-text); }
 html[data-ui="signal"] .sg-fact-maj:disabled { opacity: 0.5; cursor: default; }
 html[data-ui="signal"] .sg-fact-tete {
-  display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
 }
 html[data-ui="signal"] .sg-fact-kpi {
   display: flex; flex-direction: column; gap: 2px;
@@ -5038,7 +5045,7 @@ html[data-ui="signal"] .sg-ca-date {
 html[data-ui="signal"] .sg-ca-plage { display: inline-flex; align-items: center; gap: 8px; }
 html[data-ui="signal"] .sg-ca-plage em { font-style: normal; font-size: 12px; color: var(--sg-text-3); }
 html[data-ui="signal"] .sg-ca-ages {
-  display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 12px;
+  display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); margin-bottom: 12px;
 }
 html[data-ui="signal"] .sg-ca-age {
   display: flex; flex-direction: column; gap: 1px;
