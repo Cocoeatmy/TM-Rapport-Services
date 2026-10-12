@@ -942,7 +942,9 @@ html[data-ui="signal"] .sg-seg-tm {
   background: rgba(15, 23, 42, 0.38);
   color: #fff; font-weight: 600;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
-  font-family: var(--font-mono); font-size: 9.5px; line-height: 1.3;
+  /* Agrandi : à 9,5 px le numéro se devinait plus qu'il ne se lisait, et
+     c'est pourtant lui qu'on cherche sur la barre. */
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.3;
   letter-spacing: -0.01em; white-space: nowrap; cursor: pointer;
   text-decoration: none; transition: background 140ms ease;
 }
@@ -5174,4 +5176,100 @@ html[data-ui="signal"] .sg-fact-retour:hover { color: var(--sg-signal); }
      chacun de leurs blocs accepte de rétrécir. */
   html[data-ui="signal"] .sg-row { flex-wrap: wrap; row-gap: 4px; }
   html[data-ui="signal"] .sg-row > * { min-width: 0; }
+}
+
+
+/* ── Ce qui est déjà gagné ────────────────────────────────────────────────
+   Le total de la semaine dit ce qu'elle vaut si tout se passe bien ; celui-ci
+   dit ce qui est acquis — les chantiers clôturés. L'écart entre les deux est
+   ce qu'il reste à faire, et c'est pour cela qu'ils se lisent côte à côte. */
+html[data-ui="signal"] .sg-gagne { color: #15803d; font-weight: 600; }
+html[data-ui="signal"].dark .sg-gagne { color: #4ade80; }
+
+/* ── Disponibilité par collaborateur ──────────────────────────────────────
+   Une pastille par jour et par monteur. Trois états seulement : la règle
+   réelle dépend du type de cabine, du type de montage et de l'éloignement du
+   dépôt — aucun de ces facteurs n'est devinable ici. Le survol donne les
+   chiffres bruts, pour qu'on tranche soi-même. */
+html[data-ui="signal"] .sg-dispo {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-dispo-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; margin-bottom: 8px;
+}
+html[data-ui="signal"] .sg-dispo-leg {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-dispo-leg i {
+  width: 9px; height: 9px; border-radius: 999px; margin-left: 6px;
+}
+html[data-ui="signal"] .sg-dispo-leg i:first-child { margin-left: 0; }
+
+/* Une colonne pour les noms, une par jour. `minmax(0, …)` partout : la
+   grille doit pouvoir rétrécir sous la largeur de son contenu. */
+html[data-ui="signal"] .sg-dispo-grille {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(var(--jours, 5), minmax(0, 1fr));
+  align-items: center;
+  gap: 2px 4px;
+}
+html[data-ui="signal"] .sg-dispo-coin {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-dispo-jour {
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  font-size: 11px; font-weight: 600; color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sg-dispo-jour i {
+  font-style: normal; font-family: var(--font-mono);
+  font-size: 9px; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-dispo-jour.is-today { color: var(--sg-signal); }
+html[data-ui="signal"] .sg-dispo-jour.is-today i { color: var(--sg-signal); }
+
+html[data-ui="signal"] .sg-dispo-nom {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--sg-text);
+  padding: 5px 0; border-top: 1px solid var(--sg-line);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* La pastille de couleur du monteur : le même repère que sur les barres et
+   dans le calendrier. */
+html[data-ui="signal"] .sg-dispo-nom i {
+  width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0;
+}
+html[data-ui="signal"] .sg-dispo-case {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 5px 0; border-top: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-dispo-case b {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-dispo-pastille {
+  width: 12px; height: 12px; border-radius: 999px; flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+/* Vert : la journée est faite. Orange : commencée, il reste de la place.
+   Rouge : rien de prévu — c'est celle-là qu'on cherche en fixant un RDV. */
+html[data-ui="signal"] .sg-dispo-pastille.is-plein,
+html[data-ui="signal"] .sg-dispo-leg i.is-plein { background: #22c55e; }
+html[data-ui="signal"] .sg-dispo-pastille.is-partiel,
+html[data-ui="signal"] .sg-dispo-leg i.is-partiel { background: #f59e0b; }
+html[data-ui="signal"] .sg-dispo-pastille.is-libre,
+html[data-ui="signal"] .sg-dispo-leg i.is-libre { background: #ef4444; }
+
+@media (max-width: 767px) {
+  /* Le tableau garde ses cinq jours sur téléphone : cinq pastilles tiennent
+     dans la largeur, et c'est justement la vue d'ensemble qu'on y cherche —
+     celle que le graphique, lui, a dû abandonner. */
+  html[data-ui="signal"] .sg-dispo-grille { gap: 2px 2px; }
+  html[data-ui="signal"] .sg-dispo-nom { font-size: 11.5px; }
+  html[data-ui="signal"] .sg-dispo-jour { font-size: 10px; }
+  html[data-ui="signal"] .sg-dispo-case b { display: none; }
 }

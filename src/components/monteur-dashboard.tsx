@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
@@ -14,6 +14,8 @@ import { etatLot, type EtatLot } from "@/lib/etat-lot";
 import { cabinesMesurees } from "@/lib/cabines-mesurees";
 import { cabinesDuJour, joursDuChantier } from "@/lib/cabines-du-jour";
 import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
+import { tableauDisponibilites, CAPACITE } from "@/lib/disponibilites";
+import { COLLABORATEURS_LIST as COLLABORATEURS_DISPO } from "@/lib/constants";
 import { rapportTermine, rapportEnAttente } from "@/lib/rapport-etat";
 import { rdvMontageAFixer as estRdvMontageAFixer, rdvServicesAFixer as estRdvServicesAFixer } from "@/lib/rdv-a-fixer";
 import { TourneeAssistant } from "@/components/tournee-assistant";
@@ -2920,6 +2922,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const rdvMontageAFixerProjects = projects
     .filter(estRdvMontageAFixer)
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+  /* Ce que les rendez-vous de montage encore à fixer valent en francs : la
+     somme des offres bexio de ces chantiers. Le compte dit combien il reste
+     d'appels à passer ; ce montant dit ce qu'ils rapportent. */
+  const montantRdvMontage = useMemo(
+    () => rdvMontageAFixerProjects.reduce((t, p) => t + (montantOFR(p.ofrTM) || 0), 0),
+    [rdvMontageAFixerProjects, montantOFR],
+  );
   const rdvMontageAFixerCount = rdvMontageAFixerProjects.length;
   // RDV Services à fixer — même règle, versant Services.
   const rdvServicesAFixerProjects = projects
@@ -3188,6 +3197,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">RDV Montage à fixer</p>
           {/* Total de cabines à installer = somme des cabines des projets « RDV Montage à fixer ». */}
           <p className="text-[9px] sm:text-[10px] font-semibold text-blue-500 dark:text-blue-300 mt-0.5">{rdvMontageAFixerProjects.reduce((s, p) => s + (p.nbCabines || 0), 0)} cab.</p>
+          {/* Ce que ces rendez-vous non fixés valent en francs : c'est le
+              chiffre d'affaires qui attend qu'on décroche le téléphone. Visible
+              du seul propriétaire des accès bexio — chez les autres, aucun
+              montant n'est même chargé. */}
+          {ofrActif && montantRdvMontage > 0 && (
+            <p className="text-[9px] sm:text-[10px] font-semibold text-green-600 dark:text-green-400 mt-0.5">
+              CHF {francsCourts(montantRdvMontage)}
+            </p>
+          )}
         </button>
       );
       case "rdv-services-a-fixer": return (
@@ -3715,6 +3733,38 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 }));
                 return t;
               })();
+              /* Ce qui est RÉELLEMENT acquis : la part des offres dont le
+                 chantier est clôturé. Le total de la semaine dit ce qu'elle
+                 vaut si tout se passe bien ; celui-ci dit ce qui est déjà
+                 gagné, et l'écart entre les deux est ce qu'il reste à faire. */
+              const semaineOFRGagne = (() => {
+                const vus = new Set<string>();
+                let t = 0;
+                bars.forEach((b) => [...b.projets, ...b.mesuresProjets, ...b.savProjets].forEach((p) => {
+                  if (vus.has(p.id)) return;
+                  vus.add(p.id);
+                  if (String(p.etatCMD || "") !== "Terminé") return;
+                  t += montantOFR(p.ofrTM) || 0;
+                }));
+                return t;
+              })();
+              /* Disponibilité par collaborateur : la charge dit combien de
+                 cabines tombent chaque jour, pas QUI a encore de la place
+                 mardi — or c'est la question qu'on se pose en fixant un
+                 rendez-vous. Les chantiers distincts sont comptés au passage :
+                 une journée sur un seul lieu en porte davantage, et l'infobulle
+                 le dit. */
+              const dispos = tableauDisponibilites(
+                bars.map((b) => b.segs.map((sg) => ({
+                  label: sg.label,
+                  cab: sg.cab,
+                  chantiers: new Set([
+                    ...sg.projetsRecu, ...sg.projetsAttente,
+                    ...sg.projetsMesure, ...sg.projetsSav,
+                  ].map((p) => p.id)).size,
+                }))),
+                COLLABORATEURS_DISPO,
+              );
               return (
                 <div className="sg-card sg-chart">
                   <div className="sg-card-head">
@@ -3734,6 +3784,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         {parNature.sav.size > 0 && ` · ${parNature.sav.size} SAV`}
                         {parNature.garanties.size > 0 && ` · ${parNature.garanties.size} garantie${parNature.garanties.size > 1 ? "s" : ""}`}
                         {ofrActif && semaineOFR > 0 && ` · CHF ${francsCourts(semaineOFR)}`}
+                        {/* Ce qui est déjà acquis, en vert, juste après ce que
+                            la semaine vaut en tout. */}
+                        {ofrActif && semaineOFRGagne > 0 && (
+                          <span className="sg-gagne"> · CHF {francsCourts(semaineOFRGagne)} gagnés</span>
+                        )}
                         {sgWeek !== 0 && ` · ${sgWeek > 0 ? "+" : ""}${sgWeek} sem.`}
                       </p>
                     </div>
@@ -3991,6 +4046,58 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       )}
                     </div>
                   )}
+
+                  {/* ── Disponibilité par collaborateur ──────────────────────
+                      Qui a encore de la place, et quel jour. La charge du
+                      dessus dit combien de cabines tombent chaque jour ; elle
+                      ne dit pas à qui en proposer une de plus.
+
+                      Les repères : seul on pose trois cabines, à deux quatre,
+                      à trois ou plus cinq. Ce ne sont que des repères — le
+                      type de cabine, le type de montage, l'éloignement du
+                      dépôt changent la donne, et une journée sur un seul
+                      chantier en porte davantage. La pastille s'en tient donc
+                      à trois états, et le survol donne les chiffres bruts pour
+                      qu'on tranche soi-même. */}
+                  <div className="sg-dispo">
+                    <div className="sg-dispo-head">
+                      <span className="sg-card-title">Disponibilité par collaborateur</span>
+                      <span className="sg-dispo-leg"
+                        title={`Repères : seul ${CAPACITE.solo} cabines, à deux ${CAPACITE.binome}, à trois ou plus ${CAPACITE.groupe}. Le type de cabine, le type de montage et l'éloignement du dépôt changent la donne — survolez une pastille pour le détail.`}>
+                        <i className="is-plein" /> journée pleine
+                        <i className="is-partiel" /> entamée
+                        <i className="is-libre" /> libre
+                      </span>
+                    </div>
+                    <div className="sg-dispo-grille" style={{ ["--jours" as string]: bars.length } as React.CSSProperties}>
+                      <span className="sg-dispo-coin">Collaborateur</span>
+                      {bars.map((b) => (
+                        <span key={b.key} className={`sg-dispo-jour${b.isToday ? " is-today" : ""}`}>
+                          {b.d}<i>{b.dt.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</i>
+                        </span>
+                      ))}
+                      {dispos.map((ligne) => (
+                        <React.Fragment key={ligne.nom}>
+                          <span className="sg-dispo-nom">
+                            <i style={{ background: getCollaboratorColor(ligne.nom).dot }} />
+                            {ligne.nom}
+                          </span>
+                          {ligne.jours.map((j, i) => (
+                            <span key={bars[i].key} className="sg-dispo-case">
+                              <i
+                                className={`sg-dispo-pastille is-${j.etat}`}
+                                title={j.etat === "libre"
+                                  ? `${ligne.nom} — ${bars[i].d} : rien de prévu`
+                                  : `${ligne.nom} — ${bars[i].d} : ${j.cabines} cabine${j.cabines > 1 ? "s" : ""} sur ${j.capacite} · ${j.chantiers} chantier${j.chantiers > 1 ? "s" : ""}${j.equipes.length ? ` · ${j.equipes.join(", ")}` : ""}`}
+                              />
+                              {j.cabines > 0 && <b>{j.cabines}</b>}
+                            </span>
+                          ))}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+
                 </div>
               );
             })()}
