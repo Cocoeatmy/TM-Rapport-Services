@@ -2334,7 +2334,7 @@ function HomePage() {
           page démarre directement sous l'en-tête. */}
       <div
         id="main-navbar"
-        className={sgRailOnly ? "" : "sticky z-40 -mx-4 px-4 pb-2 pt-1 glass-navbar"}
+        className={sgRailOnly ? "" : "sticky z-40 -mx-3 sm:-mx-4 px-3 sm:px-4 pb-2 pt-1 glass-navbar"}
         style={sgRailOnly ? undefined : { top: `var(--header-h, 60px)` }}
       >
       <div className={sgRailOnly ? "" : "flex items-start gap-2"}>
@@ -4002,7 +4002,7 @@ function HomePage() {
             )}
 
             {/* Filtre de dates + bouton VS — sticky */}
-            <div className="sticky z-30 -mx-4 px-4 pt-2 pb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm shadow-sm" style={{top: `calc(var(--header-h, 60px) + var(--navbar-h, 48px))`}}>
+            <div className="sticky z-30 -mx-3 sm:-mx-4 px-3 sm:px-4 pt-2 pb-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm shadow-sm" style={{top: `calc(var(--header-h, 60px) + var(--navbar-h, 48px))`}}>
               {/* Période A */}
               <div className="flex items-center gap-2 mb-1">
                 {statsCompare && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">A</span>}
@@ -5898,7 +5898,7 @@ function HomePage() {
           {/* Filtres mobile (visible uniquement sur petit écran) */}
           <div className="sm:hidden w-full space-y-2 mb-3">
             {/* Statuts - scroll horizontal */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4" style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-3 sm:-mx-4 px-3 sm:px-4" style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
               <button
                 onClick={() => setStatusFilter(null)}
                 className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
@@ -5924,7 +5924,7 @@ function HomePage() {
               ))}
             </div>
             {/* Collaborateurs - scroll horizontal */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4" style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-3 sm:-mx-4 px-3 sm:px-4" style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
               <button
                 onClick={() => setCollabFilter(null)}
                 className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${

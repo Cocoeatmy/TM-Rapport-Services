@@ -113,7 +113,7 @@ export function KanbanBoard({ projects, mode, onStatusChange }: KanbanBoardProps
   }, [projects, mode, onStatusChange]);
 
   return (
-    <div className="overflow-x-auto -mx-4 px-4 pb-4" style={{ WebkitOverflowScrolling: "touch" }}>
+    <div className="overflow-x-auto -mx-3 sm:-mx-4 px-3 sm:px-4 pb-4" style={{ WebkitOverflowScrolling: "touch" }}>
       <div className="flex gap-3" style={{ minWidth: `${columns.length * 280}px` }}>
         {columns.map((column) => {
           const colProjects = projectsByColumn[column] || [];

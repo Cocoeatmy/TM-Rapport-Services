@@ -3892,6 +3892,87 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       </div>
                     ))}
                   </div>
+
+                  {/* ── La même semaine, lue au pouce ────────────────────────
+                      Sur un téléphone, cinq colonnes de barres n'entrent pas :
+                      le titre se coupait mot par mot, les libellés des
+                      journées se chevauchaient, et il fallait deviner à quel
+                      jour appartenait quoi. Les mêmes données deviennent donc
+                      une LISTE — un jour par ligne, du texte au lieu d'une
+                      hauteur. Le DOM porte les deux ; la feuille de style
+                      choisit selon la largeur, et aucune autre version de
+                      l'app n'est concernée. */}
+                  <div className="sg-sem-mob">
+                    {bars.map((b) => {
+                      const lots = b.segs.flatMap((sg) => [
+                        ...sg.projetsRecu.map((p) => ({ sg, p, attente: false, mesure: false, sav: false })),
+                        ...sg.projetsAttente.map((p) => ({ sg, p, attente: true, mesure: false, sav: false })),
+                        ...sg.projetsMesure.map((p) => ({ sg, p, attente: false, mesure: true, sav: false })),
+                        ...sg.projetsSav.map((p) => ({ sg, p, attente: false, mesure: false, sav: true })),
+                      ]);
+                      return (
+                        <div key={b.d} className={`sg-sem-jour${b.nb === 0 ? " is-void" : ""}${b.isToday ? " is-today" : ""}`}>
+                          {/* La date ouvre le calendrier, comme la colonne du
+                              graphique sur grand écran. */}
+                          <button type="button" className="sg-sem-date"
+                            disabled={b.nb === 0}
+                            onClick={(e) => {
+                              if (b.nb === 0) return;
+                              openPanel("calendrier", e as unknown as React.MouseEvent<HTMLButtonElement>);
+                              setCalendarMonth({ year: b.dt.getFullYear(), month: b.dt.getMonth() });
+                              setCalendarSelectedDay(b.key);
+                            }}>
+                            <b>{b.d}</b>
+                            <i>{b.dt.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</i>
+                          </button>
+                          <div className="sg-sem-corps">
+                            <div className="sg-sem-chiffres">
+                              {b.nb === 0
+                                ? <span className="sg-sem-vide">rien de prévu</span>
+                                : (
+                                  <>
+                                    <b>{b.cab} cabine{b.cab > 1 ? "s" : ""}</b>
+                                    <span>{b.nb} projet{b.nb > 1 ? "s" : ""}</span>
+                                    {b.mes > 0 && <span className="is-mesures">{b.mes} mesure{b.mes > 1 ? "s" : ""}</span>}
+                                    {b.sav > 0 && <span className="is-sav">{b.sav} SAV</span>}
+                                    {b.restant > 0 && b.restant < b.cab && (
+                                      <span className="is-reste">{b.restant} à poser</span>
+                                    )}
+                                    {ofrActif && b.ofr > 0 && <em>CHF {francsCourts(b.ofr)}</em>}
+                                  </>
+                                )}
+                            </div>
+                            {lots.length > 0 && (
+                              <div className="sg-sem-lots">
+                                {lots.map(({ sg, p, attente, mesure, sav }) => {
+                                  const mode = mesure ? "mesures" : "dashboard";
+                                  const cle = `semmob-${b.key}-${p.id}${mesure ? "-m" : sav ? "-s" : ""}`;
+                                  return (
+                                    <Link
+                                      key={cle}
+                                      href={`/projet/${p.id}?mode=${mode}`}
+                                      prefetch={false}
+                                      className={`sg-sem-lot${attente ? " is-attente" : ""}`}
+                                      style={attente
+                                        ? ({ ["--raie" as string]: sg.color } as React.CSSProperties)
+                                        : { background: sg.color }}
+                                      title={`${p.projet} — ${sg.label}`}
+                                      onMouseEnter={() => survolerApercu(cle, () => ouvrirApercuSurvol(p, mode))}
+                                      onMouseLeave={() => quitterApercu(cle)}
+                                      onClick={() => closeSignalPreview()}
+                                    >
+                                      {parseTMNumbers(p.ofrTM || "")[0] || p.projet}
+                                    </Link>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
                   {legend.length > 0 && (
                     <div className="sg-bars-legend">
                       {legend.map((l) => (

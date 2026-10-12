@@ -5072,3 +5072,135 @@ html[data-ui="signal"] .sg-fact-retour {
   color: var(--sg-text-3); font-size: 12px; font-weight: 600; font-family: inherit;
 }
 html[data-ui="signal"] .sg-fact-retour:hover { color: var(--sg-signal); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   TÉLÉPHONE — « Charge de la semaine »
+
+   Le thème Signal a été dessiné pour un grand écran. Sur un téléphone, les
+   cinq colonnes de barres n'entraient pas : le titre se coupait mot par mot
+   dans une colonne de cent pixels, les libellés des journées se
+   chevauchaient, et il fallait deviner à quel jour appartenait quoi.
+
+   Ici, et ici seulement, la carte s'allège : l'en-tête se met en colonne, les
+   filtres deviennent une bande qui défile, et le graphique cède la place à
+   une liste — un jour par ligne, des mots au lieu d'une hauteur. Aucune autre
+   largeur n'est touchée, aucun autre thème n'est concerné.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* La liste n'existe pas au-delà du téléphone. */
+html[data-ui="signal"] .sg-sem-mob { display: none; }
+
+@media (max-width: 767px) {
+  /* En-tête : le titre d'abord, sur toute la largeur, les commandes dessous.
+     Côte à côte, ils se disputaient 375 pixels et perdaient tous les deux. */
+  html[data-ui="signal"] .sg-chart .sg-card-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  html[data-ui="signal"] .sg-chart .sg-card-meta { white-space: normal; }
+  html[data-ui="signal"] .sg-charge-tete {
+    justify-content: space-between;
+    gap: 8px;
+  }
+  /* Les cinq types sur une bande qui défile plutôt que sur trois lignes :
+     la carte garde une hauteur prévisible. */
+  html[data-ui="signal"] .sg-charge-filtres {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    max-width: 100%;
+  }
+  html[data-ui="signal"] .sg-charge-filtres::-webkit-scrollbar { display: none; }
+  html[data-ui="signal"] .sg-ctype { flex-shrink: 0; }
+
+  /* Le graphique s'efface, la liste prend sa place. */
+  html[data-ui="signal"] .sg-bars { display: none; }
+  html[data-ui="signal"] .sg-sem-mob {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 4px;
+  }
+
+  html[data-ui="signal"] .sg-sem-jour {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 2px;
+    border-top: 1px solid var(--sg-line);
+  }
+  html[data-ui="signal"] .sg-sem-jour:first-child { border-top: none; }
+  html[data-ui="signal"] .sg-sem-jour.is-void { opacity: 0.45; }
+  /* Aujourd'hui se repère à son filet, pas à une couleur de plus. */
+  html[data-ui="signal"] .sg-sem-jour.is-today {
+    box-shadow: inset 2px 0 0 var(--sg-signal);
+    padding-left: 8px;
+  }
+
+  /* Colonne de gauche, largeur fixe : les jours s'alignent, l'œil descend
+     droit. */
+  html[data-ui="signal"] .sg-sem-date {
+    flex: 0 0 52px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+    border: none; background: none; padding: 0; cursor: pointer;
+    font-family: inherit; text-align: left;
+  }
+  html[data-ui="signal"] .sg-sem-date:disabled { cursor: default; }
+  html[data-ui="signal"] .sg-sem-date b {
+    font-size: 13px; font-weight: 600; color: var(--sg-text);
+  }
+  html[data-ui="signal"] .sg-sem-date i {
+    font-style: normal; font-family: var(--font-mono);
+    font-size: 10px; color: var(--sg-text-3);
+  }
+  html[data-ui="signal"] .sg-sem-jour.is-today .sg-sem-date b { color: var(--sg-signal); }
+
+  html[data-ui="signal"] .sg-sem-corps {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  html[data-ui="signal"] .sg-sem-chiffres {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
+    font-size: 12px; color: var(--sg-text-3);
+  }
+  html[data-ui="signal"] .sg-sem-chiffres b { font-size: 13px; color: var(--sg-text); font-weight: 600; }
+  html[data-ui="signal"] .sg-sem-chiffres em {
+    font-style: normal; font-family: var(--font-mono);
+    font-size: 11px; color: var(--sg-ok, #15803d); font-weight: 600;
+  }
+  html[data-ui="signal"] .sg-sem-chiffres .is-mesures { color: #0e7490; }
+  html[data-ui="signal"] .sg-sem-chiffres .is-sav { color: #b45309; }
+  html[data-ui="signal"] .sg-sem-chiffres .is-reste { color: #b91c1c; }
+  html[data-ui="signal"] .sg-sem-vide { font-style: italic; }
+
+  /* Les numéros de projet gardent la couleur de leur monteur : c'est le seul
+     repère commun avec le calendrier et avec le grand écran. */
+  html[data-ui="signal"] .sg-sem-lots {
+    display: flex; flex-wrap: wrap; gap: 4px;
+  }
+  html[data-ui="signal"] .sg-sem-lot {
+    display: inline-flex; align-items: center;
+    padding: 3px 7px; border-radius: 6px;
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: -0.01em; white-space: nowrap;
+    color: #fff; text-decoration: none;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.28);
+  }
+  /* Marchandise pas encore réceptionnée : rayé, comme sur les barres. */
+  html[data-ui="signal"] .sg-sem-lot.is-attente {
+    color: var(--sg-text); text-shadow: none;
+    background-color: var(--sg-paper);
+    background-image: repeating-linear-gradient(
+      -45deg,
+      var(--raie, var(--sg-text-3)) 0 3px,
+      transparent 3px 7px
+    );
+    box-shadow: inset 0 0 0 1px var(--raie, var(--sg-text-3));
+  }
+
+  /* La légende aussi tenait sur trois lignes de pastilles : on la resserre. */
+  html[data-ui="signal"] .sg-bars-legend { gap: 4px; }
+  html[data-ui="signal"] .sg-bars-leg { font-size: 10.5px; padding: 3px 8px; }
+}
