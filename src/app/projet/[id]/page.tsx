@@ -126,6 +126,7 @@ import { getCollaboratorColor } from "@/lib/collaborators";
 import { isMultiDayHours, parsePointages, encodePointages } from "@/lib/pointages";
 import { heureDesPhotos, arriveeAcceptable, departApresPhoto, departValable, type HeurePhoto } from "@/lib/heure-photo";
 import { interventionsDuLot, encodeInterventions, dernierPassage, type InterventionSav } from "@/lib/sav-interventions";
+import { equipeDuJour } from "@/lib/equipe-intervention";
 import { fusionnerPassage } from "@/lib/passage-lot";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
@@ -4650,7 +4651,10 @@ function ProjectPageContent({ id }: { id: string }) {
         if (depart && depart !== (heureDepart || "")) direDepart(depart);
         setHeureArrivee(arrivee);
         setHeureDepart(depart);
-        setPointages([{ date: jour, collaborateur: userCollab || project?.collaborateurs || "", arrivee, depart }]);
+        /* L'équipe PRÉVUE d'abord, et non le seul expéditeur de la photo :
+           partis à deux, les monteurs ne voyaient qu'un nom coché, et à sept
+           heures du matin personne ne pense à cocher le collègue. */
+        setPointages([{ date: jour, collaborateur: equipeDuJour(project?.collaborateurs, userCollab), arrivee, depart }]);
         setIsMultiDay(true);
         scheduleAutoSave();
       }
@@ -4676,7 +4680,13 @@ function ProjectPageContent({ id }: { id: string }) {
     try { localStorage.setItem(`tm-pointages-${id}`, JSON.stringify(next)); } catch {}
   };
   const addPointage = () => {
-    setPointages((prev) => { const next = [...prev, { date: today, collaborateur: "", arrivee: "", depart: "" }]; persistMontagePointages(next); return next; });
+    /* Un passage ajouté à la main part lui aussi de l'équipe prévue : le
+       retour sur chantier se fait avec la même équipe neuf fois sur dix. */
+    setPointages((prev) => {
+      const next = [...prev, { date: today, collaborateur: equipeDuJour(project?.collaborateurs, autoCollab), arrivee: "", depart: "" }];
+      persistMontagePointages(next);
+      return next;
+    });
   };
   const updatePointage = (idx: number, field: keyof PointageEntry, value: string) => {
     setPointages((prev) => { const next = prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)); persistMontagePointages(next); return next; });
@@ -4719,7 +4729,7 @@ function ProjectPageContent({ id }: { id: string }) {
       persistMontagePointages(next);
     } else {
       setHeureDepart(h);
-      setPointages([{ date: ctx.jour || todayStr, collaborateur: autoCollab || project?.collaborateurs || "", arrivee: heureArrivee || "", depart: h }]);
+      setPointages([{ date: ctx.jour || todayStr, collaborateur: equipeDuJour(project?.collaborateurs, autoCollab), arrivee: heureArrivee || "", depart: h }]);
       setIsMultiDay(true);
       scheduleAutoSave();
     }
@@ -4771,7 +4781,7 @@ function ProjectPageContent({ id }: { id: string }) {
       ? ctx.pointages
       : [{
           date: (ctx.date || today).slice(0, 10),
-          collaborateur: ctx.collaborateurDefaut || "",
+          collaborateur: ctx.collaborateurDefaut || "",  // déjà l'équipe prévue
           arrivee: ctx.arrivee || "",
           depart: ctx.depart || "",
         }];
@@ -5147,7 +5157,7 @@ function ProjectPageContent({ id }: { id: string }) {
       }
       return [{
         date: project?.dateMontage?.slice(0, 10) || today,
-        collaborateur: project?.collaborateurs || "",
+        collaborateur: equipeDuJour(project?.collaborateurs, autoCollab),
         arrivee: heureArrivee || "",
         depart: heureDepart || "",
       }];
@@ -5478,7 +5488,13 @@ function ProjectPageContent({ id }: { id: string }) {
       } catch {}
       const chosen = backup && backup.length > serverPts.length ? backup : serverPts;
       if (chosen.length) {
-        setPointages(chosen);
+        /* Un passage enregistré sans AUCUN nom : on le complète avec l'équipe
+           prévue. Vide ne veut pas dire « personne » — ça veut dire que la
+           question n'a jamais été posée. Un passage où quelqu'un a été
+           décoché, lui, n'est pas touché : c'est un choix. */
+        setPointages(chosen.map((p) => (String(p.collaborateur || "").trim()
+          ? p
+          : { ...p, collaborateur: equipeDuJour(data.collaborateurs) })));
         setIsMultiDay(true);
       }
     }
