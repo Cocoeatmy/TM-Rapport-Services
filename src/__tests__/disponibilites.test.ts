@@ -82,19 +82,63 @@ describe("journée d'un collaborateur", () => {
 });
 
 describe("tableau de la semaine", () => {
+  const semaine: SegmentJour[][] = [
+    [{ label: "Claudio", cab: 3 }],
+    [],
+    [{ label: "Claudio & Jacobo", cab: 2 }],
+    [],
+    [],
+  ];
+  const DATES = ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16"];
+
   it("garde l'ordre des collaborateurs qu'on lui donne", () => {
-    const semaine: SegmentJour[][] = [
-      [{ label: "Claudio", cab: 3 }],
-      [],
-      [{ label: "Claudio & Jacobo", cab: 2 }],
-      [],
-      [],
-    ];
     const t = tableauDisponibilites(semaine, ["Claudio", "Jacobo", "Miguel"]);
     expect(t.map((l) => l.nom)).toEqual(["Claudio", "Jacobo", "Miguel"]);
     expect(t[0].jours.map((j) => j.etat)).toEqual(["plein", "libre", "partiel", "libre", "libre"]);
     expect(t[0].total).toBe(5);
     expect(t[2].total).toBe(0);
     expect(t[2].jours.every((j) => j.etat === "libre")).toBe(true);
+  });
+
+  /* Le plafond suit les équipes réelles : Claudio est seul le lundi (3) et en
+     binôme le mercredi (4), seul les trois autres jours — 3+3+4+3+3 = 16, et
+     non un forfait de quinze. */
+  it("compte le plafond de la semaine équipe par équipe", () => {
+    const t = tableauDisponibilites(semaine, ["Claudio"]);
+    expect(t[0].plafond).toBe(16);
+    expect(t[0].total).toBe(5);
+    expect(t[0].pourcent).toBe(31);
+  });
+
+  it("rend zéro pour celui qui n'a rien, sans diviser par zéro", () => {
+    const t = tableauDisponibilites([[], [], [], [], []], ["Javier"]);
+    expect(t[0].plafond).toBe(15);
+    expect(t[0].pourcent).toBe(0);
+  });
+
+  /* Une absence est notée à la main : rien dans les données ne permet de la
+     deviner. Elle noircit la case SANS retirer le travail qui s'y trouve. */
+  it("noircit les journées marquées absentes", () => {
+    const absents = new Set(["claudio|2026-10-14"]);
+    const t = tableauDisponibilites(semaine, ["Claudio"], { jours: DATES, absents });
+    expect(t[0].jours[2].etat).toBe("absent");
+    expect(t[0].jours[2].cabines).toBe(2);
+    expect(t[0].jours[0].etat).toBe("plein");
+    expect(t[0].total).toBe(5);
+  });
+
+  it("ignore la casse du prénom dans la clé d'absence", () => {
+    const t = tableauDisponibilites(semaine, ["Claudio"], {
+      jours: DATES,
+      absents: new Set(["claudio|2026-10-12"]),
+    });
+    expect(t[0].jours[0].etat).toBe("absent");
+  });
+
+  it("sans dates, aucune absence n'est appliquée", () => {
+    const t = tableauDisponibilites(semaine, ["Claudio"], {
+      absents: new Set(["claudio|2026-10-12"]),
+    });
+    expect(t[0].jours[0].etat).toBe("plein");
   });
 });

@@ -5186,11 +5186,66 @@ html[data-ui="signal"] .sg-fact-retour:hover { color: var(--sg-signal); }
 html[data-ui="signal"] .sg-gagne { color: #15803d; font-weight: 600; }
 html[data-ui="signal"].dark .sg-gagne { color: #4ade80; }
 
+/* ── Le graphique et ce qu'il a déjà rapporté, côte à côte ───────────────── */
+html[data-ui="signal"] .sg-chart-corps {
+  display: flex; align-items: stretch; gap: 16px; flex-grow: 1;
+}
+html[data-ui="signal"] .sg-chart-corps > .sg-bars { flex: 1; min-width: 0; }
+
+/* Encart vert : ce que la semaine a DÉJÀ rapporté. Le total prévu dit ce
+   qu'elle vaut si tout se passe bien ; ce chiffre-ci monte à chaque chantier
+   clôturé, et l'écart entre les deux est le travail qui reste. */
+html[data-ui="signal"] .sg-acquis {
+  width: 196px; flex-shrink: 0; align-self: flex-end;
+  box-sizing: border-box;
+  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 13px;
+  padding: 13px 15px; display: flex; flex-direction: column; gap: 3px;
+}
+html[data-ui="signal"].dark .sg-acquis {
+  background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.3);
+}
+html[data-ui="signal"] .sg-acquis-tete {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; font-weight: 600; color: #15803d;
+}
+html[data-ui="signal"].dark .sg-acquis-tete { color: #4ade80; }
+html[data-ui="signal"] .sg-acquis-chf {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 24px; font-weight: 700; line-height: 1.15;
+  letter-spacing: -0.02em; color: #15803d;
+}
+html[data-ui="signal"].dark .sg-acquis-chf { color: #4ade80; }
+html[data-ui="signal"] .sg-acquis-sur {
+  font-family: var(--font-mono); font-size: 10px; color: #16a34a;
+}
+html[data-ui="signal"].dark .sg-acquis-sur { color: #86efac; }
+html[data-ui="signal"] .sg-acquis-jauge {
+  height: 6px; border-radius: 999px; background: #dcfce7;
+  overflow: hidden; margin: 7px 0 8px;
+}
+html[data-ui="signal"] .sg-acquis-jauge i {
+  display: block; height: 100%; background: #22c55e; border-radius: 999px;
+  transition: width 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html[data-ui="signal"] .sg-acquis-ligne {
+  display: flex; align-items: baseline; justify-content: space-between;
+  font-size: 11.5px; color: #15803d;
+}
+html[data-ui="signal"].dark .sg-acquis-ligne { color: #86efac; }
+html[data-ui="signal"] .sg-acquis-ligne b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 13px; font-weight: 700; color: #14532d;
+}
+html[data-ui="signal"].dark .sg-acquis-ligne b { color: #bbf7d0; }
+html[data-ui="signal"] .sg-acquis-ligne.is-clos {
+  margin-top: 3px; padding-top: 7px; border-top: 1px solid #bbf7d0;
+}
+
 /* ── Disponibilité par collaborateur ──────────────────────────────────────
-   Une pastille par jour et par monteur. Trois états seulement : la règle
-   réelle dépend du type de cabine, du type de montage et de l'éloignement du
-   dépôt — aucun de ces facteurs n'est devinable ici. Le survol donne les
-   chiffres bruts, pour qu'on tranche soi-même. */
+   Une pastille par jour et par monteur. Quatre états : la règle réelle dépend
+   du type de cabine, du type de montage et de l'éloignement du dépôt — aucun
+   de ces facteurs n'est devinable ici. Le survol donne les chiffres bruts,
+   pour qu'on tranche soi-même. */
 html[data-ui="signal"] .sg-dispo {
   margin-top: 14px;
   padding-top: 12px;
@@ -5205,71 +5260,179 @@ html[data-ui="signal"] .sg-dispo-leg {
   font-size: 10.5px; color: var(--sg-text-3);
 }
 html[data-ui="signal"] .sg-dispo-leg i {
-  width: 9px; height: 9px; border-radius: 999px; margin-left: 6px;
+  width: 9px; height: 9px; border-radius: 999px; margin-left: 8px;
 }
-html[data-ui="signal"] .sg-dispo-leg i:first-child { margin-left: 0; }
+html[data-ui="signal"] .sg-dispo-leg i:first-of-type { margin-left: 0; }
 
-/* Une colonne pour les noms, une par jour. `minmax(0, …)` partout : la
-   grille doit pouvoir rétrécir sous la largeur de son contenu. */
+/* Noms, cinq jours, total, part. `minmax(0, …)` partout : la grille doit
+   pouvoir rétrécir sous la largeur de son contenu. */
 html[data-ui="signal"] .sg-dispo-grille {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) repeat(var(--jours, 5), minmax(0, 1fr));
+  grid-template-columns:
+    minmax(0, 1.5fr) repeat(var(--jours, 5), minmax(0, 1fr))
+    78px minmax(0, 1.5fr);
   align-items: center;
-  gap: 2px 4px;
+  gap: 0 8px;
 }
 html[data-ui="signal"] .sg-dispo-coin {
-  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+  font-size: 9.5px; font-weight: 600; letter-spacing: 0.05em;
   text-transform: uppercase; color: var(--sg-text-3);
+  padding-bottom: 7px;
 }
+html[data-ui="signal"] .sg-dispo-coin.is-fin { text-align: center; }
 html[data-ui="signal"] .sg-dispo-jour {
   display: flex; flex-direction: column; align-items: center; gap: 0;
-  font-size: 11px; font-weight: 600; color: var(--sg-text-2);
+  font-size: 11.5px; font-weight: 600; color: var(--sg-text-2);
+  padding-bottom: 7px;
 }
 html[data-ui="signal"] .sg-dispo-jour i {
   font-style: normal; font-family: var(--font-mono);
-  font-size: 9px; color: var(--sg-text-3);
+  font-size: 10px; font-weight: 500; color: var(--sg-text-3);
 }
-html[data-ui="signal"] .sg-dispo-jour.is-today { color: var(--sg-signal); }
+html[data-ui="signal"] .sg-dispo-jour em {
+  font-style: normal; font-family: var(--font-mono);
+  font-size: 9.5px; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-dispo-jour.is-today,
 html[data-ui="signal"] .sg-dispo-jour.is-today i { color: var(--sg-signal); }
 
 html[data-ui="signal"] .sg-dispo-nom {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 12px; color: var(--sg-text);
-  padding: 5px 0; border-top: 1px solid var(--sg-line);
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--sg-text);
+  padding: 7px 0; border-top: 1px solid var(--sg-line);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* La pastille de couleur du monteur : le même repère que sur les barres et
-   dans le calendrier. */
 html[data-ui="signal"] .sg-dispo-nom i {
-  width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0;
+  width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0;
 }
+
+/* Deux colonnes de largeur FIXE : la pastille tombe toujours au même endroit,
+   que le nombre soit là ou non. Centrer un couple « pastille + chiffre » de
+   largeur variable décalait les pastilles d'une ligne à l'autre. */
 html[data-ui="signal"] .sg-dispo-case {
-  display: flex; align-items: center; justify-content: center; gap: 4px;
-  padding: 5px 0; border-top: 1px solid var(--sg-line);
+  display: grid; grid-template-columns: 13px 14px;
+  justify-content: center; align-items: center; column-gap: 5px;
+  padding: 7px 0; border-top: 1px solid var(--sg-line);
 }
 html[data-ui="signal"] .sg-dispo-case b {
-  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
-  color: var(--sg-text-3);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 10.5px; font-weight: 600; color: var(--sg-text-3);
+  text-align: left;
 }
+/* Du travail prévu un jour d'absence : la contradiction se montre. */
+html[data-ui="signal"] .sg-dispo-case b.is-conflit { color: #dc2626; }
+
 html[data-ui="signal"] .sg-dispo-pastille {
-  width: 12px; height: 12px; border-radius: 999px; flex-shrink: 0;
+  width: 13px; height: 13px; border-radius: 999px; padding: 0;
+  border: none; cursor: pointer; display: block;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transition: transform 120ms ease;
+}
+html[data-ui="signal"] .sg-dispo-pastille:hover { transform: scale(1.25); }
+html[data-ui="signal"] .sg-dispo-pastille:disabled { cursor: default; }
+html[data-ui="signal"] .sg-dispo-pastille:disabled:hover { transform: none; }
+html[data-ui="signal"] .sg-dispo-pastille:focus-visible {
+  outline: 2px solid var(--sg-signal); outline-offset: 2px;
 }
 /* Vert : la journée est faite. Orange : commencée, il reste de la place.
-   Rouge : rien de prévu — c'est celle-là qu'on cherche en fixant un RDV. */
+   Rouge : rien de prévu — c'est celle-là qu'on cherche en fixant un RDV.
+   Noir : absent, noté à la main. */
 html[data-ui="signal"] .sg-dispo-pastille.is-plein,
 html[data-ui="signal"] .sg-dispo-leg i.is-plein { background: #22c55e; }
 html[data-ui="signal"] .sg-dispo-pastille.is-partiel,
 html[data-ui="signal"] .sg-dispo-leg i.is-partiel { background: #f59e0b; }
 html[data-ui="signal"] .sg-dispo-pastille.is-libre,
 html[data-ui="signal"] .sg-dispo-leg i.is-libre { background: #ef4444; }
+html[data-ui="signal"] .sg-dispo-pastille.is-absent,
+html[data-ui="signal"] .sg-dispo-leg i.is-absent { background: #0f172a; }
+html[data-ui="signal"].dark .sg-dispo-pastille.is-absent,
+html[data-ui="signal"].dark .sg-dispo-leg i.is-absent {
+  background: #0f172a; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+html[data-ui="signal"] .sg-dispo-total {
+  display: flex; align-items: baseline; justify-content: center; gap: 4px;
+  padding: 7px 0; border-top: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-dispo-total b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 12px; font-weight: 700; color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sg-dispo-total b.is-vide { color: #ef4444; }
+html[data-ui="signal"] .sg-dispo-total b.is-plein { color: #15803d; }
+html[data-ui="signal"] .sg-dispo-total i {
+  font-style: normal; font-family: var(--font-mono);
+  font-size: 10px; color: var(--sg-text-3);
+}
+
+html[data-ui="signal"] .sg-dispo-part {
+  display: grid; grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center; column-gap: 7px;
+  padding: 7px 0; border-top: 1px solid var(--sg-line);
+}
+html[data-ui="signal"] .sg-dispo-barre {
+  height: 7px; border-radius: 999px; background: var(--sg-paper-2);
+  overflow: hidden; display: block;
+}
+html[data-ui="signal"] .sg-dispo-barre i {
+  display: block; height: 100%; border-radius: 999px; background: #f59e0b;
+  transition: width 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html[data-ui="signal"] .sg-dispo-barre i.is-plein { background: #22c55e; }
+html[data-ui="signal"] .sg-dispo-barre i.is-vide { background: #fecaca; }
+html[data-ui="signal"] .sg-dispo-part em {
+  font-style: normal; font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600; color: var(--sg-text-3);
+  text-align: right;
+}
+
+/* Pied : ce que pèse chaque journée, sous la colonne qui la décrit. */
+html[data-ui="signal"] .sg-dispo-pied {
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  padding: 9px 0; margin-top: 6px; background: var(--sg-paper-2);
+}
+html[data-ui="signal"] .sg-dispo-pied b {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 12px; font-weight: 700; color: var(--sg-text-2);
+}
+html[data-ui="signal"] .sg-dispo-pied i {
+  font-style: normal; font-family: var(--font-mono);
+  font-size: 9.5px; color: var(--sg-text-3);
+}
+html[data-ui="signal"] .sg-dispo-pied.is-nom {
+  align-items: flex-start; justify-content: center;
+  font-size: 12.5px; font-weight: 600; color: var(--sg-text);
+  padding-left: 10px; border-radius: 10px 0 0 10px;
+}
+html[data-ui="signal"] .sg-dispo-pied.is-somme b { color: #15803d; }
+html[data-ui="signal"] .sg-dispo-pied.is-vide { border-radius: 0 10px 10px 0; }
 
 @media (max-width: 767px) {
   /* Le tableau garde ses cinq jours sur téléphone : cinq pastilles tiennent
      dans la largeur, et c'est justement la vue d'ensemble qu'on y cherche —
      celle que le graphique, lui, a dû abandonner. */
-  html[data-ui="signal"] .sg-dispo-grille { gap: 2px 2px; }
+  /* Sur téléphone, « Total » et « % charge » tomberaient à six pixels de
+     large : on garde les cinq jours — la vue d'ensemble que le graphique, lui,
+     a dû abandonner — et le total passe sous le nom. */
+  html[data-ui="signal"] .sg-dispo-grille {
+    grid-template-columns: minmax(0, 1.6fr) repeat(var(--jours, 5), minmax(0, 1fr));
+    gap: 0 2px;
+  }
   html[data-ui="signal"] .sg-dispo-nom { font-size: 11.5px; }
   html[data-ui="signal"] .sg-dispo-jour { font-size: 10px; }
+  html[data-ui="signal"] .sg-dispo-jour em { display: none; }
+  html[data-ui="signal"] .sg-dispo-case { grid-template-columns: 13px; column-gap: 0; }
   html[data-ui="signal"] .sg-dispo-case b { display: none; }
+  html[data-ui="signal"] .sg-dispo-coin.is-fin,
+  html[data-ui="signal"] .sg-dispo-total,
+  html[data-ui="signal"] .sg-dispo-part,
+  html[data-ui="signal"] .sg-dispo-pied.is-somme,
+  html[data-ui="signal"] .sg-dispo-pied.is-vide { display: none; }
+  html[data-ui="signal"] .sg-dispo-pied.is-nom { border-radius: 10px 0 0 10px; }
+  html[data-ui="signal"] .sg-dispo-pied i { display: none; }
+
+  /* L'encart vert passe sous le graphique : à 196 px de large il ne laissait
+     plus rien à la colonne du jour. */
+  html[data-ui="signal"] .sg-chart-corps { flex-direction: column; gap: 12px; }
+  html[data-ui="signal"] .sg-acquis { width: 100%; align-self: stretch; }
 }

@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-12T16:01:07.734Z",
+  "genereLe": "2026-10-12T21:32:59.521Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -114,6 +114,17 @@
       "niveau": "admin-ecran",
       "gardePage": true,
       "methodes": []
+    },
+    {
+      "url": "/api/absences",
+      "type": "api",
+      "fichier": "src/app/api/absences/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET",
+        "POST"
+      ]
     },
     {
       "url": "/api/ai",

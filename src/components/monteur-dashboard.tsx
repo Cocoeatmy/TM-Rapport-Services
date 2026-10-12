@@ -14,6 +14,7 @@ import { etatLot, type EtatLot } from "@/lib/etat-lot";
 import { cabinesMesurees } from "@/lib/cabines-mesurees";
 import { cabinesDuJour, joursDuChantier } from "@/lib/cabines-du-jour";
 import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
+import { toast } from "sonner";
 import { tableauDisponibilites, CAPACITE } from "@/lib/disponibilites";
 import { COLLABORATEURS_LIST as COLLABORATEURS_DISPO } from "@/lib/constants";
 import { rapportTermine, rapportEnAttente } from "@/lib/rapport-etat";
@@ -1766,6 +1767,52 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [sgCat, setSgCat] = useState<string>("");
   /** Semaine affichee dans « Charge de la semaine » (0 = semaine en cours). */
   const [sgWeek, setSgWeek] = useState(0);
+  /**
+   * Absences notées à la main sur le tableau de disponibilité.
+   *
+   * Rien dans Notion ne dit qu'un monteur est en vacances, en formation ou
+   * chez le médecin — et c'est pourtant la première chose à savoir avant de
+   * proposer une date. Un clic sur la pastille la noircit ; l'écriture est
+   * réservée à l'administrateur, parce qu'une absence est une décision de
+   * planning et non une préférence personnelle.
+   */
+  const [absences, setAbsences] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let vivant = true;
+    fetch("/api/absences")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((l) => {
+        if (!vivant || !Array.isArray(l)) return;
+        setAbsences(new Set(l.map((x: { cle?: string }) => String(x?.cle || "")).filter(Boolean)));
+      })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, []);
+  const basculerAbsence = (nom: string, jour: string) => {
+    const cle = `${nom.trim().toLowerCase()}|${jour}`;
+    /* On noircit tout de suite : la réponse du serveur n'apprendrait rien de
+       plus, et l'attendre ferait clignoter la pastille. En cas d'échec on
+       revient en arrière. */
+    setAbsences((avant) => {
+      const apres = new Set(avant);
+      if (apres.has(cle)) apres.delete(cle); else apres.add(cle);
+      return apres;
+    });
+    fetch("/api/absences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collaborateur: nom, jour }),
+    })
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); })
+      .catch(() => {
+        setAbsences((avant) => {
+          const apres = new Set(avant);
+          if (apres.has(cle)) apres.delete(cle); else apres.add(cle);
+          return apres;
+        });
+        toast.error("Absence non enregistrée");
+      });
+  };
   /**
    * Jour affiché sur téléphone (index dans la semaine, 0 = lundi).
    *
@@ -3764,7 +3811,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   ].map((p) => p.id)).size,
                 }))),
                 COLLABORATEURS_DISPO,
+                { jours: bars.map((b) => b.key), absents: absences },
               );
+              /* Chantiers clôturés de la semaine : c'est eux que l'encart vert
+                 suit. Le total prévu dit ce que la semaine vaut si tout se
+                 passe bien, celui-ci ce qui est déjà acquis. */
+              const semaineClos = (() => {
+                const vus = new Set<string>();
+                let n = 0;
+                bars.forEach((b) => [...b.projets, ...b.mesuresProjets, ...b.savProjets].forEach((p) => {
+                  if (vus.has(p.id)) return;
+                  vus.add(p.id);
+                  if (String(p.etatCMD || "") === "Terminé") n += 1;
+                }));
+                return n;
+              })();
+              const partGagnee = semaineOFR > 0
+                ? Math.min(100, Math.round((semaineOFRGagne / semaineOFR) * 100))
+                : 0;
               return (
                 <div className="sg-card sg-chart">
                   <div className="sg-card-head">
@@ -3783,12 +3847,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         {parNature.services.size > 0 && ` · ${parNature.services.size} service${parNature.services.size > 1 ? "s" : ""}`}
                         {parNature.sav.size > 0 && ` · ${parNature.sav.size} SAV`}
                         {parNature.garanties.size > 0 && ` · ${parNature.garanties.size} garantie${parNature.garanties.size > 1 ? "s" : ""}`}
-                        {ofrActif && semaineOFR > 0 && ` · CHF ${francsCourts(semaineOFR)}`}
-                        {/* Ce qui est déjà acquis, en vert, juste après ce que
-                            la semaine vaut en tout. */}
-                        {ofrActif && semaineOFRGagne > 0 && (
-                          <span className="sg-gagne"> · CHF {francsCourts(semaineOFRGagne)} gagnés</span>
-                        )}
+                        {/* Les francs ont quitté cette ligne : l'encart vert,
+                            à droite du graphique, les porte avec ce qui est
+                            déjà acquis. Les répéter ici ferait deux totaux à
+                            tenir d'accord. */}
+                        {!ofrActif && sgWeek !== 0 && ""}
                         {sgWeek !== 0 && ` · ${sgWeek > 0 ? "+" : ""}${sgWeek} sem.`}
                       </p>
                     </div>
@@ -3867,6 +3930,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       Aucun type sélectionné — cochez au moins un type pour voir la semaine.
                     </p>
                   )}
+                  <div className="sg-chart-corps">
                   <div className="sg-bars">
                     {bars.map((b, iJour) => (
                       /* Colonne en div, pas en bouton : elle porte désormais
@@ -4011,6 +4075,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     ))}
                   </div>
 
+                  {/* ── Ce que la semaine a déjà rapporté ──────────────────
+                      Le total prévu dit ce qu'elle vaut si tout se passe
+                      bien ; ce chiffre-ci dit ce qui est acquis, et il monte
+                      à chaque chantier clôturé. L'écart entre les deux, c'est
+                      le travail qui reste. Visible du seul propriétaire des
+                      accès bexio. */}
+                  {ofrActif && semaineOFR > 0 && (
+                    <div className="sg-acquis">
+                      <div className="sg-acquis-tete">
+                        <span>Total semaine</span>
+                        <Check className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="sg-acquis-chf">CHF {francsCourts(semaineOFRGagne)}</div>
+                      <div className="sg-acquis-sur">encaissé sur CHF {francsCourts(semaineOFR)} prévus</div>
+                      <div className="sg-acquis-jauge"><i style={{ width: `${partGagnee}%` }} /></div>
+                      <div className="sg-acquis-ligne"><span>cabines</span><b>{semaineCabines}</b></div>
+                      <div className="sg-acquis-ligne"><span>projets</span><b>{semaineProjets}</b></div>
+                      <div className="sg-acquis-ligne is-clos"><span>clôturés</span><b>{semaineClos} / {semaineProjets}</b></div>
+                    </div>
+                  )}
+                  </div>
+
                   {legend.length > 0 && (
                     <div className="sg-bars-legend">
                       {legend.map((l) => (
@@ -4057,8 +4143,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       type de cabine, le type de montage, l'éloignement du
                       dépôt changent la donne, et une journée sur un seul
                       chantier en porte davantage. La pastille s'en tient donc
-                      à trois états, et le survol donne les chiffres bruts pour
-                      qu'on tranche soi-même. */}
+                      à quatre états, et le survol donne les chiffres bruts
+                      pour qu'on tranche soi-même. */}
                   <div className="sg-dispo">
                     <div className="sg-dispo-head">
                       <span className="sg-card-title">Disponibilité par collaborateur</span>
@@ -4067,37 +4153,86 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         <i className="is-plein" /> journée pleine
                         <i className="is-partiel" /> entamée
                         <i className="is-libre" /> libre
+                        {/* Ce tableau ne vit que dans le tableau de bord
+                            d'administration : celui qui le voit peut noter une
+                            absence. Le serveur le revérifie de son côté. */}
+                        <i className="is-absent" /> absent — cliquez
                       </span>
                     </div>
                     <div className="sg-dispo-grille" style={{ ["--jours" as string]: bars.length } as React.CSSProperties}>
                       <span className="sg-dispo-coin">Collaborateur</span>
                       {bars.map((b) => (
                         <span key={b.key} className={`sg-dispo-jour${b.isToday ? " is-today" : ""}`}>
-                          {b.d}<i>{b.dt.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</i>
+                          {b.d} <i>{b.dt.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</i>
+                          <em>{b.cab} cab.</em>
                         </span>
                       ))}
+                      <span className="sg-dispo-coin is-fin">Total</span>
+                      <span className="sg-dispo-coin is-fin">% charge</span>
+
                       {dispos.map((ligne) => (
                         <React.Fragment key={ligne.nom}>
                           <span className="sg-dispo-nom">
                             <i style={{ background: getCollaboratorColor(ligne.nom).dot }} />
                             {ligne.nom}
                           </span>
-                          {ligne.jours.map((j, i) => (
-                            <span key={bars[i].key} className="sg-dispo-case">
-                              <i
-                                className={`sg-dispo-pastille is-${j.etat}`}
-                                title={j.etat === "libre"
-                                  ? `${ligne.nom} — ${bars[i].d} : rien de prévu`
-                                  : `${ligne.nom} — ${bars[i].d} : ${j.cabines} cabine${j.cabines > 1 ? "s" : ""} sur ${j.capacite} · ${j.chantiers} chantier${j.chantiers > 1 ? "s" : ""}${j.equipes.length ? ` · ${j.equipes.join(", ")}` : ""}`}
-                              />
-                              {j.cabines > 0 && <b>{j.cabines}</b>}
+                          {ligne.jours.map((j, i) => {
+                            const jour = bars[i];
+                            const detail = j.etat === "absent"
+                              ? `${ligne.nom} — ${jour.d} : absent${j.cabines > 0 ? ` · ${j.cabines} cabine${j.cabines > 1 ? "s" : ""} pourtant prévue${j.cabines > 1 ? "s" : ""}` : ""}`
+                              : j.etat === "libre"
+                                ? `${ligne.nom} — ${jour.d} : rien de prévu`
+                                : `${ligne.nom} — ${jour.d} : ${j.cabines} cabine${j.cabines > 1 ? "s" : ""} sur ${j.capacite} · ${j.chantiers} chantier${j.chantiers > 1 ? "s" : ""}${j.equipes.length ? ` · ${j.equipes.join(", ")}` : ""}`;
+                            return (
+                              <span key={jour.key} className="sg-dispo-case">
+                                {/* Bouton et non pastille muette : c'est par lui
+                                    qu'on note une absence, et le clavier doit y
+                                    accéder comme la souris. */}
+                                <button type="button"
+                                  className={`sg-dispo-pastille is-${j.etat}`}
+                                  aria-label={`${detail} — cliquez pour marquer une absence`}
+                                  title={`${detail} — cliquez pour marquer une absence`}
+                                  onClick={() => basculerAbsence(ligne.nom, jour.key)} />
+                                {/* Du travail prévu un jour d'absence : le
+                                    chiffre passe en rouge. C'est la
+                                    contradiction qu'on veut voir, pas corriger. */}
+                                <b className={j.etat === "absent" && j.cabines > 0 ? "is-conflit" : ""}>
+                                  {j.cabines > 0 ? j.cabines : ""}
+                                </b>
+                              </span>
+                            );
+                          })}
+                          <span className="sg-dispo-total">
+                            <b className={ligne.total === 0 ? "is-vide" : ligne.pourcent >= 75 ? "is-plein" : ""}>{ligne.total}</b>
+                            <i>/ {ligne.plafond}</i>
+                          </span>
+                          <span className="sg-dispo-part">
+                            <span className="sg-dispo-barre">
+                              <i className={ligne.total === 0 ? "is-vide" : ligne.pourcent >= 75 ? "is-plein" : ""}
+                                 style={{ width: `${Math.min(100, ligne.pourcent)}%` }} />
                             </span>
-                          ))}
+                            <em>{ligne.pourcent}%</em>
+                          </span>
                         </React.Fragment>
                       ))}
+
+                      {/* Ce que pèse chaque journée, sous la colonne qui la
+                          décrit : la somme se lit au même endroit que le
+                          détail. */}
+                      <span className="sg-dispo-pied is-nom">Total jour</span>
+                      {bars.map((b) => (
+                        <span key={b.key} className="sg-dispo-pied">
+                          <b>{b.cab} cab.</b>
+                          <i>{b.nb} proj.</i>
+                        </span>
+                      ))}
+                      <span className="sg-dispo-pied is-somme">
+                        <b>{semaineCabines} cab.</b>
+                        <i>{semaineProjets} projets</i>
+                      </span>
+                      <span className="sg-dispo-pied is-vide" />
                     </div>
                   </div>
-
                 </div>
               );
             })()}
