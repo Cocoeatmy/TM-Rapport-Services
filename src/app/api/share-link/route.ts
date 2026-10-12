@@ -121,6 +121,10 @@ export async function GET(req: NextRequest) {
       }
 
       // ── Contacts CRM (bloc **, valeur ligne suivante) — si présents. ──
+      /* « Contacts pour RDV » en premier : c'est la personne qu'on appelle en
+         partant, ou quand on sonne et que personne n'ouvre. Les autres
+         familles servent après coup. */
+      addBlock("Contacts pour RDV", String(full.contactsRDV || "").trim());
       addBlock("Contacts Locataires", fmtContacts(full.contactsLocatairesDetails));
       addBlock("Contacts Clients finaux", fmtContacts(full.contactsClientsFinauxDetails));
       addBlock("Contacts Sanitaire", fmtContacts(full.contactsSanitaireDetails));
