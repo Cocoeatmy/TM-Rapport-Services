@@ -2954,21 +2954,42 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     .filter((p) => commandeEnRetard(p as any, aujourdhuiISO))
     .sort((a, b) => ((a.previsionLivraison || "").split("T")[0]).localeCompare((b.previsionLivraison || "").split("T")[0]));
 
-  /** Devis sans réponse et factures échues — bexio, donc visible du seul
-   *  propriétaire des accès. La route répond 403 aux autres, et les deux
-   *  lignes n'apparaissent alors pas. */
-  const [signauxBexio, setSignauxBexio] = useState<{
-    devis: { total: number; j14: number; j30: number; montant: number; lignes: { nr: string; titre: string; total: number; date: string; jours: number }[] };
-    echues: { total: number; montant: number; lignes: { nr: string; titre: string; client: string; restant: number; echeance: string; jours: number }[] };
-  } | null>(null);
+  /**
+   * Devis sans réponse et factures échues — ils viennent de bexio.
+   *
+   * Quatre états et non « des données ou rien » : tant que la réponse n'est
+   * pas là, les deux lignes s'affichent avec des points de suspension. Une
+   * ligne qui n'existe pas tant que le réseau n'a pas répondu donne à croire
+   * qu'elle n'a jamais été posée — et c'est précisément ce qui s'est passé.
+   * Seul un refus d'accès les fait disparaître : chez qui n'a pas les accès
+   * bexio, elles n'ont rien à faire là.
+   */
+  type SignauxBexio =
+    | { etat: "chargement" }
+    | { etat: "absent" }
+    | { etat: "erreur" }
+    | {
+        etat: "pret";
+        devis: { total: number; j14: number; j30: number; montant: number; lignes: { nr: string; titre: string; total: number; date: string; jours: number }[] };
+        echues: { total: number; montant: number; lignes: { nr: string; titre: string; client: string; restant: number; echeance: string; jours: number }[] };
+      };
+  const [signauxBexio, setSignauxBexio] = useState<SignauxBexio>({ etat: "chargement" });
   /** Quelle liste bexio est ouverte dans le tiroir — et aucune par défaut. */
   const [apercuBexio, setApercuBexio] = useState<"devis" | "echues" | null>(null);
   useEffect(() => {
     let vivant = true;
     fetch("/api/bexio/signaux")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (vivant && d && d.devis) setSignauxBexio(d); })
-      .catch(() => {});
+      .then(async (r) => {
+        if (r.status === 403) return { etat: "absent" } as SignauxBexio;
+        if (!r.ok) return { etat: "erreur" } as SignauxBexio;
+        const d = await r.json().catch(() => null);
+        /* Hors ligne, le service worker rend un tableau vide en guise de
+           réponse : ce n'est pas une donnée, c'est une panne. */
+        if (!d || !d.devis || !d.echues) return { etat: "erreur" } as SignauxBexio;
+        return { etat: "pret", devis: d.devis, echues: d.echues } as SignauxBexio;
+      })
+      .then((etat) => { if (vivant) setSignauxBexio(etat); })
+      .catch(() => { if (vivant) setSignauxBexio({ etat: "erreur" }); });
     return () => { vivant = false; };
   }, []);
 
@@ -4409,29 +4430,40 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               {/* Les deux signaux bexio. Ils ne portent PAS de montant dans la
                   ligne : l'écran se regarde par-dessus l'épaule, et le détail
                   s'ouvre à la demande. */}
-              {signauxBexio && signauxBexio.devis.total > 0 && (
-                <button type="button" className="sg-signal-row"
-                  onClick={() => setApercuBexio("devis")}>
-                  <span className="sg-signal-chip" style={{ background: "#fef9c3", color: "#a16207" }}><FileText className="w-3.5 h-3.5" /></span>
-                  <span className="sg-signal-label">
-                    Devis en attente
-                    <em className="sg-signal-note">
-                      sans réponse depuis 7 j · {signauxBexio.devis.j14} depuis 14 j · {signauxBexio.devis.j30} depuis 30 j
-                    </em>
-                  </span>
-                  <span className="sg-signal-count" style={{ color: "#a16207" }}>{signauxBexio.devis.total}</span>
-                  <ChevronRight className="w-4 h-4 sg-signal-arrow" />
-                </button>
-              )}
-              {signauxBexio && signauxBexio.echues.total > 0 && (
-                <button type="button" className="sg-signal-row"
-                  onClick={() => setApercuBexio("echues")}>
-                  <span className="sg-signal-chip" style={{ background: "#fee2e2", color: "#b91c1c" }}><Receipt className="w-3.5 h-3.5" /></span>
-                  <span className="sg-signal-label">Factures échues<em className="sg-signal-note">délai de paiement dépassé</em></span>
-                  <span className="sg-signal-count" style={{ color: "#b91c1c" }}>{signauxBexio.echues.total}</span>
-                  <ChevronRight className="w-4 h-4 sg-signal-arrow" />
-                </button>
-              )}
+              {signauxBexio.etat !== "absent" && (() => {
+                const pret = signauxBexio.etat === "pret" ? signauxBexio : null;
+                const attente = signauxBexio.etat === "chargement";
+                const valeur = (n: number | undefined) =>
+                  attente ? "…" : (pret ? String(n ?? 0) : "—");
+                const lignes = [
+                  {
+                    cle: "devis", label: "Devis en attente", bg: "#fef9c3", fg: "#a16207", Icon: FileText,
+                    note: pret
+                      ? `sans réponse depuis 7 j · ${pret.devis.j14} depuis 14 j · ${pret.devis.j30} depuis 30 j`
+                      : (attente ? "lecture de bexio…" : "données bexio indisponibles"),
+                    compte: valeur(pret?.devis.total),
+                    vide: !!pret && pret.devis.total === 0,
+                  },
+                  {
+                    cle: "echues", label: "Factures échues", bg: "#fee2e2", fg: "#b91c1c", Icon: Receipt,
+                    note: pret
+                      ? "délai de paiement dépassé"
+                      : (attente ? "lecture de bexio…" : "données bexio indisponibles"),
+                    compte: valeur(pret?.echues.total),
+                    vide: !!pret && pret.echues.total === 0,
+                  },
+                ];
+                return lignes.filter((l) => !l.vide).map((l) => (
+                  <button key={l.cle} type="button" className="sg-signal-row"
+                    disabled={!pret}
+                    onClick={() => setApercuBexio(l.cle as "devis" | "echues")}>
+                    <span className="sg-signal-chip" style={{ background: l.bg, color: l.fg }}><l.Icon className="w-3.5 h-3.5" /></span>
+                    <span className="sg-signal-label">{l.label}<em className="sg-signal-note">{l.note}</em></span>
+                    <span className="sg-signal-count" style={{ color: l.fg }}>{l.compte}</span>
+                    <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+                  </button>
+                ));
+              })()}
               {/* Ces quatre dernières lignes mènent à des PAGES et non à des
                   panneaux : leur calcul porte sur tous les projets, terminés
                   compris, et se fait côté serveur — le tableau de bord n'a pas
@@ -4488,7 +4520,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               tiroir que la charge de la semaine : on reste sur la page, et la
               liste se referme d'un geste. Les montants n'y sont écrits qu'ici,
               une fois le tiroir ouvert. */}
-          {apercuBexio && signauxBexio && (
+          {apercuBexio && signauxBexio.etat === "pret" && (
             <>
               <div className="sgs-drawer" role="dialog"
                 aria-label={apercuBexio === "devis" ? "Devis en attente" : "Factures échues"}>
