@@ -16,10 +16,12 @@ import { bexioFetch } from "@/lib/bexio";
 import { redisGetJSON, redisSetJSON, siRedis } from "@/lib/redis-cache";
 import type { OffreBexio, FactureBexio } from "@/lib/bexio-rapprochement";
 
-/* Version 2 : les factures portent désormais le nom du client. Changer la
-   clé évite de servir une copie d'hier à laquelle il manquerait. */
-const CLE_OFFRES = "bexio:offres4";
-const CLE_FACTURES = "bexio:factures4";
+/* La clé change à chaque enrichissement de la copie : servir celle d'hier,
+   à laquelle il manque un champ, ferait taire un signal sans rien dire.
+   Version 5 : statut des offres (devis sans réponse) et échéance des factures
+   (factures échues). */
+const CLE_OFFRES = "bexio:offres5";
+const CLE_FACTURES = "bexio:factures5";
 const CLE_ACHATS = "bexio:achats1";
 const CLE_COMPTES = "bexio:comptes1";
 const CLE_SYNCHRO = "bexio:synchro";
@@ -49,6 +51,10 @@ interface BrutDocument {
   contact_address?: string | null;
   /** Chez bexio, « gross » veut dire HORS TAXES sur une facture de vente. */
   total_gross?: string | number;
+  /** Offres : 1 brouillon, 2 en attente, 3 confirmée, 4 déclinée. */
+  kb_item_status_id?: number;
+  /** Factures : échéance de paiement. */
+  is_valid_to?: string;
 }
 
 /** Toutes les pages d'un objet bexio, dans l'ordre où il les rend. */
@@ -134,6 +140,7 @@ export async function synchroniserBexio(): Promise<{ offres: number; factures: n
     date: (o.is_valid_from || "").slice(0, 10),
     client: nomClient(o.contact_address),
     ht: nombre(o.total_gross),
+    statut: o.kb_item_status_id ?? null,
   }));
   const factures: FactureBexio[] = brutFactures.map((f) => ({
     id: f.id,
@@ -146,6 +153,7 @@ export async function synchroniserBexio(): Promise<{ offres: number; factures: n
     reference: f.reference || null,
     client: nomClient(f.contact_address),
     ht: nombre(f.total_gross),
+    echeance: (f.is_valid_to || "").slice(0, 10) || null,
   }));
 
   const achats: AchatBexio[] = brutAchats.map((b) => ({

@@ -32,6 +32,8 @@ export interface OffreBexio {
   client?: string;
   /** Hors taxes — la base de toute comparaison avec un coût. */
   ht?: number;
+  /** Statut bexio : 1 brouillon, 2 en attente, 3 confirmée, 4 déclinée. */
+  statut?: number | null;
 }
 
 export interface FactureBexio {
@@ -48,6 +50,8 @@ export interface FactureBexio {
   client?: string;
   /** Hors taxes — la base de toute comparaison avec un coût. */
   ht?: number;
+  /** Échéance de paiement (`is_valid_to` chez bexio). */
+  echeance?: string | null;
 }
 
 /** Sur quoi se fonde le rapprochement — du certain au douteux. */

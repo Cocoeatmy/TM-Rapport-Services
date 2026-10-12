@@ -16,6 +16,10 @@ import { cabinesDuJour, joursDuChantier } from "@/lib/cabines-du-jour";
 import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
 import { toast } from "sonner";
 import { tableauDisponibilites, CAPACITE } from "@/lib/disponibilites";
+import {
+  materielNonReceptionne, chantierBloque, interventionNonTerminee,
+  retardDeMontage, commandeEnRetard,
+} from "@/lib/signaux";
 import { COLLABORATEURS_LIST as COLLABORATEURS_DISPO } from "@/lib/constants";
 import { rapportTermine, rapportEnAttente } from "@/lib/rapport-etat";
 import { rdvMontageAFixer as estRdvMontageAFixer, rdvServicesAFixer as estRdvServicesAFixer } from "@/lib/rdv-a-fixer";
@@ -2851,6 +2855,8 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [projetsSignales, setProjetsSignales] = useState<Set<string>>(new Set());
   /** Chantiers dont TOUS les signalements ont ete regles — l'icone reste, en vert. */
   const [projetsRegles, setProjetsRegles] = useState<Set<string>>(new Set());
+  /** Chantiers dont au moins une PIÈCE manquante reste à recevoir. */
+  const [projetsPieceOuverte, setProjetsPieceOuverte] = useState<Set<string>>(new Set());
   useEffect(() => {
     let vivant = true;
     Promise.all([
@@ -2868,6 +2874,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           .map((x: any) => String(x.projectId || "")).filter(Boolean),
       );
       setProjetsSignales(idsOuverts);
+      /* Les PIÈCES ouvertes à part : une pièce manquante empêche de finir la
+         pose, un défaut constaté non. « Chantiers bloqués » ne doit compter
+         que ce qui bloque vraiment. */
+      setProjetsPieceOuverte(new Set(
+        piecesOuvertes.map((x: any) => String(x.projectId || "")).filter(Boolean),
+      ));
       /* Regles : le chantier a eu au moins un signalement, et il n'en reste
          aucun d'ouvert. Un chantier qui en a encore un ouvert reste signale —
          le vert ne doit pas masquer ce qui attend encore. */
@@ -2912,6 +2924,53 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const soucisEnCoursProjects = projects.filter((p) => p.etatCMD === "Soucis montage")
     .sort((a, b) => ((a.dateMontage || "").split("T")[0]).localeCompare((b.dateMontage || "").split("T")[0]));
   const soucisEnCoursCount = soucisEnCoursProjects.length;
+
+  /* ── Les signaux de risque ────────────────────────────────────────────────
+     Le reste du tableau de bord compte ce qu'il y a À FAIRE ; ceux-ci disent
+     ce qui risque de MAL TOURNER. Les règles vivent dans `signaux.ts`, avec
+     leurs tests : un compteur d'alerte qui se trompe cesse d'être lu, et on a
+     déjà payé cette leçon avec les chantiers « non facturés ».
+
+     `allActiveProjects` plutôt que `projects` : ce dernier ne couvre que
+     certains statuts CMD, et un chantier bloqué passerait sous le radar. */
+  const aujourdhuiISO = formatLocalDate(new Date());
+  const baseSignaux = allActiveProjects.length > 0 ? allActiveProjects : projects;
+  const parDateMontage = (a: Project, b: Project) =>
+    ((a.dateMontage || "").split("T")[0]).localeCompare((b.dateMontage || "").split("T")[0]);
+
+  const materielManquantProjects = baseSignaux
+    .filter((p) => materielNonReceptionne(p as any, aujourdhuiISO))
+    .sort(parDateMontage);
+  const chantiersBloquesProjects = baseSignaux
+    .filter((p) => chantierBloque(p as any, projetsPieceOuverte.has(p.id)))
+    .sort(parDateMontage);
+  const nonTermineesProjects = baseSignaux
+    .filter((p) => interventionNonTerminee(p as any))
+    .sort(parDateMontage);
+  const retardsMontageProjects = baseSignaux
+    .filter((p) => retardDeMontage(p as any, aujourdhuiISO))
+    .sort(parDateMontage);
+  const commandesRetardProjects = baseSignaux
+    .filter((p) => commandeEnRetard(p as any, aujourdhuiISO))
+    .sort((a, b) => ((a.previsionLivraison || "").split("T")[0]).localeCompare((b.previsionLivraison || "").split("T")[0]));
+
+  /** Devis sans réponse et factures échues — bexio, donc visible du seul
+   *  propriétaire des accès. La route répond 403 aux autres, et les deux
+   *  lignes n'apparaissent alors pas. */
+  const [signauxBexio, setSignauxBexio] = useState<{
+    devis: { total: number; j14: number; j30: number; montant: number; lignes: { nr: string; titre: string; total: number; date: string; jours: number }[] };
+    echues: { total: number; montant: number; lignes: { nr: string; titre: string; client: string; restant: number; echeance: string; jours: number }[] };
+  } | null>(null);
+  /** Quelle liste bexio est ouverte dans le tiroir — et aucune par défaut. */
+  const [apercuBexio, setApercuBexio] = useState<"devis" | "echues" | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    fetch("/api/bexio/signaux")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivant && d && d.devis) setSignauxBexio(d); })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, []);
 
   // Mesures terminées sans commande — données chargées via la route dédiée
   const mesuresSansCommandeProjects = mesuresSansCommandeData;
@@ -4287,6 +4346,92 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   <ChevronRight className="w-4 h-4 sg-signal-arrow" />
                 </button>
               ))}
+
+              {/* ── Ce qui risque de mal tourner ──────────────────────────
+                  Les lignes ci-dessus disent ce qu'il y a à faire ; celles-ci
+                  ce qui va coincer. Elles ouvrent la fiche de droite plutôt
+                  qu'un panneau : on veut la liste des chantiers concernés,
+                  pas un écran de plus. Une ligne à zéro ne s'affiche pas —
+                  une alerte éteinte qui reste à l'écran finit par ne plus
+                  être lue du tout. */}
+              {([
+                {
+                  label: "Matériel non réceptionné", note: "montages des 3 prochains jours",
+                  projets: materielManquantProjects, bg: "#fef3c7", fg: "#b45309", Icon: Truck,
+                  detail: (p: Project) => `${(p.dateMontage || "").split("T")[0]} · ${p.nbCabines || 0} cab.`,
+                },
+                {
+                  label: "Chantiers bloqués", note: "pièce manquante ou souci ouvert",
+                  projets: chantiersBloquesProjects, bg: "#fee2e2", fg: "#b91c1c", Icon: AlertCircle,
+                  detail: (p: Project) => p.etatCMD || "",
+                },
+                {
+                  label: "Interventions non terminées", note: "un second passage à fixer",
+                  projets: nonTermineesProjects, bg: "#ede9fe", fg: "#6d28d9", Icon: Wrench,
+                  detail: (p: Project) => `${cabinesPosees(p)} / ${p.nbCabines || 0} posées`,
+                },
+                {
+                  label: "Retards de montage", note: "date passée, rien de posé",
+                  projets: retardsMontageProjects, bg: "#ffe4e6", fg: "#9f1239", Icon: Clock,
+                  detail: (p: Project) => `prévu le ${(p.dateMontage || "").split("T")[0]}`,
+                },
+                {
+                  label: "Commandes en retard", note: "livraison annoncée dépassée",
+                  projets: commandesRetardProjects, bg: "#e0f2fe", fg: "#0369a1", Icon: Box,
+                  detail: (p: Project) => `annoncée le ${(p.previsionLivraison || "").split("T")[0]}`,
+                },
+              ]).filter((s) => s.projets.length > 0).map((s) => (
+                <button key={s.label} type="button" className="sg-signal-row"
+                  onClick={() => openSignalListe(
+                    s.label,
+                    s.projets.map((p) => ({ project: p, detail: s.detail(p) })),
+                    s.note,
+                  )}>
+                  <span className="sg-signal-chip" style={{ background: s.bg, color: s.fg }}><s.Icon className="w-3.5 h-3.5" /></span>
+                  <span className="sg-signal-label">{s.label}<em className="sg-signal-note">{s.note}</em></span>
+                  <span className="sg-signal-count" style={{ color: s.fg }}>{s.projets.length}</span>
+                  <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+                </button>
+              ))}
+
+              {/* Relevés faits, commande jamais passée — calculé par le
+                  serveur, comme le carnet. */}
+              {mesuresSansCommandeCount > 0 && (
+                <button type="button" className="sg-signal-row"
+                  onClick={(e) => openPanel("mesures-sans-commande", e)}>
+                  <span className="sg-signal-chip" style={{ background: "#cffafe", color: "#0e7490" }}><Ruler className="w-3.5 h-3.5" /></span>
+                  <span className="sg-signal-label">Mesures sans commande<em className="sg-signal-note">relevé fait, rien de commandé</em></span>
+                  <span className="sg-signal-count" style={{ color: "#0e7490" }}>{mesuresSansCommandeCount}</span>
+                  <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+                </button>
+              )}
+
+              {/* Les deux signaux bexio. Ils ne portent PAS de montant dans la
+                  ligne : l'écran se regarde par-dessus l'épaule, et le détail
+                  s'ouvre à la demande. */}
+              {signauxBexio && signauxBexio.devis.total > 0 && (
+                <button type="button" className="sg-signal-row"
+                  onClick={() => setApercuBexio("devis")}>
+                  <span className="sg-signal-chip" style={{ background: "#fef9c3", color: "#a16207" }}><FileText className="w-3.5 h-3.5" /></span>
+                  <span className="sg-signal-label">
+                    Devis en attente
+                    <em className="sg-signal-note">
+                      sans réponse depuis 7 j · {signauxBexio.devis.j14} depuis 14 j · {signauxBexio.devis.j30} depuis 30 j
+                    </em>
+                  </span>
+                  <span className="sg-signal-count" style={{ color: "#a16207" }}>{signauxBexio.devis.total}</span>
+                  <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+                </button>
+              )}
+              {signauxBexio && signauxBexio.echues.total > 0 && (
+                <button type="button" className="sg-signal-row"
+                  onClick={() => setApercuBexio("echues")}>
+                  <span className="sg-signal-chip" style={{ background: "#fee2e2", color: "#b91c1c" }}><Receipt className="w-3.5 h-3.5" /></span>
+                  <span className="sg-signal-label">Factures échues<em className="sg-signal-note">délai de paiement dépassé</em></span>
+                  <span className="sg-signal-count" style={{ color: "#b91c1c" }}>{signauxBexio.echues.total}</span>
+                  <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+                </button>
+              )}
               {/* Ces quatre dernières lignes mènent à des PAGES et non à des
                   panneaux : leur calcul porte sur tous les projets, terminés
                   compris, et se fait côté serveur — le tableau de bord n'a pas
@@ -4339,6 +4484,54 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
 
           {/* Projets derrière une pastille de légende : un chiffre du tableau
               de bord doit pouvoir être ouvert pour voir ce qu'il recouvre. */}
+          {/* Les listes bexio — devis sans réponse, factures échues. Même
+              tiroir que la charge de la semaine : on reste sur la page, et la
+              liste se referme d'un geste. Les montants n'y sont écrits qu'ici,
+              une fois le tiroir ouvert. */}
+          {apercuBexio && signauxBexio && (
+            <>
+              <div className="sgs-drawer" role="dialog"
+                aria-label={apercuBexio === "devis" ? "Devis en attente" : "Factures échues"}>
+                <div className="sgs-drawer-head">
+                  <div>
+                    <h2 className="sg-card-title">
+                      {apercuBexio === "devis" ? "Devis en attente" : "Factures échues"}
+                    </h2>
+                    <p className="sg-card-meta">
+                      {apercuBexio === "devis"
+                        ? `${signauxBexio.devis.total} offre${signauxBexio.devis.total > 1 ? "s" : ""} · CHF ${francsCourts(signauxBexio.devis.montant)} en jeu`
+                        : `${signauxBexio.echues.total} facture${signauxBexio.echues.total > 1 ? "s" : ""} · CHF ${francsCourts(signauxBexio.echues.montant)} dus`}
+                    </p>
+                  </div>
+                  <button type="button" className="sg-unpin" aria-label="Fermer"
+                    onClick={() => setApercuBexio(null)}>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="sgs-drawer-body">
+                  {apercuBexio === "devis"
+                    ? signauxBexio.devis.lignes.map((o) => (
+                      <div key={o.nr} className="sgc-row is-statique">
+                        <span className="sg-mono sgc-row-tm">{o.nr}</span>
+                        <span className="sgc-row-name">{o.titre}</span>
+                        <span className="sg-mono sgc-row-cab">CHF {francsCourts(o.total)}</span>
+                        <span className="sg-mono sgb-age">{o.jours} j</span>
+                      </div>
+                    ))
+                    : signauxBexio.echues.lignes.map((f) => (
+                      <div key={f.nr} className="sgc-row is-statique">
+                        <span className="sg-mono sgc-row-tm">{f.nr}</span>
+                        <span className="sgc-row-name">{f.client || f.titre}</span>
+                        <span className="sg-mono sgc-row-cab">CHF {francsCourts(f.restant)}</span>
+                        <span className="sg-mono sgb-age is-retard">{f.jours} j</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+              <div className="sgs-drawer-veil" aria-hidden="true" onClick={() => setApercuBexio(null)} />
+            </>
+          )}
+
           {chargePick && (
             <>
               <div className="sgs-drawer" role="dialog" aria-label={`Projets — ${chargePick.titre}`}>

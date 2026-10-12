@@ -5456,3 +5456,15 @@ html[data-ui="signal"] .sg-dispo-pied.is-vide { border-radius: 0 10px 10px 0; }
   html[data-ui="signal"] .sg-chart-corps { flex-direction: column; gap: 12px; }
   html[data-ui="signal"] .sg-acquis { width: 100%; align-self: stretch; margin-bottom: 0; }
 }
+
+/* Âge d'un devis ou d'une facture, en fin de ligne du tiroir bexio : c'est
+   lui qui dit par où commencer. */
+html[data-ui="signal"] .sgb-age {
+  font-size: 11px; font-weight: 600; color: var(--sg-text-3);
+  min-width: 42px; text-align: right;
+}
+html[data-ui="signal"] .sgb-age.is-retard { color: #b91c1c; }
+/* Ligne de tiroir qui ne mène nulle part : ces documents vivent dans bexio,
+   pas dans l'app. Elle ne doit donc pas se présenter comme cliquable. */
+html[data-ui="signal"] .sgc-row.is-statique { cursor: default; }
+html[data-ui="signal"] .sgc-row.is-statique:hover { background: transparent; }
