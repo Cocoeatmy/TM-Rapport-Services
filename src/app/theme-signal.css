@@ -1237,6 +1237,9 @@ html[data-ui="signal"] .sg-cat.is-on .sg-cat-n {
   background: rgba(255, 255, 255, 0.16);
   color: #ffffff;
 }
+/* Chevron de l'onglet ouvert : il dit que ce même bouton referme. Il n'y en a
+   qu'un à l'écran — six chevrons côte à côte n'apprendraient rien. */
+html[data-ui="signal"] .sg-cat-chev { margin-left: -2px; opacity: 0.75; }
 
 /* Signaux */
 html[data-ui="signal"] .sg-signal-row {

@@ -1756,7 +1756,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const [sgSelected, setSgSelected] = useState<string | null>(null);
   // Onglet de catégorie de la grille de tuiles (thème Signal). "all" = tout,
   // comportement identique au dashboard classique (ordre + glisser-déposer).
-  const [sgCat, setSgCat] = useState<string>("all");
+  /* Aucune catégorie au départ : la grille des vingt-deux tuiles est REPLIÉE
+     tant qu'on n'a pas choisi quoi regarder. Elle occupait tout le bas du
+     tableau de bord sans qu'on l'ait demandé, et il fallait la dépasser pour
+     atteindre quoi que ce soit. Les filtres deviennent donc la poignée :
+     un appui ouvre, un second appui sur le même referme. */
+  const [sgCat, setSgCat] = useState<string>("");
   /** Semaine affichee dans « Charge de la semaine » (0 = semaine en cours). */
   const [sgWeek, setSgWeek] = useState(0);
   /* Montants des offres bexio. Le serveur les refuse à tout compte autre que
@@ -4120,20 +4125,31 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             </>
           )}
 
-          {/* Rangement des 22 boutons par onglets — aucun n'est supprimé */}
+          {/* Rangement des 22 boutons par onglets — aucun n'est supprimé.
+              Ces onglets sont aussi la POIGNÉE de la grille : elle est repliée
+              tant qu'aucun n'est choisi, et un second appui sur l'onglet
+              ouvert la referme. */}
           <div className="sg-cats">
-            {SG_CATS.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setSgCat(c.id)}
-                className={`sg-cat${sgCat === c.id ? " is-on" : ""}`}
-                aria-pressed={sgCat === c.id}
-              >
-                {c.label}
-                <span className="sg-cat-n">{c.id === "all" ? buttonOrder.filter((i) => !isEmptyId(i)).length : c.ids.length}</span>
-              </button>
-            ))}
+            {SG_CATS.map((c) => {
+              const ouvert = sgCat === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setSgCat((avant) => (avant === c.id ? "" : c.id))}
+                  className={`sg-cat${ouvert ? " is-on" : ""}`}
+                  aria-pressed={ouvert}
+                  aria-expanded={ouvert}
+                  title={ouvert ? `Replier ${c.label.toLowerCase()}` : `Afficher ${c.label.toLowerCase()}`}
+                >
+                  {c.label}
+                  <span className="sg-cat-n">{c.id === "all" ? buttonOrder.filter((i) => !isEmptyId(i)).length : c.ids.length}</span>
+                  {/* Le chevron ne s'affiche que sur l'onglet ouvert : six
+                      chevrons côte à côte ne diraient rien de plus. */}
+                  {ouvert && <ChevronUp className="w-3 h-3 sg-cat-chev" />}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -4449,12 +4465,16 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 </button>
               </div>
             )}
+            {/* Repliée tant qu'aucun filtre n'est ouvert — en thème Signal
+                seulement. Le mode édition la rouvre d'office : on ne range pas
+                des tuiles qu'on ne voit pas. */}
+            {(!isSignal || isEditMode || sgCat !== "") && (
             <div className={`dash-grid grid grid-cols-2 sm:grid-cols-6 gap-1.5 sm:gap-3 ${isEditMode ? "select-none" : ""}`}>
               {buttonOrder
                 .filter((id) => {
                   // Thème Signal : filtrage par onglet de catégorie. « Tout »
                   // (et tous les autres thèmes) → grille complète inchangée.
-                  if (!isSignal || sgCat === "all") return true;
+                  if (!isSignal || sgCat === "all" || sgCat === "") return true;
                   const cat = SG_CATS.find((c) => c.id === sgCat);
                   return cat ? cat.ids.includes(id) : true;
                 })
@@ -4561,6 +4581,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 );
               })}
             </div>
+            )}
           </div>
         );
       })()}
