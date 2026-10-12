@@ -5200,6 +5200,12 @@ html[data-ui="signal"] .sg-acquis {
   box-sizing: border-box;
   background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 13px;
   padding: 13px 15px; display: flex; flex-direction: column; gap: 3px;
+  /* Le bas de l'encart se cale sur le BAS DES BARRES, pas sur le bas de la
+     colonne : sous les barres viennent encore le jour et la date, et sans ce
+     décalage l'encart pendait de trente-sept pixels sous la ligne de base du
+     graphique. La valeur suit ce bloc de libellés — l'écart de la colonne
+     (8 px), le jour (~15 px), la date (~14 px). */
+  margin-bottom: 37px;
 }
 html[data-ui="signal"].dark .sg-acquis {
   background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.3);
@@ -5240,6 +5246,10 @@ html[data-ui="signal"].dark .sg-acquis-ligne b { color: #bbf7d0; }
 html[data-ui="signal"] .sg-acquis-ligne.is-clos {
   margin-top: 3px; padding-top: 7px; border-top: 1px solid #bbf7d0;
 }
+/* Ce qui reste à poser : le seul des quatre chiffres qui annonce du travail
+   plutôt qu'un volume. Il se détache, sans crier. */
+html[data-ui="signal"] .sg-acquis-ligne.is-reste b { color: #b45309; }
+html[data-ui="signal"].dark .sg-acquis-ligne.is-reste b { color: #fbbf24; }
 
 /* ── Disponibilité par collaborateur ──────────────────────────────────────
    Une pastille par jour et par monteur. Quatre états : la règle réelle dépend
@@ -5434,5 +5444,5 @@ html[data-ui="signal"] .sg-dispo-pied.is-vide { border-radius: 0 10px 10px 0; }
   /* L'encart vert passe sous le graphique : à 196 px de large il ne laissait
      plus rien à la colonne du jour. */
   html[data-ui="signal"] .sg-chart-corps { flex-direction: column; gap: 12px; }
-  html[data-ui="signal"] .sg-acquis { width: 100%; align-self: stretch; }
+  html[data-ui="signal"] .sg-acquis { width: 100%; align-self: stretch; margin-bottom: 0; }
 }

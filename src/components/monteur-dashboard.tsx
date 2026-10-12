@@ -3780,20 +3780,29 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 }));
                 return t;
               })();
-              /* Ce qui est RÉELLEMENT acquis : la part des offres dont le
-                 chantier est clôturé. Le total de la semaine dit ce qu'elle
-                 vaut si tout se passe bien ; celui-ci dit ce qui est déjà
-                 gagné, et l'écart entre les deux est ce qu'il reste à faire. */
-              const semaineOFRGagne = (() => {
+              /* Ce qui est RÉELLEMENT acquis.
+                 Et non « ce que Notion déclare terminé » : le statut suit le
+                 travail de plusieurs jours — rapport, facture, classement — et
+                 un chantier dont les quatre cabines sont posées le lundi
+                 resterait à zéro toute la semaine. C'est la POSE qui fait foi :
+                 un chantier dont il ne reste aucune cabine est acquis, que
+                 Notion l'ait rattrapé ou non. Un chantier déclaré terminé
+                 compte aussi, pour les relevés et les SAV, qui ne posent rien. */
+              const estAcquis = (p: Project) =>
+                ((p.nbCabines || 0) > 0 && cabinesRestantes(p) <= 0)
+                || String(p.etatCMD || "") === "Terminé";
+              const { gagne: semaineOFRGagne, clos: semaineClos } = (() => {
                 const vus = new Set<string>();
-                let t = 0;
+                let gagne = 0;
+                let clos = 0;
                 bars.forEach((b) => [...b.projets, ...b.mesuresProjets, ...b.savProjets].forEach((p) => {
                   if (vus.has(p.id)) return;
                   vus.add(p.id);
-                  if (String(p.etatCMD || "") !== "Terminé") return;
-                  t += montantOFR(p.ofrTM) || 0;
+                  if (!estAcquis(p)) return;
+                  clos += 1;
+                  gagne += montantOFR(p.ofrTM) || 0;
                 }));
-                return t;
+                return { gagne, clos };
               })();
               /* Disponibilité par collaborateur : la charge dit combien de
                  cabines tombent chaque jour, pas QUI a encore de la place
@@ -3813,19 +3822,6 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 COLLABORATEURS_DISPO,
                 { jours: bars.map((b) => b.key), absents: absences },
               );
-              /* Chantiers clôturés de la semaine : c'est eux que l'encart vert
-                 suit. Le total prévu dit ce que la semaine vaut si tout se
-                 passe bien, celui-ci ce qui est déjà acquis. */
-              const semaineClos = (() => {
-                const vus = new Set<string>();
-                let n = 0;
-                bars.forEach((b) => [...b.projets, ...b.mesuresProjets, ...b.savProjets].forEach((p) => {
-                  if (vus.has(p.id)) return;
-                  vus.add(p.id);
-                  if (String(p.etatCMD || "") === "Terminé") n += 1;
-                }));
-                return n;
-              })();
               const partGagnee = semaineOFR > 0
                 ? Math.min(100, Math.round((semaineOFRGagne / semaineOFR) * 100))
                 : 0;
@@ -3837,9 +3833,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       <p className="sg-card-meta">
                         {/* Les totaux de la semaine valent mieux que « cabines /
                             jour », que les barres disent déjà. */}
-                        semaine {weekNo} · {semaineCabines} cabine{semaineCabines > 1 ? "s" : ""}
-                        {semaineRestantes < semaineCabines && ` · ${semaineRestantes} non posée${semaineRestantes > 1 ? "s" : ""}`}
-                        {" · "}{semaineProjets} projet{semaineProjets > 1 ? "s" : ""}
+                        {/* Cabines, non posées et projets ont quitté cette
+                            ligne : l'encart vert les porte, et deux endroits
+                            pour un même chiffre finissent toujours par se
+                            contredire. Ne reste ici que ce qu'il ne dit pas. */}
+                        semaine {weekNo}
                         {/* Le détail par nature, et rien quand il n'y en a pas :
                             une ligne qui annonce « 0 SAV » toute l'année finit
                             par ne plus être lue. */}
@@ -4091,6 +4089,11 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       <div className="sg-acquis-sur">encaissé sur CHF {francsCourts(semaineOFR)} prévus</div>
                       <div className="sg-acquis-jauge"><i style={{ width: `${partGagnee}%` }} /></div>
                       <div className="sg-acquis-ligne"><span>cabines</span><b>{semaineCabines}</b></div>
+                      {/* Ce qui reste à poser : le seul des quatre chiffres qui
+                          dise du travail à venir plutôt qu'un volume. */}
+                      <div className="sg-acquis-ligne is-reste">
+                        <span>non posées</span><b>{semaineRestantes}</b>
+                      </div>
                       <div className="sg-acquis-ligne"><span>projets</span><b>{semaineProjets}</b></div>
                       <div className="sg-acquis-ligne is-clos"><span>clôturés</span><b>{semaineClos} / {semaineProjets}</b></div>
                     </div>
