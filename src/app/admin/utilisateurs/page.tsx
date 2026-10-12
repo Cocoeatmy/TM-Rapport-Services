@@ -54,6 +54,10 @@ export default function UtilisateursPage() {
   const [addEmail, setAddEmail] = useState("");
   const [addName, setAddName] = useState("");
   const [addPassword, setAddPassword] = useState("");
+  /* Reprendre le mot de passe d'un collègue : l'équipe de pose en partage un
+     seul, et il n'est stocké nulle part en clair — personne ne peut donc le
+     retaper. On recopie l'empreinte, sans jamais la lire. */
+  const [addCopieDe, setAddCopieDe] = useState("");
 
   // Édition nom/email collaborateur
   const [editingUserEmail, setEditingUserEmail] = useState<string | null>(null);
@@ -130,13 +134,15 @@ export default function UtilisateursPage() {
   };
 
   const handleAddUser = async () => {
-    if (!addEmail || !addName || !addPassword) return;
+    if (!addEmail || !addName || !(addPassword || addCopieDe)) return;
     setSaving(true);
     try {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: addEmail, name: addName, password: addPassword, role: "monteur" }),
+        body: JSON.stringify(addCopieDe
+          ? { email: addEmail, name: addName, memeMotDePasseQue: addCopieDe, role: "monteur" }
+          : { email: addEmail, name: addName, password: addPassword, role: "monteur" }),
       });
       if (res.ok) {
         toast.success("Utilisateur ajouté");
@@ -144,6 +150,7 @@ export default function UtilisateursPage() {
         setAddEmail("");
         setAddName("");
         setAddPassword("");
+        setAddCopieDe("");
         loadUsers();
       } else {
         const data = await res.json();
@@ -529,24 +536,42 @@ export default function UtilisateursPage() {
               </div>
               <div>
                 <Label className="text-xs">Mot de passe</Label>
-                <Input
-                  value={addPassword}
-                  onChange={(e) => setAddPassword(e.target.value)}
-                  placeholder="Mot de passe"
-                  className="mt-1 h-10"
-                />
+                <select
+                  value={addCopieDe}
+                  onChange={(e) => setAddCopieDe(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 text-sm"
+                >
+                  <option value="">Nouveau mot de passe…</option>
+                  {users.map((u) => (
+                    <option key={u.email} value={u.email}>Le même que {u.name}</option>
+                  ))}
+                </select>
+                {addCopieDe ? (
+                  <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                    Le nouveau venu se connectera avec le mot de passe de ce collègue.
+                    Personne n&apos;a besoin de le connaître : il n&apos;est stocké nulle
+                    part en clair, et c&apos;est son empreinte qui est recopiée.
+                  </p>
+                ) : (
+                  <Input
+                    value={addPassword}
+                    onChange={(e) => setAddPassword(e.target.value)}
+                    placeholder="Mot de passe"
+                    className="mt-2 h-10"
+                  />
+                )}
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={handleAddUser}
-                  disabled={saving || !addEmail || !addName || !addPassword}
+                  disabled={saving || !addEmail || !addName || !(addPassword || addCopieDe)}
                   className="flex-1 h-10 rounded-lg glass-btn text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                   Ajouter
                 </button>
                 <button
-                  onClick={() => { setShowAdd(false); setAddEmail(""); setAddName(""); setAddPassword(""); }}
+                  onClick={() => { setShowAdd(false); setAddEmail(""); setAddName(""); setAddPassword(""); setAddCopieDe(""); }}
                   className="h-10 px-4 rounded-lg border border-gray-200 text-sm text-gray-600"
                 >
                   Annuler

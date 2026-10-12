@@ -3920,7 +3920,11 @@ function ProjectPageContent({ id }: { id: string }) {
     "tm.douche.montage.2@gmail.com": "Jean-Marc",
     "tm.douche.montage.3@gmail.com": "Jacobo",
     "tm.douche.montage.4@gmail.com": "Miguel",
+    /* Loïc est parti : son compte ne sert plus à s'identifier, mais la
+       correspondance reste — un vieux jeton encore valide doit continuer de
+       donner le bon prénom. */
     "tm.douche.montage.5@gmail.com": "Loïc",
+    "tm.douche.montage.6@gmail.com": "Javier",
   };
   const autoCollab = currentUser?.email ? (EMAIL_TO_COLLAB[currentUser.email] ?? null) : null;
 

@@ -54,6 +54,7 @@ const USERS: Record<string, UserRecord> = {
   "tm.douche.montage.3@gmail.com": { name: "Jacobo Fontan Cassas", password: "cbe3cdfc39c5ec15a2d5bb97c3424c94:665317043ddd7423a2c1d6b4e3bfc4b1b298eeafaa6439bd24c072e84e93857b98e9e78088c5e48b701c4dcd597d7e4986ab1508352c1fb5d441a8c10a3aac32", role: "monteur" },
   "tm.douche.montage.4@gmail.com": { name: "Miguel Roberto", password: "cbe3cdfc39c5ec15a2d5bb97c3424c94:665317043ddd7423a2c1d6b4e3bfc4b1b298eeafaa6439bd24c072e84e93857b98e9e78088c5e48b701c4dcd597d7e4986ab1508352c1fb5d441a8c10a3aac32", role: "monteur" },
   "tm.douche.montage.5@gmail.com": { name: "Loic Schiro", password: "cbe3cdfc39c5ec15a2d5bb97c3424c94:665317043ddd7423a2c1d6b4e3bfc4b1b298eeafaa6439bd24c072e84e93857b98e9e78088c5e48b701c4dcd597d7e4986ab1508352c1fb5d441a8c10a3aac32", role: "monteur" },
+  "tm.douche.montage.6@gmail.com": { name: "Javier Martinez", password: "cbe3cdfc39c5ec15a2d5bb97c3424c94:665317043ddd7423a2c1d6b4e3bfc4b1b298eeafaa6439bd24c072e84e93857b98e9e78088c5e48b701c4dcd597d7e4986ab1508352c1fb5d441a8c10a3aac32", role: "monteur" },
   "ferreira.micael@gmail.com": { name: "Micael Ferreira", password: "014ff6f9808dfb4c850085fd6be3a679:9fb23213d90227ca51a12c7b4a09ad18a3f4584f165b648621569ee48c718ace9c5bf68c66552563295f6a88319a4539336197f8157b3585238f81f1f7c41cfd", role: "admin" },
 };
 
@@ -187,11 +188,36 @@ export async function updateUserRole(email: string, role: "admin" | "monteur"): 
   });
 }
 
-export async function addUser(email: string, name: string, password: string, role: "admin" | "monteur"): Promise<boolean> {
+/**
+ * Ajoute un compte.
+ *
+ * `copierDe` : l'adresse d'un compte existant dont on reprend le mot de passe
+ * TEL QU'IL EST RANGÉ, c'est-à-dire son empreinte. L'équipe de pose partage
+ * un même mot de passe ; sans cette option, ajouter un monteur obligeait à le
+ * connaître en clair — or il n'est stocké nulle part en clair, et c'est très
+ * bien ainsi. On recopie donc l'empreinte : le nouveau venu a le même mot de
+ * passe que ses collègues, et personne n'a eu à le lire au passage.
+ */
+export async function addUser(
+  email: string,
+  name: string,
+  password: string,
+  role: "admin" | "monteur",
+  copierDe?: string,
+): Promise<boolean> {
   const cle = email.toLowerCase();
   return modifierComptes((c) => {
     if (c[cle]) return false;
-    c[cle] = { name, password: hashPassword(password), role };
+    let empreinte: string;
+    if (copierDe) {
+      const source = c[copierDe.toLowerCase()];
+      if (!source) return false;
+      empreinte = source.password;
+    } else {
+      if (!password) return false;
+      empreinte = hashPassword(password);
+    }
+    c[cle] = { name, password: empreinte, role };
     return true;
   });
 }

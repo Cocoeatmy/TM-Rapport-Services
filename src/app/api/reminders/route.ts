@@ -12,6 +12,7 @@ const COLLABORATOR_EMAILS: Record<string, string> = {
   "Jean-Marc": "tm.douche.montage.2@gmail.com",
   "Jacobo": "tm.douche.montage.3@gmail.com",
   "Miguel": "tm.douche.montage.4@gmail.com",
+  "Javier": "tm.douche.montage.6@gmail.com",
   "Loïc": "tm.douche.montage.5@gmail.com",
   "Micael": "ferreira.micael@gmail.com",
 };

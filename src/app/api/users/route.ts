@@ -33,13 +33,16 @@ export async function POST(request: NextRequest) {
   if (!(await checkAdmin(request))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
-  const { email, name, password, role } = await request.json();
-  if (!email || !name || !password) {
+  const { email, name, password, role, memeMotDePasseQue } = await request.json();
+  if (!email || !name || !(password || memeMotDePasseQue)) {
     return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 });
   }
-  const success = await addUser(email, name, password, role || "monteur");
+  const success = await addUser(email, name, password || "", role || "monteur", memeMotDePasseQue);
   if (!success) {
-    return NextResponse.json({ error: "Cet email existe déjà" }, { status: 400 });
+    return NextResponse.json(
+      { error: memeMotDePasseQue ? "Cet email existe déjà, ou le compte source est introuvable" : "Cet email existe déjà" },
+      { status: 400 },
+    );
   }
   return NextResponse.json({ success: true });
 }
