@@ -4435,23 +4435,56 @@ function ProjectPageContent({ id }: { id: string }) {
     }).catch(() => {});
   }, [project?.photosMontage, isCabineMode, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Hauteur de l'en-tête et position du rail latéral.
+   *
+   * Deux pièges tenaient dans ces quelques lignes, et ensemble ils pouvaient
+   * figer l'app : l'effet DÉPENDAIT de `headerHeight` tout en l'écrivant, et
+   * il recréait son observateur de taille à chaque mesure. Il suffisait que
+   * la hauteur oscille entre deux valeurs — un titre qui passe de une à deux
+   * lignes selon la place restante — pour que mesure et rendu s'appellent
+   * sans fin. Le fil principal tournait alors à plein régime, plus rien ne
+   * répondait, et il n'y avait qu'une issue : relancer l'app.
+   *
+   * Désormais : l'effet ne se remonte qu'au changement de chantier, son
+   * observateur vit aussi longtemps que la page, la mesure est différée d'une
+   * image (ce qui coupe la boucle de notification du navigateur), et l'on
+   * n'écrit une valeur que si elle a RÉELLEMENT changé.
+   */
   useEffect(() => {
-    const measure = () => {
+    let vivant = true;
+    const mesurer = () => {
+      if (!vivant) return;
       const header = document.getElementById("main-header");
-      const hH = header ? header.offsetHeight : headerHeight;
-      if (header) setHeaderHeight(hH);
-      // Le rail commence sous la carte-titre (mesurée) : bas de la carte + marge.
       const card = document.getElementById("project-header-card");
-      if (card) setRailTop(Math.round(hH + card.offsetHeight + 8));
+      const hH = header ? header.offsetHeight : 0;
+      if (header) setHeaderHeight((avant) => (avant === hH ? avant : hH));
+      if (card) {
+        const bas = Math.round((header ? hH : 0) + card.offsetHeight + 8);
+        setRailTop((avant) => (avant === bas ? avant : bas));
+      }
     };
-    measure();
-    // Re-mesure quand la carte change de hauteur (titre 1↔2 lignes, resize).
+    /* Mesurer DANS le rappel de l'observateur relancerait aussitôt une
+       notification ; une image d'écart suffit à le rompre. */
+    let prevue = 0;
+    const plusTard = () => {
+      if (prevue) return;
+      prevue = requestAnimationFrame(() => { prevue = 0; mesurer(); });
+    };
+    mesurer();
+    const header = document.getElementById("main-header");
     const card = document.getElementById("project-header-card");
-    const ro = typeof ResizeObserver !== "undefined" && card ? new ResizeObserver(measure) : null;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(plusTard) : null;
     if (ro && card) ro.observe(card);
-    window.addEventListener("resize", measure);
-    return () => { if (ro) ro.disconnect(); window.removeEventListener("resize", measure); };
-  }, [project?.projet, project?.ofrTM, headerHeight]);
+    if (ro && header) ro.observe(header);
+    window.addEventListener("resize", plusTard);
+    return () => {
+      vivant = false;
+      if (prevue) cancelAnimationFrame(prevue);
+      if (ro) ro.disconnect();
+      window.removeEventListener("resize", plusTard);
+    };
+  }, [project?.id]);
 
   interface PointageEntry {
     date: string;

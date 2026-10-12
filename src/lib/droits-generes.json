@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-12T14:25:37.505Z",
+  "genereLe": "2026-10-12T16:01:07.734Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -1345,13 +1345,11 @@
     },
     {
       "url": "/f/[token]",
-      "type": "api",
-      "fichier": "src/app/f/[token]/route.ts",
+      "type": "page",
+      "fichier": "src/app/f/[token]/page.tsx",
       "niveau": "signe",
       "gardePage": false,
-      "methodes": [
-        "GET"
-      ]
+      "methodes": []
     },
     {
       "url": "/garanties",
@@ -1395,33 +1393,27 @@
     },
     {
       "url": "/s/[token]",
-      "type": "api",
-      "fichier": "src/app/s/[token]/route.ts",
+      "type": "page",
+      "fichier": "src/app/s/[token]/page.tsx",
       "niveau": "signe",
       "gardePage": false,
-      "methodes": [
-        "GET"
-      ]
+      "methodes": []
     },
     {
       "url": "/sav/[token]",
-      "type": "api",
-      "fichier": "src/app/sav/[token]/route.ts",
+      "type": "page",
+      "fichier": "src/app/sav/[token]/page.tsx",
       "niveau": "signe",
       "gardePage": false,
-      "methodes": [
-        "GET"
-      ]
+      "methodes": []
     },
     {
       "url": "/sig/[token]",
-      "type": "api",
-      "fichier": "src/app/sig/[token]/route.ts",
+      "type": "page",
+      "fichier": "src/app/sig/[token]/page.tsx",
       "niveau": "signe",
       "gardePage": false,
-      "methodes": [
-        "GET"
-      ]
+      "methodes": []
     }
   ]
 }
