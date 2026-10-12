@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { equipeDuJour, listeDeNoms } from "@/lib/equipe-intervention";
+import { equipeDuJour, listeDeNoms, nomsAProposer, equipeDesPassages } from "@/lib/equipe-intervention";
 
 describe("liste de noms", () => {
   it("découpe, nettoie et dédoublonne", () => {
@@ -42,5 +42,43 @@ describe("équipe d'un passage qui commence", () => {
 
   it("conserve l'ordre de Notion", () => {
     expect(equipeDuJour("Jacobo & Claudio", "Claudio")).toBe("Jacobo & Claudio");
+  });
+});
+
+describe("noms à proposer sur une ligne", () => {
+  const ACTIFS = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Javier"];
+
+  it("propose les monteurs du jour", () => {
+    expect(nomsAProposer(ACTIFS, "")).toEqual(ACTIFS);
+  });
+
+  /* Un collègue parti ne doit pas s'effacer de l'écran tout en restant
+     enregistré : on croirait la ligne vide et on « corrigerait » un relevé
+     juste. */
+  it("garde visible un collègue parti déjà inscrit sur la ligne", () => {
+    expect(nomsAProposer(ACTIFS, "Claudio & Loïc")).toEqual([...ACTIFS, "Loïc"]);
+  });
+
+  it("ne duplique pas un nom déjà actif", () => {
+    expect(nomsAProposer(ACTIFS, "Claudio & Miguel")).toEqual(ACTIFS);
+  });
+});
+
+describe("équipe d'un lot, déduite de ses passages", () => {
+  it("rend l'équipe du passage unique", () => {
+    expect(equipeDesPassages([{ collaborateurs: "Jean-Marc & Miguel" }])).toBe("Jean-Marc & Miguel");
+  });
+
+  /* Un renfort venu au second passage fait partie de l'équipe du lot. */
+  it("réunit tous ceux qui sont venus, sans doublon, dans l'ordre", () => {
+    expect(equipeDesPassages([
+      { collaborateurs: "Jean-Marc & Miguel" },
+      { collaborateurs: "Miguel & Claudio" },
+    ])).toBe("Jean-Marc & Miguel & Claudio");
+  });
+
+  it("supporte une liste vide ou des passages sans nom", () => {
+    expect(equipeDesPassages([])).toBe("");
+    expect(equipeDesPassages([{ collaborateurs: "" }, { collaborateurs: null }])).toBe("");
   });
 });

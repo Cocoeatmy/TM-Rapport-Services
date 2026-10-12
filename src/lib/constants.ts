@@ -1,6 +1,23 @@
 // Constantes partagées dans toute l'app
 
-export const COLLABORATEURS_LIST = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"] as const;
+/**
+ * Les monteurs que l'on peut choisir aujourd'hui.
+ *
+ * Qui a quitté l'entreprise n'a plus à être proposé : on ne lui attribue plus
+ * de montage. Mais son travail passé reste le nôtre — relevés d'heures,
+ * rapports signés, statistiques — et son nom ne doit disparaître d'AUCUNE
+ * fiche déjà écrite. D'où deux listes : celle des choix du jour, et celle de
+ * tout le monde, qui sert à relire l'historique.
+ *
+ * Javier Martinez commence le 1er novembre 2026 ; Loïc Schiro est parti.
+ */
+export const COLLABORATEURS_LIST = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Javier"] as const;
+
+/** Ceux qui sont partis. Jamais proposés, jamais effacés. */
+export const COLLABORATEURS_PARTIS = ["Loïc"] as const;
+
+/** Tout le monde — pour lire ce qui a déjà été écrit. */
+export const COLLABORATEURS_TOUS = [...COLLABORATEURS_LIST, ...COLLABORATEURS_PARTIS] as const;
 
 /** Prénoms exclus des montages "Team" (administrateurs non-monteurs).
  *  Les nouveaux collaborateurs monteurs ajoutés via l'interface admin

@@ -22,6 +22,7 @@ const CALENDAR_DOTS: Record<string, string> = {
   "jean-marc": "#795548",  // Jean-Marc Nelzi
   loic: "#ff4081",         // Loïc Schiro
   miguel: "#827717",       // Miguel Roberto
+  javier: "#00e5ff",       // Javier Martinez
   micael: "#263238",       // Micael Ferreira
   natalia: "#009688",      // Natalia Puerta
   "team tm": "#ff6d00",    // Team TM Douche Montage
@@ -159,6 +160,8 @@ const COLLABORATOR_INITIALS: Record<string, string> = {
   "Jacobo Fontan Cassas": "JF",
   "Miguel": "MR",
   "Miguel Roberto": "MR",
+  "Javier": "JM",
+  "Javier Martinez": "JM",
   "Loïc": "LS",
   "Loic": "LS",
   "Loic Schiro": "LS",

@@ -126,7 +126,7 @@ import { getCollaboratorColor } from "@/lib/collaborators";
 import { isMultiDayHours, parsePointages, encodePointages } from "@/lib/pointages";
 import { heureDesPhotos, arriveeAcceptable, departApresPhoto, departValable, type HeurePhoto } from "@/lib/heure-photo";
 import { interventionsDuLot, encodeInterventions, dernierPassage, type InterventionSav } from "@/lib/sav-interventions";
-import { equipeDuJour } from "@/lib/equipe-intervention";
+import { equipeDuJour, nomsAProposer, equipeDesPassages } from "@/lib/equipe-intervention";
 import { fusionnerPassage } from "@/lib/passage-lot";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
@@ -147,7 +147,7 @@ import {
   type RequiredPhotoShortfall,
   extractCabine,
 } from "@/lib/photo-buckets";
-import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
+import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS, COLLABORATEURS_LIST as COLLABORATEURS_ACTIFS } from "@/lib/constants";
 import { ColoredSelect } from "@/components/colored-select";
 import { thumbnailUrl } from "@/lib/image-url";
 
@@ -280,7 +280,10 @@ function PiecesRechangeSav({
 }
 
 /** Monteurs proposés partout où l'on coche qui s'est chargé d'un passage. */
-const COLLABORATEURS_LIST = ["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"];
+/* Les monteurs du jour. Un collègue parti n'est plus proposé, mais son nom
+   reste visible — et décochable — sur les lignes où il figure déjà : c'est le
+   rôle de `nomsAProposer`. */
+const COLLABORATEURS_LIST: readonly string[] = COLLABORATEURS_ACTIFS;
 
 /**
  * Passages datés d'un lot — composant à état, partagé par le SAV et le
@@ -402,7 +405,7 @@ function InterventionsLot({
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {COLLABORATEURS_LIST.map((name) => {
+                {nomsAProposer(COLLABORATEURS_LIST, it.collaborateurs).map((name) => {
                   const actif = choisis.includes(name);
                   return (
                     <button
@@ -2896,7 +2899,7 @@ function EditableCollaborateur({ project, mode, onUpdate }: { project: Project; 
   const currentCollab = mode === "mesures" ? project.mesuresTraiteePar : project.collaborateurs;
   const notionOptionField = mode === "mesures" ? "Mesures traitée par" : "Collaborateurs montages";
   // Options chargées depuis Notion (fallback statique le temps du chargement)
-  const [options, setOptions] = useState<string[]>(["Micael", "Claudio", "Jean-Marc", "Jacobo", "Miguel", "Loïc"]);
+  const [options, setOptions] = useState<string[]>([...COLLABORATEURS_ACTIFS]);
   const [selected, setSelected] = useState<string[]>(
     currentCollab ? currentCollab.split(" & ").map((n) => n.trim()).filter(Boolean) : []
   );
@@ -4512,8 +4515,10 @@ function ProjectPageContent({ id }: { id: string }) {
             else if (!departValable(u.depart, u.arrivee)) aDemander = true;
           }
         }
-        // Monteur responsable : utilisateur actuel (si non admin)
-        if (userCollab && !u.monteur) u.monteur = userCollab;
+        /* Équipe du lot : celle PRÉVUE dans Notion, complétée par la
+           personne réellement présente. L'expéditeur seul laissait les
+           heures du collègue hors du relevé. */
+        if (!u.monteur) u.monteur = equipeDuJour(project?.collaborateurs, userCollab);
         return u;
       });
       if (aDemander) setDepartADemander({ cabineIdx, jour: next[idx0].date || todayStr });
@@ -4572,8 +4577,8 @@ function ProjectPageContent({ id }: { id: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ heureArrivee: arriveeStr, heureDepart: departStr }),
       }).catch(console.error);
-      // PATCH attribution si monteur auto-assigné
-      if (userCollab && next[idx0].monteur !== cabines[idx0].monteur) {
+      // PATCH attribution si l'équipe du lot vient d'être posée
+      if (next[idx0].monteur !== cabines[idx0].monteur) {
         // Envoie uniquement la cabine auto-assignée, pas toutes les cabines,
         // pour éviter d'écraser d'autres attributions avec un état local périmé.
         const autoAttrEnc = `Cab${idx0 + 1}:${next[idx0].monteur || ""}`;
@@ -4823,7 +4828,7 @@ function ProjectPageContent({ id }: { id: string }) {
               <div>
                 <Label className="text-xs">Collaborateurs</Label>
                 <div className="flex flex-wrap gap-1 mt-0.5">
-                  {COLLABORATEURS_LIST.map((c) => {
+                  {nomsAProposer(COLLABORATEURS_LIST, entry.collaborateur).map((c) => {
                     const selected = (entry.collaborateur || "").split(" & ").map((s) => s.trim()).includes(c);
                     const colors = getCollaboratorColor(c);
                     return (
@@ -5011,7 +5016,10 @@ function ProjectPageContent({ id }: { id: string }) {
       encode={parseCabineTextMulti(project?.interventionsMontageCabines || "")[idx + 1] || ""}
       heritage={{
         date: cabines[idx]?.date || "",
-        collaborateurs: parseCabineTextMulti(project?.attributionCabines || "")[idx + 1] || "",
+        /* Attribution déjà posée sur ce lot, sinon l'équipe prévue dans
+           Notion : un passage qui commence ne doit jamais être vide de noms. */
+        collaborateurs: parseCabineTextMulti(project?.attributionCabines || "")[idx + 1]
+          || equipeDuJour(project?.collaborateurs),
         arrivee: cabines[idx]?.arrivee || "",
         depart: cabines[idx]?.depart || "",
       }}
@@ -5019,15 +5027,21 @@ function ProjectPageContent({ id }: { id: string }) {
       isAdmin={isAdmin}
       onEnregistrer={(suivante) => {
         const dernier = dernierPassage(suivante) || suivante[suivante.length - 1] || null;
+        /* L'attribution du lot — ce que lisent le tableau de bord, la charge
+           de la semaine et les rapports — se DÉDUIT des passages : tous ceux
+           qui sont venus, dans l'ordre où ils apparaissent. C'est ce qui
+           permet de n'avoir qu'une seule saisie à l'écran. */
+        const equipe = equipeDesPassages(suivante);
         /* L'état local des cabines sert au rapport et au bouton Enregistrer :
            il reste le reflet du dernier passage, comme les colonnes Notion. */
         setCabines((prev) => prev.map((c, i) => (i === idx
-          ? { ...c, date: dernier?.date || "", arrivee: dernier?.arrivee || "", depart: dernier?.depart || "" }
+          ? { ...c, date: dernier?.date || "", arrivee: dernier?.arrivee || "", depart: dernier?.depart || "", monteur: equipe }
           : c)));
         saveCabineTexts(idx, {
           interventionsMontageCabines: encodeInterventions(suivante),
           heureArrivee: dernier?.arrivee ? `${dernier.date}:${dernier.arrivee}` : "",
           heureDepart: dernier?.depart ? `${dernier.date}:${dernier.depart}` : "",
+          attributionCabines: equipe,
         });
       }}
     />
@@ -8843,7 +8857,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           <div>
                             <Label className="text-xs">Collaborateurs</Label>
                             <div className="flex flex-wrap gap-1 mt-0.5">
-                              {COLLABORATEURS_LIST.map((c) => {
+                              {nomsAProposer(COLLABORATEURS_LIST, entry.collaborateur).map((c) => {
                                 const selected = (entry.collaborateur || "").split(" & ").map((s) => s.trim()).includes(c);
                                 const colors = getCollaboratorColor(c);
                                 return (
@@ -9682,7 +9696,7 @@ function ProjectPageContent({ id }: { id: string }) {
                           <div>
                             <Label>Collaborateur(s) SAV</Label>
                             <div className="mt-1 flex flex-wrap gap-1.5">
-                              {COLLABORATEURS_LIST.map((name) => {
+                              {nomsAProposer(COLLABORATEURS_LIST, parseCabineTextMulti(project?.collaborateursSavCabines || "")[1] || "").map((name) => {
                                 const sel = (parseCabineTextMulti(project?.collaborateursSavCabines || "")[1] || "").split(/\s*&\s*/).map((s) => s.trim()).filter(Boolean);
                                 const active = sel.includes(name);
                                 return (
@@ -10303,62 +10317,13 @@ function ProjectPageContent({ id }: { id: string }) {
                                 />
                               </div>
 
-                              {/* Monteur responsable */}
-                              <div>
-                                <Label className="text-xs text-gray-600 dark:text-gray-300">Monteur responsable</Label>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {COLLABORATEURS_LIST.map((name) => {
-                                    const selected = (cabine.monteur || "").split(" & ").map((s) => s.trim()).includes(name);
-                                    return (
-                                      <button
-                                        key={name}
-                                        type="button"
-                                        onClick={() => setCabines((prev) => {
-                                          const next = prev.map((c, i) => {
-                                            if (i !== idx) return c;
-                                            const current = (c.monteur || "").split(" & ").map((s) => s.trim()).filter(Boolean);
-                                            const updated = selected
-                                              ? current.filter((n) => n !== name)
-                                              : [...current, name];
-                                            return { ...c, monteur: updated.join(" & ") };
-                                          });
-                                          // ── Sauvegarde immédiate du Monteur Responsable ──────────────
-                                          // 1. localStorage : backup local instantané (survit aux erreurs réseau)
-                                          try {
-                                            localStorage.setItem(
-                                              `tm-cabin-monteurs-${id}`,
-                                              JSON.stringify(next.map((c) => c.monteur))
-                                            );
-                                          } catch {}
-                                          // 2. Notion : seule la cabine modifiée est envoyée.
-                                          // Envoyer TOUTES les cabines (même celles à monteur vide)
-                                          // avec un état local potentiellement périmé déclencherait
-                                          // des suppressions involontaires dans mergeCabineAttribution
-                                          // (vide = suppression explicite côté merge).
-                                          // → On envoie uniquement "Cab${idx+1}:<monteur>" — la merge
-                                          // logic ne touche alors que cette cabine et préserve toutes les autres.
-                                          const changedMonteur = next[idx].monteur || "";
-                                          const attrEnc = `Cab${idx + 1}:${changedMonteur}`;
-                                          offlineFetch(`/api/projects/${id}`, {
-                                            method: "PATCH",
-                                            headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify({ attributionCabines: attrEnc }),
-                                          }).catch(console.error);
-                                          return next;
-                                        })}
-                                        className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-colors ${
-                                          selected
-                                            ? "border-blue-600 bg-blue-600 text-white"
-                                            : "border-gray-200 dark:border-slate-600 text-gray-600 dark:text-gray-300 hover:border-blue-300"
-                                        }`}
-                                      >
-                                        {name}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-
+                              {/* Le « Monteur responsable » a disparu d'ici : il doublait,
+                                 ligne pour ligne, les noms cochés sous « Interventions ».
+                                 Un seul passage demandait donc de cocher deux fois la même
+                                 équipe, et les deux endroits finissaient par se contredire.
+                                 L'attribution du lot se déduit maintenant des passages
+                                 eux-mêmes (voir `renderInterventionsMontage`) : une seule
+                                 saisie, une seule vérité. */}
                               {/* Monteur sous-traitance (par cabine) — ADMIN UNIQUEMENT */}
                               {isAdmin && (
                                 <div>

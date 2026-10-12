@@ -16,7 +16,7 @@ import type { Project } from "@/lib/notion";
 import { getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { computeMonteurCabStats } from "@/lib/monteur-stats";
 import { useNotionColors } from "@/lib/notion-colors";
-import { formatDateFR, formatDateLong, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST, getISOWeek } from "@/lib/constants";
+import { formatDateFR, formatDateLong, STATUS_CMD_COLORS, STATUS_MESURES_COLORS, STATUS_SORT_ORDER, STATUS_MESURES_SORT_ORDER, COLLABORATEURS_LIST, COLLABORATEURS_PARTIS, COLLABORATEURS_TOUS, getISOWeek } from "@/lib/constants";
 import { dateInRange, formatLocalDate } from "@/lib/time-utils";
 import { getFavorites } from "@/lib/favorites";
 import { fetchWithRetry, prefetchProject } from "@/lib/api-helpers";
@@ -1994,7 +1994,18 @@ function HomePage() {
   });
   const statusCounts = Object.fromEntries(orderedStatuses.map((s) => [s, statusCountsRaw[s]]));
 
-  const COLLABORATEURS = [...COLLABORATEURS_LIST];
+  /* Le filtre par collaborateur montre les monteurs du jour, et n'ajoute un
+     parti que s'il reste des projets à son nom — sinon il occuperait une
+     place pour un compteur à zéro. */
+  /* Le filtre montre les monteurs du jour ; un parti n'apparaît que s'il
+     reste des projets à son nom — sinon il occuperait une place pour un
+     compteur à zéro, et son absence effacerait du travail réel. */
+  const COLLABORATEURS = [
+    ...COLLABORATEURS_LIST,
+    ...COLLABORATEURS_PARTIS.filter((nom) =>
+      projects.some((p) => ((mode.startsWith("mesures") ? p.mesuresTraiteePar : p.collaborateurs) || "")
+        .toLowerCase().includes(nom.toLowerCase()))),
+  ];
 
   // Le responsable d'un projet de MESURES est dans "Mesures traitée par"
   // (mesuresTraiteePar), pas dans "collaborateurs". Sans ça, les compteurs et
@@ -3893,7 +3904,10 @@ function HomePage() {
         const allMesuresB = statsCompare ? filterMesuresByMode(allMesuresRaw, statsBMode, statsBFrom, statsBTo, statsBMonth, statsBYear) : [];
 
         // Solo only (1 collaborateur)
-        const buildCollabStats = (projects: Project[], mesuresProjects: Project[]) => COLLABORATEURS_LIST.map((name) => {
+        /* TOUS les monteurs, partis compris : ces statistiques portent sur une
+           période passée, où ils travaillaient encore. Les retirer ferait
+           disparaître des montages réellement faits. */
+        const buildCollabStats = (projects: Project[], mesuresProjects: Project[]) => COLLABORATEURS_TOUS.map((name) => {
           const nl = name.toLowerCase();
           const soloProjects = projects.filter((p) => {
             const c = splitCollabs(p);

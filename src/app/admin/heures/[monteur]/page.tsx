@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Clock, Loader2, FileDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCollaboratorColor } from "@/lib/collaborators";
-import { COLLABORATEURS_LIST } from "@/lib/constants";
+/* Fiche d'un monteur : on y consulte son historique, y compris celui de
+   quelqu'un qui a quitté l'entreprise. */
+import { COLLABORATEURS_TOUS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 import { isMultiDayHours, parsePointages } from "@/lib/pointages";
 
@@ -348,7 +350,7 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
     : [];
 
   // Choix de monteur (sélecteur en-tête) : liste connue + le courant si absent.
-  const monteurChoices = [...new Set([decoded, ...COLLABORATEURS_LIST])];
+  const monteurChoices = [...new Set([decoded, ...COLLABORATEURS_TOUS])];
 
   // Libellés période + filtres pour le PDF.
   const pdfPeriodLabel =
@@ -476,7 +478,7 @@ export default function MonteurHeuresPage({ params }: { params: Promise<{ monteu
               >
                 Comparer (VS)
               </button>
-              {compareMode && COLLABORATEURS_LIST.filter((n) => n !== decoded).map((n) => {
+              {compareMode && COLLABORATEURS_TOUS.filter((n) => n !== decoded).map((n) => {
                 const sel = collabsB.includes(n);
                 return (
                   <button

@@ -52,3 +52,54 @@ export function equipeDuJour(
   if (moi && !noms.some((n) => n.toLowerCase() === moi.toLowerCase())) noms.push(moi);
   return noms.join(" & ");
 }
+
+/**
+ * Les noms à proposer sur une ligne donnée.
+ *
+ * La liste des monteurs du jour, plus ceux qui figurent DÉJÀ sur cette ligne
+ * et n'en font plus partie. Sans ce complément, le nom d'un collègue parti
+ * disparaîtrait de l'écran tout en restant enregistré : on croirait la ligne
+ * vide, on la « corrigerait », et le relevé d'un montage qu'il a réellement
+ * fait serait faussé.
+ */
+export function nomsAProposer(
+  actifs: readonly string[],
+  valeurActuelle: string | null | undefined,
+): string[] {
+  const out = [...actifs];
+  const vus = new Set(out.map((n) => n.toLowerCase()));
+  for (const n of listeDeNoms(valeurActuelle)) {
+    if (vus.has(n.toLowerCase())) continue;
+    vus.add(n.toLowerCase());
+    out.push(n);
+  }
+  return out;
+}
+
+/**
+ * L'équipe d'un LOT, déduite de ses passages.
+ *
+ * Le lot avait son propre choix de monteurs, juste au-dessus de la liste des
+ * passages, qui redemandait exactement les mêmes noms. Un lot fait en une
+ * seule visite obligeait donc à cocher deux fois la même équipe, et les deux
+ * endroits finissaient par se contredire — c'est le second, le passage, qui
+ * dit la vérité, puisqu'il porte aussi la date et les heures.
+ *
+ * On garde tous ceux qui sont venus, dans l'ordre où ils apparaissent : un
+ * renfort arrivé au second passage fait partie de l'équipe du lot.
+ */
+export function equipeDesPassages(
+  passages: readonly { collaborateurs?: string | null }[],
+): string {
+  const vus = new Set<string>();
+  const out: string[] = [];
+  for (const p of passages || []) {
+    for (const n of listeDeNoms(p?.collaborateurs)) {
+      const cle = n.toLowerCase();
+      if (vus.has(cle)) continue;
+      vus.add(cle);
+      out.push(n);
+    }
+  }
+  return out.join(" & ");
+}

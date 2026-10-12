@@ -18,7 +18,9 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCollaboratorColor } from "@/lib/collaborators";
-import { COLLABORATEURS_LIST } from "@/lib/constants";
+/* Les relevés portent sur du passé : un monteur parti doit garder ses
+   heures. D'où la liste COMPLÈTE ici, et non celle des monteurs du jour. */
+import { COLLABORATEURS_TOUS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 
 // --- Utility functions ---
@@ -353,14 +355,14 @@ export default function HeuresPage() {
 
       // Track binôme minutes per individual
       for (const name of names) {
-        const matched = COLLABORATEURS_LIST.find(
+        const matched = COLLABORATEURS_TOUS.find(
           (c) => name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(name.toLowerCase())
         ) || name;
         collabTeamMinutes.set(matched, (collabTeamMinutes.get(matched) || 0) + entry.minutes);
       }
     } else if (names.length === 1) {
       // Solo → collabMap
-      const matched = COLLABORATEURS_LIST.find(
+      const matched = COLLABORATEURS_TOUS.find(
         (c) => names[0].toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(names[0].toLowerCase())
       ) || names[0];
       if (!collabMap.has(matched)) collabMap.set(matched, []);

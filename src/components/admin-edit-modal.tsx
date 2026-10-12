@@ -49,7 +49,7 @@ const TYPE_CLIENT_OPTIONS = [
 const COLLABORATEURS_BINOMES = [
   "Jean-Marc & Miguel",
   "Micael & Claudio",
-  "Jacobo & Loïc",
+  "Jacobo & Miguel",
   "Micael & Jean-Marc",
   "Claudio & Jacobo",
 ];
