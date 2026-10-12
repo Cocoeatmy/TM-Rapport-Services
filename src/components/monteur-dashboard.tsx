@@ -1768,6 +1768,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   /** Semaine affichee dans « Charge de la semaine » (0 = semaine en cours). */
   const [sgWeek, setSgWeek] = useState(0);
   /**
+   * Les francs sont CACHÉS tant qu'on ne les demande pas.
+   *
+   * Un écran de bureau se regarde par-dessus l'épaule : les montants des
+   * chantiers n'ont pas à s'afficher en permanence devant qui passe. Un seul
+   * interrupteur les commande tous — l'encart de la semaine ET les totaux
+   * posés au-dessus de chaque journée — parce qu'en cacher la moitié ne
+   * cacherait rien.
+   *
+   * Jamais mémorisé d'une visite à l'autre : s'il revenait ouvert, la
+   * discrétion ne tiendrait qu'au hasard du dernier clic.
+   */
+  const [montantsVisibles, setMontantsVisibles] = useState(false);
+  /**
    * Absences notées à la main sur le tableau de disponibilité.
    *
    * Rien dans Notion ne dit qu'un monteur est en vacances, en formation ou
@@ -3977,7 +3990,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                               <>
                                 {/* Ce que vaut la journée, au-dessus de ce
                                     qu'elle contient. */}
-                                {ofrActif && b.ofr > 0 && (
+                                {ofrActif && montantsVisibles && b.ofr > 0 && (
                                   <i className="is-ofr">CHF {francsCourts(b.ofr)}</i>
                                 )}
                                 <b>{b.cab} cabine{b.cab > 1 ? "s" : ""}</b>
@@ -4080,23 +4093,39 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       le travail qui reste. Visible du seul propriétaire des
                       accès bexio. */}
                   {ofrActif && semaineOFR > 0 && (
-                    <div className="sg-acquis">
-                      <div className="sg-acquis-tete">
+                    /* Bouton et non carte : c'est lui qui découvre les francs,
+                       ici comme au-dessus des colonnes. Fermé, il ne dit que
+                       des volumes — rien qu'un visiteur de passage ne puisse
+                       lire. */
+                    <button type="button"
+                      className={`sg-acquis${montantsVisibles ? " is-ouvert" : ""}`}
+                      aria-expanded={montantsVisibles}
+                      title={montantsVisibles ? "Masquer les montants" : "Afficher les montants"}
+                      onClick={() => setMontantsVisibles((v) => !v)}>
+                      <span className="sg-acquis-tete">
                         <span>Total semaine</span>
-                        <Check className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="sg-acquis-chf">CHF {francsCourts(semaineOFRGagne)}</div>
-                      <div className="sg-acquis-sur">encaissé sur CHF {francsCourts(semaineOFR)} prévus</div>
-                      <div className="sg-acquis-jauge"><i style={{ width: `${partGagnee}%` }} /></div>
-                      <div className="sg-acquis-ligne"><span>cabines</span><b>{semaineCabines}</b></div>
-                      {/* Ce qui reste à poser : le seul des quatre chiffres qui
-                          dise du travail à venir plutôt qu'un volume. */}
-                      <div className="sg-acquis-ligne is-reste">
+                        {montantsVisibles
+                          ? <Check className="w-3.5 h-3.5" />
+                          : <ChevronDown className="w-3.5 h-3.5" />}
+                      </span>
+                      {montantsVisibles && (
+                        <>
+                          <span className="sg-acquis-chf">CHF {francsCourts(semaineOFRGagne)}</span>
+                          <span className="sg-acquis-sur">encaissé sur CHF {francsCourts(semaineOFR)} prévus</span>
+                          <span className="sg-acquis-jauge"><i style={{ width: `${partGagnee}%` }} /></span>
+                        </>
+                      )}
+                      <span className="sg-acquis-ligne"><span>cabines</span><b>{semaineCabines}</b></span>
+                      {/* Ce qui reste à poser : le seul des chiffres qui dise
+                          du travail à venir plutôt qu'un volume. */}
+                      <span className="sg-acquis-ligne is-reste">
                         <span>non posées</span><b>{semaineRestantes}</b>
-                      </div>
-                      <div className="sg-acquis-ligne"><span>projets</span><b>{semaineProjets}</b></div>
-                      <div className="sg-acquis-ligne is-clos"><span>clôturés</span><b>{semaineClos} / {semaineProjets}</b></div>
-                    </div>
+                      </span>
+                      {montantsVisibles && (
+                        <span className="sg-acquis-ligne"><span>projets</span><b>{semaineProjets}</b></span>
+                      )}
+                      <span className="sg-acquis-ligne is-clos"><span>clôturés</span><b>{semaineClos} / {semaineProjets}</b></span>
+                    </button>
                   )}
                   </div>
 

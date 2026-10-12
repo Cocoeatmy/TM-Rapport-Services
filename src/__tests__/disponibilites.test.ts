@@ -127,6 +127,33 @@ describe("tableau de la semaine", () => {
     expect(t[0].total).toBe(5);
   });
 
+  /* Quelqu'un en congé le vendredi n'a pas trois cabines de retard : il a une
+     semaine de quatre jours. Son plafond tombe donc de quinze à douze. */
+  it("retire du plafond les jours d'absence", () => {
+    const vide: SegmentJour[][] = [[], [], [], [], []];
+    const sans = tableauDisponibilites(vide, ["Micael"], { jours: DATES });
+    expect(sans[0].plafond).toBe(15);
+    const avec = tableauDisponibilites(vide, ["Micael"], {
+      jours: DATES,
+      absents: new Set(["micael|2026-10-16"]),
+    });
+    expect(avec[0].plafond).toBe(12);
+  });
+
+  it("le pourcentage se mesure sur les seuls jours présents", () => {
+    const semaineChargee: SegmentJour[][] = [
+      [{ label: "Micael", cab: 3 }], [{ label: "Micael", cab: 3 }],
+      [{ label: "Micael", cab: 3 }], [{ label: "Micael", cab: 3 }], [],
+    ];
+    const t = tableauDisponibilites(semaineChargee, ["Micael"], {
+      jours: DATES,
+      absents: new Set(["micael|2026-10-16"]),
+    });
+    expect(t[0].total).toBe(12);
+    expect(t[0].plafond).toBe(12);
+    expect(t[0].pourcent).toBe(100);
+  });
+
   it("ignore la casse du prénom dans la clé d'absence", () => {
     const t = tableauDisponibilites(semaine, ["Claudio"], {
       jours: DATES,

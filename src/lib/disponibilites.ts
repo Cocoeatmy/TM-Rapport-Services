@@ -73,6 +73,11 @@ export interface LigneDispo {
    * faire, et la marge restante — la seule chose qu'on cherche ici — serait
    * fausse d'un tiers. Le plafond bouge donc d'une semaine à l'autre, comme
    * les équipes.
+   *
+   * Un jour d'ABSENCE ne compte pas : quelqu'un en congé le vendredi n'a pas
+   * trois cabines de retard, il a une semaine de quatre jours. Son plafond
+   * tombe donc de quinze à douze, et son pourcentage dit enfin la charge de
+   * ses journées présentes.
    */
   plafond: number;
   /** Part de la semaine occupée, en pour-cent entiers. */
@@ -137,7 +142,7 @@ export function tableauDisponibilites(
       return journeeDe(nom, segs, !!(cle && absents?.has(cle)));
     });
     const total = jours.reduce((s, j) => s + j.cabines, 0);
-    const plafond = jours.reduce((s, j) => s + j.capacite, 0);
+    const plafond = jours.reduce((s, j) => s + (j.absent ? 0 : j.capacite), 0);
     return {
       nom,
       jours,

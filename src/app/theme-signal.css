@@ -5200,6 +5200,10 @@ html[data-ui="signal"] .sg-acquis {
   box-sizing: border-box;
   background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 13px;
   padding: 13px 15px; display: flex; flex-direction: column; gap: 3px;
+  /* C'est un bouton : il doit s'annoncer comme tel sans ressembler à un
+     bouton — l'encart garde son allure de fiche. */
+  font-family: inherit; text-align: left; cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
   /* Le bas de l'encart se cale sur le BAS DES BARRES, pas sur le bas de la
      colonne : sous les barres viennent encore le jour et la date, et sans ce
      décalage l'encart pendait sous la ligne de base du graphique. Mesuré sur
@@ -5210,6 +5214,12 @@ html[data-ui="signal"] .sg-acquis {
 html[data-ui="signal"].dark .sg-acquis {
   background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.3);
 }
+html[data-ui="signal"] .sg-acquis:hover { border-color: #86efac; }
+html[data-ui="signal"] .sg-acquis:focus-visible {
+  outline: 2px solid var(--sg-signal); outline-offset: 2px;
+}
+/* Fermé, il est plus bas : les trois lignes de volumes suffisent. */
+html[data-ui="signal"] .sg-acquis:not(.is-ouvert) .sg-acquis-tete { margin-bottom: 4px; }
 html[data-ui="signal"] .sg-acquis-tete {
   display: flex; align-items: center; justify-content: space-between;
   font-size: 11px; font-weight: 600; color: #15803d;
