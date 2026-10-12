@@ -5188,7 +5188,13 @@ html[data-ui="signal"] .sg-sem-mob { display: none; }
     display: flex; flex-wrap: wrap; gap: 4px;
   }
   html[data-ui="signal"] .sg-sem-lot {
-    display: inline-flex; align-items: center;
+    /* `inline-block` et non `inline-flex` : les points de suspension ne
+       s'appliquent pas au texte d'un conteneur flex. Un relevé de mesures n'a
+       pas de n° TM — c'est le nom du chantier qui s'affiche, et il faisait
+       alors six cents pixels de large à lui seul. */
+    display: inline-block; line-height: 1.5;
+    max-width: min(100%, 168px);
+    overflow: hidden; text-overflow: ellipsis;
     padding: 3px 7px; border-radius: 6px;
     font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
     letter-spacing: -0.01em; white-space: nowrap;
@@ -5210,4 +5216,10 @@ html[data-ui="signal"] .sg-sem-mob { display: none; }
   /* La légende aussi tenait sur trois lignes de pastilles : on la resserre. */
   html[data-ui="signal"] .sg-bars-legend { gap: 4px; }
   html[data-ui="signal"] .sg-bars-leg { font-size: 10.5px; padding: 3px 8px; }
+
+  /* Les lignes des cartes du jour : sur une seule ligne, le dernier élément
+     — « 4 projets » — sortait de l'écran. Elles s'enroulent désormais, et
+     chacun de leurs blocs accepte de rétrécir. */
+  html[data-ui="signal"] .sg-row { flex-wrap: wrap; row-gap: 4px; }
+  html[data-ui="signal"] .sg-row > * { min-width: 0; }
 }
