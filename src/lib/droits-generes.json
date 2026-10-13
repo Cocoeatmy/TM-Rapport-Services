@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-12T22:03:51.021Z",
+  "genereLe": "2026-10-13T18:06:20.830Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -945,6 +945,16 @@
       "url": "/api/projects/mesures-termine",
       "type": "api",
       "fichier": "src/app/api/projects/mesures-termine/route.ts",
+      "niveau": "connecte-middleware",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/projects/periode",
+      "type": "api",
+      "fichier": "src/app/api/projects/periode/route.ts",
       "niveau": "connecte-middleware",
       "gardePage": false,
       "methodes": [

@@ -223,6 +223,13 @@ export function setCache(key: string, data: unknown) {
   let ttl = TTL;
   if (key.startsWith("project-")) {
     freshMs = 30_000;
+  } else if (key.startsWith("periode-")) {
+    // Fenêtre affichée par la charge de la semaine : une requête Notion datée,
+    // quelques résultats. Fraîcheur courte — c'est la seule source qui voie un
+    // chantier le jour où il est clôturé — et durée de vie courte : une semaine
+    // qu'on ne regarde plus n'a pas à encombrer la mémoire de l'instance.
+    freshMs = VOLATILE_FRESH_MS;
+    ttl = VOLATILE_TTL;
   } else if (VOLATILE_KEYS.has(key)) {
     // Listes du DASHBOARD (montage/mesures/services/sav/all-active) : fraîcheur
     // COURTE (20 s) → revalidation en arrière-plan dès qu'un client redemande après

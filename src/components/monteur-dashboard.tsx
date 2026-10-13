@@ -16,6 +16,7 @@ import { cabinesDuJour, joursDuChantier } from "@/lib/cabines-du-jour";
 import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
 import { toast } from "sonner";
 import { tableauDisponibilites, CAPACITE } from "@/lib/disponibilites";
+import { intervalleVisible } from "@/lib/timers";
 import {
   materielNonReceptionne, chantierBloque, interventionNonTerminee,
   retardDeMontage, commandeEnRetard,
@@ -1772,6 +1773,39 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   /** Semaine affichee dans « Charge de la semaine » (0 = semaine en cours). */
   const [sgWeek, setSgWeek] = useState(0);
   /**
+   * Les chantiers de la semaine affichée, demandés à Notion pour eux-mêmes.
+   *
+   * Le reste de l'écran vit sur des listes mises en cache : les actives se
+   * rafraîchissent en vingt secondes, les terminées au bout de plusieurs
+   * heures. Un chantier clôturé quitte donc la première bien avant d'entrer
+   * dans la seconde, et entre les deux il n'était nulle part : la journée
+   * tombait à zéro le jour même où l'on venait voir ce qui avait été posé.
+   *
+   * Cette requête-ci porte sur la fenêtre affichée et sur rien d'autre —
+   * une quinzaine de fiches, tous états confondus. La semaine se lit donc
+   * telle qu'elle a été vécue, y compris au premier chargement d'une page
+   * fraîche, là où la mémoire d'écran repartait vide.
+   */
+  const [projetsPeriode, setProjetsPeriode] = useState<Project[]>([]);
+  useEffect(() => {
+    const lundi = new Date();
+    lundi.setDate(lundi.getDate() - ((lundi.getDay() + 6) % 7) + sgWeek * 7);
+    const vendredi = new Date(lundi);
+    vendredi.setDate(lundi.getDate() + 4);
+    const du = formatLocalDate(lundi);
+    const au = formatLocalDate(vendredi);
+    let vivant = true;
+    const charger = () => {
+      fetch(`/api/projects/periode?du=${du}&au=${au}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((liste) => { if (vivant && Array.isArray(liste)) setProjetsPeriode(liste); })
+        .catch(() => { /* hors ligne : les listes en cache prennent le relais */ });
+    };
+    charger();
+    const arreter = intervalleVisible(charger, 30000);
+    return () => { vivant = false; arreter(); };
+  }, [sgWeek]);
+  /**
    * Les francs sont CACHÉS tant qu'on ne les demande pas.
    *
    * Un écran de bureau se regarde par-dessus l'épaule : les montants des
@@ -2166,7 +2200,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const projetsConnus = (() => {
     const vus = memoireProjetsRef.current;
     const ts = (x: Project) => Date.parse((x as any).lastEditedTime || "") || 0;
-    [...projects, ...terminatedProjects].forEach((p) => {
+    [...projects, ...terminatedProjects, ...projetsPeriode].forEach((p) => {
       if (!p?.id) return;
       if ((p.etatCMD || "") === "Annulé") { vus.delete(p.id); return; }
       const connu = vus.get(p.id);

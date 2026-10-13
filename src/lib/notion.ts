@@ -1136,6 +1136,45 @@ export async function getProjectsMontageJour(jour: string): Promise<Project[]> {
   );
 }
 
+/**
+ * Les interventions d'une PÉRIODE, quel que soit leur état.
+ *
+ * La charge de la semaine lisait deux listes : les chantiers actifs, et les
+ * terminés. Un chantier clôturé quitte la première en vingt secondes et
+ * n'entre dans la seconde qu'au rafraîchissement du gros instantané — jusqu'à
+ * plusieurs heures. Entre les deux il n'existait nulle part, et la journée
+ * tombait à zéro : exactement le jour où l'on vient regarder ce qui a été
+ * posé. Une mémoire côté écran ne suffisait pas, elle s'efface au
+ * rechargement de la page.
+ *
+ * Cette requête-ci ne dépend d'aucun instantané. Elle demande à Notion les
+ * fiches de la fenêtre affichée — une poignée de résultats, un seul appel —
+ * et les rend telles qu'elles sont, terminées comprises. Les annulées sortent :
+ * ce montage n'aura pas lieu.
+ *
+ * Montages ET relevés de mesures : la barre compte les deux, et une mesure
+ * clôturée disparaissait pour la même raison. Le SAV n'en est pas — sa date
+ * de rendez-vous n'est pas une date chez Notion, et un SAV « RDV fixé » reste
+ * de toute façon dans les listes actives.
+ */
+export async function getProjectsPeriode(du: string, au: string): Promise<Project[]> {
+  const fenetre = (propriete: string) => ({
+    and: [
+      { property: propriete, date: { on_or_after: du } },
+      { property: propriete, date: { on_or_before: au } },
+    ],
+  });
+  return queryAll(
+    {
+      and: [
+        { or: [fenetre("Date Montage"), fenetre("Mesures traitée le")] },
+        { property: "État - CMD", status: { does_not_equal: "Annulé" } },
+      ],
+    },
+    [{ property: "Date Montage", direction: "ascending" }],
+  );
+}
+
 // Projets dont l'état CMD est "Terminé" (archivage CMD).
 /**
  * Mesures terminées.
