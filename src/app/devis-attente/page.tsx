@@ -241,7 +241,30 @@ export default function DevisAttentePage() {
           </div>
 
           <div className="space-y-0.5 mt-1">
-            {visibles.map((l, i) => {
+            {visibles.flatMap((l, i) => {
+              /* Séparateur de mois, comme sur « Mesures non commandées ». La
+                 liste va du plus ancien au plus récent — l'urgence d'abord —
+                 et les mois défilent donc dans cet ordre. */
+              const moisCle = (l.date || "").slice(0, 7);
+              const nouveauMois = moisCle !== (visibles[i - 1]?.date || "").slice(0, 7);
+              const separateur = nouveauMois ? (
+                <div key={`sep-${moisCle || "sans"}-${l.nr}`} className="flex items-center gap-2 pt-3 pb-0.5">
+                  <div className="flex-1 h-px bg-amber-200/70 dark:bg-amber-700/40" />
+                  <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 shrink-0 px-1.5 capitalize">
+                    {moisCle
+                      ? new Date(`${moisCle}-15T12:00:00`).toLocaleDateString("fr-CH", { month: "long", year: "numeric" })
+                      : "Sans date"}
+                  </span>
+                  <span className="text-[9px] text-amber-600/70 dark:text-amber-500/70 shrink-0">
+                    {(() => {
+                      const duMois = visibles.filter((x) => (x.date || "").slice(0, 7) === moisCle);
+                      return `${duMois.length} devis · ${francs(duMois.reduce((t, x) => t + (x.total || 0), 0))}`;
+                    })()}
+                  </span>
+                  <div className="flex-1 h-px bg-amber-200/70 dark:bg-amber-700/40" />
+                </div>
+              ) : null;
+              return [separateur, (() => {
               const etatD = etatDuDossier(l);
               const closDossier = etatD === "clos" || etatD === "engage";
               const relanceLe = dateSuisse(l.relance.derniere);
@@ -316,6 +339,7 @@ export default function DevisAttentePage() {
                   </span>
                 </div>
               );
+              })()];
             })}
           </div>
 
