@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   destinataireRelance, redigerRelance, lienMailto, dateSuisse, salutation,
-  relanceApplicable, nettoyerLieu, etatRelance, correspondAuFiltre,
+  relanceApplicable, nettoyerLieu, etatRelance, correspondAuFiltre, redigerRelanceDevis,
   type ContactsDuProjet, type ProjetARelancer,
 } from "@/lib/relance";
 
@@ -351,5 +351,69 @@ describe("suivi des relances", () => {
     for (const f of ["j7", "j14", "j30"] as const) {
       expect(correspondAuFiltre(jamais, f, AUJ)).toBe(false);
     }
+  });
+});
+
+describe("redigerRelanceDevis", () => {
+  const devis = {
+    nr: "TM-2500471", titre: "Dutoit CombiTec SA - Cherbe Sandy, Ch. Ancienne Forge 2",
+    date: "2025-09-20", total: 1611,
+    nomChantier: "Cherbe Sandy", adresseChantier: "Ch. Ancienne Forge 2, 1040 Villars-le-Terroir Vaud, Suisse",
+    dateMesures: "2025-09-24", nbCabines: 1, typeClient: "Grossistes", ofrGrossiste: "01020900",
+  };
+  const dest = destinataireRelance("Grossistes", { grossiste: [jean] });
+  const m = redigerRelanceDevis(devis, dest);
+
+  it("ne parle JAMAIS de facture — rien n'a encore été fait", () => {
+    /* Le mot « facture » devant un client qui hésite encore le fait fuir. */
+    expect(m.corps.toLowerCase()).not.toContain("factur");
+    expect(m.corps.toLowerCase()).not.toContain("frais");
+    expect(m.corps).not.toContain("numéro de commande");
+  });
+
+  it("rappelle le devis et sa date d'envoi", () => {
+    expect(m.corps).toContain("notre devis TM-2500471 du 20.09.2025");
+    expect(m.corps).toContain("pas encore eu de retour");
+  });
+
+  it("rouvre la conversation plutôt que de réclamer un oui", () => {
+    expect(m.corps).toContain("où en est votre réflexion");
+    expect(m.corps).toContain("une variante ou une adaptation");
+  });
+
+  it("fait du relevé déjà pris un argument de vente", () => {
+    expect(m.corps).toContain("Le relevé de mesures ayant déjà été effectué le 24.09.2025 (1 cabine)");
+    expect(m.corps).toContain("prêt à être lancé dès réception de votre accord");
+  });
+
+  it("se tait sur le relevé quand le devis est établi sur plan", () => {
+    const sansReleve = redigerRelanceDevis({ ...devis, dateMesures: null }, dest);
+    expect(sansReleve.corps).not.toContain("relevé de mesures");
+  });
+
+  it("porte la référence du grossiste, objet compris", () => {
+    expect(m.objet).toContain("devis TM-2500471");
+    expect(m.objet).toContain("votre réf. 01020900");
+    expect(m.corps).toContain("(votre référence 01020900)");
+  });
+
+  it("nettoie l'adresse comme ailleurs", () => {
+    expect(m.objet).toBe("Relance — devis TM-2500471 · votre réf. 01020900 — Cherbe Sandy, 1040 Villars-le-Terroir");
+    expect(m.corps).not.toContain("Suisse");
+  });
+
+  it("tient debout sans dossier Notion : il ne reste que bexio", () => {
+    const nu = redigerRelanceDevis(
+      { nr: "TM-9999", titre: "Hôtel Aulac, Pl. de la Navigation 4, 1006 Lausanne", date: "2026-05-02" },
+      destinataireRelance("", { autres: [marie] }),
+    );
+    expect(nu.corps).toContain("notre devis TM-9999 du 02.05.2026");
+    expect(nu.objet).toContain("Hôtel Aulac");
+    expect(nu.corps).not.toContain("undefined");
+  });
+
+  it("ne signe pas davantage que l'autre courrier", () => {
+    expect(m.corps).not.toContain("TM Douche Montage");
+    expect(m.corps.trimEnd().endsWith("excellente journée.")).toBe(true);
   });
 });

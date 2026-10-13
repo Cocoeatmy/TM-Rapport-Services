@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-13T21:13:33.939Z",
+  "genereLe": "2026-10-13T21:26:12.094Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -193,6 +193,16 @@
       "url": "/api/bexio/connexion",
       "type": "api",
       "fichier": "src/app/api/bexio/connexion/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "GET"
+      ]
+    },
+    {
+      "url": "/api/bexio/devis",
+      "type": "api",
+      "fichier": "src/app/api/bexio/devis/route.ts",
       "niveau": "admin",
       "gardePage": false,
       "methodes": [
@@ -1134,6 +1144,16 @@
       ]
     },
     {
+      "url": "/api/relance/devis",
+      "type": "api",
+      "fichier": "src/app/api/relance/devis/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "POST"
+      ]
+    },
+    {
       "url": "/api/relance/trace",
       "type": "api",
       "fichier": "src/app/api/relance/trace/route.ts",
@@ -1392,6 +1412,14 @@
       "type": "page",
       "fichier": "src/app/client/[token]/mesures/page.tsx",
       "niveau": "ouvert",
+      "gardePage": false,
+      "methodes": []
+    },
+    {
+      "url": "/devis-attente",
+      "type": "page",
+      "fichier": "src/app/devis-attente/page.tsx",
+      "niveau": "connecte-middleware",
       "gardePage": false,
       "methodes": []
     },

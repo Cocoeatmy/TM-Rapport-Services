@@ -437,3 +437,97 @@ export function correspondAuFiltre(
     default: return true;
   }
 }
+
+
+/* ── Relancer un DEVIS, ce qui n'est pas relancer un dossier ─────────────
+   Les deux listes se ressemblent, le courrier non. Une mesure non commandée
+   porte un travail DÉJÀ FAIT : on peut parler facture. Un devis en attente
+   ne porte rien — aucun déplacement, aucune prestation — et y glisser le mot
+   « facture » ferait fuir un client qui hésite encore. Ici on vend. */
+
+export interface DevisARelancer {
+  nr: string;
+  titre: string;
+  client?: string;
+  date: string;
+  total?: number;
+  /** Renseignés quand le devis est rapproché d'un dossier Notion. */
+  nomChantier?: string | null;
+  adresseChantier?: string | null;
+  dateMesures?: string | null;
+  nbCabines?: number | null;
+  typeClient?: string | null;
+  ofrGrossiste?: string | null;
+}
+
+/** Ce qu'on nomme pour que le client reconnaisse l'affaire. */
+function objetDuDevis(d: DevisARelancer): string {
+  const brut = String(d.nomChantier || "").trim() || sansLeClient(d.titre || "");
+  const localite = nettoyerLieu(d.adresseChantier).split(",").pop()?.trim() || "";
+  const court = brut.length > 45 ? `${brut.slice(0, 44).trimEnd()}…` : brut;
+  return [court, localite && !court.includes(localite) ? localite : ""].filter(Boolean).join(", ");
+}
+
+/**
+ * Le courrier de relance d'un devis sans réponse.
+ *
+ * Trois choses, et pas une de plus : rappeler le devis et sa date, demander
+ * où en est la réflexion, et ouvrir la porte — des précisions, une variante,
+ * une adaptation du prix. Ce qu'on cherche n'est pas un « oui » tout de
+ * suite, c'est une REPRISE DE CONVERSATION : un devis sans réponse meurt du
+ * silence, pas du refus.
+ *
+ * Aucune mention de facture ni de frais : rien n'a encore été fait.
+ */
+export function redigerRelanceDevis(d: DevisARelancer, dest: Destinataire): MailRelance {
+  const ref = String(d.nr || "").trim();
+  const affaire = objetDuDevis(d);
+  const envoye = dateSuisse(d.date);
+  const votreRef = String(d.typeClient || "").trim() === "Grossistes"
+    ? String(d.ofrGrossiste || "").trim() : "";
+
+  const references = [ref && `devis ${ref}`, votreRef && `votre réf. ${votreRef}`]
+    .filter(Boolean).join(" · ");
+  const objet = ["Relance", references, affaire].filter(Boolean).join(" — ");
+
+  const lignes: string[] = [salutation(dest.contacts), ""];
+
+  lignes.push(
+    [
+      "Nous revenons vers vous au sujet de notre devis",
+      ref && ` ${ref}`,
+      envoye && ` du ${envoye}`,
+      votreRef && ` (votre référence ${votreRef})`,
+      affaire && `, concernant ${affaire}`,
+      ", pour lequel nous n'avons pas encore eu de retour de votre part.",
+    ].filter(Boolean).join(""),
+  );
+
+  /* Le relevé déjà fait est un argument : le dossier est prêt, les cotes
+     sont prises, il ne manque qu'un accord. Sur un devis établi sur plan,
+     le dire serait faux. */
+  const releve = dateSuisse(d.dateMesures);
+  if (releve) {
+    const nb = d.nbCabines || 0;
+    lignes.push(
+      "",
+      `Le relevé de mesures ayant déjà été effectué le ${releve}${nb > 0 ? ` (${nb} cabine${nb > 1 ? "s" : ""})` : ""}, le dossier est prêt à être lancé dès réception de votre accord.`,
+    );
+  }
+
+  lignes.push(
+    "",
+    "Pourriez-vous nous dire où en est votre réflexion ? Si certains points demandent des précisions, si vous souhaitez une variante ou une adaptation de notre proposition, nous les étudions volontiers avec vous.",
+    "",
+    "Dans l'attente de votre retour, nous vous souhaitons une excellente journée.",
+  );
+
+  return {
+    objet,
+    corps: lignes.join("\n"),
+    destinataires: dest.contacts.map((c) => c.email.trim()),
+    famille: dest.famille,
+    repli: dest.repli,
+    sansDestinataire: dest.contacts.length === 0,
+  };
+}

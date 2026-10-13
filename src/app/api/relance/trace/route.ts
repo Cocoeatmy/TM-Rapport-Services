@@ -48,10 +48,16 @@ export async function POST(request: NextRequest) {
 
   /* Les dates ensuite, une par une et sans s'arrêter au premier échec : un
      projet verrouillé dans Notion ne doit pas priver les dix-neuf autres de
-     leur trace. Le navigateur apprend lesquels sont passés. */
+     leur trace. Le navigateur apprend lesquels sont passés.
+
+     Les clés « devis:TM-xxxx » n'ont pas de page Notion : un devis bexio
+     n'est pas un dossier, et une offre sur trois n'en a aucun. Leur trace
+     s'arrête à l'historique — qui vit lui aussi dans Notion, dans le magasin
+     de l'application. */
   const ecrits: string[] = [];
   const echecs: string[] = [];
   for (const id of liste) {
+    if (id.startsWith("devis:")) { ecrits.push(id); continue; }
     try {
       await updateProject(id, { relanceDossier: leJour });
       invalidateCache(`project-${id}`);
@@ -60,7 +66,7 @@ export async function POST(request: NextRequest) {
       echecs.push(id);
     }
   }
-  if (ecrits.length > 0) {
+  if (ecrits.some((id) => !id.startsWith("devis:"))) {
     invalidateCache("projects-mesures-sans-commande");
     invalidateCache("projects-mesures");
   }

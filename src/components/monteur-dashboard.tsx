@@ -4562,16 +4562,30 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     vide: !!pret && pret.echues.total === 0,
                   },
                 ];
-                return lignes.filter((l) => !l.vide).map((l) => (
-                  <button key={l.cle} type="button" className="sg-signal-row"
-                    disabled={!pret}
-                    onClick={() => setApercuBexio(l.cle as "devis" | "echues")}>
-                    <span className="sg-signal-chip" style={{ background: l.bg, color: l.fg }}><l.Icon className="w-3.5 h-3.5" /></span>
-                    <span className="sg-signal-label">{l.label}<em className="sg-signal-note">{l.note}</em></span>
-                    <span className="sg-signal-count" style={{ color: l.fg }}>{l.compte}</span>
-                    <ChevronRight className="w-4 h-4 sg-signal-arrow" />
-                  </button>
-                ));
+                return lignes.filter((l) => !l.vide).map((l) => {
+                  const dedans = (
+                    <>
+                      <span className="sg-signal-chip" style={{ background: l.bg, color: l.fg }}><l.Icon className="w-3.5 h-3.5" /></span>
+                      <span className="sg-signal-label">{l.label}<em className="sg-signal-note">{l.note}</em></span>
+                      <span className="sg-signal-count" style={{ color: l.fg }}>{l.compte}</span>
+                      <ChevronRight className="w-4 h-4 sg-signal-arrow" />
+                    </>
+                  );
+                  /* Les devis mènent à une PAGE : deux cents offres à trier,
+                     filtrer et relancer ne tiennent pas dans une fiche
+                     latérale. Les factures échues gardent l'aperçu — on les
+                     consulte, on ne les travaille pas ici. */
+                  if (l.cle === "devis") {
+                    return <Link key={l.cle} href="/devis-attente" className="sg-signal-row">{dedans}</Link>;
+                  }
+                  return (
+                    <button key={l.cle} type="button" className="sg-signal-row"
+                      disabled={!pret}
+                      onClick={() => setApercuBexio(l.cle as "devis" | "echues")}>
+                      {dedans}
+                    </button>
+                  );
+                });
               })()}
               {/* Ces quatre dernières lignes mènent à des PAGES et non à des
                   panneaux : leur calcul porte sur tous les projets, terminés
