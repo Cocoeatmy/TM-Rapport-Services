@@ -118,20 +118,56 @@ export function dateSuisse(iso: string | null | undefined): string {
 }
 
 /**
- * Le prénom, pour ouvrir le message.
+ * L'ouverture du message : « Bonjour, », sans nom.
  *
- * Les fiches contacts portent « Prénom Nom ». « Bonjour Monsieur Dupont »
- * demanderait de connaître le genre, que rien ne donne ; « Bonjour Jean » est
- * à la fois juste et courant dans le métier. Sans nom exploitable, on s'en
- * tient à « Bonjour ».
+ * On a d'abord essayé le prénom. Les fiches ne tiennent pas le même ordre —
+ * « Dylan Emonin » à côté d'« Oppizzi Sylvain », « Ordonez Yanick » — et rien
+ * dans la fiche ne dit lequel des deux mots est le prénom. Le premier
+ * échantillon réel donnait « Bonjour Dylan et Oppizzi » et « Bonjour
+ * Ordonez » : adressé au client, cela fait plus de dégâts qu'un simple
+ * « Bonjour » n'en évite. Le civilité par le genre est hors de portée pour la
+ * même raison.
+ *
+ * Le nom reste visible là où il ne peut pas se tromper : dans le champ
+ * destinataire. Et le courrier s'ouvre dans la messagerie, où personnaliser
+ * l'entrée en matière prend trois secondes.
  */
-export function salutation(contacts: Contact[]): string {
-  const noms = contacts
-    .map((c) => String(c?.name || "").trim().split(/\s+/)[0])
-    .filter((n) => n.length > 1);
-  if (noms.length === 0) return "Bonjour,";
-  if (noms.length === 1) return `Bonjour ${noms[0]},`;
-  return `Bonjour ${noms.slice(0, -1).join(", ")} et ${noms[noms.length - 1]},`;
+export function salutation(_contacts: Contact[]): string {
+  return "Bonjour,";
+}
+
+/**
+ * Une adresse lisible dans une phrase.
+ *
+ * Les adresses viennent d'un champ de localisation : elles traînent le pays,
+ * parfois le canton — « Rue des Alpes 9, 1023 Crissier Vaud, Suisse ». Écrit
+ * à un client suisse, le pays est de trop, et le canton derrière la localité
+ * ne se dit pas.
+ */
+const CANTONS = [
+  "Vaud", "Valais", "Fribourg", "Genève", "Geneve", "Neuchâtel", "Neuchatel",
+  "Jura", "Berne", "Bern", "Argovie", "Soleure", "Zurich", "Zürich", "Tessin",
+  "Lucerne", "Thurgovie", "Schaffhouse", "Grisons", "Glaris", "Zoug",
+  "Schwytz", "Uri", "Obwald", "Nidwald", "Appenzell",
+];
+const PAYS = ["suisse", "switzerland", "schweiz", "svizzera", "ch"];
+
+export function nettoyerLieu(adresse: string | null | undefined): string {
+  const morceaux = String(adresse || "").split(",").map((m) => m.trim()).filter(Boolean);
+  while (morceaux.length > 1 && PAYS.includes(morceaux[morceaux.length - 1].toLowerCase())) {
+    morceaux.pop();
+  }
+  const dernier = morceaux[morceaux.length - 1];
+  if (dernier) {
+    /* Le canton ne se retire que s'il SUIT une localité : « 1023 Crissier
+       Vaud » perd « Vaud », « 1700 Fribourg » garde Fribourg, qui est la
+       ville. */
+    for (const canton of CANTONS) {
+      const m = dernier.match(new RegExp(`^(\\d{4}\\s+.+?)\\s+${canton}$`, "i"));
+      if (m) { morceaux[morceaux.length - 1] = m[1].trim(); break; }
+    }
+  }
+  return morceaux.join(", ");
 }
 
 export interface ProjetARelancer {
@@ -179,17 +215,34 @@ function referenceOffre(p: ProjetARelancer): string {
   return premier;
 }
 
-/** Ce qu'on nomme pour que le client reconnaisse le chantier. */
+/** Le chantier sans le nom du client, qui ouvre tous les noms de projet. */
+function sansLeClient(projet: string): string {
+  const nom = String(projet || "").trim();
+  /* « Duka - Lot 1, … » : écrire « Duka » à Duka ne lui apprend rien. */
+  const apres = nom.split(" - ").slice(1).join(" - ").trim();
+  return apres || nom;
+}
+
+/** Ce qu'on nomme dans le CORPS, pour que le client reconnaisse le chantier. */
 function designationChantier(p: ProjetARelancer): string {
-  const parts = [p.nomChantier, p.adresseChantier].map((x) => String(x || "").trim()).filter(Boolean);
-  /* Le nom de projet commence par le client (« Duka - Lot 1, … ») : devant
-     lui, le rappeler ne lui apprend rien. On garde ce qui suit le tiret. */
-  if (parts.length === 0) {
-    const nom = String(p.projet || "").trim();
-    const apres = nom.split(" - ").slice(1).join(" - ").trim();
-    return apres || nom;
-  }
+  const parts = [p.nomChantier, nettoyerLieu(p.adresseChantier)]
+    .map((x) => String(x || "").trim()).filter(Boolean);
+  if (parts.length === 0) return sansLeClient(p.projet);
   return [...new Set(parts)].join(", ");
+}
+
+/**
+ * Ce qu'on met dans l'OBJET — court.
+ *
+ * L'objet complet dépassait la centaine de caractères et se faisait couper
+ * par la messagerie en plein milieu de l'adresse. Le nom du chantier et la
+ * localité suffisent à le reconnaître d'un coup d'œil dans une boîte.
+ */
+function designationCourte(p: ProjetARelancer): string {
+  const nom = String(p.nomChantier || "").trim() || sansLeClient(p.projet);
+  const localite = nettoyerLieu(p.adresseChantier).split(",").pop()?.trim() || "";
+  const court = nom.length > 45 ? `${nom.slice(0, 44).trimEnd()}…` : nom;
+  return [court, localite && !court.includes(localite) ? localite : ""].filter(Boolean).join(", ");
 }
 
 /**
@@ -205,7 +258,7 @@ export function redigerRelance(p: ProjetARelancer, dest: Destinataire): MailRela
   const offre = dateSuisse(p.dateOffre);
   const mesures = dateSuisse(p.dateMesures);
 
-  const objet = ["Relance", ref && `offre ${ref}`, chantier].filter(Boolean).join(" — ");
+  const objet = ["Relance", ref && `offre ${ref}`, designationCourte(p)].filter(Boolean).join(" — ");
 
   const lignes: string[] = [salutation(dest.contacts), ""];
 

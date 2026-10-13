@@ -2458,11 +2458,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
   const relancer = async (cibles: Project[]) => {
     if (relanceEnCours || cibles.length === 0) return;
     /* Un dossier par courrier : au-delà de trois fenêtres qui s'ouvrent
-       d'affilée, mieux vaut l'avoir voulu. */
+       d'affilée, mieux vaut l'avoir voulu.
+
+       L'offre récente est SIGNALÉE, pas écartée : vingt dossiers sur les
+       quatre-vingt-sept datés portent une offre de moins d'une semaine, et
+       relancer quelqu'un sur une offre envoyée avant-hier se remarque. Mais
+       c'est un jugement de métier, pas une règle : l'app le dit et laisse
+       décider. */
+    const recentes = cibles.filter((x) => {
+      const j = (x.dateOffre || "").split("T")[0];
+      return !!j && Date.now() - Date.parse(`${j}T12:00:00Z`) < 7 * 86400000;
+    }).length;
     if (cibles.length > 3 && !window.confirm(
       `Préparer ${cibles.length} courriers de relance ?\n\n` +
       `Autant de fenêtres s'ouvriront dans votre logiciel de messagerie, ` +
-      `l'une après l'autre. Rien ne part tant que vous n'appuyez pas sur « Envoyer ».`,
+      `l'une après l'autre. Rien ne part tant que vous n'appuyez pas sur « Envoyer ».` +
+      (recentes > 0
+        ? `\n\nAttention : ${recentes} dossier${recentes > 1 ? "s ont une offre datée" : " a une offre datée"} de moins de sept jours.`
+        : ""),
     )) return;
 
     setRelanceEnCours(cibles.length === 1 ? cibles[0].id : "lot");

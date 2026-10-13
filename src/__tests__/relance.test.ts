@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   destinataireRelance, redigerRelance, lienMailto, dateSuisse, salutation,
-  relanceApplicable, type ContactsDuProjet, type ProjetARelancer,
+  relanceApplicable, nettoyerLieu, type ContactsDuProjet, type ProjetARelancer,
 } from "@/lib/relance";
 
 const jean = { name: "Jean Dupont", email: "jean@duka.ch" };
@@ -81,14 +81,42 @@ describe("dateSuisse", () => {
 });
 
 describe("salutation", () => {
-  it("appelle le contact par son prénom", () => {
-    expect(salutation([jean])).toBe("Bonjour Jean,");
+  it("n'essaie pas de deviner le prénom", () => {
+    /* Les fiches ne tiennent pas le même ordre : « Dylan Emonin » à côté
+       d'« Oppizzi Sylvain ». Le premier échantillon réel donnait « Bonjour
+       Dylan et Oppizzi » — adressé au client, c'est pire qu'un « Bonjour »
+       tout court. */
+    expect(salutation([{ name: "Dylan Emonin", email: "a@b.ch" },
+                       { name: "Oppizzi Sylvain", email: "c@d.ch" }])).toBe("Bonjour,");
+    expect(salutation([jean])).toBe("Bonjour,");
+    expect(salutation([])).toBe("Bonjour,");
   });
-  it("nomme tout le monde quand ils sont plusieurs", () => {
-    expect(salutation([jean, marie])).toBe("Bonjour Jean et Marie,");
+});
+
+describe("nettoyerLieu", () => {
+  it("retire le pays, de trop entre Suisses", () => {
+    expect(nettoyerLieu("Rue Jacques-Gachoud, 1700 Fribourg, Suisse"))
+      .toBe("Rue Jacques-Gachoud, 1700 Fribourg");
   });
-  it("reste neutre faute de nom", () => {
-    expect(salutation([{ name: "", email: "x@y.ch" }])).toBe("Bonjour,");
+
+  it("retire le canton qui suit la localité", () => {
+    expect(nettoyerLieu("Rue des Alpes 9, 1023 Crissier Vaud, Suisse"))
+      .toBe("Rue des Alpes 9, 1023 Crissier");
+  });
+
+  it("garde une ville qui porte le nom de son canton", () => {
+    /* « 1700 Fribourg » : Fribourg est ici la VILLE. La retirer laisserait
+       une adresse sans localité. */
+    expect(nettoyerLieu("1700 Fribourg, Suisse")).toBe("1700 Fribourg");
+    expect(nettoyerLieu("Rte. de Berne 9, 1700 Fribourg")).toBe("Rte. de Berne 9, 1700 Fribourg");
+  });
+
+  it("laisse intacte une adresse déjà propre", () => {
+    expect(nettoyerLieu("Ch. du Lac 4, 1800 Vevey")).toBe("Ch. du Lac 4, 1800 Vevey");
+  });
+
+  it("supporte le vide", () => {
+    expect(nettoyerLieu(null)).toBe("");
   });
 });
 
@@ -114,12 +142,32 @@ describe("redigerRelance", () => {
     expect(mail.objet).toContain("Lot 1, Wagnières");
   });
 
-  it("préfère le nom et l'adresse de chantier quand ils sont renseignés", () => {
+  it("nomme le chantier et son adresse dans le corps", () => {
     const m = redigerRelance(
-      { ...projet, nomChantier: "Villa Rossi", adresseChantier: "Ch. du Lac 4, 1800 Vevey" },
+      { ...projet, nomChantier: "Villa Rossi", adresseChantier: "Ch. du Lac 4, 1800 Vevey Vaud, Suisse" },
       destinataireRelance("Grossistes", { grossiste: [jean] }),
     );
-    expect(m.objet).toContain("Villa Rossi, Ch. du Lac 4, 1800 Vevey");
+    expect(m.corps).toContain("Villa Rossi, Ch. du Lac 4, 1800 Vevey");
+    expect(m.corps).not.toContain("Suisse");
+  });
+
+  it("garde un objet court : la localité, pas l'adresse entière", () => {
+    /* L'objet complet dépassait la centaine de caractères et se faisait
+       couper en plein milieu de l'adresse. */
+    const m = redigerRelance(
+      { ...projet, nomChantier: "Villa Rossi", adresseChantier: "Ch. du Lac 4, 1800 Vevey Vaud, Suisse" },
+      destinataireRelance("Grossistes", { grossiste: [jean] }),
+    );
+    expect(m.objet).toBe("Relance — offre TM-2600975 — Villa Rossi, 1800 Vevey");
+  });
+
+  it("tronque un nom de chantier à rallonge plutôt que de laisser filer l'objet", () => {
+    const m = redigerRelance(
+      { ...projet, nomChantier: "Scala - îlot Gachoud Lot I.01 & K.01 bâtiment nord entrée B", adresseChantier: "1700 Fribourg, Suisse" },
+      destinataireRelance("Grossistes", { grossiste: [jean] }),
+    );
+    expect(m.objet.length).toBeLessThan(100);
+    expect(m.objet).toContain("…");
   });
 
   it("tient debout sans date d'offre — quatre dossiers sur quatre-vingt-onze", () => {
