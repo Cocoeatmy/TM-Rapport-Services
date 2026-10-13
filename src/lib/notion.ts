@@ -1765,9 +1765,14 @@ export async function updateProject(
       .map((item, i) => {
         const url = typeof item === "string" ? item : item?.url;
         if (!url) return null;
+        /* L'écran ne renvoie souvent qu'une liste d'adresses — à la
+           suppression d'une photo, par exemple. Le nom se déduit alors du
+           chemin, DÉBARRASSÉ de sa signature : une adresse Notion traîne
+           deux cents caractères de paramètres derrière elle, et le nom
+           obtenu n'aurait plus rien à voir avec le fichier. */
         const name =
           (typeof item === "object" && item?.name) ||
-          url.split("/").pop()?.slice(0, 100) ||
+          decodeURIComponent(url.split("?")[0].split("/").pop() || "").slice(0, 100) ||
           `${defaultName}-${i + 1}.jpg`;
         /* Le type sous lequel Notion connaît ce fichier. Un fichier déposé à
            la main dans la fiche est hébergé par Notion, qui refuse de le
@@ -1866,15 +1871,26 @@ async function rafraichirFichiersNotion(
     return;
   }
 
+  /* On apparie d'abord par CHEMIN : la signature change à chaque lecture,
+     le chemin non. Le nom ne sert que de filet, pour un fichier dont le
+     chemin aurait changé côté Notion. */
+  const chemin = (url: string) => { try { return new URL(url).pathname; } catch { return ""; } };
+
   for (const [nomPropriete, valeur] of aRafraichir as [string, any][]) {
-    const actuels = new Map<string, string>();
+    const parChemin = new Map<string, { url: string; nom: string }>();
+    const parNom = new Map<string, string>();
     for (const f of page.properties?.[nomPropriete]?.files || []) {
-      if (f?.type === "file" && f?.file?.url) actuels.set(String(f.name || ""), f.file.url);
+      if (f?.type !== "file" || !f?.file?.url) continue;
+      const nom = String(f.name || "");
+      parChemin.set(chemin(f.file.url), { url: f.file.url, nom });
+      if (nom) parNom.set(nom, f.file.url);
     }
     valeur.files = valeur.files.map((f: any) => {
       if (f?.type !== "file") return f;
-      const frais = actuels.get(String(f.name || ""));
-      return frais ? { ...f, file: { url: frais } } : f;
+      const parLeChemin = parChemin.get(chemin(f.file?.url || ""));
+      if (parLeChemin) return { type: "file", name: parLeChemin.nom || f.name, file: { url: parLeChemin.url } };
+      const parLeNom = parNom.get(String(f.name || ""));
+      return parLeNom ? { ...f, file: { url: parLeNom } } : f;
     });
   }
 }
