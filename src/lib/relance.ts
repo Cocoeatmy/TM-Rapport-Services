@@ -460,7 +460,20 @@ export interface DevisARelancer {
   ofrGrossiste?: string | null;
 }
 
-/** Ce qu'on nomme pour que le client reconnaisse l'affaire. */
+/** L'affaire telle qu'on la nomme dans le CORPS : en entier. */
+function affaireDuDevis(d: DevisARelancer): string {
+  const nom = String(d.nomChantier || "").trim() || sansLeClient(d.titre || "");
+  const lieu = nettoyerLieu(d.adresseChantier);
+  return [...new Set([nom, lieu].filter(Boolean))].join(", ");
+}
+
+/**
+ * L'affaire dans l'OBJET : raccourcie.
+ *
+ * Le premier essai tronquait aussi le corps — « concernant Hôtel Aulac, Pl.
+ * de la Navigation 4, 1006 La…, pour lequel » — et le client lisait son
+ * adresse coupée en deux. L'objet seul a besoin d'être court.
+ */
 function objetDuDevis(d: DevisARelancer): string {
   const brut = String(d.nomChantier || "").trim() || sansLeClient(d.titre || "");
   const localite = nettoyerLieu(d.adresseChantier).split(",").pop()?.trim() || "";
@@ -481,14 +494,14 @@ function objetDuDevis(d: DevisARelancer): string {
  */
 export function redigerRelanceDevis(d: DevisARelancer, dest: Destinataire): MailRelance {
   const ref = String(d.nr || "").trim();
-  const affaire = objetDuDevis(d);
+  const affaire = affaireDuDevis(d);
   const envoye = dateSuisse(d.date);
   const votreRef = String(d.typeClient || "").trim() === "Grossistes"
     ? String(d.ofrGrossiste || "").trim() : "";
 
   const references = [ref && `devis ${ref}`, votreRef && `votre réf. ${votreRef}`]
     .filter(Boolean).join(" · ");
-  const objet = ["Relance", references, affaire].filter(Boolean).join(" — ");
+  const objet = ["Relance", references, objetDuDevis(d)].filter(Boolean).join(" — ");
 
   const lignes: string[] = [salutation(dest.contacts), ""];
 

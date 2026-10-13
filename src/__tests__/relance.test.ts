@@ -412,6 +412,20 @@ describe("redigerRelanceDevis", () => {
     expect(nu.corps).not.toContain("undefined");
   });
 
+  it("ne tronque QUE l'objet : le corps nomme l'affaire en entier", () => {
+    /* Le premier essai coupait aussi le corps — « concernant Hôtel Aulac,
+       Pl. de la Navigation 4, 1006 La…, pour lequel » — et le client lisait
+       son adresse coupée en deux. */
+    const long = redigerRelanceDevis(
+      { nr: "TM-9999", titre: "Hôtel Aulac, Pl. de la Navigation 4, 1006 Lausanne", date: "2026-05-02" },
+      destinataireRelance("", { autres: [marie] }),
+    );
+    expect(long.corps).toContain("Pl. de la Navigation 4, 1006 Lausanne");
+    expect(long.corps).not.toContain("…");
+    expect(long.objet).toContain("…");
+    expect(long.objet.length).toBeLessThan(100);
+  });
+
   it("ne signe pas davantage que l'autre courrier", () => {
     expect(m.corps).not.toContain("TM Douche Montage");
     expect(m.corps.trimEnd().endsWith("excellente journée.")).toBe(true);
