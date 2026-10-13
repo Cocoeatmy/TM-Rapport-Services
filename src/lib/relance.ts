@@ -174,6 +174,8 @@ export interface ProjetARelancer {
   id: string;
   projet: string;
   ofrTM?: string | null;
+  /** « N° OFR Grossiste » — la référence du dossier CHEZ le grossiste. */
+  ofrGrossiste?: string | null;
   nomChantier?: string | null;
   adresseChantier?: string | null;
   dateOffre?: string | null;
@@ -200,14 +202,43 @@ export interface RelancePreparee extends MailRelance {
   ecarte?: string;
 }
 
-const SIGNATURE = [
-  "Avec nos meilleures salutations,",
-  "",
-  "TM Douche Montage Sàrl",
-  "Champs-Lovat 13, Box n°2 & 3 — 1400 Yverdon-les-Bains",
-  "+41 79 555 24 74 — info@douche-montage.ch",
-  "www.douche-montage.ch",
-].join("\n");
+/* Pas de signature ici : le logiciel de messagerie ajoute la sienne, et deux
+   signatures l'une sous l'autre font plus négligé qu'aucune. */
+
+/**
+ * La référence du dossier chez le grossiste.
+ *
+ * Demandée pour les grossistes seulement : c'est par ce numéro-là qu'ils
+ * retrouvent l'affaire dans leur propre système, notre numéro à nous ne leur
+ * disant rien. Les autres types de clients n'ont pas ce champ renseigné.
+ */
+function refGrossiste(p: ProjetARelancer): string {
+  if (String(p.typeClient || "").trim() !== "Grossistes") return "";
+  return String(p.ofrGrossiste || "").trim();
+}
+
+/**
+ * La porte de sortie : la cabine ne se fait pas, mais le relevé a eu lieu.
+ *
+ * Un relevé de mesures est une prestation facturable en soi. Quand le client
+ * du grossiste renonce à la cabine, le dossier reste sans commande et le
+ * déplacement n'est jamais payé — c'est exactement la situation de la moitié
+ * de cette liste. Proposer une commande pour le seul relevé débloque le
+ * dossier au lieu de le laisser s'éteindre.
+ *
+ * Pas pour un client final : il ne commande pas « pour son client », et il
+ * n'émet pas de numéro de commande.
+ */
+function phraseReleveSeul(p: ProjetARelancer): string {
+  if (String(p.typeClient || "").trim() === "Client finaux") return "";
+  const nb = p.nbCabines || 0;
+  const sujet = nb <= 0
+    ? "les cabines n'ont finalement pas été commandées"
+    : nb === 1
+      ? "cette cabine n'a finalement pas été commandée"
+      : `ces ${nb} cabines n'ont finalement pas été commandées`;
+  return `Si ${sujet} par votre client, nous vous remercions de bien vouloir nous transmettre un numéro de commande couvrant uniquement le service de relevé de mesures.`;
+}
 
 /** Le premier numéro d'offre, celui qui sert de référence au client. */
 function referenceOffre(p: ProjetARelancer): string {
@@ -258,31 +289,39 @@ export function redigerRelance(p: ProjetARelancer, dest: Destinataire): MailRela
   const offre = dateSuisse(p.dateOffre);
   const mesures = dateSuisse(p.dateMesures);
 
-  const objet = ["Relance", ref && `offre ${ref}`, designationCourte(p)].filter(Boolean).join(" — ");
+  const votreRef = refGrossiste(p);
+  const references = [ref && `offre ${ref}`, votreRef && `votre réf. ${votreRef}`].filter(Boolean).join(" · ");
+  const objet = ["Relance", references, designationCourte(p)].filter(Boolean).join(" — ");
 
+  const nb = p.nbCabines || 0;
   const lignes: string[] = [salutation(dest.contacts), ""];
+
+  /* La référence du grossiste, c'est par elle qu'il retrouve le dossier dans
+     SON système — notre numéro à nous ne lui dit rien. Sept dossiers sur
+     trente-quatre la portent ; sans elle, la phrase se passe d'incise. */
+  const incise = refGrossiste(p) ? `, référencée chez vous sous ${refGrossiste(p)},` : ",";
 
   lignes.push(
     offre
-      ? `Sauf erreur de notre part, notre offre${ref ? ` ${ref}` : ""} du ${offre}, concernant ${chantier}, est restée sans réponse à ce jour.`
-      : `Sauf erreur de notre part, notre offre${ref ? ` ${ref}` : ""} concernant ${chantier} est restée sans réponse à ce jour.`,
+      ? `Sauf erreur de notre part, notre offre${ref ? ` ${ref}` : ""} du ${offre}${incise} concernant ${chantier}, est restée sans réponse à ce jour.`
+      : `Sauf erreur de notre part, notre offre${ref ? ` ${ref}` : ""}${refGrossiste(p) ? ` (votre référence ${refGrossiste(p)})` : ""} concernant ${chantier} est restée sans réponse à ce jour.`,
   );
 
   if (mesures) {
-    const nb = p.nbCabines || 0;
     lignes.push(
       "",
       `Le relevé de mesures a été effectué le ${mesures}${nb > 0 ? ` (${nb} cabine${nb > 1 ? "s" : ""})` : ""}.`,
     );
   }
 
+  const repli = phraseReleveSeul(p);
+  if (repli) lignes.push("", repli);
+
   lignes.push(
     "",
     "Pourriez-vous nous indiquer la suite que vous souhaitez donner à ce dossier ? Nous restons bien entendu à votre disposition pour toute adaptation ou question.",
     "",
     "En vous remerciant par avance,",
-    "",
-    SIGNATURE,
   );
 
   return {

@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       };
       const mail = redigerRelance(
         {
-          id: p.id, projet: p.projet, ofrTM: p.ofrTM,
+          id: p.id, projet: p.projet, ofrTM: p.ofrTM, ofrGrossiste: p.ofrGrossiste,
           nomChantier: p.nomChantier, adresseChantier: p.adresseChantier,
           dateOffre: p.dateOffre, dateMesures: p.dateMesures,
           nbCabines: p.nbCabines, typeClient: p.typeClient,

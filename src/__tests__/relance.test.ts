@@ -176,14 +176,70 @@ describe("redigerRelance", () => {
     expect(m.corps).not.toContain("du ,");
   });
 
-  it("tait le relevé plutôt que d'annoncer une date vide", () => {
+  it("tait la date du relevé plutôt que d'en annoncer une vide", () => {
     const m = redigerRelance({ ...projet, dateMesures: null }, destinataireRelance("Grossistes", { grossiste: [jean] }));
-    expect(m.corps).not.toContain("relevé de mesures");
+    expect(m.corps).not.toContain("Le relevé de mesures a été effectué");
+    /* La proposition de commander le seul relevé, elle, tient toujours : le
+       déplacement a bien eu lieu, même sans date au dossier. */
+    expect(m.corps).toContain("uniquement le service de relevé de mesures");
   });
 
-  it("signe au nom de l'entreprise", () => {
-    expect(mail.corps).toContain("TM Douche Montage Sàrl");
-    expect(mail.corps).toContain("info@douche-montage.ch");
+  it("ne signe pas : la messagerie ajoute déjà la signature maison", () => {
+    /* Deux signatures l'une sous l'autre font plus négligé qu'aucune. */
+    expect(mail.corps).not.toContain("TM Douche Montage");
+    expect(mail.corps).not.toContain("douche-montage.ch");
+    expect(mail.corps.trimEnd().endsWith("En vous remerciant par avance,")).toBe(true);
+  });
+
+  it("propose une commande pour le seul relevé si la cabine ne se fait pas", () => {
+    /* Le relevé est une prestation facturable en soi : sans cette porte de
+       sortie, le déplacement n'est jamais payé et le dossier s'éteint. */
+    expect(mail.corps).toContain("Si ces 3 cabines n'ont finalement pas été commandées par votre client");
+    expect(mail.corps).toContain("uniquement le service de relevé de mesures");
+  });
+
+  it("accorde la phrase au nombre de cabines", () => {
+    const une = redigerRelance({ ...projet, nbCabines: 1 }, destinataireRelance("Grossistes", { grossiste: [jean] }));
+    expect(une.corps).toContain("Si cette cabine n'a finalement pas été commandée");
+    const zero = redigerRelance({ ...projet, nbCabines: 0 }, destinataireRelance("Grossistes", { grossiste: [jean] }));
+    expect(zero.corps).toContain("Si les cabines n'ont finalement pas été commandées");
+  });
+
+  it("épargne cette phrase au client final — il ne commande pas « pour son client »", () => {
+    const m = redigerRelance(
+      { ...projet, typeClient: "Client finaux" },
+      destinataireRelance("Client finaux", { clientsFinaux: [jean] }),
+    );
+    expect(m.corps).not.toContain("votre client");
+    expect(m.corps).not.toContain("relevé de mesures.\n\nSi");
+  });
+});
+
+describe("référence du grossiste", () => {
+  const avecRef: ProjetARelancer = { ...projet, typeClient: "Grossistes", ofrGrossiste: "01020900" };
+
+  it("porte le N° OFR Grossiste dans le corps et dans l'objet", () => {
+    /* C'est par ce numéro que le grossiste retrouve l'affaire dans SON
+       système ; le nôtre ne lui dit rien. */
+    const m = redigerRelance(avecRef, destinataireRelance("Grossistes", { grossiste: [jean] }));
+    expect(m.corps).toContain("référencée chez vous sous 01020900");
+    expect(m.objet).toContain("votre réf. 01020900");
+  });
+
+  it("se passe d'incise quand le champ est vide — 27 grossistes sur 34", () => {
+    const m = redigerRelance({ ...projet, ofrGrossiste: "" }, destinataireRelance("Grossistes", { grossiste: [jean] }));
+    expect(m.corps).not.toContain("référencée chez vous");
+    expect(m.corps).toContain("du 02.09.2026, concernant");
+    expect(m.objet).not.toContain("votre réf.");
+  });
+
+  it("ne sort que pour un grossiste", () => {
+    const m = redigerRelance(
+      { ...projet, typeClient: "Sanitaires", ofrGrossiste: "01020900" },
+      destinataireRelance("Sanitaires", { sanitaire: [marie] }),
+    );
+    expect(m.corps).not.toContain("01020900");
+    expect(m.objet).not.toContain("01020900");
   });
 
   it("annonce l'absence de destinataire au lieu de la masquer", () => {
