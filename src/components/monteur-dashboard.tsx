@@ -4541,20 +4541,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   </button>
                 </div>
                 <div className="sgs-drawer-body">
+                  {/* Grille propre à ces listes, et non celle des chantiers :
+                      la colonne « cabines » y fait 62 pixels, de quoi écrire
+                      « 3 cab. » — un montant à cinq chiffres s'y coupait, et
+                      les jours débordaient de la ligne. */}
                   {apercuBexio === "devis"
                     ? signauxBexio.devis.lignes.map((o) => (
-                      <div key={o.nr} className="sgc-row is-statique">
-                        <span className="sg-mono sgc-row-tm">{o.nr}</span>
-                        <span className="sgc-row-name">{o.titre}</span>
-                        <span className="sg-mono sgc-row-cab">CHF {francsCourts(o.total)}</span>
+                      <div key={o.nr} className="sgb-row">
+                        <span className="sg-mono sgb-nr">{o.nr}</span>
+                        <span className="sgb-nom">{o.titre}</span>
+                        <span className="sg-mono sgb-chf">CHF {francsCourts(o.total)}</span>
                         <span className="sg-mono sgb-age">{o.jours} j</span>
                       </div>
                     ))
                     : signauxBexio.echues.lignes.map((f) => (
-                      <div key={f.nr} className="sgc-row is-statique">
-                        <span className="sg-mono sgc-row-tm">{f.nr}</span>
-                        <span className="sgc-row-name">{f.client || f.titre}</span>
-                        <span className="sg-mono sgc-row-cab">CHF {francsCourts(f.restant)}</span>
+                      <div key={f.nr} className="sgb-row">
+                        <span className="sg-mono sgb-nr">{f.nr}</span>
+                        <span className="sgb-nom">{f.client || f.titre}</span>
+                        <span className="sg-mono sgb-chf">CHF {francsCourts(f.restant)}</span>
                         <span className="sg-mono sgb-age is-retard">{f.jours} j</span>
                       </div>
                     ))}
