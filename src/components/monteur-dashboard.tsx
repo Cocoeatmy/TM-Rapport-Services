@@ -6740,6 +6740,28 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             const tmNums = parseTMNumbers(p.ofrTM || "");
             const title = p.projet || p.nomChantier || "—";
             const subtitle = p.nomChantier && p.nomChantier !== p.projet ? p.nomChantier : null;
+            /* La colonne du numéro ouvre l'aperçu, comme dans « RDV montage à
+               fixer » : le survol le montre, le clic l'épingle, et le reste de
+               la ligne continue d'ouvrir le chantier entier.
+               La cellule ENTIÈRE est la cible, tiret compris — plus d'un relevé
+               sur deux n'a pas encore de numéro d'offre, et ce sont justement
+               ceux-là qu'on vient consulter ici.
+               En mode « mesures » : c'est la date du relevé, son état et ses
+               documents qu'on veut lire sur cet écran, pas ceux du montage.
+               Hors thème Signal la fiche latérale n'existe pas ; sans ce
+               garde-fou, le clic serait avalé sans rien ouvrir. */
+            const cleApercu = `mes-${p.id}`;
+            const apercuNumero = !isSignal ? {} : {
+              title: "Aperçu du relevé",
+              onMouseEnter: () => survolerApercu(cleApercu, () => ouvrirApercuSurvol(p, "mesures")),
+              onMouseLeave: () => quitterApercu(cleApercu),
+              onClick: (e: React.MouseEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openSignalPreview(p, "mesures");
+              },
+            };
+            const classeNumero = isSignal ? " sg-tmbtn" : "";
             const rowBg = isAnnulees
               ? (idx % 2 === 0 ? "bg-red-50/50 dark:bg-red-950/20" : "bg-red-100/40 dark:bg-red-900/15")
               : (idx % 2 === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "bg-blue-100/60 dark:bg-blue-900/20");
@@ -6753,7 +6775,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   {/* Ligne 1 : date + OFR + logo + avatar + chevron */}
                   <div className="flex items-center gap-2">
                     <span className={`text-[11px] font-semibold tabular-nums shrink-0 ${dateClass}`}>{dateLabel}</span>
-                    <span className="flex-1 min-w-0">
+                    <span className={`flex-1 min-w-0${classeNumero}`} {...apercuNumero}>
                       {tmNums.length > 0 ? (
                         <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400 truncate block">{tmNums[0]}</span>
                       ) : <span className="font-mono text-[10px] text-gray-300">—</span>}
@@ -6781,7 +6803,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                   <div className="w-24 shrink-0">
                     <span className={`text-[11px] font-semibold tabular-nums ${dateClass}`}>{dateLabel}</span>
                   </div>
-                  <div className="w-24 shrink-0">
+                  <div className={`w-24 shrink-0${classeNumero}`} {...apercuNumero}>
                     {tmNums.length > 0 ? (
                       <div className="flex flex-col gap-px">
                         {tmNums.slice(0, 2).map((tm, i) => (
