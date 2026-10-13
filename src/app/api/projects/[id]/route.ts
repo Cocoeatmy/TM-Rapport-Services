@@ -437,6 +437,12 @@ export async function PATCH(
     invalidateCache(`project-${id}`);
     invalidateCache("projects");
     invalidateCache("projects-mesures");
+    /* La relance se lit sur l'écran « Mesures non commandées » : sans cette
+       ligne, la pastille « Dossier relancé » disparaissait au rechargement
+       jusqu'au prochain cycle de cache. */
+    if (Object.prototype.hasOwnProperty.call(body, "relanceDossier")) {
+      invalidateCache("projects-mesures-sans-commande");
+    }
 
     // Si un ÉTAT a changé (clôture, passage en "RDV à fixer", etc.) → mise à
     // jour INSTANTANÉE du cache partagé Redis + réconciliation en arrière-plan,

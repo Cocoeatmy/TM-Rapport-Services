@@ -174,6 +174,10 @@ export interface Project {
   dateDemandeProjet: string | null;
   dateMesuresRecue: string | null;
   dateOffre: string | null;
+  /** « Relance dossier » — la date à laquelle on a relancé le client.
+   *  Notion s'en sert déjà : la formule « Etat de relance » affiche
+   *  « 🔁 Client relancé » dès qu'elle est remplie. */
+  relanceDossier: string | null;
   dateCMDRecue: string | null;
   dateCMDUsine: string | null;
   collaborateurs: string;
@@ -486,6 +490,7 @@ export function mapPageToProject(page: any): Project {
     dateDemandeProjet: extractDate(p["Demande projet reçue le"]),
     dateMesuresRecue: extractDate(p["Date Mesures reçue le"]),
     dateOffre: extractDate(p["Date Offre"]),
+    relanceDossier: extractDate(p["Relance dossier"]),
     dateCMDRecue: extractDate(p["CMD reçue le"]),
     dateCMDUsine: extractDate(p["Date CMD - Usine"]),
     collaborateurs: extractMultiSelect(p["Collaborateurs montages"]).join(" & "),
@@ -823,7 +828,7 @@ async function resolveRelationNames(ids: string[]): Promise<Record<string, strin
  * `phone_number` — pas besoin de connaître leurs noms exacts. Le nom vient du
  * titre de la page (repli : concat Prénom + Nom si présents).
  */
-async function resolveContactDetails(ids: string[]): Promise<Record<string, ContactDetail>> {
+export async function resolveContactDetails(ids: string[]): Promise<Record<string, ContactDetail>> {
   const uniq = [...new Set(ids)].filter(Boolean);
   const out: Record<string, ContactDetail> = {};
   await Promise.all(uniq.map(async (id) => {
@@ -1386,6 +1391,7 @@ export async function updateProject(
     dateDemandeProjet?: string | null;
     dateMesuresRecue?: string | null;
     dateOffre?: string | null;
+    relanceDossier?: string | null;
     dateCMDRecue?: string | null;
     dateCMDUsine?: string | null;
     arrivageGrossiste?: string | null;
@@ -1521,6 +1527,14 @@ export async function updateProject(
   if (data.dateOffre !== undefined) {
     properties["Date Offre"] = {
       date: data.dateOffre ? { start: data.dateOffre } : null,
+    };
+  }
+  if (data.relanceDossier !== undefined) {
+    /* La formule « Etat de relance » de Notion bascule sur « 🔁 Client
+       relancé » dès que cette date existe : écrire ici suffit, il n'y a rien
+       d'autre à tenir à jour. */
+    properties["Relance dossier"] = {
+      date: data.relanceDossier ? { start: data.relanceDossier } : null,
     };
   }
   if (data.dateCMDRecue !== undefined) {

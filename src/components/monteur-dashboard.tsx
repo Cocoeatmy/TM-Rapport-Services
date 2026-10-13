@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { prefetchProject } from "@/lib/api-helpers";
-import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText, Check } from "lucide-react";
+import { Calendar, MapPin, Clock, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Box, Truck, Users, BarChart3, Navigation, Route, Ruler, Wrench, Settings, AlertTriangle, AlertCircle, FolderOpen, Receipt, BellRing, Sun, ClipboardList, ShieldAlert, CalendarDays, CalendarCheck, Archive, X, Plus, Loader2, Search, FileText, Check, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getTeamColor, getCollaboratorColor, getCollaboratorInitials } from "@/lib/collaborators";
 import { openSignalPreview, openSignalListe, survolerApercu, quitterApercu, ouvrirApercuSurvol, closeSignalPreview, SignalPreviewCard } from "@/components/signal-preview";
@@ -17,6 +17,7 @@ import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
 import { toast } from "sonner";
 import { tableauDisponibilites, CAPACITE } from "@/lib/disponibilites";
 import { intervalleVisible } from "@/lib/timers";
+import { lienMailto, relanceApplicable, dateSuisse, type RelancePreparee } from "@/lib/relance";
 import {
   materielNonReceptionne, chantierBloque, interventionNonTerminee,
   retardDeMontage, commandeEnRetard,
@@ -2442,6 +2443,90 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       .catch(() => {})
       .finally(() => setMesuresSansCommandeLoading(false));
   }, []);
+
+  /* ── Relance d'un dossier resté sans réponse ──────────────────────────
+     Le serveur prépare le courrier — il va chercher la date de l'offre, celle
+     du relevé, et le bon interlocuteur parmi les sept familles de contacts ;
+     l'écran ne fait que l'ouvrir dans le logiciel de messagerie. Rien n'est
+     envoyé ici : c'est une personne qui appuie sur « Envoyer ».
+
+     La date du jour est ensuite inscrite dans « Relance dossier » côté Notion,
+     où la formule « Etat de relance » bascule d'elle-même sur « Client
+     relancé ». */
+  const [relanceEnCours, setRelanceEnCours] = useState<string | null>(null);
+
+  const relancer = async (cibles: Project[]) => {
+    if (relanceEnCours || cibles.length === 0) return;
+    /* Un dossier par courrier : au-delà de trois fenêtres qui s'ouvrent
+       d'affilée, mieux vaut l'avoir voulu. */
+    if (cibles.length > 3 && !window.confirm(
+      `Préparer ${cibles.length} courriers de relance ?\n\n` +
+      `Autant de fenêtres s'ouvriront dans votre logiciel de messagerie, ` +
+      `l'une après l'autre. Rien ne part tant que vous n'appuyez pas sur « Envoyer ».`,
+    )) return;
+
+    setRelanceEnCours(cibles.length === 1 ? cibles[0].id : "lot");
+    try {
+      const r = await fetch("/api/relance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: cibles.map((p) => p.id) }),
+      });
+      if (!r.ok) { toast.error("Les relances n'ont pas pu être préparées."); return; }
+      const { prepares } = (await r.json()) as { prepares: RelancePreparee[] };
+
+      const jour = formatLocalDate(new Date());
+      let ouverts = 0;
+      let sansContact = 0;
+      let ecartes = 0;
+      let repli = 0;
+
+      for (const m of prepares) {
+        if (m.ecarte) { ecartes++; continue; }
+        if (m.sansDestinataire) sansContact++;
+        if (m.repli) repli++;
+
+        /* Un lien que l'on clique plutôt que `window.open` : celui-ci est
+           pris pour une fenêtre surgissante et bloqué dès le deuxième. */
+        const lien = document.createElement("a");
+        lien.href = lienMailto(m);
+        lien.style.display = "none";
+        document.body.appendChild(lien);
+        lien.click();
+        lien.remove();
+        ouverts++;
+
+        /* La trace part sans qu'on l'attende : le courrier est déjà ouvert, et
+           faire patienter l'utilisateur sur une écriture Notion n'apporte
+           rien. En cas d'échec, la pastille revient au rechargement. */
+        fetch(`/api/projects/${m.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ relanceDossier: jour }),
+        }).catch(() => {});
+        setMesuresSansCommandeData((prev) =>
+          prev.map((p) => (p.id === m.id ? { ...p, relanceDossier: jour } : p)));
+
+        if (prepares.length > 1) await new Promise((res) => setTimeout(res, 900));
+      }
+
+      const details = [
+        sansContact > 0 && `${sansContact} sans destinataire — à compléter à la main`,
+        repli > 0 && `${repli} adressé${repli > 1 ? "s" : ""} à un contact de repli`,
+        ecartes > 0 && `${ecartes} écarté${ecartes > 1 ? "s" : ""} (client fournisseur)`,
+      ].filter(Boolean).join(" · ");
+
+      if (ouverts === 0) toast.error(details || "Aucun courrier à préparer.");
+      else toast.success(
+        `${ouverts} relance${ouverts > 1 ? "s" : ""} préparée${ouverts > 1 ? "s" : ""}`,
+        details ? { description: details } : undefined,
+      );
+    } catch {
+      toast.error("Les relances n'ont pas pu être préparées.");
+    } finally {
+      setRelanceEnCours(null);
+    }
+  };
 
   // Mesures terminées annulées — route dédiée
   const [mesuresAnnuleesData, setMesuresAnnuleesData] = useState<Project[]>([]);
@@ -6762,6 +6847,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
               },
             };
             const classeNumero = isSignal ? " sg-tmbtn" : "";
+            /* Relance : un courrier tout prêt pour le client qui n'a pas
+               répondu. Les dossiers « Fournisseurs » n'en ont pas — c'est nous
+               qui commandons chez eux, aucune offre n'attend leur réponse.
+               La vue des mesures ANNULÉES non plus : le projet n'existe plus. */
+            const relancable = !isAnnulees && relanceApplicable(p.typeClient);
+            const relanceLe = dateSuisse(p.relanceDossier);
+            const relanceOccupee = relanceEnCours === p.id || relanceEnCours === "lot";
             const rowBg = isAnnulees
               ? (idx % 2 === 0 ? "bg-red-50/50 dark:bg-red-950/20" : "bg-red-100/40 dark:bg-red-900/15")
               : (idx % 2 === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "bg-blue-100/60 dark:bg-blue-900/20");
@@ -6794,6 +6886,17 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 line-clamp-3">{title}</p>
                       {subtitle && <p className="text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1">{subtitle}</p>}
+                      {relancable && (
+                        <button type="button" disabled={relanceOccupee}
+                          onClick={(e2) => { e2.preventDefault(); e2.stopPropagation(); relancer([p]); }}
+                          className={`mt-1 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold transition-colors disabled:opacity-50 ${relanceLe
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"}`}>
+                          {relanceLe
+                            ? <><Check className="w-3 h-3" strokeWidth={3} />Dossier relancé — {relanceLe}</>
+                            : <><Mail className="w-3 h-3" />Relancer</>}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -6827,6 +6930,27 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       </span>
                     )}
                   </div>
+                  {relancable && (
+                    <div className="shrink-0 flex items-center">
+                      {relanceLe ? (
+                        <button type="button" disabled={relanceOccupee}
+                          title="Relancer de nouveau ce dossier"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); relancer([p]); }}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors disabled:opacity-50">
+                          <Check className="w-3 h-3" strokeWidth={3} />
+                          Dossier relancé — {relanceLe}
+                        </button>
+                      ) : (
+                        <button type="button" disabled={relanceOccupee}
+                          title="Préparer le courrier de relance"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); relancer([p]); }}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/50 transition-colors disabled:opacity-50">
+                          <Mail className="w-3 h-3" />
+                          Relancer
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <ChevronRight className={`w-3.5 h-3.5 text-gray-300 ${arrowClass} transition-colors shrink-0`} />
                 </div>
               </Link>
@@ -6983,10 +7107,29 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       const monthLabel = monthKey
                         ? new Date(monthKey + "-15T12:00:00").toLocaleDateString("fr-CH", { month: "long", year: "numeric" })
                         : "Sans date";
+                      /* Les dossiers du mois qui restent à relancer : ni les
+                         clients fournisseurs — rien à leur réclamer — ni ceux
+                         déjà relancés. Une deuxième relance se décide dossier
+                         par dossier, pas par fournée. */
+                      const aRelancerDuMois = isAnnulees ? [] : displayList.filter((x) =>
+                        (x.dateMesures || "").split("T")[0].slice(0, 7) === monthKey
+                        && relanceApplicable(x.typeClient)
+                        && !x.relanceDossier);
                       items.push(
                         <div key={`sep-${monthKey || "none"}-${p.id}`} className="flex items-center gap-2 pt-2 pb-0.5">
                           <div className="flex-1 h-px bg-cyan-200/70 dark:bg-cyan-700/40" />
                           <span className="text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 shrink-0 px-1.5 capitalize">{monthLabel}</span>
+                          {aRelancerDuMois.length > 0 && (
+                            <button type="button" disabled={!!relanceEnCours}
+                              title={`Préparer ${aRelancerDuMois.length} courrier${aRelancerDuMois.length > 1 ? "s" : ""} de relance`}
+                              onClick={() => relancer(aRelancerDuMois)}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/50 transition-colors disabled:opacity-50">
+                              {relanceEnCours === "lot"
+                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                : <Mail className="w-3 h-3" />}
+                              Relancer le mois ({aRelancerDuMois.length})
+                            </button>
+                          )}
                           <div className="flex-1 h-px bg-cyan-200/70 dark:bg-cyan-700/40" />
                         </div>
                       );

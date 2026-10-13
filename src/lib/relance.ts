@@ -1,0 +1,259 @@
+/**
+ * La relance d'un dossier resté sans réponse.
+ *
+ * Un relevé de mesures a été fait, une offre a été envoyée, et depuis, rien.
+ * L'écran « Mesures non commandées » les compte — quatre-vingt-onze au
+ * moment où ceci s'écrit — mais compter n'est pas relancer : il fallait
+ * rouvrir chaque fiche, retrouver la date de l'offre, chercher le bon
+ * interlocuteur parmi sept familles de contacts, et rédiger.
+ *
+ * Ce module fait les trois : il choisit le destinataire, rassemble les dates
+ * et écrit le message. Il n'envoie rien — le courrier s'ouvre dans le logiciel
+ * de messagerie, et c'est une personne qui appuie sur « Envoyer ».
+ */
+
+/** Les familles de contacts d'un projet, telles que Notion les range. */
+export interface ContactsDuProjet {
+  grossiste?: Contact[];
+  clientsFinaux?: Contact[];
+  sanitaire?: Contact[];
+  dt?: Contact[];
+  architecte?: Contact[];
+  locataires?: Contact[];
+  autres?: Contact[];
+}
+
+export interface Contact {
+  name: string;
+  email: string;
+}
+
+export type FamilleContact = keyof ContactsDuProjet;
+
+/** Le nom de la famille tel qu'il s'affiche dans Notion — pour le dire à l'écran. */
+export const LIBELLE_FAMILLE: Record<FamilleContact, string> = {
+  grossiste: "Contact Grossiste",
+  clientsFinaux: "Contacts Clients finaux",
+  sanitaire: "Contacts Sanitaire",
+  dt: "Contacts DT",
+  architecte: "Contacts Architecte",
+  locataires: "Contacts Locataires",
+  autres: "Contacts Autres",
+};
+
+/**
+ * À qui l'on écrit, selon le type de client.
+ *
+ * Le premier de la liste est celui que le type DÉSIGNE ; les suivants sont un
+ * repli, et l'écran dit lequel a servi. Sans repli, un tiers des dossiers
+ * n'aurait pas de destinataire : sur les vingt-huit dossiers « Sanitaires »,
+ * quinze seulement portent un contact sanitaire, alors que vingt-quatre
+ * portent un contact grossiste.
+ */
+const CHAINE: Record<string, FamilleContact[]> = {
+  "Grossistes":           ["grossiste", "sanitaire", "clientsFinaux", "autres"],
+  "Sanitaires":           ["sanitaire", "grossiste", "clientsFinaux", "autres"],
+  "Client finaux":        ["clientsFinaux", "locataires", "autres", "grossiste"],
+  "Architecte":           ["architecte", "dt", "autres", "grossiste"],
+  "Entreprise générales": ["dt", "autres", "architecte", "grossiste"],
+  "Gérances Immo":        ["autres", "locataires", "clientsFinaux", "grossiste"],
+  "Promoteur":            ["autres", "dt", "clientsFinaux", "grossiste"],
+  "Carreleur":            ["autres", "dt", "sanitaire", "grossiste"],
+  "Menuiserie":           ["autres", "dt", "sanitaire", "grossiste"],
+};
+
+/** Ordre de dernier recours, quand le type de client est vide ou inconnu. */
+const CHAINE_PAR_DEFAUT: FamilleContact[] = [
+  "grossiste", "sanitaire", "clientsFinaux", "dt", "architecte", "locataires", "autres",
+];
+
+/**
+ * Un client de type « Fournisseurs » ne se relance pas.
+ *
+ * C'est nous qui commandons chez lui, pas l'inverse : il n'y a pas d'offre en
+ * attente de sa réponse. Vingt-quatre dossiers sur quatre-vingt-onze sont dans
+ * ce cas, et leur envoyer une relance n'aurait aucun sens.
+ */
+export const TYPE_SANS_RELANCE = "Fournisseurs";
+
+export function relanceApplicable(typeClient: string | null | undefined): boolean {
+  return String(typeClient || "").trim() !== TYPE_SANS_RELANCE;
+}
+
+export interface Destinataire {
+  contacts: Contact[];
+  /** La famille d'où ils viennent. */
+  famille: FamilleContact | null;
+  /** Vrai si le type de client en désignait une autre, restée vide. */
+  repli: boolean;
+}
+
+const avecMail = (l?: Contact[]) =>
+  (l || []).filter((c) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c?.email || "").trim()));
+
+/**
+ * Le destinataire de la relance.
+ *
+ * On ne retient que les contacts qui ont une adresse : un contact sans mail
+ * ne sert à rien ici, et le garder ferait croire qu'on a trouvé quelqu'un.
+ */
+export function destinataireRelance(
+  typeClient: string | null | undefined,
+  contacts: ContactsDuProjet,
+): Destinataire {
+  const chaine = CHAINE[String(typeClient || "").trim()] || CHAINE_PAR_DEFAUT;
+  for (let i = 0; i < chaine.length; i++) {
+    const trouves = avecMail(contacts[chaine[i]]);
+    if (trouves.length > 0) return { contacts: trouves, famille: chaine[i], repli: i > 0 };
+  }
+  return { contacts: [], famille: null, repli: false };
+}
+
+/** Une date Notion (2026-09-02 ou 2026-09-02T…) au format suisse. */
+export function dateSuisse(iso: string | null | undefined): string {
+  const jour = String(iso || "").split("T")[0];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(jour)) return "";
+  const [a, m, j] = jour.split("-");
+  return `${j}.${m}.${a}`;
+}
+
+/**
+ * Le prénom, pour ouvrir le message.
+ *
+ * Les fiches contacts portent « Prénom Nom ». « Bonjour Monsieur Dupont »
+ * demanderait de connaître le genre, que rien ne donne ; « Bonjour Jean » est
+ * à la fois juste et courant dans le métier. Sans nom exploitable, on s'en
+ * tient à « Bonjour ».
+ */
+export function salutation(contacts: Contact[]): string {
+  const noms = contacts
+    .map((c) => String(c?.name || "").trim().split(/\s+/)[0])
+    .filter((n) => n.length > 1);
+  if (noms.length === 0) return "Bonjour,";
+  if (noms.length === 1) return `Bonjour ${noms[0]},`;
+  return `Bonjour ${noms.slice(0, -1).join(", ")} et ${noms[noms.length - 1]},`;
+}
+
+export interface ProjetARelancer {
+  id: string;
+  projet: string;
+  ofrTM?: string | null;
+  nomChantier?: string | null;
+  adresseChantier?: string | null;
+  dateOffre?: string | null;
+  dateMesures?: string | null;
+  nbCabines?: number | null;
+  typeClient?: string | null;
+}
+
+export interface MailRelance {
+  objet: string;
+  corps: string;
+  destinataires: string[];
+  famille: FamilleContact | null;
+  repli: boolean;
+  sansDestinataire: boolean;
+}
+
+/** Un courrier préparé, rattaché à son projet — ce que rend /api/relance. */
+export interface RelancePreparee extends MailRelance {
+  id: string;
+  projet: string;
+  ofrTM: string;
+  /** Renseigné quand aucun courrier n'est proposé, et pourquoi. */
+  ecarte?: string;
+}
+
+const SIGNATURE = [
+  "Avec nos meilleures salutations,",
+  "",
+  "TM Douche Montage Sàrl",
+  "Champs-Lovat 13, Box n°2 & 3 — 1400 Yverdon-les-Bains",
+  "+41 79 555 24 74 — info@douche-montage.ch",
+  "www.douche-montage.ch",
+].join("\n");
+
+/** Le premier numéro d'offre, celui qui sert de référence au client. */
+function referenceOffre(p: ProjetARelancer): string {
+  const premier = String(p.ofrTM || "").split(/[,;\n]/)[0].trim();
+  return premier;
+}
+
+/** Ce qu'on nomme pour que le client reconnaisse le chantier. */
+function designationChantier(p: ProjetARelancer): string {
+  const parts = [p.nomChantier, p.adresseChantier].map((x) => String(x || "").trim()).filter(Boolean);
+  /* Le nom de projet commence par le client (« Duka - Lot 1, … ») : devant
+     lui, le rappeler ne lui apprend rien. On garde ce qui suit le tiret. */
+  if (parts.length === 0) {
+    const nom = String(p.projet || "").trim();
+    const apres = nom.split(" - ").slice(1).join(" - ").trim();
+    return apres || nom;
+  }
+  return [...new Set(parts)].join(", ");
+}
+
+/**
+ * Le message de relance d'UN dossier.
+ *
+ * Les deux dates sont le cœur du message : celle de l'offre dit depuis quand
+ * on attend, celle du relevé prouve que le travail de notre côté est fait. Une
+ * relance sans elles se discute ; avec elles, elle se vérifie.
+ */
+export function redigerRelance(p: ProjetARelancer, dest: Destinataire): MailRelance {
+  const ref = referenceOffre(p);
+  const chantier = designationChantier(p);
+  const offre = dateSuisse(p.dateOffre);
+  const mesures = dateSuisse(p.dateMesures);
+
+  const objet = ["Relance", ref && `offre ${ref}`, chantier].filter(Boolean).join(" — ");
+
+  const lignes: string[] = [salutation(dest.contacts), ""];
+
+  lignes.push(
+    offre
+      ? `Sauf erreur de notre part, notre offre${ref ? ` ${ref}` : ""} du ${offre}, concernant ${chantier}, est restée sans réponse à ce jour.`
+      : `Sauf erreur de notre part, notre offre${ref ? ` ${ref}` : ""} concernant ${chantier} est restée sans réponse à ce jour.`,
+  );
+
+  if (mesures) {
+    const nb = p.nbCabines || 0;
+    lignes.push(
+      "",
+      `Le relevé de mesures a été effectué le ${mesures}${nb > 0 ? ` (${nb} cabine${nb > 1 ? "s" : ""})` : ""}.`,
+    );
+  }
+
+  lignes.push(
+    "",
+    "Pourriez-vous nous indiquer la suite que vous souhaitez donner à ce dossier ? Nous restons bien entendu à votre disposition pour toute adaptation ou question.",
+    "",
+    "En vous remerciant par avance,",
+    "",
+    SIGNATURE,
+  );
+
+  return {
+    objet,
+    corps: lignes.join("\n"),
+    destinataires: dest.contacts.map((c) => c.email.trim()),
+    famille: dest.famille,
+    repli: dest.repli,
+    sansDestinataire: dest.contacts.length === 0,
+  };
+}
+
+/**
+ * L'adresse `mailto:` qui ouvre le message dans Outlook, Mail ou autre.
+ *
+ * Tout passe par l'encodage de pourcentage, retours à la ligne compris : un
+ * accent ou une apostrophe non encodés coupent le corps du message au premier
+ * caractère fautif, sans rien dire.
+ */
+export function lienMailto(m: MailRelance): string {
+  const q = new URLSearchParams({ subject: m.objet, body: m.corps }).toString()
+    /* `URLSearchParams` encode l'espace en « + », que les clients de
+       messagerie affichent tel quel dans le corps du message. */
+    .replace(/\+/g, "%20");
+  return `mailto:${encodeURIComponent(m.destinataires.join(","))
+    .replace(/%40/g, "@").replace(/%2C/g, ",")}?${q}`;
+}
