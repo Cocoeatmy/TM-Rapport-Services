@@ -17,7 +17,10 @@ import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
 import { toast } from "sonner";
 import { tableauDisponibilites, CAPACITE } from "@/lib/disponibilites";
 import { intervalleVisible } from "@/lib/timers";
-import { lienMailto, relanceApplicable, dateSuisse, type RelancePreparee } from "@/lib/relance";
+import {
+  lienMailto, relanceApplicable, dateSuisse, etatRelance, correspondAuFiltre,
+  FILTRES_RELANCE, type FiltreRelance, type RelancePreparee,
+} from "@/lib/relance";
 import {
   materielNonReceptionne, chantierBloque, interventionNonTerminee,
   retardDeMontage, commandeEnRetard,
@@ -2454,6 +2457,15 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
      où la formule « Etat de relance » bascule d'elle-même sur « Client
      relancé ». */
   const [relanceEnCours, setRelanceEnCours] = useState<string | null>(null);
+  /** Relances connues par projet — Notion ne garde que la dernière date. */
+  const [relancesHisto, setRelancesHisto] = useState<Record<string, string[]>>({});
+  const [filtreRelance, setFiltreRelance] = useState<FiltreRelance>("");
+  useEffect(() => {
+    fetch("/api/relance/trace")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.historique) setRelancesHisto(d.historique); })
+      .catch(() => {});
+  }, []);
 
   const relancer = async (cibles: Project[]) => {
     if (relanceEnCours || cibles.length === 0) return;
@@ -2489,6 +2501,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       const { prepares } = (await r.json()) as { prepares: RelancePreparee[] };
 
       const jour = formatLocalDate(new Date());
+      const traces: string[] = [];
       let ouverts = 0;
       let sansContact = 0;
       let ecartes = 0;
@@ -2509,18 +2522,26 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         lien.remove();
         ouverts++;
 
-        /* La trace part sans qu'on l'attende : le courrier est déjà ouvert, et
-           faire patienter l'utilisateur sur une écriture Notion n'apporte
-           rien. En cas d'échec, la pastille revient au rechargement. */
-        fetch(`/api/projects/${m.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ relanceDossier: jour }),
-        }).catch(() => {});
+        traces.push(m.id);
         setMesuresSansCommandeData((prev) =>
           prev.map((p) => (p.id === m.id ? { ...p, relanceDossier: jour } : p)));
 
         if (prepares.length > 1) await new Promise((res) => setTimeout(res, 900));
+      }
+
+      /* Une seule écriture pour tout le lot : vingt relances faisaient vingt
+         requêtes, chacune rouvrant la même page Notion. Elle part sans qu'on
+         l'attende — les courriers sont déjà ouverts, et faire patienter sur
+         Notion n'apporte rien. */
+      if (traces.length > 0) {
+        fetch("/api/relance/trace", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: traces, jour }),
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((res) => { if (res?.historique) setRelancesHisto(res.historique); })
+          .catch(() => {});
       }
 
       const details = [
@@ -6806,9 +6827,27 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             .map(([key, name]) => ({ key, name }))
             .sort((a, b) => a.name.localeCompare(b.name, "fr"));
           // Liste finale = date + client (tri "plus récent en haut" déjà fait par la route).
-          const displayList = mesuresFilterClient
+          const clientFilteredList = mesuresFilterClient
             ? dateFilteredList.filter((p) => clientKeyFor(p) === mesuresFilterClient)
             : dateFilteredList;
+          /* Suivi des relances. Cet écran ne contient QUE des dossiers à
+             commander : « relancé et toujours à commander » se réduit donc à
+             « relancé ». Ce qu'on ne voyait pas, c'était depuis quand et
+             combien de fois — ce sont ces deux-là que les filtres donnent.
+             Les comptes sont calculés sur la liste déjà filtrée par date et
+             par client : un filtre qui annoncerait des dossiers qu'un autre
+             filtre masque ne se lirait plus. */
+          const aujourdhuiRelance = formatLocalDate(new Date());
+          const etatRelanceDe = (x: Project) => etatRelance(x.relanceDossier, relancesHisto[x.id]);
+          const comptesRelance = FILTRES_RELANCE.map((f) => ({
+            ...f,
+            n: f.valeur === ""
+              ? clientFilteredList.length
+              : clientFilteredList.filter((x) => correspondAuFiltre(etatRelanceDe(x), f.valeur, aujourdhuiRelance)).length,
+          }));
+          const displayList = filtreRelance
+            ? clientFilteredList.filter((x) => correspondAuFiltre(etatRelanceDe(x), filtreRelance, aujourdhuiRelance))
+            : clientFilteredList;
           const totalManque = displayList.reduce((s, p) => s + mesurePrice(p.nbCabines), 0);
 
           const clientGroups: Record<string, { label: string; count: number; montant: number }> = {};
@@ -6865,7 +6904,12 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                qui commandons chez eux, aucune offre n'attend leur réponse.
                La vue des mesures ANNULÉES non plus : le projet n'existe plus. */
             const relancable = !isAnnulees && relanceApplicable(p.typeClient);
-            const relanceLe = dateSuisse(p.relanceDossier);
+            /* Notion ne garde que la DERNIÈRE date ; le nombre vient de
+               l'historique tenu par l'application. « Relancé 3× sans
+               réponse » n'appelle pas un quatrième courrier mais un
+               téléphone — encore faut-il le voir. */
+            const relEtat = etatRelance(p.relanceDossier, relancesHisto[p.id]);
+            const relanceLe = dateSuisse(relEtat.derniere);
             const relanceOccupee = relanceEnCours === p.id || relanceEnCours === "lot";
             const rowBg = isAnnulees
               ? (idx % 2 === 0 ? "bg-red-50/50 dark:bg-red-950/20" : "bg-red-100/40 dark:bg-red-900/15")
@@ -6906,7 +6950,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                             ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
                             : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"}`}>
                           {relanceLe
-                            ? <><Check className="w-3 h-3" strokeWidth={3} />Dossier relancé — {relanceLe}</>
+                            ? <><Check className="w-3 h-3" strokeWidth={3} />Dossier relancé{relEtat.nombre > 1 ? ` ${relEtat.nombre}×` : ""} — {relanceLe}</>
                             : <><Mail className="w-3 h-3" />Relancer</>}
                         </button>
                       )}
@@ -6951,7 +6995,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); relancer([p]); }}
                           className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors disabled:opacity-50">
                           <Check className="w-3 h-3" strokeWidth={3} />
-                          Dossier relancé — {relanceLe}
+                          Dossier relancé{relEtat.nombre > 1 ? ` ${relEtat.nombre}×` : ""} — {relanceLe}
                         </button>
                       ) : (
                         <button type="button" disabled={relanceOccupee}
@@ -7036,8 +7080,24 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <option key={c.key} value={c.key}>{c.name}</option>
                   ))}
                 </select>
-                {hasMesuresFilter && (
-                  <button onClick={() => { setMesuresFilterYear(""); setMesuresFilterFrom(""); setMesuresFilterTo(""); setMesuresFilterClient(""); }}
+                {/* Suivi des relances — chaque option porte son compte, pour
+                    qu'on sache ce qu'on va trouver avant de cliquer. */}
+                {!isAnnulees && (
+                  <select
+                    value={filtreRelance}
+                    onChange={(e) => setFiltreRelance(e.target.value as FiltreRelance)}
+                    className={`text-[10px] px-2 py-1 rounded-lg border bg-white dark:bg-slate-700 max-w-[190px] ${filtreRelance
+                      ? "border-amber-400 text-amber-700 dark:text-amber-300 font-semibold"
+                      : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300"}`}
+                    title="Filtrer selon l'état de relance"
+                  >
+                    {comptesRelance.map((f) => (
+                      <option key={f.valeur} value={f.valeur}>{f.label} ({f.n})</option>
+                    ))}
+                  </select>
+                )}
+                {(hasMesuresFilter || filtreRelance) && (
+                  <button onClick={() => { setMesuresFilterYear(""); setMesuresFilterFrom(""); setMesuresFilterTo(""); setMesuresFilterClient(""); setFiltreRelance(""); }}
                     className="text-[10px] px-2.5 py-1 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200 transition-colors">
                     Effacer
                   </button>
@@ -7127,7 +7187,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       const aRelancerDuMois = isAnnulees ? [] : displayList.filter((x) =>
                         (x.dateMesures || "").split("T")[0].slice(0, 7) === monthKey
                         && relanceApplicable(x.typeClient)
-                        && !x.relanceDossier);
+                        && etatRelance(x.relanceDossier, relancesHisto[x.id]).nombre === 0);
                       items.push(
                         <div key={`sep-${monthKey || "none"}-${p.id}`} className="flex items-center gap-2 pt-2 pb-0.5">
                           <div className="flex-1 h-px bg-cyan-200/70 dark:bg-cyan-700/40" />

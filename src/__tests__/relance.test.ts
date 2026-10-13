@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   destinataireRelance, redigerRelance, lienMailto, dateSuisse, salutation,
-  relanceApplicable, nettoyerLieu, type ContactsDuProjet, type ProjetARelancer,
+  relanceApplicable, nettoyerLieu, etatRelance, correspondAuFiltre,
+  type ContactsDuProjet, type ProjetARelancer,
 } from "@/lib/relance";
 
 const jean = { name: "Jean Dupont", email: "jean@duka.ch" };
@@ -281,5 +282,74 @@ describe("lienMailto", () => {
   it("se passe de destinataire sans casser le lien", () => {
     const vide = lienMailto(redigerRelance(projet, destinataireRelance("Grossistes", {})));
     expect(vide.startsWith("mailto:?")).toBe(true);
+  });
+});
+
+describe("suivi des relances", () => {
+  const AUJ = "2026-10-13";
+
+  it("réunit la date de Notion et le compte de l'application", () => {
+    /* Notion ne garde que la dernière date ; l'historique de l'app compte. */
+    expect(etatRelance("2026-10-08", ["2026-09-20", "2026-10-08"]))
+      .toEqual({ derniere: "2026-10-08", nombre: 2 });
+  });
+
+  it("compte au moins une relance si Notion en porte une que l'app ignore", () => {
+    /* Date saisie à la main dans Notion, ou historique perdu : le dossier a
+       bien été relancé, et le dire « jamais relancé » serait pire que de le
+       compter une fois. */
+    expect(etatRelance("2026-10-08", [])).toEqual({ derniere: "2026-10-08", nombre: 1 });
+  });
+
+  it("retient la plus récente des deux sources", () => {
+    expect(etatRelance("2026-09-01", ["2026-10-08"]).derniere).toBe("2026-10-08");
+    expect(etatRelance("2026-10-12", ["2026-09-01"]).derniere).toBe("2026-10-12");
+  });
+
+  it("supporte une date Notion horodatée", () => {
+    expect(etatRelance("2026-10-08T00:00:00.000+02:00", []).derniere).toBe("2026-10-08");
+  });
+
+  it("dit « jamais » quand les deux sources sont vides", () => {
+    expect(etatRelance(null, [])).toEqual({ derniere: "", nombre: 0 });
+  });
+
+  const jamais = etatRelance(null, []);
+  const uneFois = etatRelance("2026-10-11", ["2026-10-11"]);
+  const ancienne = etatRelance("2026-09-01", ["2026-09-01"]);
+  const deuxFois = etatRelance("2026-10-12", ["2026-09-20", "2026-10-12"]);
+
+  it("sans filtre, tout passe", () => {
+    for (const e of [jamais, uneFois, deuxFois]) {
+      expect(correspondAuFiltre(e, "", AUJ)).toBe(true);
+    }
+  });
+
+  it("sépare les jamais relancés des déjà relancés", () => {
+    expect(correspondAuFiltre(jamais, "jamais", AUJ)).toBe(true);
+    expect(correspondAuFiltre(uneFois, "jamais", AUJ)).toBe(false);
+    expect(correspondAuFiltre(uneFois, "deja", AUJ)).toBe(true);
+    expect(correspondAuFiltre(jamais, "deja", AUJ)).toBe(false);
+  });
+
+  it("isole ceux qu'on a relancés plus d'une fois", () => {
+    expect(correspondAuFiltre(deuxFois, "plusieurs", AUJ)).toBe(true);
+    expect(correspondAuFiltre(uneFois, "plusieurs", AUJ)).toBe(false);
+  });
+
+  it("compte les jours depuis la DERNIÈRE relance", () => {
+    expect(correspondAuFiltre(ancienne, "j30", AUJ)).toBe(true);   // 42 jours
+    expect(correspondAuFiltre(ancienne, "j7", AUJ)).toBe(true);
+    expect(correspondAuFiltre(uneFois, "j7", AUJ)).toBe(false);    // 2 jours
+    expect(correspondAuFiltre(deuxFois, "j14", AUJ)).toBe(false);  // 1 jour
+  });
+
+  it("n'attend pas de réponse d'un dossier jamais relancé", () => {
+    /* Il n'attend pas une réponse mais un PREMIER courrier, et il a son
+       propre filtre. L'y mêler ferait dire « sans réponse depuis 30 jours »
+       à des dossiers qu'on n'a jamais écrits. */
+    for (const f of ["j7", "j14", "j30"] as const) {
+      expect(correspondAuFiltre(jamais, f, AUJ)).toBe(false);
+    }
   });
 });

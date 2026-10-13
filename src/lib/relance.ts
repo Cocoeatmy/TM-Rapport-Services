@@ -364,3 +364,76 @@ export function lienMailto(m: MailRelance): string {
   return `mailto:${encodeURIComponent(m.destinataires.join(","))
     .replace(/%40/g, "@").replace(/%2C/g, ",")}?${q}`;
 }
+
+/* ── Trier la liste par état de relance ───────────────────────────────────
+   L'écran « Mesures non commandées » ne contient QUE des dossiers à
+   commander : la question « relancé, et toujours à commander ? » se réduit
+   donc à « relancé ? ». Ce qu'on ne voyait pas, c'était depuis QUAND, et
+   COMBIEN DE FOIS — ce sont ces deux-là que les filtres donnent. */
+
+export type FiltreRelance =
+  | "" | "jamais" | "deja" | "plusieurs" | "j7" | "j14" | "j30";
+
+export const FILTRES_RELANCE: { valeur: FiltreRelance; label: string }[] = [
+  { valeur: "", label: "Toutes les relances" },
+  { valeur: "jamais", label: "Jamais relancés" },
+  { valeur: "deja", label: "Déjà relancés" },
+  { valeur: "plusieurs", label: "Relancés 2× ou plus" },
+  { valeur: "j7", label: "Sans réponse depuis 7 j" },
+  { valeur: "j14", label: "Sans réponse depuis 14 j" },
+  { valeur: "j30", label: "Sans réponse depuis 30 j" },
+];
+
+export interface EtatRelance {
+  /** Date de la dernière relance, AAAA-MM-JJ, ou vide. */
+  derniere: string;
+  /** Nombre de relances connues. */
+  nombre: number;
+}
+
+/**
+ * L'état de relance d'un dossier, des deux sources réunies.
+ *
+ * La date Notion fait foi pour « a-t-il été relancé » : c'est elle que
+ * l'utilisateur voit dans Notion, et elle peut avoir été saisie à la main.
+ * L'historique de l'application ne sert qu'à COMPTER — et s'il ne connaît pas
+ * une relance notée directement dans Notion, le compte vaut au moins un.
+ */
+export function etatRelance(
+  relanceDossier: string | null | undefined,
+  dates: readonly string[] = [],
+): EtatRelance {
+  const notion = String(relanceDossier || "").split("T")[0].slice(0, 10);
+  const connues = [...dates].sort();
+  const derniere = [notion, connues[connues.length - 1] || ""].filter(Boolean).sort().pop() || "";
+  if (!derniere) return { derniere: "", nombre: 0 };
+  return { derniere, nombre: Math.max(connues.length, 1) };
+}
+
+/** Nombre de jours entiers écoulés depuis une relance. */
+function depuis(jour: string, aujourdhui: string): number {
+  const a = Date.parse(`${jour}T12:00:00Z`);
+  const b = Date.parse(`${aujourdhui}T12:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
+
+/** Le dossier passe-t-il le filtre choisi ? */
+export function correspondAuFiltre(
+  etat: EtatRelance,
+  filtre: FiltreRelance,
+  aujourdhui: string,
+): boolean {
+  switch (filtre) {
+    case "jamais": return etat.nombre === 0;
+    case "deja": return etat.nombre > 0;
+    case "plusieurs": return etat.nombre >= 2;
+    /* « Sans réponse depuis N jours » ne parle que des dossiers RELANCÉS :
+       un dossier jamais relancé n'attend pas de réponse, il attend un
+       premier courrier — et il a son propre filtre. */
+    case "j7": return etat.nombre > 0 && depuis(etat.derniere, aujourdhui) >= 7;
+    case "j14": return etat.nombre > 0 && depuis(etat.derniere, aujourdhui) >= 14;
+    case "j30": return etat.nombre > 0 && depuis(etat.derniere, aujourdhui) >= 30;
+    default: return true;
+  }
+}

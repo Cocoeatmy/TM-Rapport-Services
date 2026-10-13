@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-13T20:40:28.780Z",
+  "genereLe": "2026-10-13T21:03:49.879Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -1130,6 +1130,17 @@
       "niveau": "connecte",
       "gardePage": false,
       "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/relance/trace",
+      "type": "api",
+      "fichier": "src/app/api/relance/trace/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
         "POST"
       ]
     },
