@@ -1,0 +1,10 @@
+import fs from "node:fs";
+const T = fs.readFileSync(process.argv[2],"utf8").trim();
+const H = { Cookie: "auth-token="+T, "Content-Type":"application/json" };
+const liste = await (await fetch("https://tm-rapport-services.vercel.app/api/projects/mesures-sans-commande",{headers:H})).json();
+const ids = liste.filter(p=>(p.typeClient||"")!=="Fournisseurs").slice(0,30).map(p=>p.id);
+const d = await (await fetch("https://tm-rapport-services.vercel.app/api/relance",{method:"POST",headers:H,body:JSON.stringify({ids})})).json();
+const fautifs = (d.prepares||[]).filter(m=>/suisse/i.test(m.corps+m.objet));
+console.log("Courriers préparés :", d.prepares?.length);
+console.log("contenant encore « Suisse » :", fautifs.length);
+fautifs.slice(0,3).forEach(m=>console.log("   ", m.objet));

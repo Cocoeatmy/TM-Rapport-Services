@@ -191,9 +191,9 @@ describe("redigerRelance", () => {
     expect(mail.corps.trimEnd().endsWith("En vous remerciant par avance,")).toBe(true);
   });
 
-  it("propose une commande pour le seul relevé si la cabine ne se fait pas", () => {
-    /* Le relevé est une prestation facturable en soi : sans cette porte de
-       sortie, le déplacement n'est jamais payé et le dossier s'éteint. */
+  it("demande au GROSSISTE un numéro de commande pour le seul relevé", () => {
+    /* Il émet des commandes, c'est son métier : il peut le faire dans la
+       foulée sans rien décider d'autre. */
     expect(mail.corps).toContain("Si ces 3 cabines n'ont finalement pas été commandées par votre client");
     expect(mail.corps).toContain("uniquement le service de relevé de mesures");
   });
@@ -205,13 +205,21 @@ describe("redigerRelance", () => {
     expect(zero.corps).toContain("Si les cabines n'ont finalement pas été commandées");
   });
 
-  it("épargne cette phrase au client final — il ne commande pas « pour son client »", () => {
-    const m = redigerRelance(
-      { ...projet, typeClient: "Client finaux" },
-      destinataireRelance("Client finaux", { clientsFinaux: [jean] }),
-    );
-    expect(m.corps).not.toContain("votre client");
-    expect(m.corps).not.toContain("relevé de mesures.\n\nSi");
+  it("ne réclame AUCUN numéro aux autres types — beaucoup n'en émettent pas", () => {
+    for (const type of ["Sanitaires", "Client finaux", "Architecte", "Gérances Immo"]) {
+      const m = redigerRelance({ ...projet, typeClient: type, nbCabines: 1 },
+        destinataireRelance(type, { grossiste: [jean] }));
+      expect(m.corps, type).not.toContain("numéro de commande");
+      expect(m.corps, type).toContain("si cette cabine a été ou sera commandée");
+      expect(m.corps, type).toContain("patienter, ou clore le dossier");
+    }
+  });
+
+  it("ne pose la question qu'une fois", () => {
+    /* « Quelle suite donnez-vous à ce dossier ? » en plus du paragraphe
+       ci-dessus faisait deux demandes pour une. */
+    expect(mail.corps).not.toContain("la suite que vous souhaitez donner");
+    expect((mail.corps.match(/\?/g) || []).length).toBeLessThanOrEqual(1);
   });
 });
 

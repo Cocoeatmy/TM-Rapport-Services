@@ -218,26 +218,39 @@ function refGrossiste(p: ProjetARelancer): string {
 }
 
 /**
- * La porte de sortie : la cabine ne se fait pas, mais le relevé a eu lieu.
+ * La question qui débloque le dossier — formulée selon à qui l'on parle.
  *
- * Un relevé de mesures est une prestation facturable en soi. Quand le client
- * du grossiste renonce à la cabine, le dossier reste sans commande et le
- * déplacement n'est jamais payé — c'est exactement la situation de la moitié
- * de cette liste. Proposer une commande pour le seul relevé débloque le
- * dossier au lieu de le laisser s'éteindre.
+ * Un relevé de mesures est une prestation facturable en soi. Tant qu'on ne
+ * sait pas si la cabine se fera, le dossier reste ouvert et le déplacement
+ * n'est jamais payé : c'est la situation de la moitié de cette liste.
  *
- * Pas pour un client final : il ne commande pas « pour son client », et il
- * n'émet pas de numéro de commande.
+ * AU GROSSISTE, on demande directement le numéro de commande du seul relevé :
+ * il émet des commandes, c'est son métier, et il peut le faire dans la foulée
+ * sans rien décider d'autre.
+ *
+ * AUX AUTRES, on ne réclame pas de numéro — beaucoup n'en émettent pas. On
+ * demande seulement si la cabine se fera, ce qui suffit à trancher entre
+ * patienter et clore le dossier en facturant le relevé.
  */
 function phraseReleveSeul(p: ProjetARelancer): string {
-  if (String(p.typeClient || "").trim() === "Client finaux") return "";
   const nb = p.nbCabines || 0;
+  const estGrossiste = String(p.typeClient || "").trim() === "Grossistes";
+
+  if (estGrossiste) {
+    const sujet = nb <= 0
+      ? "les cabines n'ont finalement pas été commandées"
+      : nb === 1
+        ? "cette cabine n'a finalement pas été commandée"
+        : `ces ${nb} cabines n'ont finalement pas été commandées`;
+    return `Si ${sujet} par votre client, nous vous remercions de bien vouloir nous transmettre un numéro de commande couvrant uniquement le service de relevé de mesures.`;
+  }
+
   const sujet = nb <= 0
-    ? "les cabines n'ont finalement pas été commandées"
+    ? "les cabines ont été ou seront commandées"
     : nb === 1
-      ? "cette cabine n'a finalement pas été commandée"
-      : `ces ${nb} cabines n'ont finalement pas été commandées`;
-  return `Si ${sujet} par votre client, nous vous remercions de bien vouloir nous transmettre un numéro de commande couvrant uniquement le service de relevé de mesures.`;
+      ? "cette cabine a été ou sera commandée"
+      : `ces ${nb} cabines ont été ou seront commandées`;
+  return `Pourriez-vous nous indiquer si ${sujet} ? Cela nous permettra de savoir si nous devons patienter, ou clore le dossier et vous adresser notre facture pour le service de relevé de mesures.`;
 }
 
 /** Le premier numéro d'offre, celui qui sert de référence au client. */
@@ -317,9 +330,11 @@ export function redigerRelance(p: ProjetARelancer, dest: Destinataire): MailRela
   const repli = phraseReleveSeul(p);
   if (repli) lignes.push("", repli);
 
+  /* Le paragraphe ci-dessus pose déjà la question ; la reposer ici — « quelle
+     suite donnez-vous à ce dossier ? » — faisait deux demandes pour une. */
   lignes.push(
     "",
-    "Pourriez-vous nous indiquer la suite que vous souhaitez donner à ce dossier ? Nous restons bien entendu à votre disposition pour toute adaptation ou question.",
+    "Nous restons bien entendu à votre disposition pour toute adaptation ou question.",
     "",
     "En vous remerciant par avance,",
   );
