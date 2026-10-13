@@ -2467,96 +2467,52 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
       .catch(() => {});
   }, []);
 
-  const relancer = async (cibles: Project[]) => {
-    if (relanceEnCours || cibles.length === 0) return;
-    /* Un dossier par courrier : au-delà de trois fenêtres qui s'ouvrent
-       d'affilée, mieux vaut l'avoir voulu.
-
-       L'offre récente est SIGNALÉE, pas écartée : vingt dossiers sur les
-       quatre-vingt-sept datés portent une offre de moins d'une semaine, et
-       relancer quelqu'un sur une offre envoyée avant-hier se remarque. Mais
-       c'est un jugement de métier, pas une règle : l'app le dit et laisse
-       décider. */
-    const recentes = cibles.filter((x) => {
-      const j = (x.dateOffre || "").split("T")[0];
-      return !!j && Date.now() - Date.parse(`${j}T12:00:00Z`) < 7 * 86400000;
-    }).length;
-    if (cibles.length > 3 && !window.confirm(
-      `Préparer ${cibles.length} courriers de relance ?\n\n` +
-      `Autant de fenêtres s'ouvriront dans votre logiciel de messagerie, ` +
-      `l'une après l'autre. Rien ne part tant que vous n'appuyez pas sur « Envoyer ».` +
-      (recentes > 0
-        ? `\n\nAttention : ${recentes} dossier${recentes > 1 ? "s ont une offre datée" : " a une offre datée"} de moins de sept jours.`
-        : ""),
-    )) return;
-
-    setRelanceEnCours(cibles.length === 1 ? cibles[0].id : "lot");
+  const relancer = async (projet: Project) => {
+    if (relanceEnCours) return;
+    setRelanceEnCours(projet.id);
     try {
       const r = await fetch("/api/relance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: cibles.map((p) => p.id) }),
+        body: JSON.stringify({ ids: [projet.id] }),
       });
-      if (!r.ok) { toast.error("Les relances n'ont pas pu être préparées."); return; }
-      const { prepares } = (await r.json()) as { prepares: RelancePreparee[] };
+      if (!r.ok) { toast.error("La relance n'a pas pu être préparée."); return; }
+      const m = ((await r.json()) as { prepares: RelancePreparee[] }).prepares?.[0];
+      if (!m) { toast.error("La relance n'a pas pu être préparée."); return; }
+      if (m.ecarte) { toast.message(m.ecarte); return; }
+
+      /* Un lien que l'on clique plutôt que `window.open` : celui-ci est pris
+         pour une fenêtre surgissante et bloqué par le navigateur. */
+      const lien = document.createElement("a");
+      lien.href = lienMailto(m);
+      lien.style.display = "none";
+      document.body.appendChild(lien);
+      lien.click();
+      lien.remove();
 
       const jour = formatLocalDate(new Date());
-      const traces: string[] = [];
-      let ouverts = 0;
-      let sansContact = 0;
-      let ecartes = 0;
-      let repli = 0;
+      setMesuresSansCommandeData((prev) =>
+        prev.map((p) => (p.id === projet.id ? { ...p, relanceDossier: jour } : p)));
 
-      for (const m of prepares) {
-        if (m.ecarte) { ecartes++; continue; }
-        if (m.sansDestinataire) sansContact++;
-        if (m.repli) repli++;
-
-        /* Un lien que l'on clique plutôt que `window.open` : celui-ci est
-           pris pour une fenêtre surgissante et bloqué dès le deuxième. */
-        const lien = document.createElement("a");
-        lien.href = lienMailto(m);
-        lien.style.display = "none";
-        document.body.appendChild(lien);
-        lien.click();
-        lien.remove();
-        ouverts++;
-
-        traces.push(m.id);
-        setMesuresSansCommandeData((prev) =>
-          prev.map((p) => (p.id === m.id ? { ...p, relanceDossier: jour } : p)));
-
-        if (prepares.length > 1) await new Promise((res) => setTimeout(res, 900));
-      }
-
-      /* Une seule écriture pour tout le lot : vingt relances faisaient vingt
-         requêtes, chacune rouvrant la même page Notion. Elle part sans qu'on
-         l'attende — les courriers sont déjà ouverts, et faire patienter sur
-         Notion n'apporte rien. */
-      if (traces.length > 0) {
-        fetch("/api/relance/trace", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids: traces, jour }),
-        })
-          .then((res) => (res.ok ? res.json() : null))
-          .then((res) => { if (res?.historique) setRelancesHisto(res.historique); })
-          .catch(() => {});
-      }
+      /* La trace part sans qu'on l'attende : le courrier est déjà ouvert, et
+         faire patienter sur une écriture Notion n'apporte rien. */
+      fetch("/api/relance/trace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [projet.id], jour }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((res) => { if (res?.historique) setRelancesHisto(res.historique); })
+        .catch(() => {});
 
       const details = [
-        sansContact > 0 && `${sansContact} sans destinataire — à compléter à la main`,
-        repli > 0 && `${repli} adressé${repli > 1 ? "s" : ""} à un contact de repli`,
-        ecartes > 0 && `${ecartes} écarté${ecartes > 1 ? "s" : ""} (client fournisseur)`,
+        m.sansDestinataire && "sans destinataire — à compléter à la main",
+        m.repli && "adressé à un contact de repli",
       ].filter(Boolean).join(" · ");
-
-      if (ouverts === 0) toast.error(details || "Aucun courrier à préparer.");
-      else toast.success(
-        `${ouverts} relance${ouverts > 1 ? "s" : ""} préparée${ouverts > 1 ? "s" : ""}`,
-        details ? { description: details } : undefined,
-      );
+      if (m.sansDestinataire) toast.warning("Relance préparée", { description: details });
+      else toast.success("Relance préparée", details ? { description: details } : undefined);
     } catch {
-      toast.error("Les relances n'ont pas pu être préparées.");
+      toast.error("La relance n'a pas pu être préparée.");
     } finally {
       setRelanceEnCours(null);
     }
@@ -6910,7 +6866,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                téléphone — encore faut-il le voir. */
             const relEtat = etatRelance(p.relanceDossier, relancesHisto[p.id]);
             const relanceLe = dateSuisse(relEtat.derniere);
-            const relanceOccupee = relanceEnCours === p.id || relanceEnCours === "lot";
+            const relanceOccupee = relanceEnCours === p.id;
             const rowBg = isAnnulees
               ? (idx % 2 === 0 ? "bg-red-50/50 dark:bg-red-950/20" : "bg-red-100/40 dark:bg-red-900/15")
               : (idx % 2 === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "bg-blue-100/60 dark:bg-blue-900/20");
@@ -6945,7 +6901,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       {subtitle && <p className="text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1">{subtitle}</p>}
                       {relancable && (
                         <button type="button" disabled={relanceOccupee}
-                          onClick={(e2) => { e2.preventDefault(); e2.stopPropagation(); relancer([p]); }}
+                          onClick={(e2) => { e2.preventDefault(); e2.stopPropagation(); relancer(p); }}
                           className={`mt-1 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold transition-colors disabled:opacity-50 ${relanceLe
                             ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
                             : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"}`}>
@@ -6992,7 +6948,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       {relanceLe ? (
                         <button type="button" disabled={relanceOccupee}
                           title="Relancer de nouveau ce dossier"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); relancer([p]); }}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); relancer(p); }}
                           className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors disabled:opacity-50">
                           <Check className="w-3 h-3" strokeWidth={3} />
                           Dossier relancé{relEtat.nombre > 1 ? ` ${relEtat.nombre}×` : ""} — {relanceLe}
@@ -7000,7 +6956,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       ) : (
                         <button type="button" disabled={relanceOccupee}
                           title="Préparer le courrier de relance"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); relancer([p]); }}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); relancer(p); }}
                           className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/50 transition-colors disabled:opacity-50">
                           <Mail className="w-3 h-3" />
                           Relancer
@@ -7180,29 +7136,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       const monthLabel = monthKey
                         ? new Date(monthKey + "-15T12:00:00").toLocaleDateString("fr-CH", { month: "long", year: "numeric" })
                         : "Sans date";
-                      /* Les dossiers du mois qui restent à relancer : ni les
-                         clients fournisseurs — rien à leur réclamer — ni ceux
-                         déjà relancés. Une deuxième relance se décide dossier
-                         par dossier, pas par fournée. */
-                      const aRelancerDuMois = isAnnulees ? [] : displayList.filter((x) =>
-                        (x.dateMesures || "").split("T")[0].slice(0, 7) === monthKey
-                        && relanceApplicable(x.typeClient)
-                        && etatRelance(x.relanceDossier, relancesHisto[x.id]).nombre === 0);
                       items.push(
                         <div key={`sep-${monthKey || "none"}-${p.id}`} className="flex items-center gap-2 pt-2 pb-0.5">
                           <div className="flex-1 h-px bg-cyan-200/70 dark:bg-cyan-700/40" />
                           <span className="text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 shrink-0 px-1.5 capitalize">{monthLabel}</span>
-                          {aRelancerDuMois.length > 0 && (
-                            <button type="button" disabled={!!relanceEnCours}
-                              title={`Préparer ${aRelancerDuMois.length} courrier${aRelancerDuMois.length > 1 ? "s" : ""} de relance`}
-                              onClick={() => relancer(aRelancerDuMois)}
-                              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/50 transition-colors disabled:opacity-50">
-                              {relanceEnCours === "lot"
-                                ? <Loader2 className="w-3 h-3 animate-spin" />
-                                : <Mail className="w-3 h-3" />}
-                              Relancer le mois ({aRelancerDuMois.length})
-                            </button>
-                          )}
                           <div className="flex-1 h-px bg-cyan-200/70 dark:bg-cyan-700/40" />
                         </div>
                       );
