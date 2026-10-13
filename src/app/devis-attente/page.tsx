@@ -19,7 +19,7 @@ import Link from "next/link";
 import { ArrowLeft, FileText, Loader2, RefreshCw, Mail, Check, AlertTriangle, Ruler } from "lucide-react";
 import { toast } from "sonner";
 import {
-  correspondMesures, dossierClos, FILTRES_MESURES,
+  correspondMesures, devisRelancable, etatDuDossier, FILTRES_MESURES,
   type FiltreMesures, type LigneDevis,
 } from "@/lib/devis-attente";
 import {
@@ -43,10 +43,11 @@ export default function DevisAttentePage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [fMesures, setFMesures] = useState<FiltreMesures>("");
   const [fRelance, setFRelance] = useState<FiltreRelance>("");
-  /* Les dossiers annulés ou terminés chez nous sont MASQUÉS par défaut : ce
-     sont des offres que bexio croit vivantes parce que personne ne les y a
-     déclinées, et les relancer serait une faute. On peut les montrer — pour
-     aller les classer dans bexio, justement. */
+  /* Les devis dont le chantier est annulé, terminé, ou DÉJÀ COMMANDÉ sont
+     masqués par défaut : bexio les croit en attente parce que personne n'y
+     confirme ni n'y décline les offres à la main. Les relancer serait écrire
+     « nous n'avons pas eu de retour » à un client qui a commandé. On peut les
+     montrer — pour aller les classer dans bexio, justement. */
   const [montrerClos, setMontrerClos] = useState(false);
   const [enCours, setEnCours] = useState<string | null>(null);
 
@@ -71,13 +72,13 @@ export default function DevisAttentePage() {
 
   const aujourdhui = new Date().toISOString().slice(0, 10);
   const toutes = lignes || [];
-  const clos = useMemo(() => toutes.filter(dossierClos).length, [toutes]);
+  const clos = useMemo(() => toutes.filter((l) => !devisRelancable(l)).length, [toutes]);
 
   /* Les comptes de chaque filtre se calculent sur ce que les AUTRES filtres
      laissent passer : une option qui annoncerait des devis qu'un autre filtre
      masque ne se lirait plus. */
   const base = useMemo(
-    () => (montrerClos ? toutes : toutes.filter((l) => !dossierClos(l))),
+    () => (montrerClos ? toutes : toutes.filter(devisRelancable)),
     [toutes, montrerClos],
   );
   const apresMesures = useMemo(
@@ -103,9 +104,12 @@ export default function DevisAttentePage() {
 
   const relancer = async (l: LigneDevis) => {
     if (enCours) return;
-    if (dossierClos(l) && !window.confirm(
+    if (!devisRelancable(l) && !window.confirm(
       `Le dossier de ce devis est « ${l.etatCMD} » chez nous.\n\n` +
-      `Relancer un client sur un chantier annulé ou terminé se remarque. ` +
+      `${etatDuDossier(l) === "clos"
+        ? "Le chantier est annulé ou terminé."
+        : "La commande existe déjà et le chantier est en cours."}` +
+      ` Écrire « nous n'avons pas eu de retour à notre devis » se remarque.\n\n` +
       `Préparer le courrier quand même ?`,
     )) return;
 
@@ -209,9 +213,9 @@ export default function DevisAttentePage() {
                 className={`text-[11px] px-2.5 py-1.5 rounded-lg border transition-colors ${montrerClos
                   ? "border-red-300 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
                   : "border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-red-300"}`}
-                title="Chantiers annulés ou terminés chez nous, dont l'offre est restée « en attente » dans bexio">
+                title="Chantiers annulés, terminés ou déjà commandés chez nous, dont l'offre est restée « en attente » dans bexio">
                 <AlertTriangle className="w-3 h-3 inline mr-1" />
-                {montrerClos ? "Masquer" : "Montrer"} les dossiers clos ({clos})
+                {montrerClos ? "Masquer" : "Montrer"} les devis déjà tranchés ({clos})
               </button>
             )}
 
@@ -238,7 +242,8 @@ export default function DevisAttentePage() {
 
           <div className="space-y-0.5 mt-1">
             {visibles.map((l, i) => {
-              const closDossier = dossierClos(l);
+              const etatD = etatDuDossier(l);
+              const closDossier = etatD === "clos" || etatD === "engage";
               const relanceLe = dateSuisse(l.relance.derniere);
               const fond = closDossier
                 ? "bg-red-50/60 dark:bg-red-950/20"
@@ -275,8 +280,11 @@ export default function DevisAttentePage() {
                         </em>
                       )}
                       {closDossier && (
-                        <em className="not-italic text-[9px] font-semibold px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
-                          Dossier {l.etatCMD?.toLowerCase()}
+                        <em className={`not-italic text-[9px] font-semibold px-1.5 py-0.5 rounded ${etatD === "clos"
+                          ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                          : "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"}`}
+                          title={etatD === "clos" ? "Chantier annulé ou terminé" : "Commande passée, chantier en cours"}>
+                          {l.etatCMD}
                         </em>
                       )}
                       {l.client && (

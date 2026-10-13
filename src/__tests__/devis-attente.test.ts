@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   numerosOffre, indexerParOffre, enrichirDevis, correspondMesures,
-  dossierClos, cleRelanceDevis, type DossierLie, type OffreAttente,
+  dossierClos, etatDuDossier, devisRelancable, cleRelanceDevis,
+  type DossierLie, type OffreAttente,
 } from "@/lib/devis-attente";
 
 const dossiers: DossierLie[] = [
@@ -106,17 +107,53 @@ describe("correspondMesures", () => {
   });
 });
 
-describe("dossierClos", () => {
-  const lignes = enrichirDevis(offres, indexerParOffre(dossiers));
+describe("etatDuDossier", () => {
+  const ligne = (etatCMD: string | null, avecDossier = true) =>
+    enrichirDevis(
+      [{ nr: "TM-1", titre: "x", total: 0, date: "2026-01-01", jours: 1 }],
+      avecDossier ? indexerParOffre([{ id: "z", projet: "P", ofrTM: "TM-1", etatCMD }]) : new Map(),
+    )[0];
 
-  it("repère un devis dont le chantier est annulé chez nous", () => {
-    /* bexio l'affiche « en attente » tant que personne ne le décline à la
-       main — et personne ne le fait. */
-    expect(dossierClos(lignes[1])).toBe(true);
+  it("suit les groupes que Notion porte sur « État - CMD »", () => {
+    /* À faire → le devis attend encore. En cours → la commande existe.
+       Terminé → le chantier est clos. C'est le classement de l'entreprise,
+       pas le nôtre. */
+    expect(etatDuDossier(ligne("Cabines mesurées"))).toBe("ouvert");
+    expect(etatDuDossier(ligne("OFR envoyées sans mesures"))).toBe("ouvert");
+    expect(etatDuDossier(ligne("En attente de mesures"))).toBe("ouvert");
+
+    for (const e of ["RDV - fixé", "Cabines en CMD", "Récéptionné - RDV à fixer",
+                     "Livraison partielle", "Montage partiel", "Soucis montage",
+                     "RDV - Attendre news", "Cabines à recevoir", "Soucis livraison",
+                     "Cabine à aller chercher"]) {
+      expect(etatDuDossier(ligne(e)), e).toBe("engage");
+    }
+
+    expect(etatDuDossier(ligne("Annulé"))).toBe("clos");
+    expect(etatDuDossier(ligne("Terminé"))).toBe("clos");
   });
 
-  it("laisse passer un dossier vivant, ou sans dossier du tout", () => {
-    expect(dossierClos(lignes[0])).toBe(false);
-    expect(dossierClos(lignes[3])).toBe(false);
+  it("distingue « on ne sait pas » de « c'est ouvert »", () => {
+    expect(etatDuDossier(ligne(null, false))).toBe("inconnu");
+    expect(etatDuDossier(ligne(""))).toBe("ouvert");
+  });
+
+  it("laisse relançable un état que Notion aurait ajouté depuis", () => {
+    /* Une relance de trop s'écarte d'un coup d'œil ; un dossier qui
+       disparaît sans le dire ne se retrouve pas. */
+    expect(etatDuDossier(ligne("Nouvel état inventé"))).toBe("ouvert");
+    expect(devisRelancable(ligne("Nouvel état inventé"))).toBe(true);
+  });
+
+  it("n'autorise la relance que sur un devis qui attend vraiment", () => {
+    expect(devisRelancable(ligne("Cabines mesurées"))).toBe(true);
+    expect(devisRelancable(ligne(null, false))).toBe(true);
+    expect(devisRelancable(ligne("RDV - fixé"))).toBe(false);
+    expect(devisRelancable(ligne("Annulé"))).toBe(false);
+  });
+
+  it("dossierClos ne vise que les chantiers annulés ou terminés", () => {
+    expect(dossierClos(ligne("Annulé"))).toBe(true);
+    expect(dossierClos(ligne("RDV - fixé"))).toBe(false);
   });
 });

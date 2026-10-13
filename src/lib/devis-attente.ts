@@ -130,18 +130,59 @@ export function correspondMesures(l: LigneDevis, filtre: FiltreMesures): boolean
   }
 }
 
-/* ── Les dossiers clos : un devis en attente qui n'en est plus un ───────── */
+/* ── Un devis « en attente » qui n'en est plus un ──────────────────────── */
 
 /**
- * Un devis dont le dossier Notion est annulé ou terminé ne se relance pas.
+ * bexio ne sait pas ce qu'est devenu le chantier.
  *
- * bexio ne le sait pas : l'offre y reste « en attente » tant que personne ne
- * la décline à la main, et personne ne le fait. Relever ce désaccord est tout
- * l'intérêt du rapprochement — et c'est aussi ce qui empêche d'écrire à un
- * client dont le chantier est annulé depuis six mois.
+ * Une offre y reste « en attente » tant que personne ne va la confirmer ou la
+ * décliner à la main — et personne ne le fait. Sur les cent quatre-vingt-dix-
+ * sept devis en attente, relevé du 13 octobre 2026 : trente-six portent un
+ * chantier ANNULÉ ou TERMINÉ chez nous, et vingt-huit un chantier DÉJÀ
+ * COMMANDÉ, livré ou en cours de montage. Soixante-quatre clients à qui il ne
+ * faut surtout pas écrire « nous n'avons pas eu de retour à notre devis ».
+ *
+ * La classification n'est pas devinée : elle reprend les GROUPES que Notion
+ * porte sur la colonne « État - CMD » — À faire / En cours / Terminé. C'est
+ * le classement de l'entreprise, pas le nôtre.
  */
+
+/** Groupe « En cours » de Notion : la commande existe, le travail a démarré. */
+export const ETATS_ENGAGES = [
+  "Soucis livraison", "Cabines en CMD", "Cabines à recevoir", "Livraison partielle",
+  "Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - fixé",
+  "RDV - Attendre news", "Montage partiel", "Soucis montage",
+];
+
+/** Groupe « Terminé » de Notion. */
 export const ETATS_CLOS = ["Annulé", "Terminé"];
 
+export type EtatDossier = "ouvert" | "engage" | "clos" | "inconnu";
+
+/**
+ * Où en est le dossier derrière le devis.
+ *
+ * `inconnu` : aucun dossier Notion ne porte ce numéro d'offre. On ne sait
+ * rien, et c'est différent de savoir que c'est ouvert.
+ *
+ * Un état que Notion aurait ajouté depuis tombe dans `ouvert` : mieux vaut
+ * proposer une relance de trop, qu'on écartera d'un coup d'œil, que faire
+ * disparaître un dossier sans le dire.
+ */
+export function etatDuDossier(l: LigneDevis): EtatDossier {
+  if (!l.projetId) return "inconnu";
+  const e = String(l.etatCMD || "").trim();
+  if (ETATS_CLOS.includes(e)) return "clos";
+  if (ETATS_ENGAGES.includes(e)) return "engage";
+  return "ouvert";
+}
+
+/** Le devis attend-il encore une réponse, pour de bon ? */
+export function devisRelancable(l: LigneDevis): boolean {
+  const e = etatDuDossier(l);
+  return e === "ouvert" || e === "inconnu";
+}
+
 export function dossierClos(l: LigneDevis): boolean {
-  return !!l.etatCMD && ETATS_CLOS.includes(l.etatCMD);
+  return etatDuDossier(l) === "clos";
 }
