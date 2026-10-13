@@ -1158,19 +1158,18 @@ export async function getProjectsMontageJour(jour: string): Promise<Project[]> {
  * de toute façon dans les listes actives.
  */
 export async function getProjectsPeriode(du: string, au: string): Promise<Project[]> {
+  /* Notion n'accepte que deux niveaux d'imbrication : un « ou » de « et », pas
+     l'inverse. L'exclusion des annulés se répète donc dans chaque branche
+     plutôt que de coiffer l'ensemble. */
   const fenetre = (propriete: string) => ({
     and: [
       { property: propriete, date: { on_or_after: du } },
       { property: propriete, date: { on_or_before: au } },
+      { property: "État - CMD", status: { does_not_equal: "Annulé" } },
     ],
   });
   return queryAll(
-    {
-      and: [
-        { or: [fenetre("Date Montage"), fenetre("Mesures traitée le")] },
-        { property: "État - CMD", status: { does_not_equal: "Annulé" } },
-      ],
-    },
+    { or: [fenetre("Date Montage"), fenetre("Mesures traitée le")] },
     [{ property: "Date Montage", direction: "ascending" }],
   );
 }
