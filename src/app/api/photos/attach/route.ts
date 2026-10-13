@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { descripteurFichier, urlDuDescripteur, type DescripteurFichier } from "@/lib/notion-fichiers";
 import { notionWrite } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
 import { redisEnabled, redisLockEssai, redisLockRelease } from "@/lib/redis-cache";
@@ -104,13 +105,17 @@ export async function POST(request: NextRequest) {
       // re-essai du rattachement ne crée jamais de doublon.
       const seenUrls = new Set<string>();
       const seenNames = new Set<string>();
-      const allFiles: { type: "external"; name: string; external: { url: string } }[] = [];
+      /* Chaque fichier repart sous le type que Notion lui connaît : un fichier
+         déposé à la main dans la fiche est hébergé par Notion, qui refuse de
+         le reprendre en « external » et rejette alors la propriété entière
+         (voir src/lib/notion-fichiers.ts). */
+      const allFiles: DescripteurFichier[] = [];
       const pushUnique = (name: string, url: string | undefined | null) => {
         if (!url || seenUrls.has(url)) return;
         if (name && seenNames.has(name)) return;
         seenUrls.add(url);
         if (name) seenNames.add(name);
-        allFiles.push({ type: "external", name: name || "photo", external: { url } });
+        allFiles.push(descripteurFichier(name || "photo", url));
       };
       for (const f of existingFiles) {
         const url = f.type === "external" ? f.external?.url : f.file?.url;
@@ -120,7 +125,7 @@ export async function POST(request: NextRequest) {
       for (const p of photos) pushUnique(p.name, p.url);
 
       const notionSlice = allFiles.slice(0, LIMIT);
-      const overflowSlice = allFiles.slice(LIMIT).map((f) => ({ name: f.name, url: f.external.url }));
+      const overflowSlice = allFiles.slice(LIMIT).map((f) => ({ name: f.name, url: urlDuDescripteur(f) }));
 
       await notionWrite.pages.update({
         page_id: projectId,
@@ -150,14 +155,16 @@ export async function POST(request: NextRequest) {
         );
         const manquantes = attendues.filter((u: string) => !presentes.has(u));
         if (manquantes.length > 0) {
-          const fusion = [...(relu.properties[notionField]?.files || [])].map((f: any) => ({
-            type: "external" as const,
-            name: f.name || "photo",
-            external: { url: f.type === "external" ? f.external?.url : f.file?.url },
-          })).filter((f) => !!f.external.url);
+          const fusion: DescripteurFichier[] = [...(relu.properties[notionField]?.files || [])]
+            .map((f: any) => ({
+              nom: f.name || "photo",
+              url: (f.type === "external" ? f.external?.url : f.file?.url) || "",
+            }))
+            .filter((f) => !!f.url)
+            .map((f) => descripteurFichier(f.nom, f.url));
           for (const p of photos) {
             if (manquantes.includes(p.url)) {
-              fusion.push({ type: "external" as const, name: p.name || "photo", external: { url: p.url } });
+              fusion.push(descripteurFichier(p.name || "photo", p.url));
             }
           }
           await notionWrite.pages.update({

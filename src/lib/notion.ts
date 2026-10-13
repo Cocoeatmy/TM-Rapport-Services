@@ -1,4 +1,5 @@
 import { Client } from "@notionhq/client";
+import { descripteurFichier } from "@/lib/notion-fichiers";
 
 // ── Limiteur de débit global pour l'API Notion ──────────────────────────────
 // Notion plafonne à ~3 requêtes/seconde en moyenne (petite tolérance de burst).
@@ -1576,11 +1577,7 @@ export async function updateProject(
     if (data.bonLivraison && data.bonLivraison.startsWith("http")) {
       // Store as file (external URL)
       properties["Bon de livraison"] = {
-        files: [{
-          type: "external" as const,
-          name: "bon-de-livraison.jpg",
-          external: { url: data.bonLivraison },
-        }],
+        files: [descripteurFichier("bon-de-livraison.jpg", data.bonLivraison)],
       };
     } else {
       // Clear the field
@@ -1772,7 +1769,11 @@ export async function updateProject(
           (typeof item === "object" && item?.name) ||
           url.split("/").pop()?.slice(0, 100) ||
           `${defaultName}-${i + 1}.jpg`;
-        return { type: "external" as const, name: String(name).slice(0, 100), external: { url } };
+        /* Le type sous lequel Notion connaît ce fichier. Un fichier déposé à
+           la main dans la fiche est hébergé par Notion, qui refuse de le
+           reprendre en « external » — et refuse alors la propriété ENTIÈRE.
+           Voir src/lib/notion-fichiers.ts. */
+        return descripteurFichier(String(name), url);
       })
       .filter(Boolean);
     properties[propName] = { files };
@@ -1827,10 +1828,55 @@ export async function updateProject(
     properties["Explications travaux exécuté"] = { rich_text: toRichText(data.explicationsTravaux) };
   }
 
+  await rafraichirFichiersNotion(pageId, properties);
+
   await notionUpdateWithRetry({
     page_id: pageId,
     properties,
   });
+}
+
+/**
+ * Rend aux fichiers hébergés par Notion leur adresse du moment.
+ *
+ * Celles-ci sont signées et expirent au bout d'une heure. L'écran renvoie
+ * l'adresse qu'il a lue — parfois longtemps avant — et Notion refuserait une
+ * signature périmée. On relit donc la fiche et on apparie par NOM : c'est la
+ * seule chose qui ne change pas d'une lecture à l'autre.
+ *
+ * La relecture n'a lieu que si au moins un fichier est héberge par Notion.
+ * Nos propres photos vivent chez Cloudinary : dans l'immense majorité des
+ * écritures, cette fonction ne coûte rien.
+ */
+async function rafraichirFichiersNotion(
+  pageId: string,
+  properties: Record<string, any>,
+): Promise<void> {
+  const aRafraichir = Object.entries(properties).filter(([, v]: [string, any]) =>
+    Array.isArray(v?.files) && v.files.some((f: any) => f?.type === "file"),
+  );
+  if (aRafraichir.length === 0) return;
+
+  let page: any;
+  try {
+    page = await notion.pages.retrieve({ page_id: pageId });
+  } catch {
+    /* Fiche illisible : on écrit ce qu'on a. Au pire Notion refuse, et
+       l'appelant le saura — mieux que de perdre l'écriture en silence. */
+    return;
+  }
+
+  for (const [nomPropriete, valeur] of aRafraichir as [string, any][]) {
+    const actuels = new Map<string, string>();
+    for (const f of page.properties?.[nomPropriete]?.files || []) {
+      if (f?.type === "file" && f?.file?.url) actuels.set(String(f.name || ""), f.file.url);
+    }
+    valeur.files = valeur.files.map((f: any) => {
+      if (f?.type !== "file") return f;
+      const frais = actuels.get(String(f.name || ""));
+      return frais ? { ...f, file: { url: frais } } : f;
+    });
+  }
 }
 
 export async function createProject(data: {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { descripteurFichier } from "@/lib/notion-fichiers";
 import { verifyToken } from "@/lib/auth";
 import { getData, getDataFresh, setData } from "@/lib/kv-store";
 import { notion } from "@/lib/notion";
@@ -85,11 +86,17 @@ export async function POST(request: NextRequest) {
       // Add photos if present → colonne UNIFIÉE « Photos pour signalements ».
       if (body.photoUrls?.length > 0) {
         const existingFiles = (page as any).properties["Photos pour signalements"]?.files || [];
-        const mappedExisting = existingFiles.map((f: any) => ({
-          type: "external" as const,
-          name: f.name || "photo.jpg",
-          external: { url: f.type === "external" ? f.external?.url : f.file?.url || "" },
-        })).filter((f: any) => f.external.url);
+        /* Chaque fichier repart sous le type que Notion lui connaît : une photo
+           déposée à la main dans la fiche est hébergée par Notion, qui refuse
+           de la reprendre en « external » et rejette alors la propriété
+           entière (voir src/lib/notion-fichiers.ts). */
+        const mappedExisting = existingFiles
+          .map((f: any) => ({
+            nom: f.name || "photo.jpg",
+            url: (f.type === "external" ? f.external?.url : f.file?.url) || "",
+          }))
+          .filter((f: any) => f.url)
+          .map((f: any) => descripteurFichier(f.nom, f.url));
 
         const newFiles = body.photoUrls.map((url: string, i: number) => ({
           type: "external" as const,

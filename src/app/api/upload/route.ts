@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 import { notionWrite as notion } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
+import { descripteurFichier, urlDuDescripteur, type DescripteurFichier } from "@/lib/notion-fichiers";
 
 /**
  * Timeout Vercel étendu à 60 s (plan Pro).
@@ -131,13 +132,17 @@ export async function POST(request: NextRequest) {
         // de retry réseau, le même nom revient → on ignore le doublon.
         const seenUrls = new Set<string>();
         const seenNames = new Set<string>();
-        const allFiles: { type: "external"; name: string; external: { url: string } }[] = [];
+        /* Chaque fichier repart sous le type que Notion lui connaît. Une seule
+           photo déposée à la main dans la fiche suffisait sinon à faire refuser
+           la propriété entière, et plus aucune photo de l'app ne s'enregistrait
+           dans ce champ (voir src/lib/notion-fichiers.ts). */
+        const allFiles: DescripteurFichier[] = [];
         const pushUnique = (name: string, url: string | undefined | null) => {
           if (!url || seenUrls.has(url)) return;
           if (name && seenNames.has(name)) return;
           seenUrls.add(url);
           if (name) seenNames.add(name);
-          allFiles.push({ type: "external", name: name || "photo", external: { url } });
+          allFiles.push(descripteurFichier(name || "photo", url));
         };
         // Ordre : Notion (100 existants) d'abord → ils restent dans Notion ;
         // débordement existant ensuite ; nouvelles photos en dernier.
@@ -152,7 +157,7 @@ export async function POST(request: NextRequest) {
         // KV (refusionné à la lecture via getProject). L'upload ne peut donc
         // jamais échouer pour cause de champ plein.
         const notionSlice = allFiles.slice(0, LIMIT);
-        const overflowSlice = allFiles.slice(LIMIT).map((f) => ({ name: f.name, url: f.external.url }));
+        const overflowSlice = allFiles.slice(LIMIT).map((f) => ({ name: f.name, url: urlDuDescripteur(f) }));
 
         await notion.pages.update({
           page_id: projectId,
