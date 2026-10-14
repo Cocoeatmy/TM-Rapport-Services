@@ -1715,7 +1715,7 @@ function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, 
     setOuvert(o ? lequel : null);
 
   return (
-    <div className="mt-4 pt-3 border-t border-dashed border-gray-200 dark:border-slate-700 space-y-2">
+    <div className="rounded-2xl border border-gray-200 dark:border-slate-700 p-3 space-y-2">
       {!ouvert && (
         <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">
           Ajouter un signalement
@@ -1794,7 +1794,9 @@ function PhotosReference({ projectId, project, setProject }: {
   ];
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 p-3 space-y-3">
+    /* Une section de l'encadré des signalements, et non un encadré de plus :
+       des bordures gigognes ne disent rien de ce qui va avec quoi. */
+    <div className="pt-3 border-t border-gray-100 dark:border-slate-700 space-y-3">
       <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
         Références produit
         <span className="block font-normal text-[10px] text-slate-400">
@@ -9801,9 +9803,15 @@ function ProjectPageContent({ id }: { id: string }) {
                     {/* ── Onglet Signalements (pièces + défauts, niveau projet) ── */}
                     {monoActiveTab === "signalements" && (
                       <div className="space-y-3">
-                        <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
-                        <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
-                        <PhotosReference projectId={id} project={project} setProject={setProject} />
+                        {/* Un encadré pour ce qui EXISTE — les signalements du
+                            dossier et les références produit qui servent à les
+                            traiter — et un autre, plus bas, pour ce qu'on
+                            AJOUTE. Les deux ne se mélangent plus. */}
+                        <div className="rounded-2xl border border-gray-200 dark:border-slate-700 p-3 space-y-3">
+                          <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
+                          <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
+                          <PhotosReference projectId={id} project={project} setProject={setProject} />
+                        </div>
                         <AjoutSignalement
                           projectId={id}
                           projectName={project.projet}
@@ -10626,8 +10634,10 @@ function ProjectPageContent({ id }: { id: string }) {
                           {cabine.activeTab === "signalements" && (
                             <div id={`signalement-cab-${idx}`} className="space-y-3 px-4">
                               <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalement — {cabine.nom}</p>
-                              <PiecesList projectId={id} refreshKey={pieceRefreshKey} cabineLabel={cabine.nom} />
-                              <DefautsList projectId={id} refreshKey={defautRefreshKey} cabineLabel={cabine.nom} project={project} setProject={setProject} />
+                              <div className="rounded-2xl border border-gray-200 dark:border-slate-700 p-3 space-y-3">
+                                <PiecesList projectId={id} refreshKey={pieceRefreshKey} cabineLabel={cabine.nom} />
+                                <DefautsList projectId={id} refreshKey={defautRefreshKey} cabineLabel={cabine.nom} project={project} setProject={setProject} />
+                              </div>
                               <AjoutSignalement
                                 projectId={id}
                                 projectName={project.projet}
@@ -11311,9 +11321,11 @@ function ProjectPageContent({ id }: { id: string }) {
                 </CardHeader>
                 {showSignalementsCard && (
                   <CardContent className="space-y-4 border-t pt-3">
-                    <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
-                    <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
-                    <PhotosReference projectId={id} project={project} setProject={setProject} />
+                    <div className="rounded-2xl border border-gray-200 dark:border-slate-700 p-3 space-y-3">
+                      <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
+                      <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
+                      <PhotosReference projectId={id} project={project} setProject={setProject} />
+                    </div>
                     {nbSignalements === 0 && (
                       <p className="text-sm text-gray-400 text-center py-2">Aucun signalement enregistré.</p>
                     )}
