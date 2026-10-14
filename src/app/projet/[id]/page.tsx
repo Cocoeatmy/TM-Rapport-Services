@@ -1447,6 +1447,33 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{ description: string; reference: string }>({ description: "", reference: "" });
   const [saving, setSaving] = useState(false);
+  const [reformulant, setReformulant] = useState(false);
+
+  /* La même aide que sur un défaut : c'est après coup qu'on relit ce qu'un
+     monteur a écrit vite, et qu'on veut le rendre lisible par le
+     fournisseur. En cas d'échec, le texte d'origine reste. */
+  const reformuler = async () => {
+    const texte = editDraft.description.trim();
+    if (texte.length < 10 || reformulant) return;
+    setReformulant(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Reformule cette description de pièce manquante de manière claire et professionnelle pour une commande chez le fournisseur. Réponds uniquement avec le texte reformulé :\n\n${texte}`,
+        }),
+      });
+      if (!res.ok) { toast.error("Reformulation indisponible"); return; }
+      const d = await res.json();
+      const out = String(d.answer || d.response || "").trim();
+      if (out) setEditDraft((prev) => ({ ...prev, description: out }));
+    } catch {
+      toast.error("Reformulation indisponible");
+    } finally {
+      setReformulant(false);
+    }
+  };
 
   // Affiche / masque cette pièce sur le rapport client (PDF), comme les défauts.
   const toggleDisplay = async (id: string, current: boolean) => {
@@ -1610,6 +1637,16 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
                   <label className="text-[10px] text-gray-500">Description</label>
                   <textarea value={editDraft.description} onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
                     className="w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none mt-0.5" rows={2} />
+                  <button
+                    type="button"
+                    onClick={reformuler}
+                    disabled={reformulant || editDraft.description.trim().length < 10}
+                    title={editDraft.description.trim().length < 10 ? "Écrivez d'abord quelques mots" : undefined}
+                    className="mt-1 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {reformulant ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    {reformulant ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+                  </button>
                 </div>
                 <div>
                   <label className="text-[10px] text-gray-500">Référence</label>
@@ -1891,6 +1928,41 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{ description: string; types: string[]; otherText: string }>({ description: "", types: [], otherText: "" });
   const [saving, setSaving] = useState(false);
+  const [reformulant, setReformulant] = useState(false);
+
+  /**
+   * Reformuler la description d'un signalement — la même aide que dans le
+   * rapport du monteur et dans le formulaire de création.
+   *
+   * Elle manquait à la MODIFICATION, qui est pourtant le moment où le texte
+   * se retravaille : c'est après coup qu'on relit ce qu'un monteur a écrit
+   * vite, et qu'on veut le rendre lisible par le fournisseur.
+   *
+   * En cas d'échec on ne touche à rien : le texte d'origine vaut mieux qu'un
+   * champ vidé.
+   */
+  const reformuler = async () => {
+    const texte = editDraft.description.trim();
+    if (texte.length < 10 || reformulant) return;
+    setReformulant(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Reformule cette description de défaut de manière claire et professionnelle pour un rapport technique. Réponds uniquement avec le texte reformulé :\n\n${texte}`,
+        }),
+      });
+      if (!res.ok) { toast.error("Reformulation indisponible"); return; }
+      const d = await res.json();
+      const out = String(d.answer || d.response || "").trim();
+      if (out) setEditDraft((prev) => ({ ...prev, description: out }));
+    } catch {
+      toast.error("Reformulation indisponible");
+    } finally {
+      setReformulant(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -2121,6 +2193,16 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
                 <textarea value={editDraft.description} onChange={(e) => setEditDraft((prev) => ({ ...prev, description: e.target.value }))}
                   placeholder="Description du défaut…"
                   className="w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none" rows={3} />
+                <button
+                  type="button"
+                  onClick={reformuler}
+                  disabled={reformulant || editDraft.description.trim().length < 10}
+                  title={editDraft.description.trim().length < 10 ? "Écrivez d'abord quelques mots" : undefined}
+                  className="flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {reformulant ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  {reformulant ? "Reformulation en cours..." : "Reformuler avec l'IA"}
+                </button>
                 {/* Ajout / suppression de photos (persisté immédiatement) */}
                 <PhotoUpload
                   category="defauts"
