@@ -339,6 +339,29 @@ export function missingRequiredPhotos(
   return out;
 }
 
+/**
+ * Combien de photos un groupe exige — 0 s'il est facultatif.
+ *
+ * L'assistant pas à pas s'en sert pour bloquer le passage à l'étape suivante.
+ * Il lit la MÊME table que le contrôle d'envoi : une planche qu'on a pu
+ * franchir ne peut plus se faire refuser à la fin, et il n'y a pas deux
+ * chiffres à tenir à jour.
+ */
+export function minimumRequis(buckets: readonly PhotoBucketKey[]): number {
+  const cle = [...buckets].sort().join("|");
+  const groupe = REQUIRED_PHOTO_GROUPS.find((g) => [...g.buckets].sort().join("|") === cle);
+  return groupe ? groupe.min : 0;
+}
+
+/** Photos déjà prises pour un groupe de buckets (option : par cabine). */
+export function comptePhotosGroupe(
+  project: ProjectPhotoSources,
+  buckets: readonly PhotoBucketKey[],
+  cabineIdx?: number,
+): number {
+  return countGroup(project, [...buckets], cabineIdx);
+}
+
 /** Groupes RECOMMANDÉS absents (présence ≥1), au format texte. Contournable. */
 export function missingOptionalPhotoLabels(
   project: ProjectPhotoSources,

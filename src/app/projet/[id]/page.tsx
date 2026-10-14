@@ -144,6 +144,8 @@ import {
   missingBucketLabels,
   missingRequiredPhotos,
   missingOptionalPhotoLabels,
+  minimumRequis,
+  comptePhotosGroupe,
   type RequiredPhotoShortfall,
   extractCabine,
 } from "@/lib/photo-buckets";
@@ -4005,15 +4007,26 @@ const ETAPES_ASSISTANT: { cle: EtapeAssistant; titre: string }[] = [
   { cle: "signature", titre: "Signature" },
 ];
 
-/** Les planches photo de l'assistant, dans l'ordre où on les prend. */
-const PLANCHES_ASSISTANT: { bucket: PhotoBucketKey | "MONTAGE"; titre: string }[] = [
-  { bucket: "AVANT_INTERVENTION", titre: "Avant intervention" },
-  { bucket: "DEMONTAGE", titre: "Démontage" },
-  { bucket: "MONTAGE", titre: "Montage" },
-  { bucket: "APRES_INTERVENTION", titre: "Après intervention" },
-  { bucket: "QR_CODE", titre: "QR Code" },
-  { bucket: "GARANTIE", titre: "Garanties" },
-  { bucket: "VIDEO_MONTAGE", titre: "Vidéos" },
+/**
+ * Les planches photo de l'assistant, dans l'ordre où on les prend.
+ *
+ * `compte` dit quels buckets forment la planche : le montage en regroupe
+ * trois (gauche, centre, droite) et c'est leur TOTAL qui est exigé. Le
+ * minimum, lui, n'est pas écrit ici — il vient de la table qui bloque déjà
+ * l'envoi du rapport (minimumRequis), pour qu'il n'y ait qu'un chiffre.
+ */
+const PLANCHES_ASSISTANT: {
+  bucket: PhotoBucketKey | "MONTAGE";
+  titre: string;
+  compte: PhotoBucketKey[];
+}[] = [
+  { bucket: "AVANT_INTERVENTION", titre: "Avant intervention", compte: ["AVANT_INTERVENTION"] },
+  { bucket: "DEMONTAGE", titre: "Démontage", compte: ["DEMONTAGE"] },
+  { bucket: "MONTAGE", titre: "Montage", compte: ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE"] },
+  { bucket: "APRES_INTERVENTION", titre: "Après intervention", compte: ["APRES_INTERVENTION"] },
+  { bucket: "QR_CODE", titre: "QR Code", compte: ["QR_CODE"] },
+  { bucket: "GARANTIE", titre: "Garanties", compte: ["GARANTIE"] },
+  { bucket: "VIDEO_MONTAGE", titre: "Vidéos", compte: ["VIDEO_MONTAGE"] },
 ];
 
 function AssistantRapport({
@@ -4064,17 +4077,33 @@ function AssistantRapport({
      demande. Sur un chantier sans dépose, elle n'aurait rien à recevoir. */
   const [demontageForce, setDemontageForce] = useState(false);
 
+  /* Tant que l'assistant occupe l'écran, la fiche ne défile plus derrière :
+     sur iPhone, le doigt entraînait la page du dessous et on perdait sa
+     place dans la planche en cours. */
+  useEffect(() => {
+    const avant = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = avant; };
+  }, []);
+
   const index = Math.max(0, ETAPES_ASSISTANT.findIndex((e) => e.cle === etape));
   const derniere = index === ETAPES_ASSISTANT.length - 1;
+  const hautDePage = () => {
+    document.getElementById("assistant-haut")?.scrollTo({ top: 0, behavior: "smooth" });
+  };
   const aller = (n: number) => {
     const suiv = ETAPES_ASSISTANT[Math.min(Math.max(n, 0), ETAPES_ASSISTANT.length - 1)];
     setEtape(suiv.cle);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    hautDePage();
   };
 
   const planches = PLANCHES_ASSISTANT.filter(
     (p) => p.bucket !== "DEMONTAGE" || aDemontage || demontageForce,
   );
+  const plancheCourante = planches[Math.min(planche, planches.length - 1)];
+  const requisPlanche = plancheCourante ? minimumRequis(plancheCourante.compte) : 0;
+  const presentPlanche = plancheCourante ? comptePhotosGroupe(project, plancheCourante.compte) : 0;
+  const dernierePlanche = planche >= planches.length - 1;
 
   const enregistrerChamp = (champ: string, valeur: string) => {
     setProject((prev) => (prev ? { ...prev, [champ]: valeur } : prev));
@@ -4101,16 +4130,44 @@ function AssistantRapport({
     if (!jour) enregistrerChamp("dateMontage", d.toISOString().slice(0, 10));
   };
 
+  /* Ce qui doit être fait avant de passer à la suite. Sur les photos, le
+     compte exigé sous le titre n'est pas une suggestion : tant qu'il manque
+     une photo, le bouton reste gris. Sans cela, un monteur pressé envoyait
+     un rapport avec une seule vue — et il fallait le rappeler. */
   const peutAvancer = () => {
     if (etape === "collaborateurs") return choisis.length > 0;
     if (etape === "heures") return !!heureArrivee && !!(jour || project.dateMontage);
+    if (etape === "photos") return presentPlanche >= requisPlanche;
     return true;
   };
 
-  return (
-    <div className="rounded-2xl border-2 border-[#1e3a5f] dark:border-blue-400/60 bg-white dark:bg-slate-900 overflow-hidden">
+  /* Le bouton « Suivant » suit le travail, pas la liste des étapes : sur les
+     photos, il mène à la planche suivante — montage, après intervention, QR
+     code — et ne saute au rapport qu'une fois la dernière passée. */
+  const surPhotos = etape === "photos";
+  const avancer = () => {
+    if (surPhotos && !dernierePlanche) { setPlanche((n: number) => n + 1); hautDePage(); return; }
+    aller(index + 1);
+  };
+  const reculer = () => {
+    if (surPhotos && planche > 0) { setPlanche((n: number) => n - 1); hautDePage(); return; }
+    aller(index - 1);
+  };
+  const libelleSuivant = surPhotos && !dernierePlanche
+    ? `Suivant — ${planches[planche + 1]?.titre}`
+    : "Suivant";
+
+  /* Pleine page, posée à la racine du document. Dans son rectangle,
+     l'assistant partageait l'écran avec la fiche du chantier : on ne savait
+     plus ce qui demandait une réponse, et le peu de hauteur d'un téléphone
+     cachait la moitié des planches. Le portail est nécessaire — une carte
+     parente avec un flou d'arrière-plan suffirait à retenir un `fixed`
+     dans ses bords. */
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex flex-col bg-white dark:bg-slate-900">
       {/* Fil des étapes : on voit où l'on en est et ce qu'il reste. */}
-      <div className="bg-[#1e3a5f] px-3 py-2.5">
+      <div className="bg-[#1e3a5f] px-3 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] shrink-0">
         <div className="flex items-center justify-between gap-2 mb-2">
           <p className="text-sm font-semibold text-white">
             {index + 1}/{ETAPES_ASSISTANT.length} · {ETAPES_ASSISTANT[index].titre}
@@ -4122,14 +4179,18 @@ function AssistantRapport({
         </div>
         <div className="flex gap-1">
           {ETAPES_ASSISTANT.map((e, i) => (
-            <button key={e.cle} type="button" onClick={() => aller(i)}
+            <button key={e.cle} type="button"
+              /* On revient librement en arrière ; on n'avance pas en sautant
+                 ce qui n'est pas fait, sinon la règle des photos se contourne
+                 d'un clic sur le fil. */
+              onClick={() => { if (i <= index || peutAvancer()) aller(i); }}
               title={e.titre}
               className={`h-1.5 flex-1 rounded-full transition-colors ${i <= index ? "bg-white" : "bg-white/25"}`} />
           ))}
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
+      <div id="assistant-haut" className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
         {etape === "collaborateurs" && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-300">Qui travaille sur ce chantier ?</p>
@@ -4187,23 +4248,35 @@ function AssistantRapport({
 
         {etape === "photos" && (
           <div className="space-y-3">
-            {/* Une planche à la fois : la liste entière, les unes sous les
-                autres, faisait défiler sans fin et on en sautait. */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+            {/* Toutes les planches à l'écran, sur plusieurs lignes s'il le
+                faut. En file horizontale, celles de droite — QR code,
+                garanties, vidéos — sortaient du cadre : il fallait deviner
+                qu'elles existaient et faire glisser pour les atteindre.
+                Chacune porte son compte : 0/2, 1/3, puis une coche. */}
+            <div className="flex flex-wrap gap-1.5">
               {planches.map((p, i) => {
                 const actif = i === planche;
+                const min = minimumRequis(p.compte);
+                const n = comptePhotosGroupe(project, p.compte);
+                const complet = min > 0 && n >= min;
                 return (
                   <button key={p.bucket} type="button" onClick={() => setPlanche(i)}
-                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap shrink-0 border transition-colors ${actif
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-colors flex items-center gap-1.5 ${actif
                       ? "border-[#1e3a5f] bg-[#1e3a5f] text-white"
-                      : "border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400"}`}>
+                      : complet
+                        ? "border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
+                        : "border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400"}`}>
                     {p.titre}
+                    {min > 0 && (complet
+                      ? <Check className={`w-3 h-3 ${actif ? "text-white" : "text-green-600"}`} strokeWidth={3} />
+                      : <span className={`tabular-nums ${actif ? "text-blue-100" : "text-amber-600 dark:text-amber-400"}`}>{n}/{min}</span>
+                    )}
                   </button>
                 );
               })}
             </div>
             {!aDemontage && !demontageForce && (
-              <button type="button" onClick={() => setDemontageForce(true)}
+              <button type="button" onClick={() => { setDemontageForce(true); setPlanche(1); }}
                 className="w-full py-2 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-xs text-gray-500">
                 + Ajouter démontage
               </button>
@@ -4219,12 +4292,13 @@ function AssistantRapport({
                 accept={planches[planche]?.bucket === "VIDEO_MONTAGE" ? "video/*,image/*" : undefined}
               />
             )}
-            <div className="flex items-center justify-between gap-2 pt-1">
-              <button type="button" disabled={planche === 0} onClick={() => setPlanche((n: number) => n - 1)}
-                className="text-xs text-gray-500 disabled:opacity-30">← Planche précédente</button>
-              <button type="button" disabled={planche >= planches.length - 1} onClick={() => setPlanche((n: number) => n + 1)}
-                className="text-xs font-semibold text-[#1e3a5f] dark:text-blue-300 disabled:opacity-30">Planche suivante →</button>
-            </div>
+            {requisPlanche > presentPlanche && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                {requisPlanche - presentPlanche === 1
+                  ? "Encore une photo avant de continuer."
+                  : `Encore ${requisPlanche - presentPlanche} photos avant de continuer.`}
+              </p>
+            )}
           </div>
         )}
 
@@ -4272,11 +4346,25 @@ function AssistantRapport({
                 <span className="text-sm text-green-700 dark:text-green-300">Le client a signé</span>
               </div>
             ) : (
-              <button type="button"
-                onClick={() => document.getElementById("signature-card")?.scrollIntoView({ behavior: "smooth", block: "center" })}
-                className="w-full py-3 rounded-xl border-2 border-[#1e3a5f] text-[#1e3a5f] dark:text-blue-300 text-sm font-semibold">
-                Ouvrir la zone de signature
-              </button>
+              <>
+                <button type="button"
+                  /* La zone de signature est sur la fiche, derrière
+                     l'assistant : on referme pour la laisser voir. Tout est
+                     déjà enregistré, et « Remplir pas à pas » rouvrira ici
+                     même. */
+                  onClick={() => {
+                    onFermer();
+                    setTimeout(() => {
+                      document.getElementById("signature-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }, 60);
+                  }}
+                  className="w-full py-3 rounded-xl border-2 border-[#1e3a5f] text-[#1e3a5f] dark:text-blue-300 text-sm font-semibold">
+                  Ouvrir la zone de signature
+                </button>
+                <p className="text-[11px] text-gray-400">
+                  L&apos;assistant se referme le temps de la signature, puis vous le rouvrez par « Remplir pas à pas ».
+                </p>
+              </>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               <button type="button" disabled={envoiEnCours} onClick={() => onEnvoyer(false)}
@@ -4295,8 +4383,8 @@ function AssistantRapport({
       {/* Pied : enregistrement et navigation. Le bouton d'enregistrement
           reste là à chaque étape — tout se sauve déjà tout seul, mais le
           voir rassure, et c'est une raison suffisante. */}
-      <div className="border-t border-gray-100 dark:border-slate-700 p-3 flex items-center gap-2">
-        <button type="button" disabled={index === 0} onClick={() => aller(index - 1)}
+      <div className="border-t border-gray-100 dark:border-slate-700 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0 flex items-center gap-2 bg-white dark:bg-slate-900">
+        <button type="button" disabled={index === 0 && planche === 0} onClick={reculer}
           className="px-3 py-2.5 rounded-xl text-sm text-gray-500 disabled:opacity-30">
           Retour
         </button>
@@ -4305,13 +4393,14 @@ function AssistantRapport({
           {enregistrement ? "…" : "Enregistrer"}
         </button>
         {!derniere && (
-          <button type="button" onClick={() => aller(index + 1)} disabled={!peutAvancer()}
-            className="flex-1 py-2.5 rounded-xl bg-[#1e3a5f] text-white text-sm font-semibold disabled:opacity-40">
-            Suivant
+          <button type="button" onClick={avancer} disabled={!peutAvancer()}
+            className="flex-1 py-2.5 rounded-xl bg-[#1e3a5f] text-white text-sm font-semibold disabled:opacity-40 truncate">
+            {libelleSuivant}
           </button>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
