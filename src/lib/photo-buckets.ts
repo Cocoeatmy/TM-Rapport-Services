@@ -362,14 +362,39 @@ export function comptePhotosGroupe(
   return countGroup(project, [...buckets], cabineIdx);
 }
 
+/* ── « Il n'y en a pas » ────────────────────────────────────────────────────
+   Toutes les cabines n'ont pas de QR code, toutes les poses ne donnent pas
+   lieu à une garantie, et la vidéo reste exceptionnelle. Sans moyen de le
+   DIRE, le rappel revenait à chaque enregistrement sur des planches qui
+   n'auraient jamais rien à recevoir — et un rappel qu'on apprend à cliquer
+   sans lire ne sert plus les fois où il a raison. Le monteur coche donc
+   l'absence, une fois, et elle est consignée. */
+
+/** Les planches dont on peut déclarer qu'elles n'ont pas lieu d'être. */
+export const BUCKETS_DECLARABLES_ABSENTS: PhotoBucketKey[] = ["QR_CODE", "GARANTIE", "VIDEO_MONTAGE"];
+
+/** Ce que dit la case à cocher, planche par planche. */
+export const LIBELLE_ABSENCE: Partial<Record<PhotoBucketKey, string>> = {
+  QR_CODE: "Pas de QR Code",
+  GARANTIE: "Pas de garantie",
+  VIDEO_MONTAGE: "Pas de vidéo",
+};
+
+/** Un groupe entièrement déclaré absent n'a plus à être rappelé. */
+function declareAbsent(buckets: readonly PhotoBucketKey[], absents?: readonly PhotoBucketKey[]): boolean {
+  if (!absents || absents.length === 0) return false;
+  return buckets.every((b) => absents.includes(b));
+}
+
 /** Groupes RECOMMANDÉS absents (présence ≥1), au format texte. Contournable. */
 export function missingOptionalPhotoLabels(
   project: ProjectPhotoSources,
-  options: { multiCabine: boolean; nbCabines: number },
+  options: { multiCabine: boolean; nbCabines: number; absents?: readonly PhotoBucketKey[] },
 ): string[] {
   const missing = (cabineIdx: number | undefined, prefix: string): string[] =>
     OPTIONAL_PHOTO_GROUPS
       .filter((g) => (g.pertinent ? g.pertinent(project) : true))
+      .filter((g) => !declareAbsent(g.buckets, options.absents))
       .filter((g) => countGroup(project, g.buckets, cabineIdx) === 0)
       .map((g) => `${prefix}${g.label}`);
 
@@ -382,10 +407,13 @@ export function missingOptionalPhotoLabels(
 /** Liste les groupes de photos manquants au format texte, mono ou multi-cabine. */
 export function missingBucketLabels(
   project: ProjectPhotoSources,
-  options: { multiCabine: boolean; nbCabines: number },
+  options: { multiCabine: boolean; nbCabines: number; absents?: readonly PhotoBucketKey[] },
 ): string[] {
   const missingGroups = (present: Set<PhotoBucketKey>) =>
-    MISSING_CHECK_GROUPS.filter((g) => !g.buckets.some((b) => present.has(b))).map((g) => g.label);
+    MISSING_CHECK_GROUPS
+      .filter((g) => !declareAbsent(g.buckets, options.absents))
+      .filter((g) => !g.buckets.some((b) => present.has(b)))
+      .map((g) => g.label);
 
   if (!options.multiCabine || options.nbCabines <= 1) {
     return missingGroups(bucketsPresent(project));

@@ -26,9 +26,6 @@ export interface HeurePhoto extends DatePhoto {
   source: SourceHeure;
 }
 
-/** Journée de travail la plus longue qu'on accepte sans confirmation. */
-export const JOURNEE_MAX_MIN = 11 * 60;
-
 export function minutesDe(heure: string): number {
   const m = /^(\d{1,2}):(\d{2})$/.exec((heure || "").trim());
   return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : -1;
@@ -97,18 +94,23 @@ export function arriveeAcceptable(c: HeurePhoto, jourRef: string): boolean {
 /**
  * Peut-on poser cette heure de départ telle quelle ?
  *
- * Avec un EXIF, oui : l'heure est celle de la prise de vue, même si la photo
- * part le soir. Sans EXIF, on n'a que l'heure de l'envoi : on ne l'accepte que
- * si elle décrit une journée plausible — sinon c'est un envoi différé, et
- * écrire « 21:34 » comme heure de départ serait un faux.
+ * Seule la DATE fait obstacle : une photo d'un autre jour appartient à un
+ * autre passage, et son heure n'a rien à dire sur celui-ci.
+ *
+ * Il y avait ici un second garde-fou : sans EXIF, l'heure n'était acceptée
+ * que si elle décrivait une journée de moins de onze heures, de peur qu'un
+ * envoi fait le soir n'inscrive « 21:34 ». Il refusait plus souvent qu'il ne
+ * protégeait, et chaque refus ouvrait une fenêtre qui demandait l'heure à la
+ * main — ce que Micael ne veut pas (14 octobre 2026). La règle est
+ * désormais celle qu'il a posée : l'heure de départ est celle de la dernière
+ * photo d'après intervention, ou la plus tardive des métadonnées de montage
+ * et d'après intervention. En pratique le risque est faible : dès qu'une
+ * photo du lot porte un EXIF, c'est lui qui parle, et à défaut la date du
+ * fichier reste celle de la prise de vue, pas de l'envoi.
  */
 export function departAcceptable(c: HeurePhoto, arrivee: string, jourRef: string): boolean {
   if (c.jour && jourRef && c.jour !== jourRef) return false;
-  if (c.source === "exif") return true;
-  const a = minutesDe(arrivee);
-  if (a < 0) return true; // pas d'arrivée connue : rien à contredire
-  const d = minutesDe(c.heure) - a;
-  return d > 0 && d <= JOURNEE_MAX_MIN;
+  return true;
 }
 
 /**
@@ -131,14 +133,19 @@ export function departValable(depart?: string | null, arrivee?: string | null): 
  * - départ antérieur ou égal à l'arrivée → fausse manœuvre (chrono arrêté par
  *   erreur juste après l'avoir lancé) : la photo corrige. C'est le cas qui
  *   laissait des rapports « arrivée 08:06 / départ 08:06 » ;
- * - sinon on n'avance l'heure que sur une preuve sûre (EXIF plus tardif) et
- *   jamais en arrière : une heure saisie à la main n'est pas écrasée.
+ * - photo d'APRÈS INTERVENTION : c'est la fin du chantier, et son heure fait
+ *   foi dès qu'elle est postérieure. La règle est de Micael : le départ est
+ *   l'heure de la dernière photo d'après intervention ;
+ * - sinon (montage) on n'avance l'heure que sur une preuve sûre (EXIF plus
+ *   tardif) et jamais en arrière : une heure saisie à la main n'est pas
+ *   écrasée par une photo de milieu de pose.
  */
 export function departApresPhoto(
   actuel: string,
   c: HeurePhoto,
   arrivee: string,
   jourRef: string,
+  options: { finDuChantier?: boolean } = {},
 ): string | null {
   if (!departAcceptable(c, arrivee, jourRef)) return null;
   const nouveau = c.heure;
@@ -146,6 +153,12 @@ export function departApresPhoto(
   if (courant < 0) return nouveau;
   const a = minutesDe(arrivee);
   if (a >= 0 && courant <= a) return nouveau === actuel ? null : nouveau;
-  if (c.source === "exif" && minutesDe(nouveau) > courant) return nouveau;
+  /* Pour AVANCER une heure déjà valable, il faut un témoignage de la prise de
+     vue : l'EXIF partout, et la date du fichier sur la photo de fin. L'heure
+     d'envoi seule ne suffit jamais — elle remplit un champ vide, elle
+     n'écrase pas un départ correct par l'heure à laquelle le téléphone a
+     retrouvé du réseau. */
+  const temoigneDeLaPriseDeVue = c.source === "exif" || (c.source === "fichier" && !!options.finDuChantier);
+  if (minutesDe(nouveau) > courant && temoigneDeLaPriseDeVue) return nouveau;
   return null;
 }

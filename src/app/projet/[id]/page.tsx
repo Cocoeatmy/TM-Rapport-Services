@@ -144,6 +144,8 @@ import {
   missingBucketLabels,
   missingRequiredPhotos,
   missingOptionalPhotoLabels,
+  BUCKETS_DECLARABLES_ABSENTS,
+  LIBELLE_ABSENCE,
   minimumRequis,
   comptePhotosGroupe,
   type RequiredPhotoShortfall,
@@ -4035,6 +4037,7 @@ function AssistantRapport({
   heureArrivee, setHeureArrivee,
   signature,
   aDemontage,
+  absents, onDeclarerAbsence,
   onAutoFill, onLog,
   onEnregistrer, enregistrement,
   onEnvoyer, envoiEnCours,
@@ -4050,6 +4053,9 @@ function AssistantRapport({
   signature: string;
   /** « Type de services » contient-il Démontage ? */
   aDemontage: boolean;
+  /** Planches déclarées sans objet sur ce chantier. */
+  absents: PhotoBucketKey[];
+  onDeclarerAbsence: (bucket: PhotoBucketKey, absent: boolean) => void;
   onAutoFill?: (bucket: PhotoBucketKey, capture: HeurePhoto, cabineIdx?: number) => void;
   onLog?: (action: string, details: string) => void;
   onEnregistrer: () => void;
@@ -4258,7 +4264,11 @@ function AssistantRapport({
                 const actif = i === planche;
                 const min = minimumRequis(p.compte);
                 const n = comptePhotosGroupe(project, p.compte);
-                const complet = min > 0 && n >= min;
+                const estAbsent = absents.includes(p.bucket as PhotoBucketKey);
+                /* Une planche déclarée sans objet est « faite » : elle porte
+                   la même coche, pour qu'on voie d'un coup d'œil ce qu'il
+                   reste réellement à photographier. */
+                const complet = (min > 0 && n >= min) || estAbsent;
                 return (
                   <button key={p.bucket} type="button" onClick={() => setPlanche(i)}
                     className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-colors flex items-center gap-1.5 ${actif
@@ -4267,10 +4277,11 @@ function AssistantRapport({
                         ? "border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
                         : "border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400"}`}>
                     {p.titre}
-                    {min > 0 && (complet
+                    {complet
                       ? <Check className={`w-3 h-3 ${actif ? "text-white" : "text-green-600"}`} strokeWidth={3} />
-                      : <span className={`tabular-nums ${actif ? "text-blue-100" : "text-amber-600 dark:text-amber-400"}`}>{n}/{min}</span>
-                    )}
+                      : min > 0
+                        ? <span className={`tabular-nums ${actif ? "text-blue-100" : "text-amber-600 dark:text-amber-400"}`}>{n}/{min}</span>
+                        : null}
                   </button>
                 );
               })}
@@ -4281,7 +4292,32 @@ function AssistantRapport({
                 + Ajouter démontage
               </button>
             )}
-            {planches[planche]?.bucket === "MONTAGE" ? (
+            {/* « Il n'y en a pas. » Toutes les cabines n'ont pas de QR code,
+                toutes les poses ne donnent pas de garantie, et la vidéo reste
+                exceptionnelle. Sans pouvoir le dire, le monteur voyait le
+                rappel revenir à chaque enregistrement — et un rappel qu'on
+                clique sans lire ne sert plus quand il a raison. */}
+            {plancheCourante && BUCKETS_DECLARABLES_ABSENTS.includes(plancheCourante.bucket as PhotoBucketKey) && (() => {
+              const cle = plancheCourante.bucket as PhotoBucketKey;
+              const coche = absents.includes(cle);
+              return (
+                <button type="button" onClick={() => onDeclarerAbsence(cle, !coche)}
+                  className={`flex items-center gap-2 w-full px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${coche
+                    ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/20 text-[#1e3a5f] dark:text-blue-300"
+                    : "border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400"}`}>
+                  <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${coche ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"}`}>
+                    {coche && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                  </span>
+                  {LIBELLE_ABSENCE[cle]}
+                </button>
+              );
+            })()}
+            {plancheCourante && absents.includes(plancheCourante.bucket as PhotoBucketKey) ? (
+              <p className="text-[11px] text-gray-400">
+                Rien à photographier ici — on ne vous le redemandera plus sur ce chantier.
+                Décochez si vous changez d&apos;avis.
+              </p>
+            ) : planches[planche]?.bucket === "MONTAGE" ? (
               <CombinedMontageUpload projectId={projectId} project={project} setProject={setProject}
                 onAutoFill={onAutoFill} onLog={onLog} />
             ) : (
@@ -5247,6 +5283,36 @@ function ProjectPageContent({ id }: { id: string }) {
   const [departADemander, setDepartADemander] = useState<{ cabineIdx?: number; jour: string } | null>(null);
   const [departSaisi, setDepartSaisi] = useState("");
 
+  /* Planches déclarées sans objet sur ce chantier — « Pas de QR Code »,
+     « Pas de garantie », « Pas de vidéo ». Elles ne sont plus rappelées à
+     l'enregistrement ni à l'envoi. La déclaration vit de notre côté
+     (/api/photos/sans) : rien n'est écrit dans Notion. */
+  const [sansObjet, setSansObjet] = useState<PhotoBucketKey[]>([]);
+  useEffect(() => {
+    if (!id) return;
+    let vivant = true;
+    fetch(`/api/photos/sans?projectId=${id}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((lignes: { cabine?: number; buckets?: string[] }[]) => {
+        if (!vivant || !Array.isArray(lignes)) return;
+        const projet = lignes.find((l) => !l.cabine);
+        setSansObjet((projet?.buckets || []) as PhotoBucketKey[]);
+      })
+      .catch(() => {});
+    return () => { vivant = false; };
+  }, [id]);
+
+  const declarerAbsence = useCallback((bucket: PhotoBucketKey, absent: boolean) => {
+    setSansObjet((prev) => (absent
+      ? (prev.includes(bucket) ? prev : [...prev, bucket])
+      : prev.filter((b) => b !== bucket)));
+    offlineFetch("/api/photos/sans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: id, bucket, absent }),
+    }).catch(() => toast.error("Déclaration en attente — réessai automatique"));
+  }, [id]);
+
   const handleAutoFill = useCallback((
     bucket: PhotoBucketKey,
     capture: HeurePhoto,
@@ -5262,6 +5328,10 @@ function ProjectPageContent({ id }: { id: string }) {
     const isMontageOrAfter = (b: string) =>
       ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE", "APRES_INTERVENTION"].includes(b);
     const fin = isMontageOrAfter(bucket);
+    /* La photo d'après intervention clôt le chantier : son heure devient
+       l'heure de départ, même posée par-dessus celle d'une photo de montage
+       plus ancienne. */
+    const finDuChantier = bucket === "APRES_INTERVENTION";
     const direDepart = (h: string, suffixe = "") => {
       toast.success(`Heure de départ : ${h}${suffixe}`, { duration: 4000 });
     };
@@ -5286,7 +5356,7 @@ function ProjectPageContent({ id }: { id: string }) {
           }
           // Heure de départ : photos montage ou après intervention
           if (fin) {
-            const d = departApresPhoto(u.depart || "", capture, u.arrivee || "", jourRef);
+            const d = departApresPhoto(u.depart || "", capture, u.arrivee || "", jourRef, { finDuChantier });
             if (d) u.depart = d;
             else if (!departValable(u.depart, u.arrivee)) aDemander = true;
           }
@@ -5385,7 +5455,7 @@ function ProjectPageContent({ id }: { id: string }) {
         if (i < 0) i = pointages.findIndex((p) => !p.depart);
         if (i >= 0) {
           const jourRef = pointages[i].date || capture.jour || todayStr;
-          const d = departApresPhoto(pointages[i].depart || "", capture, pointages[i].arrivee || "", jourRef);
+          const d = departApresPhoto(pointages[i].depart || "", capture, pointages[i].arrivee || "", jourRef, { finDuChantier });
           if (d) {
             setPointages((prev) => prev.map((p, k) => (k === i
               ? { ...p, depart: d, date: p.date || capture.jour || todayStr }
@@ -5424,7 +5494,7 @@ function ProjectPageContent({ id }: { id: string }) {
         arrivee = capture.heure;
       }
       if (fin) {
-        const d = departApresPhoto(depart, capture, arrivee, jour);
+        const d = departApresPhoto(depart, capture, arrivee, jour, { finDuChantier });
         if (d) depart = d;
         else if (!departValable(depart, arrivee)) setDepartADemander({ jour });
       }
@@ -6684,6 +6754,7 @@ function ProjectPageContent({ id }: { id: string }) {
       const missing = missingBucketLabels(project, {
         multiCabine: isCabineMode,
         nbCabines: isCabineMode ? cabines.length : (project.nbCabines || 0),
+        absents: sansObjet,
       });
       if (missing.length > 0) {
         setMissingPhotosPrompt({ kind: "save", missing });
@@ -7165,6 +7236,8 @@ function ProjectPageContent({ id }: { id: string }) {
     const photoOpts = {
       multiCabine: isCabineMode,
       nbCabines: isCabineMode ? cabines.length : (project.nbCabines || 0),
+      /* Les planches déclarées sans objet ne sont plus rappelées. */
+      absents: sansObjet,
     };
     const computeRequired = () => missingRequiredPhotos(project, photoOpts);
     const computeOptional = () => missingOptionalPhotoLabels(project, photoOpts);
@@ -10253,6 +10326,8 @@ function ProjectPageContent({ id }: { id: string }) {
                         setHeureArrivee={(v) => { setHeureArrivee(v); scheduleAutoSave(); }}
                         signature={signature}
                         aDemontage={(project.typeServices || []).some((t) => /d[ée]montage/i.test(String(t || "")))}
+                        absents={sansObjet}
+                        onDeclarerAbsence={declarerAbsence}
                         onAutoFill={handleAutoFill}
                         onLog={logAction}
                         onEnregistrer={handleSaveClick}

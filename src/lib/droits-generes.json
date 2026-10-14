@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-14T17:50:43.509Z",
+  "genereLe": "2026-10-14T18:31:46.770Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -779,6 +779,17 @@
       "niveau": "connecte-middleware",
       "gardePage": false,
       "methodes": [
+        "POST"
+      ]
+    },
+    {
+      "url": "/api/photos/sans",
+      "type": "api",
+      "fichier": "src/app/api/photos/sans/route.ts",
+      "niveau": "connecte",
+      "gardePage": false,
+      "methodes": [
+        "GET",
         "POST"
       ]
     },

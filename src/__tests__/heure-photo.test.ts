@@ -85,8 +85,11 @@ describe("heure acceptable", () => {
     expect(departAcceptable(exif("2026-10-08", "17:10"), "08:00", "2026-10-08")).toBe(true);
   });
 
-  it("refuse l'heure d'un envoi différé le soir sans EXIF", () => {
-    expect(departAcceptable(envoi("2026-10-08", "21:34"), "08:06", "2026-10-08")).toBe(false);
+  /* Ancienne règle : une heure d'envoi tardive était refusée, et le refus
+     ouvrait une fenêtre demandant l'heure à la main. Micael n'en veut pas
+     (14 octobre 2026) — mieux vaut l'heure du dernier envoi que la question. */
+  it("accepte l'heure d'un envoi tardif plutôt que de demander", () => {
+    expect(departAcceptable(envoi("2026-10-08", "21:34"), "08:06", "2026-10-08")).toBe(true);
   });
 
   it("accepte l'heure d'envoi quand elle décrit une journée plausible", () => {
@@ -119,8 +122,20 @@ describe("heure de départ après photos de fin", () => {
     expect(departApresPhoto("11:30", envoi("2026-10-08", "21:34"), "08:06", "2026-10-08")).toBeNull();
   });
 
-  it("n'écrit rien quand l'envoi différé rend l'heure invraisemblable", () => {
-    expect(departApresPhoto("", envoi("2026-10-08", "22:10"), "08:06", "2026-10-08")).toBeNull();
+  it("remplit un départ vide même avec une heure d'envoi tardive", () => {
+    expect(departApresPhoto("", envoi("2026-10-08", "22:10"), "08:06", "2026-10-08")).toBe("22:10");
+  });
+
+  /* La photo d'après intervention clôt le chantier : c'est elle qui donne
+     l'heure de départ, même par-dessus celle d'une photo de montage. */
+  it("la photo de fin avance le départ sur la date du fichier", () => {
+    const fichier = { jour: "2026-10-08", heure: "16:40", source: "fichier" as const };
+    expect(departApresPhoto("15:00", fichier, "08:06", "2026-10-08", { finDuChantier: true })).toBe("16:40");
+    expect(departApresPhoto("15:00", fichier, "08:06", "2026-10-08")).toBeNull();
+  });
+
+  it("mais l'heure d'un simple envoi n'écrase jamais un départ correct", () => {
+    expect(departApresPhoto("11:30", envoi("2026-10-08", "21:34"), "08:06", "2026-10-08", { finDuChantier: true })).toBeNull();
   });
 
   it("lit les heures en minutes", () => {
