@@ -151,6 +151,7 @@ import {
   extractCabine,
 } from "@/lib/photo-buckets";
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS, COLLABORATEURS_LIST as COLLABORATEURS_ACTIFS, RAPPORT_OPTIONS_SINGLE } from "@/lib/constants";
+import { SUGGESTIONS_NOM_CABINE, nomDeLotParDefaut, nomContientMot, basculerMotDuNom } from "@/lib/nom-lot";
 import { ColoredSelect } from "@/components/colored-select";
 import { thumbnailUrl } from "@/lib/image-url";
 
@@ -3998,11 +3999,12 @@ const ETAT_RAPPORT_TITRE: Record<string, string> = {
    que l'écran libre, avec les mêmes enregistrements automatiques. Deux
    réglages du même rapport ne peuvent donc pas diverger. */
 
-type EtapeAssistant = "collaborateurs" | "heures" | "photos" | "rapport" | "signature";
+type EtapeAssistant = "collaborateurs" | "heures" | "nom" | "photos" | "rapport" | "signature";
 
 const ETAPES_ASSISTANT: { cle: EtapeAssistant; titre: string }[] = [
   { cle: "collaborateurs", titre: "Qui travaille" },
   { cle: "heures", titre: "Arrivée" },
+  { cle: "nom", titre: "Nom du lot" },
   { cle: "photos", titre: "Photos" },
   { cle: "rapport", titre: "Rapport" },
   { cle: "signature", titre: "Signature" },
@@ -4018,7 +4020,11 @@ const ETAPES_ASSISTANT: { cle: EtapeAssistant; titre: string }[] = [
  */
 function etapesAssistant(personneSurSite: boolean, enLot = false): { cle: EtapeAssistant; titre: string }[] {
   const titreFinal = enLot ? "Fin du lot" : personneSurSite ? "Envoi" : "Signature";
-  return ETAPES_ASSISTANT.map((e) => (e.cle === "signature" ? { ...e, titre: titreFinal } : e));
+  return ETAPES_ASSISTANT
+    /* Nommer la pièce n'a de sens que sur un chantier à plusieurs lots : là
+       où il n'y en a qu'un, le chantier porte déjà son nom. */
+    .filter((e) => e.cle !== "nom" || enLot)
+    .map((e) => (e.cle === "signature" ? { ...e, titre: titreFinal } : e));
 }
 
 /**
@@ -4064,6 +4070,9 @@ interface LotAssistant {
   /** Les deux ensemble : ils se rangent dans le MÊME passage, et deux
    *  écritures de suite partiraient d'un état déjà périmé. */
   poserHeures: (date: string, arrivee: string) => void;
+  /** Nom du lot — « Cabine 3 » tant que personne ne l'a nommé. */
+  nom: string;
+  setNom: (v: string) => void;
   rapport: string;
   setRapport: (v: string) => void;
   /** Les phrases toutes faites du rapport de lot. */
@@ -4125,6 +4134,7 @@ function AssistantRapport({
   const premiereIncomplete = (): EtapeAssistant => {
     if (choisis.length === 0) return "collaborateurs";
     if (!arriveeEff || !jour) return "heures";
+    if (lot && nomDeLotParDefaut(lot.nom)) return "nom";
     if (comptePhotosGroupe(project, ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE"], cabineIdx) === 0) return "photos";
     if (!rapportEff.trim()) return "rapport";
     return "signature";
@@ -4229,6 +4239,7 @@ function AssistantRapport({
   const peutAvancer = () => {
     if (etape === "collaborateurs") return choisis.length > 0;
     if (etape === "heures") return !!arriveeEff && !!jour;
+    if (etape === "nom") return !!lot?.nom.trim();
     if (etape === "photos") return presentPlanche >= requisPlanche;
     return true;
   };
@@ -4341,6 +4352,41 @@ function AssistantRapport({
           </div>
         )}
 
+        {etape === "nom" && lot && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Comment s&apos;appelle cette cabine ? C&apos;est ce nom qui figure sur le rapport.
+            </p>
+            {/* À cocher, et cumulables : « SDD » et « 1er étage » désignent
+                ensemble la même pièce. */}
+            <div className="flex flex-wrap gap-2">
+              {SUGGESTIONS_NOM_CABINE.map((mot) => {
+                const dedans = nomContientMot(lot.nom, mot);
+                return (
+                  <button key={mot} type="button"
+                    onClick={() => lot.setNom(basculerMotDuNom(lot.nom, mot))}
+                    className={`px-3 py-2 rounded-xl border-2 text-sm font-medium transition-colors flex items-center gap-2 ${dedans
+                      ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200"
+                      : "border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300"}`}>
+                    <span className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 ${dedans ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"}`}>
+                      {dedans && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                    </span>
+                    {mot}
+                  </button>
+                );
+              })}
+            </div>
+            <div>
+              <Label className="text-xs">Nom de la cabine</Label>
+              <Input value={lot.nom} onChange={(e) => lot.setNom(e.target.value)}
+                placeholder="Ex. SDD parentale, Lot 3…" className="mt-1 h-11" />
+            </div>
+            <p className="text-[11px] text-gray-400">
+              Il porte « Cabine {lot.numero} » tant que personne ne l&apos;a nommé.
+            </p>
+          </div>
+        )}
+
         {etape === "photos" && (
           <div className="space-y-3">
             {/* Toutes les planches à l'écran, sur plusieurs lignes s'il le
@@ -4384,6 +4430,19 @@ function AssistantRapport({
                 className="w-full py-2 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-xs text-gray-500">
                 + Ajouter démontage
               </button>
+            )}
+            {/* Souvent le numéro est collé à la porte d'entrée — mais pas
+                toujours. On peut alors l'écrire, et c'est ce nom que le lot
+                porte ensuite partout : rapport, photos, signalements. */}
+            {lot && plancheCourante?.bucket === "NUMERO_LOT" && (
+              <div>
+                <Label className="text-xs">Pas de numéro sur la porte ? Écrivez-le</Label>
+                <Input value={lot.nom} onChange={(e) => lot.setNom(e.target.value)}
+                  placeholder="Ex. Lot 1" className="mt-1 h-11" />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Ce que vous écrivez ici devient le nom du lot.
+                </p>
+              </div>
             )}
             {/* « Il n'y en a pas. » Toutes les cabines n'ont pas de QR code,
                 toutes les poses ne donnent pas de garantie, et la vidéo reste
@@ -7032,6 +7091,41 @@ function ProjectPageContent({ id }: { id: string }) {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  /**
+   * Renommer un lot depuis l'assistant.
+   *
+   * Même chemin que la saisie « Nom / Emplacement » de l'onglet Infos : état
+   * local, copie de secours dans le navigateur, garde anti-revert, puis un
+   * seul envoi une fois la frappe posée. Les signalements déjà ouverts sur
+   * ce lot suivent le nouveau nom — sinon ils resteraient accrochés à
+   * « Cabine 3 » pendant que l'écran affiche « SDD parentale ».
+   */
+  const nomAvantRenommageRef = useRef<Map<number, string>>(new Map());
+  const renommerLot = useCallback((idx: number, nom: string) => {
+    if (!nomAvantRenommageRef.current.has(idx)) {
+      nomAvantRenommageRef.current.set(idx, cabines[idx]?.nom || "");
+    }
+    setCabines((prev) => {
+      const next = prev.map((c, i) => (i === idx ? { ...c, nom } : c));
+      try {
+        localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(next.map((c) => c.nom)));
+      } catch {}
+      dirtyNomRef.current.set(idx, Date.now());
+      nomsEnAttenteRef.current = next
+        .map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`)
+        .join(" | ");
+      return next;
+    });
+    if (nomKvDebounceRef.current) clearTimeout(nomKvDebounceRef.current);
+    nomKvDebounceRef.current = setTimeout(() => {
+      envoyerNomsCabines();
+      const avant = nomAvantRenommageRef.current.get(idx) || "";
+      nomAvantRenommageRef.current.delete(idx);
+      if (avant && avant !== nom) syncSignalementsRename(avant, nom);
+    }, 700);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, cabines, envoyerNomsCabines, syncSignalementsRename]);
 
   /* Filet : fermer l'onglet, verrouiller le téléphone ou passer à une autre
      app ne doit pas emporter la frappe en cours. */
@@ -12562,6 +12656,8 @@ function ProjectPageContent({ id }: { id: string }) {
             jour: cabines[assistantLot].date || "",
             arrivee: cabines[assistantLot].arrivee || "",
             poserHeures: (date, arrivee) => majLotAssistant(assistantLot, { date, arrivee }),
+            nom: cabines[assistantLot].nom || "",
+            setNom: (v) => renommerLot(assistantLot, v),
             rapport: cabines[assistantLot].rapport || "",
             setRapport: (v) => {
               setCabines((prev) => prev.map((c, i) => (i === assistantLot ? { ...c, rapport: v } : c)));
