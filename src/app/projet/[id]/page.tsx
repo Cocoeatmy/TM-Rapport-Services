@@ -1630,7 +1630,7 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
                 <div className="flex gap-1">
                   <button onClick={() => handleSaveEdit(p.id)} disabled={saving}
                     className="text-xs bg-green-500 text-white px-3 py-1 rounded-lg disabled:opacity-50">
-                    {saving ? "..." : "✓ Enregistrer"}
+                    {saving ? "..." : "✓ Enregistrer le signalement"}
                   </button>
                   <button onClick={() => setEditing(null)} className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">Fermer</button>
                 </div>
@@ -1686,6 +1686,79 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
  * dépendent donc plus d'un défaut en particulier, mais du dossier : un
  * deuxième défaut sur la même cabine réutilise les mêmes.
  */
+/**
+ * Les boutons qui ajoutent un NOUVEAU signalement, à part de ceux qui
+ * existent déjà.
+ *
+ * Ils vivaient jusqu'ici au milieu des signalements enregistrés, dans le même
+ * encadré : en remplissant un formulaire, on avait sous les yeux les deux
+ * autres boutons « Signaler… », et il n'était plus clair où finissait ce
+ * qu'on était en train d'écrire.
+ *
+ * Ici ils ont leur propre bloc, séparé par un trait et par son titre. Et dès
+ * qu'un formulaire s'ouvre, les deux autres boutons s'effacent : il ne reste
+ * à l'écran que le signalement en cours de saisie.
+ */
+function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, onDefaut, onPiece }: {
+  projectId: string;
+  projectName: string;
+  cabineOptions?: string[];
+  cabineLabel?: string;
+  onDefaut: () => void;
+  onPiece: () => void;
+}) {
+  const [ouvert, setOuvert] = useState<"avant" | "piece" | "defaut" | null>(null);
+  const montrer = (lequel: "avant" | "piece" | "defaut") => ouvert === null || ouvert === lequel;
+  /* Un seul formulaire est visible à la fois : sa fermeture ne peut donc
+     jamais annuler l'ouverture d'un autre. */
+  const suivi = (lequel: "avant" | "piece" | "defaut") => (o: boolean) =>
+    setOuvert(o ? lequel : null);
+
+  return (
+    <div className="mt-4 pt-3 border-t border-dashed border-gray-200 dark:border-slate-700 space-y-2">
+      {!ouvert && (
+        <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">
+          Ajouter un signalement
+        </p>
+      )}
+      {montrer("avant") && (
+        <DefautForm
+          projectId={projectId}
+          projectName={projectName}
+          cabineOptions={cabineOptions}
+          cabineLabel={cabineLabel}
+          title="Signaler défaut avant intervention"
+          types={DEFAUT_AVANT_TYPES}
+          phase="avant-intervention"
+          icon={ScanEye}
+          accent="indigo"
+          onOuvert={suivi("avant")}
+          onSubmitted={onDefaut}
+        />
+      )}
+      {montrer("piece") && (
+        <PiecesForm
+          projectId={projectId}
+          projectName={projectName}
+          cabineLabel={cabineLabel}
+          onOuvert={suivi("piece")}
+          onSubmitted={onPiece}
+        />
+      )}
+      {montrer("defaut") && (
+        <DefautForm
+          projectId={projectId}
+          projectName={projectName}
+          cabineOptions={cabineOptions}
+          cabineLabel={cabineLabel}
+          onOuvert={suivi("defaut")}
+          onSubmitted={onDefaut}
+        />
+      )}
+    </div>
+  );
+}
+
 function PhotosReference({ projectId, project, setProject }: {
   projectId: string;
   project: Project;
@@ -2011,7 +2084,7 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
                 <div className="flex gap-1">
                   <button onClick={() => handleSaveEdit(d.id)} disabled={saving}
                     className="text-xs bg-green-500 text-white px-3 py-1 rounded-lg disabled:opacity-50">
-                    {saving ? "..." : "✓ Enregistrer"}
+                    {saving ? "..." : "✓ Enregistrer le signalement"}
                   </button>
                   <button onClick={() => setEditing(null)} className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">Fermer</button>
                 </div>
@@ -9731,25 +9804,11 @@ function ProjectPageContent({ id }: { id: string }) {
                         <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
                         <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
                         <PhotosReference projectId={id} project={project} setProject={setProject} />
-                        <DefautForm
+                        <AjoutSignalement
                           projectId={id}
                           projectName={project.projet}
-                          title="Signaler défaut avant intervention"
-                          types={DEFAUT_AVANT_TYPES}
-                          phase="avant-intervention"
-                          icon={ScanEye}
-                          accent="indigo"
-                          onSubmitted={() => setDefautRefreshKey((k) => k + 1)}
-                        />
-                        <PiecesForm
-                          projectId={id}
-                          projectName={project.projet}
-                          onSubmitted={() => setPieceRefreshKey((k) => k + 1)}
-                        />
-                        <DefautForm
-                          projectId={id}
-                          projectName={project.projet}
-                          onSubmitted={() => setDefautRefreshKey((k) => k + 1)}
+                          onDefaut={() => setDefautRefreshKey((k) => k + 1)}
+                          onPiece={() => setPieceRefreshKey((k) => k + 1)}
                         />
                       </div>
                     )}
@@ -10569,9 +10628,13 @@ function ProjectPageContent({ id }: { id: string }) {
                               <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalement — {cabine.nom}</p>
                               <PiecesList projectId={id} refreshKey={pieceRefreshKey} cabineLabel={cabine.nom} />
                               <DefautsList projectId={id} refreshKey={defautRefreshKey} cabineLabel={cabine.nom} project={project} setProject={setProject} />
-                              <DefautForm projectId={id} projectName={project.projet} cabineLabel={cabine.nom} title="Signaler défaut avant intervention" types={DEFAUT_AVANT_TYPES} phase="avant-intervention" icon={ScanEye} accent="indigo" onSubmitted={() => setDefautRefreshKey((k) => k + 1)} />
-                              <PiecesForm projectId={id} projectName={project.projet} cabineLabel={cabine.nom} onSubmitted={() => setPieceRefreshKey((k) => k + 1)} />
-                              <DefautForm projectId={id} projectName={project.projet} cabineLabel={cabine.nom} onSubmitted={() => setDefautRefreshKey((k) => k + 1)} />
+                              <AjoutSignalement
+                                projectId={id}
+                                projectName={project.projet}
+                                cabineLabel={cabine.nom}
+                                onDefaut={() => setDefautRefreshKey((k) => k + 1)}
+                                onPiece={() => setPieceRefreshKey((k) => k + 1)}
+                              />
                             </div>
                           )}
 

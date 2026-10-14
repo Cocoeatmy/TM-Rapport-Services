@@ -16,10 +16,15 @@ interface PiecesFormProps {
   projectName: string;
   cabineLabel?: string;
   onSubmitted?: (photoUrls: string[]) => void;
+  /** Signale au parent que le formulaire s'ouvre ou se referme. */
+  onOuvert?: (ouvert: boolean) => void;
 }
 
-export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted }: PiecesFormProps) {
-  const [open, setOpen] = useState(false);
+export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted, onOuvert }: PiecesFormProps) {
+  const [open, setOpenBrut] = useState(false);
+  /* Toute ouverture/fermeture passe par ici : le parent doit savoir qu'un
+     formulaire occupe l'écran pour écarter les autres. */
+  const setOpen = (v: boolean) => { setOpenBrut(v); onOuvert?.(v); };
   const [description, setDescription] = useState("");
   const [reference, setReference] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
@@ -317,7 +322,7 @@ export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted }:
           className="flex-1 h-9 rounded-lg bg-orange-500 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5"
         >
           {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-          Envoyer
+          Enregistrer le signalement
         </button>
         <button
           onClick={() => { setOpen(false); reset(); }}

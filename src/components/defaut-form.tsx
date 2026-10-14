@@ -54,6 +54,10 @@ interface DefautFormProps {
   cabineLabel?: string;
   /** Appelé après soumission réussie avec les URLs des photos uploadées. */
   onSubmitted?: (photoUrls: string[]) => void;
+  /** Signale au parent que le formulaire s'ouvre ou se referme : il masque
+   *  alors les autres boutons « Signaler… », pour que le signalement en
+   *  cours de saisie ne soit plus mêlé à ceux qu'on pourrait ajouter. */
+  onOuvert?: (ouvert: boolean) => void;
   /** Titre du formulaire + libellé du bouton replié. Défaut « Signaler un défaut ». */
   title?: string;
   /** Liste des types proposés (remplace la liste par défaut). Le type d'id
@@ -67,13 +71,16 @@ interface DefautFormProps {
   accent?: AccentName;
 }
 
-export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, onSubmitted, title, types, phase, icon, accent }: DefautFormProps) {
+export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, onSubmitted, onOuvert, title, types, phase, icon, accent }: DefautFormProps) {
   const TYPES = types ?? DEFAUT_TYPES;
   const usingCustomTypes = !!types;
   const heading = title ?? "Signaler un défaut";
   const Icon = icon ?? ShieldAlert;
   const c = ACCENTS[accent ?? "red"];
-  const [open, setOpen] = useState(false);
+  const [open, setOpenBrut] = useState(false);
+  /* Toute ouverture/fermeture passe par ici : le parent doit savoir qu'un
+     formulaire occupe l'écran pour écarter les autres. */
+  const setOpen = (v: boolean) => { setOpenBrut(v); onOuvert?.(v); };
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [otherText, setOtherText] = useState("");
   const [description, setDescription] = useState("");
@@ -380,7 +387,7 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
           className={`flex-1 h-9 rounded-lg text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5 ${c.submit}`}
         >
           {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-          Envoyer
+          Enregistrer le signalement
         </button>
         <button
           onClick={() => { resetForm(); setOpen(false); }}
