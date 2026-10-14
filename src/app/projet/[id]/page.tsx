@@ -1647,10 +1647,17 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
             </p>
 
             {!isEditing && photos.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+              <div
+                /* Trois vignettes par rangée sur téléphone, jusqu'à huit sur
+                   grand écran. En deux puis trois colonnes, chaque photo
+                   occupait un tiers d'un écran large — six cents pixels pour
+                   une vignette, et il fallait dérouler la page entière pour
+                   voir quatre signalements. La photo pleine reste à un clic. */
+                className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8 gap-2 mt-2"
+              >
                 {photos.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
-                    <img src={thumbnailUrl(url, 500)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async"
+                    <img src={thumbnailUrl(url, 320)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async"
                       style={{ aspectRatio: "4/3" }}
                       className="w-full object-cover rounded-lg border border-orange-200 dark:border-orange-700 hover:opacity-90 transition-opacity" />
                   </a>
@@ -1666,6 +1673,79 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
 
 /** Liste les défauts du projet (depuis /api/defauts) avec numérotation,
  *  toggle rapport client, et suppression per-défaut. */
+/**
+ * Les deux photos qui permettent de COMMANDER la pièce de rechange.
+ *
+ * Elles traînaient jusqu'ici au milieu des photos du défaut, mélangées aux
+ * vues du chantier : l'étiquette du carton, qui porte la série exacte et la
+ * référence, et l'éclaté du fabricant, où se lit le numéro de la pièce à
+ * remplacer. Les chercher dans une planche de huit photos avant d'appeler le
+ * fournisseur faisait perdre à chaque fois le même quart d'heure.
+ *
+ * Elles ont désormais leur place, et deux colonnes Notion à elles — elles ne
+ * dépendent donc plus d'un défaut en particulier, mais du dossier : un
+ * deuxième défaut sur la même cabine réutilise les mêmes.
+ */
+function PhotosReference({ projectId, project, setProject }: {
+  projectId: string;
+  project: Project;
+  setProject: Dispatch<SetStateAction<Project | null>>;
+}) {
+  const enregistrer = (cle: "photosEtiquetteCarton" | "photosEclateProduit", champ: string) =>
+    (files: { name: string; url: string }[]) => {
+      setProject((prev) => (prev ? { ...prev, [cle]: files } : prev));
+      fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [cle]: files }),
+      }).catch(() => toast.error(`Échec de l'enregistrement — ${champ}`));
+    };
+
+  const blocs = [
+    {
+      cle: "photosEtiquetteCarton" as const,
+      champ: "Photos étiquette carton",
+      label: "Photos étiquette carton",
+      hint: "L'étiquette du carton — série, dimensions, référence de commande",
+      categorie: "etiquette-carton",
+      prefixe: "etiquette",
+    },
+    {
+      cle: "photosEclateProduit" as const,
+      champ: "Éclaté produit",
+      label: "Éclaté produit",
+      hint: "Le schéma du fabricant, où se lit le numéro de la pièce",
+      categorie: "eclate-produit",
+      prefixe: "eclate",
+    },
+  ];
+
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 p-3 space-y-3">
+      <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+        Références produit
+        <span className="block font-normal text-[10px] text-slate-400">
+          Ce qu&apos;il faut sous la main pour commander une pièce — valable pour tout le dossier
+        </span>
+      </p>
+      {blocs.map((b) => (
+        <PhotoUpload
+          key={b.cle}
+          category={b.categorie}
+          label={b.label}
+          hint={b.hint}
+          projectId={projectId}
+          notionField={b.champ}
+          filePrefix={b.prefixe}
+          existingPhotos={(project[b.cle] || []).map((f, i) => ({ name: f.name || `${b.prefixe}-${i + 1}.jpg`, url: f.url }))}
+          onUpload={(files) => enregistrer(b.cle, b.champ)([...(project[b.cle] || []), ...files])}
+          onDelete={(files) => enregistrer(b.cle, b.champ)(files)}
+        />
+      ))}
+    </div>
+  );
+}
+
 function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }: { projectId: string; refreshKey?: number; cabineLabel?: string; project?: Project | null; setProject?: Dispatch<SetStateAction<Project | null>> }) {
   type Defaut = {
     id: string;
@@ -1947,10 +2027,17 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
 
             {/* Photos (vue non-édition ; en édition, PhotoUpload les gère) */}
             {!isEditing && d.photoUrls && d.photoUrls.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+              <div
+                /* Trois vignettes par rangée sur téléphone, jusqu'à huit sur
+                   grand écran. En deux puis trois colonnes, chaque photo
+                   occupait un tiers d'un écran large — six cents pixels pour
+                   une vignette, et il fallait dérouler la page entière pour
+                   voir quatre signalements. La photo pleine reste à un clic. */
+                className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8 gap-2 mt-2"
+              >
                 {d.photoUrls.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
-                    <img src={thumbnailUrl(url, 500)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async"
+                    <img src={thumbnailUrl(url, 320)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async"
                       style={{ aspectRatio: "4/3" }}
                       className="w-full object-cover rounded-lg border border-red-200 dark:border-red-700 hover:opacity-90 transition-opacity" />
                   </a>
@@ -9643,6 +9730,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       <div className="space-y-3">
                         <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
                         <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
+                        <PhotosReference projectId={id} project={project} setProject={setProject} />
                         <DefautForm
                           projectId={id}
                           projectName={project.projet}
@@ -11162,6 +11250,7 @@ function ProjectPageContent({ id }: { id: string }) {
                   <CardContent className="space-y-4 border-t pt-3">
                     <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
                     <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
+                    <PhotosReference projectId={id} project={project} setProject={setProject} />
                     {nbSignalements === 0 && (
                       <p className="text-sm text-gray-400 text-center py-2">Aucun signalement enregistré.</p>
                     )}

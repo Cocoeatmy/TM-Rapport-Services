@@ -287,6 +287,13 @@ export interface Project {
   journalEchanges: string;
   photosPiecesManquantes: FileItem[];
   photosDefautsSignale: FileItem[];
+  /** « Photos étiquette carton » — l'étiquette identifie la série exacte et
+   *  la référence de commande : sans elle, la pièce de rechange se commande
+   *  à l'aveugle. */
+  photosEtiquetteCarton: FileItem[];
+  /** « Éclaté produit » — le schéma du fabricant, où se lit le numéro de la
+   *  pièce à remplacer. */
+  photosEclateProduit: FileItem[];
   arrivageTM: string | null;
   arrivageGrossiste: string | null;
   /**
@@ -649,6 +656,8 @@ export function mapPageToProject(page: any): Project {
     journalEchanges: extractText(p["Journal des échanges"]),
     photosPiecesManquantes: extractFiles(p["Photos - Pièces manquante"]),
     photosDefautsSignale: extractFiles(p["Photos - Défauts signalé"]),
+    photosEtiquetteCarton: extractFiles(p["Photos étiquette carton"]),
+    photosEclateProduit: extractFiles(p["Éclaté produit"]),
     previsionLivraison: extractDate(p["Prévision livraison"]),
     arrivageTM: extractDate(p["Arrivage TM"]),
     arrivageGrossiste: extractDate(p["Arrivage Grossiste"]),
@@ -1807,6 +1816,8 @@ export async function updateProject(
   writeFilesField("photosGaranties", "Photos garanties", "garantie");
   writeFilesField("photosPiecesManquantes", "Photos - Pièces manquante", "piece");
   writeFilesField("photosDefautsSignale", "Photos - Défauts signalé", "defaut");
+  writeFilesField("photosEtiquetteCarton", "Photos étiquette carton", "etiquette");
+  writeFilesField("photosEclateProduit", "Éclaté produit", "eclate");
   writeFilesField("photosSoucisRegle", "Photos soucis montage réglé", "soucis-regle");
   writeFilesField("photosSavRetouches", "Photos SAV / Retouches cabines", "sav");
   writeFilesField("documentsSavDemande", "Documents SAV", "sav-demande");
