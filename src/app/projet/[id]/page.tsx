@@ -4644,6 +4644,9 @@ function ProjectPageContent({ id }: { id: string }) {
      seule fois par lot et par visite — on ne le remet pas sous le nez de
      quelqu'un qui vient seulement relire. */
   const [assistantLot, setAssistantLot] = useState<number | null>(null);
+  /* Lu depuis l'auto-remplissage, qui ne se re-crée pas à chaque rendu. */
+  const assistantLotRef = useRef<number | null>(null);
+  useEffect(() => { assistantLotRef.current = assistantLot; }, [assistantLot]);
   const lotsProposes = useRef<Set<number>>(new Set());
   const lotsOuvertsRef = useRef<Set<number>>(new Set());
   // ── Nouvelle présentation macOS : barre d'icônes rondes qui déplient/replient
@@ -5546,8 +5549,12 @@ function ProjectPageContent({ id }: { id: string }) {
         direDepart(next[idx0].depart, ` — lot ${cabineIdx}`);
       }
       setCabines(next);
-      // Ouvrir le modal rapport après upload montage/après (uniquement si pas déjà rempli)
-      if (fin && !cabines[idx0]?.rapport) {
+      /* Modal « Rapport — Cabine N » après les photos de montage, si le
+         rapport du lot est encore vide. Pas pendant l'assistant : il pose la
+         même question à son étape « Rapport », et la fenêtre attendait
+         derrière lui pour ressortir à la fermeture — on répondait deux fois
+         à la même chose. */
+      if (fin && !cabines[idx0]?.rapport && assistantLotRef.current === null) {
         setRapportModalCabineIdx(idx0);
       }
       // PATCH heures immédiatement
