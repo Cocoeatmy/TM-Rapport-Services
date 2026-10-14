@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, FileText, Loader2, RefreshCw, Mail, Check, AlertTriangle, Ruler } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, RefreshCw, Mail, Check, AlertTriangle, Ruler, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
   correspondMesures, devisRelancable, etatDuDossier, FILTRES_MESURES,
@@ -50,6 +50,12 @@ export default function DevisAttentePage() {
      montrer — pour aller les classer dans bexio, justement. */
   const [montrerClos, setMontrerClos] = useState(false);
   const [enCours, setEnCours] = useState<string | null>(null);
+  /* Les projets annulés depuis cet écran. On les GARDE visibles jusqu'au
+     prochain chargement : annuler fait sortir le devis des filtres, et son
+     avertissement — « un relevé est peut-être à facturer » — partirait avec
+     lui avant d'avoir été lu. */
+  const [annules, setAnnules] = useState<Record<string, { avertissement: string | null }>>({});
+  const [annulation, setAnnulation] = useState<string | null>(null);
 
   const charger = useCallback(() => {
     setChargement(true);
@@ -78,8 +84,8 @@ export default function DevisAttentePage() {
      laissent passer : une option qui annoncerait des devis qu'un autre filtre
      masque ne se lirait plus. */
   const base = useMemo(
-    () => (montrerClos ? toutes : toutes.filter(devisRelancable)),
-    [toutes, montrerClos],
+    () => (montrerClos ? toutes : toutes.filter((l) => devisRelancable(l) || !!annules[l.nr])),
+    [toutes, montrerClos, annules],
   );
   const apresMesures = useMemo(
     () => base.filter((l) => correspondMesures(l, fMesures)),
@@ -151,6 +157,47 @@ export default function DevisAttentePage() {
       toast.error("La relance n'a pas pu être préparée.");
     } finally {
       setEnCours(null);
+    }
+  };
+
+  const annuler = async (l: LigneDevis) => {
+    if (!l.projetId || annulation) return;
+    if (!window.confirm(
+      `Passer ce projet en « Annulé » ?\n\n${l.projet || l.titre}\n` +
+      `Devis ${l.nr} · ${francs(l.total || 0)}\n\n` +
+      `L'état CMD passera à « Annulé » dans Notion. L'état des mesures suivra ` +
+      `seulement si aucun relevé n'a été engagé — sinon l'écran vous le dira, ` +
+      `car il y a peut-être un service à facturer avant de clore.`,
+    )) return;
+
+    setAnnulation(l.nr);
+    try {
+      const r = await fetch(`/api/projects/${l.projetId}/annuler`, { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) { toast.error(d?.error || "L'annulation n'a pas pu être enregistrée."); return; }
+
+      setAnnules((prev) => ({ ...prev, [l.nr]: { avertissement: d.avertissement || null } }));
+      setLignes((prev) => (prev || []).map((x) => (x.nr === l.nr ? { ...x, etatCMD: "Annulé" } : x)));
+
+      if (d.avertissement) {
+        /* Durée longue et ton d'alerte : c'est le cas où de l'argent se
+           perd si le message passe inaperçu. */
+        toast.warning("Projet annulé — mesures à vérifier", {
+          description: d.avertissement, duration: 15000,
+        });
+      } else if (d.deja) {
+        toast.message("Ce projet était déjà annulé.");
+      } else {
+        toast.success("Projet annulé", {
+          description: d.mesuresAnnulees
+            ? "État CMD et état des mesures passés à « Annulé »."
+            : "État CMD passé à « Annulé ».",
+        });
+      }
+    } catch {
+      toast.error("L'annulation n'a pas pu être enregistrée.");
+    } finally {
+      setAnnulation(null);
     }
   };
 
@@ -237,7 +284,7 @@ export default function DevisAttentePage() {
             <span className="w-24 shrink-0">N° devis</span>
             <span className="flex-1">Objet</span>
             <span className="w-24 shrink-0 text-right">Montant</span>
-            <span className="w-44 shrink-0">Relance</span>
+            <span className="w-60 shrink-0">Relance</span>
           </div>
 
           <div className="space-y-0.5 mt-1">
@@ -314,11 +361,20 @@ export default function DevisAttentePage() {
                         <em className="not-italic text-[10px] text-gray-400 dark:text-gray-500 line-clamp-1">{l.client}</em>
                       )}
                     </span>
+                    {/* L'avertissement reste SUR la ligne, pas seulement dans
+                        une notification qui s'efface : c'est le cas où une
+                        facture se perd si le message passe inaperçu. */}
+                    {annules[l.nr]?.avertissement && (
+                      <span className="flex items-start gap-1 mt-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                        <AlertTriangle className="w-3 h-3 mt-px shrink-0" />
+                        {annules[l.nr].avertissement}
+                      </span>
+                    )}
                   </span>
                   <span className="w-24 shrink-0 text-right text-[11px] font-semibold tabular-nums text-gray-700 dark:text-gray-200">
                     {francs(l.total || 0)}
                   </span>
-                  <span className="w-44 shrink-0 flex items-center gap-1.5">
+                  <span className="w-60 shrink-0 flex flex-wrap items-center gap-1.5">
                     {l.projetId && (
                       <Link href={`/projet/${l.projetId}?mode=dashboard`}
                         className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-blue-200 shrink-0"
@@ -336,6 +392,25 @@ export default function DevisAttentePage() {
                         ? `Relancé${l.relance.nombre > 1 ? ` ${l.relance.nombre}×` : ""} — ${relanceLe}`
                         : "Relancer"}
                     </button>
+                    {/* Annuler demande un dossier Notion : sans fiche, il n'y
+                        a pas d'état à changer. Trente devis sur cent
+                        trente-trois sont dans ce cas. */}
+                    {l.projetId && (annules[l.nr] ? (
+                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
+                        <Check className="w-3 h-3" strokeWidth={3} />
+                        Projet annulé
+                      </span>
+                    ) : (
+                      <button type="button" disabled={annulation === l.nr}
+                        onClick={() => annuler(l)}
+                        title="Passer « État - CMD » à « Annulé » dans Notion"
+                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-700 dark:bg-gray-700/50 dark:text-gray-300 dark:hover:bg-red-900/40 dark:hover:text-red-300 transition-colors disabled:opacity-50">
+                        {annulation === l.nr
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <XCircle className="w-3 h-3" />}
+                        Projet annulé
+                      </button>
+                    ))}
                   </span>
                 </div>
               );

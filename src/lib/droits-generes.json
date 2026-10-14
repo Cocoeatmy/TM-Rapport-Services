@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-13T21:43:23.615Z",
+  "genereLe": "2026-10-14T07:33:46.176Z",
   "publicMiddleware": {
     "prefixes": [
       "/api/auth",
@@ -847,6 +847,16 @@
       "methodes": [
         "GET",
         "PATCH"
+      ]
+    },
+    {
+      "url": "/api/projects/[id]/annuler",
+      "type": "api",
+      "fichier": "src/app/api/projects/[id]/annuler/route.ts",
+      "niveau": "admin",
+      "gardePage": false,
+      "methodes": [
+        "POST"
       ]
     },
     {
