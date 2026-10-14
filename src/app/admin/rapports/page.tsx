@@ -52,6 +52,35 @@ export default function RapportsPage() {
   const [reportYear, setReportYear] = useState(now.getFullYear());
   const [envoiMensuel, setEnvoiMensuel] = useState(false);
   const [envoiJour, setEnvoiJour] = useState(false);
+  /* Interrupteur « contacts sur les rapports ». `null` = pas encore lu : on
+     n'affiche pas une case décochée tant qu'on ignore l'état réel. */
+  const [contacts, setContacts] = useState<boolean | null>(null);
+  const [contactsEnCours, setContactsEnCours] = useState(false);
+  useEffect(() => {
+    fetch("/api/reglages-rapports")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && typeof d.contacts === "boolean") setContacts(d.contacts); })
+      .catch(() => {});
+  }, []);
+
+  const basculerContacts = async (valeur: boolean) => {
+    const avant = contacts;
+    setContacts(valeur);
+    setContactsEnCours(true);
+    try {
+      const r = await fetch("/api/reglages-rapports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contacts: valeur }),
+      });
+      if (!r.ok) setContacts(avant);
+    } catch {
+      setContacts(avant);
+    } finally {
+      setContactsEnCours(false);
+    }
+  };
+
   const [retourMensuel, setRetourMensuel] = useState<Retour>(null);
   const [retourJour, setRetourJour] = useState<Retour>(null);
 
@@ -207,6 +236,36 @@ export default function RapportsPage() {
             Tous les rapports de l&apos;application, réunis ici
           </p>
         </div>
+      </div>
+
+      {/* Un seul interrupteur pour les cinq rapports qui portent un bloc
+          « Contact » : signalements, arrivage, fiche de travail, SAV,
+          synthèse. Devoir y penser cinq fois reviendrait à ne jamais y
+          penser. */}
+      <div className="glass-card rounded-2xl p-5 mb-4">
+        <label className="flex items-start gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={contacts !== false}
+            disabled={contacts === null || contactsEnCours}
+            onChange={(e) => basculerContacts(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-[#1e3a5f] shrink-0"
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
+              Afficher les contacts sur les rapports
+            </span>
+            <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Le bloc « Contact » — grossiste, installateur, architecte, direction des
+              travaux, client final, locataires, avec adresses et numéros — figure en bas
+              des rapports de signalements, d&apos;arrivage, de la fiche de travail, du SAV
+              et de la synthèse. Décochez pour qu&apos;il n&apos;en sorte plus aucun :
+              {contacts === null ? " lecture du réglage…" : contacts
+                ? " les contacts sont actuellement VISIBLES."
+                : " les contacts sont actuellement MASQUÉS."}
+            </span>
+          </span>
+        </label>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

@@ -8,6 +8,7 @@
  * reçus, état des cartons (dégâts), commentaire livraison.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { lireReglagesRapports, contactsVisibles } from "@/lib/reglages-rapports";
 import { referencesFournisseur } from "@/lib/references-fournisseur";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
@@ -180,11 +181,12 @@ function ContactCell({ label, company, contacts, parEtiquette = false }: { label
   );
 }
 
-function ArrivagePDF({ project, cartonsRecus, cartonsEtat, bonLivraison }: {
+function ArrivagePDF({ project, cartonsRecus, cartonsEtat, bonLivraison, avecContacts = true }: {
   project: Project;
   cartonsRecus: { url: string }[];
   cartonsEtat: { url: string }[];
   bonLivraison: { url: string }[];
+  avecContacts?: boolean;
 }) {
   const commentaire = nfc(project.commentaireLivraison || "").trim();
   return (
@@ -244,6 +246,7 @@ function ArrivagePDF({ project, cartonsRecus, cartonsEtat, bonLivraison }: {
         ) : null}
 
         {/* Contact */}
+        {avecContacts && (
         <View style={{ marginTop: 14 }} wrap={false}>
           <Text style={styles.sectionTitle}>Contact</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
@@ -256,6 +259,7 @@ function ArrivagePDF({ project, cartonsRecus, cartonsEtat, bonLivraison }: {
             <ContactCell label="AUTRES" parEtiquette contacts={project.contactsAutresDetails} />
           </View>
         </View>
+        )}
 
         <Text style={styles.footer} fixed>
           TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch
@@ -298,6 +302,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const project = await getProject(id);
+    /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
+       « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
+    const avecContacts = contactsVisibles(
+      await lireReglagesRapports(),
+      req.nextUrl.searchParams.get("contacts"),
+    );
+
     // Ré-héberge les photos (Notion → Cloudinary) pour un rendu fiable dans le PDF.
     const [cartonsRecus, cartonsEtat, bonLivraison] = await Promise.all([
       resolveAll(project.photosCartonsRecus),
@@ -305,7 +316,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       resolveAll(project.photosBonLivraison),
     ]);
     const stream = await ReactPDF.renderToStream(
-      <ArrivagePDF project={project} cartonsRecus={cartonsRecus} cartonsEtat={cartonsEtat} bonLivraison={bonLivraison} />,
+      <ArrivagePDF project={project} cartonsRecus={cartonsRecus} cartonsEtat={cartonsEtat} bonLivraison={bonLivraison} avecContacts={avecContacts} />,
     );
     const chunks: Buffer[] = [];
     // @ts-ignore

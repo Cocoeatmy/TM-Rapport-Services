@@ -10,6 +10,7 @@
  * (displayInRapport !== false) — la case « Ne pas afficher » sert de sélection.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { lireReglagesRapports, contactsVisibles } from "@/lib/reglages-rapports";
 import { getProject } from "@/lib/notion";
 import { getDataFresh, getData } from "@/lib/kv-store";
 import { LOGO_BASE64 } from "@/lib/logo";
@@ -98,7 +99,7 @@ function ContactCell({ label, company, contacts, parEtiquette = false }: { label
   );
 }
 
-function SignalementsPDF({ project, items }: { project: any; items: Item[] }) {
+function SignalementsPDF({ project, items, avecContacts = true }: { project: any; items: Item[]; avecContacts?: boolean }) {
   // Regroupement par lot.
   const groups = new Map<string, Item[]>();
   for (const it of items) {
@@ -153,7 +154,36 @@ function SignalementsPDF({ project, items }: { project: any; items: Item[] }) {
           </View>
         ))}
 
+        {/* Références produit — l'étiquette du carton et l'éclaté du fabricant.
+            C'est avec ces deux-là qu'on commande la pièce : les laisser hors
+            du rapport obligeait le fournisseur à les redemander. */}
+        {(() => {
+          const refs: { titre: string; urls: string[] }[] = [
+            { titre: "Photos étiquette carton", urls: (project.photosEtiquetteCarton || []).map((f: { url: string }) => f.url) },
+            { titre: "Éclaté produit", urls: (project.photosEclateProduit || []).map((f: { url: string }) => f.url) },
+          ].filter((r) => r.urls.length > 0);
+          if (refs.length === 0) return null;
+          return (
+            <View style={{ marginTop: 14 }} wrap={false}>
+              <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 6, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: "#e0e0e0" }}>
+                Références produit
+              </Text>
+              {refs.map((r) => (
+                <View key={r.titre} style={{ marginBottom: 6 }}>
+                  <Text style={{ fontSize: 9, color: "#555", marginBottom: 3 }}>{r.titre}</Text>
+                  <View style={styles.photoRow}>
+                    {r.urls.map((url, j) => (
+                      <Link key={j} src={url}><Image src={previewUrl(url)} style={styles.photo} /></Link>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          );
+        })()}
+
         {/* Contact — même présentation que les autres rapports (ligne sous le titre). */}
+        {avecContacts && (
         <View style={{ marginTop: 14 }} wrap={false}>
           <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 6, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: "#e0e0e0" }}>Contact</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
@@ -166,6 +196,7 @@ function SignalementsPDF({ project, items }: { project: any; items: Item[] }) {
             <ContactCell label="AUTRES" parEtiquette contacts={project.contactsAutresDetails} />
           </View>
         </View>
+        )}
 
         <Text style={styles.footer} fixed>
           TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch
@@ -216,6 +247,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const project = await getProject(id);
+    /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
+       « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
+    const avecContacts = contactsVisibles(
+      await lireReglagesRapports(),
+      req.nextUrl.searchParams.get("contacts"),
+    );
+
     const [allPieces, allDefauts] = await Promise.all([
       getDataFresh<Piece>("pieces").catch(() => getData<Piece>("pieces").catch(() => [] as Piece[])),
       getDataFresh<Defaut>("defauts").catch(() => getData<Defaut>("defauts").catch(() => [] as Defaut[])),
@@ -253,7 +291,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       });
     }
 
-    const pdfStream = await ReactPDF.renderToStream(<SignalementsPDF project={project} items={items} />);
+    const pdfStream = await ReactPDF.renderToStream(<SignalementsPDF project={project} items={items} avecContacts={avecContacts} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));

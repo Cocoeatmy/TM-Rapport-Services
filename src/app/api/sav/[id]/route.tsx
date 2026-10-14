@@ -7,6 +7,7 @@
  * téléchargement (Cloudinary fl_attachment).
  */
 import { NextRequest, NextResponse } from "next/server";
+import { lireReglagesRapports, contactsVisibles } from "@/lib/reglages-rapports";
 import { referencesFournisseur } from "@/lib/references-fournisseur";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { LOGO_BASE64 } from "@/lib/logo";
@@ -203,7 +204,7 @@ function ContactCell({ label, company, contacts, parEtiquette = false }: { label
   );
 }
 
-function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = "" }: { project: Project; collabFilter?: string; cabineFilter?: number; reportBaseUrl?: string }) {
+function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = "", avecContacts = true }: { project: Project; collabFilter?: string; cabineFilter?: number; reportBaseUrl?: string; avecContacts?: boolean }) {
   const total = project.nbCabines || 0;
   const names = parseCabMulti(project.nomsCabines);
   const attribution = parseCabMulti(project.attributionCabines);
@@ -355,6 +356,7 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
         })}
 
         {/* Contact — même présentation que la fiche de travail (ligne sous le titre). */}
+        {avecContacts && (
         <View style={{ marginTop: 14 }} wrap={false}>
           <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: "#1e3a5f", marginBottom: 6, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: "#e0e0e0" }}>Contact</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
@@ -367,6 +369,7 @@ function SavPDF({ project, collabFilter = "", cabineFilter = 0, reportBaseUrl = 
             <ContactCell label="AUTRES" parEtiquette contacts={project.contactsAutresDetails} />
           </View>
         </View>
+        )}
 
         <Text style={styles.footer} fixed>
           TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch
@@ -414,8 +417,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const project = await getProject(id);
+    /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
+       « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
+    const avecContacts = contactsVisibles(
+      await lireReglagesRapports(),
+      req.nextUrl.searchParams.get("contacts"),
+    );
+
     const reportBaseUrl = `${req.nextUrl.origin}/projet/${encodeURIComponent(id)}?mode=dashboard`;
-    const stream = await ReactPDF.renderToStream(<SavPDF project={project} collabFilter={collab} cabineFilter={cabine} reportBaseUrl={reportBaseUrl} />);
+    const stream = await ReactPDF.renderToStream(<SavPDF project={project} collabFilter={collab} cabineFilter={cabine} reportBaseUrl={reportBaseUrl} avecContacts={avecContacts} />);
     const chunks: Buffer[] = [];
     // @ts-ignore
     for await (const c of stream) chunks.push(Buffer.from(c));

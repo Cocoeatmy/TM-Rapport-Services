@@ -8,6 +8,7 @@
  * le rapport par lot et l'état du SAV (réglé / en attente).
  */
 import { NextRequest, NextResponse } from "next/server";
+import { lireReglagesRapports, contactsVisibles } from "@/lib/reglages-rapports";
 import { referencesFournisseur } from "@/lib/references-fournisseur";
 import { getProject, type Project, type ContactDetail } from "@/lib/notion";
 import { getData, getDataFresh } from "@/lib/kv-store";
@@ -192,7 +193,7 @@ function SubRow({ paths, iconColor, textColor = "#333", bold = false, children }
   );
 }
 
-function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project; pieces?: Piece[]; defauts?: Defaut[] }) {
+function SynthesePDF({ project, pieces = [], defauts = [], avecContacts = true }: { project: Project; pieces?: Piece[]; defauts?: Defaut[]; avecContacts?: boolean }) {
   /* Même règle que la fiche de travail : le fournisseur ne figure dans les
      contacts que lorsque c'est LUI le client. Sur un chantier facturé au
      grossiste, il n'est qu'un fabricant. */
@@ -415,6 +416,7 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
         </View>
 
         {/* Contact — en bas du rapport (comme la fiche de travail) */}
+        {avecContacts && (
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Contact</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
@@ -437,6 +439,7 @@ function SynthesePDF({ project, pieces = [], defauts = [] }: { project: Project;
             <ContactCell label="AUTRES" parEtiquette contacts={project.contactsAutresDetails} />
           </View>
         </View>
+        )}
 
         <Text style={styles.footer} fixed>
           TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch
@@ -480,6 +483,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const project = await getProject(id);
+    /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
+       « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
+    const avecContacts = contactsVisibles(
+      await lireReglagesRapports(),
+      req.nextUrl.searchParams.get("contacts"),
+    );
+
     // Signalements (pièces + défauts) du projet. Lecture FRAÎCHE (bypass cache
     // 60 s) pour que l'état « réglé » soit toujours à jour dans le PDF ; repli
     // sur le cache si la lecture fraîche échoue.
@@ -489,7 +499,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ]);
     const pieces = allPieces.filter((p) => p.projectId === id);
     const defauts = allDefauts.filter((d) => d.projectId === id);
-    const pdfStream = await ReactPDF.renderToStream(<SynthesePDF project={project} pieces={pieces} defauts={defauts} />);
+    const pdfStream = await ReactPDF.renderToStream(<SynthesePDF project={project} pieces={pieces} defauts={defauts} avecContacts={avecContacts} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));

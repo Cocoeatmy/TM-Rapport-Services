@@ -8,6 +8,7 @@
  * OU cookie d'authentification valide. Le lien signé sert aux calendriers.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { lireReglagesRapports, contactsVisibles } from "@/lib/reglages-rapports";
 import { getProject, fournisseursForDisplay, type Project, type ContactDetail } from "@/lib/notion";
 import { cabinesPosees } from "@/lib/cabines-posees";
 import { LOGO_BASE64 } from "@/lib/logo";
@@ -509,7 +510,7 @@ function AddressRow({ address }: { address: string }) {
   );
 }
 
-function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, cartonsRecusUrl, savReportUrl, reportUrl, syntheseUrl, signalementsUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0, done: 0 }, mesures = [] }: { project: Project; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; cartonsRecusUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; signalementsUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number; done?: number }; mesures?: { cab: number; nom: string; serie: string; url: string }[] }) {
+function FichePDF({ project, avecContacts = true, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, cartonsRecusUrl, savReportUrl, reportUrl, syntheseUrl, signalementsUrl, notionComments = [], sig = { pieces: 0, defauts: 0, avant: 0, done: 0 }, mesures = [] }: { project: Project; avecContacts?: boolean; mesuresDocUrl?: string; montagePhotosUrl?: string; cartonsDocUrl?: string; cartonsRecusUrl?: string; savReportUrl?: string; reportUrl?: string; syntheseUrl?: string; signalementsUrl?: string; notionComments?: { text: string; author?: string; date?: string }[]; sig?: { pieces: number; defauts: number; avant: number; done?: number }; mesures?: { cab: number; nom: string; serie: string; url: string }[] }) {
   const genDate = new Date().toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Zurich" });
   /* Le fournisseur est-il LE client de ce chantier ? « Type de client » le
      dit, et c'est la seule raison de le faire figurer dans les contacts. */
@@ -873,6 +874,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
         ) : null}
 
         {/* Contact — colonnes (comme la fiche fournisseur) */}
+        {avecContacts && (
         <View style={styles.section} wrap={false}>
           <Text style={styles.sectionTitle}>Contact</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
@@ -900,6 +902,7 @@ function FichePDF({ project, mesuresDocUrl, montagePhotosUrl, cartonsDocUrl, car
             <ContactCell label="AUTRES" parEtiquette contacts={project.contactsAutresDetails} width="33.33%" />
           </View>
         </View>
+        )}
 
         <Text style={styles.footer} fixed>
           TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch
@@ -1036,6 +1039,13 @@ export async function GET(
 
   try {
     const project = await getProject(id);
+    /* Le carnet d'adresses ne part que si on l'a voulu : réglage global, que
+       « ?contacts=0 » ou « ?contacts=1 » peut trancher pour un envoi. */
+    const avecContacts = contactsVisibles(
+      await lireReglagesRapports(),
+      req.nextUrl.searchParams.get("contacts"),
+    );
+
     // Flèche du PDF → page-galerie listant TOUS les documents « Documents pour
     // Montage » (signée, ouvrable sans login). Affichée seulement s'il y en a.
     const mesuresDocUrl =
@@ -1090,7 +1100,7 @@ export async function GET(
       serie: e.serie || "",
       url: `${req.nextUrl.origin}/api/mesures/${encodeURIComponent(id)}/download?cab=${e.cab}&s=${signMesure(id, e.cab)}`,
     }));
-    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} cartonsDocUrl={cartonsDocUrl} cartonsRecusUrl={cartonsRecusUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} signalementsUrl={signalementsUrl} notionComments={notionComments} sig={sig} mesures={mesures} />);
+    const pdfStream = await ReactPDF.renderToStream(<FichePDF project={project} avecContacts={avecContacts} mesuresDocUrl={mesuresDocUrl} montagePhotosUrl={montagePhotosUrl} cartonsDocUrl={cartonsDocUrl} cartonsRecusUrl={cartonsRecusUrl} savReportUrl={savReportUrl} reportUrl={reportUrl} syntheseUrl={syntheseUrl} signalementsUrl={signalementsUrl} notionComments={notionComments} sig={sig} mesures={mesures} />);
     const chunks: Buffer[] = [];
     // @ts-ignore - ReadableStream from react-pdf
     for await (const chunk of pdfStream) chunks.push(Buffer.from(chunk));
