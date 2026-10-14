@@ -71,7 +71,7 @@ export const BUCKET_HINT: Partial<Record<PhotoBucketKey, string>> = {
   DEMONTAGE:          "1 photo de l'état après démontage + 1 photo après nettoyage",
   APRES_INTERVENTION: "1 photo de l'état du receveur de douche + 1 photo de l'état de la salle de douche",
   NUMERO_LOT:         "Le numéro affiché sur la porte de l'appartement",
-  VIDEO_MONTAGE:      "Ce qu'une photo ne montre pas — un jeu, un frottement, une manœuvre",
+  VIDEO_MONTAGE:      "Ce qu'une photo ne montre pas — un jeu, un frottement, une manœuvre (1 minute au maximum)",
 };
 
 // Mapping bucket → champ Notion qui stocke ses fichiers.

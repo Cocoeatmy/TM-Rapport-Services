@@ -5,6 +5,8 @@ import { Camera, ImagePlus, X, Loader2, Download, CloudUpload, RotateCcw, Rotate
 import { thumbnailUrl, rotateCloudinaryUrl } from "@/lib/image-url";
 import { invalidateApiCache } from "@/lib/api-helpers";
 import { compressImage } from "@/lib/compress-image";
+import { refusFichier } from "@/lib/video-limites";
+import { dureeVideo } from "@/lib/video-duree";
 import { uploadToCloudinary, attachPhotos, UploadError } from "@/lib/cloudinary-upload";
 import { saveFilesToDeviceGallery } from "@/lib/save-to-gallery";
 import { addPendingUpload, removePendingUpload, processPendingUploads } from "@/lib/idb-uploads";
@@ -128,31 +130,40 @@ export function PhotoUpload({
       renamed.map((f) => (f.type.startsWith("image/") ? compressImage(f, 1600, 0.82) : Promise.resolve(f)))
     );
 
-    /* Plafond de taille sur ce qui n'est PAS compressé — vidéos, PDF.
-       Le serveur refuse les requêtes de plus de 4,5 Mo : sans ce garde-fou,
-       une vidéo d'une minute échouait en 413, repartait dans la file des
-       envois différés et y tournait indéfiniment, sans que personne
-       comprenne pourquoi. Mieux vaut le dire tout de suite, et en clair. */
-    const PLAFOND = 4 * 1024 * 1024;
-    const tropGros = compressed.filter((f) => !f.type.startsWith("image/") && f.size > PLAFOND);
-    if (tropGros.length > 0) {
-      const mo = (n: number) => `${(n / 1024 / 1024).toFixed(1)} Mo`;
+    /* Ce qui a le droit de partir. Les octets ne passent PLUS par Vercel
+       (upload direct Cloudinary) : l'ancien plafond de 4 Mo ne protégeait
+       plus de rien et refusait des clips de quinze secondes. Restent la
+       minute de film et les plafonds du compte Cloudinary — voir
+       src/lib/video-limites.ts. */
+    const refuses = new Set<File>();
+    let premierRefus = "";
+    for (const f of compressed) {
+      const duree = f.type.startsWith("video/") ? await dureeVideo(f) : null;
+      const raison = refusFichier({ taille: f.size, type: f.type, duree });
+      if (raison) {
+        refuses.add(f);
+        if (!premierRefus) premierRefus = raison;
+      }
+    }
+    if (refuses.size > 0) {
       toast.error(
-        tropGros.length === 1
-          ? `Fichier trop lourd (${mo(tropGros[0].size)})`
-          : `${tropGros.length} fichiers trop lourds`,
-        { description: "4 Mo au maximum — filmez plus court, ou en qualité réduite.", duration: 7000 },
+        refuses.size === 1 ? "Envoi impossible" : `${refuses.size} fichiers non envoyés`,
+        { description: premierRefus, duration: 9000 },
       );
-      if (tropGros.length === compressed.length) {
-        /* Rien ne part : on rend le compteur et on retire les aperçus posés
-           plus haut, sinon la grille garde des vignettes fantômes. */
+      /* Les aperçus des refusés quittent la grille tout de suite, sinon elle
+         garde des vignettes fantômes que rien ne viendra jamais remplacer. */
+      const retirer = newPreviews.filter((_, i) => refuses.has(compressed[i]));
+      setPreviews((prev) => prev.filter((u) => !retirer.includes(u)));
+      retirer.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
+      if (refuses.size === compressed.length) {
         setUploadingCount((n) => Math.max(0, n - 1));
-        setPreviews((prev) => prev.filter((u) => !newPreviews.includes(u)));
-        newPreviews.forEach((u) => URL.revokeObjectURL(u));
         return;
       }
     }
-    const aEnvoyer = compressed.filter((f) => f.type.startsWith("image/") || f.size <= PLAFOND);
+    const aEnvoyer = compressed.filter((f) => !refuses.has(f));
+    /* Aperçus réalignés sur `aEnvoyer` : sans cela, un seul fichier refusé
+       décalait les vignettes et l'échec d'une photo en effaçait une autre. */
+    const apercus = newPreviews.filter((_, i) => !refuses.has(compressed[i]));
 
     // Helper : enregistre les fichiers en IDB pour upload différé.
     // `uploadedUrl` (si la photo est DÉJÀ sur Cloudinary) est conservé → le
@@ -208,16 +219,16 @@ export function PhotoUpload({
         try {
           url = await uploadToCloudinary(f, f.name, projectId, category);
         } catch (e) {
-          if (isPermanent(e)) permanentFailed.push({ preview: newPreviews[i], message: (e as UploadError).message });
-          else failed.push({ file: f, preview: newPreviews[i] });
+          if (isPermanent(e)) permanentFailed.push({ preview: apercus[i], message: (e as UploadError).message });
+          else failed.push({ file: f, preview: apercus[i] });
           continue;
         }
         try {
           if (notionField) await attachPhotos(projectId, notionField, [{ name: f.name, url }]);
           newFiles.push({ name: f.name, url });
         } catch (e) {
-          if (isPermanent(e)) permanentFailed.push({ preview: newPreviews[i], message: (e as UploadError).message });
-          else failed.push({ file: f, uploadedUrl: url, preview: newPreviews[i] });
+          if (isPermanent(e)) permanentFailed.push({ preview: apercus[i], message: (e as UploadError).message });
+          else failed.push({ file: f, uploadedUrl: url, preview: apercus[i] });
         }
       }
 
@@ -233,7 +244,7 @@ export function PhotoUpload({
       // seront pas réessayés) ; garde uniquement celles en échec TRANSITOIRE.
       const keepPreviews = failed.map((x) => x.preview);
       setPreviews((prev) => {
-        const toRemove = newPreviews.filter((u) => !keepPreviews.includes(u));
+        const toRemove = apercus.filter((u) => !keepPreviews.includes(u));
         toRemove.forEach((u) => { try { URL.revokeObjectURL(u); } catch {} });
         return prev.filter((u) => !toRemove.includes(u));
       });

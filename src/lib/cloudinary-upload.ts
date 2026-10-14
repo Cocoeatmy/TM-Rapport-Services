@@ -30,8 +30,23 @@ export class UploadError extends Error {
   }
 }
 
-const CLOUDINARY_TIMEOUT_MS = 60_000; // les octets : on laisse le temps même en 5G lente
 const API_TIMEOUT_MS = 20_000;        // appels Vercel (sign / attach) : petits JSON
+
+/**
+ * Combien de temps on laisse aux octets, selon leur poids.
+ *
+ * Une photo compressée fait 400 Ko et part en deux secondes ; une vidéo de
+ * montage d'une minute pèse 60 Mo et demande plusieurs minutes sur un réseau
+ * de chantier. Un délai fixe de 60 s convenait aux unes et condamnait les
+ * autres : la vidéo était coupée en plein envoi, repartait dans la file des
+ * différés, et y tournait. On compte donc 60 s d'amorçage plus une seconde
+ * par tranche de 50 Ko (soit un débit de 400 kbit/s, pessimiste mais réel en
+ * sous-sol), plafonné à un quart d'heure.
+ */
+function delaiPourOctets(octets: number): number {
+  const estime = 60_000 + Math.ceil(octets / (50 * 1024)) * 1000;
+  return Math.min(estime, 15 * 60_000);
+}
 
 async function fetchWithTimeout(input: RequestInfo, init: RequestInit, timeoutMs: number): Promise<Response> {
   const ctrl = new AbortController();
@@ -89,7 +104,7 @@ export async function uploadToCloudinary(
     res = await fetchWithTimeout(
       `https://api.cloudinary.com/v1_1/${sign.cloudName}/${resourceType}/upload`,
       { method: "POST", body: fd },
-      CLOUDINARY_TIMEOUT_MS,
+      delaiPourOctets(blob.size),
     );
   } catch (e: any) {
     throw new UploadError(e?.name === "AbortError" ? "Cloudinary timeout" : "réseau (Cloudinary)");
