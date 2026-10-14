@@ -5959,7 +5959,8 @@ function ProjectPageContent({ id }: { id: string }) {
     const reportToSave = normalizeRapportMonteur(
       isCabineMode
         ? [rapport.trim(), buildCabineReportLines(cabines)].filter(Boolean).join("\n\n")
-        : rapport
+        : rapport,
+      { nbCabines: project?.nbCabines },
     );
     // Priorité 1 : mode multi-cabine → heures par cabine
     // ("Cab1:08:00 | Cab2:09:30")
@@ -6180,7 +6181,8 @@ function ProjectPageContent({ id }: { id: string }) {
         .join(" | ");
 
       const reportToSave = normalizeRapportMonteur(
-        [rapport.trim(), buildCabineReportLines(cabines)].filter(Boolean).join("\n\n")
+        [rapport.trim(), buildCabineReportLines(cabines)].filter(Boolean).join("\n\n"),
+        { nbCabines: project?.nbCabines },
       );
 
       const res = await offlineFetch(`/api/projects/${id}`, {
@@ -6493,7 +6495,8 @@ function ProjectPageContent({ id }: { id: string }) {
           rapportMonteur: normalizeRapportMonteur(
             isCabineMode
               ? [rapport.trim(), buildCabineReportLines(cabines)].filter(Boolean).join("\n\n")
-              : rapport
+              : rapport,
+            { nbCabines: project?.nbCabines },
           ),
         }),
       });

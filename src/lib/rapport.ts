@@ -11,6 +11,63 @@
  * `splitRapportByCabine` pour alimenter ce modèle.
  */
 
+import { PHRASES_EQUIVALENTES } from "@/lib/constants";
+
+/**
+ * Deux lignes disent-elles la même chose ?
+ *
+ * Le rapport s'écrit depuis plusieurs endroits — le bloc général, le bloc par
+ * cabine, les phrases type — et la même indication y revenait deux fois, à une
+ * majuscule, un espace ou un pluriel près. La comparaison ignore donc la
+ * casse, les accents, la ponctuation de fin et les espaces multiples ; et les
+ * paires singulier/pluriel des phrases type comptent pour une seule phrase.
+ */
+const ACCENTS = /[\u0300-\u036f]/g;
+
+function aplatir(ligne: string): string {
+  return (ligne || "")
+    .normalize("NFD").replace(ACCENTS, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/** Index : forme aplatie d'une phrase type → identifiant de sa paire. */
+const PAIRES = new Map<string, string>();
+for (const [i, p] of PHRASES_EQUIVALENTES.entries()) {
+  PAIRES.set(aplatir(p.singulier), `phrase-${i}`);
+  PAIRES.set(aplatir(p.pluriel), `phrase-${i}`);
+}
+
+/**
+ * La clé sous laquelle une ligne se compare aux autres.
+ *
+ * Une phrase type rend l'identifiant de sa paire — « l'installation s'est
+ * déroulée sans encombre » et « les installations se sont déroulées sans
+ * encombre » ont donc la même clé. Toute autre ligne rend sa forme aplatie :
+ * on dédoublonne alors ce qui ne diffère que par la forme, jamais par le sens.
+ */
+export function clePhrase(ligne: string): string {
+  const plat = aplatir(ligne);
+  return PAIRES.get(plat) || plat;
+}
+
+/**
+ * La formulation à garder pour une phrase type, selon le nombre de cabines.
+ *
+ * Sur un chantier d'une cabine, « Les installations se sont déroulées » sonne
+ * faux ; sur trois, le singulier aussi. Quand le nombre est inconnu, on garde
+ * la ligne telle qu'elle a été écrite.
+ */
+export function accorderPhrase(ligne: string, nbCabines?: number | null): string {
+  if (!nbCabines || nbCabines < 1) return ligne;
+  const paire = PHRASES_EQUIVALENTES.find(
+    (p) => aplatir(p.singulier) === aplatir(ligne) || aplatir(p.pluriel) === aplatir(ligne),
+  );
+  if (!paire) return ligne;
+  return nbCabines > 1 ? paire.pluriel : paire.singulier;
+}
+
 /** Normalise un libellé de lot pour comparaison tolérante (espaces/tirets/casse). */
 function norm(s: string | undefined | null): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -24,8 +81,12 @@ function norm(s: string | undefined | null): string {
  */
 const HEADER_RE = /^([A-Za-z0-9][\wÀ-ÿ .\-]{0,30}?\d[\wÀ-ÿ .\-]{0,30}?)\s*:\s+.*$/;
 
-export function normalizeRapportMonteur(raw: string | null | undefined): string {
+export function normalizeRapportMonteur(
+  raw: string | null | undefined,
+  options: { nbCabines?: number | null } = {},
+): string {
   if (!raw) return "";
+  const nbCabines = options.nbCabines ?? null;
 
   type Block = { id: string; lines: string[] };
   const general: string[] = [];
@@ -53,12 +114,13 @@ export function normalizeRapportMonteur(raw: string | null | undefined): string 
   // ── Déduplication (répare les rapports historiques accumulés) ──────────────
   // 1) Dans chaque bloc : lignes en double + continuation identique à l'en-tête.
   for (const b of blocks) {
-    const ht = headerText(b.lines[0]);
+    const ht = clePhrase(headerText(b.lines[0]));
     const seen = new Set<string>();
     b.lines = b.lines.filter((ln, i) => {
-      if (seen.has(ln)) return false;
-      seen.add(ln);
-      if (i > 0 && ln === ht) return false; // « texte » nu qui redouble « id : texte »
+      const cle = clePhrase(ln);
+      if (seen.has(cle)) return false;
+      seen.add(cle);
+      if (i > 0 && cle === ht) return false; // « texte » nu qui redouble « id : texte »
       return true;
     });
   }
@@ -75,13 +137,18 @@ export function normalizeRapportMonteur(raw: string | null | undefined): string 
   uniqueBlocks.sort((a, b) => a.id.localeCompare(b.id, "fr", { numeric: true, sensitivity: "base" }));
 
   // 3) Général : lignes en double + lignes nues qui redoublent le texte d'un lot.
-  const blockTexts = new Set(uniqueBlocks.map((b) => headerText(b.lines[0])));
+  const blockTexts = new Set(uniqueBlocks.map((b) => clePhrase(headerText(b.lines[0]))));
   const seenGen = new Set<string>();
-  const cleanGeneral = general.filter((ln) => {
-    if (seenGen.has(ln) || blockTexts.has(ln)) return false;
-    seenGen.add(ln);
-    return true;
-  });
+  const cleanGeneral = general
+    .filter((ln) => {
+      const cle = clePhrase(ln);
+      if (seenGen.has(cle) || blockTexts.has(cle)) return false;
+      seenGen.add(cle);
+      return true;
+    })
+    /* La phrase type retenue s'accorde au nombre de cabines : c'est la seule
+       qui reste, autant qu'elle soit juste. */
+    .map((ln) => accorderPhrase(ln, nbCabines));
 
   const chunks: string[] = [];
   if (cleanGeneral.length) chunks.push(cleanGeneral.join("\n"));

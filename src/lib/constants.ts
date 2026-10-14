@@ -234,6 +234,30 @@ export const RAPPORT_OPTIONS_MULTI = [
   "Personne sur site lors du montage.",
 ];
 
+/**
+ * Les phrases type qui disent LA MÊME CHOSE au singulier et au pluriel.
+ *
+ * L'écran propose la liste « single » sur une cabine et la liste « multi » sur
+ * plusieurs. Mais le rapport général et le rapport par cabine écrivent tous
+ * deux dans le même champ : cocher la phrase à deux endroits y laissait les
+ * deux formulations, et le client lisait deux fois la même information —
+ * « Client présent lors des montages… » suivi de « Client présent lors du
+ * montage… ». Les apparier permet de n'en garder qu'une.
+ *
+ * Les deux autres phrases type sont identiques dans les deux listes : la
+ * déduplication par texte exact les couvrait déjà.
+ */
+export const PHRASES_EQUIVALENTES: { singulier: string; pluriel: string }[] = [
+  {
+    singulier: "L'installation s'est déroulée sans encombre.",
+    pluriel: "Les installations se sont déroulées sans encombre.",
+  },
+  {
+    singulier: "Client présent lors du montage, travaux validés par client.",
+    pluriel: "Client présent lors des montages, travaux validés par client.",
+  },
+];
+
 export const RAPPORT_OPTIONS_CABINE = [
   "L'installation s'est déroulée sans encombre.",
   "Nous avons rencontré quelques difficultés à l'assemblage de la cabine.",

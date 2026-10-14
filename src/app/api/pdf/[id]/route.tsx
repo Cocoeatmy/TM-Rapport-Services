@@ -1034,7 +1034,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
             const IDENT_WIDTH = 52; // largeur fixe colonne gauche (pt)
             // Normalisation : suppression des lignes vides + tri des cabines
             // par titre (B33-203 avant B33-303…). Idem que côté app.
-            const lines = normalizeRapportMonteur(project.rapportMonteur).split("\n");
+            const lines = normalizeRapportMonteur(project.rapportMonteur, { nbCabines: project.nbCabines }).split("\n");
             return (
               // wrap={false} : le bloc "Rapport du monteur" ne doit jamais être
               // coupé entre deux pages (en-tête orphelin). S'il ne tient pas dans
