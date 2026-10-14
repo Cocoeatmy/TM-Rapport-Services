@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState, use, useCallback, type Dispatch, type SetStateAction } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, use, useCallback, type Dispatch, type SetStateAction } from "react";
 import { fileDEnvoi } from "@/lib/envoi-en-serie";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -126,7 +126,7 @@ import { getCollaboratorColor } from "@/lib/collaborators";
 import { isMultiDayHours, parsePointages, encodePointages } from "@/lib/pointages";
 import { heureDesPhotos, arriveeAcceptable, departApresPhoto, departValable, type HeurePhoto } from "@/lib/heure-photo";
 import { interventionsDuLot, encodeInterventions, dernierPassage, type InterventionSav } from "@/lib/sav-interventions";
-import { equipeDuJour, nomsAProposer, equipeDesPassages } from "@/lib/equipe-intervention";
+import { equipeDuJour, nomsAProposer, equipeDesPassages, listeDeNoms } from "@/lib/equipe-intervention";
 import { fusionnerPassage } from "@/lib/passage-lot";
 import { normalizeRapportMonteur, buildCabineReportLines, splitRapportByCabine } from "@/lib/rapport";
 import { addToQueue, isOnline, offlineFetch } from "@/lib/offline";
@@ -147,7 +147,7 @@ import {
   type RequiredPhotoShortfall,
   extractCabine,
 } from "@/lib/photo-buckets";
-import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS, COLLABORATEURS_LIST as COLLABORATEURS_ACTIFS } from "@/lib/constants";
+import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS, COLLABORATEURS_LIST as COLLABORATEURS_ACTIFS, RAPPORT_OPTIONS_SINGLE } from "@/lib/constants";
 import { ColoredSelect } from "@/components/colored-select";
 import { thumbnailUrl } from "@/lib/image-url";
 
@@ -3979,6 +3979,342 @@ const ETAT_RAPPORT_TITRE: Record<string, string> = {
   afixer: "rendez-vous de montage à fixer",
 };
 
+/* ── Assistant « pas à pas » du rapport de montage ──────────────────────────
+   Le rapport s'ouvrait sur la page où l'on coche « l'installation s'est
+   déroulée sans encombre » — c'est-à-dire sur la conclusion, avant d'avoir
+   rien fait. L'ordre dans lequel le travail se passe est l'inverse : on
+   arrive, on note qui est là et à quelle heure, on photographie, et on
+   conclut.
+
+   L'assistant suit cet ordre, une étape par écran. Il n'enlève rien : les
+   onglets libres restent là, et « Quitter l'assistant » y ramène à tout
+   moment. On peut aussi le reprendre en cours de route — il s'ouvre sur la
+   première étape qui n'est pas faite.
+
+   Il ne stocke RIEN de son côté : chaque étape écrit dans les mêmes champs
+   que l'écran libre, avec les mêmes enregistrements automatiques. Deux
+   réglages du même rapport ne peuvent donc pas diverger. */
+
+type EtapeAssistant = "collaborateurs" | "heures" | "photos" | "rapport" | "signature";
+
+const ETAPES_ASSISTANT: { cle: EtapeAssistant; titre: string }[] = [
+  { cle: "collaborateurs", titre: "Qui travaille" },
+  { cle: "heures", titre: "Arrivée" },
+  { cle: "photos", titre: "Photos" },
+  { cle: "rapport", titre: "Rapport" },
+  { cle: "signature", titre: "Signature" },
+];
+
+/** Les planches photo de l'assistant, dans l'ordre où on les prend. */
+const PLANCHES_ASSISTANT: { bucket: PhotoBucketKey | "MONTAGE"; titre: string }[] = [
+  { bucket: "AVANT_INTERVENTION", titre: "Avant intervention" },
+  { bucket: "DEMONTAGE", titre: "Démontage" },
+  { bucket: "MONTAGE", titre: "Montage" },
+  { bucket: "APRES_INTERVENTION", titre: "Après intervention" },
+  { bucket: "QR_CODE", titre: "QR Code" },
+  { bucket: "GARANTIE", titre: "Garanties" },
+  { bucket: "VIDEO_MONTAGE", titre: "Vidéos" },
+];
+
+function AssistantRapport({
+  projectId, project, setProject,
+  rapport, setRapport,
+  heureArrivee, setHeureArrivee,
+  signature,
+  aDemontage,
+  onAutoFill, onLog,
+  onEnregistrer, enregistrement,
+  onEnvoyer, envoiEnCours,
+  onFermer,
+}: {
+  projectId: string;
+  project: Project;
+  setProject: React.Dispatch<React.SetStateAction<Project | null>>;
+  rapport: string;
+  setRapport: React.Dispatch<React.SetStateAction<string>>;
+  heureArrivee: string;
+  setHeureArrivee: (v: string) => void;
+  signature: string;
+  /** « Type de services » contient-il Démontage ? */
+  aDemontage: boolean;
+  onAutoFill?: (bucket: PhotoBucketKey, capture: HeurePhoto, cabineIdx?: number) => void;
+  onLog?: (action: string, details: string) => void;
+  onEnregistrer: () => void;
+  enregistrement: boolean;
+  onEnvoyer: (client: boolean) => void;
+  envoiEnCours: boolean;
+  onFermer: () => void;
+}) {
+  const noms = project.collaborateurs || "";
+  const choisis = useMemo(() => listeDeNoms(noms), [noms]);
+  const jour = (project.dateMontage || "").slice(0, 10);
+
+  /* On reprend là où le rapport en est : rouvrir l'assistant sur la première
+     étape ne servirait qu'à refaire défiler ce qui est déjà rempli. */
+  const premiereIncomplete = (): EtapeAssistant => {
+    if (choisis.length === 0) return "collaborateurs";
+    if (!heureArrivee || !jour) return "heures";
+    if ((project.photosMontage || []).length === 0) return "photos";
+    if (!rapport.trim()) return "rapport";
+    return "signature";
+  };
+  const [etape, setEtape] = useState<EtapeAssistant>(premiereIncomplete);
+  const [planche, setPlanche] = useState(0);
+  /* Démontage non prévu au contrat : la planche n'apparaît que si on la
+     demande. Sur un chantier sans dépose, elle n'aurait rien à recevoir. */
+  const [demontageForce, setDemontageForce] = useState(false);
+
+  const index = Math.max(0, ETAPES_ASSISTANT.findIndex((e) => e.cle === etape));
+  const derniere = index === ETAPES_ASSISTANT.length - 1;
+  const aller = (n: number) => {
+    const suiv = ETAPES_ASSISTANT[Math.min(Math.max(n, 0), ETAPES_ASSISTANT.length - 1)];
+    setEtape(suiv.cle);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const planches = PLANCHES_ASSISTANT.filter(
+    (p) => p.bucket !== "DEMONTAGE" || aDemontage || demontageForce,
+  );
+
+  const enregistrerChamp = (champ: string, valeur: string) => {
+    setProject((prev) => (prev ? { ...prev, [champ]: valeur } : prev));
+    window.dispatchEvent(new CustomEvent("tm-project-field-edited", { detail: { field: champ } }));
+    offlineFetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [champ]: valeur }),
+    }).catch(() => toast.error("Enregistrement en attente — réessai automatique"));
+  };
+
+  const basculerNom = (nom: string) => {
+    const dedans = choisis.some((n) => n.toLowerCase() === nom.toLowerCase());
+    const suite = dedans
+      ? choisis.filter((n) => n.toLowerCase() !== nom.toLowerCase())
+      : [...choisis, nom];
+    enregistrerChamp("collaborateurs", suite.join(" & "));
+  };
+
+  const maintenant = () => {
+    const d = new Date();
+    const h = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    setHeureArrivee(h);
+    if (!jour) enregistrerChamp("dateMontage", d.toISOString().slice(0, 10));
+  };
+
+  const peutAvancer = () => {
+    if (etape === "collaborateurs") return choisis.length > 0;
+    if (etape === "heures") return !!heureArrivee && !!(jour || project.dateMontage);
+    return true;
+  };
+
+  return (
+    <div className="rounded-2xl border-2 border-[#1e3a5f] dark:border-blue-400/60 bg-white dark:bg-slate-900 overflow-hidden">
+      {/* Fil des étapes : on voit où l'on en est et ce qu'il reste. */}
+      <div className="bg-[#1e3a5f] px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <p className="text-sm font-semibold text-white">
+            {index + 1}/{ETAPES_ASSISTANT.length} · {ETAPES_ASSISTANT[index].titre}
+          </p>
+          <button type="button" onClick={onFermer}
+            className="text-[11px] text-blue-100 underline underline-offset-2 shrink-0">
+            Quitter l&apos;assistant
+          </button>
+        </div>
+        <div className="flex gap-1">
+          {ETAPES_ASSISTANT.map((e, i) => (
+            <button key={e.cle} type="button" onClick={() => aller(i)}
+              title={e.titre}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${i <= index ? "bg-white" : "bg-white/25"}`} />
+          ))}
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {etape === "collaborateurs" && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Qui travaille sur ce chantier ?</p>
+            <div className="grid grid-cols-2 gap-2">
+              {COLLABORATEURS_LIST.map((nom) => {
+                const actif = choisis.some((n) => n.toLowerCase() === nom.toLowerCase());
+                return (
+                  <button key={nom} type="button" onClick={() => basculerNom(nom)}
+                    className={`px-3 py-3 rounded-xl border-2 text-sm font-medium transition-colors ${actif
+                      ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200"
+                      : "border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-300"}`}>
+                    <span className="flex items-center gap-2">
+                      <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${actif ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"}`}>
+                        {actif && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                      </span>
+                      {nom}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {choisis.length === 0 && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">Choisissez au moins une personne pour continuer.</p>
+            )}
+          </div>
+        )}
+
+        {etape === "heures" && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Quand êtes-vous arrivés ?</p>
+            <button type="button" onClick={maintenant}
+              className="w-full py-3.5 rounded-xl bg-green-600 text-white text-sm font-semibold active:scale-[0.98] transition-transform">
+              Maintenant — {new Date().toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })} à {new Date().toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" })}
+            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Date</Label>
+                <input type="date" value={jour}
+                  onChange={(e) => enregistrerChamp("dateMontage", e.target.value)}
+                  className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800" />
+              </div>
+              <div>
+                <Label className="text-xs">Heure d&apos;arrivée</Label>
+                <input type="time" value={heureArrivee}
+                  onChange={(e) => setHeureArrivee(e.target.value)}
+                  className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800" />
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-400">
+              L&apos;heure de départ se remplit toute seule à partir de l&apos;heure de prise des photos
+              de montage ou d&apos;après intervention — rien à saisir à la fin.
+            </p>
+          </div>
+        )}
+
+        {etape === "photos" && (
+          <div className="space-y-3">
+            {/* Une planche à la fois : la liste entière, les unes sous les
+                autres, faisait défiler sans fin et on en sautait. */}
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+              {planches.map((p, i) => {
+                const actif = i === planche;
+                return (
+                  <button key={p.bucket} type="button" onClick={() => setPlanche(i)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap shrink-0 border transition-colors ${actif
+                      ? "border-[#1e3a5f] bg-[#1e3a5f] text-white"
+                      : "border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400"}`}>
+                    {p.titre}
+                  </button>
+                );
+              })}
+            </div>
+            {!aDemontage && !demontageForce && (
+              <button type="button" onClick={() => setDemontageForce(true)}
+                className="w-full py-2 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-xs text-gray-500">
+                + Ajouter démontage
+              </button>
+            )}
+            {planches[planche]?.bucket === "MONTAGE" ? (
+              <CombinedMontageUpload projectId={projectId} project={project} setProject={setProject}
+                onAutoFill={onAutoFill} onLog={onLog} />
+            ) : (
+              <BucketPhotoUpload
+                bucket={planches[planche]?.bucket as PhotoBucketKey}
+                projectId={projectId} project={project} setProject={setProject}
+                onAutoFill={onAutoFill} onLog={onLog}
+                accept={planches[planche]?.bucket === "VIDEO_MONTAGE" ? "video/*,image/*" : undefined}
+              />
+            )}
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <button type="button" disabled={planche === 0} onClick={() => setPlanche((n: number) => n - 1)}
+                className="text-xs text-gray-500 disabled:opacity-30">← Planche précédente</button>
+              <button type="button" disabled={planche >= planches.length - 1} onClick={() => setPlanche((n: number) => n + 1)}
+                className="text-xs font-semibold text-[#1e3a5f] dark:text-blue-300 disabled:opacity-30">Planche suivante →</button>
+            </div>
+          </div>
+        )}
+
+        {etape === "rapport" && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Comment cela s&apos;est-il passé ?</p>
+            <div className="space-y-2">
+              {RAPPORT_OPTIONS_SINGLE.map((option) => {
+                const actif = rapport.includes(option);
+                return (
+                  <button key={option} type="button"
+                    onClick={() => {
+                      setRapport(actif
+                        ? rapport.replace(option, "").replace(/\n{2,}/g, "\n").trim()
+                        : (rapport ? rapport + "\n" : "") + option);
+                    }}
+                    className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${actif
+                      ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200 font-medium"
+                      : "border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-300"}`}>
+                    <span className="flex items-center gap-2">
+                      <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${actif ? "border-[#1e3a5f] bg-[#1e3a5f]" : "border-gray-300 dark:border-slate-600"}`}>
+                        {actif && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                      </span>
+                      {option}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <Textarea placeholder="Précisions supplémentaires…" value={rapport} rows={3}
+              onChange={(e) => setRapport(e.target.value)} />
+            <InternalNoteField projectId={projectId} value={project.noteInterneMontage}
+              onUpdate={(v) => setProject((prev) => (prev ? { ...prev, noteInterneMontage: v } : prev))} />
+          </div>
+        )}
+
+        {etape === "signature" && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              {signature ? "Signature enregistrée." : "Faites signer le client, ou passez cette étape."}
+            </p>
+            {signature ? (
+              <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50/60 dark:bg-green-900/10 p-3 flex items-center gap-2">
+                <Check className="w-4 h-4 text-green-600" strokeWidth={3} />
+                <span className="text-sm text-green-700 dark:text-green-300">Le client a signé</span>
+              </div>
+            ) : (
+              <button type="button"
+                onClick={() => document.getElementById("signature-card")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                className="w-full py-3 rounded-xl border-2 border-[#1e3a5f] text-[#1e3a5f] dark:text-blue-300 text-sm font-semibold">
+                Ouvrir la zone de signature
+              </button>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <button type="button" disabled={envoiEnCours} onClick={() => onEnvoyer(false)}
+                className="py-3 rounded-xl bg-[#1e3a5f] text-white text-sm font-semibold disabled:opacity-50">
+                Envoyer le rapport interne
+              </button>
+              <button type="button" disabled={envoiEnCours} onClick={() => onEnvoyer(true)}
+                className="py-3 rounded-xl bg-blue-600 text-white text-sm font-semibold disabled:opacity-50">
+                Envoyer le rapport client
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Pied : enregistrement et navigation. Le bouton d'enregistrement
+          reste là à chaque étape — tout se sauve déjà tout seul, mais le
+          voir rassure, et c'est une raison suffisante. */}
+      <div className="border-t border-gray-100 dark:border-slate-700 p-3 flex items-center gap-2">
+        <button type="button" disabled={index === 0} onClick={() => aller(index - 1)}
+          className="px-3 py-2.5 rounded-xl text-sm text-gray-500 disabled:opacity-30">
+          Retour
+        </button>
+        <button type="button" onClick={onEnregistrer} disabled={enregistrement}
+          className="px-3 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 text-sm text-gray-600 dark:text-gray-300 disabled:opacity-50">
+          {enregistrement ? "…" : "Enregistrer"}
+        </button>
+        {!derniere && (
+          <button type="button" onClick={() => aller(index + 1)} disabled={!peutAvancer()}
+            className="flex-1 py-2.5 rounded-xl bg-[#1e3a5f] text-white text-sm font-semibold disabled:opacity-40">
+            Suivant
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   return (
@@ -4040,6 +4376,12 @@ function ProjectPageContent({ id }: { id: string }) {
   const [collabUpdateToast, setCollabUpdateToast] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email?: string } | null>(null);
   const [showRapport, setShowRapport] = useState(false);
+  /* Assistant pas à pas. Il s'ouvre tout seul sur un rapport NEUF : commencer
+     par « l'installation s'est déroulée sans encombre » revenait à demander la
+     conclusion avant le travail. Sur un rapport déjà écrit, on vient relire —
+     les onglets libres s'affichent comme avant. */
+  const [assistantActif, setAssistantActif] = useState(false);
+  const assistantPropose = useRef(false);
   // ── Nouvelle présentation macOS : barre d'icônes rondes qui déplient/replient
   //    les sections. iOS/autres : présentation actuelle inchangée. ──
   const [isMac, setIsMac] = useState(false);
@@ -4619,6 +4961,16 @@ function ProjectPageContent({ id }: { id: string }) {
   // Header translucide au scroll (mode rapport uniquement) : plus on descend,
   // plus la barre titre devient transparente pour laisser voir le contenu
   // derrière. Plancher à 0.4 pour rester lisible/cliquable.
+  /* Une seule fois par visite : si l'utilisateur quitte l'assistant, on ne
+     le lui remet pas sous le nez au rendu suivant. */
+  useEffect(() => {
+    if (!showRapport || isCabineMode || assistantPropose.current) return;
+    if (project && !String(project.rapportMonteur || "").trim()) {
+      assistantPropose.current = true;
+      setAssistantActif(true);
+    }
+  }, [showRapport, isCabineMode, project]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!showRapport) { setHeaderScrollOpacity(1); return; }
@@ -9768,27 +10120,27 @@ function ProjectPageContent({ id }: { id: string }) {
                     const savCloture = !!(parseCabineTextMulti(project?.datesSavClotureCabines || "")[1] || "").slice(0, 10);
                     return (
                   <div className="flex justify-evenly sm:justify-normal border-b border-gray-100 dark:border-slate-700 mb-4">
-                    <button type="button" onClick={() => setMonoActiveTab("infos")}
+                    <button type="button" onClick={() => { setMonoActiveTab("infos"); setAssistantActif(false); }}
                       className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 ${monoActiveTab === "infos" ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300" : "text-gray-400 hover:text-gray-600"}`}>
                       Infos
                     </button>
-                    <button type="button" onClick={() => setMonoActiveTab("photos")}
+                    <button type="button" onClick={() => { setMonoActiveTab("photos"); setAssistantActif(false); }}
                       className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 ${monoActiveTab === "photos" ? "text-[#1e3a5f] dark:text-blue-300 border-b-2 border-[#1e3a5f] dark:border-blue-300" : "text-gray-400 hover:text-gray-600"}`}>
                       Photos
                     </button>
-                    <button type="button" onClick={() => setMonoActiveTab("rapport")}
+                    <button type="button" onClick={() => { setMonoActiveTab("rapport"); setAssistantActif(false); }}
                       className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1 ${monoActiveTab === "rapport" ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-500 dark:border-violet-400" : "text-gray-400 hover:text-gray-600"}`}>
                       <FileText className="w-3.5 h-3.5 shrink-0" />
                       Rapport
                       {hasManualRapport(rapport) && <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />}
                     </button>
-                    <button type="button" onClick={() => setMonoActiveTab("signalements")}
+                    <button type="button" onClick={() => { setMonoActiveTab("signalements"); setAssistantActif(false); }}
                       className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1.5 ${monoActiveTab === "signalements" ? "text-red-600 dark:text-red-400 border-b-2 border-red-500 dark:border-red-400" : "text-gray-400 hover:text-gray-600"}`}>
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                       Signalements
                       {monoHasSignalement && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${monoSignalementRegle ? "bg-green-500" : "bg-red-500"}`} />}
                     </button>
-                    <button type="button" onClick={() => setMonoActiveTab("sav")}
+                    <button type="button" onClick={() => { setMonoActiveTab("sav"); setAssistantActif(false); }}
                       className={`px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap sm:flex-1 flex items-center justify-center gap-1 ${monoActiveTab === "sav" ? "text-amber-600 dark:text-amber-400 border-b-2 border-amber-500 dark:border-amber-400" : "text-gray-400 hover:text-gray-600"}`}>
                       <Wrench className="w-3.5 h-3.5 shrink-0" />
                       SAV
@@ -9798,7 +10150,37 @@ function ProjectPageContent({ id }: { id: string }) {
                     );
                   })()}
                   <CardContent className="space-y-4 pt-0">
-                    {monoActiveTab === "infos" && (
+                    {/* Assistant : il prend la place du contenu des onglets,
+                        la barre d'onglets reste au-dessus — un clic dessus en
+                        sort, et tout ce qui existait reste accessible. */}
+                    {assistantActif && project && (
+                      <AssistantRapport
+                        projectId={id}
+                        project={project}
+                        setProject={setProject}
+                        rapport={rapport}
+                        setRapport={(v) => { setRapport(v); scheduleAutoSave(); }}
+                        heureArrivee={heureArrivee}
+                        setHeureArrivee={(v) => { setHeureArrivee(v); scheduleAutoSave(); }}
+                        signature={signature}
+                        aDemontage={(project.typeServices || []).some((t) => /d[ée]montage/i.test(String(t || "")))}
+                        onAutoFill={handleAutoFill}
+                        onLog={logAction}
+                        onEnregistrer={handleSaveClick}
+                        enregistrement={saving}
+                        onEnvoyer={(client) => handleSendReport({ client })}
+                        envoiEnCours={sending}
+                        onFermer={() => setAssistantActif(false)}
+                      />
+                    )}
+                    {!assistantActif && (
+                      <button type="button"
+                        onClick={() => { setAssistantActif(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                        className="w-full py-2.5 rounded-xl border-2 border-[#1e3a5f] dark:border-blue-400/60 text-[#1e3a5f] dark:text-blue-300 text-sm font-semibold active:scale-[0.98] transition-transform">
+                        Remplir pas à pas
+                      </button>
+                    )}
+                    {!assistantActif && monoActiveTab === "infos" && (
                       <div className="space-y-3">
                         <div>
                           <Label>Nom / Emplacement</Label>
@@ -9818,7 +10200,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         <p className="text-[11px] text-gray-400">Les numéros, l&apos;adresse et les dates du projet sont modifiables dans la carte « Informations projet » ci-dessus.</p>
                       </div>
                     )}
-                    {monoActiveTab === "rapport" && (
+                    {!assistantActif && monoActiveTab === "rapport" && (
                       <>
                         <div className="rounded-2xl border-2 border-blue-200 dark:border-blue-900/50 bg-blue-50/40 dark:bg-blue-950/20 p-4 space-y-3">
                           <div className="flex items-center gap-2">
@@ -9914,7 +10296,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         )}
                       </>
                     )}
-                    {monoActiveTab === "photos" && (
+                    {!assistantActif && monoActiveTab === "photos" && (
                       <>
 {/* Le numéro du lot n'a de sens qu'en immeuble : sur une villa,
                             il n'y a rien à distinguer. */}
@@ -9943,7 +10325,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       </>
                     )}
                     {/* ── Onglet Signalements (pièces + défauts, niveau projet) ── */}
-                    {monoActiveTab === "signalements" && (
+                    {!assistantActif && monoActiveTab === "signalements" && (
                       <div className="space-y-3">
                         {/* Un encadré pour ce qui EXISTE — les signalements du
                             dossier et les références produit qui servent à les
@@ -9965,7 +10347,7 @@ function ProjectPageContent({ id }: { id: string }) {
                       </div>
                     )}
                     {/* ── Onglet SAV / Retouches (niveau projet, encodage Cab1) ── */}
-                    {monoActiveTab === "sav" && (
+                    {!assistantActif && monoActiveTab === "sav" && (
                       <div className="space-y-4">
                         {/* Titre + bouton « Générer rapport SAV » sur la même ligne. */}
                         <div>
