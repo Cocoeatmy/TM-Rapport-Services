@@ -54,13 +54,27 @@ export function contactsVisibles(
   return reglages.contacts;
 }
 
+/**
+ * Lecture FRAÎCHE, et non le cache mémoire du magasin.
+ *
+ * Ce cache dure soixante secondes et vit dans chaque instance serverless :
+ * on décochait la case, et le rapport suivant montrait encore les contacts
+ * pendant une minute — soit exactement le rapport qu'on s'apprêtait à
+ * envoyer. Une lecture Notion de plus sur une route qui met déjà plusieurs
+ * secondes à fabriquer un PDF est un prix dérisoire pour cette certitude.
+ *
+ * En cas d'erreur Notion : le cache, puis le défaut. On ne prive jamais un
+ * rapport de ses contacts par accident — l'inverse serait une fuite.
+ */
 export async function lireReglagesRapports(): Promise<ReglagesRapports> {
   try {
-    return interpreterReglages(await getData<ReglagesRapports>(CLE_REGLAGES_RAPPORTS));
+    return interpreterReglages(await getDataFresh<ReglagesRapports>(CLE_REGLAGES_RAPPORTS));
   } catch {
-    /* Magasin injoignable : on garde le comportement d'avant plutôt que de
-       priver un rapport de ses contacts sans l'avoir demandé. */
-    return REGLAGES_PAR_DEFAUT;
+    try {
+      return interpreterReglages(await getData<ReglagesRapports>(CLE_REGLAGES_RAPPORTS));
+    } catch {
+      return REGLAGES_PAR_DEFAUT;
+    }
   }
 }
 
