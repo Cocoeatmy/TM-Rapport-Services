@@ -173,6 +173,8 @@ export function filterByBucket<T extends { name: string }>(
 
 /** Photos sources d'un projet, regroupées par champ Notion. */
 export interface ProjectPhotoSources {
+  /** Colonne Notion « Type de services » — dit ce que ce chantier comporte. */
+  typeServices?: string[] | null;
   photosAvant?: { name: string }[];
   photosDemontage?: { name: string }[];
   photosMontage?: { name: string }[];
@@ -247,9 +249,31 @@ const REQUIRED_PHOTO_GROUPS: { label: string; buckets: PhotoBucketKey[]; min: nu
  * règle appliquée à l'envoi, au lieu d'en tenir une copie qui dériverait.
  */
 export const TOTAL_PHOTOS_REQUISES = REQUIRED_PHOTO_GROUPS.reduce((s, g) => s + g.min, 0);
-// Groupes RECOMMANDÉS (rappel contournable) — pas de minimum imposé.
-const OPTIONAL_PHOTO_GROUPS: { label: string; buckets: PhotoBucketKey[] }[] = [
-  { label: "Photos démontage", buckets: ["DEMONTAGE"] },
+/**
+ * Le chantier comporte-t-il un démontage ?
+ *
+ * La colonne Notion « Type de services » le dit — c'est une liste à cocher où
+ * figurent « Mesures », « Démontage », « Montages », « Services », « SAV »,
+ * « Livraison ». Hors démontage, réclamer des photos de démontage n'a aucun
+ * sens, et un rappel qui se déclenche à chaque enregistrement finit par se
+ * cliquer sans être lu — y compris les fois où il avait raison.
+ */
+export function chantierAvecDemontage(project: ProjectPhotoSources): boolean {
+  return (project.typeServices || []).some((t) => /d[ée]montage/i.test(String(t || "")));
+}
+
+/**
+ * Groupes RECOMMANDÉS (rappel contournable) — pas de minimum imposé.
+ *
+ * `pertinent` écarte le groupe quand le chantier ne s'y prête pas : on ne
+ * rappelle une photo que là où elle existe.
+ */
+const OPTIONAL_PHOTO_GROUPS: {
+  label: string;
+  buckets: PhotoBucketKey[];
+  pertinent?: (project: ProjectPhotoSources) => boolean;
+}[] = [
+  { label: "Photos démontage", buckets: ["DEMONTAGE"], pertinent: chantierAvecDemontage },
   { label: "Photos QR Code", buckets: ["QR_CODE"] },
   { label: "Photos Garantie", buckets: ["GARANTIE"] },
 ];
@@ -300,9 +324,10 @@ export function missingOptionalPhotoLabels(
   options: { multiCabine: boolean; nbCabines: number },
 ): string[] {
   const missing = (cabineIdx: number | undefined, prefix: string): string[] =>
-    OPTIONAL_PHOTO_GROUPS.filter((g) => countGroup(project, g.buckets, cabineIdx) === 0).map(
-      (g) => `${prefix}${g.label}`,
-    );
+    OPTIONAL_PHOTO_GROUPS
+      .filter((g) => (g.pertinent ? g.pertinent(project) : true))
+      .filter((g) => countGroup(project, g.buckets, cabineIdx) === 0)
+      .map((g) => `${prefix}${g.label}`);
 
   if (!options.multiCabine || options.nbCabines <= 1) return missing(undefined, "");
   const out: string[] = [];
