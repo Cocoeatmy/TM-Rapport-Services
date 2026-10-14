@@ -1468,6 +1468,14 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                       />
                     );
                   })()}
+                  {/* Une phrase, une fois par page, sous l'en-tête. L'icône du
+                      coin dit déjà que l'image se télécharge ; cette ligne
+                      lève le dernier doute pour qui ne la remarque pas, et
+                      c'est elle qui manquait quand on nous disait « on ne
+                      voit pas bien les photos ». */}
+                  <Text style={{ fontSize: 7.5, color: "#6b7280", marginBottom: 8 }}>
+                    Cliquez sur une photo ou une vidéo pour la télécharger en pleine qualité.
+                  </Text>
                   {lotPhotos.length > 0 && renderBucketGrid("Numéro de lot", lotPhotos, `cab-${cabKey}-lot`)}
                   {avantPhotos.length > 0 && renderBucketGrid("Photos avant intervention", avantPhotos, `cab-${cabKey}-avant`)}
                   {demontagePhotos.length > 0 && renderBucketGrid("Photos démontage", demontagePhotos, `cab-${cabKey}-demontage`)}
