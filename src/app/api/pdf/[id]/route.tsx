@@ -674,14 +674,20 @@ async function loadCabineAttribution(projectId: string): Promise<CabineAttributi
   }
 }
 
-function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: {
+function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient }: {
   project: any;
   pieces: PieceRequest[];
   defauts: DefautRequest[];
   cabineAttribution?: CabineAttribution | null;
-  /** Rapport CLIENT : masque la section « Horaires » (heures arrivée/départ)
-      pour ne pas révéler la durée d'intervention. */
-  hideHours?: boolean;
+  /**
+   * Exemplaire destiné au CLIENT.
+   *
+   * Il s'appelait `hideHours` du temps où il ne commandait qu'une chose :
+   * masquer les heures d'arrivée et de départ, qui révèlent la durée
+   * d'intervention. Il commande désormais aussi la note interne, et un nom
+   * qui décrit un seul de ses effets se serait mis à mentir.
+   */
+  versionClient?: boolean;
 }) {
   // "Généré le" = instant de génération du PDF (et PAS la date de
   // montage qui serait trompeuse — le label dit bien "Généré"). Le
@@ -795,9 +801,9 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
           )}
         </View>
 
-        {/* Horaires — masqués sur le rapport CLIENT (hideHours) : les heures
-            d'arrivée/départ révèlent la durée d'intervention. */}
-        {!hideHours && (
+        {/* Horaires — masqués sur le rapport CLIENT : les heures d'arrivée et
+            de départ révèlent la durée d'intervention. */}
+        {!versionClient && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Horaires</Text>
           {(() => {
@@ -1003,7 +1009,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
         {/* Montage par cabine — qui a monté quelle cabine (+ date). Affiché sur
             le rapport CLIENT (qui masque la section Horaires et donc les
             monteurs), pour les chantiers multi-cabine. */}
-        {hideHours && (() => {
+        {versionClient && (() => {
           const rows = cabineAssignments(project, cabineAttribution).filter((r) => r.who || r.date);
           if ((project.nbCabines || 0) < 2 || rows.length === 0) return null;
           return (
@@ -1100,6 +1106,28 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, hideHours }: 
               </View>
             );
           })()}
+
+          {/* Note interne — l'exemplaire du CLIENT ne la porte jamais.
+              C'est la condition pour qu'elle serve : une note qu'on soupçonne
+              de pouvoir sortir n'est plus une note franche. Elle dit l'accès
+              compliqué, le receveur douteux, ce qu'il faudra prévoir au SAV —
+              des choses utiles à l'équipe et à personne d'autre. */}
+          {!versionClient && String(project.noteInterneMontage || "").trim() && (
+            <View wrap={false} style={{ marginTop: 10, padding: 8, backgroundColor: "#fffbeb", borderRadius: 4, borderLeftWidth: 3, borderLeftColor: "#d97706" }}>
+              <Text style={{ fontSize: 8, color: "#92400e", fontFamily: "Helvetica-Bold", marginBottom: 4 }}>
+                Note interne — ne figure pas sur le rapport client
+              </Text>
+              {String(project.noteInterneMontage).split("\n").map((ligne: string, i: number) => (
+                ligne.trim()
+                  ? (
+                    <Text key={i} style={{ fontSize: 9, color: "#78350f", lineHeight: 1.4, marginBottom: 2 }}>
+                      {ligne.trim()}
+                    </Text>
+                  )
+                  : <View key={i} style={{ height: 3 }} />
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Alertes défauts / pièces manquantes */}
@@ -1616,7 +1644,7 @@ export async function GET(
     if (departOverride) project.heureDepart = departOverride;
 
     // Rapport CLIENT (?client=1) : masque les heures d'arrivée/départ.
-    const hideHours = request.nextUrl.searchParams.get("client") === "1" || forceClient;
+    const versionClient = request.nextUrl.searchParams.get("client") === "1" || forceClient;
 
     const pieces = await loadPiecesForProject(id, project);
     const defauts = await loadDefautsForProject(id, project);
@@ -1653,7 +1681,7 @@ export async function GET(
     }
 
     const pdfStream = await ReactPDF.renderToStream(
-      <RapportPDF project={project} pieces={pieces} defauts={defauts} cabineAttribution={cabineAttribution} hideHours={hideHours} />
+      <RapportPDF project={project} pieces={pieces} defauts={defauts} cabineAttribution={cabineAttribution} versionClient={versionClient} />
     );
 
     const chunks: Buffer[] = [];
