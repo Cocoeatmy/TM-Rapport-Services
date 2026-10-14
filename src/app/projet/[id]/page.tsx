@@ -1699,11 +1699,13 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
  * qu'un formulaire s'ouvre, les deux autres boutons s'effacent : il ne reste
  * à l'écran que le signalement en cours de saisie.
  */
-function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, onDefaut, onPiece }: {
+function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, project, setProject, onDefaut, onPiece }: {
   projectId: string;
   projectName: string;
   cabineOptions?: string[];
   cabineLabel?: string;
+  project: Project;
+  setProject: Dispatch<SetStateAction<Project | null>>;
   onDefaut: () => void;
   onPiece: () => void;
 }) {
@@ -1755,14 +1757,31 @@ function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, 
           onSubmitted={onDefaut}
         />
       )}
+      {/* Les références produit ne servent qu'à commander une pièce : elles
+          n'apparaissent qu'avec le formulaire qui en a besoin — un défaut ou
+          une pièce manquante. Un constat AVANT intervention ne commande
+          rien, et un dossier sans signalement ne doit pas afficher quatre
+          emplacements de photo vides à demeure. */}
+      {(ouvert === "defaut" || ouvert === "piece") && (
+        <PhotosReference projectId={projectId} project={project} setProject={setProject} mode="saisie" />
+      )}
     </div>
   );
 }
 
-function PhotosReference({ projectId, project, setProject }: {
+function PhotosReference({ projectId, project, setProject, mode }: {
   projectId: string;
   project: Project;
   setProject: Dispatch<SetStateAction<Project | null>>;
+  /**
+   * `saisie` : les cases d'ajout, pendant la rédaction d'un signalement.
+   * `apercu` : les photos déjà prises, et rien d'autre.
+   *
+   * Les cases d'ajout s'affichaient sur TOUS les dossiers, y compris ceux
+   * sans le moindre signalement : quatre emplacements vides à demeure, pour
+   * une photo qu'on ne prend qu'au moment de commander une pièce.
+   */
+  mode: "saisie" | "apercu";
 }) {
   const enregistrer = (cle: "photosEtiquetteCarton" | "photosEclateProduit", champ: string) =>
     (files: { name: string; url: string }[]) => {
@@ -1793,9 +1812,39 @@ function PhotosReference({ projectId, project, setProject }: {
     },
   ];
 
+  const existantes = blocs.flatMap((b) => project[b.cle] || []);
+  /* Rien à montrer et rien à saisir : le bloc n'existe pas. */
+  if (mode === "apercu" && existantes.length === 0) return null;
+
+  if (mode === "apercu") {
+    return (
+      <div className="pt-3 border-t border-gray-100 dark:border-slate-700 space-y-2">
+        <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Références produit</p>
+        {blocs.map((b) => {
+          const photos = project[b.cle] || [];
+          if (photos.length === 0) return null;
+          return (
+            <div key={b.cle}>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-1">{b.label}</p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8 gap-2">
+                {photos.map((f, i) => (
+                  <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="block">
+                    <img src={thumbnailUrl(f.url, 320)} alt={`${b.label} ${i + 1}`} loading="lazy" decoding="async"
+                      style={{ aspectRatio: "4/3" }}
+                      className="w-full object-cover rounded-lg border border-slate-200 dark:border-slate-600 hover:opacity-90 transition-opacity" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
-    /* Une section de l'encadré des signalements, et non un encadré de plus :
-       des bordures gigognes ne disent rien de ce qui va avec quoi. */
+    /* Une section de l'encadré, et non un encadré de plus : des bordures
+       gigognes ne disent rien de ce qui va avec quoi. */
     <div className="pt-3 border-t border-gray-100 dark:border-slate-700 space-y-3">
       <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
         Références produit
@@ -9810,11 +9859,13 @@ function ProjectPageContent({ id }: { id: string }) {
                         <div className="rounded-2xl border border-gray-200 dark:border-slate-700 p-3 space-y-3">
                           <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
                           <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
-                          <PhotosReference projectId={id} project={project} setProject={setProject} />
+                          <PhotosReference projectId={id} project={project} setProject={setProject} mode="apercu" />
                         </div>
                         <AjoutSignalement
                           projectId={id}
                           projectName={project.projet}
+                          project={project}
+                          setProject={setProject}
                           onDefaut={() => setDefautRefreshKey((k) => k + 1)}
                           onPiece={() => setPieceRefreshKey((k) => k + 1)}
                         />
@@ -10642,6 +10693,8 @@ function ProjectPageContent({ id }: { id: string }) {
                                 projectId={id}
                                 projectName={project.projet}
                                 cabineLabel={cabine.nom}
+                                project={project}
+                                setProject={setProject}
                                 onDefaut={() => setDefautRefreshKey((k) => k + 1)}
                                 onPiece={() => setPieceRefreshKey((k) => k + 1)}
                               />
@@ -11324,7 +11377,7 @@ function ProjectPageContent({ id }: { id: string }) {
                     <div className="rounded-2xl border border-gray-200 dark:border-slate-700 p-3 space-y-3">
                       <PiecesList projectId={id} refreshKey={pieceRefreshKey} />
                       <DefautsList projectId={id} refreshKey={defautRefreshKey} project={project} setProject={setProject} />
-                      <PhotosReference projectId={id} project={project} setProject={setProject} />
+                      <PhotosReference projectId={id} project={project} setProject={setProject} mode="apercu" />
                     </div>
                     {nbSignalements === 0 && (
                       <p className="text-sm text-gray-400 text-center py-2">Aucun signalement enregistré.</p>
