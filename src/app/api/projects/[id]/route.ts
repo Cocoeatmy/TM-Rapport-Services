@@ -68,8 +68,27 @@ function parseCabineMap(raw: string): Map<number, string> {
  * Si incoming = "Cabine N" (défaut) et existing a une valeur → on garde existing.
  * Si incoming est custom (≠ "Cabine N") → incoming gagne (changement explicite).
  */
-function mergeCabineNoms(existing: string, incoming: string): string {
+/**
+ * Fusion des noms de lots.
+ *
+ * Le client envoie TOUS les slots, y compris ceux qu'il n'a pas touchés et
+ * dont sa copie peut être périmée. Un « Cabine 3 » entrant ne vaut donc rien
+ * par lui-même — il signifie le plus souvent « je ne sais pas », et l'écrire
+ * effacerait le nom que quelqu'un a choisi sur un autre téléphone.
+ *
+ * Sauf quand le monteur vient précisément de renommer ce lot-là : `forces`
+ * porte les slots qu'il a touchés dans cette écriture, et ceux-là passent,
+ * même pour revenir à « Cabine 3 ». Un nom VIDE, lui, n'est jamais écrit :
+ * un lot garde toujours un titre (demande de Micael, 14 octobre 2026).
+ */
+export function mergeCabineNoms(existing: string, incoming: string, forces?: unknown): string {
   if (!incoming.includes("Cab")) return incoming;
+  const forcés = new Set<number>(
+    String(forces || "")
+      .split(/[,|]/)
+      .map((t) => parseInt(t.replace(/\D/g, ""), 10))
+      .filter((n) => Number.isFinite(n) && n > 0),
+  );
   const exMap = parseCabineMap(existing);
   // Parser qui inclut les valeurs vides pour détecter les slots présents dans incoming
   const inMap = new Map<number, string>();
@@ -81,13 +100,16 @@ function mergeCabineNoms(existing: string, incoming: string): string {
 
   const merged = new Map(exMap);
   inMap.forEach((inVal, cabNum) => {
-    const isDefault = inVal === `Cabine ${cabNum}` || inVal === "";
-    if (!isDefault) {
-      merged.set(cabNum, inVal); // valeur custom → incoming gagne
-    } else if (!exMap.has(cabNum)) {
-      merged.set(cabNum, inVal || `Cabine ${cabNum}`); // pas d'existant → défaut OK
+    if (inVal === "") {
+      // Un titre ne s'efface pas. Au pire on repose le nom par défaut.
+      if (!exMap.has(cabNum)) merged.set(cabNum, `Cabine ${cabNum}`);
+      return;
     }
-    // sinon : existing a une valeur, incoming est défaut → on garde existing
+    const estDefaut = inVal === `Cabine ${cabNum}`;
+    if (!estDefaut || forcés.has(cabNum) || !exMap.has(cabNum)) {
+      merged.set(cabNum, inVal);
+    }
+    // sinon : existing a un nom choisi, incoming n'est qu'un défaut non voulu
   });
 
   return [...merged.entries()]
@@ -360,7 +382,7 @@ export async function PATCH(
           body.heureDepart = clearTimesForCabines(existing.heureDepart || "", newlySousTraite);
         }
         if (body.nomsCabines !== undefined) {
-          body.nomsCabines = mergeCabineNoms(existing.nomsCabines || "", body.nomsCabines);
+          body.nomsCabines = mergeCabineNoms(existing.nomsCabines || "", body.nomsCabines, body.nomsCabinesForces);
         }
         if (body.attributionCabines !== undefined) {
           body.attributionCabines = mergeCabineAttribution(existing.attributionCabines || "", body.attributionCabines);
@@ -429,8 +451,9 @@ export async function PATCH(
         }
       }
     }
-    // Ne pas transmettre ce champ de contrôle à updateProject.
+    // Ne pas transmettre ces champs de contrôle à updateProject.
     delete body.clearAttributionCabs;
+    delete body.nomsCabinesForces;
 
     await updateProject(id, body);
     // Invalider le cache après mise à jour

@@ -4085,6 +4085,7 @@ function AssistantRapport({
   projectId, project, setProject,
   rapport, setRapport,
   heureArrivee, setHeureArrivee,
+  depart, setDepart,
   signature,
   aDemontage,
   absents, onDeclarerAbsence,
@@ -4101,6 +4102,9 @@ function AssistantRapport({
   setRapport: React.Dispatch<React.SetStateAction<string>>;
   heureArrivee: string;
   setHeureArrivee: (v: string) => void;
+  /** Heure de départ du chantier (ou du lot), à contrôler avant l'envoi. */
+  depart: string;
+  setDepart: (v: string) => void;
   signature: string;
   /** « Type de services » contient-il Démontage ? */
   aDemontage: boolean;
@@ -4144,6 +4148,12 @@ function AssistantRapport({
   /* Démontage non prévu au contrat : la planche n'apparaît que si on la
      demande. Sur un chantier sans dépose, elle n'aurait rien à recevoir. */
   const [demontageForce, setDemontageForce] = useState(false);
+  /* L'heure de départ se pose toute seule, sur la dernière photo d'après
+     intervention. Elle se relit quand même avant l'envoi : c'est elle qui
+     sera facturée, et une photo prise en partant puis un détour imprévu
+     suffisent à la décaler. Une relecture coûte trois secondes. */
+  const [departConfirme, setDepartConfirme] = useState(false);
+
   /** Lequel des deux envois a été demandé — pour n'en faire pâlir qu'un. */
   const [envoiChoisi, setEnvoiChoisi] = useState<"interne" | "client" | null>(null);
   const envoiRef = useRef(envoiEnCours);
@@ -4256,6 +4266,43 @@ function AssistantRapport({
     if (surPhotos && planche > 0) { setPlanche((n: number) => n - 1); hautDePage(); return; }
     aller(index - 1);
   };
+  /* Le même contrôle sert aux deux fins — celle d'un lot et celle du
+     chantier : la question posée est la même, et la réponse part au même
+     endroit. */
+  const blocDepart = (
+    <div className="rounded-xl border-2 border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/10 p-3 space-y-2">
+      <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Heure de départ</p>
+      <div className="flex items-center gap-2">
+        <input type="time" value={depart}
+          onChange={(e) => { setDepart(e.target.value); setDepartConfirme(false); }}
+          className="h-11 px-3 text-base font-mono rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900 flex-1" />
+        <button type="button"
+          onClick={() => {
+            const d = new Date();
+            setDepart(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
+            setDepartConfirme(false);
+          }}
+          className="h-11 px-3 rounded-lg border border-amber-300 dark:border-amber-700 text-xs font-medium text-amber-800 dark:text-amber-300 shrink-0">
+          Maintenant
+        </button>
+      </div>
+      <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
+        Relevée sur la dernière photo d&apos;après intervention. Corrigez-la si elle ne correspond pas.
+      </p>
+      {departConfirme ? (
+        <p className="text-[11px] text-green-700 dark:text-green-300 flex items-center gap-1">
+          <Check className="w-3 h-3" strokeWidth={3} /> Heure confirmée
+        </p>
+      ) : (
+        <button type="button" disabled={!depart}
+          onClick={() => setDepartConfirme(true)}
+          className="w-full py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold disabled:opacity-40">
+          {depart ? "C'est bien l'heure de départ" : "Indiquez l'heure de départ"}
+        </button>
+      )}
+    </div>
+  );
+
   const libelleSuivant = surPhotos && !dernierePlanche
     ? `Suivant — ${planches[planche + 1]?.titre}`
     : "Suivant";
@@ -4537,7 +4584,8 @@ function AssistantRapport({
                 Le rapport du chantier s&apos;envoie en une fois, quand tous les lots sont terminés.
               </p>
             </div>
-            <button type="button" disabled={enregistrement}
+            {blocDepart}
+            <button type="button" disabled={enregistrement || !departConfirme}
               onClick={() => { onEnregistrer(); onFermer(); }}
               className="w-full py-3.5 rounded-xl bg-green-600 text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
               {enregistrement ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" strokeWidth={3} />}
@@ -4587,14 +4635,15 @@ function AssistantRapport({
                 a appuyé pâlit, et il porte un sablier qui tourne. Les deux
                 boutons grisés d'un coup, on ne savait plus lequel partait —
                 ni si quelque chose se passait. */}
+            {blocDepart}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              <button type="button" disabled={envoiEnCours}
+              <button type="button" disabled={envoiEnCours || !departConfirme}
                 onClick={() => lancerEnvoi(false)}
                 className={`py-3 rounded-xl bg-[#1e3a5f] text-white text-sm font-semibold flex items-center justify-center gap-2 ${envoiChoisi === "interne" ? "opacity-60" : ""}`}>
                 Envoyer le rapport interne
                 {envoiChoisi === "interne" && <Loader2 className="w-4 h-4 animate-spin" />}
               </button>
-              <button type="button" disabled={envoiEnCours}
+              <button type="button" disabled={envoiEnCours || !departConfirme}
                 onClick={() => lancerEnvoi(true)}
                 className={`py-3 rounded-xl bg-blue-600 text-white text-sm font-semibold flex items-center justify-center gap-2 ${envoiChoisi === "client" ? "opacity-60" : ""}`}>
                 Envoyer le rapport client
@@ -4940,6 +4989,12 @@ function ProjectPageContent({ id }: { id: string }) {
   const nomKvDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Dernier nom de lot saisi, pas encore parti vers Notion. */
   const nomsEnAttenteRef = useRef<string | null>(null);
+  /* Les lots que le monteur vient de renommer LUI-MÊME dans cet envoi. Le
+     serveur refuse par défaut qu'un « Cabine 3 » entrant écrase un nom
+     choisi — une copie périmée ne doit pas effacer le travail d'un autre
+     téléphone. Ces slots-là passent quand même, y compris pour revenir au
+     nom par défaut. */
+  const slotsNomForcesRef = useRef<Set<number>>(new Set());
   /** Un envoi à la fois par champ — voir src/lib/envoi-en-serie.ts. */
   const envoyerEnSerie = useRef(fileDEnvoi()).current;
   // Nom du lot au moment où l'utilisateur commence à l'éditer (focus), pour
@@ -5760,6 +5815,27 @@ function ProjectPageContent({ id }: { id: string }) {
     offlineFetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ heureArrivee: enc.arrivee, heureDepart: enc.depart }) }).catch(() => {});
     try { localStorage.setItem(`tm-pointages-${id}`, JSON.stringify(next)); } catch {}
   };
+  /**
+   * L'heure de départ du chantier, telle que l'assistant la montre et la
+   * corrige. Sur un chantier à plusieurs passages, c'est celle du DERNIER :
+   * les précédents sont clos depuis longtemps.
+   */
+  const departCourantMono = isMultiDay
+    ? (pointages[pointages.length - 1]?.depart || "")
+    : heureDepart;
+  const poserDepartMono = (v: string) => {
+    if (isMultiDay) {
+      setPointages((prev) => {
+        const next = prev.map((p, i) => (i === prev.length - 1 ? { ...p, depart: v } : p));
+        persistMontagePointages(next);
+        return next;
+      });
+    } else {
+      setHeureDepart(v);
+    }
+    scheduleAutoSave();
+  };
+
   const addPointage = () => {
     /* Un passage ajouté à la main part lui aussi de l'équipe prévue : le
        retour sur chantier se fait avec la même équipe neuf fois sur dix. */
@@ -7079,6 +7155,8 @@ function ProjectPageContent({ id }: { id: string }) {
     const nomsEnc = nomsEnAttenteRef.current;
     if (nomsEnc === null) return;
     nomsEnAttenteRef.current = null;
+    const forces = [...slotsNomForcesRef.current].sort((a, b) => a - b);
+    slotsNomForcesRef.current.clear();
     /* N'envoie PAS attributionCabines : le monteur n'a pas changé. Envoyer
        l'attribution complète avec des monteurs locaux potentiellement périmés
        déclencherait des suppressions involontaires côté serveur. */
@@ -7086,7 +7164,10 @@ function ProjectPageContent({ id }: { id: string }) {
       offlineFetch(`/api/projects/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nomsCabines: nomsEnc }),
+        body: JSON.stringify({
+          nomsCabines: nomsEnc,
+          ...(forces.length ? { nomsCabinesForces: forces.map((n) => `Cab${n}`).join(",") } : {}),
+        }),
       }).catch(console.error),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -7112,6 +7193,7 @@ function ProjectPageContent({ id }: { id: string }) {
         localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(next.map((c) => c.nom)));
       } catch {}
       dirtyNomRef.current.set(idx, Date.now());
+      slotsNomForcesRef.current.add(idx + 1);
       nomsEnAttenteRef.current = next
         .map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`)
         .join(" | ");
@@ -7195,7 +7277,7 @@ function ProjectPageContent({ id }: { id: string }) {
    */
   const majLotAssistant = (
     idx: number,
-    delta: { monteur?: string; date?: string; arrivee?: string },
+    delta: { monteur?: string; date?: string; arrivee?: string; depart?: string },
   ) => {
     const actuel = cabines[idx];
     if (!actuel) return;
@@ -7205,6 +7287,7 @@ function ProjectPageContent({ id }: { id: string }) {
     const champs: Record<string, string> = {};
     if (delta.monteur !== undefined) champs.attributionCabines = suivant.monteur || "";
     if (suivant.arrivee && suivant.date) champs.heureArrivee = `${suivant.date}:${suivant.arrivee}`;
+    if (suivant.depart && suivant.date) champs.heureDepart = `${suivant.date}:${suivant.depart}`;
     if (suivant.date) {
       const avant = parseCabineTextMulti(project?.interventionsMontageCabines || "")[idx + 1] || "";
       const apres = fusionnerPassage(avant, {
@@ -10567,6 +10650,8 @@ function ProjectPageContent({ id }: { id: string }) {
                         setRapport={(v) => { setRapport(v); scheduleAutoSave(); }}
                         heureArrivee={heureArrivee}
                         setHeureArrivee={(v) => { setHeureArrivee(v); scheduleAutoSave(); }}
+                        depart={departCourantMono}
+                        setDepart={poserDepartMono}
                         signature={signature}
                         aDemontage={chantierAvecDemontage(project)}
                         absents={sansObjet[0] || []}
@@ -11442,6 +11527,7 @@ function ProjectPageContent({ id }: { id: string }) {
                                       } catch {}
                                       // ── Marquer la cabine comme "dirty" pour protéger du revert CDN ─
                                       dirtyNomRef.current.set(idx, Date.now());
+                                      slotsNomForcesRef.current.add(idx + 1);
                                       /* Sauvegarde Notion : on laisse la frappe se poser (500 ms),
                                          puis un seul envoi part, à la suite des précédents. Le délai
                                          de 150 ms d'avant découpait un mot de trois lettres en trois
@@ -12637,6 +12723,8 @@ function ProjectPageContent({ id }: { id: string }) {
           setRapport={(v) => { setRapport(v); scheduleAutoSave(); }}
           heureArrivee={heureArrivee}
           setHeureArrivee={(v) => { setHeureArrivee(v); scheduleAutoSave(); }}
+          depart={cabines[assistantLot].depart || ""}
+          setDepart={(v) => majLotAssistant(assistantLot, { depart: v })}
           signature={signature}
           aDemontage={chantierAvecDemontage(project)}
           absents={sansObjet[assistantLot + 1] || []}
