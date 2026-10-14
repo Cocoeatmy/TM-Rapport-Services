@@ -92,40 +92,6 @@ export function arriveeAcceptable(c: HeurePhoto, jourRef: string): boolean {
 }
 
 /**
- * Peut-on poser cette heure de départ telle quelle ?
- *
- * Seule la DATE fait obstacle : une photo d'un autre jour appartient à un
- * autre passage, et son heure n'a rien à dire sur celui-ci.
- *
- * Il y avait ici un second garde-fou : sans EXIF, l'heure n'était acceptée
- * que si elle décrivait une journée de moins de onze heures, de peur qu'un
- * envoi fait le soir n'inscrive « 21:34 ». Il refusait plus souvent qu'il ne
- * protégeait, et chaque refus ouvrait une fenêtre qui demandait l'heure à la
- * main — ce que Micael ne veut pas (14 octobre 2026). La règle est
- * désormais celle qu'il a posée : l'heure de départ est celle de la dernière
- * photo d'après intervention, ou la plus tardive des métadonnées de montage
- * et d'après intervention. En pratique le risque est faible : dès qu'une
- * photo du lot porte un EXIF, c'est lui qui parle, et à défaut la date du
- * fichier reste celle de la prise de vue, pas de l'envoi.
- */
-export function departAcceptable(c: HeurePhoto, arrivee: string, jourRef: string): boolean {
-  if (c.jour && jourRef && c.jour !== jourRef) return false;
-  return true;
-}
-
-/**
- * Une heure de départ déjà posée tient-elle debout ? Un champ vide, ou un
- * départ antérieur ou égal à l'arrivée (chrono arrêté par mégarde), n'est pas
- * une heure de départ : il faut la retrouver, par la photo ou en la demandant.
- */
-export function departValable(depart?: string | null, arrivee?: string | null): boolean {
-  const d = minutesDe(depart || "");
-  if (d < 0) return false;
-  const a = minutesDe(arrivee || "");
-  return a < 0 ? true : d > a;
-}
-
-/**
  * Nouvelle heure de départ à écrire après l'ajout de photos de fin — ou
  * `null` s'il ne faut rien toucher.
  *
@@ -136,18 +102,23 @@ export function departValable(depart?: string | null, arrivee?: string | null): 
  * - photo d'APRÈS INTERVENTION : c'est la fin du chantier, et son heure fait
  *   foi dès qu'elle est postérieure. La règle est de Micael : le départ est
  *   l'heure de la dernière photo d'après intervention ;
- * - sinon (montage) on n'avance l'heure que sur une preuve sûre (EXIF plus
- *   tardif) et jamais en arrière : une heure saisie à la main n'est pas
- *   écrasée par une photo de milieu de pose.
+ * - sinon (montage) on n'avance l'heure que sur une preuve sûre et jamais en
+ *   arrière : une heure saisie à la main n'est pas écrasée par une photo de
+ *   milieu de pose.
+ *
+ * Rien n'est plus jamais REFUSÉ, et aucune question n'est posée. Deux
+ * garde-fous ont vécu ici : une journée de plus de onze heures sans EXIF, et
+ * une photo datée d'un autre jour. Chacun ouvrait une fenêtre demandant
+ * l'heure à la main, que Micael ne veut pas voir (14 octobre 2026) — mieux
+ * vaut l'heure de la dernière photo qu'une question. Le passage visé reste
+ * choisi par l'appelant, qui prend celui du jour de la photo.
  */
 export function departApresPhoto(
   actuel: string,
   c: HeurePhoto,
   arrivee: string,
-  jourRef: string,
   options: { finDuChantier?: boolean } = {},
 ): string | null {
-  if (!departAcceptable(c, arrivee, jourRef)) return null;
   const nouveau = c.heure;
   const courant = minutesDe(actuel);
   if (courant < 0) return nouveau;

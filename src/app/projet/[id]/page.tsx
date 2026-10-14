@@ -124,7 +124,7 @@ import { toast } from "sonner";
 import type { Project } from "@/lib/notion";
 import { getCollaboratorColor } from "@/lib/collaborators";
 import { isMultiDayHours, parsePointages, encodePointages } from "@/lib/pointages";
-import { heureDesPhotos, arriveeAcceptable, departApresPhoto, departValable, type HeurePhoto } from "@/lib/heure-photo";
+import { heureDesPhotos, arriveeAcceptable, departApresPhoto, type HeurePhoto } from "@/lib/heure-photo";
 import { interventionsDuLot, encodeInterventions, dernierPassage, type InterventionSav } from "@/lib/sav-interventions";
 import { equipeDuJour, nomsAProposer, equipeDesPassages, listeDeNoms } from "@/lib/equipe-intervention";
 import { fusionnerPassage } from "@/lib/passage-lot";
@@ -5441,8 +5441,9 @@ function ProjectPageContent({ id }: { id: string }) {
   // Ignoré si l'utilisateur connecté est ferreira.micael@gmail.com.
   /* Envoi différé (photo sans EXIF, arrivée le soir) : l'app ne devine pas
      l'heure du départ, elle la demande. Mieux vaut une question qu'un faux. */
-  const [departADemander, setDepartADemander] = useState<{ cabineIdx?: number; jour: string } | null>(null);
-  const [departSaisi, setDepartSaisi] = useState("");
+  /* Il y avait ici une fenêtre « Heure de départ » quand la photo ne pouvait
+     pas la dire. Elle est retirée (14 octobre 2026) : l'heure de la dernière
+     photo suffit, et on ne demande plus rien au monteur. */
 
   /* Planches déclarées sans objet sur ce chantier — « Pas de QR Code »,
      « Pas de garantie », « Pas de vidéo ». Elles ne sont plus rappelées à
@@ -5511,7 +5512,6 @@ function ProjectPageContent({ id }: { id: string }) {
       // suit pas les heures des sous-traitants → pas d'auto-remplissage arrivée/
       // départ à l'upload photo (demande utilisateur).
       const estSousTraite = !!parseSousTraitance(project?.monteursSousTraitance || "")[cabineIdx];
-      let aDemander = false;
       const next = cabines.map((c, i) => {
         if (i !== idx0) return c;
         const u = { ...c };
@@ -5525,9 +5525,8 @@ function ProjectPageContent({ id }: { id: string }) {
           }
           // Heure de départ : photos montage ou après intervention
           if (fin) {
-            const d = departApresPhoto(u.depart || "", capture, u.arrivee || "", jourRef, { finDuChantier });
+            const d = departApresPhoto(u.depart || "", capture, u.arrivee || "", { finDuChantier });
             if (d) u.depart = d;
-            else if (!departValable(u.depart, u.arrivee)) aDemander = true;
           }
         }
         /* Équipe du lot : celle PRÉVUE dans Notion, complétée par la
@@ -5536,7 +5535,6 @@ function ProjectPageContent({ id }: { id: string }) {
         if (!u.monteur) u.monteur = equipeDuJour(project?.collaborateurs, userCollab);
         return u;
       });
-      if (aDemander) setDepartADemander({ cabineIdx, jour: next[idx0].date || todayStr });
       const changed = next.some((c, i) =>
         c.date !== cabines[i].date ||
         c.arrivee !== cabines[i].arrivee ||
@@ -5624,15 +5622,13 @@ function ProjectPageContent({ id }: { id: string }) {
         if (i < 0) i = pointages.findIndex((p) => !p.depart);
         if (i >= 0) {
           const jourRef = pointages[i].date || capture.jour || todayStr;
-          const d = departApresPhoto(pointages[i].depart || "", capture, pointages[i].arrivee || "", jourRef, { finDuChantier });
+          const d = departApresPhoto(pointages[i].depart || "", capture, pointages[i].arrivee || "", { finDuChantier });
           if (d) {
             setPointages((prev) => prev.map((p, k) => (k === i
               ? { ...p, depart: d, date: p.date || capture.jour || todayStr }
               : p)));
             direDepart(d);
             scheduleAutoSave();
-          } else if (!departValable(pointages[i].depart, pointages[i].arrivee)) {
-            setDepartADemander({ jour: jourRef });
           }
         }
       }
@@ -5663,9 +5659,8 @@ function ProjectPageContent({ id }: { id: string }) {
         arrivee = capture.heure;
       }
       if (fin) {
-        const d = departApresPhoto(depart, capture, arrivee, jour, { finDuChantier });
+        const d = departApresPhoto(depart, capture, arrivee, { finDuChantier });
         if (d) depart = d;
-        else if (!departValable(depart, arrivee)) setDepartADemander({ jour });
       }
       if (arrivee !== (heureArrivee || "") || depart !== (heureDepart || "")) {
         if (depart && depart !== (heureDepart || "")) direDepart(depart);
@@ -5715,48 +5710,6 @@ function ProjectPageContent({ id }: { id: string }) {
     setPointages((prev) => { const next = prev.filter((_, i) => i !== idx); persistMontagePointages(next); return next; });
   };
 
-  /**
-   * Heure de départ saisie après coup, quand la photo n'a pas pu la dire
-   * (envoi différé sans EXIF). Même écriture qu'une saisie manuelle : la
-   * valeur est posée là où l'auto-remplissage l'aurait mise.
-   */
-  const enregistrerDepartDemande = (heure: string) => {
-    const ctx = departADemander;
-    if (!ctx || !/^\d{1,2}:\d{2}$/.test(heure.trim())) return;
-    const h = heure.trim();
-    const todayStr = new Date().toISOString().split("T")[0];
-    if (isCabineMode && ctx.cabineIdx !== undefined) {
-      const idx0 = ctx.cabineIdx - 1;
-      const next = cabines.map((c, i) => (i === idx0 ? { ...c, depart: h, date: c.date || ctx.jour || todayStr } : c));
-      setCabines(next);
-      const arriveeStr = next
-        .map((c, i) => (!c.arrivee && !c.date ? "" : `Cab${i + 1}:${c.date ? `${c.date}:` : ""}${c.arrivee}`))
-        .filter(Boolean).join(" | ");
-      const departStr = next
-        .map((c, i) => (!c.depart && !c.date ? "" : `Cab${i + 1}:${c.date ? `${c.date}:` : ""}${c.depart}`))
-        .filter(Boolean).join(" | ");
-      offlineFetch(`/api/projects/${id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ heureArrivee: arriveeStr, heureDepart: departStr }),
-      }).catch(console.error);
-    } else if (isMultiDay) {
-      let i = pointages.map((pt, k) => (pt.date === ctx.jour ? k : -1)).filter((k) => k >= 0).pop() ?? -1;
-      if (i < 0) i = pointages.findIndex((pt) => !pt.depart);
-      if (i < 0) i = pointages.length - 1;
-      if (i < 0) return;
-      const next = pointages.map((pt, k) => (k === i ? { ...pt, depart: h, date: pt.date || ctx.jour || todayStr } : pt));
-      setPointages(next);
-      persistMontagePointages(next);
-    } else {
-      setHeureDepart(h);
-      setPointages([{ date: ctx.jour || todayStr, collaborateur: equipeDuJour(project?.collaborateurs, autoCollab), arrivee: heureArrivee || "", depart: h }]);
-      setIsMultiDay(true);
-      scheduleAutoSave();
-    }
-    setDepartADemander(null);
-    setDepartSaisi("");
-    toast.success(`Heure de départ enregistrée : ${h}`);
-  };
 
   /** Section heures mono-cabine : mode simple (arrivée/départ) + bouton
    *  « Plusieurs interventions », ou tableau daté multi-jours. Réutilisée dans
@@ -12751,53 +12704,7 @@ function ProjectPageContent({ id }: { id: string }) {
       {/* Envoi différé : la photo ne porte pas d'heure de prise de vue et elle
           arrive bien après le chantier. Plutôt que d'inscrire l'heure de
           l'envoi — un faux — on pose la question, une fois, au monteur. */}
-      {departADemander && typeof document !== "undefined" && createPortal(
-        <div
-          style={{ position: "fixed", inset: 0, zIndex: 70, transform: "translateZ(0)" }}
-          className="flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={() => { setDepartADemander(null); setDepartSaisi(""); }}
-        >
-          <div
-            className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="bg-[#1e3a5f] text-white px-5 py-4 flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              <h3 className="text-base font-semibold">Heure de départ</h3>
-            </div>
-            <div className="p-5 space-y-3">
-              <p className="text-sm text-gray-700 dark:text-gray-200">
-                Ces photos sont arrivées après coup : l&apos;app ne peut pas savoir à quelle
-                heure vous avez quitté le chantier
-                {departADemander.jour ? ` le ${departADemander.jour.split("-").reverse().join(".")}` : ""}
-                {departADemander.cabineIdx ? ` (lot ${departADemander.cabineIdx})` : ""}.
-              </p>
-              <input
-                type="time"
-                value={departSaisi}
-                onChange={(e) => setDepartSaisi(e.target.value)}
-                className="w-full h-12 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-slate-900 px-3 text-lg font-mono text-gray-900 dark:text-gray-100"
-              />
-            </div>
-            <div className="px-5 pb-5 space-y-2">
-              <button
-                disabled={!/^\d{1,2}:\d{2}$/.test(departSaisi)}
-                onClick={() => enregistrerDepartDemande(departSaisi)}
-                className="w-full h-11 rounded-lg bg-[#1e3a5f] hover:bg-[#2a4a73] disabled:opacity-40 text-white text-sm font-semibold"
-              >
-                Enregistrer l&apos;heure de départ
-              </button>
-              <button
-                onClick={() => { setDepartADemander(null); setDepartSaisi(""); }}
-                className="w-full h-9 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                Plus tard
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+
 
       {signatureRequiredPrompt && typeof document !== "undefined" && createPortal(
         <div

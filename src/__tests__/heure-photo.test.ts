@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { dateExifDepuisBuffer, parseDateExif } from "@/lib/exif-date";
 import {
   arriveeAcceptable,
-  departAcceptable,
   departApresPhoto,
   minutesDe,
   type HeurePhoto,
@@ -71,71 +70,67 @@ describe("lecture EXIF", () => {
   });
 });
 
-describe("heure acceptable", () => {
+describe("heure d'arrivée acceptable", () => {
   it("accepte une photo du jour", () => {
     expect(arriveeAcceptable(exif("2026-10-08", "08:06"), "2026-10-08")).toBe(true);
   });
 
   it("refuse une photo prise un autre jour (c'est un autre passage)", () => {
     expect(arriveeAcceptable(exif("2026-10-07", "16:00"), "2026-10-08")).toBe(false);
-    expect(departAcceptable(exif("2026-10-07", "16:00"), "08:00", "2026-10-08")).toBe(false);
+  });
+});
+
+/* Le départ, lui, n'est plus jamais refusé : tout refus ouvrait une fenêtre
+   demandant l'heure à la main, et Micael n'en veut pas (14 octobre 2026). */
+describe("le départ ne se refuse plus", () => {
+  it("prend l'heure d'un envoi tardif plutôt que de demander", () => {
+    expect(departApresPhoto("", envoi("2026-10-08", "21:34"), "08:06")).toBe("21:34");
   });
 
-  it("accepte un EXIF tardif : la photo a été prise sur place, envoyée le soir", () => {
-    expect(departAcceptable(exif("2026-10-08", "17:10"), "08:00", "2026-10-08")).toBe(true);
-  });
-
-  /* Ancienne règle : une heure d'envoi tardive était refusée, et le refus
-     ouvrait une fenêtre demandant l'heure à la main. Micael n'en veut pas
-     (14 octobre 2026) — mieux vaut l'heure du dernier envoi que la question. */
-  it("accepte l'heure d'un envoi tardif plutôt que de demander", () => {
-    expect(departAcceptable(envoi("2026-10-08", "21:34"), "08:06", "2026-10-08")).toBe(true);
-  });
-
-  it("accepte l'heure d'envoi quand elle décrit une journée plausible", () => {
-    expect(departAcceptable(envoi("2026-10-08", "16:30"), "08:00", "2026-10-08")).toBe(true);
+  it("prend aussi celle d'une photo datée d'un autre jour", () => {
+    expect(departApresPhoto("", exif("2026-10-07", "16:00"), "08:06")).toBe("16:00");
   });
 });
 
 describe("heure de départ après photos de fin", () => {
   it("remplit un départ vide", () => {
-    expect(departApresPhoto("", exif("2026-10-08", "09:29"), "08:06", "2026-10-08")).toBe("09:29");
+    expect(departApresPhoto("", exif("2026-10-08", "09:29"), "08:06")).toBe("09:29");
   });
 
   it("corrige un départ égal à l'arrivée (chrono arrêté par erreur)", () => {
-    expect(departApresPhoto("08:06", exif("2026-10-08", "09:29"), "08:06", "2026-10-08")).toBe("09:29");
+    expect(departApresPhoto("08:06", exif("2026-10-08", "09:29"), "08:06")).toBe("09:29");
   });
 
   it("corrige un départ antérieur à l'arrivée", () => {
-    expect(departApresPhoto("07:50", exif("2026-10-08", "09:29"), "08:06", "2026-10-08")).toBe("09:29");
+    expect(departApresPhoto("07:50", exif("2026-10-08", "09:29"), "08:06")).toBe("09:29");
   });
 
   it("étend un départ déjà posé quand une photo sûre est plus tardive", () => {
-    expect(departApresPhoto("09:00", exif("2026-10-08", "09:29"), "08:06", "2026-10-08")).toBe("09:29");
+    expect(departApresPhoto("09:00", exif("2026-10-08", "09:29"), "08:06")).toBe("09:29");
   });
 
   it("ne recule jamais une heure saisie à la main", () => {
-    expect(departApresPhoto("11:30", exif("2026-10-08", "11:20"), "08:06", "2026-10-08")).toBeNull();
+    expect(departApresPhoto("11:30", exif("2026-10-08", "11:20"), "08:06")).toBeNull();
   });
 
   it("n'écrase pas un départ correct avec une heure d'envoi", () => {
-    expect(departApresPhoto("11:30", envoi("2026-10-08", "21:34"), "08:06", "2026-10-08")).toBeNull();
+    expect(departApresPhoto("11:30", envoi("2026-10-08", "21:34"), "08:06")).toBeNull();
   });
 
   it("remplit un départ vide même avec une heure d'envoi tardive", () => {
-    expect(departApresPhoto("", envoi("2026-10-08", "22:10"), "08:06", "2026-10-08")).toBe("22:10");
+    expect(departApresPhoto("", envoi("2026-10-08", "22:10"), "08:06")).toBe("22:10");
   });
 
   /* La photo d'après intervention clôt le chantier : c'est elle qui donne
      l'heure de départ, même par-dessus celle d'une photo de montage. */
   it("la photo de fin avance le départ sur la date du fichier", () => {
     const fichier = { jour: "2026-10-08", heure: "16:40", source: "fichier" as const };
-    expect(departApresPhoto("15:00", fichier, "08:06", "2026-10-08", { finDuChantier: true })).toBe("16:40");
-    expect(departApresPhoto("15:00", fichier, "08:06", "2026-10-08")).toBeNull();
+    expect(departApresPhoto("15:00", fichier, "08:06", { finDuChantier: true })).toBe("16:40");
+    expect(departApresPhoto("15:00", fichier, "08:06")).toBeNull();
   });
 
   it("mais l'heure d'un simple envoi n'écrase jamais un départ correct", () => {
-    expect(departApresPhoto("11:30", envoi("2026-10-08", "21:34"), "08:06", "2026-10-08", { finDuChantier: true })).toBeNull();
+    expect(departApresPhoto("11:30", envoi("2026-10-08", "21:34"), "08:06", { finDuChantier: true })).toBeNull();
   });
 
   it("lit les heures en minutes", () => {
