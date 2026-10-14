@@ -128,12 +128,38 @@ export function PhotoUpload({
       renamed.map((f) => (f.type.startsWith("image/") ? compressImage(f, 1600, 0.82) : Promise.resolve(f)))
     );
 
+    /* Plafond de taille sur ce qui n'est PAS compressé — vidéos, PDF.
+       Le serveur refuse les requêtes de plus de 4,5 Mo : sans ce garde-fou,
+       une vidéo d'une minute échouait en 413, repartait dans la file des
+       envois différés et y tournait indéfiniment, sans que personne
+       comprenne pourquoi. Mieux vaut le dire tout de suite, et en clair. */
+    const PLAFOND = 4 * 1024 * 1024;
+    const tropGros = compressed.filter((f) => !f.type.startsWith("image/") && f.size > PLAFOND);
+    if (tropGros.length > 0) {
+      const mo = (n: number) => `${(n / 1024 / 1024).toFixed(1)} Mo`;
+      toast.error(
+        tropGros.length === 1
+          ? `Fichier trop lourd (${mo(tropGros[0].size)})`
+          : `${tropGros.length} fichiers trop lourds`,
+        { description: "4 Mo au maximum — filmez plus court, ou en qualité réduite.", duration: 7000 },
+      );
+      if (tropGros.length === compressed.length) {
+        /* Rien ne part : on rend le compteur et on retire les aperçus posés
+           plus haut, sinon la grille garde des vignettes fantômes. */
+        setUploadingCount((n) => Math.max(0, n - 1));
+        setPreviews((prev) => prev.filter((u) => !newPreviews.includes(u)));
+        newPreviews.forEach((u) => URL.revokeObjectURL(u));
+        return;
+      }
+    }
+    const aEnvoyer = compressed.filter((f) => f.type.startsWith("image/") || f.size <= PLAFOND);
+
     // Helper : enregistre les fichiers en IDB pour upload différé.
     // `uploadedUrl` (si la photo est DÉJÀ sur Cloudinary) est conservé → le
     // re-essai ne re-uploade jamais les octets, il ne refait que le rattachement.
     const queueOffline = async (
       reason: "offline" | "error",
-      items: { file: File; uploadedUrl?: string }[] = compressed.map((f) => ({ file: f })),
+      items: { file: File; uploadedUrl?: string }[] = aEnvoyer.map((f) => ({ file: f })),
     ) => {
       try {
         await addPendingUpload({
@@ -176,8 +202,8 @@ export function PhotoUpload({
       // une erreur claire et on retire l'aperçu.
       const permanentFailed: { preview: string; message: string }[] = [];
       const isPermanent = (e: unknown) => e instanceof UploadError && e.permanent;
-      for (let i = 0; i < compressed.length; i++) {
-        const f = compressed[i];
+      for (let i = 0; i < aEnvoyer.length; i++) {
+        const f = aEnvoyer[i];
         let url: string;
         try {
           url = await uploadToCloudinary(f, f.name, projectId, category);

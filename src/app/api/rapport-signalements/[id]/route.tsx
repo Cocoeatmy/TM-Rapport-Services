@@ -19,7 +19,7 @@ import { signSignalements } from "@/lib/doc-link";
 import { formatSwissDate } from "@/lib/time-utils";
 import { timingSafeEqual } from "crypto";
 import ReactPDF, {
-  Document, Page, Text, View, Image, Link, StyleSheet,
+  Document, Page, Text, View, Image, Link, StyleSheet, Svg, Path,
 } from "@react-pdf/renderer";
 import React from "react";
 
@@ -31,9 +31,47 @@ type Defaut = { id: string; projectId: string; typesLabel?: string; types?: stri
 
 function nfc(s: string) { return (s || "").normalize("NFC"); }
 function fmtDate(ts?: number) { try { return ts ? formatSwissDate(new Date(ts).toISOString()) : ""; } catch { return ""; } }
+function estVideo(u: string) {
+  return (u || "").includes("/video/upload/") || /\.(mp4|mov|webm|m4v|avi)(\?|$)/i.test(u || "");
+}
 function previewUrl(u: string) {
+  if (estVideo(u) && u.includes("/video/upload/")) {
+    const i = u.indexOf("/video/upload/") + "/video/upload/".length;
+    return `${u.slice(0, i)}so_0,w_600,q_auto/${u.slice(i).replace(/\.[a-z0-9]+(\?.*)?$/i, ".jpg")}`;
+  }
   if (u && u.includes("res.cloudinary.com") && u.includes("/upload/")) return u.replace("/upload/", "/upload/w_600,q_60,f_jpg/");
   return u;
+}
+/** Plein format, forcé en téléchargement plutôt qu'affiché par le navigateur. */
+function telechargementUrl(u: string) {
+  if (u && u.includes("res.cloudinary.com") && u.includes("/upload/")) return u.replace("/upload/", "/upload/fl_attachment/");
+  return u;
+}
+
+/**
+ * Vignette cliquable, avec sa flèche de téléchargement en bas à droite.
+ *
+ * Beaucoup de destinataires prennent le rapport pour un PDF ordinaire et
+ * disent « on ne voit pas bien les photos », sans imaginer qu'un clic rend
+ * l'original en pleine résolution. La flèche le dit sans une ligne de texte.
+ */
+function Vignette({ url, style }: { url: string; style: any }) {
+  const video = estVideo(url);
+  return (
+    <Link src={telechargementUrl(url)} style={{ ...style, textDecoration: "none" }}>
+      <View style={{ ...style, position: "relative" }}>
+        <Image src={previewUrl(url)} style={{ ...style, margin: 0 }} />
+        {video ? (
+          <View style={{ position: "absolute", top: "50%", left: "50%", marginTop: -13, marginLeft: -13, width: 26, height: 26, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 13, alignItems: "center", justifyContent: "center" }}>
+            <Svg width={13} height={13} viewBox="0 0 24 24"><Path d="M7 4 L20 12 L7 20 Z" fill="#ffffff" /></Svg>
+          </View>
+        ) : null}
+        <View style={{ position: "absolute", bottom: 3, right: 3, width: 16, height: 16, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
+          <Svg width={9} height={9} viewBox="0 0 24 24"><Path d="M12 3 L12 15 M7 10 L12 15 L17 10 M5 20 L19 20" stroke="#ffffff" strokeWidth={2.4} fill="none" /></Svg>
+        </View>
+      </View>
+    </Link>
+  );
 }
 const PIECE_STATUS: Record<string, string> = { demande: "à commander", commande: "commandée", recu: "reçue" };
 
@@ -145,7 +183,7 @@ function SignalementsPDF({ project, items, avecContacts = true }: { project: any
                 {it.photos.length > 0 ? (
                   <View style={styles.photoRow}>
                     {it.photos.map((url, j) => (
-                      <Link key={j} src={url}><Image src={previewUrl(url)} style={styles.photo} /></Link>
+                      <Vignette key={j} url={url} style={styles.photo} />
                     ))}
                   </View>
                 ) : null}
@@ -173,7 +211,7 @@ function SignalementsPDF({ project, items, avecContacts = true }: { project: any
                   <Text style={{ fontSize: 9, color: "#555", marginBottom: 3 }}>{r.titre}</Text>
                   <View style={styles.photoRow}>
                     {r.urls.map((url, j) => (
-                      <Link key={j} src={url}><Image src={previewUrl(url)} style={styles.photo} /></Link>
+                      <Vignette key={j} url={url} style={styles.photo} />
                     ))}
                   </View>
                 </View>

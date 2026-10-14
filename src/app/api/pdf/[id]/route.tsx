@@ -608,6 +608,43 @@ function downloadImageUrl(url: string): string {
 // Photo cliquable dans le PDF → télécharge l'image. On reporte l'encombrement
 // (taille + marges + arrondi) de l'image sur le <Link> (= l'élément de flux) pour
 // préserver EXACTEMENT la mise en page ; l'image remplit ensuite le lien.
+/** Un fichier vidéo ? Par l'adresse Cloudinary ou par l'extension. */
+function estVideo(u: string): boolean {
+  return u.includes("/video/upload/") || /\.(mp4|mov|webm|m4v|avi)(\?|$)/i.test(u);
+}
+
+/**
+ * L'image à MONTRER : la photo compressée, ou la première image d'une vidéo.
+ *
+ * Cloudinary sait extraire une vignette d'une vidéo (`so_0`). Sans elle, une
+ * vidéo s'afficherait comme un cadre vide — on verrait qu'il manque quelque
+ * chose sans savoir quoi.
+ */
+function apercuUrl(u: string): string {
+  if (estVideo(u) && u.includes("/video/upload/")) {
+    const i = u.indexOf("/video/upload/") + "/video/upload/".length;
+    const apres = u.slice(i).replace(/\.[a-z0-9]+(\?.*)?$/i, ".jpg");
+    return `${u.slice(0, i)}so_0,w_600,q_auto/${apres}`;
+  }
+  return optimizeImageUrl(u);
+}
+
+/**
+ * Photo ou vidéo cliquable dans le PDF.
+ *
+ * Deux marques, en bas à droite et au centre :
+ *
+ * • LE BADGE DE TÉLÉCHARGEMENT. Beaucoup de destinataires prennent le rapport
+ *   pour un PDF ordinaire et disent « on ne voit pas bien les photos », sans
+ *   imaginer qu'un clic rend l'original en pleine résolution. Une flèche dans
+ *   le coin le dit sans une ligne de texte.
+ *
+ * • LE BOUTON DE LECTURE, sur les vidéos seulement, pour qu'on ne prenne pas
+ *   la vignette pour une photo floue.
+ *
+ * L'encombrement (taille, marges, arrondi) est reporté sur le <Link>, qui est
+ * l'élément de flux : la mise en page reste exactement la même.
+ */
 function PhotoLink({ url, style }: { url: string; style: any }) {
   const s = style || {};
   const linkStyle: any = { textDecoration: "none" };
@@ -623,9 +660,20 @@ function PhotoLink({ url, style }: { url: string; style: any }) {
     objectFit: s.objectFit || "contain",
   };
   if (s.borderRadius !== undefined) imgStyle.borderRadius = s.borderRadius;
+  const video = estVideo(url);
   return (
     <Link src={downloadImageUrl(url)} style={linkStyle}>
-      <Image src={optimizeImageUrl(url)} style={imgStyle} />
+      <View style={{ width: "100%", height: "100%", position: "relative" }}>
+        <Image src={apercuUrl(url)} style={imgStyle} />
+        {video ? (
+          <View style={{ position: "absolute", top: "50%", left: "50%", marginTop: -13, marginLeft: -13, width: 26, height: 26, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 13, alignItems: "center", justifyContent: "center" }}>
+            <Svg width={13} height={13} viewBox="0 0 24 24"><Path d="M7 4 L20 12 L7 20 Z" fill="#ffffff" /></Svg>
+          </View>
+        ) : null}
+        <View style={{ position: "absolute", bottom: 3, right: 3, width: 16, height: 16, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
+          <Svg width={9} height={9} viewBox="0 0 24 24"><Path d="M12 3 L12 15 M7 10 L12 15 L17 10 M5 20 L19 20" stroke="#ffffff" strokeWidth={2.4} fill="none" /></Svg>
+        </View>
+      </View>
     </Link>
   );
 }
@@ -1224,7 +1272,9 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
         project.photosDemontage?.length > 0 ||
         project.photosMontage?.length > 0 ||
         project.photosQRCode?.length > 0 ||
-        project.photosGaranties?.length > 0) && (() => {
+        project.photosGaranties?.length > 0 ||
+        project.photosNumeroLot?.length > 0 ||
+        project.videosMontage?.length > 0) && (() => {
         const nbCab = project.nbCabines || 0;
         const isMultiCabine = nbCab > 1;
 
@@ -1232,7 +1282,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
 
         const groups: Record<number, Partial<Record<PhotoBucketKey, Photo[]>>> = {};
         const seenPdfUrls = new Set<string>();
-        const dispatchList = (list: Photo[], notionFieldKey: "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties") => {
+        const dispatchList = (list: Photo[], notionFieldKey: "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties" | "photosNumeroLot" | "videosMontage") => {
           const fallback = defaultBucketForField(notionFieldKey);
           for (const p of list) {
             if (!p.url || seenPdfUrls.has(p.url)) continue;
@@ -1249,6 +1299,8 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
         dispatchList(project.photosMontage || [], "photosMontage");
         dispatchList(project.photosQRCode || [], "photosQRCode");
         dispatchList(project.photosGaranties || [], "photosGaranties");
+        dispatchList(project.photosNumeroLot || [], "photosNumeroLot");
+        dispatchList(project.videosMontage || [], "videosMontage");
 
         // ── Fusion pour les projets mono-cabine ──────────────────────────────
         // Problème : en mode non-multi-cabine, certaines photos ont ".Cab1." dans
@@ -1373,8 +1425,13 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
               const apresPhotos = buckets.APRES_INTERVENTION || [];
               const qrPhotos = buckets.QR_CODE || [];
               const garPhotos = buckets.GARANTIE || [];
+              /* Le numéro du lot ouvre la page : c'est lui qui dit de quel
+                 appartement viennent les photos qui suivent. La vidéo la
+                 ferme, comme dans l'application. */
+              const lotPhotos = buckets.NUMERO_LOT || [];
+              const videoPhotos = buckets.VIDEO_MONTAGE || [];
 
-              const hasAny = avantPhotos.length > 0 || demontagePhotos.length > 0 || montagePhotos.length > 0 || apresPhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0;
+              const hasAny = avantPhotos.length > 0 || demontagePhotos.length > 0 || montagePhotos.length > 0 || apresPhotos.length > 0 || qrPhotos.length > 0 || garPhotos.length > 0 || lotPhotos.length > 0 || videoPhotos.length > 0;
               if (!hasAny) return null;
 
               return (
@@ -1411,11 +1468,13 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                       />
                     );
                   })()}
+                  {lotPhotos.length > 0 && renderBucketGrid("Numéro de lot", lotPhotos, `cab-${cabKey}-lot`)}
                   {avantPhotos.length > 0 && renderBucketGrid("Photos avant intervention", avantPhotos, `cab-${cabKey}-avant`)}
                   {demontagePhotos.length > 0 && renderBucketGrid("Photos démontage", demontagePhotos, `cab-${cabKey}-demontage`)}
                   {montagePhotos.length > 0 && renderBucketGrid("Photos montage", montagePhotos, `cab-${cabKey}-montage`)}
                   {apresPhotos.length > 0 && renderBucketGrid("Photos après intervention", apresPhotos, `cab-${cabKey}-apres`)}
                   {renderQrGarantieRow(qrPhotos, garPhotos, `cab-${cabKey}-qrgar`)}
+                  {videoPhotos.length > 0 && renderBucketGrid("Vidéo du montage — cliquer pour télécharger", videoPhotos, `cab-${cabKey}-video`)}
                   <View style={styles.footer} fixed>
                     <Text>TM Douche Montage | Champs-Lovat 13 Box n°2 & 3, 1400 Yverdon-les-Bains | Tél : +41 79 555 24 74 | www.douche-montage.ch | info@douche-montage.ch</Text>
                     <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />

@@ -82,7 +82,19 @@ export async function POST(request: NextRequest) {
         // (PDF, docs…) → upload BRUT (resource_type "raw") sans transformation,
         // pour conserver le fichier tel quel (ex. offres, factures en PDF).
         const isImage = (file.type || "").startsWith("image/");
-        const result = isImage
+        /* Les VIDÉOS partent en « video » et non en « raw ». C'est ce qui
+           permet d'en extraire une première image (`so_0`) : sans elle, une
+           vidéo s'affiche comme un cadre vide dans les rapports PDF — on voit
+           qu'il manque quelque chose sans savoir quoi. */
+        const isVideo = (file.type || "").startsWith("video/");
+        const result = isVideo
+          ? await cloudinary.uploader.upload(base64, {
+              folder: `tm-rapport/${projectId}/${category}`,
+              resource_type: "video",
+              use_filename: true,
+              unique_filename: true,
+            })
+          : isImage
           ? await cloudinary.uploader.upload(base64, {
               folder: `tm-rapport/${projectId}/${category}`,
               resource_type: "image",
