@@ -39,7 +39,15 @@ export async function GET(request: NextRequest) {
   if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const projectId = request.nextUrl.searchParams.get("projectId");
-  const defauts = await getData<DefautRequest>(KEY);
+  /* Lecture FRAÎCHE, et non le cache mémoire de l'instance.
+     Ce cache dure soixante secondes et vit DANS CHAQUE instance serverless.
+     Après une modification enregistrée par l'instance A, une relecture servie
+     par l'instance B rendait la liste d'AVANT pendant une minute : le texte
+     qu'on venait d'ajouter à un signalement disparaissait de l'écran tout
+     seul, puis revenait. En cas d'erreur Notion on retombe sur le cache —
+     mieux vaut une liste d'il y a une minute que pas de liste. */
+  const defauts = await getDataFresh<DefautRequest>(KEY)
+    .catch(() => getData<DefautRequest>(KEY));
   return NextResponse.json(projectId ? defauts.filter((d) => d.projectId === projectId) : defauts);
 }
 
@@ -50,7 +58,16 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const defauts = await getData<DefautRequest>(KEY);
+  /* Lecture FRAÎCHE avant d'écrire : on réécrit la LISTE ENTIÈRE, donc partir
+     d'une copie en cache ferait perdre toute modification enregistrée depuis
+     moins d'une minute par une autre instance. En cas d'erreur Notion on
+     abandonne plutôt que d'écrire du périmé. */
+  let defauts: DefautRequest[];
+  try {
+    defauts = await getDataFresh<DefautRequest>(KEY);
+  } catch {
+    return NextResponse.json({ error: "Notion indisponible, réessayez" }, { status: 503 });
+  }
   defauts.push({
     id: Math.random().toString(36).slice(2),
     ...body,
@@ -129,7 +146,16 @@ export async function DELETE(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
 
-  const defauts = await getData<DefautRequest>(KEY);
+  /* Lecture FRAÎCHE avant d'écrire : on réécrit la LISTE ENTIÈRE, donc partir
+     d'une copie en cache ferait perdre toute modification enregistrée depuis
+     moins d'une minute par une autre instance. En cas d'erreur Notion on
+     abandonne plutôt que d'écrire du périmé. */
+  let defauts: DefautRequest[];
+  try {
+    defauts = await getDataFresh<DefautRequest>(KEY);
+  } catch {
+    return NextResponse.json({ error: "Notion indisponible, réessayez" }, { status: 503 });
+  }
   const defaut = defauts.find((d) => d.id === id);
   const updated = defauts.filter((d) => d.id !== id);
   await setData(KEY, updated);

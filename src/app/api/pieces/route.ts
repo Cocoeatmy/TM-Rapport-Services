@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { descripteurFichier } from "@/lib/notion-fichiers";
 import { verifyToken } from "@/lib/auth";
-import { getData, setData } from "@/lib/kv-store";
+import { getData, getDataFresh, setData } from "@/lib/kv-store";
 import { notion } from "@/lib/notion";
 import { invalidateCache } from "@/lib/server-cache";
 
@@ -47,7 +47,14 @@ export async function GET(request: NextRequest) {
   if (!token) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const projectId = request.nextUrl.searchParams.get("projectId");
-  const pieces = await getData<PieceRequest>(KEY);
+  /* Lecture FRAÎCHE, et non le cache mémoire de l'instance : il dure soixante
+     secondes et vit DANS CHAQUE instance serverless. Après une modification
+     enregistrée par l'instance A, une relecture servie par l'instance B
+     rendait la liste d'AVANT pendant une minute — le texte qu'on venait
+     d'ajouter disparaissait de l'écran tout seul, puis revenait. En cas
+     d'erreur Notion on retombe sur le cache. */
+  const pieces = await getDataFresh<PieceRequest>(KEY)
+    .catch(() => getData<PieceRequest>(KEY));
   return NextResponse.json(projectId ? pieces.filter((p) => p.projectId === projectId) : pieces);
 }
 
@@ -58,7 +65,16 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const pieces = await getData<PieceRequest>(KEY);
+  /* Lecture FRAÎCHE avant d'écrire : on réécrit la LISTE ENTIÈRE, donc partir
+     d'une copie en cache ferait perdre toute modification enregistrée depuis
+     moins d'une minute par une autre instance. En cas d'erreur Notion on
+     abandonne plutôt que d'écrire du périmé. */
+  let pieces: PieceRequest[];
+  try {
+    pieces = await getDataFresh<PieceRequest>(KEY);
+  } catch {
+    return NextResponse.json({ error: "Notion indisponible, réessayez" }, { status: 503 });
+  }
   pieces.push({
     id: Math.random().toString(36).slice(2),
     ...body,
@@ -139,7 +155,16 @@ export async function DELETE(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
 
-  const pieces = await getData<PieceRequest>(KEY);
+  /* Lecture FRAÎCHE avant d'écrire : on réécrit la LISTE ENTIÈRE, donc partir
+     d'une copie en cache ferait perdre toute modification enregistrée depuis
+     moins d'une minute par une autre instance. En cas d'erreur Notion on
+     abandonne plutôt que d'écrire du périmé. */
+  let pieces: PieceRequest[];
+  try {
+    pieces = await getDataFresh<PieceRequest>(KEY);
+  } catch {
+    return NextResponse.json({ error: "Notion indisponible, réessayez" }, { status: 503 });
+  }
   const piece = pieces.find((p) => p.id === id);
   const updated = pieces.filter((p) => p.id !== id);
   await setData(KEY, updated);
@@ -180,7 +205,16 @@ export async function PATCH(request: NextRequest) {
 
   const body = await request.json();
   const { id, status, comment, description, reference, displayInRapport, resolved, cabineLabel, photoUrls } = body;
-  const pieces = await getData<PieceRequest>(KEY);
+  /* Lecture FRAÎCHE avant d'écrire : on réécrit la LISTE ENTIÈRE, donc partir
+     d'une copie en cache ferait perdre toute modification enregistrée depuis
+     moins d'une minute par une autre instance. En cas d'erreur Notion on
+     abandonne plutôt que d'écrire du périmé. */
+  let pieces: PieceRequest[];
+  try {
+    pieces = await getDataFresh<PieceRequest>(KEY);
+  } catch {
+    return NextResponse.json({ error: "Notion indisponible, réessayez" }, { status: 503 });
+  }
   const idx = pieces.findIndex((p) => p.id === id);
   if (idx === -1) return NextResponse.json({ error: "Non trouvé" }, { status: 404 });
 
