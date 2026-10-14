@@ -205,51 +205,6 @@ export interface ProjectPhotoSources {
   videosMontage?: { name: string }[];
 }
 
-/** Buckets effectivement présents dans un projet (option : pour une cabine donnée). */
-export function bucketsPresent(
-  project: ProjectPhotoSources,
-  cabineIdx?: number,
-): Set<PhotoBucketKey> {
-  const present = new Set<PhotoBucketKey>();
-  const check = (
-    list: { name: string }[] | undefined,
-    field: "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties",
-  ) => {
-    if (!list) return;
-    const fallback = defaultBucketForField(field);
-    for (const f of list) {
-      if (cabineIdx !== undefined) {
-        const cab = extractCabine(f.name);
-        if (cabineIdx >= 1) {
-          if (cab !== cabineIdx) continue;
-        } else if (cab !== null) {
-          continue;
-        }
-      }
-      present.add(detectBucket(f.name, fallback));
-    }
-  };
-  check(project.photosAvant, "photosAvant");
-  check(project.photosDemontage, "photosDemontage");
-  check(project.photosMontage, "photosMontage");
-  check(project.photosQRCode, "photosQRCode");
-  check(project.photosGaranties, "photosGaranties");
-  return present;
-}
-
-// Groupes de photos vérifiés à l'envoi du rapport (version ACTUELLE). Un groupe
-// est « présent » si AU MOINS un de ses buckets a une photo. Les 3 photos de
-// montage (gauche/centre/droite) sont regroupées en une seule ligne, et l'ancien
-// bucket "AVANT_MONTAGE" (jamais uploadé) est retiré.
-const MISSING_CHECK_GROUPS: { label: string; buckets: PhotoBucketKey[] }[] = [
-  { label: "Photos avant intervention", buckets: ["AVANT_INTERVENTION"] },
-  { label: "Photos démontage", buckets: ["DEMONTAGE"] },
-  { label: "Photos montage (1 gauche, 1 centre, 1 droite)", buckets: ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE"] },
-  { label: "Photos après intervention", buckets: ["APRES_INTERVENTION"] },
-  { label: "Photos QR Code", buckets: ["QR_CODE"] },
-  { label: "Photos Garantie", buckets: ["GARANTIE"] },
-];
-
 // ── Photos OBLIGATOIRES avec nombre minimum (bloquant à l'envoi) ────────────
 // Le montage regroupe gauche/centre/droite : min 3 photos au total, peu importe
 // la répartition. Avant et après intervention : min 2 chacun.
@@ -282,22 +237,6 @@ export const TOTAL_PHOTOS_REQUISES = REQUIRED_PHOTO_GROUPS.reduce((s, g) => s + 
 export function chantierAvecDemontage(project: ProjectPhotoSources): boolean {
   return (project.typeServices || []).some((t) => /d[ée]montage/i.test(String(t || "")));
 }
-
-/**
- * Groupes RECOMMANDÉS (rappel contournable) — pas de minimum imposé.
- *
- * `pertinent` écarte le groupe quand le chantier ne s'y prête pas : on ne
- * rappelle une photo que là où elle existe.
- */
-const OPTIONAL_PHOTO_GROUPS: {
-  label: string;
-  buckets: PhotoBucketKey[];
-  pertinent?: (project: ProjectPhotoSources) => boolean;
-}[] = [
-  { label: "Photos démontage", buckets: ["DEMONTAGE"], pertinent: chantierAvecDemontage },
-  { label: "Photos QR Code", buckets: ["QR_CODE"] },
-  { label: "Photos Garantie", buckets: ["GARANTIE"] },
-];
 
 /** Compte les photos d'un projet pour un bucket donné (option : par cabine). */
 function countBucket(
@@ -380,49 +319,13 @@ export const LIBELLE_ABSENCE: Partial<Record<PhotoBucketKey, string>> = {
   VIDEO_MONTAGE: "Pas de vidéo",
 };
 
-/** Un groupe entièrement déclaré absent n'a plus à être rappelé. */
-function declareAbsent(buckets: readonly PhotoBucketKey[], absents?: readonly PhotoBucketKey[]): boolean {
-  if (!absents || absents.length === 0) return false;
-  return buckets.every((b) => absents.includes(b));
-}
+/* Le rappel « photos recommandées non ajoutées » a été RETIRÉ le 14 octobre
+   2026, à la demande de Micael. Il listait démontage, QR code et garantie —
+   les trois cas désormais traités à la source : le démontage s'ajoute d'un
+   bouton depuis la planche « avant intervention », le QR code et la garantie
+   se déclarent absents d'une case à cocher. Le seul contrôle qui reste est
+   celui qui BLOQUE (missingRequiredPhotos) : deux photos avant, trois au
+   montage, deux après. Ne pas réintroduire de rappel contournable — on
+   apprend à le cliquer sans le lire, et il finit par couvrir les fois où il
+   avait raison. */
 
-/** Groupes RECOMMANDÉS absents (présence ≥1), au format texte. Contournable. */
-export function missingOptionalPhotoLabels(
-  project: ProjectPhotoSources,
-  options: { multiCabine: boolean; nbCabines: number; absents?: readonly PhotoBucketKey[] },
-): string[] {
-  const missing = (cabineIdx: number | undefined, prefix: string): string[] =>
-    OPTIONAL_PHOTO_GROUPS
-      .filter((g) => (g.pertinent ? g.pertinent(project) : true))
-      .filter((g) => !declareAbsent(g.buckets, options.absents))
-      .filter((g) => countGroup(project, g.buckets, cabineIdx) === 0)
-      .map((g) => `${prefix}${g.label}`);
-
-  if (!options.multiCabine || options.nbCabines <= 1) return missing(undefined, "");
-  const out: string[] = [];
-  for (let i = 1; i <= options.nbCabines; i++) out.push(...missing(i, `Cabine ${i} — `));
-  return out;
-}
-
-/** Liste les groupes de photos manquants au format texte, mono ou multi-cabine. */
-export function missingBucketLabels(
-  project: ProjectPhotoSources,
-  options: { multiCabine: boolean; nbCabines: number; absents?: readonly PhotoBucketKey[] },
-): string[] {
-  const missingGroups = (present: Set<PhotoBucketKey>) =>
-    MISSING_CHECK_GROUPS
-      .filter((g) => !declareAbsent(g.buckets, options.absents))
-      .filter((g) => !g.buckets.some((b) => present.has(b)))
-      .map((g) => g.label);
-
-  if (!options.multiCabine || options.nbCabines <= 1) {
-    return missingGroups(bucketsPresent(project));
-  }
-  const out: string[] = [];
-  for (let i = 1; i <= options.nbCabines; i++) {
-    for (const label of missingGroups(bucketsPresent(project, i))) {
-      out.push(`Cabine ${i} — ${label}`);
-    }
-  }
-  return out;
-}

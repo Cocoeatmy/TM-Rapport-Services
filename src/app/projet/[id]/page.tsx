@@ -141,9 +141,8 @@ import {
   defaultBucketForField,
   detectBucket,
   filterByBucket,
-  missingBucketLabels,
   missingRequiredPhotos,
-  missingOptionalPhotoLabels,
+  chantierAvecDemontage,
   BUCKETS_DECLARABLES_ABSENTS,
   LIBELLE_ABSENCE,
   minimumRequis,
@@ -4009,6 +4008,13 @@ const ETAPES_ASSISTANT: { cle: EtapeAssistant; titre: string }[] = [
   { cle: "signature", titre: "Signature" },
 ];
 
+/** Personne sur place : il n'y a personne pour signer, la dernière étape
+ *  n'est plus qu'un envoi. */
+function etapesAssistant(personneSurSite: boolean): { cle: EtapeAssistant; titre: string }[] {
+  if (!personneSurSite) return ETAPES_ASSISTANT;
+  return ETAPES_ASSISTANT.map((e) => (e.cle === "signature" ? { ...e, titre: "Envoi" } : e));
+}
+
 /**
  * Les planches photo de l'assistant, dans l'ordre où on les prend.
  *
@@ -4082,6 +4088,21 @@ function AssistantRapport({
   /* Démontage non prévu au contrat : la planche n'apparaît que si on la
      demande. Sur un chantier sans dépose, elle n'aurait rien à recevoir. */
   const [demontageForce, setDemontageForce] = useState(false);
+  /** Lequel des deux envois a été demandé — pour n'en faire pâlir qu'un. */
+  const [envoiChoisi, setEnvoiChoisi] = useState<"interne" | "client" | null>(null);
+  const envoiRef = useRef(envoiEnCours);
+  useEffect(() => {
+    envoiRef.current = envoiEnCours;
+    if (!envoiEnCours) setEnvoiChoisi(null);
+  }, [envoiEnCours]);
+  const lancerEnvoi = (client: boolean) => {
+    setEnvoiChoisi(client ? "client" : "interne");
+    onEnvoyer(client);
+    /* Une fenêtre peut s'intercaler — photos obligatoires, présence du
+       client, signature — et l'envoi ne démarre alors pas. On rend le bouton
+       au bout d'un instant, plutôt que de le laisser tourner dans le vide. */
+    setTimeout(() => { if (!envoiRef.current) setEnvoiChoisi(null); }, 1200);
+  };
 
   /* Tant que l'assistant occupe l'écran, la fiche ne défile plus derrière :
      sur iPhone, le doigt entraînait la page du dessous et on perdait sa
@@ -4092,13 +4113,19 @@ function AssistantRapport({
     return () => { document.body.style.overflow = avant; };
   }, []);
 
-  const index = Math.max(0, ETAPES_ASSISTANT.findIndex((e) => e.cle === etape));
-  const derniere = index === ETAPES_ASSISTANT.length - 1;
+  /* « Personne sur site lors du montage » : il n'y a personne pour signer.
+     L'étape de signature devient un simple envoi — on ne demande pas une
+     signature qu'on sait impossible. */
+  const personneSurSite = rapport.includes(PRESENCE_PERSONNE);
+  const etapes = etapesAssistant(personneSurSite);
+
+  const index = Math.max(0, etapes.findIndex((e) => e.cle === etape));
+  const derniere = index === etapes.length - 1;
   const hautDePage = () => {
     document.getElementById("assistant-haut")?.scrollTo({ top: 0, behavior: "smooth" });
   };
   const aller = (n: number) => {
-    const suiv = ETAPES_ASSISTANT[Math.min(Math.max(n, 0), ETAPES_ASSISTANT.length - 1)];
+    const suiv = etapes[Math.min(Math.max(n, 0), etapes.length - 1)];
     setEtape(suiv.cle);
     hautDePage();
   };
@@ -4176,7 +4203,7 @@ function AssistantRapport({
       <div className="bg-[#1e3a5f] px-3 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] shrink-0">
         <div className="flex items-center justify-between gap-2 mb-2">
           <p className="text-sm font-semibold text-white">
-            {index + 1}/{ETAPES_ASSISTANT.length} · {ETAPES_ASSISTANT[index].titre}
+            {index + 1}/{etapes.length} · {etapes[index].titre}
           </p>
           <button type="button" onClick={onFermer}
             className="text-[11px] text-blue-100 underline underline-offset-2 shrink-0">
@@ -4184,7 +4211,7 @@ function AssistantRapport({
           </button>
         </div>
         <div className="flex gap-1">
-          {ETAPES_ASSISTANT.map((e, i) => (
+          {etapes.map((e, i) => (
             <button key={e.cle} type="button"
               /* On revient librement en arrière ; on n'avance pas en sautant
                  ce qui n'est pas fait, sinon la règle des photos se contourne
@@ -4286,7 +4313,11 @@ function AssistantRapport({
                 );
               })}
             </div>
-            {!aDemontage && !demontageForce && (
+            {/* Le bouton n'a sa place que sur la PREMIÈRE planche : c'est là
+                qu'on constate l'état des lieux, donc là qu'on s'aperçoit
+                qu'un démontage était prévu sans avoir été noté dans Notion.
+                Répété sur les six autres planches, il n'était que du bruit. */}
+            {!aDemontage && !demontageForce && plancheCourante?.bucket === "AVANT_INTERVENTION" && (
               <button type="button" onClick={() => { setDemontageForce(true); setPlanche(1); }}
                 className="w-full py-2 rounded-xl border-2 border-dashed border-gray-300 dark:border-slate-600 text-xs text-gray-500">
                 + Ajouter démontage
@@ -4374,9 +4405,11 @@ function AssistantRapport({
         {etape === "signature" && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              {signature ? "Signature enregistrée." : "Faites signer le client, ou passez cette étape."}
+              {personneSurSite
+                ? "Personne sur site : il n'y a personne pour signer. Le rapport peut partir."
+                : signature ? "Signature enregistrée." : "Faites signer le client, ou passez cette étape."}
             </p>
-            {signature ? (
+            {personneSurSite ? null : signature ? (
               <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50/60 dark:bg-green-900/10 p-3 flex items-center gap-2">
                 <Check className="w-4 h-4 text-green-600" strokeWidth={3} />
                 <span className="text-sm text-green-700 dark:text-green-300">Le client a signé</span>
@@ -4402,16 +4435,29 @@ function AssistantRapport({
                 </p>
               </>
             )}
+            {/* Un envoi dure quelques secondes : seul le bouton SUR LEQUEL on
+                a appuyé pâlit, et il porte un sablier qui tourne. Les deux
+                boutons grisés d'un coup, on ne savait plus lequel partait —
+                ni si quelque chose se passait. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              <button type="button" disabled={envoiEnCours} onClick={() => onEnvoyer(false)}
-                className="py-3 rounded-xl bg-[#1e3a5f] text-white text-sm font-semibold disabled:opacity-50">
+              <button type="button" disabled={envoiEnCours}
+                onClick={() => lancerEnvoi(false)}
+                className={`py-3 rounded-xl bg-[#1e3a5f] text-white text-sm font-semibold flex items-center justify-center gap-2 ${envoiChoisi === "interne" ? "opacity-60" : ""}`}>
                 Envoyer le rapport interne
+                {envoiChoisi === "interne" && <Loader2 className="w-4 h-4 animate-spin" />}
               </button>
-              <button type="button" disabled={envoiEnCours} onClick={() => onEnvoyer(true)}
-                className="py-3 rounded-xl bg-blue-600 text-white text-sm font-semibold disabled:opacity-50">
+              <button type="button" disabled={envoiEnCours}
+                onClick={() => lancerEnvoi(true)}
+                className={`py-3 rounded-xl bg-blue-600 text-white text-sm font-semibold flex items-center justify-center gap-2 ${envoiChoisi === "client" ? "opacity-60" : ""}`}>
                 Envoyer le rapport client
+                {envoiChoisi === "client" && <Loader2 className="w-4 h-4 animate-spin" />}
               </button>
             </div>
+            {envoiChoisi && (
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 text-center">
+                Envoi en cours — un instant, ne quittez pas la page.
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -4466,9 +4512,6 @@ function ProjectPageContent({ id }: { id: string }) {
   const [reformulating, setReformulating] = useState(false);
   const [reformulatingCabineIdx, setReformulatingCabineIdx] = useState<number | null>(null);
   const [missingPhotosPrompt, setMissingPhotosPrompt] = useState<{
-    kind: "save" | "send";
-    /** Groupes RECOMMANDÉS absents (rappel contournable). */
-    missing: string[];
     /** Photos OBLIGATOIRES manquantes (avec compteur) → BLOQUE l'envoi. */
     required?: RequiredPhotoShortfall[];
     /** Si vrai, on force aussi le choix « client présent / personne sur site ». */
@@ -6746,21 +6789,12 @@ function ProjectPageContent({ id }: { id: string }) {
   }, [id, project]);
 
   const handleSave = async (opts: { force?: boolean } = {}) => {
-    // La vérification "photos manquantes" ne s'applique qu'au rapport
-    // (mode cmd / rapport / dashboard) — pas aux mesures qui ont leurs
-    // propres champs photo.
-    const checkPhotos = mode !== "mesures";
-    if (!opts.force && checkPhotos && project) {
-      const missing = missingBucketLabels(project, {
-        multiCabine: isCabineMode,
-        nbCabines: isCabineMode ? cabines.length : (project.nbCabines || 0),
-        absents: sansObjet,
-      });
-      if (missing.length > 0) {
-        setMissingPhotosPrompt({ kind: "save", missing });
-        return;
-      }
-    }
+    /* Plus de rappel « photos manquantes » à l'enregistrement. Il listait le
+       démontage, le QR code et la garantie — les trois cas désormais réglés
+       à la source (bouton « + Ajouter démontage », cases « Pas de QR Code »
+       / « Pas de garantie »), et les photos vraiment obligatoires sont, elles,
+       bloquées à l'envoi. Enregistrer n'engage rien : rien ne justifiait d'y
+       poser une question. */
     setSaving(true);
     // On pré-calcule le rapport qui sera envoyé à Notion (peut contenir du
     // vocal + texte, et on en aura besoin pour mettre à jour le state local
@@ -7236,24 +7270,18 @@ function ProjectPageContent({ id }: { id: string }) {
     const photoOpts = {
       multiCabine: isCabineMode,
       nbCabines: isCabineMode ? cabines.length : (project.nbCabines || 0),
-      /* Les planches déclarées sans objet ne sont plus rappelées. */
-      absents: sansObjet,
     };
-    const computeRequired = () => missingRequiredPhotos(project, photoOpts);
-    const computeOptional = () => missingOptionalPhotoLabels(project, photoOpts);
 
     const needsPresence = !hasPresenceStatement(rapport);
-    const required = computeRequired();   // BLOQUANT (minimums non atteints)
-    const optional = computeOptional();   // recommandé (contournable)
+    const required = missingRequiredPhotos(project, photoOpts); // BLOQUANT
 
     // ── Porte 1 : présence + photos ──
     // • Présence client OBLIGATOIRE (jamais contournable).
     // • Photos OBLIGATOIRES : minimums avant 2 / montage 3 / après 2 → BLOQUANT.
-    // • Photos recommandées (démontage/QR/garantie) : rappel contournable.
-    // On ouvre l'alerte si l'un de ces points est en défaut. Le bouton « Envoyer »
-    // ne s'active que quand présence choisie ET aucune photo obligatoire manquante.
-    if (needsPresence || required.length > 0 || (!opts.force && optional.length > 0)) {
-      setMissingPhotosPrompt({ kind: "send", missing: optional, required, needsPresence });
+    // Le rappel des photos « recommandées » a disparu : il ne reste ici que ce
+    // qui empêche réellement d'envoyer.
+    if (needsPresence || required.length > 0) {
+      setMissingPhotosPrompt({ required, needsPresence });
       return;
     }
 
@@ -10325,7 +10353,7 @@ function ProjectPageContent({ id }: { id: string }) {
                         heureArrivee={heureArrivee}
                         setHeureArrivee={(v) => { setHeureArrivee(v); scheduleAutoSave(); }}
                         signature={signature}
-                        aDemontage={(project.typeServices || []).some((t) => /d[ée]montage/i.test(String(t || "")))}
+                        aDemontage={chantierAvecDemontage(project)}
                         absents={sansObjet}
                         onDeclarerAbsence={declarerAbsence}
                         onAutoFill={handleAutoFill}
@@ -10339,8 +10367,12 @@ function ProjectPageContent({ id }: { id: string }) {
                     )}
                     {!assistantActif && (
                       <button type="button"
+                        /* En simple contour, il se confondait avec le reste
+                           et personne ne le voyait. C'est la porte d'entrée
+                           du travail : elle doit sauter aux yeux. */
                         onClick={() => { setAssistantActif(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                        className="w-full py-2.5 rounded-xl border-2 border-[#1e3a5f] dark:border-blue-400/60 text-[#1e3a5f] dark:text-blue-300 text-sm font-semibold active:scale-[0.98] transition-transform">
+                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#1e3a5f] to-blue-600 text-white text-base font-bold shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+                        <Sparkles className="w-5 h-5 shrink-0" />
                         Remplir pas à pas
                       </button>
                     )}
@@ -12394,7 +12426,6 @@ function ProjectPageContent({ id }: { id: string }) {
             {(() => {
               const required = missingPhotosPrompt.required || [];
               const hasRequired = required.length > 0;
-              const hasMissing = missingPhotosPrompt.missing.length > 0;
               const needsPresence = !!missingPhotosPrompt.needsPresence;
               const presenceMissing = needsPresence && !presenceInRapport;
               // Le bouton d'envoi est BLOQUÉ tant qu'il manque des photos
@@ -12402,9 +12433,7 @@ function ProjectPageContent({ id }: { id: string }) {
               const blocked = hasRequired || presenceMissing;
               const title = hasRequired
                 ? "Photos obligatoires manquantes"
-                : needsPresence
-                ? (hasMissing ? "Avant d'envoyer le rapport" : "Client sur place ?")
-                : "Photos manquantes";
+                : "Client sur place ?";
               return (
                 <>
                   <div className="bg-amber-500 text-white px-5 py-4 flex items-center gap-2">
@@ -12477,48 +12506,24 @@ function ProjectPageContent({ id }: { id: string }) {
                         </ul>
                       </div>
                     )}
-
-                    {/* Bloc PHOTOS RECOMMANDÉES (contournable, AMBRÉ). */}
-                    {hasMissing && (
-                      <div className="space-y-2">
-                        <p className="text-sm text-gray-700 dark:text-gray-200">
-                          Photos recommandées non ajoutées :
-                        </p>
-                        <ul className="text-sm space-y-1 max-h-40 overflow-y-auto bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
-                          {missingPhotosPrompt.missing.map((label) => (
-                            <li key={label} className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
-                              <span className="mt-0.5 text-amber-500">•</span>
-                              <span>{label}</span>
-                            </li>
-                          ))}
-                        </ul>
-                        {!hasRequired && (
-                          <p className="text-sm text-gray-600 dark:text-gray-300">
-                            Vous pouvez continuer sans ces photos.
-                          </p>
-                        )}
-                      </div>
-                    )}
                   </div>
                   <div className="px-5 pb-5 flex gap-2">
                     <button
                       onClick={() => setMissingPhotosPrompt(null)}
                       className="flex-1 h-10 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700"
                     >
-                      {hasRequired || hasMissing ? "Ajouter les photos" : "Annuler"}
+                      {hasRequired ? "Ajouter les photos" : "Annuler"}
                     </button>
                     <button
                       disabled={blocked}
                       title={hasRequired ? "Ajoutez d'abord les photos obligatoires" : undefined}
                       onClick={() => {
-                        const kind = missingPhotosPrompt.kind;
                         setMissingPhotosPrompt(null);
-                        if (kind === "send") handleSendReport({ force: true });
-                        else handleSave({ force: true });
+                        handleSendReport({ force: true });
                       }}
                       className="flex-1 h-10 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {hasMissing && !hasRequired ? "Continuer quand même" : "Envoyer le rapport"}
+                      Envoyer le rapport
                     </button>
                   </div>
                 </>
@@ -12709,7 +12714,14 @@ function ProjectPageContent({ id }: { id: string }) {
             </div>
             <div className="p-5">
               <button
-                onClick={() => setShowSentConfirm(false)}
+                /* On referme aussi l'assistant : le rapport est parti, rester
+                   sur sa dernière page laissait croire qu'il restait quelque
+                   chose à faire. On revient en haut de la fiche du chantier. */
+                onClick={() => {
+                  setShowSentConfirm(false);
+                  setAssistantActif(false);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
                 className="w-full h-11 rounded-xl bg-green-600 hover:bg-green-700 text-white text-base font-semibold active:scale-[0.98] transition-all"
               >
                 OK

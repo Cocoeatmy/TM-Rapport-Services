@@ -1,12 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  missingOptionalPhotoLabels, chantierAvecDemontage,
-  type ProjectPhotoSources,
+  chantierAvecDemontage,
+  minimumRequis,
+  BUCKETS_DECLARABLES_ABSENTS,
+  LIBELLE_ABSENCE,
 } from "@/lib/photo-buckets";
-
-const MONO = { multiCabine: false, nbCabines: 1 };
-/** Un chantier sans la moindre photo : tous les rappels possibles se lèvent. */
-const vide: ProjectPhotoSources = {};
 
 describe("chantierAvecDemontage", () => {
   it("lit la colonne « Type de services »", () => {
@@ -26,42 +24,34 @@ describe("chantierAvecDemontage", () => {
   });
 });
 
-describe("missingOptionalPhotoLabels — rappel démontage", () => {
-  it("se tait sur un chantier SANS démontage", () => {
-    /* Le rappel se levait à chaque enregistrement, même sur un montage
-       simple. Un rappel qui sort toujours finit par se cliquer sans être
-       lu — y compris les fois où il avait raison. */
-    const labels = missingOptionalPhotoLabels({ ...vide, typeServices: ["Montages"] }, MONO);
-    expect(labels).not.toContain("Photos démontage");
+/**
+ * Ce qui a remplacé le rappel « photos recommandées non ajoutées », retiré le
+ * 14 octobre 2026. Les trois cas qu'il couvrait sont maintenant traités à la
+ * source, et ces tests disent lesquels.
+ */
+describe("plus de rappel contournable", () => {
+  it("le démontage ne bloque jamais : oublié dans Notion, il s'ajoute à la main", () => {
+    /* La planche démontage n'apparaît que si le chantier en comporte un, et
+       le bouton « + Ajouter démontage » de la planche « avant intervention »
+       la fait apparaître quand la colonne Notion n'a pas été remplie. Rien
+       n'est donc exigé de ce côté. */
+    expect(minimumRequis(["DEMONTAGE"])).toBe(0);
   });
 
-  it("le réclame quand le chantier comporte un démontage", () => {
-    const labels = missingOptionalPhotoLabels({ ...vide, typeServices: ["Montages", "Démontage"] }, MONO);
-    expect(labels).toContain("Photos démontage");
+  it("le QR code, la garantie et la vidéo se déclarent absents", () => {
+    expect(BUCKETS_DECLARABLES_ABSENTS).toEqual(["QR_CODE", "GARANTIE", "VIDEO_MONTAGE"]);
+    expect(LIBELLE_ABSENCE.QR_CODE).toBe("Pas de QR Code");
+    expect(LIBELLE_ABSENCE.GARANTIE).toBe("Pas de garantie");
+    expect(LIBELLE_ABSENCE.VIDEO_MONTAGE).toBe("Pas de vidéo");
   });
 
-  it("se tait aussi quand les photos de démontage sont là", () => {
-    const labels = missingOptionalPhotoLabels(
-      { typeServices: ["Démontage"], photosDemontage: [{ name: "demontage-1.jpg" }] },
-      MONO,
-    );
-    expect(labels).not.toContain("Photos démontage");
+  it("aucune de ces trois planches n'exige de photo", () => {
+    for (const b of BUCKETS_DECLARABLES_ABSENTS) expect(minimumRequis([b])).toBe(0);
   });
 
-  it("ne touche pas aux autres rappels", () => {
-    /* QR Code et Garantie ne dépendent pas du type de services. */
-    const labels = missingOptionalPhotoLabels({ ...vide, typeServices: ["Montages"] }, MONO);
-    expect(labels).toContain("Photos QR Code");
-    expect(labels).toContain("Photos Garantie");
-  });
-
-  it("vaut cabine par cabine en multi-cabine", () => {
-    const labels = missingOptionalPhotoLabels(
-      { ...vide, typeServices: ["Montages"] },
-      { multiCabine: true, nbCabines: 2 },
-    );
-    expect(labels.some((l) => l.includes("démontage"))).toBe(false);
-    expect(labels).toContain("Cabine 1 — Photos QR Code");
-    expect(labels).toContain("Cabine 2 — Photos QR Code");
+  it("seules les trois planches du travail restent exigées", () => {
+    expect(minimumRequis(["AVANT_INTERVENTION"])).toBe(2);
+    expect(minimumRequis(["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE"])).toBe(3);
+    expect(minimumRequis(["APRES_INTERVENTION"])).toBe(2);
   });
 });

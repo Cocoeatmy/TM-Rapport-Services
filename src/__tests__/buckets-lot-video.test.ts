@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   BUCKET_ORDER, BUCKET_LABEL, BUCKET_NOTION_FIELD, bucketFilePrefix,
   detectBucket, filterByBucket, defaultBucketForField,
-  missingRequiredPhotos, missingOptionalPhotoLabels,
+  missingRequiredPhotos, minimumRequis,
 } from "@/lib/photo-buckets";
 
 const MONO = { multiCabine: false, nbCabines: 1 };
@@ -56,6 +56,7 @@ describe("numéro de lot et vidéo de montage", () => {
        pouvoir partir sans vidéo et sans numéro de lot. */
     const vide = {};
     expect(missingRequiredPhotos(vide, MONO).some((m) => /lot|vid/i.test(JSON.stringify(m)))).toBe(false);
-    expect(missingOptionalPhotoLabels(vide, MONO).join(" ")).not.toMatch(/lot|vid[ée]o/i);
+    expect(minimumRequis(["NUMERO_LOT"])).toBe(0);
+    expect(minimumRequis(["VIDEO_MONTAGE"])).toBe(0);
   });
 });
