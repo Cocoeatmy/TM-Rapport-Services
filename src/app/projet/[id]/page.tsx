@@ -4008,11 +4008,17 @@ const ETAPES_ASSISTANT: { cle: EtapeAssistant; titre: string }[] = [
   { cle: "signature", titre: "Signature" },
 ];
 
-/** Personne sur place : il n'y a personne pour signer, la dernière étape
- *  n'est plus qu'un envoi. */
-function etapesAssistant(personneSurSite: boolean): { cle: EtapeAssistant; titre: string }[] {
-  if (!personneSurSite) return ETAPES_ASSISTANT;
-  return ETAPES_ASSISTANT.map((e) => (e.cle === "signature" ? { ...e, titre: "Envoi" } : e));
+/**
+ * Le déroulé, selon le cas.
+ *
+ * Personne sur place : il n'y a personne pour signer, la dernière étape
+ * n'est plus qu'un envoi. Sur un lot d'un chantier multi-cabines, il n'y a
+ * ni signature ni envoi — le rapport part une fois pour tout le chantier,
+ * quand tous les lots sont faits : la dernière étape clôt le lot.
+ */
+function etapesAssistant(personneSurSite: boolean, enLot = false): { cle: EtapeAssistant; titre: string }[] {
+  const titreFinal = enLot ? "Fin du lot" : personneSurSite ? "Envoi" : "Signature";
+  return ETAPES_ASSISTANT.map((e) => (e.cle === "signature" ? { ...e, titre: titreFinal } : e));
 }
 
 /**
@@ -4037,6 +4043,35 @@ const PLANCHES_ASSISTANT: {
   { bucket: "VIDEO_MONTAGE", titre: "Vidéos", compte: ["VIDEO_MONTAGE"] },
 ];
 
+/**
+ * Un lot d'un chantier multi-cabines, vu par l'assistant.
+ *
+ * Le pas à pas est le même pour un lot que pour un chantier simple — qui
+ * travaille, quand on est arrivé, les photos, le rapport. Seul l'endroit où
+ * ces réponses se rangent diffère : le projet d'un côté, la colonne
+ * « CabN: » de l'autre. Tout ce qui change tient donc ici, et l'assistant
+ * n'a qu'une seule version de son déroulé.
+ */
+interface LotAssistant {
+  /** Numéro de lot, à partir de 1. */
+  numero: number;
+  /** « Lot 2 — SDD parentale », pour l'en-tête. */
+  titre: string;
+  monteur: string;
+  setMonteur: (v: string) => void;
+  jour: string;
+  arrivee: string;
+  /** Les deux ensemble : ils se rangent dans le MÊME passage, et deux
+   *  écritures de suite partiraient d'un état déjà périmé. */
+  poserHeures: (date: string, arrivee: string) => void;
+  rapport: string;
+  setRapport: (v: string) => void;
+  /** Les phrases toutes faites du rapport de lot. */
+  options: readonly string[];
+  /** Gros chantier : la photo du numéro de lot ouvre la marche. */
+  avecNumeroLot: boolean;
+}
+
 function AssistantRapport({
   projectId, project, setProject,
   rapport, setRapport,
@@ -4048,6 +4083,7 @@ function AssistantRapport({
   onEnregistrer, enregistrement,
   onEnvoyer, envoiEnCours,
   onFermer,
+  lot,
 }: {
   projectId: string;
   project: Project;
@@ -4059,7 +4095,7 @@ function AssistantRapport({
   signature: string;
   /** « Type de services » contient-il Démontage ? */
   aDemontage: boolean;
-  /** Planches déclarées sans objet sur ce chantier. */
+  /** Planches déclarées sans objet sur ce chantier (ou sur ce lot). */
   absents: PhotoBucketKey[];
   onDeclarerAbsence: (bucket: PhotoBucketKey, absent: boolean) => void;
   onAutoFill?: (bucket: PhotoBucketKey, capture: HeurePhoto, cabineIdx?: number) => void;
@@ -4069,18 +4105,28 @@ function AssistantRapport({
   onEnvoyer: (client: boolean) => void;
   envoiEnCours: boolean;
   onFermer: () => void;
+  /** Absent = chantier à une seule cabine. */
+  lot?: LotAssistant;
 }) {
-  const noms = project.collaborateurs || "";
+  /* Tout ce qui suit lit et écrit SOIT le projet, SOIT le lot. Les deux
+     chemins restent côte à côte, nommés, plutôt que dispersés dans le
+     rendu : on voit d'un coup d'œil ce qui change d'un cas à l'autre. */
+  const noms = lot ? lot.monteur : (project.collaborateurs || "");
   const choisis = useMemo(() => listeDeNoms(noms), [noms]);
-  const jour = (project.dateMontage || "").slice(0, 10);
+  const jour = lot ? lot.jour : (project.dateMontage || "").slice(0, 10);
+  const arriveeEff = lot ? lot.arrivee : heureArrivee;
+  const rapportEff = lot ? lot.rapport : rapport;
+  const setRapportEff = (v: string) => (lot ? lot.setRapport(v) : setRapport(v));
+  const optionsRapport = lot ? lot.options : RAPPORT_OPTIONS_SINGLE;
+  const cabineIdx = lot?.numero;
 
   /* On reprend là où le rapport en est : rouvrir l'assistant sur la première
      étape ne servirait qu'à refaire défiler ce qui est déjà rempli. */
   const premiereIncomplete = (): EtapeAssistant => {
     if (choisis.length === 0) return "collaborateurs";
-    if (!heureArrivee || !jour) return "heures";
-    if ((project.photosMontage || []).length === 0) return "photos";
-    if (!rapport.trim()) return "rapport";
+    if (!arriveeEff || !jour) return "heures";
+    if (comptePhotosGroupe(project, ["MONTAGE_GAUCHE", "MONTAGE_CENTRE", "MONTAGE_DROITE"], cabineIdx) === 0) return "photos";
+    if (!rapportEff.trim()) return "rapport";
     return "signature";
   };
   const [etape, setEtape] = useState<EtapeAssistant>(premiereIncomplete);
@@ -4116,8 +4162,8 @@ function AssistantRapport({
   /* « Personne sur site lors du montage » : il n'y a personne pour signer.
      L'étape de signature devient un simple envoi — on ne demande pas une
      signature qu'on sait impossible. */
-  const personneSurSite = rapport.includes(PRESENCE_PERSONNE);
-  const etapes = etapesAssistant(personneSurSite);
+  const personneSurSite = rapportEff.includes(PRESENCE_PERSONNE);
+  const etapes = etapesAssistant(personneSurSite, !!lot);
 
   const index = Math.max(0, etapes.findIndex((e) => e.cle === etape));
   const derniere = index === etapes.length - 1;
@@ -4130,12 +4176,17 @@ function AssistantRapport({
     hautDePage();
   };
 
-  const planches = PLANCHES_ASSISTANT.filter(
-    (p) => p.bucket !== "DEMONTAGE" || aDemontage || demontageForce,
-  );
+  const planches = [
+    /* Sur un gros chantier, la photo du numéro de lot vient avant tout :
+       c'est elle qui rattache les clichés suivants au bon appartement. */
+    ...(lot?.avecNumeroLot
+      ? [{ bucket: "NUMERO_LOT" as const, titre: "N° de lot", compte: ["NUMERO_LOT" as PhotoBucketKey] }]
+      : []),
+    ...PLANCHES_ASSISTANT,
+  ].filter((p) => p.bucket !== "DEMONTAGE" || aDemontage || demontageForce);
   const plancheCourante = planches[Math.min(planche, planches.length - 1)];
   const requisPlanche = plancheCourante ? minimumRequis(plancheCourante.compte) : 0;
-  const presentPlanche = plancheCourante ? comptePhotosGroupe(project, plancheCourante.compte) : 0;
+  const presentPlanche = plancheCourante ? comptePhotosGroupe(project, plancheCourante.compte, cabineIdx) : 0;
   const dernierePlanche = planche >= planches.length - 1;
 
   const enregistrerChamp = (champ: string, valeur: string) => {
@@ -4153,14 +4204,22 @@ function AssistantRapport({
     const suite = dedans
       ? choisis.filter((n) => n.toLowerCase() !== nom.toLowerCase())
       : [...choisis, nom];
-    enregistrerChamp("collaborateurs", suite.join(" & "));
+    if (lot) lot.setMonteur(suite.join(" & "));
+    else enregistrerChamp("collaborateurs", suite.join(" & "));
   };
+
+  const poserJour = (v: string) => (lot ? lot.poserHeures(v, lot.arrivee) : enregistrerChamp("dateMontage", v));
+  const poserArrivee = (v: string) => (lot ? lot.poserHeures(lot.jour, v) : setHeureArrivee(v));
 
   const maintenant = () => {
     const d = new Date();
     const h = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    setHeureArrivee(h);
-    if (!jour) enregistrerChamp("dateMontage", d.toISOString().slice(0, 10));
+    const aujourdhui = d.toISOString().slice(0, 10);
+    /* Sur un lot, la date et l'heure se rangent dans le même passage : les
+       poser l'une après l'autre ferait deux écritures dont la seconde part
+       d'un état déjà périmé. */
+    if (lot) lot.poserHeures(jour || aujourdhui, h);
+    else { setHeureArrivee(h); if (!jour) enregistrerChamp("dateMontage", aujourdhui); }
   };
 
   /* Ce qui doit être fait avant de passer à la suite. Sur les photos, le
@@ -4169,7 +4228,7 @@ function AssistantRapport({
      un rapport avec une seule vue — et il fallait le rappeler. */
   const peutAvancer = () => {
     if (etape === "collaborateurs") return choisis.length > 0;
-    if (etape === "heures") return !!heureArrivee && !!(jour || project.dateMontage);
+    if (etape === "heures") return !!arriveeEff && !!jour;
     if (etape === "photos") return presentPlanche >= requisPlanche;
     return true;
   };
@@ -4202,8 +4261,9 @@ function AssistantRapport({
       {/* Fil des étapes : on voit où l'on en est et ce qu'il reste. */}
       <div className="bg-[#1e3a5f] px-3 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] shrink-0">
         <div className="flex items-center justify-between gap-2 mb-2">
-          <p className="text-sm font-semibold text-white">
+          <p className="text-sm font-semibold text-white truncate">
             {index + 1}/{etapes.length} · {etapes[index].titre}
+            {lot && <span className="font-normal text-blue-100"> · {lot.titre}</span>}
           </p>
           <button type="button" onClick={onFermer}
             className="text-[11px] text-blue-100 underline underline-offset-2 shrink-0">
@@ -4226,7 +4286,9 @@ function AssistantRapport({
       <div id="assistant-haut" className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
         {etape === "collaborateurs" && (
           <div className="space-y-3">
-            <p className="text-sm text-gray-600 dark:text-gray-300">Qui travaille sur ce chantier ?</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              {lot ? `Qui travaille sur ce lot — ${lot.titre} ?` : "Qui travaille sur ce chantier ?"}
+            </p>
             <div className="grid grid-cols-2 gap-2">
               {COLLABORATEURS_LIST.map((nom) => {
                 const actif = choisis.some((n) => n.toLowerCase() === nom.toLowerCase());
@@ -4262,13 +4324,13 @@ function AssistantRapport({
               <div>
                 <Label className="text-xs">Date</Label>
                 <input type="date" value={jour}
-                  onChange={(e) => enregistrerChamp("dateMontage", e.target.value)}
+                  onChange={(e) => poserJour(e.target.value)}
                   className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800" />
               </div>
               <div>
                 <Label className="text-xs">Heure d&apos;arrivée</Label>
-                <input type="time" value={heureArrivee}
-                  onChange={(e) => setHeureArrivee(e.target.value)}
+                <input type="time" value={arriveeEff}
+                  onChange={(e) => poserArrivee(e.target.value)}
                   className="mt-1 block w-full h-11 px-3 text-sm rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800" />
               </div>
             </div>
@@ -4290,7 +4352,7 @@ function AssistantRapport({
               {planches.map((p, i) => {
                 const actif = i === planche;
                 const min = minimumRequis(p.compte);
-                const n = comptePhotosGroupe(project, p.compte);
+                const n = comptePhotosGroupe(project, p.compte, cabineIdx);
                 const estAbsent = absents.includes(p.bucket as PhotoBucketKey);
                 /* Une planche déclarée sans objet est « faite » : elle porte
                    la même coche, pour qu'on voie d'un coup d'œil ce qu'il
@@ -4345,18 +4407,19 @@ function AssistantRapport({
             })()}
             {plancheCourante && absents.includes(plancheCourante.bucket as PhotoBucketKey) ? (
               <p className="text-[11px] text-gray-400">
-                Rien à photographier ici — on ne vous le redemandera plus sur ce chantier.
+                Rien à photographier ici — on ne vous le redemandera plus {lot ? "sur ce lot" : "sur ce chantier"}.
                 Décochez si vous changez d&apos;avis.
               </p>
-            ) : planches[planche]?.bucket === "MONTAGE" ? (
-              <CombinedMontageUpload projectId={projectId} project={project} setProject={setProject}
+            ) : plancheCourante?.bucket === "MONTAGE" ? (
+              <CombinedMontageUpload cabineIdx={cabineIdx} projectId={projectId} project={project} setProject={setProject}
                 onAutoFill={onAutoFill} onLog={onLog} />
             ) : (
               <BucketPhotoUpload
-                bucket={planches[planche]?.bucket as PhotoBucketKey}
+                bucket={plancheCourante?.bucket as PhotoBucketKey}
+                cabineIdx={cabineIdx}
                 projectId={projectId} project={project} setProject={setProject}
                 onAutoFill={onAutoFill} onLog={onLog}
-                accept={planches[planche]?.bucket === "VIDEO_MONTAGE" ? "video/*,image/*" : undefined}
+                accept={plancheCourante?.bucket === "VIDEO_MONTAGE" ? "video/*,image/*" : undefined}
               />
             )}
             {requisPlanche > presentPlanche && (
@@ -4373,14 +4436,14 @@ function AssistantRapport({
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-300">Comment cela s&apos;est-il passé ?</p>
             <div className="space-y-2">
-              {RAPPORT_OPTIONS_SINGLE.map((option) => {
-                const actif = rapport.includes(option);
+              {optionsRapport.map((option) => {
+                const actif = rapportEff.includes(option);
                 return (
                   <button key={option} type="button"
                     onClick={() => {
-                      setRapport(actif
-                        ? rapport.replace(option, "").replace(/\n{2,}/g, "\n").trim()
-                        : (rapport ? rapport + "\n" : "") + option);
+                      setRapportEff(actif
+                        ? rapportEff.replace(option, "").replace(/\n{2,}/g, "\n").trim()
+                        : (rapportEff ? rapportEff + "\n" : "") + option);
                     }}
                     className={`w-full text-left text-sm px-3 py-2.5 rounded-xl border-2 transition-colors ${actif
                       ? "border-[#1e3a5f] bg-blue-50 dark:bg-blue-900/30 text-[#1e3a5f] dark:text-blue-200 font-medium"
@@ -4395,14 +4458,40 @@ function AssistantRapport({
                 );
               })}
             </div>
-            <Textarea placeholder="Précisions supplémentaires…" value={rapport} rows={3}
-              onChange={(e) => setRapport(e.target.value)} />
+            <Textarea placeholder="Précisions supplémentaires…" value={rapportEff} rows={3}
+              onChange={(e) => setRapportEff(e.target.value)} />
+            {/* La note interne est celle du CHANTIER : une seule, qu'on
+                renseigne depuis n'importe quel lot. */}
             <InternalNoteField projectId={projectId} value={project.noteInterneMontage}
               onUpdate={(v) => setProject((prev) => (prev ? { ...prev, noteInterneMontage: v } : prev))} />
           </div>
         )}
 
-        {etape === "signature" && (
+        {etape === "signature" && lot && (
+          /* Fin d'un lot : rien ne part d'ici. Le rapport du chantier est
+             unique et s'envoie une fois tous les lots faits — l'expédier
+             après le premier lot laisserait les suivants hors du PDF. */
+          <div className="space-y-3">
+            <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50/60 dark:bg-green-900/10 p-3">
+              <p className="text-sm text-green-800 dark:text-green-200 font-medium">{lot.titre} — c&apos;est fait.</p>
+              <p className="text-[11px] text-green-700/80 dark:text-green-300/80 mt-1">
+                Le rapport du chantier s&apos;envoie en une fois, quand tous les lots sont terminés.
+              </p>
+            </div>
+            <button type="button" disabled={enregistrement}
+              onClick={() => { onEnregistrer(); onFermer(); }}
+              className="w-full py-3.5 rounded-xl bg-green-600 text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
+              {enregistrement ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" strokeWidth={3} />}
+              Enregistrer et fermer
+            </button>
+            <button type="button" onClick={onFermer}
+              className="w-full py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 text-sm text-gray-600 dark:text-gray-300">
+              Revenir au chantier sans fermer le lot
+            </button>
+          </div>
+        )}
+
+        {etape === "signature" && !lot && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-300">
               {personneSurSite
@@ -4550,6 +4639,13 @@ function ProjectPageContent({ id }: { id: string }) {
      les onglets libres s'affichent comme avant. */
   const [assistantActif, setAssistantActif] = useState(false);
   const assistantPropose = useRef(false);
+  /* Assistant d'un LOT, sur un chantier multi-cabines. Déplier un lot encore
+     vierge, c'est annoncer qu'on s'y met : l'assistant s'enclenche là. Une
+     seule fois par lot et par visite — on ne le remet pas sous le nez de
+     quelqu'un qui vient seulement relire. */
+  const [assistantLot, setAssistantLot] = useState<number | null>(null);
+  const lotsProposes = useRef<Set<number>>(new Set());
+  const lotsOuvertsRef = useRef<Set<number>>(new Set());
   // ── Nouvelle présentation macOS : barre d'icônes rondes qui déplient/replient
   //    les sections. iOS/autres : présentation actuelle inchangée. ──
   const [isMac, setIsMac] = useState(false);
@@ -5140,6 +5236,28 @@ function ProjectPageContent({ id }: { id: string }) {
   }, [showRapport, isCabineMode, project]);
 
   useEffect(() => {
+    if (!isCabineMode) return;
+    /* On ne réagit qu'au lot qu'on vient d'ouvrir. Sans cette comparaison,
+       refermer l'assistant d'un lot en ouvrait aussitôt un autre, parmi ceux
+       restés dépliés plus haut dans la page. */
+    const ouverts = new Set<number>();
+    cabines.forEach((c, i) => { if (c.open) ouverts.add(i); });
+    const nouveaux = [...ouverts].filter((i) => !lotsOuvertsRef.current.has(i));
+    lotsOuvertsRef.current = ouverts;
+    if (assistantLot !== null) return;
+    /* Onglet « Infos » : c'est l'état d'un lot qu'on vient de déplier à la
+       main. Les raccourcis qui ouvrent un lot sur « Signalements » ou
+       « SAV » visent autre chose, et n'ont pas à lancer le pas à pas. */
+    const idx = nouveaux.find((i) =>
+      cabines[i]?.activeTab === "infos"
+      && !String(cabines[i]?.rapport || "").trim()
+      && !lotsProposes.current.has(i));
+    if (idx === undefined) return;
+    lotsProposes.current.add(idx);
+    setAssistantLot(idx);
+  }, [cabines, isCabineMode, assistantLot]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     if (!showRapport) { setHeaderScrollOpacity(1); return; }
     const onScroll = () => {
@@ -5330,7 +5448,10 @@ function ProjectPageContent({ id }: { id: string }) {
      « Pas de garantie », « Pas de vidéo ». Elles ne sont plus rappelées à
      l'enregistrement ni à l'envoi. La déclaration vit de notre côté
      (/api/photos/sans) : rien n'est écrit dans Notion. */
-  const [sansObjet, setSansObjet] = useState<PhotoBucketKey[]>([]);
+  /* Clé 0 = chantier à une seule cabine ; sinon le numéro de lot. Chaque lot
+     a ses propres absences : un appartement peut n'avoir pas de QR code
+     quand le voisin en a un. */
+  const [sansObjet, setSansObjet] = useState<Record<number, PhotoBucketKey[]>>({});
   useEffect(() => {
     if (!id) return;
     let vivant = true;
@@ -5338,21 +5459,26 @@ function ProjectPageContent({ id }: { id: string }) {
       .then((r) => (r.ok ? r.json() : []))
       .then((lignes: { cabine?: number; buckets?: string[] }[]) => {
         if (!vivant || !Array.isArray(lignes)) return;
-        const projet = lignes.find((l) => !l.cabine);
-        setSansObjet((projet?.buckets || []) as PhotoBucketKey[]);
+        const carte: Record<number, PhotoBucketKey[]> = {};
+        for (const l of lignes) carte[l.cabine || 0] = (l.buckets || []) as PhotoBucketKey[];
+        setSansObjet(carte);
       })
       .catch(() => {});
     return () => { vivant = false; };
   }, [id]);
 
-  const declarerAbsence = useCallback((bucket: PhotoBucketKey, absent: boolean) => {
-    setSansObjet((prev) => (absent
-      ? (prev.includes(bucket) ? prev : [...prev, bucket])
-      : prev.filter((b) => b !== bucket)));
+  const declarerAbsence = useCallback((bucket: PhotoBucketKey, absent: boolean, cabine = 0) => {
+    setSansObjet((prev) => {
+      const avant = prev[cabine] || [];
+      const apres = absent
+        ? (avant.includes(bucket) ? avant : [...avant, bucket])
+        : avant.filter((b) => b !== bucket);
+      return { ...prev, [cabine]: apres };
+    });
     offlineFetch("/api/photos/sans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: id, bucket, absent }),
+      body: JSON.stringify({ projectId: id, cabine, bucket, absent }),
     }).catch(() => toast.error("Déclaration en attente — réessai automatique"));
   }, [id]);
 
@@ -7001,6 +7127,41 @@ function ProjectPageContent({ id }: { id: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     }).catch(() => {});
+  };
+
+  /**
+   * Ce que l'assistant écrit sur un lot : qui s'en charge, quel jour, à
+   * quelle heure il est arrivé.
+   *
+   * Un lot range ces réponses à trois endroits qui doivent rester d'accord :
+   * l'état local (il porte le rapport et le bouton Enregistrer), la liste des
+   * PASSAGES — la source que lit le PDF — et les deux colonnes historiques
+   * « CabN:date:HH:MM ». Une seule écriture groupée les tient ensemble, comme
+   * le fait déjà l'éditeur de passages.
+   */
+  const majLotAssistant = (
+    idx: number,
+    delta: { monteur?: string; date?: string; arrivee?: string },
+  ) => {
+    const actuel = cabines[idx];
+    if (!actuel) return;
+    const suivant = { ...actuel, ...delta };
+    setCabines((prev) => prev.map((c, i) => (i === idx ? { ...c, ...delta } : c)));
+
+    const champs: Record<string, string> = {};
+    if (delta.monteur !== undefined) champs.attributionCabines = suivant.monteur || "";
+    if (suivant.arrivee && suivant.date) champs.heureArrivee = `${suivant.date}:${suivant.arrivee}`;
+    if (suivant.date) {
+      const avant = parseCabineTextMulti(project?.interventionsMontageCabines || "")[idx + 1] || "";
+      const apres = fusionnerPassage(avant, {
+        date: suivant.date,
+        arrivee: suivant.arrivee || undefined,
+        depart: suivant.depart || undefined,
+        collaborateurs: suivant.monteur || undefined,
+      });
+      if (apres !== avant) champs.interventionsMontageCabines = apres;
+    }
+    if (Object.keys(champs).length > 0) saveCabineTexts(idx, champs);
   };
 
   const handleSaveCabineData = async (cabineIdx: number) => {
@@ -10354,8 +10515,8 @@ function ProjectPageContent({ id }: { id: string }) {
                         setHeureArrivee={(v) => { setHeureArrivee(v); scheduleAutoSave(); }}
                         signature={signature}
                         aDemontage={chantierAvecDemontage(project)}
-                        absents={sansObjet}
-                        onDeclarerAbsence={declarerAbsence}
+                        absents={sansObjet[0] || []}
+                        onDeclarerAbsence={(b, v) => declarerAbsence(b, v, 0)}
                         onAutoFill={handleAutoFill}
                         onLog={logAction}
                         onEnregistrer={handleSaveClick}
@@ -11090,6 +11251,17 @@ function ProjectPageContent({ id }: { id: string }) {
 
                       {cabine.open && (
                         <CardContent className="border-t pt-0 pb-4 px-0">
+                          {/* La porte d'entrée du lot. Elle s'ouvre d'elle-même
+                              sur un lot encore vierge ; ce bouton la rouvre
+                              quand on y revient. */}
+                          <div className="px-4 pt-4">
+                            <button type="button"
+                              onClick={() => setAssistantLot(idx)}
+                              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#1e3a5f] to-blue-600 text-white text-sm font-bold shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+                              <Sparkles className="w-4 h-4 shrink-0" />
+                              Remplir pas à pas
+                            </button>
+                          </div>
                           {/* ── Onglets Infos / Photos / Signalements ──────────── */}
                           <div className="flex justify-evenly sm:justify-normal border-b border-gray-100 dark:border-slate-700 mb-4">
                             <button
@@ -12398,6 +12570,47 @@ function ProjectPageContent({ id }: { id: string }) {
           </div>
         </div>,
         document.body,
+      )}
+
+      {/* Assistant d'un lot — chantier multi-cabines. Il se dessine lui-même
+          en pleine page ; sa place dans l'arbre n'a donc pas d'importance. */}
+      {assistantLot !== null && cabines[assistantLot] && project && (
+        <AssistantRapport
+          projectId={id}
+          project={project}
+          setProject={setProject}
+          rapport={rapport}
+          setRapport={(v) => { setRapport(v); scheduleAutoSave(); }}
+          heureArrivee={heureArrivee}
+          setHeureArrivee={(v) => { setHeureArrivee(v); scheduleAutoSave(); }}
+          signature={signature}
+          aDemontage={chantierAvecDemontage(project)}
+          absents={sansObjet[assistantLot + 1] || []}
+          onDeclarerAbsence={(b, v) => declarerAbsence(b, v, assistantLot + 1)}
+          onAutoFill={handleAutoFill}
+          onLog={logAction}
+          onEnregistrer={() => handleSaveCabineData(assistantLot)}
+          enregistrement={saving}
+          onEnvoyer={(client) => handleSendReport({ client })}
+          envoiEnCours={sending}
+          onFermer={() => setAssistantLot(null)}
+          lot={{
+            numero: assistantLot + 1,
+            titre: cabines[assistantLot].nom || `Lot ${assistantLot + 1}`,
+            monteur: cabines[assistantLot].monteur || "",
+            setMonteur: (v) => majLotAssistant(assistantLot, { monteur: v }),
+            jour: cabines[assistantLot].date || "",
+            arrivee: cabines[assistantLot].arrivee || "",
+            poserHeures: (date, arrivee) => majLotAssistant(assistantLot, { date, arrivee }),
+            rapport: cabines[assistantLot].rapport || "",
+            setRapport: (v) => {
+              setCabines((prev) => prev.map((c, i) => (i === assistantLot ? { ...c, rapport: v } : c)));
+              scheduleAutoSave();
+            },
+            options: RAPPORT_CABINE_CLASSIQUES,
+            avecNumeroLot: cabines.length >= SEUIL_GROS_PROJET,
+          }}
+        />
       )}
 
       {/* Confirmation : photos manquantes avant enregistrement / envoi */}
