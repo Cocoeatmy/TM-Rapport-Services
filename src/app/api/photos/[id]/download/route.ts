@@ -24,6 +24,8 @@ const BUCKET_DL_LABEL: Record<PhotoBucketKey, string> = {
   SAV_DEMANDE:         "Document SAV demande",
   SAV_PIECES:          "Carton SAV recu",
   SAV_RETOUCHE:        "Photo SAV Retouche",
+  NUMERO_LOT:          "Numero de lot",
+  VIDEO_MONTAGE:       "Video montage",
 };
 
 /** Remplace les caractères interdits + supprime les accents (ASCII pur pour HTTP headers). */
@@ -107,6 +109,10 @@ export async function GET(
     { key: "photosGaranties" as const,  fallback: "GARANTIE"           as PhotoBucketKey },
     { key: "documentsSavDemande" as const, fallback: "SAV_DEMANDE"     as PhotoBucketKey },
     { key: "photosSavRetouches" as const, fallback: "SAV_RETOUCHE"     as PhotoBucketKey },
+    /* Le numéro de lot part dans le ZIP avec le reste : c'est lui qui dit de
+       quel appartement viennent les photos qui l'accompagnent. */
+    { key: "photosNumeroLot" as const,  fallback: "NUMERO_LOT"         as PhotoBucketKey },
+    { key: "videosMontage" as const,    fallback: "VIDEO_MONTAGE"      as PhotoBucketKey },
   ] as const;
 
   const all: PhotoEntry[] = [];

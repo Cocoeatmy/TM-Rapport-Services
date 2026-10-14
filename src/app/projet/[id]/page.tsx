@@ -470,6 +470,8 @@ function BucketPhotoUpload({
     photosGaranties: "Photos garanties",
     photosSavRetouches: "Photos SAV / Retouches cabines",
     documentsSavDemande: "Documents SAV",
+    photosNumeroLot: "Photos numéro de Lot",
+    videosMontage: "Vidéo Montage",
   };
   const fieldDefault = defaultBucketForField(notionFieldKey);
   const allInField = project[notionFieldKey] || [];
@@ -1805,6 +1807,9 @@ function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, 
     </div>
   );
 }
+
+/** À partir de combien de cabines un chantier devient un « gros projet ». */
+const SEUIL_GROS_PROJET = 4;
 
 function PhotosReference({ projectId, project, setProject, mode }: {
   projectId: string;
@@ -9911,12 +9916,18 @@ function ProjectPageContent({ id }: { id: string }) {
                     )}
                     {monoActiveTab === "photos" && (
                       <>
+{/* Le numéro du lot n'a de sens qu'en immeuble : sur une villa,
+                            il n'y a rien à distinguer. */}
+                        {(project.nbCabines || 0) >= SEUIL_GROS_PROJET && (
+                          <BucketPhotoUpload bucket="NUMERO_LOT" projectId={id} project={project} setProject={setProject} onLog={logAction} />
+                        )}
                         <BucketPhotoUpload bucket="AVANT_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
                         <BucketPhotoUpload bucket="DEMONTAGE" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
                         <CombinedMontageUpload projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
                         <BucketPhotoUpload bucket="APRES_INTERVENTION" projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
                         <BucketPhotoUpload bucket="QR_CODE" projectId={id} project={project} setProject={setProject} onLog={logAction} />
                         <BucketPhotoUpload bucket="GARANTIE" projectId={id} project={project} setProject={setProject} onLog={logAction} />
+                        <BucketPhotoUpload bucket="VIDEO_MONTAGE" projectId={id} project={project} setProject={setProject} onLog={logAction} accept="video/*,image/*" />
                         <Separator />
                         <BeforeAfterPhotos
                           projectId={id}
@@ -10814,6 +10825,11 @@ function ProjectPageContent({ id }: { id: string }) {
                                   </div>
                                 );
                               })()}
+                              {/* Une photo du numéro de porte par LOT : c'est elle qui
+                                  rattache les clichés suivants au bon appartement. */}
+                              {cabines.length >= SEUIL_GROS_PROJET && (
+                                <BucketPhotoUpload bucket="NUMERO_LOT" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
+                              )}
                               <BucketPhotoUpload bucket="AVANT_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
                               <CombinedMontageUpload cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
                               <BucketPhotoUpload bucket="APRES_INTERVENTION" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onAutoFill={handleAutoFill} onLog={logAction} />
@@ -10863,6 +10879,10 @@ function ProjectPageContent({ id }: { id: string }) {
                                   <BucketPhotoUpload bucket="GARANTIE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} />
                                 )}
                               </div>
+
+                              {/* La vidéo vient après les garanties, hors de leur
+                                  case à cocher : elle ne dépend d'aucune condition. */}
+                              <BucketPhotoUpload bucket="VIDEO_MONTAGE" cabineIdx={idx + 1} projectId={id} project={project} setProject={setProject} onLog={logAction} accept="video/*,image/*" />
 
                               {/* Bouton Enregistrer — onglet Photos */}
                               <button

@@ -25,7 +25,11 @@ export type PhotoBucketKey =
   | "GARANTIE"
   | "SAV_DEMANDE"
   | "SAV_PIECES"
-  | "SAV_RETOUCHE";
+  | "SAV_RETOUCHE"
+  /** Le numéro du lot, sur la porte de l'appartement. */
+  | "NUMERO_LOT"
+  /** Une vidéo du montage — ce qu'une photo ne montre pas. */
+  | "VIDEO_MONTAGE";
 
 export const BUCKET_PREFIX: Record<PhotoBucketKey, string> = {
   AVANT_INTERVENTION: "Avant intervention",
@@ -40,6 +44,8 @@ export const BUCKET_PREFIX: Record<PhotoBucketKey, string> = {
   SAV_DEMANDE: "SAV demande",
   SAV_PIECES: "SAV pieces",
   SAV_RETOUCHE: "SAV",
+  NUMERO_LOT: "Numero lot",
+  VIDEO_MONTAGE: "Video montage",
 };
 
 export const BUCKET_LABEL: Record<PhotoBucketKey, string> = {
@@ -55,6 +61,8 @@ export const BUCKET_LABEL: Record<PhotoBucketKey, string> = {
   SAV_DEMANDE: "Documents SAV (photos/vidéos de la demande)",
   SAV_PIECES: "Photos des cartons SAV reçus",
   SAV_RETOUCHE: "Photos SAV / Retouches (une fois réglé)",
+  NUMERO_LOT: "Photos numéro de Lot",
+  VIDEO_MONTAGE: "Vidéo Montage",
 };
 
 /** Texte d'instruction affiché en sous-titre dans le rapport (null = aucun). */
@@ -62,12 +70,14 @@ export const BUCKET_HINT: Partial<Record<PhotoBucketKey, string>> = {
   AVANT_INTERVENTION: "1 photo des lieux + 1 photo de l'état du receveur de douche",
   DEMONTAGE:          "1 photo de l'état après démontage + 1 photo après nettoyage",
   APRES_INTERVENTION: "1 photo de l'état du receveur de douche + 1 photo de l'état de la salle de douche",
+  NUMERO_LOT:         "Le numéro affiché sur la porte de l'appartement",
+  VIDEO_MONTAGE:      "Ce qu'une photo ne montre pas — un jeu, un frottement, une manœuvre",
 };
 
 // Mapping bucket → champ Notion qui stocke ses fichiers.
 export const BUCKET_NOTION_FIELD: Record<
   PhotoBucketKey,
-  "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties" | "photosSavRetouches" | "documentsSavDemande"
+  "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties" | "photosSavRetouches" | "documentsSavDemande" | "photosNumeroLot" | "videosMontage"
 > = {
   AVANT_INTERVENTION: "photosAvant",
   AVANT_MONTAGE: "photosAvant",
@@ -84,10 +94,16 @@ export const BUCKET_NOTION_FIELD: Record<
   SAV_PIECES: "documentsSavDemande",
   SAV_DEMANDE: "documentsSavDemande",
   SAV_RETOUCHE: "photosSavRetouches",
+  /* Chacune a sa propre colonne Notion : pas de sous-groupe à distinguer,
+     mais le préfixe « Cab{n} » reste porté par le nom de fichier — c'est lui
+     qui rattache la photo à SON appartement. */
+  NUMERO_LOT: "photosNumeroLot",
+  VIDEO_MONTAGE: "videosMontage",
 };
 
 // Ordre d'affichage demandé par le client.
 export const BUCKET_ORDER: PhotoBucketKey[] = [
+  "NUMERO_LOT",
   "AVANT_INTERVENTION",
   "AVANT_MONTAGE",
   "DEMONTAGE",
@@ -97,6 +113,7 @@ export const BUCKET_ORDER: PhotoBucketKey[] = [
   "APRES_INTERVENTION",
   "QR_CODE",
   "GARANTIE",
+  "VIDEO_MONTAGE",
   "SAV_DEMANDE",
   "SAV_PIECES",
   "SAV_RETOUCHE",
@@ -106,7 +123,7 @@ export const BUCKET_ORDER: PhotoBucketKey[] = [
 // On choisit celui qui correspond à l'ancien comportement, afin que les
 // photos déjà uploadées avant ce refactor restent visibles à un seul endroit.
 export function defaultBucketForField(
-  field: "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties" | "photosSavRetouches" | "documentsSavDemande",
+  field: "photosAvant" | "photosDemontage" | "photosMontage" | "photosQRCode" | "photosGaranties" | "photosSavRetouches" | "documentsSavDemande" | "photosNumeroLot" | "videosMontage",
 ): PhotoBucketKey {
   if (field === "photosAvant") return "AVANT_INTERVENTION";
   if (field === "photosDemontage") return "DEMONTAGE";
@@ -114,6 +131,8 @@ export function defaultBucketForField(
   if (field === "photosQRCode") return "QR_CODE";
   if (field === "photosSavRetouches") return "SAV_RETOUCHE";
   if (field === "documentsSavDemande") return "SAV_DEMANDE";
+  if (field === "photosNumeroLot") return "NUMERO_LOT";
+  if (field === "videosMontage") return "VIDEO_MONTAGE";
   return "GARANTIE";
 }
 
@@ -182,6 +201,8 @@ export interface ProjectPhotoSources {
   photosGaranties?: { name: string }[];
   photosSavRetouches?: { name: string }[];
   documentsSavDemande?: { name: string }[];
+  photosNumeroLot?: { name: string }[];
+  videosMontage?: { name: string }[];
 }
 
 /** Buckets effectivement présents dans un projet (option : pour une cabine donnée). */

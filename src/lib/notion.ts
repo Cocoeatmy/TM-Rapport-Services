@@ -287,6 +287,13 @@ export interface Project {
   journalEchanges: string;
   photosPiecesManquantes: FileItem[];
   photosDefautsSignale: FileItem[];
+  /** « Photos numéro de Lot » — le numéro affiché sur la porte de
+   *  l'appartement. Sur un immeuble de huit lots, c'est la seule preuve que
+   *  les photos qui suivent sont bien celles de CE logement. */
+  photosNumeroLot: FileItem[];
+  /** « Vidéo Montage » — ce qu'une photo ne montre pas : un jeu, un
+   *  frottement, une manœuvre. */
+  videosMontage: FileItem[];
   /** « Photos étiquette carton » — l'étiquette identifie la série exacte et
    *  la référence de commande : sans elle, la pièce de rechange se commande
    *  à l'aveugle. */
@@ -656,6 +663,8 @@ export function mapPageToProject(page: any): Project {
     journalEchanges: extractText(p["Journal des échanges"]),
     photosPiecesManquantes: extractFiles(p["Photos - Pièces manquante"]),
     photosDefautsSignale: extractFiles(p["Photos - Défauts signalé"]),
+    photosNumeroLot: extractFiles(p["Photos numéro de Lot"]),
+    videosMontage: extractFiles(p["Vidéo Montage"]),
     photosEtiquetteCarton: extractFiles(p["Photos étiquette carton"]),
     photosEclateProduit: extractFiles(p["Éclaté produit"]),
     previsionLivraison: extractDate(p["Prévision livraison"]),
@@ -1816,6 +1825,8 @@ export async function updateProject(
   writeFilesField("photosGaranties", "Photos garanties", "garantie");
   writeFilesField("photosPiecesManquantes", "Photos - Pièces manquante", "piece");
   writeFilesField("photosDefautsSignale", "Photos - Défauts signalé", "defaut");
+  writeFilesField("photosNumeroLot", "Photos numéro de Lot", "numero-lot");
+  writeFilesField("videosMontage", "Vidéo Montage", "video-montage");
   writeFilesField("photosEtiquetteCarton", "Photos étiquette carton", "etiquette");
   writeFilesField("photosEclateProduit", "Éclaté produit", "eclate");
   writeFilesField("photosSoucisRegle", "Photos soucis montage réglé", "soucis-regle");
