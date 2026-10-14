@@ -81,6 +81,27 @@ const SIG_IC = {
   eye: ["M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z", "M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"], // avant
   check: ["M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z", "M8 12l2.5 2.5L16 9"],      // réglé
 } as const;
+/**
+ * Le texte d'un signalement sur la ligne de RÉSUMÉ.
+ *
+ * Le résumé disait « Défaut n°1 — usine » et s'arrêtait là : le type
+ * écrasait la description, et « Aimant cassé » n'apparaissait qu'en annexe,
+ * trois pages plus loin. Cinquante-cinq défauts sur soixante et onze portent
+ * les deux ; la moitié de l'information se perdait donc au premier regard.
+ *
+ * Les deux sont désormais réunis, comme le fait déjà la synthèse de chantier.
+ * La description est ramenée sur une ligne et bornée : le résumé reste un
+ * résumé, le texte entier vit en annexe.
+ */
+function resumeSignalement(parties: (string | null | undefined)[], max = 90): string {
+  const lu = parties
+    .map((x) => String(x || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(" — ");
+  if (!lu) return "Sans description";
+  return lu.length > max ? `${lu.slice(0, max - 1).trimEnd()}…` : lu;
+}
+
 function SigIcon({ paths, color, size = 10 }: { paths: readonly string[]; color: string; size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" style={{ marginRight: 4 }}>
@@ -1151,7 +1172,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                     <View key={p.id} style={{ flexDirection: "row", alignItems: "flex-start", marginLeft: 8, marginBottom: 1.5 }}>
                       <SigIcon paths={st.icon} color={st.color} size={9} />
                       <Text style={{ fontSize: 9, color: st.color, flex: 1 }}>
-                        Pièce n°{i + 1}{p.resolved ? " (réglé ✓)" : ""}{lot ? ` — ${lot}` : ""} — {p.description || p.reference || "Sans description"}
+                        Pièce n°{i + 1}{p.resolved ? " (réglé ✓)" : ""}{lot ? ` — ${lot}` : ""} — {resumeSignalement([p.reference && `réf. ${p.reference}`, p.description])}
                       </Text>
                     </View>
                   );
@@ -1169,7 +1190,7 @@ function RapportPDF({ project, pieces, defauts, cabineAttribution, versionClient
                     <View key={d.id} style={{ flexDirection: "row", alignItems: "flex-start", marginLeft: 8, marginBottom: 1.5 }}>
                       <SigIcon paths={st.icon} color={st.color} size={9} />
                       <Text style={{ fontSize: 9, color: st.color, flex: 1 }}>
-                        Défaut n°{i + 1}{d.resolved ? " (réglé ✓)" : ""}{d.cabineLabel ? ` — ${d.cabineLabel}` : ""} — {(d.types || []).join(", ") || d.description || "Sans description"}
+                        Défaut n°{i + 1}{d.resolved ? " (réglé ✓)" : ""}{d.cabineLabel ? ` — ${d.cabineLabel}` : ""} — {resumeSignalement([(d.types || []).join(", ") || d.typesLabel, d.description])}
                       </Text>
                     </View>
                   );
