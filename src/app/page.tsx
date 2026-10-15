@@ -30,6 +30,7 @@ import { useIsSignalTheme } from "@/lib/use-signal-theme";
 import { SignalPreviewHost, openSignalPreview, closeSignalPreview, survolerApercu, quitterApercu, ouvrirApercuSurvol } from "@/components/signal-preview";
 import { prefetchTodaysProjects } from "@/lib/offline-prefetch";
 import { getCache } from "@/lib/offline";
+import { ZoneTexte } from "@/components/zone-texte";
 
 // Écriture localStorage du cache projets THROTTLÉE. Sérialiser tout le cache
 // (~2,5 Mo avec Archives) à CHAQUE mise à jour (poll 30 s, burst de fetchs au
@@ -980,8 +981,8 @@ function NewProjectModal({ open, onClose, onCreated, currentMode }: { open: bool
           <div>
             <p className={sectionCls}>Commentaires</p>
             <div className="space-y-2">
-              <div><label className={labelCls}>Commentaires Mesures</label><textarea value={form.commentairesMesures} onChange={(e) => set("commentairesMesures", e.target.value)} rows={2} className={`${inputCls} py-1.5 resize-none`} /></div>
-              <div><label className={labelCls}>Commentaires Montages</label><textarea value={form.commentairesMontages} onChange={(e) => set("commentairesMontages", e.target.value)} rows={2} className={`${inputCls} py-1.5 resize-none`} /></div>
+              <div><label className={labelCls}>Commentaires Mesures</label><ZoneTexte value={form.commentairesMesures} onChange={(e) => set("commentairesMesures", e.target.value)} rows={2} className={`${inputCls} py-1.5 resize-none`} /></div>
+              <div><label className={labelCls}>Commentaires Montages</label><ZoneTexte value={form.commentairesMontages} onChange={(e) => set("commentairesMontages", e.target.value)} rows={2} className={`${inputCls} py-1.5 resize-none`} /></div>
             </div>
           </div>
 

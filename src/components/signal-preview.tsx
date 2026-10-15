@@ -26,6 +26,7 @@ import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import { offlineFetch } from "@/lib/offline";
 import { useMontantsOFR, francsCourts } from "@/lib/montants-ofr";
 import { creerArbitreSurvol } from "@/lib/survol-apercu";
+import { ZoneTexte } from "@/components/zone-texte";
 
 /* ── Mini-store module : les lignes publient, l'hôte s'abonne ────────────── */
 
@@ -565,7 +566,7 @@ function JournalEditable({ project }: { project: Project }) {
       </span>
       {edition ? (
         <>
-          <textarea
+          <ZoneTexte
             className="sg-pv-textarea"
             value={brouillon}
             autoFocus

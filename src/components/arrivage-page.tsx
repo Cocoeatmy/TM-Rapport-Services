@@ -38,6 +38,7 @@ interface Project {
 // Statuts exclus de la recherche Arrivage — projets déjà planifiés/terminés
 // qui n'ont plus besoin de suivi d'arrivage.
 import { useIsSignalTheme } from "@/lib/use-signal-theme";
+import { ZoneTexte } from "@/components/zone-texte";
 
 const EXCLUDED_STATUTS = new Set([
   "Récéptionné - RDV à fixer",
@@ -1032,7 +1033,7 @@ export default function ArrivagePage() {
                   <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     Commentaires montage
                   </label>
-                  <textarea
+                  <ZoneTexte
                     rows={4}
                     value={(forms[p.id] as any)?.commentairesMontages ?? (p.commentairesMontages || "")}
                     onChange={(e) => setFormField(p.id, "commentairesMontages", e.target.value)}

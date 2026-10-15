@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { Mic, Loader2, RotateCcw, Plus, Sparkles, AlertCircle, Square } from "lucide-react";
+import { ZoneTexte } from "@/components/zone-texte";
 
 interface VoiceRecorderProps {
   onTranscript: (text: string) => void;
@@ -170,7 +171,7 @@ export function VoiceRecorder({ onTranscript, accent = "blue", addLabel = "Ajout
       {status === "done" && (
         <>
           {/* Texte transcrit, ÉDITABLE avant ajout. */}
-          <textarea
+          <ZoneTexte
             value={transcript}
             onChange={(e) => setTranscript(e.target.value)}
             rows={3}

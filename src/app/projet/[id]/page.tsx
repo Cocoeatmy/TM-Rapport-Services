@@ -163,6 +163,7 @@ import { useEtatRapport } from "@/lib/use-etat-rapport";
 import { marquerFinalise, marquerEnvoye, lireFinalisation, LIBELLE_ETAT_RAPPORT } from "@/lib/rapport-finalise";
 import { ColoredSelect } from "@/components/colored-select";
 import { thumbnailUrl } from "@/lib/image-url";
+import { ZoneTexte } from "@/components/zone-texte";
 
 /** Photo upload tied to a logical bucket (sub-section dans une colonne Notion). */
 /**
@@ -1268,7 +1269,7 @@ function InlineField({
                 zone de texte : un champ d'une ligne les aurait aplaties à
                 l'enregistrement. Entrée y ajoute une ligne, le ✓ enregistre. */}
             {type !== "number" && draft.includes("\n") ? (
-              <textarea
+              <ZoneTexte
                 value={draft}
                 autoFocus
                 rows={Math.min(5, draft.split("\n").length + 1)}
@@ -1652,7 +1653,7 @@ function PiecesList({ projectId, refreshKey, cabineLabel, cabineIdx }: { project
               <div className="space-y-2 mb-2">
                 <div>
                   <label className="text-[10px] text-gray-500">Description</label>
-                  <textarea value={editDraft.description} onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
+                  <ZoneTexte value={editDraft.description} onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))}
                     className="w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none mt-0.5" rows={2} />
                   <button
                     type="button"
@@ -2242,7 +2243,7 @@ function DefautsList({ projectId, refreshKey, cabineLabel, cabineIdx, project, s
                   )}
                 </div>
                 {/* Description */}
-                <textarea value={editDraft.description} onChange={(e) => setEditDraft((prev) => ({ ...prev, description: e.target.value }))}
+                <ZoneTexte value={editDraft.description} onChange={(e) => setEditDraft((prev) => ({ ...prev, description: e.target.value }))}
                   placeholder="Description du défaut…"
                   className="w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none" rows={3} />
                 <button
@@ -2507,7 +2508,7 @@ function EditableSignalement({ label, color, text, photos: initialPhotos, projec
       </div>
       {editing ? (
         <div className="space-y-2">
-          <textarea value={draft} onChange={(e) => setDraft(e.target.value)}
+          <ZoneTexte value={draft} onChange={(e) => setDraft(e.target.value)}
             className="w-full text-xs border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none"
             rows={Math.max(draft.split("\n").length + 1, 3)} />
           <div className="flex gap-1">
@@ -2779,7 +2780,7 @@ function ExplicationTravauxField({ projectId, value, onUpdate }: { projectId: st
   return (
     <div>
       <label className="text-[10px] text-gray-500 dark:text-gray-400 block mb-1">Explications — travaux exécutés</label>
-      <textarea
+      <ZoneTexte
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onFocus={() => { focusedRef.current = true; }}
@@ -2949,7 +2950,7 @@ function EditableTextField({ label, value, projectId, fieldName, notionField, mu
         {editing ? (
           <div className="mt-1 space-y-1">
             {multiline ? (
-              <textarea
+              <ZoneTexte
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 className="w-full text-sm border rounded-lg px-2 py-1.5 dark:bg-slate-700 dark:border-gray-600 dark:text-gray-200 resize-none"
@@ -3985,7 +3986,7 @@ function NotionComments({ projectId, onCountChange }: { projectId: string; onCou
 
         {/* Formulaire d'écriture */}
         <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
-          <textarea
+          <ZoneTexte
             rows={3}
             className="w-full text-sm border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none transition-colors"
             placeholder="Ajouter un commentaire… (⌘+Entrée pour envoyer)"
