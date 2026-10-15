@@ -216,6 +216,30 @@ async function getOrCreateBackupPageId(key: string): Promise<string> {
  * Si le process est tué entre 2 et 3, la page contient les deux versions.
  * `readFromNotion` gère ce cas en extrayant le DERNIER tableau JSON valide.
  */
+/**
+ * Les clés dont la version précédente part en UN appel.
+ *
+ * Le stockage normal écrit le JSON par tranches de 2 000 caractères, un
+ * bloc Notion par tranche, et supprime les anciennes UNE PAR UNE. La liste
+ * des signalements fait 70 000 caractères : 36 blocs, donc 36 suppressions
+ * à la cadence tolérée par Notion — douze secondes, pour une écriture qui
+ * en prenait dix-huit en tout.
+ *
+ * Ce n'était pas qu'une lenteur. C'était la cause de tout : le téléphone
+ * renonce au bout de vingt-cinq secondes, croit l'envoi perdu, le rejoue —
+ * d'où les doublons ; et deux effacements lancés coup sur coup se
+ * disputaient si longtemps le verrou que l'un des deux était refusé.
+ *
+ * En rangeant les tranches sous UN bloc conteneur, effacer la version
+ * précédente coûte un appel au lieu de trente-six.
+ *
+ * Réservé aux listes qui bougent souvent et que l'on réécrit en entier.
+ * La LECTURE, elle, accepte les deux formes : aucune migration, et les
+ * pages écrites à l'ancienne restent lisibles.
+ */
+const CLES_CONTENEUR = new Set(["defauts", "defauts-supprimes", "pieces"]);
+const ETIQUETTE_TRANCHES = "données";
+
 async function writeToNotion(key: string, jsonString: string): Promise<void> {
   const pageId = await getOrCreateBackupPageId(key);
 
@@ -242,11 +266,26 @@ async function writeToNotion(key: string, jsonString: string): Promise<void> {
   }
   if (chunks.length === 0) chunks.push("[]");
 
+  /* Où écrire les tranches : directement sur la page (forme historique), ou
+     sous un conteneur neuf dont la suppression ne coûtera qu'un appel. */
+  let destination = pageId;
+  if (CLES_CONTENEUR.has(key)) {
+    const creation = (await notion.blocks.children.append({
+      block_id: pageId,
+      children: [{
+        object: "block" as const,
+        type: "toggle" as const,
+        toggle: { rich_text: [{ type: "text" as const, text: { content: ETIQUETTE_TRANCHES } }] },
+      }],
+    })) as unknown as { results: { id: string }[] };
+    destination = creation.results[0].id;
+  }
+
   const batchSize = 100;
   for (let i = 0; i < chunks.length; i += batchSize) {
     const batch = chunks.slice(i, i + batchSize);
     await notion.blocks.children.append({
-      block_id: pageId,
+      block_id: destination,
       children: batch.map((chunk) => ({
         object: "block" as const,
         type: "paragraph" as const,
@@ -301,6 +340,12 @@ async function readFromNotion<T>(key: string): Promise<T[]> {
         for (const rt of b.paragraph.rich_text) {
           allText += rt.plain_text || "";
         }
+      } else if (b.type === "toggle" && b.has_children) {
+        /* Version rangée dans un conteneur (voir CLES_CONTENEUR plus bas).
+           Lire les deux formes permet de changer d'écriture sans migration
+           et sans rien perdre : les pages écrites à l'ancienne restent
+           lisibles telles quelles. */
+        allText += await lireTranchesDe(b.id);
       }
     }
 
@@ -336,6 +381,25 @@ async function readFromNotion<T>(key: string): Promise<T[]> {
     console.error(`[kv-store] Could not parse content for "${key}", returning []`);
     return []; // Erreur de parse (pas réseau) → [] acceptable
   }
+}
+
+/** Texte des tranches rangées sous un bloc conteneur. */
+async function lireTranchesDe(conteneurId: string): Promise<string> {
+  let texte = "";
+  let curseur: string | undefined;
+  do {
+    const r = await notion.blocks.children.list({
+      block_id: conteneurId, page_size: 100, start_cursor: curseur,
+    });
+    for (const bloc of r.results) {
+      const b = bloc as Record<string, any>;
+      if (b.type === "paragraph") {
+        for (const rt of b.paragraph?.rich_text || []) texte += rt.plain_text || "";
+      }
+    }
+    curseur = r.has_more ? (r.next_cursor ?? undefined) : undefined;
+  } while (curseur);
+  return texte;
 }
 
 /**
