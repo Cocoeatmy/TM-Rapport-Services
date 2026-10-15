@@ -33,7 +33,10 @@ import { useNotionColors, statusClasses } from "@/lib/notion-colors";
 import { COLLABORATEURS_LIST, TEAM_EXCLUDED_COLLABORATORS, STATUS_CMD_COLORS, STATUS_MESURES_COLORS } from "@/lib/constants";
 import type { Project } from "@/lib/notion";
 import { clientFacture } from "@/lib/analyses";
-import { comptesSavParCabine, type SourceSavCabines } from "@/lib/sav-cabines";
+import {
+  comptesSavParCabine, etatSavProjet, controleCoherenceSav,
+  type SourceSavCabines, type SourceSavProjet,
+} from "@/lib/sav-cabines";
 import { PersonalStats } from "@/components/personal-stats";
 
 // ─── Citations motivantes quotidiennes (365) ────────────────────────────────
@@ -1520,6 +1523,7 @@ const DEFAULT_DASH_ORDER = [
   "sav-non-traites", "soucis-en-cours", "dossiers-en-cours", "a-facturer",
   "calendrier", "archives", "arrivage", "sav-historique", "soucis-historique", "mesures-sans-commande",
   "rdv-mesures-a-fixer", "rdv-montage-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer",
+  "sav-ouverts",
   "__empty__", // Case vide — taquin pour faciliter les déplacements
 ];
 
@@ -1530,7 +1534,7 @@ const SG_CATS: { id: string; label: string; ids: string[] }[] = [
   { id: "all", label: "Tout", ids: [] },
   { id: "jour", label: "Le jour même", ids: ["mesures-today", "today", "services-today", "sav-today", "week", "active"] },
   { id: "planifier", label: "À planifier", ids: ["rdv-mesures-a-fixer", "rdv-montage-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer"] },
-  { id: "traiter", label: "À traiter", ids: ["rapports-attente", "sav-non-traites", "soucis-en-cours", "a-facturer"] },
+  { id: "traiter", label: "À traiter", ids: ["rapports-attente", "sav-ouverts", "sav-non-traites", "soucis-en-cours", "a-facturer"] },
   { id: "suivi", label: "Suivi", ids: ["dossiers-en-cours", "calendrier", "arrivage", "emplacement-cabines", "archives"] },
   { id: "historique", label: "Historique", ids: ["sav-historique", "soucis-historique", "mesures-sans-commande"] },
 ];
@@ -1593,6 +1597,7 @@ const PANEL_DATE_FIELD: Record<string, (p: Project) => string | null | undefined
   "rdv-montage-a-fixer":  (p) => p.arrivageTM || p.arrivageGrossiste,
   "rdv-mesures-a-fixer":  (p) => p.dateMesuresRecue,
   "rdv-sav-a-fixer":      (p) => earliestSavRecuDate(p),
+  "sav-ouverts":          (p) => earliestSavRecuDate(p),
   /* Un service se planifie quand la marchandise est là, pas quand la demande
      est arrivée : c'est l'arrivage qui commande, comme pour les montages. La
      date de demande donnait des regroupements et des « J+x » sans rapport avec
@@ -1610,6 +1615,7 @@ const RDV_STATUS_FIELD: Record<string, (p: Project) => string> = {
   "rdv-services-a-fixer": (p) => p.etatCMD || "",
   "rdv-mesures-a-fixer":  (p) => p.etatMesures || "",
   "rdv-sav-a-fixer":      (p) => p.etatSAV || "",
+  "sav-ouverts":          (p) => p.etatSAV || "",
 };
 // Ordre canonique d'affichage des chips d'état par panneau.
 const RDV_STATUS_ORDER: Record<string, string[]> = {
@@ -1617,6 +1623,7 @@ const RDV_STATUS_ORDER: Record<string, string[]> = {
   "rdv-services-a-fixer": ["Cabine à aller chercher", "Récéptionné - RDV à fixer", "RDV - Attendre news", "Montage partiel"],
   "rdv-mesures-a-fixer":  ["Pas contacté", "Contact sans réponse", "RDV - Attendre news"],
   "rdv-sav-a-fixer":      ["A contacter", "Contact sans réponse", "Attente news"],
+  "sav-ouverts":          ["A contacter", "Contact sans réponse", "Attente news", "En cours de traitement", "RDV fixé"],
 };
 
 type ForcedPanel = "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer";
@@ -1754,7 +1761,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     setSelectedDashId(null);
   };
   const [showWeekProjects, setShowWeekProjects] = useState(false);
-  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | "montage-tomorrow" | "mesures-tomorrow" | "services-tomorrow" | "sav-tomorrow" | "montage-after" | "mesures-after" | "services-after" | "sav-after" | null>(forcePanel ?? null);
+  const [showSummaryPanel, setShowSummaryPanel] = useState<"today" | "week" | "active" | "rdv-a-fixer" | "rdv-fixe" | "mesures-today" | "sav-today" | "services-today" | "emplacement-cabines" | "rapports-attente" | "sav-non-traites" | "soucis-en-cours" | "dossiers-en-cours" | "a-facturer" | "calendrier" | "sav-historique" | "soucis-historique" | "mesures-sans-commande" | "rdv-mesures-a-fixer" | "rdv-montage-a-fixer" | "rdv-services-a-fixer" | "rdv-sav-a-fixer" | "sav-ouverts" | "montage-tomorrow" | "mesures-tomorrow" | "services-tomorrow" | "sav-tomorrow" | "montage-after" | "mesures-after" | "services-after" | "sav-after" | null>(forcePanel ?? null);
   // Recherche LOCALE aux panneaux "RDV … à fixer" : filtre uniquement les
   // projets déjà listés dans le panneau ouvert (ne va JAMAIS chercher ailleurs).
   // Réinitialisée à chaque changement de panneau.
@@ -3185,85 +3192,58 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
     .filter(estRdvServicesAFixer)
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
   const rdvServicesAFixerCount = rdvServicesAFixerProjects.length;
-  // ── SAV par cabine (nouveau système, onglet SAV des projets de montage) ──────
-  // Encodage "Cab1:valeur | Cab2:valeur". Un lot est « SAV à fixer » s'il a un
-  // SAV, PAS clôturé et SANS date d'intervention ; « réglé » s'il est clôturé.
-  const parseCabMap = (raw?: string | null): Record<number, string> => {
-    const m: Record<number, string> = {};
-    const re = /Cab(\d+)\s*:([^|]*)/g; let x: RegExpExecArray | null;
-    while ((x = re.exec(raw || ""))) { const v = x[2].trim(); if (v) m[parseInt(x[1], 10)] = v; }
-    return m;
-  };
-  const cabineSavCabs = (p: Project): Set<number> => {
-    const cabs = new Set<number>();
-    for (const raw of [p.commentairesSav, p.causeSavCabines, p.datesRdvSavCabines, p.collaborateursSavCabines, p.savRetouchesCabines, p.interventionsSavCabines, p.datesCmdPiecesSavCabines, p.datesReceptionPiecesSavCabines]) {
-      Object.keys(parseCabMap(raw)).forEach((k) => cabs.add(parseInt(k, 10)));
-    }
-    for (const f of [...(p.documentsSavDemande || []), ...(p.photosSavRetouches || [])]) {
-      const mm = /\.Cab(\d+)\./.exec(f.name || ""); if (mm) cabs.add(parseInt(mm[1], 10));
-    }
-    return cabs;
-  };
-  /**
-   * Au moins un lot SAV qu'il reste à planifier.
-   *
-   * Un lot est « à fixer » s'il n'est pas clôturé et qu'aucune intervention
-   * n'est datée. Deux nuances viennent des pièces de rechange :
-   *
-   *   • pièces commandées, pas encore reçues → le lot SORT de la liste. Fixer
-   *     un rendez-vous ferait revenir l'équipe sans la pièce. Rien n'est perdu
-   *     pour autant : le SAV reste dans « SAV (tous) ».
-   *   • pièces reçues après le dernier passage → le lot REVIENT, bien qu'une
-   *     intervention soit déjà datée. C'est ce second passage qu'il faut caler,
-   *     et sans cette règle il n'apparaissait nulle part.
-   */
-  const hasCabineSavAFixer = (p: Project): boolean => {
-    const cabs = cabineSavCabs(p);
-    if (cabs.size === 0) return false;
-    const rdv = parseCabMap(p.datesRdvSavCabines);
-    const cloture = parseCabMap(p.datesSavClotureCabines);
-    const piecesCmd = parseCabMap(p.datesCmdPiecesSavCabines);
-    const piecesRecues = parseCabMap(p.datesReceptionPiecesSavCabines);
-    for (const n of cabs) {
-      if ((cloture[n] || "").trim()) continue;
-      const cmd = (piecesCmd[n] || "").slice(0, 10);
-      const recu = (piecesRecues[n] || "").slice(0, 10);
-      if (cmd && !recu) continue; // en attente de pièce : injoignable pour un RDV
-      const date = (rdv[n] || "").slice(0, 10);
-      if (!date) return true;
-      // Le jour même compte comme « après » : mieux vaut un rendez-vous de trop
-      // à écarter qu'un SAV oublié.
-      if (recu && recu >= date) return true;
-    }
-    return false;
-  };
+  // ── SAV : la liste « RDV SAV à fixer » ─────────────────────────────────
+  /* Tout le raisonnement — décodage « Cab1:valeur », repérage des lots en
+     SAV, lecture conjointe de l'ancienne colonne « État - SAV » — vit dans
+     lib/sav-cabines, avec ses tests. Ici on ne fait que choisir les lignes
+     et les afficher : une seule tête décide, et elle est testée. */
+
   /**
    * L'état d'un SAV, cabine par cabine.
    *
-   * Le calcul vit dans lib/sav-cabines, avec ses tests : la liste, les
-   * en-têtes de groupe et les pastilles doivent dire exactement la même
-   * chose, et un seul endroit doit en décider.
+   * La liste, les en-têtes de groupe et les pastilles doivent dire
+   * exactement la même chose ; un seul endroit en décide.
    */
   const comptesSav = (p: Project) => comptesSavParCabine(p as unknown as SourceSavCabines);
+  const etatSav = (p: Project) => etatSavProjet(p as unknown as SourceSavProjet);
 
-
-
-  // RDV SAV à fixer : ancienne base (État - SAV) + SAV par cabine ouverts.
-  // Dédup par N° OFR TM (si un projet est dans les deux bases, on ne le compte
-  // qu'une fois — priorité à l'ancienne base pour le rendu existant).
-  const rdvSavAncienneBase = projects
-    .filter((p) => ["A contacter", "Contact sans réponse", "Attente news"].includes(p.etatSAV || ""));
-  const tmDejaListes = new Set(rdvSavAncienneBase.map((p) => p.ofrTM).filter(Boolean));
-  // Les SAV concernent souvent des projets DÉJÀ terminés (montage fini) → on
-  // combine actifs + terminés (dédup par id), comme « SAV (tous) ».
-  const montageForSav = [...projects, ...terminatedProjects]
+  /* Le vivier complet : actifs ET terminés, car un SAV naît presque toujours
+     sur un chantier dont le montage est fini. Dédoublonné par IDENTIFIANT,
+     jamais par numéro d'offre — 59 offres portent plusieurs projets (un lot
+     par appartement), et écarter par le numéro cachait les lots frères. */
+  const tousProjetsSav = [...projects, ...terminatedProjects]
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
-  const rdvSavParCabine = montageForSav.filter(
-    (p) => (p as any)._source !== "sav" && hasCabineSavAFixer(p) && !(p.ofrTM && tmDejaListes.has(p.ofrTM)),
-  );
-  const rdvSavAFixerProjects = [...rdvSavAncienneBase, ...rdvSavParCabine]
+
+  /* UNE SEULE RÈGLE, UNE SEULE PASSE. La liste se construisait auparavant en
+     deux morceaux — ancienne base d'un côté, SAV par cabine de l'autre —
+     recollés par un dédoublonnage. Chaque couture était une occasion de
+     perdre un dossier, et c'est ce qui est arrivé. */
+  const rdvSavAFixerProjects = tousProjetsSav
+    .filter((p) => etatSav(p).necessiteRdv)
     .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
   const rdvSavAFixerCount = rdvSavAFixerProjects.length;
+
+  /* Tous les SAV encore ouverts : ceux à fixer, plus ceux déjà planifiés.
+     Un dossier planifié n'appelle aucune action, mais on doit pouvoir le
+     retrouver sans fouiller — c'est la vue d'ensemble qui manquait. */
+  const savOuvertsProjects = tousProjetsSav
+    .filter((p) => etatSav(p).ouvert)
+    .sort((a, b) => (a.projet || "").localeCompare(b.projet || ""));
+  const savOuvertsCount = savOuvertsProjects.length;
+
+  /**
+   * Le garde-fou de la liste SAV.
+   *
+   * On recompte les dossiers qui réclament un rendez-vous à partir des
+   * données brutes, et on les confronte à CE QUI EST RÉELLEMENT À L'ÉCRAN —
+   * après recherche, filtres d'état et regroupement. C'est là que les
+   * dossiers se perdent : jamais dans le calcul, toujours dans la chaîne
+   * d'affichage. Tant que les deux coïncident, rien ne paraît ; sinon la
+   * page nomme ce qui manque plutôt que de l'oublier.
+   */
+  const anomaliesSavPour = (affiches: Iterable<string>) =>
+    controleCoherenceSav(tousProjetsSav as unknown as SourceSavProjet[], affiches);
+
 
   /* RDV déjà fixés, toutes natures confondues. L'état SAV vit dans sa propre
      colonne : s'en tenir à « État - CMD » laissait les SAV datés hors du
@@ -3472,6 +3452,19 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           <p className="text-lg sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{rdvSavAFixerCount}</p>
           <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">RDV SAV à fixer</p>
           <p className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 invisible" aria-hidden="true">0 cab.</p>
+        </button>
+      );
+      /* La vue de secours : tous les SAV en cours, à fixer ou déjà
+         planifiés. Elle n'applique aucune règle d'exclusion — c'est tout
+         l'intérêt. Quand un dossier manque ailleurs, il est ici. */
+      case "sav-ouverts": return (
+        <button onClick={(e) => openPanel("sav-ouverts", e)} className="relative glass-card rounded-2xl p-2 sm:p-4 flex flex-col items-center hover:shadow-lg active:scale-95 transition-all w-full h-full">
+          <span className="absolute top-0 left-0 w-8 h-8 rounded-tl-2xl rounded-br-xl bg-amber-100/80 dark:bg-amber-900/30 flex items-center justify-center"><ShieldAlert className="w-4 h-4 text-amber-500 dark:text-amber-400" /></span>
+          <p className="text-lg sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{savOuvertsCount}</p>
+          <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 leading-tight text-center">Tous les SAV ouverts</p>
+          <p className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+            {savOuvertsProjects.reduce((n, p) => n + comptesSav(p).concernees - comptesSav(p).regles, 0)} cab.
+          </p>
         </button>
       );
       default: return null;
@@ -5395,6 +5388,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
           "rdv-mesures-a-fixer":  { label: "RDV Mesures à fixer",    color: "text-cyan-600 dark:text-cyan-400",     bg: "bg-cyan-100/80 dark:bg-cyan-900/30",     icon: <Calendar className="w-4 h-4 text-cyan-500 dark:text-cyan-400" /> },
           "rdv-montage-a-fixer":  { label: "RDV Montage à fixer",    color: "text-blue-600 dark:text-blue-400",     bg: "bg-blue-100/80 dark:bg-blue-900/30",     icon: <Calendar className="w-4 h-4 text-blue-500 dark:text-blue-400" /> },
           "rdv-services-a-fixer": { label: "RDV Services à fixer",   color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-100/80 dark:bg-violet-900/30", icon: <Calendar className="w-4 h-4 text-violet-500 dark:text-violet-400" /> },
+          "sav-ouverts":          { label: "Tous les SAV ouverts",  color: "text-amber-600 dark:text-amber-400",   bg: "bg-amber-100/80 dark:bg-amber-900/30",   icon: <ShieldAlert className="w-4 h-4 text-amber-500 dark:text-amber-400" /> },
           "rdv-sav-a-fixer":      { label: "RDV SAV à fixer",        color: "text-rose-600 dark:text-rose-400",     bg: "bg-rose-100/80 dark:bg-rose-900/30",     icon: <Calendar className="w-4 h-4 text-rose-500 dark:text-rose-400" /> },
         };
         const meta = panelMeta[showSummaryPanel];
@@ -6298,6 +6292,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         } else if (showSummaryPanel === "rdv-sav-a-fixer") {
           panelTitle = "RDV SAV à fixer";
           panelProjects = rdvSavAFixerProjects;
+        } else if (showSummaryPanel === "sav-ouverts") {
+          panelTitle = "Tous les SAV ouverts";
+          panelProjects = savOuvertsProjects;
         } else if (showSummaryPanel === "dossiers-en-cours") {
           /* ── PROJETS EN COURS ─────────────────────────────────── */
           const dossiersYears = Array.from(new Set(
@@ -7522,6 +7519,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
         // toujours au chiffre de la tuile du dashboard. Quand un filtre est actif,
         // le titre affiche "X / total" pour lever toute ambiguïté.
         const rdvStatusFieldFn = showSummaryPanel ? RDV_STATUS_FIELD[showSummaryPanel] : undefined;
+        /* Les deux listes SAV se lisent de la même façon : colonne « SAV »,
+           pastilles par cabine, totaux par groupe. Seul le choix des lignes
+           les distingue. */
+        const vueSav = showSummaryPanel === "rdv-sav-a-fixer" || showSummaryPanel === "sav-ouverts";
         let rdvStatusOptions: string[] = [];
         let rdvHiddenCount = 0;
         const rdvTotalCount = panelProjects.length;
@@ -7732,7 +7733,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     {panelProjects.reduce((s, p) => s + cabinesRestantes(p), 0)} cabines à poser
                   </span>
                 )}
-                {showSummaryPanel === "rdv-sav-a-fixer" && (() => {
+                {vueSav && (() => {
                   const cs = panelProjects.map((p) => comptesSav(p));
                   const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
                   const regles = cs.reduce((s, c) => s + c.regles, 0);
@@ -7838,6 +7839,46 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 />
               )}
 
+              {/* ── GARDE-FOU ───────────────────────────────────────────
+                  Ce que les données réclament, face à ce qui est à l'écran.
+                  Un SAV qui ne s'affiche pas ne se fixe pas, et personne ne
+                  le cherche : plutôt qu'une disparition silencieuse, un
+                  avertissement nommant les dossiers et la raison. */}
+              {showSummaryPanel === "rdv-sav-a-fixer" && (() => {
+                const affiches = new Set<string>();
+                sgGroups.forEach(([, rows]) => rows.forEach((p) => affiches.add(p.id)));
+                const manquants = anomaliesSavPour(affiches);
+                if (manquants.length === 0) return null;
+                const n = manquants.length;
+                return (
+                  <div className="sg-alerte" role="alert">
+                    <AlertTriangle className="w-4 h-4 sg-alerte-icone" />
+                    <div>
+                      <p className="sg-alerte-titre">
+                        ⚠️ Attention : {n} SAV nécessitant un rendez-vous {n > 1 ? "ne sont pas affichés" : "n'est pas affiché"}
+                      </p>
+                      <ul className="sg-alerte-liste">
+                        {manquants.slice(0, 8).map(({ projet, raison }) => {
+                          const pr = projet as unknown as Project;
+                          return (
+                            <li key={pr.id}>
+                              <Link href={`/projet/${pr.id}?mode=dashboard`}>
+                                {pr.ofrTM || "—"} · {pr.projet || "Projet sans nom"}
+                              </Link>
+                              {raison ? <span className="sg-alerte-why"> — {raison}</span> : null}
+                            </li>
+                          );
+                        })}
+                        {n > 8 && <li className="sg-alerte-why">… et {n - 8} autre{n - 8 > 1 ? "s" : ""}</li>}
+                      </ul>
+                      <p className="sg-alerte-why">
+                        Un filtre ou une recherche peut en être la cause : effacez-les pour tout revoir.
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="sg-split">
                 {/* `is-region` : en tri par région, la pastille J+x n'est plus
                     portée par l'en-tête de groupe — elle doit rester sur la
@@ -7850,7 +7891,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         n'apprend rien ; ce qu'on cherche, c'est combien de
                         cabines attendent. La colonne « CAB. » reste à côté :
                         elle dit la taille du chantier. */}
-                    <span className="sg-right">{showSummaryPanel === "rdv-sav-a-fixer" ? "SAV" : "PERS."}</span><span className="sg-right">CAB.</span>
+                    <span className="sg-right">{vueSav ? "SAV" : "PERS."}</span><span className="sg-right">CAB.</span>
                   </div>
                   {panelProjects.length === 0 && (
                     <p className="sg-empty">
@@ -7887,7 +7928,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                  chantier n'est pas la charge de travail : on
                                  annonce les cabines à reprendre, et celles
                                  déjà réglées. */
-                              if (showSummaryPanel !== "rdv-sav-a-fixer") {
+                              if (!vueSav) {
                                 const cab = rows.reduce((s, p) => s + (p.nbCabines || 0), 0);
                                 return `${rows.length} projet${rows.length > 1 ? "s" : ""} · ${cab} cab.`;
                               }
@@ -7954,7 +7995,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                 <MapPin className="w-3 h-3" />
                                 <span>{p.emplacementCabine || "—"}</span>
                               </span>
-                              {showSummaryPanel === "rdv-sav-a-fixer" ? (() => {
+                              {vueSav ? (() => {
                                 const c = comptesSav(p);
                                 if (!c.detaille) {
                                   return (
@@ -7969,6 +8010,13 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                   c.enAttentePiece ? `${c.enAttentePiece} en attente de pièce` : "",
                                   c.regles ? `${c.regles} réglé${c.regles > 1 ? "s" : ""}` : "",
                                 ].filter(Boolean).join(" · ") || "Aucune cabine en SAV";
+                                /* Une ligne qui n'est là QUE pour une pièce
+                                   manquante doit le dire en toutes lettres :
+                                   sinon on appelle le client pour rien, on
+                                   déplace l'équipe, et la confiance part
+                                   avec. Le chiffre ambre seul ne suffisait
+                                   pas — personne ne lit une légende. */
+                                const seulementPiece = c.aFixer === 0 && c.enAttentePiece > 0;
                                 return (
                                   <span className="sg-pers sg-savcnt" title={`Cabines : ${titre}`}>
                                     {c.aFixer > 0 && <i className="sav-fix">{c.aFixer}</i>}
@@ -7976,6 +8024,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                                     {c.enAttentePiece > 0 && <i className="sav-piece">{c.enAttentePiece}</i>}
                                     {c.regles > 0 && <i className="sav-ok">{c.regles}</i>}
                                     {c.concernees === 0 && <i className="sav-flou">—</i>}
+                                    {seulementPiece && <i className="sav-piece-txt">pièce attendue</i>}
                                   </span>
                                 );
                               })() : (
@@ -8009,7 +8058,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
             <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
               <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 {panelTitle} ({rdvFiltered ? `${panelProjects.length} / ${rdvTotalCount}` : (rdvStatusFieldFn ? rdvTotalCount : panelProjects.length)})
-                {showSummaryPanel === "rdv-sav-a-fixer" && (() => {
+                {vueSav && (() => {
                   const cs = panelProjects.map((p) => comptesSav(p));
                   const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
                   const regles = cs.reduce((s, c) => s + c.regles, 0);
@@ -8111,6 +8160,40 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                 <span className="w-14 text-right">Cabines</span>
               </div>
             )}
+            {/* Même garde-fou que sur la liste Signal : le thème change
+                l'habillage, jamais ce qu'on a le droit d'ignorer. */}
+            {showSummaryPanel === "rdv-sav-a-fixer" && (() => {
+              const manquants = anomaliesSavPour(panelProjects.map((p) => p.id));
+              if (manquants.length === 0) return null;
+              const n = manquants.length;
+              return (
+                <div role="alert" className="flex items-start gap-2 mb-2 p-2.5 rounded-lg border border-amber-300 border-l-4 border-l-red-500 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 text-amber-900 dark:text-amber-200">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold">
+                      ⚠️ Attention : {n} SAV nécessitant un rendez-vous {n > 1 ? "ne sont pas affichés" : "n'est pas affiché"}
+                    </p>
+                    <ul className="mt-1 space-y-0.5 text-[11px]">
+                      {manquants.slice(0, 8).map(({ projet, raison }) => {
+                        const pr = projet as unknown as Project;
+                        return (
+                          <li key={pr.id}>
+                            <Link href={`/projet/${pr.id}?mode=dashboard`} className="font-semibold underline">
+                              {pr.ofrTM || "—"} · {pr.projet || "Projet sans nom"}
+                            </Link>
+                            {raison ? <span className="opacity-80"> — {raison}</span> : null}
+                          </li>
+                        );
+                      })}
+                      {n > 8 && <li className="opacity-80">… et {n - 8} autre{n - 8 > 1 ? "s" : ""}</li>}
+                    </ul>
+                    <p className="mt-1 text-[11px] opacity-80">
+                      Un filtre ou une recherche peut en être la cause : effacez-les pour tout revoir.
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
             {panelProjects.length === 0 && (
               panelQuery ? (
                 <p className="text-sm text-gray-400 py-2">
@@ -8536,7 +8619,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     </span>
                     {/* J+x d'en-tête : seulement en mode "Par date" (en mode région,
                         la clé de groupe est un code postal, pas une date → J+x par ligne). */}
-                    {!isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer" || showSummaryPanel === "rdv-sav-a-fixer" || showSummaryPanel === "soucis-en-cours") && (() => {
+                    {!isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer" || vueSav || showSummaryPanel === "soucis-en-cours") && (() => {
                       const info = getDaysInfoFromDate(group.dateKey);
                       if (!info) return null;
                       return (
@@ -8548,7 +8631,7 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                     <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-semibold bg-white/20 text-white">
                       {(() => {
                         // Panneau SAV : total = cabines à SAV ouvert (pas le total projet).
-                        if (showSummaryPanel === "rdv-sav-a-fixer") {
+                        if (vueSav) {
                           const cs = group.projects.map((p) => comptesSav(p));
                           const aFixer = cs.reduce((s, c) => s + c.aFixer, 0);
                           const regles = cs.reduce((s, c) => s + c.regles, 0);
@@ -8576,9 +8659,9 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                       ? "bg-white/60 dark:bg-slate-800/40"
                       : "bg-blue-50/40 dark:bg-blue-950/15";
                     const bestLogo = getBestLogo(p.projet, p.fournisseurs || []);
-                    const isRdvAFixerPanel = ["rdv-montage-a-fixer", "rdv-mesures-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer"].includes(showSummaryPanel || "");
+                    const isRdvAFixerPanel = ["rdv-montage-a-fixer", "rdv-mesures-a-fixer", "rdv-services-a-fixer", "rdv-sav-a-fixer", "sav-ouverts"].includes(showSummaryPanel || "");
                     const rdvIsMes = showSummaryPanel === "rdv-mesures-a-fixer";
-                    const rdvIsSav = showSummaryPanel === "rdv-sav-a-fixer";
+                    const rdvIsSav = vueSav;
                     // SAV : J+x = jours depuis la RÉCEPTION du SAV (pas le montage).
                     const rdvRefDate = rdvIsSav
                       ? earliestSavRecuDate(p)
@@ -8734,10 +8817,10 @@ function AdminDashboard({ projects, userName, onNavigate, terminatedProjectsInit
                         )}
                         {/* J+x par ligne en mode région (NPA) : les groupes ne sont
                             plus par date, donc on l'affiche sur chaque projet. */}
-                        {isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer" || showSummaryPanel === "rdv-sav-a-fixer") && (() => {
+                        {isRegionMode && (showSummaryPanel === "rdv-montage-a-fixer" || showSummaryPanel === "rdv-mesures-a-fixer" || vueSav) && (() => {
                           const refDate = showSummaryPanel === "rdv-montage-a-fixer"
                             ? (p.arrivageTM || p.arrivageGrossiste)
-                            : showSummaryPanel === "rdv-sav-a-fixer"
+                            : vueSav
                             ? earliestSavRecuDate(p)
                             : p.dateMesuresRecue;
                           const info = getDaysInfoFromDate(refDate);
