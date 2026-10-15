@@ -23,48 +23,13 @@
 
 import { useEffect, useState } from "react";
 import { getPendingUploads } from "@/lib/idb-uploads";
-import {
-  BUCKET_NOTION_FIELD,
-  BUCKET_NOTION_LABEL,
-  defaultBucketForField,
-  filterByBucket,
-  type PhotoBucketKey,
-} from "@/lib/photo-buckets";
+import { type PhotoLocale } from "@/lib/photo-buckets";
 
-/** Une photo posée sur le téléphone, en attente d'envoi. */
-export interface PhotoLocale {
-  name: string;
-  notionField?: string;
-  /** « pending » : la file réessaie. « permanently-failed » : elle attend un geste. */
-  statut: "pending" | "permanently-failed";
-}
-
-/**
- * Combien de photos LOCALES appartiennent à ce groupe de planches.
- *
- * Le rattachement se lit dans le nom du fichier — « Montage gauche.Cab3.2… » —
- * exactement comme pour les photos déjà chez Notion, et par le même filtre :
- * une seule façon de décider à quelle planche appartient une photo.
- */
-export function compteLocalesGroupe(
-  locales: readonly PhotoLocale[],
-  buckets: readonly PhotoBucketKey[],
-  cabineIdx?: number,
-): number {
-  let total = 0;
-  for (const bucket of buckets) {
-    const champ = BUCKET_NOTION_FIELD[bucket];
-    /* La file retient le LIBELLÉ de la colonne Notion (« Photos avant
-       montage »), là où le projet porte sa clé (`photosAvant`). On accepte
-       les deux : sinon le compte ne reconnaîtrait rien de ce que le
-       téléphone a enregistré, et le bouton resterait gris — le bug même
-       qu'on corrige. */
-    const libelle = BUCKET_NOTION_LABEL[champ];
-    const liste = locales.filter((l) => l.notionField === champ || l.notionField === libelle);
-    total += filterByBucket(liste, bucket, cabineIdx, defaultBucketForField(champ)).length;
-  }
-  return total;
-}
+/* Le compte lui-même vit dans photo-buckets, avec les règles de planches :
+   le contrôle qui BLOQUE l'envoi en a besoin aussi, et deux implémentations
+   finiraient par diverger — c'est exactement ce qui a laissé passer le bug
+   du 16 octobre. */
+export { compteLocalesGroupe, type PhotoLocale } from "@/lib/photo-buckets";
 
 /**
  * Les photos locales d'un chantier, tenues à jour.

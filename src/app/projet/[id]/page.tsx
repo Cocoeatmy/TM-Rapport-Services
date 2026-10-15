@@ -4718,6 +4718,10 @@ function ProjectPageContent({ id }: { id: string }) {
   /* Où en est le rapport : clos sur le chantier, ou arrivé jusqu'à nous.
      « Synchronisé » exige que TOUT soit parti — pas une photo en attente. */
   const suiviRapport = useEtatRapport(id);
+  /* Les photos encore sur le téléphone, pour le contrôle qui BLOQUE l'envoi.
+     Sans elles, un monteur qui a tout photographié sans réseau se voyait
+     refuser son rapport avec « 0/2 » alors que ses photos étaient là. */
+  const photosLocalesProjet = usePhotosLocales(id);
   const suiviRapportRef = useRef(suiviRapport);
   useEffect(() => { suiviRapportRef.current = suiviRapport; }, [suiviRapport]);
   /* Les paramètres du PDF différé : ils décrivent le rapport tel qu'il était
@@ -7587,6 +7591,7 @@ function ProjectPageContent({ id }: { id: string }) {
     const photoOpts = {
       multiCabine: isCabineMode,
       nbCabines: isCabineMode ? cabines.length : (project.nbCabines || 0),
+      locales: photosLocalesProjet,
     };
 
     const needsPresence = !hasPresenceStatement(rapport);

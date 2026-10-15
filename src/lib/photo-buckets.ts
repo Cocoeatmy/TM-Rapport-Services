@@ -264,11 +264,21 @@ function countGroup(
  */
 export function missingRequiredPhotos(
   project: ProjectPhotoSources,
-  options: { multiCabine: boolean; nbCabines: number },
+  options: {
+    multiCabine: boolean;
+    nbCabines: number;
+    /* Les photos encore sur le téléphone comptent AUTANT que celles déjà
+       chez Notion. Sans elles, un monteur qui a tout photographié sans
+       réseau se voyait refuser l'envoi avec « 0/2, 0/3, 0/2 » alors que ses
+       sept photos étaient là, en train de partir (chantier Defferard,
+       16 octobre 2026). */
+    locales?: readonly PhotoLocale[];
+  },
 ): RequiredPhotoShortfall[] {
   const shortfalls = (cabineIdx: number | undefined, prefix: string): RequiredPhotoShortfall[] =>
     REQUIRED_PHOTO_GROUPS.flatMap((g) => {
-      const have = countGroup(project, g.buckets, cabineIdx);
+      const have = countGroup(project, g.buckets, cabineIdx)
+        + compteLocalesGroupe(options.locales || [], g.buckets, cabineIdx);
       return have >= g.min ? [] : [{ label: `${prefix}${g.label}`, have, min: g.min }];
     });
 
@@ -276,6 +286,43 @@ export function missingRequiredPhotos(
   const out: RequiredPhotoShortfall[] = [];
   for (let i = 1; i <= options.nbCabines; i++) out.push(...shortfalls(i, `Cabine ${i} — `));
   return out;
+}
+
+/* ── Les photos qui ne sont encore que sur le téléphone ─────────────────── */
+
+/** Une photo posée sur l'appareil, en attente d'envoi. */
+export interface PhotoLocale {
+  name: string;
+  notionField?: string;
+  /** « pending » : la file réessaie. « permanently-failed » : elle attend un geste. */
+  statut: "pending" | "permanently-failed";
+}
+
+/**
+ * Combien de photos LOCALES appartiennent à ce groupe de planches.
+ *
+ * Le rattachement se lit dans le nom du fichier — « Montage gauche.Cab3.2… » —
+ * exactement comme pour les photos déjà chez Notion, et par le même filtre :
+ * une seule façon de décider à quelle planche appartient une photo.
+ *
+ * Piège : la file retient le LIBELLÉ de la colonne Notion (« Photos avant
+ * montage ») là où le projet porte sa clé (`photosAvant`). On accepte les
+ * deux — ne reconnaître qu'une seule écriture revient à ne rien compter.
+ */
+export function compteLocalesGroupe(
+  locales: readonly PhotoLocale[],
+  buckets: readonly PhotoBucketKey[],
+  cabineIdx?: number,
+): number {
+  if (!locales.length) return 0;
+  let total = 0;
+  for (const bucket of buckets) {
+    const champ = BUCKET_NOTION_FIELD[bucket];
+    const libelle = BUCKET_NOTION_LABEL[champ];
+    const liste = locales.filter((l) => l.notionField === champ || l.notionField === libelle);
+    total += filterByBucket(liste, bucket, cabineIdx, defaultBucketForField(champ)).length;
+  }
+  return total;
 }
 
 /**

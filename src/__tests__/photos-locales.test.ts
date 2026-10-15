@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { compteLocalesGroupe, type PhotoLocale } from "@/lib/photos-locales";
-import { comptePhotosGroupe, minimumRequis } from "@/lib/photo-buckets";
+import { comptePhotosGroupe, minimumRequis, missingRequiredPhotos } from "@/lib/photo-buckets";
 
 /**
  * Une photo prise est une photo prise.
@@ -110,5 +110,65 @@ describe("le compte qui débloque le bouton « Suivant »", () => {
        les deux sources ne se recouvrent jamais. */
     const projet = { photosAvant: [{ name: "Avant intervention.1.1.jpg", url: "u" }] };
     expect(total(projet, [])).toBe(1);
+  });
+});
+
+/**
+ * Le contrôle qui BLOQUE l'envoi du rapport.
+ *
+ * Le 16 octobre 2026, un monteur a photographié tout un chantier sans
+ * réseau, puis s'est vu refuser l'envoi : « Photos avant intervention 0/2,
+ * Photos montage 0/3, Photos après intervention 0/2 » — alors que ses sept
+ * photos étaient sur le téléphone, en train de partir. Le compteur de
+ * l'assistant avait été corrigé la veille ; ce contrôle-ci, non.
+ */
+describe("missingRequiredPhotos — les photos du téléphone comptent", () => {
+  const MONO = { multiCabine: false, nbCabines: 1 };
+  const toutes: PhotoLocale[] = [
+    { name: "Avant intervention.1.1.jpg", notionField: "Photos avant montage", statut: "pending" },
+    { name: "Avant intervention.2.2.jpg", notionField: "Photos avant montage", statut: "pending" },
+    { name: "Montage gauche.1.3.jpg", notionField: "Photos montage terminé", statut: "pending" },
+    { name: "Montage centre.1.4.jpg", notionField: "Photos montage terminé", statut: "pending" },
+    { name: "Montage droite.1.5.jpg", notionField: "Photos montage terminé", statut: "pending" },
+    { name: "Apres intervention.1.6.jpg", notionField: "Photos montage terminé", statut: "pending" },
+    { name: "Apres intervention.2.7.jpg", notionField: "Photos montage terminé", statut: "pending" },
+  ];
+
+  it("sans le téléphone, tout manque — c'est le bug d'origine", () => {
+    const manquantes = missingRequiredPhotos({}, MONO);
+    expect(manquantes.map((m) => m.label)).toEqual([
+      "Photos avant intervention", "Photos montage", "Photos après intervention",
+    ]);
+  });
+
+  it("avec le téléphone, plus rien ne manque et l'envoi passe", () => {
+    expect(missingRequiredPhotos({}, { ...MONO, locales: toutes })).toEqual([]);
+  });
+
+  it("mais il manque toujours ce qui n'a pas été photographié", () => {
+    const partiel = toutes.filter((l) => !l.name.startsWith("Montage"));
+    const manquantes = missingRequiredPhotos({}, { ...MONO, locales: partiel });
+    expect(manquantes.map((m) => m.label)).toEqual(["Photos montage"]);
+    expect(manquantes[0]).toMatchObject({ have: 0, min: 3 });
+  });
+
+  it("additionne le téléphone et ce qui est déjà arrivé chez Notion", () => {
+    const projet = { photosAvant: [{ name: "Avant intervention.1.1.jpg", url: "u" }] };
+    const uneSeuleEnAttente: PhotoLocale[] = [
+      { name: "Avant intervention.2.2.jpg", notionField: "Photos avant montage", statut: "pending" },
+    ];
+    const manquantes = missingRequiredPhotos(projet, { ...MONO, locales: uneSeuleEnAttente });
+    expect(manquantes.map((m) => m.label)).not.toContain("Photos avant intervention");
+  });
+
+  it("vaut lot par lot sur un chantier multi-cabines", () => {
+    const lot2: PhotoLocale[] = [
+      { name: "Avant intervention.Cab2.1.1.jpg", notionField: "Photos avant montage", statut: "pending" },
+      { name: "Avant intervention.Cab2.2.2.jpg", notionField: "Photos avant montage", statut: "pending" },
+    ];
+    const manquantes = missingRequiredPhotos({}, { multiCabine: true, nbCabines: 2, locales: lot2 });
+    const libelles = manquantes.map((m) => m.label);
+    expect(libelles).toContain("Cabine 1 — Photos avant intervention");
+    expect(libelles).not.toContain("Cabine 2 — Photos avant intervention");
   });
 });
