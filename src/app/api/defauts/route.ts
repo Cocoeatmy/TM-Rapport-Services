@@ -207,7 +207,7 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const { id, status, comment, displayInRapport, description, resolved, cabineLabel, photoUrls, types, typesLabel } = body;
+  const { id, status, comment, displayInRapport, description, resolved, cabineLabel, photoUrls, types, typesLabel, cabineIdx} = body;
   // Lecture FRAÎCHE (bypass cache) : évite qu'une instance au cache périmé ne
   // trouve pas le défaut (→ 404 silencieux) ou n'écrase des modifications
   // récentes. En cas d'erreur Notion, on abandonne (pas d'écrasement).
@@ -235,6 +235,10 @@ export async function PATCH(request: NextRequest) {
   // Renommage d'une cabine : on met à jour le libellé rattaché pour que le
   // signalement reste relié au bon lot (icône dans l'app + titre dans le PDF).
   if (typeof cabineLabel === "string" && cabineLabel.trim()) defauts[idx].cabineLabel = cabineLabel.trim();
+  /* Rattacher un signalement au bon lot APRÈS coup : ceux d'avant le
+     16 octobre 2026 n'ont pas de numéro et s'affichent donc sur tous les
+     lots qui portent le même nom. */
+  if (typeof cabineIdx === "number" && cabineIdx > 0) defauts[idx].cabineIdx = cabineIdx;
 
   await setData(KEY, defauts);
 

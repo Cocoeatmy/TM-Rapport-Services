@@ -218,7 +218,7 @@ export async function PATCH(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  const { id, status, comment, description, reference, displayInRapport, resolved, cabineLabel, photoUrls } = body;
+  const { id, status, comment, description, reference, displayInRapport, resolved, cabineLabel, photoUrls, cabineIdx} = body;
   /* Lecture FRAÎCHE avant d'écrire : on réécrit la LISTE ENTIÈRE, donc partir
      d'une copie en cache ferait perdre toute modification enregistrée depuis
      moins d'une minute par une autre instance. En cas d'erreur Notion on
@@ -245,6 +245,10 @@ export async function PATCH(request: NextRequest) {
   if (Array.isArray(photoUrls)) pieces[idx].photoUrls = photoUrls;
   // Renommage d'une cabine : garde la pièce reliée au bon lot.
   if (typeof cabineLabel === "string" && cabineLabel.trim()) pieces[idx].cabineLabel = cabineLabel.trim();
+  /* Rattacher un signalement au bon lot APRÈS coup : ceux d'avant le
+     16 octobre 2026 n'ont pas de numéro et s'affichent donc sur tous les
+     lots qui portent le même nom. */
+  if (typeof cabineIdx === "number" && cabineIdx > 0) pieces[idx].cabineIdx = cabineIdx;
 
   /* Le règlement s'horodate tout seul : demander la date à celui qui clique
      ferait manquer la moitié des cas. « Reçu » ou « réglé » vaut règlement ;
