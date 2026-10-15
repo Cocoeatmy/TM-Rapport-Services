@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { placerChamp, poidsChamp, SECTIONS } from "@/lib/champs-sections";
+import { placerChamp, poidsChamp, estTexteLong, SECTIONS } from "@/lib/champs-sections";
 import { TYPES_MODIFIABLES } from "@/lib/notion-schema";
 import inventaire from "./fixtures-schema-notion.json";
 
@@ -137,5 +137,34 @@ describe("ordre à l'intérieur d'une section", () => {
 
   it("ce qu'on ne peut pas remplir descend, sans changer de section", () => {
     expect(poidsChamp("Jours Montage", "formula", true)).toBeGreaterThan(poidsChamp("Date Montage", "date", false));
+  });
+});
+
+/**
+ * Un « texte » Notion peut être un numéro ou trois paragraphes.
+ *
+ * Le type ne le dit pas. Les afficher tous en grande zone de texte donnait
+ * un formulaire où « N° OFR TM » occupait quatre lignes et toute la
+ * largeur — et où il fallait faire défiler pour atteindre le champ
+ * suivant.
+ */
+describe("ligne ou zone de texte", () => {
+  it("les commentaires et les textes longs ont une zone", () => {
+    for (const n of [
+      "Commentaires Montages", "Commentaires interne", "Journal des échanges",
+      "Divers infos chantier", "Infos - Défauts signalé", "Explications travaux exécuté",
+      "Rapport monteur", "Contacts pour RDV",
+    ]) expect(estTexteLong(n), n).toBe(true);
+  });
+
+  it("les références tiennent sur une ligne", () => {
+    for (const n of [
+      "N° OFR TM", "N° CMD TM", "N° CMD TM - Usine", "N° OFR Grossiste",
+      "N° Serv. CMD Fournisseurs", "Nom chantier", "Heure arrivée",
+    ]) expect(estTexteLong(n), n).toBe(false);
+  });
+
+  it("un champ ajouté demain et nommé « Description … » a une zone", () => {
+    expect(estTexteLong("Description de l'accès au chantier")).toBe(true);
   });
 });

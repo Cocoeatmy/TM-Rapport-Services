@@ -175,3 +175,27 @@ describe("normaliserSchema", () => {
     expect(champPar(schema, "rel")?.baseLiee).toBe("base-2");
   });
 });
+
+/**
+ * L'adresse de chantier : le piège du type `place`.
+ *
+ * Notion l'accepte en écriture — mais seulement avec ses coordonnées. Une
+ * adresse qu'on vient de taper n'en a pas, et Notion rejette alors la
+ * REQUÊTE ENTIÈRE : tout le reste de la saisie partirait avec elle.
+ * Constaté le 16 octobre 2026 en tentant une création.
+ */
+describe("adresse de chantier (place)", () => {
+  it("s'écrit quand les coordonnées sont là", () => {
+    expect(ecrireValeur("place", { nom: "Rue de Test 1", adresse: "1000 Lausanne", lat: 46.5, lon: 6.6 }))
+      .toEqual({ place: { name: "Rue de Test 1", address: "1000 Lausanne", lat: 46.5, lon: 6.6 } });
+  });
+
+  it("refuse ce SEUL champ quand elles manquent, au lieu de tout perdre", () => {
+    expect(() => ecrireValeur("place", { nom: "Rue de Test 1", adresse: "Rue de Test 1" }))
+      .toThrow(TypeNonEcrivable);
+  });
+
+  it("peut être vidée", () => {
+    expect(ecrireValeur("place", null)).toEqual({ place: null });
+  });
+});

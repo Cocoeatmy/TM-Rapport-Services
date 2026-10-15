@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Lock, Search, X, Paperclip, ExternalLink } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import type { ValeurChamp, ValeurFichier, ValeurRelation } from "@/lib/notion-valeurs";
+import { estTexteLong } from "@/lib/champs-sections";
 
 export interface ChampAffichable {
   id: string;
@@ -314,9 +315,15 @@ function Champ({ champ, valeur, onChange }: {
           onChange={(e) => onChange(e.target.value)} />;
 
       case "rich_text":
-        return <Textarea rows={2} disabled={ls}
-          value={typeof valeur === "string" ? valeur : ""}
-          onChange={(e) => onChange(e.target.value)} />;
+        /* Un numéro de commande sur une ligne, un commentaire sur
+           plusieurs : le type Notion ne les distingue pas, le nom si. */
+        return estTexteLong(champ.nom)
+          ? <Textarea rows={2} disabled={ls}
+              value={typeof valeur === "string" ? valeur : ""}
+              onChange={(e) => onChange(e.target.value)} />
+          : <input type="text" className={CLASSE_SAISIE} disabled={ls}
+              value={typeof valeur === "string" ? valeur : ""}
+              onChange={(e) => onChange(e.target.value)} />;
 
       case "number":
         return <input type="text" inputMode="decimal" className={CLASSE_SAISIE} disabled={ls}
@@ -393,7 +400,11 @@ function Champ({ champ, valeur, onChange }: {
     }
   })();
 
-  const pleineLargeur = champ.type === "rich_text" || champ.type === "files" || champ.type === "relation";
+  const pleineLargeur =
+    champ.type === "title"
+    || champ.type === "files"
+    || champ.type === "relation"
+    || (champ.type === "rich_text" && estTexteLong(champ.nom));
 
   return (
     <div className={pleineLargeur ? "sm:col-span-2" : ""}>

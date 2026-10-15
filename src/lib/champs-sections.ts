@@ -187,3 +187,29 @@ export function poidsChamp(nom: string, type: string, lectureSeule: boolean): nu
      section : ils informent, ils n'appellent pas d'action. */
   return (POIDS_TYPE[type] ?? 8) + (lectureSeule ? 20 : 0);
 }
+
+/**
+ * Un « texte » Notion peut être un numéro de commande ou trois paragraphes
+ * de commentaire : le type ne dit pas lequel.
+ *
+ * Les afficher tous en grande zone de texte donnait un formulaire où
+ * « N° OFR TM » occupait quatre lignes et toute la largeur. On distingue
+ * donc sur le nom, qui, lui, le dit.
+ */
+const TEXTES_LONGS: RegExp[] = [
+  /^commentaires?\b/,
+  /^journal\b/,
+  /^divers\b/,
+  /^infos?\b/,
+  /^explications?\b/,
+  /^rapport\b/,
+  /^contacts pour rdv$/,
+  /^interventions?\b/,
+  /description/,
+  /remarques?/,
+];
+
+/** Ce champ mérite-t-il une zone de texte plutôt qu'une ligne ? */
+export function estTexteLong(nom: string): boolean {
+  return TEXTES_LONGS.some((r) => r.test(net(nom)));
+}

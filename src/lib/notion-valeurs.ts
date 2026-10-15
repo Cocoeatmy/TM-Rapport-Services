@@ -152,6 +152,16 @@ export function ecrireValeur(type: string, v: ValeurChamp): Brut {
       if (vide) return { place: null };
       const p = v as { nom?: string; adresse?: string; lat?: number; lon?: number };
       if (!p?.nom && !p?.adresse) return { place: null };
+      /* Notion EXIGE les coordonnées pour une adresse : sans elles il
+         rejette la requête entière, et tout le reste de la saisie part
+         avec. Une adresse qu'on vient de taper n'en a pas. On refuse donc
+         ce seul champ, en le disant, plutôt que de tout perdre. */
+      if (typeof p.lat !== "number" || typeof p.lon !== "number") {
+        throw new TypeNonEcrivable(
+          "Notion exige des coordonnées pour une adresse : saisissez-la dans Notion, "
+          + "ou corrigez-la ici une fois qu'elle y figure",
+        );
+      }
       return { place: { name: p.nom || p.adresse, address: p.adresse || p.nom, lat: p.lat, lon: p.lon } };
     }
     case "files": {
