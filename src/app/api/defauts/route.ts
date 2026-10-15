@@ -58,13 +58,49 @@ const KEY_TOMBES = "defauts-supprimes";
  * collision qu'un signalement refusé.
  */
 const VERROU = "lock:defauts";
+export class VerrouIndisponible extends Error {}
+
+/**
+ * Prendre le verrou veut dire ATTENDRE son tour, pas renoncer.
+ *
+ * Première version de ce garde-fou, le 15 octobre : elle demandait le
+ * verrou une fois et, s'il était déjà pris, continuait quand même. Elle ne
+ * protégeait donc que lorsqu'il n'y avait rien à protéger. Micael
+ * supprimait ses doublons les uns après les autres sans attendre — le
+ * navigateur n'attend pas non plus —, deux effacements partaient ensemble,
+ * relisaient la même liste, et le second réécrivait le premier : la ligne
+ * revenait. Huit tours de ménage pour ce motif.
+ *
+ * On réessaie donc, brièvement, jusqu'à l'obtenir. Et si vraiment on n'y
+ * arrive pas, on le DIT — le navigateur remet la ligne et affiche que
+ * l'effacement a échoué — plutôt que de travailler à l'aveugle et de
+ * laisser croire que c'est fait.
+ */
+const ATTENTE_VERROU_MS = 20_000;
 async function avecVerrou<T>(faire: () => Promise<T>): Promise<T> {
-  const jeton = redisEnabled ? await redisLockAcquire(VERROU, 30_000) : null;
+  let jeton: string | null = null;
+  if (redisEnabled) {
+    const limite = Date.now() + ATTENTE_VERROU_MS;
+    for (;;) {
+      jeton = await redisLockAcquire(VERROU, 30_000);
+      if (jeton) break;
+      if (Date.now() >= limite) throw new VerrouIndisponible();
+      await new Promise((r) => setTimeout(r, 150 + Math.floor(Math.random() * 150)));
+    }
+  }
   try {
     return await faire();
   } finally {
     if (jeton) await redisLockRelease(VERROU, jeton).catch(() => {});
   }
+}
+
+/** Réponse commune quand le verrou n'a pas pu être pris. */
+function occupe() {
+  return NextResponse.json(
+    { error: "Une autre écriture est en cours, réessayez" },
+    { status: 503 },
+  );
 }
 
 async function lireTombes(): Promise<PierreTombale[]> {
@@ -102,7 +138,12 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
-  return avecVerrou(() => enregistrer(body, user.name));
+  try {
+    return await avecVerrou(() => enregistrer(body, user.name));
+  } catch (err) {
+    if (err instanceof VerrouIndisponible) return occupe();
+    throw err;
+  }
 }
 
 async function enregistrer(body: Partial<DefautRequest>, nomUtilisateur: string) {
@@ -229,7 +270,12 @@ export async function DELETE(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });
 
-  return avecVerrou(() => effacer(id, user.name));
+  try {
+    return await avecVerrou(() => effacer(id, user.name));
+  } catch (err) {
+    if (err instanceof VerrouIndisponible) return occupe();
+    throw err;
+  }
 }
 
 async function effacer(id: string, nomUtilisateur: string) {
@@ -312,7 +358,12 @@ export async function PATCH(request: NextRequest) {
   /* Une modification relit et réécrit la liste ENTIÈRE, comme les autres :
      sans le même verrou, elle écraserait une création ou une suppression
      faite au même instant par un autre serveur. */
-  return avecVerrou(() => modifier(body, user.name));
+  try {
+    return await avecVerrou(() => modifier(body, user.name));
+  } catch (err) {
+    if (err instanceof VerrouIndisponible) return occupe();
+    throw err;
+  }
 }
 
 async function modifier(body: Partial<DefautRequest> & { comment?: string }, nomUtilisateur: string) {

@@ -1953,6 +1953,8 @@ function DefautsList({ projectId, refreshKey, cabineLabel, cabineIdx, project, s
   const [deleting, setDeleting] = useState<string | null>(null);
   /** Lignes retirées de l'écran dont l'effacement se termine en coulisse. */
   const supprimesRef = useRef<Set<string>>(new Set());
+  /* Les effacements se suivent au lieu de se chevaucher. */
+  const fileEffacements = useRef<Promise<unknown>>(Promise.resolve());
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{ description: string; types: string[]; otherText: string }>({ description: "", types: [], otherText: "" });
   const [saving, setSaving] = useState(false);
@@ -2083,7 +2085,25 @@ function DefautsList({ projectId, refreshKey, cabineLabel, cabineIdx, project, s
     window.dispatchEvent(new CustomEvent("tm-signalements-maj"));
     toast.success(`Défaut n°${num} supprimé`);
     try {
-      const res = await fetch(`/api/defauts?id=${id}`, { method: "DELETE" });
+      /* UN EFFACEMENT À LA FOIS.
+         On supprime les doublons à la chaîne, sans attendre entre deux
+         clics — et le navigateur n'attendait pas non plus. Deux requêtes
+         partaient ensemble, relisaient la même liste côté serveur, et la
+         seconde réécrivait la première : la ligne revenait. On les met
+         donc à la queue leu leu. Si le serveur répond qu'il est occupé, on
+         repasse : c'est transitoire, et abandonner rendrait la ligne pour
+         rien. */
+      const suite = fileEffacements.current
+        .catch(() => undefined)
+        .then(async (): Promise<Response> => {
+          for (let essai = 1; ; essai++) {
+            const r = await fetch(`/api/defauts?id=${id}`, { method: "DELETE" });
+            if (r.status !== 503 || essai >= 4) return r;
+            await new Promise((ok) => setTimeout(ok, 700 * essai));
+          }
+        });
+      fileEffacements.current = suite;
+      const res = await suite;
       if (!res.ok) throw new Error(String(res.status));
     } catch {
       supprimesRef.current.delete(id);
