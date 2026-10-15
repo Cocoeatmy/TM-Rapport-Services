@@ -9253,6 +9253,32 @@ function ProjectPageContent({ id }: { id: string }) {
         </Card>
 
         {/* === SECTION 3 : Informations Dates === */}
+        {/* ── Toutes les informations (base Notion) ──────────────────────────
+            Dans l'onglet « Projet » : c'est la carte d'identité du
+            chantier, et c'est là qu'on cherche une information qu'on ne
+            trouve pas ailleurs. Mêmes champs, mêmes sections et même ordre
+            que « Nouveau projet » — un champ ne change pas de place selon
+            l'écran. Réservé à l'administration, la base portant des
+            montants, et déplié à la demande : lire cent quarante-deux
+            propriétés coûte un aller-retour chez Notion. */}
+        {isAdmin && (
+          <Card className={macHidden("projet") ? "!hidden" : ""}>
+            <CardHeader className="pb-2">
+              <button type="button" onClick={() => setShowFicheComplete((v) => !v)} className="w-full flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-300">
+                  <Database className="w-4 h-4" />Toutes les informations
+                </CardTitle>
+                {showFicheComplete ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+              </button>
+            </CardHeader>
+            {showFicheComplete && (
+              <CardContent>
+                <FicheComplete projectId={id} />
+              </CardContent>
+            )}
+          </Card>
+        )}
+
         <Card className={macHidden("dates") ? "!hidden" : ""}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2 font-semibold text-[#1e3a5f] dark:text-blue-300"><span className="w-1 h-4 rounded-full bg-[#1e3a5f] dark:bg-blue-300 shrink-0" />Informations Dates</CardTitle>
@@ -10732,30 +10758,6 @@ function ProjectPageContent({ id }: { id: string }) {
                     );
                   })()}
                 </CardContent>}
-              </Card>
-            )}
-
-            {/* ── Toutes les informations (base Notion) ──────────────────────── */}
-            {/* Mêmes champs, mêmes sections et même ordre que « Nouveau
-                projet » : un champ ne change pas de place selon l'écran.
-                Réservé à l'administration — la base porte des montants.
-                Déplié à la demande : lire cent quarante-deux propriétés
-                coûte un aller-retour chez Notion. */}
-            {isAdmin && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <button type="button" onClick={() => setShowFicheComplete((v) => !v)} className="w-full flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-300">
-                      <Database className="w-4 h-4" />Toutes les informations
-                    </CardTitle>
-                    {showFicheComplete ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                  </button>
-                </CardHeader>
-                {showFicheComplete && (
-                  <CardContent>
-                    <FicheComplete projectId={id} />
-                  </CardContent>
-                )}
               </Card>
             )}
 
