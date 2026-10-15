@@ -156,6 +156,9 @@ import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS, COLLABORATEURS_LIST as COLLAB
 import { SUGGESTIONS_NOM_CABINE, nomDeLotParDefaut, nomContientMot, basculerMotDuNom } from "@/lib/nom-lot";
 import { usePhotosLocales, compteLocalesGroupe } from "@/lib/photos-locales";
 import { normCabineLabel, concerneLot } from "@/lib/signalement-lot";
+import {
+  deciderNomLot, lireNomsVoulus, ecrireNomsVoulus, nomParDefautLot, type NomsVoulus,
+} from "@/lib/noms-lots";
 import { useEtatRapport } from "@/lib/use-etat-rapport";
 import { marquerFinalise, marquerEnvoye, lireFinalisation, LIBELLE_ETAT_RAPPORT } from "@/lib/rapport-finalise";
 import { ColoredSelect } from "@/components/colored-select";
@@ -4893,6 +4896,37 @@ function ProjectPageContent({ id }: { id: string }) {
     });
   }, [id, pieceRefreshKey, defautRefreshKey]);
 
+  /**
+   * Oublier les renommages que le serveur affiche désormais.
+   *
+   * Un souhait protège la saisie contre toute relecture — c'est sa raison
+   * d'être. Encore faut-il qu'il s'efface une fois exaucé : sinon ce
+   * téléphone défendrait éternellement un nom que l'équipe a peut-être
+   * changé depuis. Un seul endroit s'en charge, et il regarde la seule
+   * chose qui compte : ce que le serveur renvoie.
+   */
+  useEffect(() => {
+    const brut = project?.nomsCabines;
+    if (!id || !brut) return;
+    if (Object.keys(nomsVoulusRef.current).length === 0) return;
+    const map = new Map<number, string>();
+    const re = /Cab(\d+)\s*:([^|]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(brut))) map.set(parseInt(m[1], 10), m[2].trim());
+    const restants: NomsVoulus = {};
+    let change = false;
+    for (const [k, voulu] of Object.entries(nomsVoulusRef.current)) {
+      const i = parseInt(k, 10);
+      const d = deciderNomLot({ idx0: i, voulu, serveur: map.get(i + 1) || "", actuel: voulu });
+      if (d.confirme) change = true;
+      else restants[i] = voulu;
+    }
+    if (change) {
+      nomsVoulusRef.current = restants;
+      ecrireNomsVoulus(id, restants);
+    }
+  }, [id, project?.nomsCabines]);
+
   /* Une suppression faite dans la liste d'un lot doit retirer la pastille de
      son en-tête, tout de suite. */
   useEffect(() => {
@@ -5059,28 +5093,17 @@ function ProjectPageContent({ id }: { id: string }) {
   const cabineTouchSrcRef = useRef<number | null>(null);
   const nomKvDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Dernier nom de lot saisi, pas encore parti vers Notion. */
-  const nomsEnAttenteRef = useRef<string | null>(null);
-  /* Les lots que le monteur vient de renommer LUI-MÊME dans cet envoi. Le
-     serveur refuse par défaut qu'un « Cabine 3 » entrant écrase un nom
-     choisi — une copie périmée ne doit pas effacer le travail d'un autre
-     téléphone. Ces slots-là passent quand même, y compris pour revenir au
-     nom par défaut. */
-  const slotsNomForcesRef = useRef<Set<number>>(new Set());
+  /** Les lots renommés dont l'envoi n'est pas encore parti. */
+  const deltaNomsRef = useRef<Map<number, string>>(new Map());
+  /** Ce que le monteur VEUT, tant que le serveur ne l'a pas confirmé. Gardé
+   *  sur l'appareil : fermer l'app ne doit pas perdre un renommage. */
+  const nomsVoulusRef = useRef<NomsVoulus>({});
   /** Un envoi à la fois par champ — voir src/lib/envoi-en-serie.ts. */
   const envoyerEnSerie = useRef(fileDEnvoi()).current;
-  // Nom du lot au moment où l'utilisateur commence à l'éditer (focus), pour
-  // pouvoir réattacher les signalements existants lors d'un renommage.
-  const renameOldNomRef = useRef<string>("");
-  /**
-   * Garde-fou anti-revert CDN.
-   *
-   * Quand l'admin modifie un nom de cabine, on stocke l'index + timestamp.
-   * Le refetch (15 s) ne doit PAS écraser ce nom pendant 60 s — le CDN
-   * (s-maxage=15) peut retourner de l'ancienne donnée dans cette fenêtre et
-   * provoquer un revert de l'état local → la prochaine édition d'une autre
-   * cabine inclurait le nom réverté dans son PATCH, écrasant Notion.
-   */
-  const dirtyNomRef = useRef<Map<number, number>>(new Map()); // cabIndex(0-based) → Date.now()
+  /* L'ancien garde-fou anti-revert — soixante secondes de protection après
+     une frappe — a disparu : il tenait les bons jours et pas les autres. Ce
+     qui protège la saisie est maintenant la règle de lib/noms-lots, qui ne
+     dépend d'aucune horloge. */
   /** Timestamp du dernier reset par cabine.
    *  Protège les cabines réinitialisées contre la restauration par le polling
    *  (monteur) ou initProject (heures/date) pendant 10 minutes. */
@@ -6524,6 +6547,12 @@ function ProjectPageContent({ id }: { id: string }) {
       } catch {}
 
       const alreadyInit = cabinesInitializedRef.current === data.id;
+      /* Les renommages que le serveur n'a pas encore confirmés, relus depuis
+         l'appareil. Ils priment partout ci-dessous. */
+      if (Object.keys(nomsVoulusRef.current).length === 0) {
+        nomsVoulusRef.current = lireNomsVoulus(data.id);
+      }
+      const voulusInit = nomsVoulusRef.current;
 
       if (!alreadyInit) {
         // Premier appel pour ce projet — initialisation complète.
@@ -6534,10 +6563,16 @@ function ProjectPageContent({ id }: { id: string }) {
             const notionNom = notionNomsMap.get(i + 1) || "";
             const notionMonteur = notionAttrMap.get(i + 1) || "";
             const notionNomIsCustom = notionNom && notionNom !== `Cabine ${i + 1}`;
+            /* Un renommage non confirmé l'emporte, même sur un rechargement
+               complet de l'app : c'est ce qui le fait survivre à la
+               fermeture du téléphone. */
+            const vouluInit = voulusInit[i];
             return {
-              nom: notionNomIsCustom
-                ? notionNom
-                : storedNoms?.[i] || `Cabine ${i + 1}`,
+              nom: typeof vouluInit === "string"
+                ? vouluInit
+                : notionNomIsCustom
+                  ? notionNom
+                  : storedNoms?.[i] || nomParDefautLot(i),
               rapport: splitPerCabine[i] || "",
               open: false,
               monteur: notionMonteur || storedMonteurs?.[i] || "",
@@ -6559,6 +6594,7 @@ function ProjectPageContent({ id }: { id: string }) {
         // confirmé par Notion (queue offline, rate-limit, etc.).
         const nowInit = Date.now();
         const RESET_PROTECT_MS = 10 * 60 * 1000;
+        const confirmesInit: number[] = [];
         setCabines((prev) => {
           const updated = prev.map((c, i) => {
             const notionNom = notionNomsMap.get(i + 1) || "";
@@ -6566,9 +6602,21 @@ function ProjectPageContent({ id }: { id: string }) {
             const notionNomIsCustom = notionNom && notionNom !== `Cabine ${i + 1}`;
             const resetAt = resetCabinesRef.current.get(i);
             const recentlyReset = resetAt && (nowInit - resetAt < RESET_PROTECT_MS);
+            /* C'est ICI que la saisie se perdait : ce bloc réappliquait le
+               nom de Notion à chaque relecture, sans aucune protection — une
+               réponse périmée du cache suffisait à effacer ce qu'on venait
+               de taper. Il passe maintenant par la même règle que partout
+               ailleurs. */
+            const dNom = deciderNomLot({
+              idx0: i,
+              voulu: voulusInit[i],
+              serveur: notionNom,
+              actuel: c.nom,
+            });
+            if (dNom.confirme) confirmesInit.push(i);
             return {
               ...c,
-              nom: notionNomIsCustom ? notionNom : c.nom,
+              nom: dNom.nom,
               // Si cabine récemment réinitialisée : on garde les valeurs locales vides
               monteur: recentlyReset ? c.monteur : (notionMonteur || c.monteur || storedMonteurs?.[i] || ""),
               arrivee: recentlyReset ? c.arrivee : (arriveeMap[i] !== undefined ? arriveeMap[i] : c.arrivee),
@@ -6618,6 +6666,14 @@ function ProjectPageContent({ id }: { id: string }) {
           }
           return updated;
         });
+        /* Les souhaits que le serveur vient de confirmer n'ont plus à être
+           défendus : on les oublie, et le nom suit de nouveau le serveur. */
+        if (confirmesInit.length > 0) {
+          const restants = { ...nomsVoulusRef.current };
+          confirmesInit.forEach((i) => { delete restants[i]; });
+          nomsVoulusRef.current = restants;
+          ecrireNomsVoulus(data.id, restants);
+        }
       }
 
       // ── Migration KV → Notion (one-shot, projets existants) ───────────────────
@@ -6638,7 +6694,11 @@ function ProjectPageContent({ id }: { id: string }) {
             // Appliquer dans React
             setCabines((prev) => prev.map((c, i) => ({
               ...c,
-              nom: (kvNoms[i] && kvNoms[i] !== `Cabine ${i + 1}`) ? kvNoms[i] : c.nom,
+              /* Un renommage en attente prime même sur la migration d'un
+                 ancien stockage : il est plus récent, par construction. */
+              nom: typeof nomsVoulusRef.current[i] === "string"
+                ? c.nom
+                : (kvNoms[i] && kvNoms[i] !== nomParDefautLot(i)) ? kvNoms[i] : c.nom,
               monteur: kvMonteurs[i] || c.monteur,
             })));
 
@@ -6973,26 +7033,30 @@ function ProjectPageContent({ id }: { id: string }) {
           }
           if (freshNomMap.size > 0) {
             setCabines((prev) => {
-              const now = Date.now();
               let changed = false;
+              const confirmes: number[] = [];
               const next = prev.map((c, i) => {
-                const freshNom = freshNomMap.get(i + 1) || "";
-                // Ne met à jour que si Notion a un nom personnalisé (≠ défaut)
-                // qui diffère de ce qui est affiché — préserve les saisies locales
-                // en cours si elles diffèrent du nom précédemment connu.
-                if (freshNom && freshNom !== `Cabine ${i + 1}` && freshNom !== c.nom) {
-                  // Garde-fou : si l'utilisateur vient de modifier ce nom (< 60 s),
-                  // ne pas laisser le cache CDN périmé (s-maxage=15) le réverter.
-                  // Sans ça : admin edit → PATCH → CDN stale 15 s → refetch retourne
-                  // l'ancien nom → setCabines révertit → prochain onChange envoie le
-                  // nom réverté à Notion → boucle de perte de données.
-                  const dirtyAt = dirtyNomRef.current.get(i);
-                  if (dirtyAt && now - dirtyAt < 60_000) return c;
-                  changed = true;
-                  return { ...c, nom: freshNom };
-                }
-                return c;
+                /* Une seule règle décide, ici comme ailleurs : un renommage
+                   que le serveur n'a pas encore confirmé l'emporte sur ce
+                   qu'il renvoie. L'ancien garde-fou tenait soixante secondes
+                   — au-delà, une relecture périmée écrasait la saisie. */
+                const d = deciderNomLot({
+                  idx0: i,
+                  voulu: nomsVoulusRef.current[i],
+                  serveur: freshNomMap.get(i + 1) || "",
+                  actuel: c.nom,
+                });
+                if (d.confirme) confirmes.push(i);
+                if (d.nom === c.nom) return c;
+                changed = true;
+                return { ...c, nom: d.nom };
               });
+              if (confirmes.length > 0) {
+                const restants = { ...nomsVoulusRef.current };
+                confirmes.forEach((i) => { delete restants[i]; });
+                nomsVoulusRef.current = restants;
+                ecrireNomsVoulus(id, restants);
+              }
               if (!changed) return prev; // pas de re-render inutile
               // Sync localStorage pour éviter le flash au prochain rechargement
               try {
@@ -7221,25 +7285,43 @@ function ProjectPageContent({ id }: { id: string }) {
    * son reflet en désaccord.
    */
   /** Envoie le nom des lots en attente, s'il y en a un. */
+  /**
+   * Envoie les renommages en attente — et EUX SEULS.
+   *
+   * On envoyait la liste complète des lots à chaque frappe. Celle du
+   * téléphone, donc : si un collègue venait de renommer un autre lot et que
+   * notre copie datait d'une minute, on le réécrivait avec notre valeur
+   * périmée. Un delta ne touche que ce qu'on a vraiment changé ; le serveur
+   * fusionne (voir mergeCabineNoms).
+   */
   const envoyerNomsCabines = useCallback(() => {
     if (nomKvDebounceRef.current) { clearTimeout(nomKvDebounceRef.current); nomKvDebounceRef.current = null; }
-    const nomsEnc = nomsEnAttenteRef.current;
-    if (nomsEnc === null) return;
-    nomsEnAttenteRef.current = null;
-    const forces = [...slotsNomForcesRef.current].sort((a, b) => a - b);
-    slotsNomForcesRef.current.clear();
-    /* N'envoie PAS attributionCabines : le monteur n'a pas changé. Envoyer
-       l'attribution complète avec des monteurs locaux potentiellement périmés
-       déclencherait des suppressions involontaires côté serveur. */
+    const delta = new Map(deltaNomsRef.current);
+    if (delta.size === 0) return;
+    deltaNomsRef.current.clear();
+    const encode = [...delta.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([i, nom]) => `Cab${i + 1}:${nom || `Cabine ${i + 1}`}`)
+      .join(" | ");
+    /* « Forcés » : ces lots-là, le monteur vient de les nommer lui-même. Le
+       serveur accepte donc même un retour au nom par défaut. */
+    const forces = [...delta.keys()].sort((a, b) => a - b).map((i) => `Cab${i + 1}`).join(",");
     envoyerEnSerie("nomsCabines", () =>
       offlineFetch(`/api/projects/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nomsCabines: nomsEnc,
-          ...(forces.length ? { nomsCabinesForces: forces.map((n) => `Cab${n}`).join(",") } : {}),
+        body: JSON.stringify({ nomsCabines: encode, nomsCabinesForces: forces }),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(String(res.status));
+        })
+        .catch(() => {
+          /* Rien n'est perdu : le souhait reste gardé sur l'appareil et
+             l'écran continue de l'afficher. On le redit quand même — le
+             monteur doit savoir que ce n'est pas encore chez nous. */
+          delta.forEach((nom, i) => deltaNomsRef.current.set(i, nom));
+          toast.error("Nom du lot pas encore enregistré — nouvelle tentative automatique", { duration: 6000 });
         }),
-      }).catch(console.error),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -7258,25 +7340,27 @@ function ProjectPageContent({ id }: { id: string }) {
     if (!nomAvantRenommageRef.current.has(idx)) {
       nomAvantRenommageRef.current.set(idx, cabines[idx]?.nom || "");
     }
+    /* 1. L'écran, tout de suite. */
     setCabines((prev) => {
       const next = prev.map((c, i) => (i === idx ? { ...c, nom } : c));
       try {
         localStorage.setItem(`tm-cabin-noms-${id}`, JSON.stringify(next.map((c) => c.nom)));
       } catch {}
-      dirtyNomRef.current.set(idx, Date.now());
-      slotsNomForcesRef.current.add(idx + 1);
-      nomsEnAttenteRef.current = next
-        .map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`)
-        .join(" | ");
       return next;
     });
+    /* 2. Le souhait, gardé sur l'appareil jusqu'à confirmation du serveur.
+       C'est lui qui empêche toute relecture d'écraser la saisie. */
+    nomsVoulusRef.current = { ...nomsVoulusRef.current, [idx]: nom };
+    ecrireNomsVoulus(id, nomsVoulusRef.current);
+    /* 3. L'envoi, une fois la frappe posée. */
+    deltaNomsRef.current.set(idx, nom);
     if (nomKvDebounceRef.current) clearTimeout(nomKvDebounceRef.current);
     nomKvDebounceRef.current = setTimeout(() => {
       envoyerNomsCabines();
       const avant = nomAvantRenommageRef.current.get(idx) || "";
       nomAvantRenommageRef.current.delete(idx);
       if (avant && avant !== nom) syncSignalementsRename(avant, nom);
-    }, 700);
+    }, 600);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, cabines, envoyerNomsCabines, syncSignalementsRename]);
 
@@ -11672,35 +11756,14 @@ function ProjectPageContent({ id }: { id: string }) {
                                 <Label>Nom / Emplacement</Label>
                                 <Input
                                   value={cabine.nom}
-                                  onFocus={() => { renameOldNomRef.current = cabine.nom || ""; }}
-                                  onBlur={(e) => { envoyerNomsCabines(); syncSignalementsRename(renameOldNomRef.current, e.target.value); }}
-                                  onChange={(e) => {
-                                    const newNom = e.target.value;
-                                    setCabines((prev) => {
-                                      const next = prev.map((c, i) => (i === idx ? { ...c, nom: newNom } : c));
-                                      // ── Sauvegarde locale immédiate ──────────────────────────────
-                                      try {
-                                        localStorage.setItem(
-                                          `tm-cabin-noms-${id}`,
-                                          JSON.stringify(next.map((c) => c.nom))
-                                        );
-                                      } catch {}
-                                      // ── Marquer la cabine comme "dirty" pour protéger du revert CDN ─
-                                      dirtyNomRef.current.set(idx, Date.now());
-                                      slotsNomForcesRef.current.add(idx + 1);
-                                      /* Sauvegarde Notion : on laisse la frappe se poser (500 ms),
-                                         puis un seul envoi part, à la suite des précédents. Le délai
-                                         de 150 ms d'avant découpait un mot de trois lettres en trois
-                                         enregistrements concurrents. Rien n'est perdu pour autant :
-                                         quitter le champ ou la page envoie tout de suite. */
-                                      nomsEnAttenteRef.current = next
-                                        .map((c, i) => `Cab${i + 1}:${c.nom || `Cabine ${i + 1}`}`)
-                                        .join(" | ");
-                                      if (nomKvDebounceRef.current) clearTimeout(nomKvDebounceRef.current);
-                                      nomKvDebounceRef.current = setTimeout(envoyerNomsCabines, 500);
-                                      return next;
-                                    });
-                                  }}
+                                  /* Une seule porte d'entrée pour renommer —
+                                     `renommerLot` — partagée avec l'assistant.
+                                     Deux chemins séparés, c'était deux
+                                     comportements différents sous le même
+                                     geste, et l'un des deux oubliait de
+                                     protéger la saisie. */
+                                  onChange={(e) => renommerLot(idx, e.target.value)}
+                                  onBlur={() => envoyerNomsCabines()}
                                   placeholder="Ex: SDD Parental, Lot 3..."
                                   className="mt-1 h-11"
                                 />
