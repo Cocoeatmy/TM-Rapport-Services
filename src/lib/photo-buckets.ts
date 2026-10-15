@@ -58,9 +58,9 @@ export const BUCKET_LABEL: Record<PhotoBucketKey, string> = {
   APRES_INTERVENTION: "Photos après intervention",
   QR_CODE: "Photos QR Code",
   GARANTIE: "Photos Garantie",
-  SAV_DEMANDE: "Documents SAV (photos/vidéos de la demande)",
+  SAV_DEMANDE: "Documents SAV (photos, vidéos ou PDF de la demande)",
   SAV_PIECES: "Photos des cartons SAV reçus",
-  SAV_RETOUCHE: "Photos SAV / Retouches (une fois réglé)",
+  SAV_RETOUCHE: "SAV / Retouches une fois réglé (photos, vidéos ou PDF)",
   NUMERO_LOT: "Photos numéro de Lot",
   VIDEO_MONTAGE: "Vidéo Montage",
 };
@@ -72,6 +72,8 @@ export const BUCKET_HINT: Partial<Record<PhotoBucketKey, string>> = {
   APRES_INTERVENTION: "1 photo de l'état du receveur de douche + 1 photo de l'état de la salle de douche",
   NUMERO_LOT:         "Le numéro affiché sur la porte de l'appartement",
   VIDEO_MONTAGE:      "Ce qu'une photo ne montre pas — un jeu, un frottement, une manœuvre (1 minute au maximum)",
+  SAV_DEMANDE:        "Le constat du client, un devis, un plan — tout se joint au rapport SAV",
+  SAV_RETOUCHE:       "Ce qui prouve que c'est réglé — photo, vidéo ou document",
 };
 
 // Mapping bucket → champ Notion qui stocke ses fichiers.
