@@ -29,39 +29,70 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
-  // ── Numéro TM (paramètre tm, sinon extrait du titre) ───────────────────────
-  let tm = (sp.get("tm") || "").trim().toUpperCase();
-  if (!tm) {
+  // ── Identifiant projet : « q » (ou « tm »), sinon extrait du titre. ─────────
+  // Peut être un N° OFR TM (« TM-2600508 ») OU un N° « AS 2026/1707 » présent
+  // dans le TITRE du projet (RDV mesures Duka, avec ou sans « / »).
+  let ident = (sp.get("q") || sp.get("tm") || "").trim();
+  if (!ident) {
     const title = sp.get("title") || "";
-    const m = title.match(/TM-\d+/i);
-    if (m) tm = m[0].toUpperCase();
+    const mm = title.match(/TM-\d+/i) || title.match(/AS\s*\d{4}\s*\/?\s*\d+/i);
+    if (mm) ident = mm[0].trim();
   }
-  if (!tm) {
-    return NextResponse.json({ ok: false, error: "missing_tm" }, { status: 400 });
+  if (!ident) {
+    return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
   }
+  const tmMatch = ident.match(/TM-\d+/i);
+  const tm = tmMatch ? tmMatch[0].toUpperCase() : "";
 
   try {
-    // ── Recherche Notion par OFR TM ──────────────────────────────────────────
-    const resp: any = await notion.databases.query({
-      database_id: databaseId,
-      filter: { property: "N° OFR TM", rich_text: { contains: tm } },
-      page_size: 10,
-    });
+    let resp: any;
+    if (tm) {
+      // Recherche par N° OFR TM (rich_text).
+      resp = await notion.databases.query({
+        database_id: databaseId,
+        filter: { property: "N° OFR TM", rich_text: { contains: tm } },
+        page_size: 10,
+      });
+    } else {
+      // Recherche par N° « AS … » dans le TITRE (propriété « Projet »). On essaie
+      // plusieurs variantes de format (avec/sans « / », espaces) et on garde la
+      // première qui donne un résultat.
+      const asM = ident.match(/AS\s*\d{4}\s*\/?\s*\d+/i);
+      const base = (asM ? asM[0] : ident).toUpperCase().replace(/\s+/g, " ").trim();
+      const variants = Array.from(new Set([
+        base,
+        base.replace(/\s*\/\s*/g, "/"),
+        base.replace(/\//g, ""),
+        base.replace(/\//g, " "),
+      ]));
+      resp = { results: [] };
+      for (const v of variants) {
+        resp = await notion.databases.query({
+          database_id: databaseId,
+          filter: { property: "Projet", title: { contains: v } },
+          page_size: 10,
+        });
+        if (resp.results?.length) break;
+      }
+    }
 
     if (!resp.results?.length) {
-      return NextResponse.json({ ok: false, error: "not_found", tm }, { status: 404 });
+      return NextResponse.json({ ok: false, error: "not_found", ident }, { status: 404 });
     }
 
     const projects = resp.results.map(mapPageToProject);
-    // Préfère une correspondance exacte sur le n° OFR TM, sinon le 1er résultat.
-    const project =
-      projects.find((p: any) => (p.ofrTM || "").toUpperCase() === tm) || projects[0];
+    // Pour un TM : préfère la correspondance exacte sur le n° OFR TM, sinon le 1er.
+    const project = (tm
+      ? projects.find((p: any) => (p.ofrTM || "").toUpperCase() === tm)
+      : null) || projects[0];
 
     const token = Buffer.from(project.id).toString("base64url");
     const origin = req.nextUrl.origin;
-    // Lien « officiel » de l'événement calendrier = Fiche de travail (lien court
-    // /f/…, redirige vers le PDF signé). Auparavant : portail client /client/….
-    const link = `${origin}/f/${token}`;
+    const type = (sp.get("type") || "").toLowerCase();
+    // URL « officielle » de l'événement : MESURES → lien du projet (portail
+    // client /client/…) ; autres types → Fiche de travail (lien court /f/…,
+    // redirige vers le PDF signé).
+    const link = type === "mesures" ? `${origin}/client/${token}` : `${origin}/f/${token}`;
 
     // Détails complets (résout les CONTACTS relationnels + le reste). Repli sur
     // la version « query » si la résolution échoue (le lien reste renvoyé).
@@ -72,7 +103,6 @@ export async function GET(req: NextRequest) {
     // Bloc « auto » avec sentinelle → l'agent peut le remplacer sans toucher aux
     // notes écrites à la main. Titres mis en évidence via ***…*** (le calendrier
     // Apple n'accepte pas le vrai gras dans les notes = texte brut).
-    const type = (sp.get("type") || "").toLowerCase();
     const nb = full.nbCabines != null ? String(full.nbCabines) : "";
     const cartons = full.nbCartons != null ? String(full.nbCartons) : "";
     const notesLines: string[] = [];
@@ -101,8 +131,9 @@ export async function GET(req: NextRequest) {
          en ouvrant un RDV, et le calendrier ne la montre que si l'on a pensé
          à poser le rendez-vous dans le bon calendrier de couleur. Le champ
          Notion s'appelle « Collaborateurs montages » ; sur le calendrier on
-         l'intitule « Collaborateur », plus court à lire. */
-      addField("Collaborateur", full.collaborateurs);
+         l'intitule « Collaborateur », plus court à lire. Pour les MESURES, c'est
+         plutôt le champ « Mesures traitée par » (qui fait la prise de mesures). */
+      addField("Collaborateur", type === "mesures" ? full.mesuresTraiteePar : full.collaborateurs);
       addField("Nb. Cabines", nb);
       addField("Nb. de cartons", cartons);
       addField("Fournisseurs", fournisseurs);
@@ -135,6 +166,14 @@ export async function GET(req: NextRequest) {
       if (type === "montage") addBlock("Commentaires montage", full.commentairesMontages);
       if (type === "mesures") addBlock("Commentaires mesures", full.commentairesMesures);
 
+      // ── MESURES : lien de téléchargement des « Documents pour prise de
+      //    mesures » (route courte /m/<token> → sert les fichiers Notion). ──
+      if (type === "mesures" && Array.isArray(full.documentsMesures) && full.documentsMesures.length) {
+        notesLines.push("");
+        notesLines.push("**Documents pour prise de mesures** :");
+        notesLines.push(`${origin}/m/${token}`);
+      }
+
       // ── Divers infos chantier (double **, précédé d'une ligne vide). ──
       if (full.diversInfosChantier && full.diversInfosChantier.trim()) {
         notesLines.push("");
@@ -156,7 +195,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      tm,
+      ident,
       projet: project.projet,
       link,
       notes,

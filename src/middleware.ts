@@ -39,6 +39,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/s/") || // lien court Rapport de suivi (redirige vers /api/synthese signé)
     pathname.startsWith("/sav/") || // lien court Rapport SAV (redirige vers /api/sav signé)
     pathname.startsWith("/sig/") || // lien court Signalements (redirige vers /api/rapport-signalements signé)
+    pathname.startsWith("/m/") || // lien court Documents de prise de mesures (RDV mesures)
     pathname.startsWith("/ch/") || // suivi public d'un chantier PPE (signature HMAC)
     pathname.startsWith("/_next") ||
     pathname.startsWith("/icons") ||

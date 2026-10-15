@@ -72,6 +72,9 @@ function run(argv) {
   // comme au PLURIEL (« Service - TM… » ou « Services - TM… »), éventuellement
   // préfixés par "PROV" (séparateur " : " ou " - "). Exclut Visite, etc.
   const TYPE_RE = /^(?:PROV\s*[:\-]\s*)?(Montages?|Mesures?|Services?|SAV|Garanties?)\b/i;
+  // RDV mesures Duka identifiés par un n° « AS 2026/1707 » (avec/sans « / »),
+  // éventuellement préfixés « PROV : », SANS mot-clé de type. → type mesures.
+  const AS_START_RE = /^(?:PROV\s*[:\-]\s*)?AS\s*\d{4}/i;
   // Sentinelle du bloc d'infos auto (doit correspondre à /api/share-link).
   const SENTINEL = '——— Infos projet (auto) ———';
   let filled = 0;
@@ -82,20 +85,26 @@ function run(argv) {
     const title = ObjC.unwrap(ev.title) || '';
     if (!title) continue;
     const tMatch = title.match(TYPE_RE);
-    if (!tMatch) continue;
-    // Normalise singulier/pluriel → forme canonique attendue par l'endpoint.
-    const rawType = tMatch[1].toLowerCase();
-    const type = rawType.indexOf('montage') === 0 ? 'montage'
-      : rawType.indexOf('mesure') === 0 ? 'mesures'
-      : rawType.indexOf('service') === 0 ? 'services'
-      : rawType.indexOf('garantie') === 0 ? 'garantie'
-      : 'sav';
+    let type;
+    if (tMatch) {
+      // Normalise singulier/pluriel → forme canonique attendue par l'endpoint.
+      const rawType = tMatch[1].toLowerCase();
+      type = rawType.indexOf('montage') === 0 ? 'montage'
+        : rawType.indexOf('mesure') === 0 ? 'mesures'
+        : rawType.indexOf('service') === 0 ? 'services'
+        : rawType.indexOf('garantie') === 0 ? 'garantie'
+        : 'sav';
+    } else if (AS_START_RE.test(title)) {
+      type = 'mesures'; // « PROV : AS 2026/… » / « AS 2026/… »
+    } else {
+      continue;
+    }
     const wantsNotes = (type === 'montage' || type === 'mesures' || type === 'services' || type === 'sav');
 
-    // Extraire "TM-<chiffres>".
-    const m = title.match(/TM-\d+/);
-    if (!m) continue;
-    const tm = m[0];
+    // Identifiant : « TM-<chiffres> » OU « AS 2026/1707 » (mesures Duka).
+    const idMatch = title.match(/TM-\d+/i) || title.match(/AS\s*\d{4}\s*\/?\s*\d+/i);
+    if (!idMatch) continue;
+    const ident = idMatch[0].trim();
 
     const curURL = ObjC.unwrap(ev.URL ? ev.URL.absoluteString : $()) || '';
     const curNotes = ObjC.unwrap(ev.notes) || '';
@@ -109,8 +118,9 @@ function run(argv) {
     if (!force && curURL && !wantsNotes) continue;
     void hasSentinel;
 
-    // Récupérer lien + notes (JSON) selon le type.
-    const reqURL = baseURL + '/api/share-link?key=' + apiKey + '&type=' + type + '&tm=' + tm;
+    // Récupérer lien + notes (JSON) selon le type. Identifiant encodé (l'« AS »
+    // contient espace et « / »).
+    const reqURL = baseURL + '/api/share-link?key=' + apiKey + '&type=' + type + '&q=' + encodeURIComponent(ident);
     let raw = '';
     try {
       raw = app.doShellScript("/usr/bin/curl -fsS --max-time 20 '" + reqURL + "'");
