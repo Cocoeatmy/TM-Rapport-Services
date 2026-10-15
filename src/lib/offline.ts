@@ -426,7 +426,11 @@ export function isOnline(): boolean {
 }
 
 /** Au-delà, on considère que le réseau ne répondra pas : on met de côté. */
-const DELAI_MUTATION_MS = 8_000;
+/* Une écriture Notion met couramment dix secondes — relecture fraîche,
+   fusion par lot, invalidation du cache. À huit secondes, on coupait des
+   requêtes qui ABOUTISSAIENT côté serveur : la file les rejouait, et le même
+   signalement s'inscrivait deux ou trois fois (16 octobre 2026). */
+const DELAI_MUTATION_MS = 25_000;
 
 /**
  * Drop-in pour `fetch()` qui rend les mutations résilientes au réseau.

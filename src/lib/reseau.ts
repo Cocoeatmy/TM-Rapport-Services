@@ -65,9 +65,43 @@ export function reinitialiserReseau(): void {
 }
 
 /**
+ * Lenteur du SERVEUR, ou réseau absent ?
+ *
+ * Une écriture Notion met parfois dix ou quinze secondes — relecture fraîche,
+ * fusion par lot, invalidation du cache. Au bureau, sur la fibre, deux de ces
+ * écritures d'affilée suffisaient à afficher « Réseau trop faible » : on
+ * comptait l'expiration comme une panne de réseau, alors que le réseau allait
+ * très bien (constaté le 16 octobre 2026, connexion à 300 Mb/s).
+ *
+ * On tranche donc par une question courte posée au serveur. S'il répond —
+ * quel que soit le code — la ligne est bonne et c'est le traitement qui
+ * traînait : rien à dégrader. S'il ne répond pas davantage, c'est bien le
+ * réseau.
+ */
+async function trancherApresExpiration(): Promise<void> {
+  try {
+    const ctrl = new AbortController();
+    const minuteur = setTimeout(() => ctrl.abort(), 4000);
+    try {
+      await fetch(`/api/build?sonde=${Date.now()}`, { cache: "no-store", signal: ctrl.signal });
+      noterSuccesReseau();
+      return;
+    } finally {
+      clearTimeout(minuteur);
+    }
+  } catch {
+    /* Même une question d'un mot ne passe pas : le réseau, lui, est en cause. */
+  }
+  noterEchecReseau();
+}
+
+/**
  * `fetch` qui abandonne au bout de `msMax` au lieu d'attendre la fin du monde,
- * et qui tient à jour l'état du réseau. Une expiration compte comme un échec :
- * c'est exactement le cas « une barre de réseau » qu'on veut détecter.
+ * et qui tient à jour l'état du réseau.
+ *
+ * Un rejet immédiat (pas de route, DNS, avion) accuse le réseau tout de
+ * suite. Une EXPIRATION, elle, ne prouve rien : on va le demander au serveur
+ * avant de déclarer quoi que ce soit.
  */
 export async function fetchAvecDelai(
   url: string,
@@ -75,7 +109,8 @@ export async function fetchAvecDelai(
   msMax: number,
 ): Promise<Response> {
   const ctrl = new AbortController();
-  const minuteur = setTimeout(() => ctrl.abort(), msMax);
+  let expire = false;
+  const minuteur = setTimeout(() => { expire = true; ctrl.abort(); }, msMax);
   try {
     const res = await fetch(url, { ...init, signal: ctrl.signal });
     /* Une erreur serveur n'est pas un problème de réseau : le réseau a
@@ -83,7 +118,8 @@ export async function fetchAvecDelai(
     noterSuccesReseau();
     return res;
   } catch (e) {
-    noterEchecReseau();
+    if (expire) await trancherApresExpiration();
+    else noterEchecReseau();
     throw e;
   } finally {
     clearTimeout(minuteur);

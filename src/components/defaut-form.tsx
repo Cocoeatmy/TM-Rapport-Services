@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { Camera, ImagePlus, Loader2, Send, ShieldAlert, X, Check, Sparkles } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { offlineFetch } from "@/lib/offline";
+import { identifiantSignalement } from "@/lib/signalement-id";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
@@ -52,6 +53,8 @@ interface DefautFormProps {
   cabineOptions?: string[];
   /** Lot/cabine imposé (signalement depuis un onglet cabine précis). Prioritaire. */
   cabineLabel?: string;
+  /** Numéro du lot (1, 2, 3…) — la seule référence fiable. */
+  cabineIdx?: number;
   /** Appelé après soumission réussie avec les URLs des photos uploadées. */
   onSubmitted?: (photoUrls: string[]) => void;
   /** Signale au parent que le formulaire s'ouvre ou se referme : il masque
@@ -71,7 +74,7 @@ interface DefautFormProps {
   accent?: AccentName;
 }
 
-export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, onSubmitted, onOuvert, title, types, phase, icon, accent }: DefautFormProps) {
+export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel, cabineIdx, onSubmitted, onOuvert, title, types, phase, icon, accent }: DefautFormProps) {
   const TYPES = types ?? DEFAUT_TYPES;
   const usingCustomTypes = !!types;
   const heading = title ?? "Signaler un défaut";
@@ -199,6 +202,9 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          /* Fabriqué ICI : une requête coupée puis rejouée par la file
+             reviendrait sinon créer un second signalement identique. */
+          id: identifiantSignalement(),
           projectId,
           projectName,
           types: typesToSend,
@@ -211,6 +217,12 @@ export function DefautForm({ projectId, projectName, cabineOptions, cabineLabel,
           // cabine (prop cabineLabel) > unique option disponible. Garantit que
           // le lot est TOUJOURS enregistré quand on signale depuis une cabine.
           cabineLabel: selectedCabine || cabineLabel || (cabineOptions && cabineOptions.length === 1 ? cabineOptions[0] : undefined),
+          /* Le NUMÉRO du lot, quand le signalement vient d'un lot précis :
+             deux lots peuvent porter le même nom, et le signalement se
+             retrouvait alors sur les deux. Une sélection manuelle dans la
+             liste ne désigne qu'un nom — on laisse le nom décider, faute de
+             mieux. */
+          ...(typeof cabineIdx === "number" && !selectedCabine ? { cabineIdx } : {}),
         }),
       });
       if (res.ok) {

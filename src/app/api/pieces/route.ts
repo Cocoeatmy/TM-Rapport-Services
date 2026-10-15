@@ -24,6 +24,10 @@ interface PieceRequest {
   timestamp: number;
   comments: PieceComment[];
   cabineLabel?: string;
+  /** Numéro du lot concerné (1, 2, 3…). Seule référence fiable : deux lots
+   *  peuvent porter le MÊME nom (« SDD » au rez et à l'étage), et le
+   *  signalement apparaissait alors sur les deux. */
+  cabineIdx?: number;
   /** Afficher cette pièce sur le rapport client (PDF). Absent/true = affichée. */
   displayInRapport?: boolean;
   /** Pièce manquante RÉGLÉE (reçue/posée). Passe le signalement en vert. */
@@ -75,9 +79,19 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Notion indisponible, réessayez" }, { status: 503 });
   }
+  /* ANTI-DOUBLON. Le client fabrique l'identifiant et le renvoie à chaque
+     tentative : une requête lente coupée au bout de quelques secondes repart
+     dans la file et revient ici, alors que la première avait abouti. Sans ce
+     garde-fou, un seul signalement s'inscrivait deux ou trois fois —
+     constaté le 16 octobre 2026, trois exemplaires par douche. */
+  const idClient = typeof body.id === "string" && body.id.trim() ? body.id.trim() : "";
+  if (idClient) {
+    const deja = pieces.find((x) => x.id === idClient);
+    if (deja) return NextResponse.json({ success: true, deja: true, piece: deja });
+  }
   pieces.push({
-    id: Math.random().toString(36).slice(2),
     ...body,
+    id: idClient || Math.random().toString(36).slice(2),
     user: user.name,
     status: "demande",
     timestamp: Date.now(),

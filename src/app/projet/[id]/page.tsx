@@ -155,6 +155,7 @@ import {
 import { STATUS_CMD_COLORS, STATUS_MESURES_COLORS, COLLABORATEURS_LIST as COLLABORATEURS_ACTIFS, RAPPORT_OPTIONS_SINGLE } from "@/lib/constants";
 import { SUGGESTIONS_NOM_CABINE, nomDeLotParDefaut, nomContientMot, basculerMotDuNom } from "@/lib/nom-lot";
 import { usePhotosLocales, compteLocalesGroupe } from "@/lib/photos-locales";
+import { normCabineLabel, concerneLot } from "@/lib/signalement-lot";
 import { useEtatRapport } from "@/lib/use-etat-rapport";
 import { marquerFinalise, marquerEnvoye, lireFinalisation, LIBELLE_ETAT_RAPPORT } from "@/lib/rapport-finalise";
 import { ColoredSelect } from "@/components/colored-select";
@@ -1431,7 +1432,7 @@ function EmplacementSelect({
 
 /** Liste les pièces manquantes (depuis /api/pieces) avec numérotation,
  *  modification inline et suppression per-pièce. */
-function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string; refreshKey?: number; cabineLabel?: string }) {
+function PiecesList({ projectId, refreshKey, cabineLabel, cabineIdx }: { projectId: string; refreshKey?: number; cabineLabel?: string; cabineIdx?: number }) {
   type Piece = {
     id: string;
     description?: string;
@@ -1563,8 +1564,8 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
     } catch { toast.error("Erreur réseau (photos)"); }
   };
 
-  const visiblePieces = cabineLabel
-    ? pieces.filter((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabineLabel))
+  const visiblePieces = (cabineLabel || cabineIdx)
+    ? pieces.filter((p) => concerneLot(p, cabineIdx, cabineLabel))
     : pieces;
 
   if (!loaded || visiblePieces.length === 0) return null;
@@ -1740,11 +1741,13 @@ function PiecesList({ projectId, refreshKey, cabineLabel }: { projectId: string;
  * qu'un formulaire s'ouvre, les deux autres boutons s'effacent : il ne reste
  * à l'écran que le signalement en cours de saisie.
  */
-function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, project, setProject, onDefaut, onPiece }: {
+function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, cabineIdx, project, setProject, onDefaut, onPiece }: {
   projectId: string;
   projectName: string;
   cabineOptions?: string[];
   cabineLabel?: string;
+  /** Numéro du lot (1, 2, 3…) quand le signalement part d'un lot précis. */
+  cabineIdx?: number;
   project: Project;
   setProject: Dispatch<SetStateAction<Project | null>>;
   onDefaut: () => void;
@@ -1770,6 +1773,7 @@ function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, 
           projectName={projectName}
           cabineOptions={cabineOptions}
           cabineLabel={cabineLabel}
+          cabineIdx={cabineIdx}
           title="Signaler défaut avant intervention"
           types={DEFAUT_AVANT_TYPES}
           phase="avant-intervention"
@@ -1784,6 +1788,7 @@ function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, 
           projectId={projectId}
           projectName={projectName}
           cabineLabel={cabineLabel}
+          cabineIdx={cabineIdx}
           onOuvert={suivi("piece")}
           onSubmitted={onPiece}
         />
@@ -1794,6 +1799,7 @@ function AjoutSignalement({ projectId, projectName, cabineOptions, cabineLabel, 
           projectName={projectName}
           cabineOptions={cabineOptions}
           cabineLabel={cabineLabel}
+          cabineIdx={cabineIdx}
           onOuvert={suivi("defaut")}
           onSubmitted={onDefaut}
         />
@@ -1914,7 +1920,7 @@ function PhotosReference({ projectId, project, setProject, mode }: {
   );
 }
 
-function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }: { projectId: string; refreshKey?: number; cabineLabel?: string; project?: Project | null; setProject?: Dispatch<SetStateAction<Project | null>> }) {
+function DefautsList({ projectId, refreshKey, cabineLabel, cabineIdx, project, setProject }: { projectId: string; refreshKey?: number; cabineLabel?: string; cabineIdx?: number; project?: Project | null; setProject?: Dispatch<SetStateAction<Project | null>> }) {
   type Defaut = {
     id: string;
     typesLabel?: string;
@@ -2082,8 +2088,8 @@ function DefautsList({ projectId, refreshKey, cabineLabel, project, setProject }
     } catch { toast.error("Erreur réseau (photos)"); }
   };
 
-  const visibleDefauts = cabineLabel
-    ? defauts.filter((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabineLabel))
+  const visibleDefauts = (cabineLabel || cabineIdx)
+    ? defauts.filter((d) => concerneLot(d, cabineIdx, cabineLabel))
     : defauts;
 
   if (!loaded || visibleDefauts.length === 0) return null;
@@ -2565,9 +2571,7 @@ function hasPresenceStatement(rapport: string): boolean {
  * Sert à relier les signalements (dont le libellé a pu être saisi/renommé
  * différemment) à la bonne carte de cabine.
  */
-function normCabineLabel(s: string | undefined | null): string {
-  return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-}
+/* normCabineLabel et concerneLot vivent dans lib/signalement-lot. */
 
 // Aperçu d'une fiche CRM (contact ou entreprise) dans une modale — clic depuis
 // « Informations contact » : on reste dans le projet (pas de navigation).
@@ -8233,10 +8237,10 @@ function ProjectPageContent({ id }: { id: string }) {
 
   // Nombre de LOTS ayant au moins un signalement (pièce manquante ou défaut) —
   // affiché entre parenthèses sur le bouton filtre « Avec signalement ».
-  const signalementLotsCount = cabines.reduce((n, c) => {
+  const signalementLotsCount = cabines.reduce((n, c, i) => {
     const has =
-      cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(c.nom)) ||
-      cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(c.nom));
+      cabineSignalements.pieces.some((p) => concerneLot(p, i + 1, c.nom)) ||
+      cabineSignalements.defauts.some((d) => concerneLot(d, i + 1, c.nom));
     return has ? n + 1 : n;
   }, 0);
 
@@ -11246,8 +11250,8 @@ function ProjectPageContent({ id }: { id: string }) {
                     .filter(({ cabine, idx }) => {
                       // Filtre « Avec signalement »
                       if (showOnlySignalements &&
-                        !cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom)) &&
-                        !cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom))) return false;
+                        !cabineSignalements.pieces.some((p) => concerneLot(p, idx + 1, cabine.nom)) &&
+                        !cabineSignalements.defauts.some((d) => concerneLot(d, idx + 1, cabine.nom))) return false;
                       // Filtre « Avec rapport » (texte personnalisé)
                       if (showOnlyRapport && !hasManualRapport(cabine.rapport)) return false;
                       // Filtre « Avec SAV »
@@ -11348,11 +11352,11 @@ function ProjectPageContent({ id }: { id: string }) {
                                 );
                               })()}
                               {/* Icônes signalement : pièce manquante (orange) + défaut (rouge) */}
-                              {cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom)) && (
+                              {cabineSignalements.pieces.some((p) => concerneLot(p, idx + 1, cabine.nom)) && (
                                 <Package className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                               )}
                               {(() => {
-                                const cabDefauts = cabineSignalements.defauts.filter((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom));
+                                const cabDefauts = cabineSignalements.defauts.filter((d) => concerneLot(d, idx + 1, cabine.nom));
                                 if (cabDefauts.length === 0) return null;
                                 // Couleur selon le type : tous réglés = vert ; sinon si tous
                                 // les défauts non réglés sont « avant intervention » = indigo ;
@@ -11589,8 +11593,8 @@ function ProjectPageContent({ id }: { id: string }) {
                               <AlertCircle className="w-3.5 h-3.5" />
                               Signalements
                               {(() => {
-                                const cp = cabineSignalements.pieces.filter((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(cabine.nom));
-                                const cd = cabineSignalements.defauts.filter((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(cabine.nom));
+                                const cp = cabineSignalements.pieces.filter((p) => concerneLot(p, idx + 1, cabine.nom));
+                                const cd = cabineSignalements.defauts.filter((d) => concerneLot(d, idx + 1, cabine.nom));
                                 if (cp.length + cd.length === 0) return null;
                                 // Tous réglés (défauts cochés + pièces reçues) → pastille verte.
                                 const regle = cd.every((d) => d.resolved) && cp.every((p) => p.status === "recu");
@@ -11781,13 +11785,14 @@ function ProjectPageContent({ id }: { id: string }) {
                             <div id={`signalement-cab-${idx}`} className="space-y-3 px-4">
                               <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Signalement — {cabine.nom}</p>
                               <div className="rounded-2xl border border-gray-200 dark:border-slate-700 p-3 space-y-3">
-                                <PiecesList projectId={id} refreshKey={pieceRefreshKey} cabineLabel={cabine.nom} />
-                                <DefautsList projectId={id} refreshKey={defautRefreshKey} cabineLabel={cabine.nom} project={project} setProject={setProject} />
+                                <PiecesList projectId={id} refreshKey={pieceRefreshKey} cabineLabel={cabine.nom} cabineIdx={idx + 1} />
+                                <DefautsList projectId={id} refreshKey={defautRefreshKey} cabineLabel={cabine.nom} cabineIdx={idx + 1} project={project} setProject={setProject} />
                               </div>
                               <AjoutSignalement
                                 projectId={id}
                                 projectName={project.projet}
                                 cabineLabel={cabine.nom}
+                                cabineIdx={idx + 1}
                                 project={project}
                                 setProject={setProject}
                                 onDefaut={() => setDefautRefreshKey((k) => k + 1)}
@@ -12174,8 +12179,8 @@ function ProjectPageContent({ id }: { id: string }) {
                   ))}
                   {(showOnlySignalements || showOnlyRapport || showOnlySav || heuresFilterCollab) && !cabines.some((c, i) => {
                     if (showOnlySignalements &&
-                      !cabineSignalements.pieces.some((p) => normCabineLabel(p.cabineLabel) === normCabineLabel(c.nom)) &&
-                      !cabineSignalements.defauts.some((d) => normCabineLabel(d.cabineLabel) === normCabineLabel(c.nom))) return false;
+                      !cabineSignalements.pieces.some((p) => concerneLot(p, i + 1, c.nom)) &&
+                      !cabineSignalements.defauts.some((d) => concerneLot(d, i + 1, c.nom))) return false;
                     if (showOnlyRapport && !hasManualRapport(c.rapport)) return false;
                     if (showOnlySav && !cabineHasSav(i)) return false;
                     if (heuresFilterCollab) {

@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Package, Camera, Loader2, Send, AlertTriangle, X, ImagePlus, Sparkles } from "lucide-react";
 import { offlineFetch } from "@/lib/offline";
+import { identifiantSignalement } from "@/lib/signalement-id";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -15,12 +16,14 @@ interface PiecesFormProps {
   projectId: string;
   projectName: string;
   cabineLabel?: string;
+  /** Numéro du lot (1, 2, 3…) — la seule référence fiable. */
+  cabineIdx?: number;
   onSubmitted?: (photoUrls: string[]) => void;
   /** Signale au parent que le formulaire s'ouvre ou se referme. */
   onOuvert?: (ouvert: boolean) => void;
 }
 
-export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted, onOuvert }: PiecesFormProps) {
+export function PiecesForm({ projectId, projectName, cabineLabel, cabineIdx, onSubmitted, onOuvert }: PiecesFormProps) {
   const [open, setOpenBrut] = useState(false);
   /* Toute ouverture/fermeture passe par ici : le parent doit savoir qu'un
      formulaire occupe l'écran pour écarter les autres. */
@@ -152,7 +155,16 @@ export function PiecesForm({ projectId, projectName, cabineLabel, onSubmitted, o
       const res = await offlineFetch("/api/pieces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, projectName, description: finalDescription, reference, photoUrls, ...(cabineLabel ? { cabineLabel } : {}) }),
+        /* `id` fabriqué ICI : si la requête est coupée et rejouée par la
+           file, le serveur reconnaît la même demande au lieu d'en créer une
+           seconde. `cabineIdx` désigne le lot par son NUMÉRO — deux lots
+           peuvent s'appeler « SDD ». */
+        body: JSON.stringify({
+          id: identifiantSignalement(),
+          projectId, projectName, description: finalDescription, reference, photoUrls,
+          ...(cabineLabel ? { cabineLabel } : {}),
+          ...(typeof cabineIdx === "number" ? { cabineIdx } : {}),
+        }),
       });
       if (res.ok) {
         toast.success("Demande de pièce envoyée");
